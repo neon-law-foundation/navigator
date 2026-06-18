@@ -22,9 +22,11 @@ on:
 jobs:
   rust:
     name: cargo test (workspace)
-    # The full Rust workspace exhausts the standard runner's disk during
-    # `cargo test --workspace`; larger Ubuntu runners provide the headroom.
-    runs-on: ubuntu-latest-8-cores
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -33,6 +35,10 @@ jobs:
           components: rustfmt, clippy
       - name: cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          # Restoring target/ makes the standard hosted runner run out of
+          # disk once clippy and test artifacts accumulate.
+          cache-targets: false
       # One Postgres for the whole job — "the same postgres container."
       # With `TEST_DATABASE_URL` set, `store::test_support` connects here
       # and creates a per-test schema instead of spawning a testcontainer
@@ -61,6 +67,8 @@ jobs:
         run: cargo fmt --all -- --check
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: clear clippy artifacts
+        run: cargo clean
       - name: cargo test
         env:
           TEST_DATABASE_URL: postgres://navigator:navigator@127.0.0.1:5432/navigator

@@ -311,12 +311,13 @@ the matching one.
 - **PR flow** — [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Runs only on every `pull_request` targeting
   `main` — never on `push`, so `main` itself runs no CI on merge (it advances merge-only, and the heavy paths ride the
   release tag). Lean by design: it runs `cargo fmt --check` and `cargo clippy --workspace --all-targets -D warnings`,
-  then `cargo test --workspace` on a larger Ubuntu runner — nothing else. The larger runner is intentional: the full
-  workspace test build exhausts the standard runner's disk. One shared `postgres:17-alpine` container backs the whole
-  job via `TEST_DATABASE_URL` (so `store::test_support` makes a per-test schema in that single container instead of
-  spawning a testcontainer per binary). Integration/KIND/docker/browser work does **not** run here. **Auto-merge** is a
-  GitHub-native repo setting (enabled per-PR with `gh pr merge --auto --squash`), not a workflow — GitHub squash-merges
-  the PR the moment this `ci.yml` run goes green, which is why three workflows still suffice.
+  then `cargo test --workspace` — nothing else. The job keeps target artifacts out of the cache, disables CI debug info,
+  and runs `cargo clean` between clippy and test so the standard hosted runner has enough disk. One shared
+  `postgres:17-alpine` container backs the whole job via `TEST_DATABASE_URL` (so `store::test_support` makes a per-test
+  schema in that single container instead of spawning a testcontainer per binary). Integration/KIND/docker/browser work
+  does **not** run here. **Auto-merge** is a GitHub-native repo setting (enabled per-PR with
+  `gh pr merge --auto --squash`), not a workflow — GitHub squash-merges the PR the moment this `ci.yml` run goes green,
+  which is why three workflows still suffice.
 - **Cron flow** — [`.github/workflows/release-tag.yml`](.github/workflows/release-tag.yml). Fires daily at **02:00 PST**
   (`0 10 * * *` UTC). Its only job is to cut a calendar release tag `YY.MM.DD` (e.g. `26.06.18` for 2026-06-18) and push
   it with a PAT (`secrets.RELEASE_PAT`) so the push re-triggers the tag flow below.
