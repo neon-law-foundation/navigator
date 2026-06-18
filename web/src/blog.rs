@@ -194,9 +194,10 @@ mod tests {
     #[test]
     fn thanks_apple_collage_renders_as_a_bootstrap_grid_routed_through_the_asset_seam() {
         // The post leads with the rainbow photo as a big standalone picture,
-        // then closes with a 3×4 Bootstrap grid (`.row.blog-collage` of
-        // twelve `.col` tiles) that absorbs the four photos that used to sit
-        // inline in the letter. Each tile is authored as a markdown `![]()`
+        // then closes with a Bootstrap grid (`.row.blog-collage` of sixteen
+        // `.col` tiles) that absorbs the four photos that used to sit
+        // inline in the letter plus a later row of farewell snapshots. Each
+        // tile is authored as a markdown `![]()`
         // separated by blank lines so pulldown-cmark still parses it — and
         // therefore routes its `src` through the asset seam (`/public` in
         // tests) — even though it sits inside raw HTML. This pins the lead,
@@ -209,11 +210,11 @@ mod tests {
             "collage must render as a Bootstrap row, got: {}",
             post.body_html
         );
-        // Twelve tiles — a 3×4 grid.
+        // Sixteen tiles — the original twelve plus a farewell row of four.
         assert_eq!(
             post.body_html.matches("col-6 col-md-4").count(),
-            12,
-            "the grid must hold exactly twelve tiles (3×4), got: {}",
+            16,
+            "the grid must hold exactly sixteen tiles, got: {}",
             post.body_html
         );
         // Every collage photo — including the four moved in from the letter
@@ -226,6 +227,10 @@ mod tests {
             "team-lunch",
             "london-tower-bridge",
             "sharks-game",
+            "apple-park-sunset",
+            "farewell-crew",
+            "curry-night",
+            "travels-abroad",
         ] {
             assert!(
                 post.body_html
