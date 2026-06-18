@@ -64,6 +64,10 @@ object_path = "forms/nv_sos/nv_sos__llc_articles-2023-12.pdf"
 - **One commit per acquisition or refresh**, touching the ledger entry and nothing unrelated. The commit date is the
   verifiable timestamp; `git log --follow FORMS.toml` is the audit trail. Never batch a form refresh into a feature
   commit.
+- **Branch → PR → auto-merge — never commit on `main`.** Per [`CLAUDE.md`](../../../CLAUDE.md) Commit discipline, make
+  the acquisition commit on a topic branch (`git switch -c <topic>`), push and open a PR (`git push -u origin <topic>` →
+  `gh pr create`), then enable auto-merge (`gh pr merge --auto --squash`). `ci.yml` runs on the PR and GitHub
+  squash-merges it once every required check is green — never commit to `main`, never merge by hand.
 
 ## Acquisition: bot walls are the normal case
 

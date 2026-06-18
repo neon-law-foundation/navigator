@@ -72,6 +72,12 @@ See [[rust-concurrency]]. Short version: Tokio is the runtime; structured concur
 
 ## Commit / TDD discipline
 
+**Branch → PR → auto-merge — never commit on `main`.** Per [`CLAUDE.md`](../../../CLAUDE.md) Commit discipline, every
+change lands the same way: do the work on a topic branch (`git switch -c <topic>`), push and open a PR
+(`git push -u origin <topic>` → `gh pr create`), then enable auto-merge (`gh pr merge --auto --squash`). `ci.yml` runs
+on the PR and GitHub squash-merges it once every required check is green — you never commit to `main` and never merge by
+hand. You don't have to invent branch ceremony; this flow is global.
+
 Tests and implementation ship in the same commit. Before every commit:
 
 ```bash
