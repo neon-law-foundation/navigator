@@ -23,8 +23,8 @@ use crate::{AuthState, PageLayout};
 
 /// Route prefix for the workshop *index* and the material links it
 /// renders. The overview and step views take their own `base` field
-/// instead, so this same stepped-content chrome also backs the
-/// `/foundation/presentations/:slug` talks (see `web::presentations`).
+/// instead, so the same stepped-content chrome backs every workshop —
+/// including talks like "Rust in Peace" that fold in as workshops.
 const WORKSHOP_BASE: &str = "/foundation/workshops/navigator";
 
 pub struct MaterialSummary<'a> {
@@ -46,7 +46,7 @@ pub struct StepSummary<'a> {
 /// on.
 pub struct MaterialOverview<'a> {
     /// Route prefix for this material's overview and step links, e.g.
-    /// `/foundation/workshops/navigator` or `/foundation/presentations`.
+    /// `/foundation/workshops/navigator`.
     pub base: &'a str,
     pub slug: &'a str,
     pub title: &'a str,
@@ -66,7 +66,7 @@ pub struct MaterialOverview<'a> {
 /// A single step in the classroom flow.
 pub struct WorkshopStep<'a> {
     /// Route prefix for this material, e.g.
-    /// `/foundation/workshops/navigator` or `/foundation/presentations`.
+    /// `/foundation/workshops/navigator`.
     pub base: &'a str,
     pub slug: &'a str,
     pub workshop_title: &'a str,
@@ -126,54 +126,6 @@ pub fn index(materials: &[MaterialSummary<'_>], auth: AuthState) -> Markup {
     };
     PageLayout::new("Workshops")
         .with_description(PAGE_LEDE)
-        .with_brand(*FOUNDATION_BRAND)
-        .with_auth(auth)
-        .render(&body)
-}
-
-const PRESENTATIONS_TITLE: &str = "Presentations";
-const PRESENTATIONS_LEDE: &str = "Talks we have given on building Navigator — the engineering, the law, and \
-                                  the case for doing both in the open. Open one to read it slide by slide, or \
-                                  copy the whole thing as Markdown.";
-
-/// The presentations hub at `/foundation/presentations`: a short lede
-/// and one card per baked talk, each linking to its stepped overview.
-/// Shares the stepped-content model with workshops but renders its own
-/// listing chrome (no workshop-specific banner or copy).
-#[must_use]
-pub fn presentations_index(base: &str, talks: &[MaterialSummary<'_>], auth: AuthState) -> Markup {
-    let body = html! {
-        section.presentations {
-            div.container {
-                h1 { (PRESENTATIONS_TITLE) }
-                p.lede { (PRESENTATIONS_LEDE) }
-                @if talks.is_empty() {
-                    p.empty {
-                        "No talks are published yet. Email "
-                        a href={ "mailto:" (crate::brand::foundation_email()) } {
-                            (crate::brand::foundation_email())
-                        }
-                        " if you would like us to speak at your event."
-                    }
-                } @else {
-                    ul.presentation-materials {
-                        @for m in talks {
-                            li.presentation-material {
-                                h2 {
-                                    a href={ (base) "/" (m.slug) } {
-                                        (m.title)
-                                    }
-                                }
-                                p { (m.description) }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    };
-    PageLayout::new(PRESENTATIONS_TITLE)
-        .with_description(PRESENTATIONS_LEDE)
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
         .render(&body)
@@ -568,33 +520,13 @@ mod tests {
     }
 
     #[test]
-    fn presentations_index_lists_talks_under_the_presentations_base() {
-        let talks = [MaterialSummary {
-            slug: "rust-in-peace",
-            title: "Rust in Peace",
-            description: "A Rust NYC talk.",
-        }];
-        let html = super::presentations_index(
-            "/foundation/presentations",
-            &talks,
-            crate::AuthState::Anonymous,
-        )
-        .into_string();
-        assert!(html.contains(&format!(
-            "<title>{} | Presentations</title>",
-            FOUNDATION_BRAND.site_name
-        )));
-        assert!(html.contains("href=\"/foundation/presentations/rust-in-peace\""));
-        assert!(html.contains(">Rust in Peace</a>"));
-    }
-
-    #[test]
-    fn step_links_honor_a_non_workshop_base() {
-        // The same chrome backs `/foundation/presentations/:slug`; the
-        // base field must flow into every generated link.
+    fn step_links_honor_the_provided_base() {
+        // The "Rust in Peace" talk is a workshop now (`rust-in-peace`
+        // slug); every generated link threads the `base` + `slug` it was
+        // given, so a talk and a runbook share one chrome.
         let steps = sample_steps();
         let s = WorkshopStep {
-            base: "/foundation/presentations",
+            base: "/foundation/workshops/navigator",
             slug: "rust-in-peace",
             workshop_title: "Rust in Peace",
             title: "One language, every library",
@@ -604,12 +536,9 @@ mod tests {
             steps: &steps,
         };
         let html = step(&s, crate::AuthState::Anonymous).into_string();
-        assert!(html.contains("href=\"/foundation/presentations/rust-in-peace/step/1\""));
-        assert!(html.contains("href=\"/foundation/presentations/rust-in-peace/step/3\""));
-        assert!(html.contains("href=\"/foundation/presentations/rust-in-peace\""));
-        // No workshop *step* URL leaks into the rail/nav (the chrome's
-        // "Workshops" nav link to the hub is expected and fine).
-        assert!(!html.contains("/foundation/workshops/navigator/"));
+        assert!(html.contains("href=\"/foundation/workshops/navigator/rust-in-peace/step/1\""));
+        assert!(html.contains("href=\"/foundation/workshops/navigator/rust-in-peace/step/3\""));
+        assert!(html.contains("href=\"/foundation/workshops/navigator/rust-in-peace\""));
     }
 
     #[test]

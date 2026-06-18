@@ -22,7 +22,8 @@ tenets:
    durable-execution workflow with common Linux Foundation technologies. We build many such workflows — from immigration
    to restraining orders to fund formation — all to _accommodate access to justice_.
 2. **Write Markdown instead of Word**. When legal text is reasoned like code, we can leverage developer
-   tooling like git, code editors, LSPs, CLIs, and MCPs to _deliver access to justice_.
+   tooling like git, code editors, [LSPs](/foundation/navigator/lsp), [CLIs](/foundation/navigator/cli), and
+   [MCPs](/foundation/navigator/mcp) to _deliver access to justice_.
 3. **Build community around the Navigator**. None of this matters if we aren't helping lawyers serve more clients. We
    host online and in-person workshops to help lawyers adopt the Navigator and tailor it to their practice to _increase
    access to justice_. If you're a legal aid organization, we'll provide free training on the [Neon Law

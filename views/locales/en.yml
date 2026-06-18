@@ -16,9 +16,7 @@ nav:
   home: Home
   services: Services
   mission: Mission
-  learn: Learn
   workshops: Workshops
-  presentations: Presentations
 auth:
   portal: Portal
   sign_in: Sign in

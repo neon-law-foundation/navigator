@@ -174,9 +174,7 @@ pub fn nav_label(label: &str, locale: Locale) -> String {
         "Home" => "nav.home",
         "Services" => "nav.services",
         "Mission" => "nav.mission",
-        "Learn" => "nav.learn",
         "Workshops" => "nav.workshops",
-        "Presentations" => "nav.presentations",
         // Product names and anything else are proper nouns — verbatim.
         _ => return label.to_string(),
     };

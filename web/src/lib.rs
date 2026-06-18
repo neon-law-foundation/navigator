@@ -62,7 +62,6 @@ pub mod people_list_answer;
 pub mod policy;
 pub mod portal;
 pub mod portal_only;
-pub mod presentations;
 pub mod project_documents;
 pub mod project_export;
 pub mod rate_limit;
@@ -669,7 +668,18 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/foundation/mission", get(foundation_mission))
             .route("/foundation/contact", get(foundation_contact))
             .route("/foundation/nimbus", get(foundation_nimbus))
-            .route("/navigator", get(navigator))
+            // The Navigator hub and its per-package pages. `/navigator`
+            // and `/lsp` were the old top-level URLs; keep them as
+            // permanent redirects so existing links never dead-end.
+            .route("/foundation/navigator", get(navigator))
+            .route("/foundation/navigator/lsp", get(navigator_lsp))
+            .route("/foundation/navigator/cli", get(navigator_cli))
+            .route("/foundation/navigator/mcp", get(navigator_mcp))
+            .route("/foundation/navigator/web", get(navigator_web))
+            .route(
+                "/navigator",
+                get(|| async { axum::response::Redirect::permanent("/foundation/navigator") }),
+            )
             // The DB-backed catalog: every active product at its
             // `list_price_cents` — the price a prospect sees is the row
             // Xero invoices. Public on the open site. This single
@@ -727,19 +737,40 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             // Raw template markdown as an API — the bytes the README's
             // `templates/<cat>/<name>.md` links point at on the website.
             .route("/api/templates/:category/:name", get(api_template_raw))
-            .route("/lsp", get(lsp_page))
+            .route(
+                "/lsp",
+                get(|| async { axum::response::Redirect::permanent("/foundation/navigator/lsp") }),
+            )
             .route("/design", get(design_page))
             .route("/statutes", get(statutes::index))
             .route("/statutes/nrs/:chapter", get(statutes::chapter))
             .route("/statutes/nrs/:chapter/:section", get(statutes::section))
-            .route("/foundation/presentations", get(presentations_index))
+            // Presentations folded into Workshops — a talk is just another
+            // hands-on workshop now. Redirect the old surface so deep
+            // links to a talk land on its workshop twin.
+            .route(
+                "/foundation/presentations",
+                get(|| async {
+                    axum::response::Redirect::permanent("/foundation/workshops/navigator")
+                }),
+            )
             .route(
                 "/foundation/presentations/:slug",
-                get(presentation_material),
+                get(|AxumPath(slug): AxumPath<String>| async move {
+                    axum::response::Redirect::permanent(&format!(
+                        "/foundation/workshops/navigator/{slug}"
+                    ))
+                }),
             )
             .route(
                 "/foundation/presentations/:slug/step/:step",
-                get(presentation_material_step),
+                get(
+                    |AxumPath((slug, step)): AxumPath<(String, u32)>| async move {
+                        axum::response::Redirect::permanent(&format!(
+                            "/foundation/workshops/navigator/{slug}/step/{step}"
+                        ))
+                    },
+                ),
             );
     }
 
@@ -887,8 +918,62 @@ async fn foundation_contact(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::contact::render_foundation(auth)
 }
 
+/// `GET /foundation/navigator` — the Navigator hub: the workspace README
+/// over a strip that fans out to the per-package pages below.
 async fn navigator(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::navigator::render(auth)
+}
+
+// Each per-package page (`/foundation/navigator/<pkg>`) renders that
+// crate's README, baked at compile time so the page can never drift from
+// the repo. Paths resolve from the `web` crate manifest dir, one level up
+// to the workspace root.
+const CLI_README: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../cli/README.md"));
+const MCP_README: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../mcp/README.md"));
+const WEB_README: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../web/README.md"));
+
+/// `GET /foundation/navigator/lsp` — the bespoke LSP showcase + install
+/// page (richer than a bare README render).
+async fn navigator_lsp(MaybeAuth(auth): MaybeAuth) -> Markup {
+    views::pages::lsp::render(auth)
+}
+
+/// `GET /foundation/navigator/cli` — the `navigator` operator CLI.
+async fn navigator_cli(MaybeAuth(auth): MaybeAuth) -> Markup {
+    views::pages::package::render(
+        "Navigator CLI",
+        "The navigator operator CLI — validate markdown templates, import and seed \
+         data, render the ER diagram, and drive deploys.",
+        CLI_README,
+        "/foundation/navigator/cli",
+        auth,
+    )
+}
+
+/// `GET /foundation/navigator/mcp` — the Model Context Protocol server
+/// that exposes AIDA's tools to any LLM client.
+async fn navigator_mcp(MaybeAuth(auth): MaybeAuth) -> Markup {
+    views::pages::package::render(
+        "Navigator MCP",
+        "Navigator's Model Context Protocol server — AIDA's tool catalog over JSON-RPC \
+         for Claude, Gemini Enterprise, LibreChat, and Cursor.",
+        MCP_README,
+        "/foundation/navigator/mcp",
+        auth,
+    )
+}
+
+/// `GET /foundation/navigator/web` — the web app + JSON API, the product
+/// this very binary serves.
+async fn navigator_web(MaybeAuth(auth): MaybeAuth) -> Markup {
+    views::pages::package::render(
+        "Navigator Web",
+        "The Navigator web app and JSON API — the public site, the portal, the admin UI, \
+         and the agent surfaces, all from one axum binary.",
+        WEB_README,
+        "/foundation/navigator/web",
+        auth,
+    )
 }
 
 async fn foundation(State(marketing): State<MarketingIndex>, MaybeAuth(auth): MaybeAuth) -> Markup {
@@ -1067,12 +1152,6 @@ async fn api_template_raw(
             .into_response(),
         None => (StatusCode::NOT_FOUND, "template not found\n").into_response(),
     }
-}
-
-/// `GET /lsp` — the public `navigator-lsp` install + showcase
-/// page. Public reference/tooling, like `/docs`.
-async fn lsp_page(MaybeAuth(auth): MaybeAuth) -> Markup {
-    views::pages::lsp::render(auth)
 }
 
 /// `GET /design` — the firm's living design system: the shared Bootstrap
@@ -1609,10 +1688,6 @@ async fn docusign_consent_callback() -> Markup {
 /// Route prefix for the Navigator workshop's overview and steps.
 const WORKSHOP_BASE: &str = "/foundation/workshops/navigator";
 
-/// Route prefix for the baked conference talks (`web::presentations`),
-/// rendered through the shared workshop stepped-content chrome.
-const PRESENTATIONS_BASE: &str = "/foundation/presentations";
-
 async fn workshops_index(
     State(workshops): State<WorkshopIndex>,
     MaybeAuth(auth): MaybeAuth,
@@ -1702,23 +1777,13 @@ async fn llms_txt(
     let mut out = format!("# {}\n\n> {}\n", brand.site_name, brand.tagline);
 
     if !workshops.materials().is_empty() {
+        // Talks (e.g. "Rust in Peace") ride this list too — they're
+        // workshops now, not a separate Presentations surface.
         out.push_str("\n## Workshops\n\n");
         for m in workshops.materials() {
             let _ = writeln!(
                 out,
                 "- [{}]({base}{WORKSHOP_BASE}/{}.md): {}",
-                m.title, m.slug, m.description
-            );
-        }
-    }
-
-    let talks = presentations::PRESENTATIONS.talks();
-    if !talks.is_empty() {
-        out.push_str("\n## Presentations\n\n");
-        for m in talks {
-            let _ = writeln!(
-                out,
-                "- [{}]({base}{PRESENTATIONS_BASE}/{}.md): {}",
                 m.title, m.slug, m.description
             );
         }
@@ -1786,93 +1851,6 @@ async fn workshops_material_step(
         workshop_views::step(
             &workshop_views::WorkshopStep {
                 base: WORKSHOP_BASE,
-                slug: &m.slug,
-                workshop_title: &m.title,
-                title: &section.title,
-                body_html: &section.body_html,
-                number: step,
-                total: m.sections.len(),
-                steps: &steps,
-            },
-            auth,
-        ),
-    )
-        .into_response()
-}
-
-/// The presentations hub at `/foundation/presentations` — one card
-/// per baked talk. This is the Foundation nav's "Presentations" target.
-async fn presentations_index(MaybeAuth(auth): MaybeAuth) -> Markup {
-    let summaries: Vec<workshop_views::MaterialSummary<'_>> = presentations::PRESENTATIONS
-        .talks()
-        .iter()
-        .map(|m| workshop_views::MaterialSummary {
-            slug: &m.slug,
-            title: &m.title,
-            description: &m.description,
-        })
-        .collect();
-    workshop_views::presentations_index(PRESENTATIONS_BASE, &summaries, auth)
-}
-
-/// A conference talk overview at `/foundation/presentations/:slug`.
-/// Reuses the workshop stepped-content chrome with the presentations
-/// base; content is baked into the binary, so no `AppState` field.
-async fn presentation_material(
-    MaybeAuth(auth): MaybeAuth,
-    AxumPath(slug): AxumPath<String>,
-) -> impl IntoResponse {
-    // `…/:slug.md` is the raw-Markdown twin (see `workshops_material`).
-    if let Some(stem) = slug.strip_suffix(".md") {
-        return match presentations::PRESENTATIONS.find(stem) {
-            Some(m) => markdown_response(&m.raw_markdown).into_response(),
-            None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
-        };
-    }
-    if let Some(m) = presentations::PRESENTATIONS.find(&slug) {
-        let steps = step_summaries(m);
-        let md_href = format!("{PRESENTATIONS_BASE}/{}.md", m.slug);
-        (
-            StatusCode::OK,
-            workshop_views::overview(
-                &workshop_views::MaterialOverview {
-                    base: PRESENTATIONS_BASE,
-                    slug: &m.slug,
-                    title: &m.title,
-                    description: &m.description,
-                    intro_html: &m.intro_html,
-                    body_html: &m.body_html,
-                    steps: &steps,
-                    md_href: &md_href,
-                },
-                auth,
-            ),
-        )
-            .into_response()
-    } else {
-        (StatusCode::NOT_FOUND, views::not_found_page()).into_response()
-    }
-}
-
-/// One step of a conference talk
-/// (`/foundation/presentations/:slug/step/:n`).
-async fn presentation_material_step(
-    MaybeAuth(auth): MaybeAuth,
-    AxumPath((slug, step)): AxumPath<(String, usize)>,
-) -> impl IntoResponse {
-    let not_found = || (StatusCode::NOT_FOUND, views::not_found_page()).into_response();
-    let Some(m) = presentations::PRESENTATIONS.find(&slug) else {
-        return not_found();
-    };
-    let Some(section) = step.checked_sub(1).and_then(|i| m.sections.get(i)) else {
-        return not_found();
-    };
-    let steps = step_summaries(m);
-    (
-        StatusCode::OK,
-        workshop_views::step(
-            &workshop_views::WorkshopStep {
-                base: PRESENTATIONS_BASE,
                 slug: &m.slug,
                 workshop_title: &m.title,
                 title: &section.title,

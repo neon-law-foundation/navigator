@@ -13,9 +13,7 @@ nav:
   home: Inicio
   services: Servicios
   mission: Misión
-  learn: Aprender
   workshops: Talleres
-  presentations: Presentaciones
 auth:
   portal: Portal
   sign_in: Iniciar sesión
