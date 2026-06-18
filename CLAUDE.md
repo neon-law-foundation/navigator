@@ -279,6 +279,19 @@ evidence; a passing test, a real request/response, or observed output is.
 
 ## Commit discipline
 
+- **Always work on a new branch, ship through a PR, let auto-merge land it — never commit directly to `main`.** This is
+  the canonical flow every skill that commits or ships inherits; the steps are always the same:
+  1. **Branch.** Before the first edit of any task, create and switch to a topic branch (`git switch -c <kebab-topic>`,
+     e.g. `git switch -c daily-cd-pipeline`). If you find yourself on `main` with uncommitted work, branch first and
+     carry the changes over to the new branch — never commit them to `main`.
+  2. **Push + open a PR.** `git push -u origin <branch>` then `gh pr create`. `main` is merge-only: it advances solely
+     through PRs, never a direct push.
+  3. **Enable auto-merge.** `gh pr merge --auto --squash`. The PR flow (`ci.yml`) runs on the PR, and GitHub merges it
+     automatically once every required check is green — you do not babysit the merge or merge by hand. (Auto-merge is a
+     GitHub-native setting, not a fourth workflow; see "CI/CD — three workflows, no more" below.)
+
+  This is non-negotiable and global: you never have to invent per-skill branch ceremony — every skill that commits or
+  ships (e.g. [`power-push`](.claude/skills/power-push/SKILL.md)) assumes this exact branch → PR → auto-merge flow.
 - TDD: tests in the same commit as the implementation they cover.
 - Always run before committing:
 
@@ -289,6 +302,26 @@ evidence; a passing test, a real request/response, or observed output is.
   ```
 
   Plus the markdown lint above if you touched any `.md` file.
+
+## CI/CD — three workflows, no more
+
+GitHub Actions carries exactly **three** workflows, one per trigger. Do not add a fourth; fold any new automation into
+the matching one.
+
+- **PR flow** — [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Runs on every `pull_request` and on `push` to
+  `main`. Lean by design: it runs `cargo fmt --check` and `cargo clippy --workspace --all-targets -D warnings`, then
+  `cargo test --workspace` — nothing else. One shared `postgres:17-alpine` container backs the whole job via
+  `TEST_DATABASE_URL` (so `store::test_support` makes a per-test schema in that single container instead of spawning a
+  testcontainer per binary). Integration/KIND/docker/browser work does **not** run here. **Auto-merge** is a
+  GitHub-native repo setting (enabled per-PR with `gh pr merge --auto --squash`), not a workflow — GitHub squash-merges
+  the PR the moment this `ci.yml` run goes green, which is why three workflows still suffice.
+- **Cron flow** — [`.github/workflows/release-tag.yml`](.github/workflows/release-tag.yml). Fires daily at **02:00 PST**
+  (`0 10 * * *` UTC). Its only job is to cut a calendar release tag `YY.MM.DD` (e.g. `26.06.18` for 2026-06-18) and push
+  it with a PAT (`secrets.RELEASE_PAT`) so the push re-triggers the tag flow below.
+- **Tag flow** — [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). Triggered by the `YY.MM.DD` tag push.
+  Runs the full **KIND integration** suite, then builds both images and pushes them to **ghcr.io** tagged with that
+  date, then emails a deploy report to `nick@neonlaw.com` via SendGrid (from `support@neonlaw.com`, the
+  `DEFAULT_FROM_EMAIL` in `workflows/src/email/service.rs`; key in `secrets.SENDGRID_API_KEY`).
 
 ## Where to find things
 

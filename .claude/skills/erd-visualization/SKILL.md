@@ -115,6 +115,11 @@ If a migration changes the schema and you forget to refresh `docs/erd.svg`, CI c
 write the migration → run `cargo test -p cli` → see the SVG drift → regenerate → commit both the migration and the
 refreshed SVG together.
 
+**Branch → PR → auto-merge — never commit on `main`.** Per [`CLAUDE.md`](../../../CLAUDE.md) Commit discipline, that
+commit lands on a topic branch (`git switch -c <topic>`), pushed and opened as a PR
+(`git push -u origin <topic>` → `gh pr create`) with auto-merge enabled (`gh pr merge --auto --squash`). `ci.yml` runs
+on the PR and GitHub squash-merges it once every required check is green — never commit to `main`, never merge by hand.
+
 Mermaid-as-source is still useful — GitHub renders it natively in `docs/erd.md`. The rendered SVG is ours so it can be
 byte-stable.
 

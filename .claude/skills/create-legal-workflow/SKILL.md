@@ -261,17 +261,24 @@ cargo test --workspace
 cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes templates/
 ```
 
-## Ship the work — finish with `/power-push`
+**Branch → PR → auto-merge — never commit on `main`.** Per [`CLAUDE.md`](../../../CLAUDE.md) Commit discipline, do the
+workflow on a topic branch (`git switch -c <topic>`), push and open a PR
+(`git push -u origin <topic>` → `gh pr create`), then enable auto-merge (`gh pr merge --auto --squash`). `ci.yml` runs
+on the PR and GitHub squash-merges it
+once every required check is green — never commit to `main`, never merge by hand.
+
+## Ship the work — merge, then `/power-push` to roll the cluster
 
 A legal workflow that lives only on the operator's laptop is
-half-built. After the pre-commit gates pass and the change is
-committed, conclude the session by invoking the
-[`power-push`](../power-push/SKILL.md) skill (`/power-push`).
-That builds the `navigator-web` image, pushes it to Artifact
-Registry tagged at HEAD's short SHA, archives a `git bundle` of
-HEAD into `gs://YOUR_PROJECT_ID-source/`, and reclaims local
-disk. New workflows are useless until they're in the image the
-cluster pulls.
+half-built. Once your PR auto-merges into `main`, the **daily tag
+flow** ([`deploy.yml`](../../../.github/workflows/deploy.yml))
+builds both images and publishes them to **ghcr.io** tagged
+`YY.MM.DD` — you no longer build images locally. To put the new
+workflow in front of clients, invoke the
+[`power-push`](../power-push/SKILL.md) skill (`/power-push`),
+which rolls the GKE cluster onto the **latest published
+`YY.MM.DD` image** from ghcr.io. New workflows are useless until
+the cluster pulls the image that contains them.
 
 ## Things to avoid
 

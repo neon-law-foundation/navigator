@@ -7,7 +7,7 @@ description: >
   toolchain is pinned at Rust 1.95.0 (`rust-toolchain.toml`); updates must keep building under it. Trigger when the user
   says "update the crates", "bump dependencies", "cargo update", "upgrade the Rust deps", or as the crate half of a
   periodic refresh. This is SEPARATE from `update-web-assets` (vendored Bootstrap/HTMX/Alpine/Icons) — never bundle the
-  two in one commit.
+  two in one commit. To do BOTH in one periodic sweep (still two commits), use the `update` skill (`/update`).
 ---
 
 # Updating Rust crate dependencies
@@ -69,6 +69,10 @@ cargo test --workspace
 
 ## Commit discipline
 
+- **Branch → PR → auto-merge — never commit on `main`.** Per [`CLAUDE.md`](../../../CLAUDE.md) Commit discipline, do the
+  bump on a topic branch (`git switch -c <topic>`), push and open a PR (`git push -u origin <topic>` → `gh pr create`),
+  then enable auto-merge (`gh pr merge --auto --squash`). `ci.yml` runs on the PR and GitHub squash-merges it once every
+  required check is green — never commit to `main`, never merge by hand.
 - One commit for the crate bump, separate from any web-asset refresh.
 - `cargo update`-only changes touch just `Cargo.lock`: `chore(deps): cargo update (lockfile)`.
 - `cargo upgrade` changes also touch `Cargo.toml` (root and/or members): `chore(deps): bump <crate> <old> -> <new>`.

@@ -12,7 +12,7 @@ reliable legal workflows.
 After you install the navigator and a client contacts your firm, a [Project](docs/glossary.md#project) is created for
 their [Matter](docs/glossary.md#matter). Every project contains a git repository of its files and [notation
 templates](docs/notation.md#templates) which frequently use terms from our [glossary](docs/glossary.md). Notation
-templates are markdown documents that define the intake questions required and the workflows that solve legal problems.
+templates are markdown documents that define the intake questions and workflows required that solve legal problems.
 
 For example, the [Nevada trust](templates/nest/nevada.md) notation template defines the questions required for filling
 out an estate, the workflows like notarization that are required, and where that data is used in the notation template

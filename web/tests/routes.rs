@@ -4638,6 +4638,16 @@ async fn real_thanks_apple_post_is_capped_and_renders_the_photo_collage() {
         let src = format!("src=\"/public/img/thanks-apple/collage-{n}.jpg\"");
         assert!(body.contains(&src), "collage photo {n} missing: {src}");
     }
+    // The farewell row added later renders through the same seam.
+    for slug in [
+        "apple-park-sunset",
+        "farewell-crew",
+        "curry-night",
+        "travels-abroad",
+    ] {
+        let src = format!("src=\"/public/img/thanks-apple/{slug}.jpg\"");
+        assert!(body.contains(&src), "farewell-row photo missing: {src}");
+    }
     // The original letter copy is untouched.
     assert!(body.contains("Thanks, Apple"));
 }

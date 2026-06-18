@@ -72,20 +72,27 @@ seconds.
 
 ## Daily deploy flow
 
+CI/CD is exactly three workflows (see CLAUDE.md, "CI/CD — three workflows, no more"): a lean PR flow (`ci.yml`), a
+nightly cron flow that cuts a calendar release tag (`release-tag.yml`), and a tag flow that integration-tests and
+publishes the images (`deploy.yml`).
+
 ```text
 PR merged to main
-  └─→ .github/workflows/update-image.yml builds + pushes both
-      images to ghcr.io (web and workflows-service)
-      Image is on the shelf but NOT deployed yet.
+  └─→ .github/workflows/ci.yml runs fmt + clippy + cargo test --workspace
+      (no images built — the PR flow is lean by design)
 
-Mon-Thu 06:00 UTC
-  └─→ .github/workflows/deploy.yml fires
-      ├─ rebuilds + pushes (idempotent — uses GHA cache)
-      ├─ sed-bumps image SHAs in examples/deploy/k8s/gke/
-      └─ git commit + push to main
-            └─→ Config Sync notices the change, reconciles
-                  └─→ Rolling update on navigator-web Deployment
+Daily 02:00 PST (10:00 UTC)
+  └─→ .github/workflows/release-tag.yml cuts tag YY.MM.DD (e.g. 26.06.18)
+      and pushes it with secrets.RELEASE_PAT
+            └─→ the tag push triggers .github/workflows/deploy.yml
+                  ├─ KIND integration suite (e2e + interop + browser)
+                  ├─ build + push both images to ghcr.io tagged YY.MM.DD + latest
+                  └─ email a deploy report to nick@neonlaw.com via SendGrid
+                        Images are on the shelf, tagged by date.
 ```
+
+The images are published, not rolled out — promoting a dated image to the GKE cluster (the Config Sync reconcile, or an
+operator-driven `power-push`) is a separate, deliberate step, not part of the nightly tag flow.
 
 Friday-Sunday is deliberately skipped — see the comment in `deploy.yml`.
 

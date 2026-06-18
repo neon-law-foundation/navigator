@@ -4,10 +4,11 @@
 //! `doppler run`.
 //!
 //! Two tiers, each behind its OWN opt-in env flag so neither can fire
-//! from `cargo test --workspace` (the main CI command sets no flag) nor
-//! from the `docusign-sandbox.yml` workflow (which sets only
-//! `NAVIGATOR_RUN_LIVE_SANDBOX` and targets only `--test docusign_sandbox`,
-//! a different binary from this one):
+//! from `cargo test --workspace` (the main CI command sets no flag). No
+//! workflow runs these: the former `docusign-sandbox.yml` canary was
+//! removed when CI/CD collapsed to three workflows (PR / cron / tag — see
+//! CLAUDE.md), so every live DocuSign path is now on-demand only, run by
+//! hand under `doppler run`:
 //!
 //! 1. [`prod_jwt_and_billing_plan_checkpoint`] — gated on
 //!    `NAVIGATOR_RUN_LIVE_PROD_CHECK=1`. FREE: mints a prod JWT and reads

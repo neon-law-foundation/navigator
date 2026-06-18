@@ -8,7 +8,8 @@ description: >
   Bootstrap/HTMX/Alpine", "refresh the vendored JS/CSS", or as the asset half of a periodic dependency refresh. This is
   SEPARATE from `update-crates` (Rust deps) — different tools, different blast radius, different verification. Cap at
   minor/patch bumps; a MAJOR bump (Bootstrap 5 -> 6, Alpine 3 -> 4, HTMX 2 -> 3) restyles or re-behaves every page and
-  MUST go through `/council` before any bytes change.
+  MUST go through `/council` before any bytes change. To refresh crates AND assets in one periodic sweep (still two
+  commits), use the `update` skill (`/update`).
 ---
 
 # Updating vendored web assets
@@ -102,6 +103,11 @@ tests never exercise.
 
 ## Commit discipline
 
+- **Branch → PR → auto-merge — never commit on `main`.** Per [`CLAUDE.md`](../../../CLAUDE.md) Commit discipline, do the
+  refresh on a topic branch (`git switch -c <topic>`), push and open a PR
+  (`git push -u origin <topic>` → `gh pr create`), then enable auto-merge (`gh pr merge --auto --squash`). `ci.yml` runs
+  on the PR and GitHub squash-merges it
+  once every required check is green — never commit to `main`, never merge by hand.
 - One commit per refresh round; **never** in the same commit as a `cargo update` (different blast radius — see
   `update-crates`).
 - The commit touches: the vendored file(s) under `web/public/`, `web/public/VENDOR.toml`, and (only if a tag changed)

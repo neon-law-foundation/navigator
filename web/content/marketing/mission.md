@@ -37,4 +37,4 @@ to justice_.
 We invite you to join us to _improve access to justice_.
 
 To reach the Foundation, email [support@neonlaw.org](mailto:support@neonlaw.org); to reach the firm,
-[support@neonlaw.com](mailto:support@neonlaw.com). Nothing is legal advice without a signed agreement.
+[support@neonlaw.com](mailto:support@neonlaw.com).

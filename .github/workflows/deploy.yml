@@ -1,0 +1,314 @@
+name: deploy
+
+# The tag flow — one of exactly three workflows in this repo (see CLAUDE.md
+# "CI/CD — three workflows, no more"). Triggered by the `YY.MM.DD` tag that
+# the cron flow (`release-tag.yml`) cuts nightly. In strict order:
+#
+#   1. integration — build both images, stand up KIND, run the full e2e +
+#      interop + browser/accessibility suite against the live cluster.
+#   2. publish     — only if integration is green, push both images to
+#      ghcr.io tagged with the release date + `latest`.
+#   3. notify      — email a deploy report to nick@neonlaw.com via SendGrid
+#      (from support@neonlaw.com — `workflows::DEFAULT_FROM_EMAIL`).
+#
+# The image tag is the release tag itself (`github.ref_name`, e.g. 26.06.18).
+
+on:
+  push:
+    tags:
+      - "[0-9][0-9].[0-9][0-9].[0-9][0-9]"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ---------- Stage 1: KIND end-to-end integration ----------
+  integration:
+    name: KIND integration (tag ${{ github.ref_name }})
+    if: github.repository == 'neon-law-foundation/Navigator'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: build navigator-web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: images/Dockerfile.web
+          push: false
+          load: true
+          tags: navigator-web:dev
+          cache-from: type=gha,scope=navigator-web
+          cache-to: type=gha,mode=max,scope=navigator-web
+      - name: build navigator-workflows-service
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: images/Dockerfile.workflows-service
+          push: false
+          load: true
+          tags: navigator-workflows-service:dev
+          cache-from: type=gha,scope=navigator-workflows-service
+          cache-to: type=gha,mode=max,scope=navigator-workflows-service
+
+      - name: install kind
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: navigator
+          config: k8s/kind-config.yaml
+          wait: 60s
+      - name: load images into kind
+        run: |
+          kind load docker-image navigator-web:dev               --name navigator
+          kind load docker-image navigator-workflows-service:dev --name navigator
+      - name: install nginx-ingress
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/kind/deploy.yaml
+          kubectl --namespace ingress-nginx wait \
+              --for=condition=ready pod \
+              --selector=app.kubernetes.io/component=controller \
+              --timeout=180s
+      - name: install Restate Operator
+        # Keep this version in lockstep with `RESTATE_OPERATOR_VERSION`
+        # in `cli::devx`. The operator manages RestateCluster and
+        # RestateDeployment CRDs (see k8s/overlays/kind/).
+        run: |
+          helm upgrade --install restate-operator \
+              oci://ghcr.io/restatedev/restate-operator-helm \
+              --version 2.5.1 \
+              --namespace restate-operator --create-namespace
+          kubectl --namespace restate-operator wait \
+              --for=condition=available --timeout=180s deployment --all
+      - name: deploy navigator stack
+        run: kubectl apply -k k8s/overlays/kind
+
+      - name: install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+      - name: cache cargo
+        uses: Swatinem/rust-cache@v2
+      - name: wait for rollouts and run smoke checks
+        run: cargo run -p cli -- e2e
+
+      # ---------- cross-binary interop ----------
+      # Proves that `cli`, `compass`, and the in-cluster `web` all cohabit
+      # on the same `store` schema + `rules` engine. The cli needs a real
+      # Postgres — stand up a throwaway one on the runner (not the
+      # in-cluster Postgres) so interop doesn't depend on port-forwarding.
+      - name: start ephemeral Postgres for cli interop
+        run: |
+          docker run -d --rm --shm-size=1g --name interop-pg \
+            -e POSTGRES_USER=navigator \
+            -e POSTGRES_PASSWORD=navigator \
+            -e POSTGRES_DB=navigator \
+            -p 25432:5432 \
+            postgres:17-alpine@sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+              if docker exec interop-pg pg_isready -U navigator >/dev/null 2>&1; then
+                  echo "interop-pg ready after $i attempt(s)"
+                  exit 0
+              fi
+              sleep 1
+          done
+          echo "interop-pg never came up" >&2
+          exit 1
+      - name: interop — cli list / erd / glossary
+        env:
+          DATABASE_URL: postgres://navigator:navigator@127.0.0.1:25432/navigator
+        run: |
+          cargo run -p cli --quiet -- list templates
+          cargo run -p cli --quiet -- erd | head -5
+          cargo run -p cli --quiet -- glossary jurisdiction
+      - name: interop — compass validates the bundled templates
+        run: cargo run -p compass --quiet -- validate templates
+
+      # ---------- chromedriver-driven browser tests ----------
+      # The full browser suite (login + admin-routes + retainer-walker)
+      # plus the axe-core WCAG A/AA accessibility gate against the live
+      # KIND web server. A guard step greps for `skipping browser test:`
+      # and fails the job if the tests self-skipped (harness unreachable)
+      # instead of passing green by accident.
+      - name: pre-grant staff the staff role
+        run: cargo run -p cli -- grant-staff
+      - name: install chromium + chromedriver + postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+              chromium-browser chromium-chromedriver postgresql-client
+          chromedriver --version
+          chromium-browser --version
+      - name: start chromedriver
+        run: |
+          chromedriver --port=9515 --allowed-ips=127.0.0.1 \
+              --allowed-origins='*' > /tmp/chromedriver.log 2>&1 &
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -sS http://localhost:9515/status >/dev/null; then
+                  echo "chromedriver up after $i attempt(s)"
+                  exit 0
+              fi
+              sleep 1
+          done
+          echo "chromedriver never came up" >&2
+          cat /tmp/chromedriver.log
+          exit 1
+
+      # The retainer-walker test reads `notation_events` directly from
+      # Postgres via SeaORM, so the host process needs network reach into
+      # the cluster's Postgres.
+      - name: port-forward in-cluster Postgres
+        run: |
+          kubectl --namespace navigator port-forward \
+              deployment/postgres 15432:5432 \
+              > /tmp/pg-port-forward.log 2>&1 &
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+              if pg_isready -h localhost -p 15432 -U navigator > /dev/null 2>&1; then
+                  echo "postgres port-forward up after $i attempt(s)"
+                  exit 0
+              fi
+              sleep 1
+          done
+          echo "postgres port-forward never came up" >&2
+          cat /tmp/pg-port-forward.log
+          exit 1
+
+      - name: browser e2e — full suite
+        env:
+          NAV_BASE_URL: http://localhost:8080
+          WEBDRIVER_URL: http://localhost:9515
+          DATABASE_URL: postgres://navigator:navigator@localhost:15432/navigator
+        run: |
+          cargo test -p web --test browser_e2e -- \
+              --test-threads=1 --nocapture 2>&1 | tee /tmp/browser_e2e.log
+
+      - name: accessibility e2e — axe-core WCAG A/AA
+        env:
+          NAV_BASE_URL: http://localhost:8080
+          WEBDRIVER_URL: http://localhost:9515
+        run: |
+          cargo test -p web --test accessibility_e2e -- \
+              --test-threads=1 --nocapture 2>&1 | tee /tmp/accessibility_e2e.log
+
+      - name: assert browser/accessibility tests did not self-skip
+        run: |
+          if grep -q "skipping browser test:" \
+              /tmp/browser_e2e.log /tmp/accessibility_e2e.log; then
+              echo "::error::a browser/accessibility test self-skipped — the KIND harness was unreachable, so the suite passed without asserting"
+              grep -n "skipping browser test:" \
+                  /tmp/browser_e2e.log /tmp/accessibility_e2e.log || true
+              exit 1
+          fi
+          echo "confirmed: no 'skipping browser test:' line — every browser/accessibility test executed for real"
+
+      - name: dump chromedriver log on failure
+        if: failure()
+        run: cat /tmp/chromedriver.log || true
+      - name: dump postgres port-forward log on failure
+        if: failure()
+        run: cat /tmp/pg-port-forward.log || true
+      - name: dump diagnostics on failure
+        if: failure()
+        run: |
+          kubectl --namespace navigator get all -o wide
+          kubectl --namespace navigator describe pods
+          for pod in $(kubectl --namespace navigator get pods -o name); do
+              echo "=== logs: $pod ==="
+              kubectl --namespace navigator logs --all-containers "$pod" --tail=200 || true
+          done
+
+  # ---------- Stage 2: publish both images to ghcr.io ----------
+  # Only runs if integration is green. Re-builds with the gha cache the
+  # integration job just populated, so this is a near-no-op push, not a
+  # second cold build. Tagged with the release date + `latest`.
+  publish:
+    name: publish ${{ matrix.image }} to ghcr.io
+    needs: integration
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: navigator-web
+            dockerfile: images/Dockerfile.web
+          - image: navigator-workflows-service
+            dockerfile: images/Dockerfile.workflows-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: derive lowercase image name
+        id: img
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+      - name: image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.img.outputs.name }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ github.ref_name }}
+      - name: build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  # ---------- Stage 3: email the deploy report ----------
+  # Sent only after both images are published. From support@neonlaw.com
+  # (workflows::DEFAULT_FROM_EMAIL) to nick@neonlaw.com via the SendGrid v3
+  # API. The one rule still binds: identifiers and counts, never content —
+  # the body carries the tag and the run URL, nothing client-bearing.
+  notify:
+    name: email deploy report
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: send deploy email via SendGrid
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          TAG: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${SENDGRID_API_KEY}" ]; then
+              echo "::error::SENDGRID_API_KEY is unset — cannot send the deploy report"
+              exit 1
+          fi
+          BODY="Navigator ${TAG} shipped: KIND integration passed and both images (navigator-web, navigator-workflows-service) were pushed to ghcr.io tagged ${TAG} and latest.
+
+          Run: ${RUN_URL}"
+          PAYLOAD=$(jq -n \
+              --arg to "nick@neonlaw.com" \
+              --arg from "support@neonlaw.com" \
+              --arg subject "Navigator deploy ${TAG} succeeded" \
+              --arg body "${BODY}" \
+              '{
+                personalizations: [ { to: [ { email: $to } ] } ],
+                from: { email: $from },
+                subject: $subject,
+                content: [ { type: "text/plain", value: $body } ]
+              }')
+          code=$(curl -sS -o /tmp/sendgrid.out -w '%{http_code}' \
+              -X POST https://api.sendgrid.com/v3/mail/send \
+              -H "Authorization: Bearer ${SENDGRID_API_KEY}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}")
+          echo "SendGrid responded ${code}"
+          # SendGrid returns 202 Accepted on success.
+          if [ "${code}" != "202" ]; then
+              echo "::error::SendGrid send failed (${code})"
+              cat /tmp/sendgrid.out || true
+              exit 1
+          fi
+          echo "Deploy report emailed to nick@neonlaw.com"
