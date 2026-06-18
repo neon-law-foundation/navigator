@@ -25,7 +25,8 @@ principios:
    y luego construimos un flujo de trabajo de ejecución duradera en Rust con tecnologías comunes de la Linux Foundation.
    Creamos muchos de estos flujos para *ampliar el acceso a la justicia*.
 2. **Escribir Markdown en lugar de Word**. Cuando el texto legal se razona como si fuera código, podemos aprovechar
-   herramientas de desarrollo como git, editores de código, LSP, CLI y MCP para *brindar acceso a la justicia*.
+   herramientas de desarrollo como git, editores de código, [LSP](/foundation/navigator/lsp),
+   [CLI](/foundation/navigator/cli) y [MCP](/foundation/navigator/mcp) para *brindar acceso a la justicia*.
 3. **Construir comunidad en torno al Navigator**. Nada de esto importa si no ayudamos a los abogados a atender a más
    clientes. Ofrecemos talleres en línea y presenciales para ayudar a los abogados a adoptar el Navigator y adaptarlo a
    su práctica, y así *aumentar el acceso a la justicia*. Si usted representa a una organización de asistencia legal

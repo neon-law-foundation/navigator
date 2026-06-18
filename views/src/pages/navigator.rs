@@ -30,6 +30,9 @@ const REPO_BLOB_BASE: &str = "https://github.com/neon-law-foundation/Navigator/b
 #[must_use]
 pub fn render(auth: AuthState) -> Markup {
     let body = html! {
+        // The hub fans out to the per-package pages (LSP / CLI / MCP /
+        // Web) before the long-form README overview.
+        (crate::pages::package::package_strip(None))
         article.docs-article {
             (render_with_link_rewrite(README, rewrite_link))
         }
@@ -45,8 +48,9 @@ pub fn render(auth: AuthState) -> Markup {
 }
 
 /// Retarget one README link so it resolves on the website. See the module
-/// docs for the mapping.
-fn rewrite_link(dest: &str) -> String {
+/// docs for the mapping. `pub(crate)` so the per-package pages
+/// ([`crate::pages::package`]) reuse the exact same retargeting.
+pub(crate) fn rewrite_link(dest: &str) -> String {
     // Absolute URLs, mailto, and same-page anchors already resolve.
     if dest.starts_with("http://")
         || dest.starts_with("https://")
