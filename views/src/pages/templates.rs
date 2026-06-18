@@ -83,7 +83,7 @@ pub fn index(cards: &[TemplateCard<'_>], auth: AuthState) -> Markup {
                 }
                 p {
                     "Want the editor experience? "
-                    a href="/lsp" {
+                    a href="/foundation/navigator/lsp" {
                         "Install the Navigator language server"
                     }
                     " for live diagnostics and one-click fixes on any "

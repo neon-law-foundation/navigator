@@ -464,7 +464,7 @@ async fn navigator_serves_the_readme_under_foundation_brand() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/navigator")
+                .uri("/foundation/navigator")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -479,6 +479,75 @@ async fn navigator_serves_the_readme_under_foundation_brand() {
     // README links are retargeted onto site routes.
     assert!(body.contains("href=\"/api/templates/nest/nevada\""));
     assert!(body.contains("href=\"/docs/glossary#project\""));
+    // The hub fans out to the per-package pages.
+    assert!(body.contains("href=\"/foundation/navigator/cli\""));
+    assert!(body.contains("href=\"/foundation/navigator/mcp\""));
+    assert!(body.contains("href=\"/foundation/navigator/web\""));
+}
+
+#[tokio::test]
+async fn old_navigator_url_permanently_redirects_to_the_hub() {
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/navigator")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        resp.headers().get("location").unwrap(),
+        "/foundation/navigator"
+    );
+}
+
+#[tokio::test]
+async fn navigator_package_pages_render_each_crate_readme() {
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    // Each package page renders its crate README under the Foundation
+    // brand, with the cross-package strip atop it.
+    for (path, title, needle) in [
+        (
+            "/foundation/navigator/cli",
+            "Navigator CLI",
+            "Operator CLI for Navigator",
+        ),
+        (
+            "/foundation/navigator/mcp",
+            "Navigator MCP",
+            "Model Context Protocol",
+        ),
+        ("/foundation/navigator/web", "Navigator Web", "axum"),
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "{path} should render");
+        let body = body_string(resp).await;
+        assert!(
+            body.contains(&format!("<title>Neon Law Foundation | {title}</title>")),
+            "{path} should carry the {title} title"
+        );
+        assert!(
+            body.to_lowercase().contains(&needle.to_lowercase()),
+            "{path} should render its README ({needle})"
+        );
+        assert!(
+            body.contains("aria-label=\"Navigator packages\""),
+            "{path} should carry the package strip"
+        );
+    }
 }
 
 #[tokio::test]
@@ -521,40 +590,21 @@ async fn api_template_raw_serves_non_confidential_markdown_inline() {
 }
 
 #[tokio::test]
-async fn presentations_hub_lists_talks_and_links_them() {
+async fn rust_in_peace_talk_renders_as_a_workshop_under_foundation_brand() {
+    // The "Rust in Peace" talk folded into the workshop manifest — it
+    // loads from the real workshop content dir like any other workshop.
+    let materials =
+        web::workshops::loader::load_navigator(std::path::Path::new(web::DEFAULT_WORKSHOPS_DIR))
+            .expect("load real workshop content");
     let app = web::build_router(
-        empty_state().await,
+        state_with_workshops(materials).await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
     let resp = app
+        .clone()
         .oneshot(
             Request::builder()
-                .uri("/foundation/presentations")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Presentations</title>"));
-    // The hub is the "Learn ▸ Presentations" nav target and links the talk.
-    assert!(body.contains("href=\"/foundation/presentations/rust-in-peace\""));
-    assert!(body.contains("Rust in Peace"));
-}
-
-#[tokio::test]
-async fn rust_in_peace_talk_renders_overview_under_foundation_brand() {
-    // The talk content is baked into the binary, so an otherwise empty
-    // state serves it.
-    let app = web::build_router(
-        empty_state().await,
-        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
-    );
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/presentations/rust-in-peace")
+                .uri("/foundation/workshops/navigator/rust-in-peace")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -564,84 +614,69 @@ async fn rust_in_peace_talk_renders_overview_under_foundation_brand() {
     let body = body_string(resp).await;
     assert!(body.contains("<title>Neon Law Foundation | Rust in Peace</title>"));
     // The overview's "Start →" button points at the first step under the
-    // presentations base, not the workshop base.
-    assert!(body.contains("href=\"/foundation/presentations/rust-in-peace/step/1\""));
-    // No workshop *step* URL leaks into the talk's links (the chrome's
-    // "Workshops" nav link to the hub is expected and fine).
-    assert!(!body.contains("/foundation/workshops/navigator/"));
-    // The talk advertises its Markdown twin for machine readers.
+    // workshop base — the talk shares the workshop chrome now.
+    assert!(body.contains("href=\"/foundation/workshops/navigator/rust-in-peace/step/1\""));
+    // It advertises its Markdown twin for machine readers.
     assert!(body.contains(
         "<link rel=\"alternate\" type=\"text/markdown\" \
-         href=\"/foundation/presentations/rust-in-peace.md\">"
+         href=\"/foundation/workshops/navigator/rust-in-peace.md\">"
     ));
-}
 
-#[tokio::test]
-async fn rust_in_peace_talk_md_twin_serves_raw_markdown() {
-    let app = web::build_router(
-        empty_state().await,
-        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
-    );
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/presentations/rust-in-peace.md")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let ctype = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or_default()
-        .to_string();
-    assert_eq!(ctype, "text/markdown; charset=utf-8");
-    let body = body_string(resp).await;
-    assert!(!body.contains("<h2>"), "raw markdown, not rendered HTML");
-    assert!(body.contains("## Agenda"));
-}
-
-#[tokio::test]
-async fn rust_in_peace_talk_serves_individual_steps() {
-    let app = web::build_router(
-        empty_state().await,
-        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
-    );
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/presentations/rust-in-peace/step/1")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
     // Step 1 is the agenda; the rail shows the progress label.
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/workshops/navigator/rust-in-peace/step/1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
     assert!(body.contains("<h2>Agenda</h2>"));
     assert!(body.contains("Step 1 of"));
 }
 
 #[tokio::test]
-async fn unknown_presentation_slug_is_not_found() {
+async fn old_presentation_urls_permanently_redirect_to_workshops() {
+    // Presentations folded into Workshops; the old surface redirects so a
+    // deep link to a talk lands on its workshop twin.
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/presentations/no-such-talk")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    for (from, to) in [
+        (
+            "/foundation/presentations",
+            "/foundation/workshops/navigator",
+        ),
+        (
+            "/foundation/presentations/rust-in-peace",
+            "/foundation/workshops/navigator/rust-in-peace",
+        ),
+        (
+            "/foundation/presentations/rust-in-peace/step/1",
+            "/foundation/workshops/navigator/rust-in-peace/step/1",
+        ),
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(from).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::PERMANENT_REDIRECT,
+            "{from} should redirect"
+        );
+        assert_eq!(
+            resp.headers().get("location").unwrap(),
+            to,
+            "{from} should redirect to {to}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -1220,15 +1255,15 @@ async fn llms_txt_indexes_the_markdown_corpus_with_absolute_urls() {
         .to_string();
     assert_eq!(ctype, "text/markdown; charset=utf-8");
     let body = body_string(resp).await;
-    // llmstxt.org shape: H1, then a section per corpus.
+    // llmstxt.org shape: H1, then a section per corpus. Talks fold into
+    // the Workshops section now — there is no separate Presentations one.
     assert!(body.starts_with("# "));
     assert!(body.contains("## Workshops"));
-    assert!(body.contains("## Presentations"));
+    assert!(!body.contains("## Presentations"));
     // Every entry is an absolute link to a `.md` twin. With no
     // CANONICAL_HOST and no Host header, the base falls back to the
     // placeholder authority.
     assert!(body.contains("https://www.example.com/foundation/workshops/navigator/readme.md"));
-    assert!(body.contains("https://www.example.com/foundation/presentations/rust-in-peace.md"));
 }
 
 #[tokio::test]

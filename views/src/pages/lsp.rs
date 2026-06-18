@@ -52,6 +52,9 @@ const ZED: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/lsp
 #[must_use]
 pub fn render(auth: AuthState) -> Markup {
     let body = html! {
+        // Cross-package nav: the LSP page sits under the Navigator hub
+        // beside the CLI, MCP, and Web pages.
+        (crate::pages::package::package_strip(Some("/foundation/navigator/lsp")))
         article {
             header {
                 h1 { "Navigator LSP — the editor experience" }
