@@ -39,8 +39,7 @@ country, asking the same share of local income wherever you are. Tell us where y
 adjusted fee before any engagement letter is signed.
 
 **For people, not companies.** Northstar plans what you leave the people you love — your will, your trust, and your
-directives. A company to hold an asset — an LLC for a rental or an investment — is [Neon Law Nest](/services/corporate),
-not Northstar.
+directives.
 
 **Engagement letter governs.** A written engagement letter signed before we start states the exact scope, the fee, any
 out-of-scope rate, and the disengagement terms. Before that letter goes out we run a conflict check against every

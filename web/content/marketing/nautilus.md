@@ -39,12 +39,10 @@ out, and you can see each one and the deadlines we are tracking.
 flat legal fee. It never changes with how much you owe: **we never take a percentage of your debt**, and the number
 stays $66 whether your balance is $500 or $50,000.
 
-**Where Nautilus stops.** Nautilus is the correspondence and rights work that comes before a courtroom — not the
-courtroom itself. Our firm does litigate select high-stakes technology disputes through [1337
-Lawyers](/services/litigation), but a debt-collection lawsuit or an affirmative claim against a collector who broke the
-law is outside that lane: when your matter belongs in court, we say so plainly and connect you with trial counsel who
-take it. And if the honest answer for your situation is bankruptcy, we tell you and point you to an attorney who files
-them.
+**Where Nautilus stops.** Nautilus is the correspondence and rights work that comes before a courtroom. A
+debt-collection lawsuit or an affirmative claim against a collector who broke the law belongs in court: when your matter
+does, we say so plainly and connect you with trial counsel who take it. And if the honest answer for your situation is
+bankruptcy, we tell you and point you to an attorney who files them.
 
 **Engagement letter governs.** A written engagement letter signed before we start states the exact scope, the $66
 monthly fee, any out-of-scope rate, and how either of us can end the representation. Before that letter goes out we run

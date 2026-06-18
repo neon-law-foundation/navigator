@@ -15,6 +15,7 @@ pub mod home;
 pub mod lsp;
 pub mod mission;
 pub mod navigator;
+pub mod package;
 pub mod policy;
 pub mod portal;
 pub mod privacy;

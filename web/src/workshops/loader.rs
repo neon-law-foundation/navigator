@@ -45,6 +45,21 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
                       before a packet leaves your laptop.",
         filename: "DEPLOY.md",
     },
+    // A conference talk is a hands-on workshop too — it folded in here when
+    // the standalone Presentations surface was removed. Every code slide is
+    // an exact copy of the workspace file it cites; the
+    // `rust_in_peace_snippets_are_exact_copies_of_cited_sources` test fails
+    // the build if one drifts.
+    ManifestEntry {
+        slug: "rust-in-peace",
+        title: "Rust in Peace",
+        description:
+            "A Neon Law Foundation talk for Rust NYC on how we use Rust to improve access to \
+             justice: deterministic workflows from law — statute to Cucumber feature to template \
+             to notation — dissected one modular, attorney-gated step at a time, with every code \
+             slide an exact copy of the shipped repository kept honest by a grounding test.",
+        filename: "RUST_IN_PEACE.md",
+    },
 ];
 
 /// Load every manifest entry for the Navigator workshop. Missing
@@ -79,11 +94,9 @@ pub fn load_navigator(content_root: &Path) -> Result<Vec<WorkshopMaterial>, Cont
 /// split it on `##` headings, render each section to HTML, and keep
 /// the raw markdown for the copy-to-clipboard button.
 ///
-/// Shared by the workshop loader (which feeds it manifest-declared
-/// files from disk) and the `presentations` module (which feeds it a
-/// single `include_str!`-baked talk). The title and description come
-/// from the caller, not the markdown, so both surfaces control their
-/// own chrome.
+/// Fed by the workshop loader with manifest-declared files from disk.
+/// The title and description come from the caller, not the markdown, so
+/// the surface controls its own chrome.
 pub(crate) fn material_from_markdown(
     slug: &str,
     title: &str,
@@ -206,6 +219,81 @@ mod tests {
     fn load_navigator_returns_empty_when_directory_missing() {
         let materials = load_navigator(std::path::Path::new("/no/such/dir/12345")).unwrap();
         assert!(materials.is_empty());
+    }
+
+    /// The "Rust in Peace" talk became a workshop when the standalone
+    /// Presentations surface was removed. Its convention survives the move:
+    /// every code slide is introduced by ``From `path/to/file`:`` followed
+    /// by a fenced block, and must be an **exact copy** of that workspace
+    /// file. This walks the baked talk, reads each cited file from the
+    /// workspace (not a second baked copy, which would always pass), and
+    /// fails the build when a snippet drifts. The floor assertion keeps the
+    /// convention itself from silently vanishing.
+    #[test]
+    fn rust_in_peace_snippets_are_exact_copies_of_cited_sources() {
+        const TALK: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/workshops/navigator/RUST_IN_PEACE.md"
+        ));
+        let workspace_root = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
+        let lines: Vec<&str> = TALK.lines().collect();
+        let mut grounded = 0;
+        let mut i = 0;
+        while i < lines.len() {
+            if let Some(path) = lines[i]
+                .strip_prefix("From `")
+                .and_then(|rest| rest.strip_suffix("`:"))
+            {
+                let mut open = i + 1;
+                while open < lines.len() && !lines[open].starts_with("```") {
+                    open += 1;
+                }
+                assert!(
+                    open < lines.len(),
+                    "attribution for {path} has no code fence after it"
+                );
+                let mut close = open + 1;
+                while close < lines.len() && lines[close] != "```" {
+                    close += 1;
+                }
+                assert!(close < lines.len(), "code fence for {path} is never closed");
+                let snippet = lines[open + 1..close].join("\n");
+                let source = fs::read_to_string(format!("{workspace_root}/{path}"))
+                    .unwrap_or_else(|e| panic!("cited source {path} is unreadable: {e}"));
+                assert!(
+                    source.contains(&snippet),
+                    "slide snippet drifted from {path} — update the talk to match the source"
+                );
+                grounded += 1;
+                i = close;
+            }
+            i += 1;
+        }
+        assert!(
+            grounded >= 6,
+            "expected at least 6 grounded snippets in the talk, found {grounded}"
+        );
+    }
+
+    #[test]
+    fn load_navigator_loads_the_rust_in_peace_talk_as_a_workshop() {
+        // The talk now rides the workshop manifest; with its file present it
+        // loads beside README/DEPLOY with steps split on its `##` beats.
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("navigator");
+        fs::create_dir_all(&target).unwrap();
+        fs::write(
+            target.join("RUST_IN_PEACE.md"),
+            "# Rust in Peace\n\nLede.\n\n## Agenda\n\nWhat we'll cover.\n",
+        )
+        .unwrap();
+        let materials = load_navigator(dir.path()).unwrap();
+        let talk = materials
+            .iter()
+            .find(|m| m.slug == "rust-in-peace")
+            .expect("rust-in-peace loads as a workshop");
+        assert_eq!(talk.title, "Rust in Peace");
+        assert_eq!(talk.sections[0].title, "Agenda");
     }
 
     #[test]
