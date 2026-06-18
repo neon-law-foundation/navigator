@@ -11,9 +11,13 @@ name: ci
 # heavy paths belong in the nightly tag flow so PR latency stays low.
 
 on:
-  push:
-    branches: [main]
+  # Pull requests targeting `main` only. `main` itself never runs CI on push:
+  # it advances solely through PRs (merge-only), the nightly cron flow
+  # (`release-tag.yml`) is the only thing scheduled against it, and every
+  # heavy/deploy path rides the release tag (`deploy.yml`). So the PR run is
+  # the single gate before merge — no redundant post-merge push build.
   pull_request:
+    branches: [main]
 
 jobs:
   rust:

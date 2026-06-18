@@ -308,9 +308,10 @@ evidence; a passing test, a real request/response, or observed output is.
 GitHub Actions carries exactly **three** workflows, one per trigger. Do not add a fourth; fold any new automation into
 the matching one.
 
-- **PR flow** — [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Runs on every `pull_request` and on `push` to
-  `main`. Lean by design: it runs `cargo fmt --check` and `cargo clippy --workspace --all-targets -D warnings`, then
-  `cargo test --workspace` — nothing else. One shared `postgres:17-alpine` container backs the whole job via
+- **PR flow** — [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Runs only on every `pull_request` targeting
+  `main` — never on `push`, so `main` itself runs no CI on merge (it advances merge-only, and the heavy paths ride the
+  release tag). Lean by design: it runs `cargo fmt --check` and `cargo clippy --workspace --all-targets -D warnings`,
+  then `cargo test --workspace` — nothing else. One shared `postgres:17-alpine` container backs the whole job via
   `TEST_DATABASE_URL` (so `store::test_support` makes a per-test schema in that single container instead of spawning a
   testcontainer per binary). Integration/KIND/docker/browser work does **not** run here. **Auto-merge** is a
   GitHub-native repo setting (enabled per-PR with `gh pr merge --auto --squash`), not a workflow — GitHub squash-merges
