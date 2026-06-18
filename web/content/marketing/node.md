@@ -27,10 +27,6 @@ Some facts need a lawyer to vouch for them — that you qualify as an accredited
 counterparty believes it says, that a condition has been met. Neon Law Node is that attestation: made by a licensed
 attorney and recorded on the Solana blockchain so anyone you authorize can verify it.
 
-> **Status — not live yet.** The attorney review is ready, but writing the attestation to Solana is **not shipped yet**,
-> and we will say so plainly here until it is. Book a consultation to register interest, and we will tell you the day
-> Node records its first on-chain attestation.
-
 [[pricing]]
 
 **How it works.** Tell us the fact you need attested and send the records that support it. A licensed attorney reviews

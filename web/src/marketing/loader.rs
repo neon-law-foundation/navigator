@@ -481,8 +481,11 @@ mod tests {
             nautilus.body_html
         );
         assert!(
-            nautilus.body_html.contains("/services/litigation"),
-            "nautilus must refer litigation out, not imply a courtroom"
+            nautilus
+                .body_html
+                .contains("connect you with trial counsel who take it"),
+            "nautilus must refer litigation out (trial counsel), not imply a courtroom: {}",
+            nautilus.body_html
         );
     }
 
