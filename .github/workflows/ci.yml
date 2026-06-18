@@ -11,14 +11,22 @@ name: ci
 # heavy paths belong in the nightly tag flow so PR latency stays low.
 
 on:
-  push:
-    branches: [main]
+  # Pull requests targeting `main` only. `main` itself never runs CI on push:
+  # it advances solely through PRs (merge-only), the nightly cron flow
+  # (`release-tag.yml`) is the only thing scheduled against it, and every
+  # heavy/deploy path rides the release tag (`deploy.yml`). So the PR run is
+  # the single gate before merge — no redundant post-merge push build.
   pull_request:
+    branches: [main]
 
 jobs:
   rust:
     name: cargo test (workspace)
     runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -27,6 +35,10 @@ jobs:
           components: rustfmt, clippy
       - name: cache cargo
         uses: Swatinem/rust-cache@v2
+        with:
+          # Restoring target/ makes the standard hosted runner run out of
+          # disk once clippy and test artifacts accumulate.
+          cache-targets: false
       # One Postgres for the whole job — "the same postgres container."
       # With `TEST_DATABASE_URL` set, `store::test_support` connects here
       # and creates a per-test schema instead of spawning a testcontainer
@@ -55,6 +67,8 @@ jobs:
         run: cargo fmt --all -- --check
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: clear clippy artifacts
+        run: cargo clean
       - name: cargo test
         env:
           TEST_DATABASE_URL: postgres://navigator:navigator@127.0.0.1:5432/navigator
