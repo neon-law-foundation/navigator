@@ -28,6 +28,24 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: "0"
       CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
+      # The standard ubuntu-latest runner ships ~21-28 GB free on `/` — not
+      # enough for this workspace's test artifacts (arrow/parquet/iceberg/
+      # image-codec/typst deps across many test binaries), so `cargo test`
+      # dies with "No space left on device" mid-compile. Reclaim the ~30 GB of
+      # pre-installed tooling we never use (Android SDK, .NET, Haskell, the
+      # tool cache) instead of paying the slower spin-up of a larger runner.
+      # `large-packages: false` skips the slow apt purge — the quick removals
+      # already free enough headroom.
+      - name: free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: false
+          swap-storage: false
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
