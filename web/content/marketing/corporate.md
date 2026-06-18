@@ -15,7 +15,7 @@ pricing:
       - "An operating agreement (or bylaws) written for what the entity holds"
       - "A Nevada registered agent and your Washoe County business license"
       - "A Reno business address, mailbox, and coworking desk"
-      - "A lawyer for the routine, non-litigation work — custom work is Neon Law Nexus"
+      - "A lawyer for the routine, non-litigation work"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
@@ -30,22 +30,15 @@ files your Washoe County license, and puts a lawyer on its routine legal work.
 
 [[pricing]]
 
-**Built to hold, not to scale.** This is the plan for a simple, single-purpose entity — an LLC for a property or an
-investment, a holding company for one asset, or a nonprofit. Building a software or emerging-technology company with
-employees, investors, and a cap table? That's [Neon Law Nexus](/services/fractional-gc), not this.
-
 **An LLC, or not.** Most clients form a Nevada LLC (NRS Chapter 86), but the same fee stands up a nonprofit corporation
 (NRS Chapter 82) or another simple entity when that's the right shape. We write the operating agreement or bylaws to
 match what the entity holds.
 
-**Standard work, flat fee — custom work is Neon Law Nexus.** The $1,111 covers comprehensive formation and the routine
-paperwork a simple entity needs: the operating agreement, the filings, the registered agent, and the everyday legal
-questions that come with holding an asset. Negotiated contracts, custom agreements, and financings are the work of [Neon
-Law Nexus](/services/fractional-gc), our fractional general counsel.
-
-**One fee, all in.** The $1,111 covers the formation, the operating agreement, the registered agent, the state and
-county filings, the Reno address and coworking desk, and your non-litigation legal work for the year. It renews each
-year to keep the entity in good standing.
+**One scope, one fee.** The $1,111 covers comprehensive formation and the routine, non-litigation paperwork a
+single-purpose entity needs — the filings, the operating agreement, the registered agent, and the everyday legal
+questions of holding an asset — and it renews each year to keep the entity in good standing. A scaling software or
+emerging-technology company, with employees, investors, a cap table, and negotiated contracts, is [Neon Law
+Nexus](/services/fractional-gc), our fractional general counsel.
 
 **Your Reno base.** Your business address, mailbox, and coworking desk are at Ridgeview Mail Center on Mae Anne Ave in
 Reno: [ridgeviewmailcenter.com](https://www.ridgeviewmailcenter.com/).

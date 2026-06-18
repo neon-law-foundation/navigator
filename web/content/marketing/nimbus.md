@@ -72,5 +72,5 @@ otherwise afford counsel, tell us when you write and we will talk through the di
 ## Start a Nimbus install
 
 Email **[support@neonlaw.org](mailto:support@neonlaw.org)** with a short note about your organization, the data you want
-brought across, and roughly how many administrators, staff, and operators you would train. We will reply with a proposed
+brought across, and roughly how many administrators, staff, and operators you would train. We reply with a proposed
 two-week schedule and the fee for your situation.
