@@ -1,0 +1,54 @@
+[package]
+name = "archives"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# The `Archives` workflow itself lives in the library and is hosted by
+# the `workflows-service` worker (which binds it alongside the
+# `Notation` virtual object — one Restate endpoint, no second
+# always-on pod). The crate ships one binary:
+#   - `trigger` — the thin CronJob entrypoint. POSTs to the Restate
+#     ingress to start one workflow invocation, then exits.
+[[bin]]
+name = "trigger"
+path = "src/bin/trigger.rs"
+
+[lib]
+name = "archives"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+arrow.workspace = true
+async-trait.workspace = true
+# The GCP billing-export reader the cost phase uses now lives in
+# `billing::gcp_cost` (so `billing-workflows` can share it without a
+# backwards dep on `archives`); `archives` reaches it through this crate.
+billing.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+cloud.workspace = true
+dotenvy.workspace = true
+parquet.workspace = true
+restate-sdk.workspace = true
+sea-orm.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+store.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+telemetry.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+workflows.workspace = true
+iceberg = "0.9"
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

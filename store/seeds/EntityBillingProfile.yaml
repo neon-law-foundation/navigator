@@ -1,0 +1,8 @@
+lookup_fields:
+  - provider
+  - external_contact_id
+records:
+  - provider: xero
+    external_contact_id: "00000000-0000-0000-0000-000000000001"
+    entity:
+      name: Shook Law PLLC

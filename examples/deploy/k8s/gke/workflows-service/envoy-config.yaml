@@ -1,0 +1,77 @@
+# Envoy sidecar config — bridges the GCE L7 LB (HTTP/1.1) to the
+# Restate worker's h2c-only listener.
+#
+# The Restate Rust SDK's HttpServer is built directly on
+# `hyper::server::conn::http2::Builder` and refuses any byte stream
+# that isn't a valid HTTP/2 connection preface. GCE's HTTP/2 backend
+# protocol (`cloud.google.com/app-protocols: '{"...":"HTTP2"}'`)
+# triggers `PROTOCOL_ERROR` GoAway frames in hyper's h2 server —
+# the LB's framing doesn't match what hyper expects.
+#
+# Envoy's h2 implementation is more permissive on the upstream side
+# and its HTTP/1.1 listener is rock solid, so we put it in the middle:
+#
+#   GCE LB --HTTP/1.1--> envoy:9081 --HTTP/2--> worker:9080
+#
+# The Service publishes 9081 (envoy). The worker stays untouched.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: workflows-service-envoy
+  namespace: navigator
+data:
+  envoy.yaml: |
+    admin:
+      address:
+        socket_address: { address: 0.0.0.0, port_value: 9901 }
+    static_resources:
+      listeners:
+      - name: ingress
+        address:
+          socket_address: { address: 0.0.0.0, port_value: 9081 }
+        filter_chains:
+        - filters:
+          - name: envoy.filters.network.http_connection_manager
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+              stat_prefix: ingress
+              codec_type: HTTP1
+              # Long stream timeout so workflow handlers that loop on
+              # ctx.run() can journal slow side effects without the
+              # proxy aborting the leg.
+              stream_idle_timeout: 600s
+              route_config:
+                name: local_route
+                virtual_hosts:
+                - name: backend
+                  domains: ["*"]
+                  routes:
+                  - match: { prefix: "/" }
+                    route:
+                      cluster: restate_worker
+                      # 0s = no upstream timeout; long-poll style
+                      # invocations from the broker can sit open.
+                      timeout: 0s
+              http_filters:
+              - name: envoy.filters.http.router
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+      clusters:
+      - name: restate_worker
+        type: STATIC
+        connect_timeout: 2s
+        # h2c upstream — speak HTTP/2 cleartext to the worker on
+        # localhost:9080. This is the leg that hyper's h2 server
+        # actually accepts without complaint.
+        typed_extension_protocol_options:
+          envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+            "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+            explicit_http_config:
+              http2_protocol_options: {}
+        load_assignment:
+          cluster_name: restate_worker
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address: { address: 127.0.0.1, port_value: 9080 }

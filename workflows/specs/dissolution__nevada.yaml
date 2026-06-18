@@ -1,0 +1,18 @@
+questionnaire:
+  BEGIN:
+    _: dissolution_reason
+  dissolution_reason:
+    _: final_debts_settled
+  final_debts_settled:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    _: member_signatures
+  member_signatures:
+    _: staff_review
+  staff_review:
+    _: mailroom_send
+  mailroom_send:
+    _: END
+  END: {}

@@ -1,0 +1,16 @@
+target/
+.git/
+.github/
+.idea/
+.vscode/
+*.sqlite
+*.swp
+*.log
+
+# Transcoded responsive photo variants (~17 MB). Production serves
+# these from the public `<project>-assets` GCS bucket (uploaded by
+# `cli assets upload`), so the `COPY web web` builder step must not
+# bundle them into the image. The rest of `web/public` (Bootstrap,
+# brand SVGs) still ships, and the runtime `COPY /src/web/public`
+# carries the thinned tree.
+web/public/img/

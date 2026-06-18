@@ -1,0 +1,92 @@
+# syntax=docker/dockerfile:1.7
+#
+# Git-serving image for the per-Project repos.
+#
+# This is the SAME `web` binary as `Dockerfile`, but on a runtime base
+# that carries the `git` binary. The smart-HTTP transport
+# (`web::git_http`) shells `git upload-pack` / `git receive-pack`, and
+# server-side commits (`repos::commit_as`) shell `git` plumbing — none
+# of which exist on `gcr.io/distroless/static`. So the git-serving tier
+# runs from `debian:stable-slim` + `git` instead.
+#
+# The binary is statically linked against musl, so it runs unchanged on
+# a glibc base; only `git` and certs are added. See
+# `docs/git-project-repos.md` §1, §4: this image backs a single-writer
+# `replicas: 1` Deployment with an RWO PVC mounted at
+# `NAVIGATOR_GIT_REPO_ROOT`, which the stateless `web` tier proxies
+# `/projects/<id>.git/*` to.
+
+# ---------- Stage 1: builder (mirrors Dockerfile) ----------
+FROM rust:1.95-bookworm AS builder
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends musl-tools \
+    && rm -rf /var/lib/apt/lists/* \
+    && rustup target add x86_64-unknown-linux-musl
+
+WORKDIR /src
+
+COPY Cargo.toml Cargo.lock rust-toolchain.toml AGENTS.md ./
+COPY rules             rules
+COPY store             store
+COPY repos             repos
+COPY cli               cli
+COPY web               web
+COPY views             views
+COPY README.md         README.md
+COPY workflows         workflows
+COPY workflows-service workflows-service
+COPY cloud             cloud
+COPY compass           compass
+COPY mcp               mcp
+COPY features          features
+COPY lsp               lsp
+COPY pdf               pdf
+COPY templates         templates
+COPY archives          archives
+COPY import            import
+COPY statutes          statutes
+COPY billing           billing
+COPY billing-workflows billing-workflows
+COPY docs              docs
+
+RUN cargo build --release --target x86_64-unknown-linux-musl -p web
+
+# ---------- Stage 2: runtime (git-bearing) ----------
+#
+# `debian:stable-slim` + `git` + `ca-certificates`, running as a
+# non-root user. Larger attack surface than distroless/static — the
+# deliberate cost of shelling git's reference server (the design's
+# accepted trade-off; revisit when a pure-Rust server-side `gix`
+# lands).
+FROM debian:stable-slim AS runtime
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --uid 65532 --user-group --no-create-home --shell /usr/sbin/nologin nonroot
+
+WORKDIR /app
+
+COPY --from=builder /src/target/x86_64-unknown-linux-musl/release/web /app/web
+COPY --from=builder /src/web/public  /app/public
+COPY --from=builder /src/web/content /app/content
+COPY --from=builder /src/templates   /app/templates
+
+# Same asset env as `Dockerfile`, plus the repo-volume root. The repo
+# root is overridden to the PVC mount by the Deployment; this default
+# lets the image run standalone for a smoke test.
+ENV NAVIGATOR_PUBLIC_DIR=/app/public \
+    NAVIGATOR_BLOG_DIR=/app/content/blog \
+    NAVIGATOR_WORKSHOPS_DIR=/app/content/workshops \
+    NAVIGATOR_MARKETING_DIR=/app/content/marketing \
+    NAVIGATOR_ABOUT_DIR=/app/content/about \
+    NAVIGATOR_GIT_REPO_ROOT=/var/lib/navigator/git-repos \
+    APP_ENV=production \
+    PORT=3001
+
+EXPOSE 3001
+
+USER nonroot:nonroot
+
+ENTRYPOINT ["/app/web"]

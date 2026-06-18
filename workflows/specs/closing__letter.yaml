@@ -1,0 +1,27 @@
+questionnaire:
+  BEGIN:
+    _: client_name
+  client_name:
+    _: project_name
+  project_name:
+    _: matter_summary
+  matter_summary:
+    _: fee_status
+  fee_status:
+    _: file_retention
+  file_retention:
+    _: next_obligation
+  next_obligation:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    close_requested: staff_review
+  staff_review:
+    approved: document_open__closing_letter
+    rejected: END
+  document_open__closing_letter:
+    pdf_persisted: firm_signature__closing_letter
+  firm_signature__closing_letter:
+    signed: END
+  END: {}

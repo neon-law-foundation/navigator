@@ -1,0 +1,42 @@
+# Restate broker — managed by the Restate Operator
+# (`helm install restate-operator …` in `navigator kind-up`).
+#
+# The operator reconciles this `RestateCluster` CR into a
+# StatefulSet, PVC, ConfigMap, ClusterIP Service, and a deny-all
+# NetworkPolicy — all placed in a namespace named after the cluster
+# (`restate`), *not* in the CR's own namespace. Cross-namespace
+# consumers reach the broker at `restate.restate.svc.cluster.local`
+# (ingress :8080, admin :9070).
+#
+# RestateDeployment CRs (see `k8s/workflows-service/`) reference
+# this cluster by name via `spec.restate.register.cluster: restate`.
+#
+# `security.networkPeers.ingress` whitelists who may call the
+# ingress port. The default is empty (deny all); without this
+# block, `navigator-web` cannot reach the broker.
+#
+# Pin `compute.image` to a tag in production (e.g. `restate:1.5`).
+# `latest` is fine in KIND.
+apiVersion: restate.dev/v1
+kind: RestateCluster
+metadata:
+  name: restate
+  namespace: navigator
+spec:
+  cluster:
+    autoProvision: true
+  compute:
+    image: docker.restate.dev/restatedev/restate:latest
+  security:
+    networkPeers:
+      ingress:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: navigator
+  storage:
+    # 1 GiB — matches the previous hand-rolled PVC. Resize via
+    # `storage.storageRequestBytes` and re-apply; the operator
+    # supports online volume expansion.
+    storageRequestBytes: 1073741824
+  config: |
+    auto-provision = false

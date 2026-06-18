@@ -1,0 +1,257 @@
+# Vanilla Deployment + Service for the workflows-service worker.
+# In KIND this runs as a RestateDeployment CR managed by the
+# Restate Operator. In prod (Restate Cloud) there is no operator
+# in the cluster — the worker is a plain Deployment, and
+# registration with the Restate Cloud tenant happens out-of-band
+# via the Restate CLI.
+#
+# Registration: a registered deployment is a SNAPSHOT of the worker's
+# handler list, not a subscription — rolling a new image does NOT
+# re-register, so a newly added service 404s at the ingress until you
+# re-register. The power-push skill does this automatically after every
+# worker rollout (step 7d), targeting https://workflows.<domain>/ derived
+# from NAVIGATOR_PRIMARY_DOMAIN (or the explicit NAVIGATOR_WORKFLOWS_URL).
+# It WARNS and continues on failure — it does not gate the ship — because
+# the admin :9070 endpoint may be unreachable from the operator's network
+# (see docs/durable-workflows.md "How power-push re-registers"). Manual
+# fallbacks when the auto step warns:
+#   restate -y cloud login && restate -y cloud env config --env navigator-prod
+#   restate -y deployment register https://workflows.your-domain.example/
+# Or POST the admin API directly (the CLI sometimes can't reach :9070):
+#   curl -X POST "$ADMIN:9070/deployments" -H "Authorization: Bearer $SSO" \
+#     -H "Content-Type: application/json" \   # REQUIRED — omitting it 415s
+#     -d '{"uri":"https://workflows.your-domain.example/","force":true}'
+# Full mechanism + the two-tokens/two-ports auth note: docs/durable-workflows.md.
+#
+# Restate Cloud reaches workflows-service over HTTPS via the
+# `workflows.your-domain.example` Ingress under `../ingress/`.
+# VPC Connect (Restate Cloud's private-network ingress) is a later
+# hardening step; until then the worker is reachable on the
+# public internet behind the LB's managed certificate.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflows-service
+  namespace: navigator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: workflows-service
+  # Single-replica internal worker on a capacity-constrained Autopilot
+  # cluster: replace in place (maxSurge 0) so a rollout never stands up a
+  # surge pod. A surge pod would force a node scale-up, which hits the
+  # regional SSD_TOTAL_GB quota and stalls (FailedScaleUp). The brief gap
+  # while the pod restarts is acceptable here: the worker takes no public
+  # traffic and Restate journals + retries any in-flight step. NOTE: prod
+  # is applied out-of-band (not from this repo), so mirror this into the
+  # live overlay too. See docs/durable-workflows.md.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: workflows-service
+    spec:
+      serviceAccountName: workflows-service
+      containers:
+        - name: worker
+          image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-workflows-service:fa989a6
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9080
+          env:
+            - name: WORKFLOWS_SERVICE_LISTEN
+              # 0.0.0.0 so the kubelet's tcpSocket readinessProbe
+              # (against the pod IP) can reach the port. Envoy
+              # reaches the worker through 127.0.0.1:9080 on the
+              # shared pod network — only the LB-facing leg goes
+              # through 9081, and the Service publishes only 9081,
+              # so nothing outside the pod actually opens 9080.
+              value: "0.0.0.0:9080"
+            - name: NAVIGATOR_EMAIL_BACKEND
+              # Worker dispatches real SendGrid sends in prod via
+              # `email_send__*` steps. KIND keeps this unset so the
+              # `email_config` selector returns `CapturingEmail`.
+              value: sendgrid
+            # Object storage. Two lanes share this pod:
+            #  - The Archives snapshot phase writes nightly Parquet to the
+            #    exports bucket via `cloud::exports_from_env`
+            #    (NAVIGATOR_STORAGE_BUCKET only).
+            #  - The `document_open__*` render lane (the retainer / closing
+            #    letter PDF the worker renders + persists) writes to the
+            #    DOCUMENTS bucket via `cloud::from_env`, which prefers
+            #    NAVIGATOR_DOCUMENTS_BUCKET. This MUST match `web`'s
+            #    documents bucket — `web` reads the rendered PDF back from
+            #    the same key to send it for signature, so a mismatch is an
+            #    `object not found` 500 at send time.
+            - name: NAVIGATOR_STORAGE_BACKEND
+              value: gcs
+            - name: NAVIGATOR_STORAGE_BUCKET
+              value: YOUR_PROJECT_ID-exports
+            - name: NAVIGATOR_DOCUMENTS_BUCKET
+              value: YOUR_PROJECT_ID-documents
+            - name: ARCHIVES_NOTIFY_EMAIL
+              value: nick@neonlaw.com
+            # Cost phase: set BILLING_EXPORT_TABLE (and BIGQUERY_PROJECT)
+            # to the GCP billing-export table to enable the nightly
+            # cost-by-service summary in the diagnostic email + the
+            # `gcp_cost` Parquet snapshot. Unset → cost phase is a no-op.
+            # The worker GSA then needs roles/bigquery.jobUser +
+            # roles/bigquery.dataViewer on the billing dataset.
+            # - name: BILLING_EXPORT_TABLE
+            #   value: YOUR_PROJECT_ID.billing_export.gcp_billing_export_v1_XXXX
+            # - name: BIGQUERY_PROJECT
+            #   value: YOUR_PROJECT_ID
+            - name: RUST_LOG
+              value: info
+            - name: OTEL_SERVICE_NAME
+              value: workflows-service
+          envFrom:
+            # Collector endpoint (OTEL_EXPORTER_OTLP_ENDPOINT) — the worker
+            # emits the workflow-step traces + the `start_workflow` metric
+            # through the same fail-closed redaction collector as web.
+            - configMapRef:
+                name: navigator-otel-env
+            # `DATABASE_URL` for Cloud SQL plus the SendGrid bundle
+            # (`SENDGRID_API_KEY`, optionally `SENDGRID_FROM_EMAIL`) —
+            # shared with web via the same Secret Manager-synced
+            # Secret. The worker's `email_send__welcome` step
+            # dispatch (`workflows::email::dispatch_state`) reads
+            # these to POST through SendGrid; without them the
+            # `email_config` selector falls back to
+            # `CapturingEmail` and welcomes never leave the pod.
+            - secretRef:
+                name: navigator-web-secrets
+          readinessProbe:
+            tcpSocket:
+              port: 9080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 9080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+        # Envoy sidecar — see envoy-config.yaml. Bridges HTTP/1.1
+        # from the GCE LB to h2c on the worker. The GCE LB's h2
+        # framing is incompatible with hyper's strict h2 server.
+        - name: envoy
+          image: envoyproxy/envoy:v1.32.6
+          args:
+            - --config-path
+            - /etc/envoy/envoy.yaml
+            - --service-cluster
+            - workflows-service
+          ports:
+            - containerPort: 9081
+              name: http
+            - containerPort: 9901
+              name: admin
+          volumeMounts:
+            - name: envoy-config
+              mountPath: /etc/envoy
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /restate/health
+              port: 9081
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 9081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+        # Cloud SQL Auth Proxy sidecar — mirrors web's setup. The
+        # worker reaches Cloud SQL at 127.0.0.1:5432 via IAM authn,
+        # so it can share `navigator-web-secrets`' DATABASE_URL.
+        # Without this the worker has no path to Postgres and
+        # `store::DbConfig::from_env` returns MissingDatabaseUrl
+        # (Postgres is the only supported backend).
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.13.0
+          args:
+            - --auto-iam-authn
+            - --structured-logs
+            - YOUR_PROJECT_ID:us-west4:navigator-pg
+          ports:
+            - containerPort: 5432
+              name: postgres
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+      volumes:
+        - name: envoy-config
+          configMap:
+            name: workflows-service-envoy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workflows-service
+  namespace: navigator
+  annotations:
+    # Container-native LB: the GKE Ingress (under `../ingress/`)
+    # routes directly to pod endpoints via a NEG rather than
+    # NodePort hops. Same pattern as the navigator-web Service.
+    cloud.google.com/neg: '{"ingress": true}'
+    # Health check + backend protocol are configured via the
+    # BackendConfig below — keep this Service free of an
+    # `app-protocols` annotation so the LB defaults to HTTP/1.1,
+    # which is what the envoy sidecar listens for.
+    cloud.google.com/backend-config: '{"default":"workflows-service"}'
+spec:
+  selector:
+    app: workflows-service
+  ports:
+    - name: http
+      # The Service publishes envoy's 9081 listener, not the worker's
+      # 9080. Inside the pod, envoy proxies HTTP/1.1 -> h2c onto
+      # localhost:9080. See envoy-config.yaml.
+      port: 9081
+      targetPort: 9081
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: workflows-service
+  namespace: navigator
+spec:
+  # HTTP/1.1 health check against the envoy sidecar's listener.
+  # `/restate/health` is proxied through to the worker's own
+  # health endpoint, so a 200 here proves the full pod is up.
+  healthCheck:
+    type: HTTP
+    port: 9081
+    requestPath: /restate/health
+    checkIntervalSec: 15
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 2
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workflows-service
+  namespace: navigator
+  annotations:
+    # Workload Identity — bind to the same GSA as navigator-web so
+    # the worker's Cloud SQL Auth Proxy authenticates as the SQL
+    # user already in the shared DATABASE_URL. A dedicated
+    # `workflows-service@…` GSA exists with `roles/cloudsql.client`
+    # + `roles/secretmanager.secretAccessor` for the eventual split,
+    # but until the worker has its own SQL user with granted
+    # privileges on `notation_events`, the two services share one
+    # Postgres identity.
+    iam.gke.io/gcp-service-account: navigator-web@YOUR_PROJECT_ID.iam.gserviceaccount.com

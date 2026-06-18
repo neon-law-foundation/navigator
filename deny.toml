@@ -1,0 +1,47 @@
+# cargo-deny configuration for the navigator workspace.
+#
+# Runs from `.github/workflows/ci.yml` on every push and PR. Three
+# checks are active:
+#
+# - `advisories` — fails the build on any open RUSTSEC advisory
+#   against a crate in the dep tree.
+# - `licenses`   — fails on any license not in the allowlist below.
+# - `bans`       — empty for now; reserved for blocking a specific
+#   crate version if a transitive dep turns out to drift on us.
+
+[advisories]
+version = 2
+yanked   = "warn"
+ignore   = []
+
+[licenses]
+version             = 2
+confidence-threshold = 0.93
+# Every license currently observed in the workspace dep tree, plus
+# a few compatible siblings we'd accept if a new dep pulled one in.
+# Re-validate this list when adding a substantial new dependency.
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Unlicense",
+    "Zlib",
+]
+exceptions = []
+
+[bans]
+multiple-versions = "allow"
+wildcards         = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git      = "deny"
+allow-registry   = ["https://github.com/rust-lang/crates.io-index"]

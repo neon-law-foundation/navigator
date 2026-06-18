@@ -1,0 +1,17 @@
+# Pin the prod web image to a specific Artifact Registry SHA. The
+# weekday cron in `.github/workflows/deploy.yml` builds `main` HEAD,
+# pushes to `us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/...`,
+# then commits the new SHA here. Hand-bumping is also fine —
+# Config Sync notices and rolls forward on the next 15s tick.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  template:
+    spec:
+      containers:
+        - name: web
+          image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-web:74e5f4a
+          imagePullPolicy: IfNotPresent

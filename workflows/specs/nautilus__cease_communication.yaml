@@ -1,0 +1,19 @@
+questionnaire:
+  BEGIN:
+    _: client_name
+  client_name:
+    _: collector_name
+  collector_name:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    intake_submitted: document_open__cease_communication
+  document_open__cease_communication:
+    pdf_persisted: staff_review
+  staff_review:
+    approved: mailroom_send__cease_communication
+    rejected: END
+  mailroom_send__cease_communication:
+    mailed: END
+  END: {}

@@ -1,0 +1,36 @@
+[package]
+name = "mcp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+async-trait.workspace = true
+axum.workspace = true
+cloud.workspace = true
+import.workspace = true
+reqwest.workspace = true
+rules.workspace = true
+sea-orm.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+store.workspace = true
+telemetry.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+workflows.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+store = { workspace = true, features = ["test-support"] }
+tower.workspace = true
+
+[lints]
+workspace = true

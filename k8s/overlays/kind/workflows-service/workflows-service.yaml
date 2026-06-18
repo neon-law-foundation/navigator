@@ -1,0 +1,100 @@
+# `workflows-service` — Restate worker hosting the `Notation`
+# virtual object (questionnaire + workflow timelines per Notation).
+#
+# Managed as a `RestateDeployment` CR so the Restate Operator
+# handles registration with the `restate` RestateCluster
+# automatically. `spec.restate.register.cluster: restate` points at
+# the RestateCluster declared in `k8s/restate/`; the operator POSTs
+# this deployment's URL to that cluster's admin port (:9070) on
+# every reconcile, drains old image versions, and scales replicas as
+# declared. No Jobs to maintain.
+#
+# Image: `navigator-workflows-service:dev` is built by
+# `images/Dockerfile.workflows-service` (see `navigator image-workflows-service`).
+# Pin a tag in production; `:dev` is the local-KIND convention used
+# by `kind load docker-image …`.
+
+apiVersion: restate.dev/v1beta1
+kind: RestateDeployment
+metadata:
+  name: workflows-service
+  namespace: navigator
+spec:
+  replicas: 1
+  restate:
+    register:
+      cluster: restate
+  selector:
+    matchLabels:
+      app: workflows-service
+  template:
+    metadata:
+      labels:
+        app: workflows-service
+        # `allow.restate.dev/<cluster-name>: "true"` is the marker the
+        # Restate Operator looks for in its egress NetworkPolicy on
+        # the cluster. Without it, Restate cannot dial the worker
+        # from the operator-managed `restate` namespace into
+        # `navigator`, signals time out, and `notation_events` stays
+        # empty.
+        allow.restate.dev/restate: "true"
+    spec:
+      containers:
+        - name: workflows-service
+          image: navigator-workflows-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: restate
+              containerPort: 9080
+          env:
+            # The worker binds to this address; Restate hits it via
+            # the operator-managed Service.
+            - name: WORKFLOWS_SERVICE_LISTEN
+              value: 0.0.0.0:9080
+            # Same Postgres connection as `navigator-web`. The worker
+            # writes one `notation_events` row per state-machine
+            # transition under `ctx.run("append-event", …)`. Required
+            # — `store::DbConfig::from_env` errors out without it
+            # (Postgres is the only supported backend).
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: DATABASE_URL
+            # Object storage for the Archives workflow's snapshot phase
+            # → in-cluster fake-gcs-server, mirroring the web Deployment.
+            # BILLING_EXPORT_TABLE is intentionally unset in KIND, so the
+            # cost phase is a clean no-op (no BigQuery credentials needed).
+            - name: NAVIGATOR_STORAGE_BACKEND
+              value: gcs
+            - name: NAVIGATOR_STORAGE_ENDPOINT
+              value: http://fake-gcs-server:4443
+            - name: NAVIGATOR_STORAGE_BUCKET
+              value: navigator
+            - name: RUST_LOG
+              value: info
+            # OTLP for the in-cluster Grafana LGTM stack, same as
+            # `navigator-web`. Lets the operator chase a failing
+            # signal across web → restate → worker in one trace.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://lgtm.navigator.svc.cluster.local:4317
+            - name: OTEL_SERVICE_NAME
+              value: workflows-service
+            # KIND uses `CapturingEmail` (NAVIGATOR_EMAIL_BACKEND
+            # unset so the selector defaults to capturing). The
+            # SendGrid stubs stay so a future flip to
+            # `NAVIGATOR_EMAIL_BACKEND=sendgrid` doesn't crash.
+            - name: SENDGRID_API_KEY
+              value: SG.kind-stub
+            - name: SENDGRID_INBOUND_SECRET
+              value: kind-stub
+          readinessProbe:
+            tcpSocket:
+              port: 9080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 9080
+            initialDelaySeconds: 30
+            periodSeconds: 10

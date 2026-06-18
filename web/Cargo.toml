@@ -1,0 +1,80 @@
+[package]
+name = "web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "web"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+arrow.workspace = true
+async-trait.workspace = true
+axum = { workspace = true, features = ["form", "multipart"] }
+billing.workspace = true
+chrono.workspace = true
+cloud.workspace = true
+dotenvy.workspace = true
+flate2.workspace = true
+include_dir.workspace = true
+parquet.workspace = true
+repos.workspace = true
+statutes.workspace = true
+store.workspace = true
+base64.workspace = true
+hmac.workspace = true
+jsonwebtoken.workspace = true
+maud.workspace = true
+mcp.workspace = true
+p256.workspace = true
+pulldown-cmark.workspace = true
+rand.workspace = true
+reqwest.workspace = true
+rules.workspace = true
+sea-orm.workspace = true
+sea-orm-migration.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+mail-parser.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tower.workspace = true
+tower-cookies.workspace = true
+tower-http.workspace = true
+telemetry.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+forms.workspace = true
+pdf.workspace = true
+uuid.workspace = true
+views.workspace = true
+walkdir.workspace = true
+workflows.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+base64.workspace = true
+fantoccini.workspace = true
+features = { workspace = true, features = ["webdriver"] }
+http-body-util.workspace = true
+jsonwebtoken.workspace = true
+serde_json.workspace = true
+store = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
+toml.workspace = true
+url.workspace = true
+views.workspace = true
+uuid.workspace = true
+wiremock.workspace = true
+
+[lints]
+workspace = true

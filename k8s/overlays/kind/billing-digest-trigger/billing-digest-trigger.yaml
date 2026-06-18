@@ -1,0 +1,61 @@
+# `billing-digest-trigger` — daily trigger for the `BillingDigest` workflow.
+#
+# The workflow itself is hosted by the `workflows-service` worker (it binds
+# `BillingDigestService` alongside `Notation`, `Archives`, `BillingCanary`, and
+# the rest — see `../workflows-service/`), so there is no separate digest pod.
+# This CronJob is the thin trigger: it POSTs to the Restate ingress to start one
+# invocation, then exits. Restate owns retries.
+#
+# `BillingDigest` emails firm ops a trailing-window GCP cost report (gross /
+# credits / net by service, free-trial credit burned to date, and the real
+# cost once the trial credit expires). With no billing export configured —
+# which is the case in KIND — the workflow is a clean no-op (it logs and sends
+# nothing), so this CronJob is harmless to apply locally.
+#
+# Trigger a run by hand:
+#   kubectl create job --from=cronjob/billing-digest-trigger billing-digest-manual -n navigator
+#
+# Image `navigator-billing-digest-trigger:dev` is built by
+# `navigator image-billing-digest-trigger` from the shared `images/Dockerfile.trigger`
+# (--build-arg CRATE=billing-workflows --build-arg BIN=billing-digest-trigger).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: billing-digest-trigger
+  namespace: navigator
+  labels:
+    app: billing-digest-trigger
+spec:
+  # Daily at 13:00 UTC (05:00 PST / 06:00 PDT). Clears the billing export's
+  # ~24h lag and avoids every other cron (archives 10:00, statutes 10:00 Sun,
+  # reconcile 11:00, heartbeat */6h, canary 14:00 Sun). The trigger keys each
+  # invocation on the UTC date, so a same-day double-fire is a no-op.
+  schedule: "0 13 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 4
+  # Forbid + a finite deadline together: never overlap runs, but never let a
+  # stuck trigger (e.g. ImagePullBackOff, or a hung ingress POST) stay Active
+  # and skip every subsequent schedule. A healthy trigger exits in seconds.
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app: billing-digest-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: billing-digest-trigger
+              image: navigator-billing-digest-trigger:dev
+              imagePullPolicy: IfNotPresent
+              env:
+                # In-cluster Restate ingress (see
+                # k8s/overlays/kind/deps/restate.yaml).
+                - name: RESTATE_INGRESS_URL
+                  value: http://restate.restate.svc.cluster.local:8080
+                - name: RUST_LOG
+                  value: info

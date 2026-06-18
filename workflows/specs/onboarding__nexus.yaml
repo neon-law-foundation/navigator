@@ -1,0 +1,26 @@
+questionnaire:
+  BEGIN:
+    _: client_name
+  client_name:
+    _: client_email
+  client_email:
+    _: entity_name
+  entity_name:
+    _: product_description
+  product_description:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    intake_submitted: intake_persisted__client
+  intake_persisted__client:
+    engagement_rendered: staff_review
+  staff_review:
+    approved: document_open__engagement_pdf
+    rejected: END
+  document_open__engagement_pdf:
+    pdf_persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: END
+    signature_declined: END
+  END: {}

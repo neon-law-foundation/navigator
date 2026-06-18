@@ -1,0 +1,59 @@
+[package]
+name = "cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "navigator"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+clap.workspace = true
+cloud.workspace = true
+forms.workspace = true
+comfy-table.workspace = true
+dotenvy.workspace = true
+google-cloud-auth.workspace = true
+google-cloud-token.workspace = true
+image.workspace = true
+import.workspace = true
+owo-colors.workspace = true
+rand.workspace = true
+ravif.workspace = true
+reqwest.workspace = true
+rgb.workspace = true
+rules.workspace = true
+sea-orm.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+store.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+uuid.workspace = true
+views.workspace = true
+walkdir.workspace = true
+webp.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+axum.workspace = true
+pdf.workspace = true
+predicates.workspace = true
+store = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
+web.workspace = true
+wiremock.workspace = true
+workflows.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Full local KIND stack — base platform + in-cluster dependencies
+# (Postgres, Keycloak, fake-gcs-server, Restate Operator-managed
+# RestateCluster), the workflows-service worker (hosting every
+# workflow, including Archives) as a RestateDeployment CR, the
+# nightly archives-trigger CronJob, and the navigator-web app itself.
+#
+# Apply: kubectl apply -k k8s/overlays/kind
+#
+# For host-side `web` development (skip the in-cluster web
+# Deployment), use the sibling `kind-deps` overlay instead.
+
+namespace: navigator
+
+resources:
+  - ../../base
+  - ../../base/web
+  - deps
+  - workflows-service
+  - archives-trigger
+  - statutes-trigger
+  - billing-canary-trigger
+  - billing-digest-trigger
+  - recurring-trigger
+  - heartbeat-trigger

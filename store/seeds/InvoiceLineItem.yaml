@@ -1,0 +1,32 @@
+---
+lookup_fields:
+  - billing_profile_external_contact_id
+  - external_invoice_id
+  - line_number
+records:
+  - billing_profile_provider: xero
+    billing_profile_external_contact_id: "00000000-0000-0000-0000-000000000001"
+    external_invoice_id: "00000000-0000-0000-0000-0000000000a1"
+    line_number: 1
+    external_line_item_id: "00000000-0000-0000-0000-0000000000b1"
+    description: "Legal services - April 2026 retainer"
+    item_code: "RETAINER"
+    account_code: "200"
+    quantity: "10.0000"
+    unit_amount: "75.0000"
+    tax_type: "OUTPUT"
+    tax_amount: "0.0000"
+    line_amount: "750.0000"
+  - billing_profile_provider: xero
+    billing_profile_external_contact_id: "00000000-0000-0000-0000-000000000001"
+    external_invoice_id: "00000000-0000-0000-0000-0000000000a1"
+    line_number: 2
+    external_line_item_id: "00000000-0000-0000-0000-0000000000b2"
+    description: "Filing fees and disbursements"
+    item_code: "DISB"
+    account_code: "201"
+    quantity: "1.0000"
+    unit_amount: "250.0000"
+    tax_type: "NONE"
+    tax_amount: "0.0000"
+    line_amount: "250.0000"

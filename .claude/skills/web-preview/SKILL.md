@@ -1,0 +1,111 @@
+---
+name: web-preview
+description: >
+  Run the `web` app locally against the KIND dependency stack and look at it in a real browser — the canonical "spin up
+  web, drive Chrome, screenshot to /tmp, verify" loop. Trigger whenever asked to run, preview, screenshot, or visually
+  verify `web` / a page / a UI change, to "open the design page", "check it in chrome", or to prove a front-end behavior
+  (syntax highlighting, a toast, a layout) actually renders. This is the browser half of the local loop;
+  `kind-local-dev` is the cluster half it builds on. Skip for pure logic/unit work — `cargo test` uses testcontainers
+  and needs no cluster.
+---
+
+# Previewing and screenshotting `web`
+
+The recipe for seeing a `web` change in a real browser, against the real dependency stack. Every command here runs on
+the user's machine (Docker, KIND, Chrome) — propose them for the user to run with `!`, or drive them when asked.
+
+## The one rule that bites first
+
+**`web` will NOT boot from `.devx/env` alone.** `web::config::enforce_prod_invariants` (called unconditionally from
+`web/src/main.rs`) requires secrets that `devx up` does not write into `.devx/env` — `SENDGRID_EVENTS_SECRET`,
+`SENDGRID_EVENTS_PUBLIC_KEY`, `DOCUSIGN_HMAC_KEY`. They live in Doppler (`navigator` / `dev`). So local `web` is
+**always launched under `doppler run`**, with `.devx/env` sourced *after* so the KIND port-forward wiring (DATABASE_URL
+→ `localhost:15432`, etc.) wins over Doppler's own values. Skipping Doppler crash-loops the pod with "production
+invariants violated". See [[secrets-doppler]] and the `kind-local-dev` skill.
+
+## The loop
+
+### 1. Bring up the dependency stack (KIND)
+
+```bash
+cargo run --release -p cli -- start-dev-server        # cluster + Postgres + Keycloak + fake-gcs + OPA + Restate; writes .devx/env
+```
+
+This is "begin with KIND, all databases set up": Postgres is up and `web` runs migrations on boot, so the schema is
+ready. The deps a `web` request actually touches (illustrative host ports, sourced from `.devx/env`):
+
+| Dependency | Host port | What `web` uses it for | Skill |
+| --- | --- | --- | --- |
+| Postgres | `:15432` | every SeaORM query (port-forward to in-cluster Cloud-SQL-equivalent) | `postgres-in-kind` |
+| Keycloak | `:30080` | OIDC sign-in (`/auth/login` → callback) | `keycloak-oidc` |
+| fake-gcs | `:30443` | object storage (`cloud::StorageService`, GCS stand-in) | — |
+| OPA | `:8181` | authorization decisions for `/portal/*` | `opa-policy` |
+| Restate | `:9080` | durable workflow submission | `durable-execution` |
+
+### 2. Run `web` (under Doppler, env layered on)
+
+```bash
+doppler run --project navigator --config dev -- \
+  bash -c 'set -a; source .devx/env; set +a; cargo run -p web'
+```
+
+`web` binds `:3001`. Watch the boot log for `web listening addr=0.0.0.0:3001`. If it exits with "production invariants
+violated", you skipped `doppler run`.
+
+#### OpenTelemetry (on by default)
+
+`navigator start-dev-server` stands up a Grafana **LGTM** pod (Loki/Grafana/Tempo/Prometheus + a bundled OTel Collector)
+as a local OTLP sink, port-forwards its OTLP gRPC port, and writes
+`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` into `.devx/env`.
+So sourcing `.devx/env` (step 2) already flips host `web` to JSON logs + OTLP export — no manual port-forward. Browse
+traces/logs/metrics at `http://localhost:3000` (Grafana, anonymous Admin). To run with plain stdout logs and no export,
+set `OTEL_EXPORTER_OTLP_ENDPOINT=` (empty) in `.env`. Full local-telemetry loop is the [[grafana-lgtm]] skill; the
+emit-side seam and the load-bearing "identifiers and counts, never client content" rule are the `observability` skill.
+
+### 3. Open it in a real browser and screenshot
+
+Screenshots go to `/tmp`, never the repo tree (`mkdir -p /tmp/navigator-screenshots` first).
+
+```bash
+mkdir -p /tmp/navigator-screenshots
+google-chrome --headless=new --disable-gpu --no-sandbox --hide-scrollbars \
+  --window-size=1366,4400 \
+  --screenshot=/tmp/navigator-screenshots/page.png http://localhost:3001/design
+```
+
+`--screenshot` waits for the load event, so client JS (Bootstrap, htmx, Alpine, highlight.js) has run.
+
+> `--dump-dom` does NOT execute load-event scripts — it captures the pre-JS DOM. Don't use it to check whether client
+> JS ran; use a screenshot or a WebDriver session.
+
+### 4. Prove client-side behavior (WebDriver)
+
+For an assertion stronger than eyeballing a screenshot, drive the browser e2e suite against the running app. The tests
+in `web/tests/browser_e2e.rs` skip cleanly when the harness is absent, so they double as a manual check:
+
+```bash
+chromedriver --port=9515 &
+NAV_BASE_URL=http://localhost:3001 WEBDRIVER_URL=http://localhost:9515 \
+  cargo test -p web --test browser_e2e -- --test-threads=1
+```
+
+## CSP gotcha (front-end JS)
+
+`web/src/api.rs` sets `Content-Security-Policy: … script-src 'self'` (no `'unsafe-inline'`). An inline
+`<script>…</script>` is **silently blocked** by the browser — the script simply never runs. Put front-end JS in a
+first-party external file under `web/public/js/` (served as `'self'`, like `northstar-review.js` / `highlight-init.js`).
+Inline `style=` attributes are fine (`style-src` allows `'unsafe-inline'`). This is exactly how the talk-slide
+highlighter broke; a browser e2e is the only thing that catches it.
+
+## Tear down
+
+```bash
+cargo run --release -p cli -- down
+```
+
+## Anti-patterns
+
+- Sourcing `.devx/env` and running `web` without `doppler run` — crash-loops on missing invariant secrets.
+- Trusting `--dump-dom` to confirm client JS ran — it doesn't execute load-event scripts.
+- Writing screenshots into the repo — they belong in `/tmp/navigator-screenshots/`.
+- Gating `cargo test` on KIND — tests get Postgres from testcontainers; the cluster is for *running* the app.

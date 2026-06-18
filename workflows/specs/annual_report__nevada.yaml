@@ -1,0 +1,16 @@
+questionnaire:
+  BEGIN:
+    _: annual_or_amended
+  annual_or_amended:
+    _: managers_list
+  managers_list:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    _: staff_review
+  staff_review:
+    _: mailroom_send
+  mailroom_send:
+    _: END
+  END: {}

@@ -1,0 +1,229 @@
+# Open Policy Agent — runs as a sidecar to the web server (defined
+# in k8s/web/web.yaml) and also as a standalone Deployment for any
+# other services that want to consume the same policy bundle.
+#
+# Policies live in a ConfigMap so they can be hot-reloaded by
+# kubectl apply. For prod-grade policy distribution, point OPA at a
+# bundle server (GCS-hosted .tar.gz) — the ConfigMap stays as a
+# development convenience.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opa-policies
+  namespace: navigator
+data:
+  # Default-deny. The web server posts an `input` document shaped
+  # like:
+  #
+  #   {
+  #     "path":    ["portal", "admin", "people"],
+  #     "method":  "GET",
+  #     "session": {                       # null if unauthenticated
+  #       "sub":       "<idp subject>",
+  #       "email":     "libra@example.com",
+  #       "person_id": 1,
+  #       "exp":       1234567890,
+  #       "role":      "staff",
+  #       "csrf_token": "..."
+  #     }
+  #   }
+  #
+  # See docs/access-model.md. Role decides the tier; participation
+  # decides the per-project scope (the latter is enforced at the
+  # route layer via `web::access::visible_projects`).
+  navigator.rego: |
+    package navigator.authz
+
+    import rego.v1
+
+    default allow := false
+
+    # Admin is a superset of staff: anyone with the admin tier passes
+    # every staff-gated rule. We keep the set so adding a new staff-
+    # tier role later (e.g. "partner") is a one-line change.
+    staff_tier := {"staff", "admin"}
+
+    is_authenticated(session) if {
+        session != null
+    }
+
+    is_staff(session) if {
+        session != null
+        staff_tier[session.role]
+    }
+
+    is_admin(session) if {
+        session != null
+        session.role == "admin"
+    }
+
+    # Admin bypass: an authenticated admin reaches every route the
+    # other rules below don't otherwise allow. Per docs/access-model.md
+    # this bypass is silent — no per-read audit row.
+    allow if {
+        is_admin(input.session)
+    }
+
+    # /portal exact is the role-aware landing — every authenticated
+    # person may enter. The handler routes them by role to a per-role
+    # home view; no per-project scoping at this level.
+    allow if {
+        input.path == ["portal"]
+        is_authenticated(input.session)
+    }
+
+    # /portal/projects/* stays open to any authenticated caller —
+    # row-scoping happens at the handler layer via
+    # `web::access::visible_projects`, and client writes get 404 at
+    # the handler layer.
+    allow if {
+        input.path[0] == "portal"
+        input.path[1] == "projects"
+        is_authenticated(input.session)
+    }
+
+    # Northstar client plan-approval: POST /portal/projects/:id/approve-plan
+    # lets the *client* (respondent) fire `client_approved` on their estate
+    # matter. Subsumed by the rule above (it is a /portal/projects/* path),
+    # but spelled out so the approval boundary is explicit and reviewable.
+    # OPA cannot see the matter state, so the substantive conditions — the
+    # caller is on this matter, the matter is at `client_review`, and every
+    # draft has been released to `pending_review` (approve only once) — are
+    # enforced in `web::estate::approve_plan_post`, which 404s otherwise.
+    allow if {
+        input.path[0] == "portal"
+        input.path[1] == "projects"
+        input.path[3] == "approve-plan"
+        is_authenticated(input.session)
+    }
+
+    # Inbound contract review: POST /portal/projects/:id/contract-review
+    # lets a client (or staff acting for them) upload a third-party contract
+    # for playbook review. Subsumed by the /portal/projects/* rule above, but
+    # spelled out so the upload boundary is explicit and reviewable. The
+    # substantive gate OPA can't see (the caller is on this matter, and the
+    # Entity has a playbook on file) is enforced in
+    # `web::contract_review_walk`, which 404s / 422s otherwise.
+    allow if {
+        input.path[0] == "portal"
+        input.path[1] == "projects"
+        input.path[3] == "contract-review"
+        is_authenticated(input.session)
+    }
+
+    # /portal/forms/* — blank government forms (public records,
+    # vendored from each authority's own site). Any authenticated
+    # person may browse the index and download a blank; the *filled*
+    # packets are client documents and live on project routes, never
+    # here.
+    allow if {
+        input.path[0] == "portal"
+        input.path[1] == "forms"
+        is_authenticated(input.session)
+    }
+
+    # /portal/admin/* is the canonical firm-wide CRUD surface
+    # (people, entities, templates, mailrooms, letters, the
+    # contract-review playbooks at /portal/admin/playbooks*, and the
+    # attorney review screen at /portal/admin/contract-reviews*). Staff
+    # and admin only — enforced here so a missing handler-layer
+    # check never silently downgrades to "authenticated wins."
+    allow if {
+        input.path[0] == "portal"
+        input.path[1] == "admin"
+        is_staff(input.session)
+    }
+
+    # MCP (LibreChat-driven tool calls) requires staff or admin —
+    # the tools mutate the same CRM tables.
+    allow if {
+        input.path[0] == "mcp"
+        is_staff(input.session)
+    }
+
+    # A2A JSON-RPC dispatches to the same MCP tool registry — same
+    # staff-tier requirement. The agent card at /api/aida.json is
+    # served without the policy layer at the router level (it's
+    # public metadata), so this rule only governs the RPC endpoint.
+    allow if {
+        input.path == ["api", "aida", "rpc"]
+        is_staff(input.session)
+    }
+
+    # Anyone authenticated can hit the JSON API (read paths). Covers
+    # /api/people, /api/entities, /api/jurisdictions, /api/entity-types,
+    # and the bundled Swagger UI shell at /api/docs.
+    allow if {
+        input.path[0] == "api"
+        input.method == "GET"
+        is_authenticated(input.session)
+    }
+
+    # Stateless markdown-notation validator is the one POST exposed on
+    # /api/*; it accepts payloads but doesn't touch the database.
+    allow if {
+        input.path == ["api", "notations", "validate"]
+        input.method == "POST"
+        is_authenticated(input.session)
+    }
+
+    # OpenAPI document is public so the schema is discoverable without
+    # a session. The OIDC requirement applies to the API surface it
+    # describes, not to the description itself.
+    allow if {
+        input.path[0] == "openapi.json"
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opa
+  namespace: navigator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opa
+  template:
+    metadata:
+      labels:
+        app: opa
+    spec:
+      containers:
+        - name: opa
+          image: openpolicyagent/opa:latest
+          args:
+            - run
+            - --server
+            - --addr=:8181
+            - --log-level=info
+            - --watch
+            - /policies/navigator.rego
+          ports:
+            - containerPort: 8181
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8181
+            initialDelaySeconds: 5
+          volumeMounts:
+            - name: policies
+              mountPath: /policies
+              readOnly: true
+      volumes:
+        - name: policies
+          configMap:
+            name: opa-policies
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opa
+  namespace: navigator
+spec:
+  selector:
+    app: opa
+  ports:
+    - port: 8181
+      targetPort: 8181

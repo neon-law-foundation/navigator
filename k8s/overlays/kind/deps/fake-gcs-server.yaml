@@ -1,0 +1,78 @@
+# fake-gcs-server — a Google Cloud Storage emulator for local
+# development. The web container points at this service via
+# `NAVIGATOR_STORAGE_ENDPOINT=http://fake-gcs-server:4443` and uses
+# anonymous auth. In production the same `NAVIGATOR_STORAGE_*`
+# config (minus the endpoint override) targets real GCS with
+# Workload Identity.
+#
+# Image: https://github.com/fsouza/fake-gcs-server
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-gcs-server
+  namespace: navigator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fake-gcs-server
+  template:
+    metadata:
+      labels:
+        app: fake-gcs-server
+    spec:
+      # `/data` is `emptyDir`, so buckets are wiped on every pod
+      # restart. fake-gcs-server reads bucket layout from `data_dir`
+      # at startup — each top-level subdirectory under `/data`
+      # becomes a bucket — so an init container that creates
+      # `/data/navigator` is enough to give us the `navigator`
+      # bucket every time the pod comes up. No race with the main
+      # container, no follow-up Job to re-create on restart.
+      initContainers:
+        - name: ensure-buckets
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - mkdir -p /data/navigator && echo "ensured /data/navigator"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      containers:
+        - name: fake-gcs-server
+          image: fsouza/fake-gcs-server:latest
+          args:
+            - -scheme
+            - http
+            - -port
+            - "4443"
+            - -public-host
+            - fake-gcs-server:4443
+          ports:
+            - containerPort: 4443
+          readinessProbe:
+            tcpSocket:
+              port: 4443
+            initialDelaySeconds: 3
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-gcs-server
+  namespace: navigator
+spec:
+  selector:
+    app: fake-gcs-server
+  ports:
+    - name: http
+      port: 4443
+      targetPort: 4443
+      nodePort: 30443
+  type: NodePort

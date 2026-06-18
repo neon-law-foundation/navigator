@@ -1,0 +1,32 @@
+# Second K8s Service in front of the same `navigator-web` pods,
+# scoped to the IAP-gated /mcp endpoint only.
+#
+# Why a separate Service: BackendConfig is per-Service. Attaching
+# `iap.enabled: true` to the public `navigator-web` Service would
+# gate the entire LB backend — marketing pages, /portal, /api,
+# everything — behind a Google sign-in wall. Bad for public reach.
+#
+# Both Services point at the same pods (same selector). GKE
+# provisions one NEG per Service, and one Compute backend service
+# per NEG. The new `navigator-web-mcp` backend service is the one
+# that gets IAP turned on via the BackendConfig under
+# `./backendconfig.yaml`.
+#
+# Path-routing in the Ingress (../ingress/ingress.yaml) sends
+# `/mcp` to this Service and everything else to `navigator-web`.
+apiVersion: v1
+kind: Service
+metadata:
+  name: navigator-web-mcp
+  namespace: navigator
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "navigator-web-mcp"}'
+spec:
+  type: ClusterIP
+  selector:
+    app: navigator-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3001

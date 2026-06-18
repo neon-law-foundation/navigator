@@ -1,0 +1,159 @@
+lookup_fields:
+  - name
+records:
+  - name: Alabama
+    code: AL
+    jurisdiction_type: state
+  - name: Alaska
+    code: AK
+    jurisdiction_type: state
+  - name: Arizona
+    code: AZ
+    jurisdiction_type: state
+  - name: Arkansas
+    code: AR
+    jurisdiction_type: state
+  - name: California
+    code: CA
+    jurisdiction_type: state
+  - name: Colorado
+    code: CO
+    jurisdiction_type: state
+  - name: Connecticut
+    code: CT
+    jurisdiction_type: state
+  - name: Delaware
+    code: DE
+    jurisdiction_type: state
+  - name: District of Columbia
+    code: DC
+    jurisdiction_type: state
+  - name: Florida
+    code: FL
+    jurisdiction_type: state
+  - name: Georgia
+    code: GA
+    jurisdiction_type: state
+  - name: Hawaii
+    code: HI
+    jurisdiction_type: state
+  - name: Idaho
+    code: ID
+    jurisdiction_type: state
+  - name: Illinois
+    code: IL
+    jurisdiction_type: state
+  - name: Indiana
+    code: IN
+    jurisdiction_type: state
+  - name: Iowa
+    code: IA
+    jurisdiction_type: state
+  - name: Kansas
+    code: KS
+    jurisdiction_type: state
+  - name: Kentucky
+    code: KY
+    jurisdiction_type: state
+  - name: Louisiana
+    code: LA
+    jurisdiction_type: state
+  - name: Maine
+    code: ME
+    jurisdiction_type: state
+  - name: Maryland
+    code: MD
+    jurisdiction_type: state
+  - name: Massachusetts
+    code: MA
+    jurisdiction_type: state
+  - name: Michigan
+    code: MI
+    jurisdiction_type: state
+  - name: Minnesota
+    code: MN
+    jurisdiction_type: state
+  - name: Mississippi
+    code: MS
+    jurisdiction_type: state
+  - name: Missouri
+    code: MO
+    jurisdiction_type: state
+  - name: Montana
+    code: MT
+    jurisdiction_type: state
+  - name: Nebraska
+    code: NE
+    jurisdiction_type: state
+  - name: Nevada
+    code: NV
+    jurisdiction_type: state
+  - name: New Hampshire
+    code: NH
+    jurisdiction_type: state
+  - name: New Jersey
+    code: NJ
+    jurisdiction_type: state
+  - name: New Mexico
+    code: NM
+    jurisdiction_type: state
+  - name: New York
+    code: NY
+    jurisdiction_type: state
+  - name: North Carolina
+    code: NC
+    jurisdiction_type: state
+  - name: North Dakota
+    code: ND
+    jurisdiction_type: state
+  - name: Ohio
+    code: OH
+    jurisdiction_type: state
+  - name: Oklahoma
+    code: OK
+    jurisdiction_type: state
+  - name: Oregon
+    code: OR
+    jurisdiction_type: state
+  - name: Pennsylvania
+    code: PA
+    jurisdiction_type: state
+  - name: Rhode Island
+    code: RI
+    jurisdiction_type: state
+  - name: South Carolina
+    code: SC
+    jurisdiction_type: state
+  - name: South Dakota
+    code: SD
+    jurisdiction_type: state
+  - name: Tennessee
+    code: TN
+    jurisdiction_type: state
+  - name: Texas
+    code: TX
+    jurisdiction_type: state
+  - name: Utah
+    code: UT
+    jurisdiction_type: state
+  - name: Vermont
+    code: VT
+    jurisdiction_type: state
+  - name: Virginia
+    code: VA
+    jurisdiction_type: state
+  - name: Washington
+    code: WA
+    jurisdiction_type: state
+  - name: West Virginia
+    code: WV
+    jurisdiction_type: state
+  - name: Wisconsin
+    code: WI
+    jurisdiction_type: state
+  - name: Wyoming
+    code: WY
+    jurisdiction_type: state
+  - name: Germany
+    code: GMBH
+    jurisdiction_type: country

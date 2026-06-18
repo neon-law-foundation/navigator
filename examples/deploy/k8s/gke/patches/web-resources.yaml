@@ -1,0 +1,29 @@
+# Minimal resource requests for the `web` container. Tuned for the
+# cheapest deployment that still works: GKE Autopilot will silently
+# floor whatever's below its enforced minimum, but declaring the
+# smallest legal values up front means we get exactly Autopilot's
+# floor and no more.
+#
+# Bump these when CPU / memory utilization shows headroom is gone —
+# Autopilot bills per requested resource, so over-asking is the easy
+# way to overspend.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: web
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+        - name: opa
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi

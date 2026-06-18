@@ -1,0 +1,220 @@
+# navigator-web Deployment. Sidecars an OPA instance so policy
+# decisions are an in-pod call (localhost:8181). Connects to the
+# in-cluster Postgres, fake-gcs-server, Keycloak, and Restate by
+# their service DNS names.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: navigator-seed
+  namespace: navigator
+data:
+  base.yaml: |
+    jurisdictions:
+      - { code: NV, name: Nevada }
+      - { code: CA, name: California }
+      - { code: NY, name: New York }
+      - { code: TX, name: Texas }
+      - { code: WY, name: Wyoming }
+      - { code: US, name: United States (federal) }
+    questions:
+      - { code: trustee_name, prompt: Who is the trustee?, answer_type: string }
+      - { code: trust_property, prompt: What property does the trust hold?, answer_type: string }
+      - { code: company_name, prompt: What is the name of the company?, answer_type: string }
+      - { code: principal_office, prompt: Where is the principal office located?, answer_type: string }
+      - { code: member_list, prompt: Who are the members of the LLC?, answer_type: string }
+      - { code: testator_name, prompt: Who is the testator?, answer_type: string }
+      - { code: executor_name, prompt: Who is the executor?, answer_type: string }
+      - { code: residuary_beneficiary, prompt: Who is the residuary beneficiary?, answer_type: string }
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: navigator-web
+  namespace: navigator
+type: Opaque
+stringData:
+  # OAuth client secret matches what k8s/keycloak imports into the
+  # `navigator-web` client.
+  OAUTH_CLIENT_SECRET: navigator-web-secret
+  SESSION_SECRET: change-me-32-bytes-of-random-data-x
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigator-web
+  namespace: navigator
+  labels:
+    app: navigator-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: navigator-web
+  template:
+    metadata:
+      labels:
+        app: navigator-web
+    spec:
+      containers:
+        - name: web
+          image: navigator-web:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3001
+          env:
+            - name: PORT
+              value: "3001"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: DATABASE_URL
+            - name: NAVIGATOR_SEED_FILE
+              value: /seed/base.yaml
+            # Object storage. GCP-only: NAVIGATOR_STORAGE_* targets
+            # Google Cloud Storage in production via Workload
+            # Identity (no creds needed in-cluster). Locally we
+            # point at fake-gcs-server with anonymous auth.
+            - name: NAVIGATOR_STORAGE_BACKEND
+              value: gcs
+            - name: NAVIGATOR_STORAGE_ENDPOINT
+              value: http://fake-gcs-server:4443
+            - name: NAVIGATOR_STORAGE_BUCKET
+              value: navigator
+            # OIDC against Keycloak (KIND-only — production overlay
+            # replaces this with `https://accounts.google.com`). The
+            # pod fetches `{issuer}/.well-known/openid-configuration`
+            # via cluster DNS; Keycloak's hostname-v2 config (see
+            # k8s/overlays/kind/deps/keycloak.yaml) returns a
+            # discovery doc that points the browser at
+            # `http://localhost:8080/keycloak/...` and keeps the
+            # backchannel `token_endpoint` on `http://keycloak:8080/...`.
+            - name: OAUTH_ISSUER_URL
+              value: http://keycloak:8080/keycloak/realms/navigator
+            - name: OAUTH_CLIENT_ID
+              value: navigator-web
+            - name: OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-web
+                  key: OAUTH_CLIENT_SECRET
+            - name: OAUTH_REDIRECT_URI
+              value: http://localhost:8080/auth/callback
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-web
+                  key: SESSION_SECRET
+            # Policy: OPA sidecar reachable at localhost.
+            - name: NAVIGATOR_OPA_URL
+              value: http://localhost:8181
+            # Restate workflow broker. `RESTATE_BROKER_URL` is what
+            # `workflows::RestateRuntime::from_env` reads; its presence
+            # is also what `web::main` checks to pick RestateRuntime
+            # over the in-process InMemoryRuntime. The
+            # `workflows-service` RestateDeployment registers itself
+            # with this cluster via the operator (no Job needed).
+            #
+            # The Restate Operator places the StatefulSet + Service in
+            # a namespace named after the RestateCluster (`restate`),
+            # not the namespace of the CR itself. So consumers in
+            # `navigator` reach the broker via the cross-namespace FQDN.
+            - name: RESTATE_BROKER_URL
+              value: http://restate.restate.svc.cluster.local:8080
+            # OTLP gRPC endpoint for the in-cluster Grafana LGTM
+            # stack. `web::telemetry::init` reads this and, when
+            # set, ships every `tracing` span to Tempo and every
+            # log event to Loki. Unset to fall back to stdout-only
+            # logging (no LGTM running, or running outside KIND).
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://lgtm.navigator.svc.cluster.local:4317
+            - name: OTEL_SERVICE_NAME
+              value: navigator-web
+            # SendGrid stubs — the binary refuses to start without
+            # these (the production-invariants guard is unconditional
+            # post SQLite cutover). KIND keeps NAVIGATOR_EMAIL_BACKEND
+            # unset so the actual backend is CapturingEmail, but the
+            # invariant still demands the env vars be non-empty. The
+            # GKE overlay's `web-env.yaml` replaces the env list
+            # wholesale with real Secret-backed values plus
+            # NAVIGATOR_EMAIL_BACKEND=sendgrid, so these stubs only
+            # ship to KIND.
+            - name: SENDGRID_API_KEY
+              value: SG.kind-stub
+            - name: SENDGRID_INBOUND_SECRET
+              value: kind-stub
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: seed
+              mountPath: /seed
+              readOnly: true
+        # OPA sidecar — every web pod gets its own policy evaluator.
+        - name: opa
+          image: openpolicyagent/opa:latest
+          args:
+            - run
+            - --server
+            - --addr=:8181
+            - --log-level=info
+            - --watch
+            - /policies/navigator.rego
+          ports:
+            - containerPort: 8181
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8181
+          volumeMounts:
+            - name: policies
+              mountPath: /policies
+              readOnly: true
+      volumes:
+        - name: seed
+          configMap:
+            name: navigator-seed
+        - name: policies
+          configMap:
+            name: opa-policies
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  selector:
+    app: navigator-web
+  ports:
+    - port: 80
+      targetPort: 3001
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: navigator-web
+                port:
+                  number: 80

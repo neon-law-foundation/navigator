@@ -1,0 +1,95 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Production overlay — describes the GKE Autopilot cluster state at
+# `YOUR_PROJECT_ID:us-west4:navigator-prod`. The directory is the
+# source of truth for what `kubectl apply -k` should produce; Config
+# Sync is NOT currently reconciling it because the repo isn't
+# pushed to a remote yet (see `prompts/git-remote-and-ci-wif.md`).
+#
+# Hardcoded for the `YOUR_PROJECT_ID` GCP project. Re-renaming for
+# another project means search-and-replace; see
+# `prompts/devx-gcp-setup-fixes.md` for the (deferred) plan to
+# templatize.
+#
+# Things deliberately NOT in this overlay (each has a prompt):
+# - Config Connector CRs (IAMPolicyMember, LoggingLogSink,
+#   GKEBackupBackupPlan, CertificateManagerCertificate*) — Config
+#   Connector isn't reconciling on this cluster's GKE version. The
+#   IAM bindings are managed by direct `gcloud` commands instead.
+# - SecretProviderClass + CSI-mount patch — manifests now ship under
+#   `secrets/` but are NOT yet wired into `resources`/`patches` below,
+#   because the GKE Secret Manager CSI driver registers under a
+#   cluster-specific name (`secrets-store-gke.csi.k8s.io`). Confirm it
+#   with `kubectl get csidrivers`, then uncomment the two `secrets/`
+#   lines below to activate. Until then `navigator-web-secrets` stays a
+#   plain K8s Secret managed out-of-band. Full steps live in
+#   `secrets/secret-provider-class.yaml`.
+# - Cloud Armor (ComputeSecurityPolicy + GCPBackendPolicy) — removed
+#   to save ~$15/mo. No WAF / rate-limit at the LB today.
+
+namespace: navigator
+
+resources:
+  - ../../base
+  - ../../base/web
+  - ingress/ingress.yaml
+  - ingress/managed-certificate.yaml
+  - ingress/frontend-config.yaml
+  - ingress/workflows-managed-certificate.yaml
+  - workflows-service/envoy-config.yaml
+  - workflows-service/deployment.yaml
+  - iap/backendconfig.yaml
+  - iap/navigator-web-mcp-service.yaml
+  - iam.yaml
+  # Secret Manager CSI sync — uncomment once `kubectl get csidrivers`
+  # confirms the GKE driver name (see secrets/secret-provider-class.yaml).
+  # - secrets/secret-provider-class.yaml
+
+patches:
+  # Second half of the CSI sync — uncomment together with the resource
+  # above. Mounts the CSI volume on `web` so the driver keeps
+  # `navigator-web-secrets` reconciled from Secret Manager.
+  # - path: secrets/web-secrets-csi-mount.yaml
+  #   target:
+  #     kind: Deployment
+  #     name: navigator-web
+  - path: patches/web-env.yaml
+    target:
+      kind: Deployment
+      name: navigator-web
+  - path: patches/web-image.yaml
+    target:
+      kind: Deployment
+      name: navigator-web
+  - path: patches/web-cloudsql-proxy.yaml
+    target:
+      kind: Deployment
+      name: navigator-web
+  - path: patches/web-resources.yaml
+    target:
+      kind: Deployment
+      name: navigator-web
+  - path: patches/web-service-neg.yaml
+    target:
+      kind: Service
+      name: navigator-web
+
+  # The base manifest at `base/web/web.yaml` includes an
+  # `Ingress navigator-web` (nginx-class, for KIND only). It's
+  # inert in GKE because no nginx controller runs here, but we
+  # `$patch: delete` it for clarity so the rendered overlay shows
+  # only the GKE Ingress (`navigator-web-gke` under `ingress/`).
+  #
+  # The env-list scrubbing happens in patches/web-env.yaml via
+  # `$patch: replace` on the env array — see that file for why.
+  - target:
+      kind: Ingress
+      name: navigator-web
+    patch: |
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: navigator-web
+        namespace: navigator

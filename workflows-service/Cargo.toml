@@ -1,0 +1,54 @@
+[package]
+name = "workflows-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# The Restate worker binary that registers the `notation` virtual
+# object's handlers. Talks to the broker over the restate-sdk's
+# HTTP server endpoint; talks to Postgres via the `store` crate
+# to project each state-machine transition into the
+# `notation_events` journal.
+[[bin]]
+name = "workflows-service"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+archives = { workspace = true }
+async-trait.workspace = true
+billing-workflows = { workspace = true }
+chrono.workspace = true
+cloud.workspace = true
+dotenvy.workspace = true
+restate-sdk.workspace = true
+sea-orm.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+statutes = { workspace = true }
+store = { workspace = true }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "net"] }
+telemetry.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+workflows = { workspace = true }
+
+[dev-dependencies]
+# Test-only: the registry naming test reuses `rules::is_pascal_case`, the same
+# predicate `F103` applies to template filenames, so the worker's service-name
+# convention and the template convention can never drift. Dev-only keeps the
+# markdown rules engine out of the shipped worker binary.
+rules = { workspace = true }
+store = { workspace = true, features = ["test-support"] }
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

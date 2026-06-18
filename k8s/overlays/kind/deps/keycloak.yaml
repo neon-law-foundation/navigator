@@ -1,0 +1,158 @@
+# Keycloak in dev mode (no HTTPS, ephemeral H2 db) — appropriate for
+# local KIND only. For staging/prod, switch to the official Helm
+# chart with an external Postgres and proper TLS termination.
+#
+# The realm/client are imported from a ConfigMap at start so the
+# OIDC integration is ready to use without manual clicking. Default
+# admin creds: admin / admin (override the Secret in CI).
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-admin
+  namespace: navigator
+type: Opaque
+stringData:
+  KEYCLOAK_ADMIN: admin
+  KEYCLOAK_ADMIN_PASSWORD: admin
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+  namespace: navigator
+data:
+  navigator-realm.json: |
+    {
+      "realm": "navigator",
+      "enabled": true,
+      "registrationAllowed": false,
+      "users": [
+        {
+          "username": "staff",
+          "enabled": true,
+          "email": "staff@neonlaw.com",
+          "emailVerified": true,
+          "firstName": "Staff",
+          "credentials": [
+            { "type": "password", "value": "staff", "temporary": false }
+          ]
+        }
+      ],
+      "clients": [
+        {
+          "clientId": "navigator-web",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "secret": "navigator-web-secret",
+          "redirectUris": ["http://localhost:8080/auth/callback", "http://localhost:3001/auth/callback", "http://navigator-web/auth/callback"],
+          "webOrigins": ["http://localhost:8080", "http://localhost:3001", "http://navigator-web"],
+          "directAccessGrantsEnabled": true,
+          "standardFlowEnabled": true
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: navigator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:25.0
+          args: ["start-dev", "--import-realm"]
+          envFrom:
+            - secretRef:
+                name: keycloak-admin
+          env:
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_HOSTNAME_STRICT
+              value: "false"
+            # Hostname v2: the browser hits `localhost:8080/keycloak`
+            # (KIND port-map → nginx ingress at `path: /keycloak/`);
+            # the pod hits `keycloak:8080/keycloak` via cluster DNS.
+            # `BACKCHANNEL_DYNAMIC=true` makes the discovery doc
+            # advertise the request-URL for backchannel endpoints
+            # (`token_endpoint`, `jwks_uri`, ...) while keeping
+            # frontchannel endpoints (`authorization_endpoint`) on
+            # `KC_HOSTNAME`. That's the canonical Keycloak v25 way to
+            # split browser-facing vs server-facing URLs without
+            # adding a rewrite layer in the OIDC client. Production
+            # uses Google Identity Services and never sees these
+            # variables.
+            - name: KC_HOSTNAME
+              value: http://localhost:8080/keycloak
+            - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+              value: "true"
+            - name: KC_HTTP_RELATIVE_PATH
+              value: /keycloak
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /keycloak/realms/master
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: navigator
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080
+  type: NodePort
+---
+# Browser path to Keycloak: shares `host: localhost` with
+# `navigator-web` (k8s/base/web/web.yaml) but on a disjoint path
+# prefix. KIND port-maps host 8080 → nginx ingress; nginx routes
+# `/keycloak/*` here and `/*` to navigator-web. Pods continue to
+# reach Keycloak directly via `keycloak:8080` (cluster DNS) — the
+# Ingress is browser-only.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: navigator
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: localhost
+      http:
+        paths:
+          - path: /keycloak/
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080

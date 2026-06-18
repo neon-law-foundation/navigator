@@ -1,0 +1,191 @@
+[package]
+name = "features"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+# Pulls in fantoccini + url so feature suites (and the legacy
+# `web/tests/browser_e2e.rs`) can share a single set of WebDriver
+# helpers. Off by default because the BDD scenarios that ship today
+# all drive `axum::Router` directly via `tower::ServiceExt::oneshot`.
+webdriver = ["dep:fantoccini", "dep:url"]
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+axum = { workspace = true, features = ["form", "multipart"] }
+base64.workspace = true
+chrono.workspace = true
+cloud.workspace = true
+cucumber.workspace = true
+pdf.workspace = true
+fantoccini = { workspace = true, optional = true }
+futures.workspace = true
+http-body-util.workspace = true
+import.workspace = true
+repos.workspace = true
+rules.workspace = true
+sea-orm.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+store = { workspace = true, features = ["test-support"] }
+tokio.workspace = true
+tower.workspace = true
+url = { workspace = true, optional = true }
+uuid.workspace = true
+web.workspace = true
+wiremock.workspace = true
+workflows.workspace = true
+
+[[test]]
+name = "retainer_intake"
+harness = false
+
+[[test]]
+name = "client_intake"
+harness = false
+
+[[test]]
+name = "mutable_intake_docusign"
+harness = false
+
+[[test]]
+name = "trust_esignature"
+harness = false
+
+[[test]]
+name = "estate_intake"
+harness = false
+
+[[test]]
+name = "nautilus_workflows"
+harness = false
+
+[[test]]
+name = "closing_letter"
+harness = false
+
+[[test]]
+name = "esignature_webhook"
+harness = false
+
+[[test]]
+name = "acroform_fill"
+harness = false
+
+[[test]]
+name = "annual_report_filing"
+harness = false
+
+[[test]]
+name = "intake_language"
+harness = false
+
+[[test]]
+name = "mcp_create_notation"
+harness = false
+
+[[test]]
+name = "template_validate"
+harness = false
+
+[[test]]
+name = "brand_routing"
+harness = false
+
+[[test]]
+name = "oidc_callback"
+harness = false
+
+[[test]]
+name = "onboarding_welcome"
+harness = false
+
+[[test]]
+name = "portal_landing"
+harness = false
+
+[[test]]
+name = "portal_projects_detail"
+harness = false
+
+[[test]]
+name = "portal_invoice_card"
+harness = false
+
+[[test]]
+name = "portal_admin_firm_surface"
+harness = false
+
+[[test]]
+name = "portal_projects_writes"
+harness = false
+
+[[test]]
+name = "legal_workflow_shapes"
+harness = false
+
+[[test]]
+name = "compliance_filings_workflow_shapes"
+harness = false
+
+[[test]]
+name = "nonprofit_workflow_shapes"
+harness = false
+
+[[test]]
+name = "workshop_navigator_walkthrough"
+harness = false
+
+[[test]]
+name = "deploy_the_navigator_walkthrough"
+harness = false
+
+[[test]]
+name = "aida_welcome_chain"
+harness = false
+
+[[test]]
+name = "nest_formation"
+harness = false
+
+[[test]]
+name = "entity_formation"
+harness = false
+
+[[test]]
+name = "nautilus_debt_shield"
+harness = false
+
+[[test]]
+name = "bulk_import_engagement"
+harness = false
+
+[[test]]
+name = "spanish_client_journey"
+harness = false
+
+[[test]]
+name = "git_repo_collaboration"
+harness = false
+
+[[test]]
+name = "inbound_email_round_trip"
+harness = false
+
+[[test]]
+name = "nexus_fractional_gc"
+harness = false
+
+[[test]]
+name = "northstar_estate"
+harness = false
+
+[lints]
+workspace = true

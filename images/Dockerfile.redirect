@@ -1,0 +1,62 @@
+# syntax=docker/dockerfile:1.7
+
+# ---------- Stage 1: builder ----------
+#
+# Builds the `redirect` binary in the `cloud` crate. The Cloud Run
+# service answers two hosts (`neonlaw.com` → www,
+# `chat.neonlaw.com` → Gemini Enterprise landing) and ships no
+# templates / assets / DB — distroless/static is enough.
+#
+# Same single-COPY-then-build layout as Dockerfile.workflows-service
+# so the build context is identical and `docker buildx` caches stay
+# warm across the images.
+
+FROM rust:1.95-bookworm AS builder
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends musl-tools \
+    && rm -rf /var/lib/apt/lists/* \
+    && rustup target add x86_64-unknown-linux-musl
+
+WORKDIR /src
+
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY rules             rules
+COPY store             store
+COPY repos             repos
+COPY cli               cli
+COPY web               web
+COPY views             views
+COPY README.md         README.md
+COPY workflows         workflows
+COPY workflows-service workflows-service
+COPY cloud             cloud
+COPY compass           compass
+COPY mcp               mcp
+COPY features          features
+COPY lsp               lsp
+COPY pdf               pdf
+COPY templates         templates
+COPY archives          archives
+COPY import            import
+COPY statutes          statutes
+COPY billing           billing
+COPY billing-workflows billing-workflows
+
+RUN cargo build --release --target x86_64-unknown-linux-musl -p cloud --bin redirect
+
+# ---------- Stage 2: runtime ----------
+
+FROM gcr.io/distroless/static:nonroot AS runtime
+
+WORKDIR /app
+
+COPY --from=builder /src/target/x86_64-unknown-linux-musl/release/redirect /app/redirect
+
+ENV RUST_LOG=info
+
+USER nonroot:nonroot
+
+# Cloud Run injects PORT (8080 today); the binary honors it. We
+# don't EXPOSE since Cloud Run ignores it.
+ENTRYPOINT ["/app/redirect"]

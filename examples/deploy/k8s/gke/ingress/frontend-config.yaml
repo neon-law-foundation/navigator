@@ -1,0 +1,15 @@
+# LB front-end behaviors that aren't expressible in the core
+# Ingress object — currently just the HTTP -> HTTPS upgrade.
+#
+# `responseCodeName: PERMANENT_REDIRECT` translates to 308. Use 308
+# instead of 301 so clients re-issue the request with the same
+# method (matters for POST endpoints like the SendGrid webhook).
+apiVersion: networking.gke.io/v1beta1
+kind: FrontendConfig
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  redirectToHttps:
+    enabled: true
+    responseCodeName: PERMANENT_REDIRECT

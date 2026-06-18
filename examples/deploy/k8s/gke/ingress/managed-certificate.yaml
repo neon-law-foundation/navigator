@@ -1,0 +1,22 @@
+# Google-managed TLS certificate for `www.your-domain.example`.
+#
+# The legacy GKE ManagedCertificate CRD (different from Certificate
+# Manager — these are two parallel APIs in GCP) issues + auto-renews
+# a Google-Trust-Services cert. First issuance takes ~15 minutes
+# from the moment DNS resolves to the LB's IP; subsequent renewals
+# are silent.
+#
+# The HTTP-01 challenge runs against `http://www.your-domain.example/
+# .well-known/acme-challenge/<token>`. The challenge server expects
+# the LB to serve the token on HTTP — so DON'T turn on the
+# FrontendConfig's `redirectToHttps` until the cert is Active for
+# the first time. After that, the cert serves the challenge over
+# HTTPS during renewals.
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  domains:
+    - www.your-domain.example

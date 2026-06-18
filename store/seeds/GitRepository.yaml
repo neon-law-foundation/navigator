@@ -1,0 +1,8 @@
+lookup_fields:
+  - repository_name
+
+records:
+  - repository_name: navigator-examples
+    description: Example templates for development and seeding
+    project:
+      codename: navigator-examples

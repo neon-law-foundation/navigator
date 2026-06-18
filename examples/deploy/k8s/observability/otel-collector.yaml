@@ -1,0 +1,277 @@
+# OpenTelemetry Collector — the telemetry seam every Navigator binary speaks to.
+#
+# Binaries set OTEL_EXPORTER_OTLP_ENDPOINT to this Service and emit OTLP traces,
+# metrics, AND logs (see telemetry/src/lib.rs — logs now export over OTLP too,
+# while still dual-emitting to stdout). The Collector fans out to Google Cloud
+# (Cloud Trace + Cloud Monitoring + Cloud Logging). Swapping backends is a
+# config change here, never a Rust change.
+#
+# Logs DUAL-PATH: each binary keeps writing structured JSON to stdout (Cloud
+# Logging already collects that), AND ships logs over OTLP through this
+# Collector. The stdout path is the failure-isolation guarantee — a Collector
+# outage degrades to "no live traces / no lake telemetry," never "lost a log
+# line."
+#
+# LEGAL — the redaction processor below is load-bearing, not optional. This is a
+# legal platform; a span/log/metric attribute can carry privileged client info
+# (RPC 1.6). The processor is FAIL-CLOSED: `allow_all_keys: false` deletes every
+# attribute whose key is not on the explicit operational allow-list. Free-text
+# content, names, emails, addresses, resolved URL paths, SQL statements, and
+# exception payloads are dropped *by construction* because they are not on the
+# list — not by a fragile pattern match. The allow-list is the whole ballgame.
+#
+# The Collector's ServiceAccount needs Workload Identity bound to a GSA with
+# roles/cloudtrace.agent + roles/monitoring.metricWriter + roles/logging.logWriter
+# (see README.md).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-collector
+  namespace: navigator
+  annotations:
+    # Bind to the telemetry GSA via Workload Identity.
+    iam.gke.io/gcp-service-account: navigator-otel@YOUR_PROJECT_ID.iam.gserviceaccount.com
+---
+# The single source of truth for the collector endpoint. web,
+# workflows-service, and every *-trigger CronJob `envFrom` this ConfigMap
+# instead of re-declaring the URL — one place to change if the Service moves.
+# The value is the in-cluster Service DNS, identical for every deployer, so it
+# is NOT a per-deployment placeholder (unlike project id / domain).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: navigator-otel-env
+  namespace: navigator
+data:
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.navigator.svc.cluster.local:4317"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: navigator
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+    processors:
+      # Guard the collector's own memory before anything else in the chain.
+      memory_limiter:
+        check_interval: 5s
+        limit_percentage: 80
+        spike_limit_percentage: 20
+      # Stamp cloud/host/cluster identity onto every signal. Runs BEFORE
+      # redaction so the keys it adds (cloud.*, host.*, k8s.*) must appear on
+      # the allow-list below, or fail-closed would delete them and we'd lose
+      # all topology.
+      resourcedetection:
+        detectors: [env, gcp]
+        timeout: 5s
+        override: false
+      # FAIL-CLOSED redaction (LEGAL #1–#4). allow_all_keys=false => every
+      # attribute key NOT listed here is deleted from spans, logs, and metric
+      # datapoints. This is the primary privilege control; it drops url.path /
+      # url.full / http.target (resolved client ids), db.statement (SQL with
+      # values), and exception.message / exception.stacktrace (verbatim
+      # payloads, LEGAL #5) simply by not listing them.
+      #
+      # v1 posture (attorney call, 2026-06-14): the key allow-list is the only
+      # control. Opaque UUID ids ARE permitted (person_id, project_id, …) —
+      # they carry no name/email and make telemetry debuggable. Value-level
+      # regex backstops (email/phone/SSN/EIN) and the log-BODY scrub are
+      # deliberately deferred: they are a PREREQUISITE FOR STEP 5, when the
+      # 10-year content-free log lake turns on and the free-text log body
+      # (which the key allow-list does NOT cover) starts to matter. Until then,
+      # the source-layer rule in telemetry/src/lib.rs (structured fields only,
+      # never interpolate client content into a message) is the body control.
+      redaction:
+        allow_all_keys: false
+        allowed_keys:
+          # --- resource / infra (resourcedetection + SDK) ---
+          - service.name
+          - service.version
+          - service.instance.id
+          - deployment.environment
+          - telemetry.sdk.name
+          - telemetry.sdk.language
+          - telemetry.sdk.version
+          - cloud.provider
+          - cloud.platform
+          - cloud.account.id
+          - cloud.region
+          - cloud.availability_zone
+          - host.id
+          - host.name
+          - host.type
+          - k8s.cluster.name
+          - k8s.namespace.name
+          - k8s.pod.name
+          - k8s.deployment.name
+          - k8s.node.name
+          - container.name
+          # --- Navigator operational (what telemetry/workflows emit) ---
+          - service
+          - outcome
+          - handler
+          - key
+          - one_way
+          - workflow
+          - step
+          - error.class
+          - error.type
+          - status_code
+          - duration_ms
+          - count
+          - audit
+          # --- opaque UUID ids (attorney call: raw ids loggable) ---
+          - person_id
+          - project_id
+          - notation_id
+          - document_id
+          - entity_id
+          - template_id
+          - question_id
+          - invocation_id
+          # --- HTTP/RPC semconv (TEMPLATE route only, never resolved path) ---
+          - http.request.method
+          - http.route
+          - http.response.status_code
+          - url.scheme
+          - server.address
+          - network.protocol.name
+          - network.protocol.version
+          - rpc.system
+          - rpc.service
+          - rpc.method
+          # --- otel scope / status ---
+          - otel.scope.name
+          - otel.scope.version
+          - otel.status_code
+        # Emit a debug attribute counting redacted/masked keys so a leak of a
+        # NEW attribute key shows up as a rising redaction count (Step 7
+        # watches this), without ever logging the dropped value.
+        summary: debug
+      # Tail sampling (TRACES only — sampling is a trace concept). The live
+      # Cloud Trace view is the SAMPLED, lossy stream; the Iceberg lake (Step 5)
+      # receives the FULL unsampled stream and is the integrity source. So
+      # keep-rules favour signal: always keep errors and audit-tagged traces;
+      # probabilistically sample the rest to cap Cloud Trace ingestion cost.
+      #
+      # NOTE on replicas: tail sampling needs all spans of a trace at one
+      # collector instance. A single emitting process holds a sticky gRPC
+      # connection to one replica, so single-process traces are decided
+      # correctly; cross-boundary traces (web -> Restate, Step 3) can split
+      # across the 2 replicas and be sampled approximately. Acceptable for v1
+      # because the unsampled lake is the source of truth and ERROR spans are
+      # kept on whichever replica sees them. The 2-tier loadbalancing-exporter
+      # upgrade is the future fix if exactness on the live view is needed.
+      tail_sampling:
+        decision_wait: 10s
+        num_traces: 50000
+        policies:
+          - name: keep-errors
+            type: status_code
+            status_code:
+              status_codes: [ERROR]
+          - name: keep-audit
+            type: boolean_attribute
+            boolean_attribute:
+              key: audit
+              value: true
+          - name: probabilistic-rest
+            type: probabilistic
+            probabilistic:
+              sampling_percentage: 20
+      batch:
+        timeout: 10s
+    exporters:
+      googlecloud:
+        project: YOUR_PROJECT_ID
+        log:
+          default_log_name: navigator-otel
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, resourcedetection, redaction, tail_sampling, batch]
+          exporters: [googlecloud]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, resourcedetection, redaction, batch]
+          exporters: [googlecloud]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, resourcedetection, redaction, batch]
+          exporters: [googlecloud]
+      # Expose the collector's OWN metrics (otelcol_exporter_send_failed_*,
+      # otelcol_processor_dropped_*, …) on :8888 so Google Managed Prometheus
+      # can scrape them — the "telemetry is silently being lost" signal that
+      # `collector-monitoring.yaml` alerts on. 0.0.0.0 (not the localhost
+      # default) so the GMP collector reaches it across the pod boundary.
+      telemetry:
+        metrics:
+          address: 0.0.0.0:8888
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: navigator
+  labels:
+    app: otel-collector
+spec:
+  # 2 replicas for availability (see the tail_sampling NOTE above for the
+  # split-trace caveat this introduces — accepted for v1).
+  replicas: 2
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      serviceAccountName: otel-collector
+      containers:
+        - name: otel-collector
+          # contrib image carries the googlecloud exporter + redaction,
+          # resourcedetection, and tail_sampling processors.
+          image: otel/opentelemetry-collector-contrib:0.116.1
+          args: ["--config=/etc/otel/config.yaml"]
+          ports:
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 8888
+              name: self-metrics
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: navigator
+spec:
+  selector:
+    app: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: self-metrics
+      port: 8888
+      targetPort: 8888

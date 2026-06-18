@@ -1,0 +1,77 @@
+# statutes weekly trigger — starts one `Statutes` Restate workflow
+# invocation per week. The workflow itself is hosted by the
+# `workflows-service` worker (../gke/workflows-service/) — all workflows
+# live there, so there is no separate statutes worker. This CronJob is a
+# thin trigger that POSTs to the Restate ingress and exits in seconds.
+# Restate owns the retry schedule from there, so this Job needs no
+# backoff heroics of its own.
+#
+# Replaces the former `cron-statutes-sync.yaml`, which ran the whole
+# scrape inside a self-contained Job. The workflow split makes the run a
+# durable two-step (scrape → Foundation-branded summary email): an
+# email-send retry never re-scrapes the legislature's site, and the
+# weekly run now reports itself by email like the Archives export.
+#
+# Schedule `0 10 * * 0` UTC = Sundays at 02:00 PST (03:00 PDT). Weekly is
+# plenty: the NRS only changes when the Legislature acts.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: statutes-trigger
+  namespace: navigator
+  labels:
+    app: statutes-trigger
+spec:
+  schedule: "0 10 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 4
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: statutes-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: statutes-trigger
+              image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-statutes-trigger:latest
+              imagePullPolicy: Always
+              env:
+                # Restate Cloud ingress endpoint for the navigator-prod
+                # environment. Find it under the env's "Ingress" in the
+                # Restate Cloud console; set it as a literal here or
+                # source it from the Secret. The trigger POSTs
+                # `${RESTATE_INGRESS_URL}/Statutes/<run-date>/run`.
+                - name: RESTATE_INGRESS_URL
+                  value: https://YOUR_RESTATE_CLOUD_INGRESS
+                # Restate Cloud authenticates every ingress call with the
+                # tenant bearer. Without this the trigger POST 401s and the
+                # weekly email silently never sends. Sourced from the same
+                # `navigator-web-secrets` Secret the web Deployment mounts
+                # (synced from Secret Manager via the CSI driver). `optional`
+                # so KIND — where the in-cluster Operator needs no auth and
+                # this CronJob isn't applied — never blocks on a missing key.
+                - name: RESTATE_AUTH_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: navigator-web-secrets
+                      key: RESTATE_AUTH_TOKEN
+                      optional: true
+                - name: RUST_LOG
+                  value: info
+              envFrom:
+                # Collector endpoint (OTEL_EXPORTER_OTLP_ENDPOINT) — the trigger
+                # emits the `navigator.workflow.trigger.fired` metric (flushed on
+                # exit) through the fail-closed redaction collector. Shared with
+                # web + workflows-service via one ConfigMap.
+                - configMapRef:
+                    name: navigator-otel-env
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                limits:
+                  memory: 128Mi

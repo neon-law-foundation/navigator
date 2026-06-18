@@ -1,0 +1,5 @@
+lookup_fields:
+  - codename
+
+records:
+  - codename: navigator-examples

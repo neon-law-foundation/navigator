@@ -1,0 +1,36 @@
+# Attorney-reviewed localized variants of questionnaire prompts.
+#
+# Each record localizes a Question (looked up by `code`) into one
+# `locale`. The base English prompt lives in Question.yaml; a missing
+# translation falls back to it. This is reviewed copy — translation does
+# NOT bypass the staff_review gate; the legal copy is attorney-reviewed
+# in each language.
+#
+# Starting language: Spanish (`es`) — the language most relevant to the
+# firm's access-to-justice client base across CA / NV / WA.
+lookup_fields:
+  - code
+  - locale
+records:
+  - code: personal_name
+    locale: es
+    prompt: ¿Cuál es su nombre?
+    help_text: Incluya su nombre, segundo nombre y apellido.
+  - code: client_name
+    locale: es
+    prompt: ¿Cuál es el nombre legal completo del cliente?
+    help_text: >-
+      Incluya el primer nombre, el segundo nombre y el apellido del cliente tal
+      como desea que aparezcan en el contrato de representación.
+  - code: client_email
+    locale: es
+    prompt: ¿Cuál es el correo electrónico del cliente?
+    help_text: A esta dirección se envían las facturas y las solicitudes de firma.
+  - code: project_name
+    locale: es
+    prompt: ¿Cuál es el nombre del proyecto para este encargo?
+    help_text: Un nombre breve del asunto que el personal usará para referirse a este encargo.
+  - code: product_description
+    locale: es
+    prompt: Describa los servicios que cubre este contrato de representación.
+    help_text: Un párrafo breve que el personal y el cliente acuerdan.

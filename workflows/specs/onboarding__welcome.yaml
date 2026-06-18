@@ -1,0 +1,10 @@
+questionnaire:
+  BEGIN:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    signup_recorded: email_send__welcome
+  email_send__welcome:
+    email_sent: END
+  END: {}

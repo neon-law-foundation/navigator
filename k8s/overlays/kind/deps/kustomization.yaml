@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# In-cluster dependencies for the local KIND stack: Postgres,
+# Keycloak, fake-gcs-server, the Restate Operator-managed
+# RestateCluster, and the Grafana LGTM telemetry sink (the local
+# OTLP target every binary's `telemetry::init` exports to).
+# Referenced as a sub-package by both the `kind` and `kind-deps`
+# overlays so kustomize doesn't have to cross overlay roots.
+
+resources:
+  - postgres.yaml
+  - keycloak.yaml
+  - fake-gcs-server.yaml
+  - restate.yaml
+  - lgtm.yaml

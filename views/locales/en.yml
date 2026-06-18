@@ -1,0 +1,77 @@
+# English — the source locale and the universal fallback.
+#
+# This is the chrome catalog: short, repeated, engineer-owned strings
+# (navbar, auth links, the banner, the language switcher, CTAs). Long
+# prose (marketing pages, the mission letter) is NOT here — it lives as
+# Markdown under web/content/marketing/ and mission.md.
+#
+# Every key here MUST exist, because `es.yml` (and any later locale)
+# falls back to this file. Keys are dotted namespaces; the layout looks
+# them up with `views::i18n::t(locale, "nav.home")`.
+#
+# The English values are the literal strings the layout has always
+# rendered — keep them byte-for-byte so the default-locale output never
+# changes.
+nav:
+  home: Home
+  services: Services
+  mission: Mission
+  learn: Learn
+  workshops: Workshops
+  presentations: Presentations
+auth:
+  portal: Portal
+  sign_in: Sign in
+  sign_out: Sign out
+banner:
+  # %{firm} is the brand site name (e.g. "Neon Law").
+  not_accepting: "%{firm} is currently not accepting clients."
+switcher:
+  # Shown as the link's aria-label; describes the action in the page's
+  # CURRENT language. The visible label is the target language's own
+  # name (its endonym), supplied by `Locale::endonym`.
+  aria: View this page in Spanish
+footer:
+  # Shown ONLY on localized (non-English) pages, heading the footer's
+  # legal strip — bar admissions and the legal-advice disclaimer stay
+  # English by policy, because the binding artifact a client signs is
+  # English even when the page chrome is localized (CLAUDE.md). Telling
+  # the reader, in their own language, that this is deliberate is an
+  # attorney-advertising-honesty requirement, not polish. English keeps
+  # the key for fallback completeness; the layout never renders it in En.
+  legal_in_english: "Binding legal text on this site is provided in English."
+cta:
+  # %{email} is the contact address; the button text on marketing pages.
+  email: "Email %{email}"
+  # Primary firm CTA: books a flat-fee consultation on the firm calendar.
+  consultation: "Book a Consultation"
+products:
+  # The DB-backed `/services` catalog page: every product and its price.
+  heading: Services
+  lead: Our legal services
+  learn_more: Learn more
+  contact: Start a matter
+  cta_blurb: "Ready to begin? Tell us what you need and a licensed attorney will be in touch."
+  billed_monthly: Billed monthly
+  billed_yearly: Billed yearly
+  billed_hourly: Billed hourly
+  billed_once: One-time fee
+  # The price label for the free pro bono card.
+  free: Free
+  probono_name: Pro Bono
+  # One-sentence service descriptions shown under each catalog card price.
+  desc_nest: Form your Nevada company and keep it in good standing, with an attorney on call for routine legal work.
+  desc_nexus: A full legal and operations retainer for a scaling company, with no per-matter billing.
+  desc_northstar: Your will, trust, and health and financial directives, prepared and signed in one recorded conversation.
+  desc_nautilus: A licensed attorney as your representative for debt-collection mail and calls, answered under your rights.
+  desc_nook: A flat-fee real-estate closing for a sale you have already agreed on, with no broker on either side.
+  desc_litigation: High-stakes technology litigation, billed hourly with select cases taken on contingency.
+  desc_nerd: An independent expert witness on software and data-access disputes, billed hourly — never on contingency.
+  desc_node: An attorney attestation of a fact, like accredited-investor status, recorded on-chain on Solana.
+  desc_newleaf: A flat-fee uncontested divorce for a couple who have already agreed to part ways.
+  desc_namesake: A flat-fee U.S. trademark filing for one class, prepared and filed by a licensed attorney.
+  desc_nucleus: Flat-fee Nevada investment-fund formation, prepared and filed by a licensed attorney.
+  desc_probono: Free legal help for people who cannot afford a lawyer, with the Neon Law Foundation and legal-aid partners.
+  desc_default: Flat-fee legal services with a licensed attorney in the loop.
+home:
+  theme_strip: Rooted in Nevada, reaching the world

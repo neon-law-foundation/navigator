@@ -1,0 +1,55 @@
+# `recurring-trigger` — daily trigger for the `RecurringBilling` workflow.
+#
+# The workflow itself is hosted by the `workflows-service` worker (it binds
+# `RecurringBillingService` alongside `Notation`, `Archives`, `BillingCanary`,
+# and `MatterCloseInvoice` — see `../workflows-service/`), so there is no
+# separate billing pod. This CronJob is the thin trigger: it POSTs to the
+# Restate ingress to start one invocation, then exits. Restate owns retries.
+#
+# The workflow raises one Xero invoice per active subscription per month for
+# every recurring product (Nexus, Nautilus). Its per-month period guard
+# (`subscriptions.last_invoiced_period`) makes the daily fire idempotent, so a
+# subscription opened mid-month is billed on the next run and extra fires are
+# no-ops.
+#
+# In KIND, trigger a run by hand:
+#   kubectl create job --from=cronjob/recurring-trigger recurring-manual -n navigator
+#
+# Image `navigator-recurring-billing-trigger:dev` is built from the shared
+# `images/Dockerfile.trigger`
+# (--build-arg CRATE=billing-workflows --build-arg BIN=recurring-trigger).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: recurring-trigger
+  namespace: navigator
+  labels:
+    app: recurring-trigger
+spec:
+  # Daily, 11:00 UTC (03:00 PST / 04:00 PDT). The monthly period guard
+  # makes the daily cadence safe — at most one invoice per subscription
+  # per month, with mid-month opens picked up the next day.
+  schedule: "0 11 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: recurring-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: recurring-trigger
+              image: navigator-recurring-billing-trigger:dev
+              imagePullPolicy: IfNotPresent
+              env:
+                # In-cluster Restate ingress (see
+                # k8s/overlays/kind/deps/restate.yaml).
+                - name: RESTATE_INGRESS_URL
+                  value: http://restate.restate.svc.cluster.local:8080
+                - name: RUST_LOG
+                  value: info

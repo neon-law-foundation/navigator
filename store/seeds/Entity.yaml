@@ -1,0 +1,27 @@
+lookup_fields:
+  - name
+  - entity_type_id
+records:
+  - name: Shook Law PLLC
+    entity_type:
+      name: Professional LLC
+      jurisdiction:
+        name: Nevada
+        jurisdiction_type: state
+  - name: Neon Law Foundation
+    entity_type:
+      name: 501(c)(3) Non-Profit
+      jurisdiction:
+        name: Nevada
+        jurisdiction_type: state
+  - name: shook.family
+    entity_type:
+      name: Family Trust
+      jurisdiction:
+        name: Nevada
+        jurisdiction_type: state
+  - name: Nicholas Shook
+    entity_type:
+      name: Human
+      jurisdiction:
+        name: Washington

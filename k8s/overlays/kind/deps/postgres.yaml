@@ -1,0 +1,64 @@
+# A single-replica Postgres for local development. Production uses a
+# managed Postgres; this manifest is intentionally simple — emptyDir
+# volume, plaintext credentials in a Secret, no PVC. Re-applying
+# wipes state. Swap the volume for a PVC if you need persistence
+# across cluster restarts.
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres
+  namespace: navigator
+type: Opaque
+stringData:
+  POSTGRES_USER: navigator
+  POSTGRES_PASSWORD: navigator
+  POSTGRES_DB: navigator
+  DATABASE_URL: postgres://navigator:navigator@postgres:5432/navigator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: navigator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          envFrom:
+            - secretRef:
+                name: postgres
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "navigator"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: navigator
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

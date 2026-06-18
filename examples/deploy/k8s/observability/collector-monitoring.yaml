@@ -1,0 +1,64 @@
+# Self-monitoring for the OTel Collector — so observability isn't a silent SPOF.
+#
+# Google Managed Service for Prometheus (already running in gke-gmp-system)
+# scrapes the collector's OWN metrics on :8888 and alerts on rising export
+# failures / dropped data — the "telemetry is silently being lost" signal.
+# Because logs dual-path to stdout->Cloud Logging, total collector loss degrades
+# to "no live traces + no lake telemetry," never "lost an audit record"; this
+# overlay makes the degraded state visible rather than silent.
+#
+# Validate against your cluster's CRD versions before applying — a bad
+# PodMonitoring/Rules is rejected by the API server (it can't crash the
+# collector). The six-hourly Heartbeat email also carries a best-effort
+# collector-reachability line (workflows-service::heartbeat) as a second,
+# independent signal.
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: otel-collector-self
+  namespace: navigator
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector
+  endpoints:
+    - port: self-metrics
+      interval: 30s
+---
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: otel-collector-alerts
+  namespace: navigator
+spec:
+  groups:
+    - name: otel-collector
+      interval: 30s
+      rules:
+        # Any sustained export failure: spans/metrics/logs are not reaching
+        # Cloud Trace/Monitoring/Logging or the lake.
+        - alert: OtelCollectorExportFailing
+          expr: sum(rate(otelcol_exporter_send_failed_spans[5m])) > 0
+            or sum(rate(otelcol_exporter_send_failed_metric_points[5m])) > 0
+            or sum(rate(otelcol_exporter_send_failed_log_records[5m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "OTel collector is failing to export telemetry"
+            description: "send_failed_* is nonzero for 10m — live traces/metrics/logs
+              and the Iceberg lake may be dropping. Logs still reach Cloud Logging via
+              stdout (dual-path). Check the otel-collector Deployment and exporter auth
+              (roles/cloudtrace.agent, roles/monitoring.metricWriter, roles/logging.logWriter)."
+        # The processor pipeline is shedding data (e.g. memory_limiter refusing).
+        - alert: OtelCollectorDroppingData
+          expr: sum(rate(otelcol_processor_dropped_spans[5m])) > 0
+            or sum(rate(otelcol_processor_dropped_metric_points[5m])) > 0
+            or sum(rate(otelcol_processor_dropped_log_records[5m])) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "OTel collector is dropping telemetry in a processor"
+            description: "processor_dropped_* is nonzero for 10m — likely memory_limiter
+              shedding under load. Raise the collector's memory limit or replicas."

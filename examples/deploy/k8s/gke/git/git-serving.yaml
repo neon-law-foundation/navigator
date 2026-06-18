@@ -1,0 +1,152 @@
+# Per-Project git-serving tier — single-writer Deployment + RWO PVC.
+#
+# Reference manifests for the stateful git tier described in
+# docs/git-project-repos.md §4. NOT wired into kustomization.yaml yet:
+# the RWO PVC + the ingress path split need cluster-specific validation
+# (`kubectl apply -f` this file, confirm the PVC binds and the volume
+# snapshots run, then add the ingress route). Apply + validate on the
+# cluster — that's a machine action, not a repo concern.
+#
+# Topology (the engineering council's resolution of the riskiest §4
+# question): this is the SAME `web` binary as `navigator-web`, but
+#   - built from `images/Dockerfile.git` (carries the `git` binary), and
+#   - pinned to `replicas: 1` with `strategy: Recreate`, mounting an
+#     RWO PersistentVolume at NAVIGATOR_GIT_REPO_ROOT,
+# so exactly one writer ever touches a bare repo (no concurrent
+# receive-pack corruption). The stateless `navigator-web` tier proxies
+# `/projects/<id>.git/*` here via the ingress path rule at the bottom.
+#
+# Because it's the full `web` binary, it needs the same Secret/env as
+# `navigator-web` (DB, session key, OPA, OAuth, DocuSign boot
+# invariants) — hence `envFrom: navigator-web-secrets` + the Cloud SQL
+# proxy sidecar, mirroring the web Deployment.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: navigator-git-repos
+  namespace: navigator
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # premium-rwo = regional SSD persistent disk on GKE. Single-writer,
+  # so RWO (not Filestore RWX). Size for the matter corpus; grow later.
+  storageClassName: premium-rwo
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigator-git
+  namespace: navigator
+spec:
+  replicas: 1
+  # Recreate, not RollingUpdate: an RWO disk attaches to one node at a
+  # time, so the old pod must release it before the new pod mounts it.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: navigator-git
+  template:
+    metadata:
+      labels:
+        app: navigator-git
+    spec:
+      serviceAccountName: navigator-web
+      containers:
+        - name: git
+          # Built from images/Dockerfile.git; same tag scheme as navigator-web.
+          image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-git:REPLACE_WITH_SHA
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3001
+          envFrom:
+            # Same secrets as navigator-web — this is the web binary, so
+            # the boot invariants (DOCUSIGN_HMAC_KEY, session key, …) and
+            # the DB / OPA / OAuth config must all be present.
+            - secretRef:
+                name: navigator-web-secrets
+          env:
+            - name: NAVIGATOR_GIT_REPO_ROOT
+              value: /var/lib/navigator/git-repos
+            - name: NAVIGATOR_STORAGE_BACKEND
+              value: gcs
+            - name: NAVIGATOR_STORAGE_BUCKET
+              value: YOUR_PROJECT_ID-assets
+          volumeMounts:
+            - name: git-repos
+              mountPath: /var/lib/navigator/git-repos
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 20
+        # Cloud SQL Auth Proxy sidecar — mirrors the web Deployment's
+        # patches/web-cloudsql-proxy.yaml. DATABASE_URL in the Secret
+        # points at 127.0.0.1:5432.
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.11.0
+          args:
+            - "--private-ip"
+            - "--port=5432"
+            - "YOUR_PROJECT_ID:us-west4:navigator-prod"
+          securityContext:
+            runAsNonRoot: true
+      volumes:
+        - name: git-repos
+          persistentVolumeClaim:
+            claimName: navigator-git-repos
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: navigator-git
+  namespace: navigator
+spec:
+  selector:
+    app: navigator-git
+  ports:
+    - name: http
+      port: 3001
+      targetPort: 3001
+---
+# Backup of the matter record — explicitly distinct from the Cloud SQL
+# backup story (design §4). A periodic VolumeSnapshot of the repo PVC.
+# Schedule it with GKE Backup for GKE, or a CronJob that creates a
+# timestamped VolumeSnapshot. One on-demand snapshot shown here as the
+# shape; wire the schedule on-cluster.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: navigator-git-repos-snapshot
+  namespace: navigator
+spec:
+  source:
+    persistentVolumeClaimName: navigator-git-repos
+# ---------------------------------------------------------------------
+# Ingress route split (add to ingress/ingress.yaml, do NOT duplicate the
+# host): route the git smart-HTTP + LFS paths to navigator-git, leaving
+# everything else on navigator-web.
+#
+#   - path: /projects
+#     pathType: Prefix
+#     backend:
+#       service:
+#         name: navigator-git
+#         port:
+#           number: 3001
+#
+# `/projects/<id>.git/info/refs`, `/git-upload-pack`, `/git-receive-pack`
+# and `/info/lfs/...` all live under `/projects`, so the single prefix
+# rule covers the whole transport + LFS surface.
+# ---------------------------------------------------------------------

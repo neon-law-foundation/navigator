@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Workflows-service sub-package — the Restate worker hosting the
+# `Notation` virtual object, packaged as a `RestateDeployment` CR
+# so the Restate Operator handles registration. Referenced by both
+# the `kind` and `kind-deps` overlays.
+
+resources:
+  - workflows-service.yaml

@@ -1,0 +1,309 @@
+//! `devx brand` — the white-label brand pack.
+//!
+//! A deployer describes their organization once in `navigator.yaml`
+//! (names, emails, addresses, domain, legal-page URLs, logos) and this
+//! command compiles it down to the `NAVIGATOR_*` env vars the app
+//! already reads (see `views/src/brand.rs`) and copies the logos into
+//! the public asset dir. It introduces no new runtime contract — `.env`
+//! keeps working — it is a *generator* over the existing env seam.
+//!
+//! Two subcommands:
+//!
+//! - `apply` writes the env block (to `--out` or stdout) and copies the
+//!   logo files into `--public-dir`.
+//! - `verify` validates the manifest without touching anything: required
+//!   assets exist, and — the load-bearing ethics check — a portal-only
+//!   deploy must point `terms_url` off-site so it never serves Neon
+//!   Law's bundled (Nevada-governed) terms under someone else's brand.
+//!
+//! See `navigator.example.yaml` for the annotated schema.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use anyhow::{bail, Context, Result};
+use clap::Subcommand;
+use serde::Deserialize;
+
+#[derive(Subcommand)]
+pub enum BrandCmd {
+    /// Compile `navigator.yaml` into `NAVIGATOR_*` env vars and copy the
+    /// logos into the public asset dir.
+    Apply {
+        /// Path to the brand-pack manifest.
+        #[arg(long, default_value = "navigator.yaml")]
+        file: PathBuf,
+        /// Where the on-page + email logos are copied (the `/public`
+        /// mount). Defaults to the in-repo `web/public`.
+        #[arg(long, default_value = "web/public")]
+        public_dir: PathBuf,
+        /// Write the env block here instead of stdout (e.g.
+        /// `.devx/brand.env`, then `source` it before `cargo run -p web`).
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Validate `navigator.yaml` without changing anything.
+    Verify {
+        /// Path to the brand-pack manifest.
+        #[arg(long, default_value = "navigator.yaml")]
+        file: PathBuf,
+    },
+}
+
+/// Top-level manifest. Every field is optional so a partial pack only
+/// overrides what it names; the app falls back to its own defaults for
+/// the rest.
+#[derive(Debug, Deserialize)]
+struct Manifest {
+    #[serde(default)]
+    brand: Brand,
+    #[serde(default)]
+    portal_only: bool,
+    #[serde(default)]
+    assets: Assets,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct Brand {
+    firm: Option<String>,
+    foundation: Option<String>,
+    support_email: Option<String>,
+    foundation_email: Option<String>,
+    firm_address: Option<String>,
+    foundation_address: Option<String>,
+    base_url: Option<String>,
+    primary_domain: Option<String>,
+    consultation_url: Option<String>,
+    terms_url: Option<String>,
+    privacy_url: Option<String>,
+    github_url: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct Assets {
+    firm_logo: Option<String>,
+    firm_logo_raster: Option<String>,
+    foundation_logo: Option<String>,
+    foundation_logo_raster: Option<String>,
+}
+
+/// One logo: its manifest source path and the fixed `/public` filename
+/// the app serves it under (see `SiteBrand::logo_href` / `social_image`).
+const ASSET_TARGETS: &[(&str, &str)] = &[
+    ("firm_logo", "logo-firm.svg"),
+    ("firm_logo_raster", "logo-firm.png"),
+    ("foundation_logo", "logo-foundation.svg"),
+    ("foundation_logo_raster", "logo-foundation.png"),
+];
+
+pub fn run(cmd: BrandCmd) -> Result<()> {
+    match cmd {
+        BrandCmd::Apply {
+            file,
+            public_dir,
+            out,
+        } => apply(&file, &public_dir, out.as_deref()),
+        BrandCmd::Verify { file } => verify(&file),
+    }
+}
+
+fn load(file: &Path) -> Result<Manifest> {
+    let raw = fs::read_to_string(file)
+        .with_context(|| format!("reading brand manifest {}", file.display()))?;
+    serde_yaml::from_str(&raw).with_context(|| format!("parsing {}", file.display()))
+}
+
+/// Map the manifest to `KEY=VALUE` env lines, in a stable order.
+fn env_block(m: &Manifest) -> String {
+    let b = &m.brand;
+    let mut lines: Vec<String> = Vec::new();
+    let mut push = |key: &str, val: &Option<String>| {
+        if let Some(v) = val {
+            lines.push(format!("{key}={v}"));
+        }
+    };
+    push("NAVIGATOR_BRAND_FIRM", &b.firm);
+    push("NAVIGATOR_BRAND_FOUNDATION", &b.foundation);
+    push("NAVIGATOR_SUPPORT_EMAIL", &b.support_email);
+    push("NAVIGATOR_FOUNDATION_EMAIL", &b.foundation_email);
+    push("NAVIGATOR_FIRM_ADDRESS", &b.firm_address);
+    push("NAVIGATOR_FOUNDATION_ADDRESS", &b.foundation_address);
+    push("NAV_BASE_URL", &b.base_url);
+    push("NAVIGATOR_PRIMARY_DOMAIN", &b.primary_domain);
+    push("NAVIGATOR_CONSULTATION_URL", &b.consultation_url);
+    push("NAVIGATOR_TERMS_URL", &b.terms_url);
+    push("NAVIGATOR_PRIVACY_URL", &b.privacy_url);
+    // github_url is intentionally emitted even when empty: an empty value
+    // hides the Foundation GitHub CTA (see brand::foundation_github_url).
+    if let Some(v) = &b.github_url {
+        lines.push(format!("NAVIGATOR_FOUNDATION_GITHUB_URL={v}"));
+    }
+    if m.portal_only {
+        lines.push("NAVIGATOR_PORTAL_ONLY=true".to_string());
+    }
+    let mut block = String::from("# Generated by `devx brand apply` from navigator.yaml.\n");
+    block.push_str(&lines.join("\n"));
+    block.push('\n');
+    block
+}
+
+fn apply(file: &Path, public_dir: &Path, out: Option<&Path>) -> Result<()> {
+    let manifest = load(file)?;
+    verify_manifest(&manifest, file)?;
+
+    let block = env_block(&manifest);
+    match out {
+        Some(path) => {
+            if let Some(parent) = path.parent() {
+                if !parent.as_os_str().is_empty() {
+                    fs::create_dir_all(parent)
+                        .with_context(|| format!("creating {}", parent.display()))?;
+                }
+            }
+            fs::write(path, &block).with_context(|| format!("writing {}", path.display()))?;
+            println!("wrote env block → {}", path.display());
+        }
+        None => print!("{block}"),
+    }
+
+    let base = file.parent().unwrap_or_else(|| Path::new("."));
+    let mut copied = 0usize;
+    for (field, target) in ASSET_TARGETS {
+        if let Some(src) = manifest.assets.get(field) {
+            let src_path = base.join(src);
+            let dst_path = public_dir.join(target);
+            fs::create_dir_all(public_dir)
+                .with_context(|| format!("creating {}", public_dir.display()))?;
+            fs::copy(&src_path, &dst_path).with_context(|| {
+                format!("copying {} → {}", src_path.display(), dst_path.display())
+            })?;
+            println!(
+                "copied logo {} → {}",
+                src_path.display(),
+                dst_path.display()
+            );
+            copied += 1;
+        }
+    }
+    println!(
+        "brand applied: {} env var(s), {copied} logo(s)",
+        env_var_count(&block)
+    );
+    Ok(())
+}
+
+fn verify(file: &Path) -> Result<()> {
+    let manifest = load(file)?;
+    verify_manifest(&manifest, file)?;
+    println!("✓ {} is a valid brand pack", file.display());
+    Ok(())
+}
+
+/// Shared validation for both `apply` and `verify`. Hard errors (return
+/// `Err`) block `apply`; soft warnings print but pass.
+fn verify_manifest(m: &Manifest, file: &Path) -> Result<()> {
+    let base = file.parent().unwrap_or_else(|| Path::new("."));
+
+    // Ethics gate (Legal Council): a portal-only deploy unmounts the
+    // in-app /terms + /privacy pages, so it MUST link out — otherwise the
+    // footer falls back to NeonLaw's bundled, Nevada-governed terms under
+    // the deployer's own brand.
+    if m.portal_only && m.brand.terms_url.as_deref().unwrap_or("").is_empty() {
+        bail!(
+            "portal_only is true but brand.terms_url is empty: a portal-only deploy must point \
+             terms_url at your own hosted terms of use, or it would serve Neon Law's bundled terms \
+             under your brand"
+        );
+    }
+
+    // Referenced logo files must exist.
+    for (field, _) in ASSET_TARGETS {
+        if let Some(src) = m.assets.get(field) {
+            let src_path = base.join(src);
+            if !src_path.exists() {
+                bail!("assets.{field} → {} does not exist", src_path.display());
+            }
+        }
+    }
+
+    // Soft warning: a name left as NeonLaw's is almost always an unfilled
+    // template.
+    for (label, val) in [
+        ("brand.firm", &m.brand.firm),
+        ("brand.foundation", &m.brand.foundation),
+    ] {
+        if val.as_deref().is_some_and(|v| v.contains("Neon Law")) {
+            eprintln!("warning: {label} still contains \"Neon Law\" — did you mean to rebrand it?");
+        }
+    }
+    Ok(())
+}
+
+fn env_var_count(block: &str) -> usize {
+    block
+        .lines()
+        .filter(|l| !l.starts_with('#') && l.contains('='))
+        .count()
+}
+
+impl Assets {
+    fn get(&self, field: &str) -> Option<&String> {
+        match field {
+            "firm_logo" => self.firm_logo.as_ref(),
+            "firm_logo_raster" => self.firm_logo_raster.as_ref(),
+            "foundation_logo" => self.foundation_logo.as_ref(),
+            "foundation_logo_raster" => self.foundation_logo_raster.as_ref(),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn manifest_from(yaml: &str) -> Manifest {
+        serde_yaml::from_str(yaml).expect("valid yaml")
+    }
+
+    #[test]
+    fn env_block_maps_brand_fields_to_navigator_env_vars() {
+        let m = manifest_from(
+            "brand:\n  firm: Acme Law\n  support_email: support@acme.example\n  terms_url: https://acme.example/terms\nportal_only: true\n",
+        );
+        let block = env_block(&m);
+        assert!(block.contains("NAVIGATOR_BRAND_FIRM=Acme Law"));
+        assert!(block.contains("NAVIGATOR_SUPPORT_EMAIL=support@acme.example"));
+        assert!(block.contains("NAVIGATOR_TERMS_URL=https://acme.example/terms"));
+        assert!(block.contains("NAVIGATOR_PORTAL_ONLY=true"));
+        // Unset fields are omitted, not emitted empty.
+        assert!(!block.contains("NAVIGATOR_BRAND_FOUNDATION="));
+    }
+
+    #[test]
+    fn empty_github_url_is_emitted_to_hide_the_cta() {
+        let m = manifest_from("brand:\n  github_url: \"\"\n");
+        assert!(env_block(&m).contains("NAVIGATOR_FOUNDATION_GITHUB_URL=\n"));
+    }
+
+    #[test]
+    fn portal_only_without_terms_url_is_rejected() {
+        let m = manifest_from("portal_only: true\nbrand:\n  firm: Acme Law\n");
+        let err = verify_manifest(&m, Path::new("navigator.yaml")).unwrap_err();
+        assert!(err.to_string().contains("terms_url"));
+    }
+
+    #[test]
+    fn portal_only_with_terms_url_passes() {
+        let m =
+            manifest_from("portal_only: true\nbrand:\n  terms_url: https://acme.example/terms\n");
+        assert!(verify_manifest(&m, Path::new("navigator.yaml")).is_ok());
+    }
+
+    #[test]
+    fn missing_logo_file_is_rejected() {
+        let m = manifest_from("assets:\n  firm_logo: ./does-not-exist.svg\n");
+        let err = verify_manifest(&m, Path::new("navigator.yaml")).unwrap_err();
+        assert!(err.to_string().contains("does not exist"));
+    }
+}

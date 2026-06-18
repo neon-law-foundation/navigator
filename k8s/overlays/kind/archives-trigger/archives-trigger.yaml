@@ -1,0 +1,46 @@
+# `archives-trigger` — nightly trigger for the `Archives` workflow.
+#
+# The workflow itself is hosted by the `workflows-service` worker
+# (it binds `ArchivesService` alongside the `Notation` object — see
+# `../workflows-service/`), so there is no separate archives worker
+# pod. This CronJob is the thin trigger: it POSTs to the Restate
+# ingress to start one invocation, then exits. Restate owns retries.
+#
+# In KIND it need not fire on a schedule to be useful — trigger a run
+# by hand:
+#   kubectl create job --from=cronjob/archives-trigger archives-trigger-manual -n navigator
+#
+# Image `navigator-archives-trigger:dev` is built by
+# `navigator image-archives-trigger`.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: archives-trigger
+  namespace: navigator
+  labels:
+    app: archives-trigger
+spec:
+  schedule: "0 10 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: archives-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: archives-trigger
+              image: navigator-archives-trigger:dev
+              imagePullPolicy: IfNotPresent
+              env:
+                # In-cluster Restate ingress (see
+                # k8s/overlays/kind/deps/restate.yaml).
+                - name: RESTATE_INGRESS_URL
+                  value: http://restate.restate.svc.cluster.local:8080
+                - name: RUST_LOG
+                  value: info

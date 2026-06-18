@@ -1,0 +1,173 @@
+//! Integration tests for the `navigator validate <dir>` subcommand.
+//!
+//! These drive the compiled binary through `assert_cmd` so the test
+//! exercises the real argv parsing, exit codes, and stdout the user
+//! will see — not just the library it wraps.
+
+use std::fs;
+use std::path::Path;
+
+use assert_cmd::Command;
+use predicates::str;
+use tempfile::TempDir;
+
+fn write(dir: &Path, rel: &str, contents: &str) {
+    let path = dir.join(rel);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    fs::write(path, contents).unwrap();
+}
+
+fn navigator() -> Command {
+    Command::cargo_bin("navigator").unwrap()
+}
+
+#[test]
+fn validate_succeeds_on_clean_directory() {
+    let dir = TempDir::new().unwrap();
+    // Use markdown-only mode so the test doesn't need to satisfy the
+    // full F-family frontmatter expectations (questionnaire/workflow
+    // maps, confidential, staff_review). Those rules have dedicated
+    // unit tests in the rules crate.
+    write(dir.path(), "Notes.md", "Plain body line.\n");
+    navigator()
+        .args(["validate", "--markdown-only"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(str::contains("Scanned 1 file(s), found 0 violation(s)"));
+}
+
+#[test]
+fn validate_exits_nonzero_on_violations_and_prints_each_one() {
+    let dir = TempDir::new().unwrap();
+    write(
+        dir.path(),
+        "Bad.md",
+        &format!("Intro.\n\n{}\n", "x".repeat(121)),
+    );
+    navigator()
+        .args(["validate", "--markdown-only"])
+        .arg(dir.path())
+        .assert()
+        .failure()
+        .code(1)
+        .stdout(str::contains("S101"))
+        .stdout(str::contains("Scanned 1 file(s), found"));
+}
+
+#[test]
+fn validate_default_rule_set_flags_missing_frontmatter() {
+    let dir = TempDir::new().unwrap();
+    // Without `--markdown-only`, the F-family runs and should flag a
+    // plain markdown file with no notation frontmatter.
+    write(dir.path(), "Notes.md", "Just a body line.\n");
+    navigator()
+        .args(["validate"])
+        .arg(dir.path())
+        .assert()
+        .failure()
+        .code(1)
+        .stdout(str::contains("F101"))
+        .stdout(str::contains("F102"));
+}
+
+#[test]
+fn validate_returns_exit_code_2_when_directory_does_not_exist() {
+    navigator()
+        .args(["validate", "/definitely/does/not/exist/12345"])
+        .assert()
+        .failure()
+        .code(2)
+        .stderr(str::contains("navigator:"));
+}
+
+#[test]
+fn validate_skips_readme_and_claude_files() {
+    let dir = TempDir::new().unwrap();
+    // Both files would violate S101 — but they should be skipped.
+    write(dir.path(), "README.md", &"x".repeat(200));
+    write(dir.path(), "CLAUDE.md", &"x".repeat(200));
+    write(dir.path(), "Ok.md", "Plain body line.\n");
+    navigator()
+        .args(["validate", "--markdown-only"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(str::contains("Scanned 1 file(s)"));
+}
+
+#[test]
+fn missing_subcommand_prints_usage_and_fails() {
+    navigator()
+        .assert()
+        .failure()
+        .stderr(str::contains("Usage:"));
+}
+
+#[test]
+fn validate_fix_writes_back_autofixable_edits_and_reports_remaining() {
+    let dir = TempDir::new().unwrap();
+    // Three trailing spaces (M009 violates — two-space hard break is
+    // exempt, three is not) + a hard tab (M010). Both autofixable.
+    write(
+        dir.path(),
+        "Mixed.md",
+        "Body line with trailing spaces   \nTabbed\there\n",
+    );
+    navigator()
+        .args(["validate", "--fix", "--markdown-only"])
+        .arg(dir.path())
+        .assert()
+        .stdout(str::contains("fixed"))
+        .stdout(str::contains("Fixed 1 file(s)"));
+    let after = fs::read_to_string(dir.path().join("Mixed.md")).unwrap();
+    assert_eq!(
+        after, "Body line with trailing spaces\nTabbed  here\n",
+        "expected M009 + M010 autofixes; got: {after:?}",
+    );
+}
+
+#[test]
+fn validate_fix_leaves_diagnostic_only_violations_for_human() {
+    let dir = TempDir::new().unwrap();
+    // M010 (autofixable) + F101 (diagnostic-only) in the same file.
+    write(
+        dir.path(),
+        "Needs.md",
+        "---\nrespondent_type: entity\n---\n\n\tTabbed\n",
+    );
+    navigator()
+        .args(["validate", "--fix"])
+        .arg(dir.path())
+        .assert()
+        .failure()
+        .code(1)
+        .stdout(str::contains("F101"))
+        .stdout(str::contains("remaining violation"));
+    // The autofixable tab is gone.
+    let after = fs::read_to_string(dir.path().join("Needs.md")).unwrap();
+    assert!(
+        !after.contains('\t'),
+        "tab should be replaced; got: {after:?}"
+    );
+}
+
+#[test]
+fn validate_fix_is_idempotent() {
+    let dir = TempDir::new().unwrap();
+    write(dir.path(), "OnlyFixable.md", "Body  \n\tIndent\n");
+    navigator()
+        .args(["validate", "--fix", "--markdown-only"])
+        .arg(dir.path())
+        .assert()
+        .success();
+    // Second run finds nothing to fix.
+    navigator()
+        .args(["validate", "--fix", "--markdown-only"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(str::contains("Fixed 0 file(s)"));
+}

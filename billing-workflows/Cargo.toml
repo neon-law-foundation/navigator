@@ -1,0 +1,59 @@
+# Worker-side billing workflows, hosted by the `workflows-service` Restate
+# worker. Today: the `BillingCanary` health check that proves the Xero
+# integration is live end-to-end (find-or-create a stable canary contact,
+# assert idempotency). The future matter-close invoice workflow lands here
+# too. Ships one binary — `trigger` — the thin CronJob entrypoint that
+# POSTs one invocation to the Restate ingress and exits (mirrors
+# `archives`'s split of long-running worker vs. thin trigger).
+[package]
+name = "billing-workflows"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "billing_workflows"
+path = "src/lib.rs"
+
+[[bin]]
+name = "trigger"
+path = "src/bin/trigger.rs"
+
+[[bin]]
+name = "reconcile-trigger"
+path = "src/bin/reconcile_trigger.rs"
+
+[[bin]]
+name = "recurring-trigger"
+path = "src/bin/recurring_trigger.rs"
+
+[[bin]]
+name = "billing-digest-trigger"
+path = "src/bin/billing_digest_trigger.rs"
+
+[dependencies]
+anyhow.workspace = true
+billing.workspace = true
+chrono.workspace = true
+dotenvy.workspace = true
+restate-sdk.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+store.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "net"] }
+telemetry.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+# `v5` (name-based, deterministic): the recurring-billing idempotency key
+# is a stable UUIDv5 of `(subscription_id, period)`, so a re-POST in the
+# same month carries the same Xero `Idempotency-Key`.
+uuid = { workspace = true, features = ["v5", "v7", "serde"] }
+workflows.workspace = true
+
+[dev-dependencies]
+# Only the reconcile workflow's tests touch the database directly (seed a
+# project + mirror row); the worker itself reaches the DB through `store`.
+sea-orm.workspace = true
+store = { workspace = true, features = ["test-support"] }

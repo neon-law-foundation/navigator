@@ -1,0 +1,16 @@
+# Role assignments for seeded persons. See `docs/access-model.md` and
+# `.claude/skills/authorization-model/SKILL.md` for the model.
+#
+# Convention enforced by `store::seed::require_firm_domain`:
+# - The single `admin` is `nick@neonlaw.com` (lowercase, exact) — the
+#   firm administrator. Mixed-case seeds are rejected at load time.
+# - Any seeded `staff` row must use a lowercase `@neonlaw.com` email
+#   (the firm domain). Personal emails belong on `client` rows.
+# - `client` is the default for new persons (set in code on insert);
+#   no entry is needed here for clients.
+lookup_fields:
+  - person_id
+records:
+  - person:
+      email: nick@neonlaw.com
+    role: admin

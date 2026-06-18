@@ -1,0 +1,82 @@
+# archives nightly trigger — starts one `Archives` Restate workflow
+# invocation per night. The workflow itself is hosted by the
+# `workflows-service` worker (../gke/workflows-service/) — all
+# workflows live there, so there is no separate archives worker. This
+# CronJob is a thin trigger that POSTs to the Restate ingress and
+# exits in seconds. Restate owns the retry schedule from there, so
+# this Job needs no backoff heroics of its own.
+#
+# Replaces the former `cron-archives.yaml`, which ran the whole
+# snapshot inside the Job. The workflow split means a transient
+# failure replays just the failed step instead of re-snapshotting all
+# 26 tables.
+#
+# Schedule `0 10 * * *` UTC = 02:00 PST (03:00 PDT). The Cloud SQL
+# nightly backup runs at 07:00 UTC and completes before this fires.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: archives-trigger
+  namespace: navigator
+  labels:
+    app: archives-trigger
+spec:
+  schedule: "0 10 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
+  # Forbid + a finite deadline together: never overlap runs, but never let a
+  # stuck trigger (e.g. an unpullable image, or a hung ingress POST) stay
+  # Active and skip every subsequent night — the failure mode that silently
+  # stopped this nightly email for days. A healthy trigger exits in seconds.
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app: archives-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: archives-trigger
+              image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-archives-trigger:0f21bf2
+              imagePullPolicy: Always
+              env:
+                # Restate Cloud ingress endpoint for the navigator-prod
+                # environment. Find it under the env's "Ingress" in the
+                # Restate Cloud console; set it as a literal here or
+                # source it from the Secret. The trigger POSTs
+                # `${RESTATE_INGRESS_URL}/Archives/<run-date>/run`.
+                - name: RESTATE_INGRESS_URL
+                  value: https://YOUR_RESTATE_CLOUD_INGRESS
+                # Restate Cloud authenticates every ingress call with the
+                # tenant bearer. Without this the trigger POST 401s and the
+                # nightly email silently never sends. Sourced from the same
+                # `navigator-web-secrets` Secret the web Deployment mounts
+                # (synced from Secret Manager via the CSI driver). `optional`
+                # so KIND — where the in-cluster Operator needs no auth and
+                # this CronJob isn't applied — never blocks on a missing key.
+                - name: RESTATE_AUTH_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: navigator-web-secrets
+                      key: RESTATE_AUTH_TOKEN
+                      optional: true
+                - name: RUST_LOG
+                  value: info
+              envFrom:
+                # Collector endpoint (OTEL_EXPORTER_OTLP_ENDPOINT) — the trigger
+                # emits the `navigator.workflow.trigger.fired` metric (flushed on
+                # exit) through the fail-closed redaction collector. Shared with
+                # web + workflows-service via one ConfigMap.
+                - configMapRef:
+                    name: navigator-otel-env
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                limits:
+                  memory: 128Mi

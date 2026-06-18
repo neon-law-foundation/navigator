@@ -1,0 +1,24 @@
+name: cleanup-images
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  packages: write
+
+jobs:
+  prune:
+    name: delete navigator-web versions older than 7 days
+    runs-on: ubuntu-latest
+    steps:
+      - name: prune old container image versions
+        uses: snok/container-retention-policy@v3
+        with:
+          account: ${{ github.repository_owner }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          image-names: navigator-web
+          image-tags: "!latest"
+          cut-off: 7d
+          keep-n-most-recent: 1

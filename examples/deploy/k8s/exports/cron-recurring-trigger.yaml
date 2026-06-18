@@ -1,0 +1,73 @@
+# recurring-billing daily trigger — starts one `RecurringBilling` Restate
+# workflow invocation per day. The workflow itself is hosted by the
+# `workflows-service` worker (../gke/workflows-service/) — all workflows
+# live there, so there is no separate billing worker. This CronJob is a
+# thin trigger that POSTs to the Restate ingress and exits in seconds.
+# Restate owns the retry schedule from there.
+#
+# The workflow raises one Xero invoice per active subscription per month
+# for every recurring product (Nexus, Nautilus). The billing source of
+# truth is our own DB (`subscriptions` + `products`), not a Xero repeating
+# template: `last_invoiced_period` is the durable idempotency ledger and a
+# UUIDv5 of `(subscription_id, period)` is the Xero `Idempotency-Key`. See
+# `docs/recurring-billing.md` for the own-it-vs-Xero-owned trade-off.
+#
+# Schedule `0 11 * * *` UTC = 03:00 PST (04:00 PDT). Daily is safe — the
+# monthly period guard bills each subscription at most once per month and
+# picks up mid-month opens on the next run.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: recurring-trigger
+  namespace: navigator
+  labels:
+    app: recurring-trigger
+spec:
+  schedule: "0 11 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: recurring-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: recurring-trigger
+              image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-recurring-billing-trigger:latest
+              imagePullPolicy: Always
+              env:
+                # Restate Cloud ingress endpoint for the navigator-prod
+                # environment. The trigger POSTs
+                # `${RESTATE_INGRESS_URL}/RecurringBilling/<run-date>/run`.
+                - name: RESTATE_INGRESS_URL
+                  value: https://YOUR_RESTATE_CLOUD_INGRESS
+                # Restate Cloud authenticates every ingress call with the
+                # tenant bearer. Sourced from the same `navigator-web-secrets`
+                # Secret the web Deployment mounts. `optional` so KIND — where
+                # this manifest isn't applied — never blocks on a missing key.
+                - name: RESTATE_AUTH_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: navigator-web-secrets
+                      key: RESTATE_AUTH_TOKEN
+                      optional: true
+                - name: RUST_LOG
+                  value: info
+              envFrom:
+                # Collector endpoint (OTEL_EXPORTER_OTLP_ENDPOINT) — the trigger
+                # emits the `navigator.workflow.trigger.fired` metric (flushed on
+                # exit) through the fail-closed redaction collector. Shared with
+                # web + workflows-service via one ConfigMap.
+                - configMapRef:
+                    name: navigator-otel-env
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                limits:
+                  memory: 128Mi

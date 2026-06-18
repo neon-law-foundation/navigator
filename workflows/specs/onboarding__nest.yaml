@@ -1,0 +1,34 @@
+questionnaire:
+  BEGIN:
+    _: client_name
+  client_name:
+    _: client_email
+  client_email:
+    _: entity_name
+  entity_name:
+    _: registered_agent
+  registered_agent:
+    _: management_structure
+  management_structure:
+    _: managing_members
+  managing_members:
+    _: formation_date
+  formation_date:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    intake_submitted: intake_persisted__organizer
+  intake_persisted__organizer:
+    articles_rendered: staff_review
+  staff_review:
+    approved: document_open__articles_pdf
+    rejected: END
+  document_open__articles_pdf:
+    pdf_persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: filing__nv_sos
+    signature_declined: END
+  filing__nv_sos:
+    filed: END
+  END: {}

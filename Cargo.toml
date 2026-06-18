@@ -1,0 +1,197 @@
+[workspace]
+resolver = "2"
+members = [
+    "rules",
+    "store",
+    "repos",
+    "import",
+    "cli",
+    "web",
+    "views",
+    "workflows",
+    "workflows-service",
+    "cloud",
+    "compass",
+    "mcp",
+    "features",
+    "forms",
+    "lsp",
+    "pdf",
+    "archives",
+    "statutes",
+    "billing",
+    "billing-workflows",
+    "telemetry",
+]
+# `lsp/zed-ext/` is a wasm32-wasip1 Zed extension built independently
+# (it depends on `zed_extension_api`, not on the navigator workspace).
+exclude = ["lsp/zed-ext"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+anyhow = "1"
+arrow = { version = "58", default-features = false }
+assert_cmd = "2"
+async-trait = "0.1"
+# axum: held at 0.7 — 0.8 changes extractor trait signatures + Host extractor (own session).
+axum = "0.7"
+bytes = "1"
+# gzip codec — git smart-HTTP clients gzip the upload-pack RPC request body
+# (`Content-Encoding: gzip`); the transport in `web` decompresses it.
+flate2 = "1"
+# Compile-time directory embed — `web` bakes the workspace `templates/`
+# tree into the binary to serve raw non-confidential templates at
+# `/api/templates/...` without the dir leaving the workspace root.
+include_dir = "0.7"
+# Pure-Rust PDF read-modify-write, used by `pdf::fill_acroform` to
+# populate fillable government forms (AcroForm `/Fields`). Distinct from
+# the Typst `render` path, which only emits fresh PDFs.
+lopdf = "0.36"
+parquet = { version = "58", default-features = false, features = ["arrow", "snap"] }
+# Google Cloud SDKs. `google-cloud-storage` is consumed only by the
+# `cloud` crate (which wraps it in the provider-agnostic
+# `StorageService` trait). `google-cloud-auth` + `google-cloud-token`
+# are consumed by the `cli`'s `gcp setup` subcommand and by `archives`'s
+# BigQuery `REFRESH EXTERNAL TABLE` client — both talk directly to GCP
+# REST APIs. See CLAUDE.md → "Cloud: GCP only".
+# google-cloud-storage / google-cloud-auth: held at 0.24 / 0.17 (1.x is a full API rewrite — own session).
+google-cloud-storage = { version = "0.24", default-features = false, features = ["rustls-tls", "auth"] }
+google-cloud-auth = { version = "0.17", default-features = false, features = ["rustls-tls"] }
+google-cloud-token = "0.1"
+thiserror = "2"
+clap = { version = "4", features = ["derive", "env"] }
+comfy-table = { version = "7", default-features = false, features = ["tty"] }
+owo-colors = { version = "4", features = ["supports-colors"] }
+http-body-util = "0.1"
+# Image transcoding for `cli assets build` (responsive web variants):
+# `image` decodes the source JPEGs, resizes (Lanczos3) and re-encodes
+# JPEG; `webp` (libwebp via cc) handles lossy WebP; `ravif` (pure-Rust
+# rav1e) handles AVIF, the smallest of the three, with `rgb` for the
+# pixel slice. Lean — default features off, JPEG codec only on `image`.
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+webp = "0.3"
+ravif = { version = "0.11", default-features = false }
+rgb = "0.8"
+base64 = "0.22"
+hmac = "0.13"
+jsonwebtoken = { version = "10", default-features = false, features = ["use_pem", "rust_crypto"] }
+# P-256 ECDSA — verifies SendGrid's Signed Event Webhook signature. Already
+# compiled in the tree via `jsonwebtoken`'s ES256 support, so this direct dep
+# adds no new build cost.
+p256 = "0.13"
+rand = "0.10"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "query", "form", "multipart"] }
+# NRS scraper: parse the legislature's HTML chapter pages. encoding_rs
+# decodes their windows-1252 bytes (MS-Word-filtered HTML) to UTF-8.
+scraper = "0.24"
+encoding_rs = "0.8"
+sha2 = "0.11"
+toml = "0.8"
+# tower-cookies + maud: held at 0.10 / 0.26 — both newer versions require axum 0.8 (own session).
+tower-cookies = "0.10"
+maud = { version = "0.26", features = ["axum"] }
+predicates = "3"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+archives = { path = "archives" }
+statutes = { path = "statutes" }
+billing = { path = "billing" }
+billing-workflows = { path = "billing-workflows" }
+cloud = { path = "cloud" }
+features = { path = "features" }
+forms = { path = "forms" }
+import = { path = "import" }
+mcp = { path = "mcp" }
+pdf = { path = "pdf" }
+repos = { path = "repos" }
+rules = { path = "rules" }
+store = { path = "store" }
+sea-orm = { version = "1", default-features = false, features = ["sqlx-postgres", "runtime-tokio-rustls", "macros", "with-json", "with-uuid"] }
+sea-orm-migration = { version = "1", default-features = false, features = ["sqlx-postgres", "runtime-tokio-rustls"] }
+tempfile = "3"
+# Testcontainers backs the zero-config `cargo test` path: when
+# `TEST_DATABASE_URL` is unset, `store::test_support` spins up ONE
+# `ReuseDirective::Always` Postgres shared by every test binary and
+# reused across runs (the `reusable-containers` feature enables that
+# API). When `TEST_DATABASE_URL` is set (CI, or a contributor's
+# `navigator start-dev-server` Postgres) no container is spawned at all. The reuse
+# mechanism — not the old per-binary container-per-binary model — is
+# what keeps a `cargo test --workspace` run from drowning the Docker
+# daemon. See `docs/test-database.md`. Pin the image digest in
+# `store/src/test_support.rs` (not here) so a registry compromise
+# doesn't reach into the test runners. The split between the
+# `testcontainers` runtime (0.27) and `testcontainers-modules` (0.15)
+# is upstream's — keep them moving together.
+testcontainers = { version = "0.27", features = ["reusable-containers"] }
+testcontainers-modules = { version = "0.15", features = ["postgres"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "process"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["fs", "trace", "set-header", "request-id"] }
+tracing = "0.1"
+url = "2"
+# ZIP writer/reader for the client "download all my documents" export
+# (`web::project_export`): packages a matter's current files (repo HEAD
+# working tree) into a plain ZIP — never a git packfile or bundle.
+# default-features off keeps the heavy codecs (aes, bzip2, zstd) out; we
+# only need deflate.
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+fantoccini = "0.22"
+# opentelemetry suite: held at 0.27 — 0.32 reorganizes TracerProvider/Resource builders (own session).
+opentelemetry = "0.27"
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.27", default-features = false, features = ["grpc-tonic", "trace", "metrics", "logs"] }
+# Bridges `tracing` log records to the OTLP LoggerProvider. Lockstep-versioned with
+# opentelemetry 0.27 — bump together, never alone.
+opentelemetry-appender-tracing = "0.27"
+tracing-opentelemetry = "0.28"
+telemetry = { path = "telemetry" }
+views = { path = "views" }
+walkdir = "2.5"
+web = { path = "web" }
+wiremock = "0.6"
+workflows = { path = "workflows" }
+restate-sdk = "0.10"
+serde_yaml = "0.9"
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock", "std"] }
+cucumber = "0.23"
+# `dotenvy` loads `.env` files at process start in every binary main().
+# Real deployment values live in your local `.env` (gitignored); the
+# checked-in `.env.example` documents every variable the workspace
+# reads. Calling `dotenvy::dotenv().ok()` is a no-op when no file is
+# present, so production deploys that inject env vars via Kubernetes
+# Secrets / ConfigMaps still work without any code change.
+dotenvy = "0.15"
+futures = "0.3"
+uuid = { version = "1", default-features = false, features = ["std", "v7", "serde"] }
+# Pure-Rust MIME parser. SendGrid Inbound Parse posts the raw RFC 5322
+# message (send_raw=true) with no parsed text part, so `web` extracts the
+# plain-text body itself when threading a support email.
+mail-parser = "0.11"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+dead_code = "deny"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+# The forms guard tests parse + fill the real multi-megabyte government
+# packets on every `cargo test`; debug-built lopdf turns that into
+# minutes. Optimizing just lopdf keeps the suite honest and fast.
+[profile.dev.package.lopdf]
+opt-level = 3

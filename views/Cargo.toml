@@ -1,0 +1,22 @@
+[package]
+name = "views"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+maud.workspace = true
+pulldown-cmark.workspace = true
+serde_yaml.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+# Layer-1 accessibility gate (`tests/accessibility.rs`) scans rendered
+# maud for structural invariants — already resolved in the lockfile.
+regex = "1"
+
+[lints]
+workspace = true

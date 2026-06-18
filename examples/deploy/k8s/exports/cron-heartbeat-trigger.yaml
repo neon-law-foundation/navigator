@@ -1,0 +1,81 @@
+# heartbeat six-hourly trigger — starts one `Heartbeat` Restate workflow
+# invocation every six hours. The workflow itself is hosted by the
+# `workflows-service` worker (../gke/workflows-service/) — all workflows live
+# there, so there is no separate heartbeat worker. This CronJob is a thin
+# trigger that POSTs to the Restate ingress and exits in seconds.
+#
+# `Heartbeat` is the durable-execution liveness canary: a two-step workflow
+# (beat -> notify) that depends on nothing (no DB, no GCS, no third-party API),
+# so a green run can only mean the engine itself is alive. Every run emails
+# firm ops a report carrying the exact Restate Cloud + GCP console links and
+# the kubectl/curl debugging chain — so the same email that confirms health
+# onboards whoever debugs its absence.
+#
+# Schedule `0 */6 * * *` UTC = 00:00 / 06:00 / 12:00 / 18:00 UTC. The trigger
+# keys each invocation on the UTC date + hour so the four daily runs each get a
+# distinct Restate workflow key (a date-only key would dedupe three of four).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: heartbeat-trigger
+  namespace: navigator
+  labels:
+    app: heartbeat-trigger
+spec:
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 4
+  # Forbid + a finite deadline together: never overlap runs, but never let a
+  # stuck trigger (e.g. ImagePullBackOff, or a hung ingress POST) stay Active
+  # and skip every subsequent schedule. A healthy trigger exits in seconds.
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app: heartbeat-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: heartbeat-trigger
+              image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-heartbeat-trigger:0f21bf2
+              imagePullPolicy: Always
+              env:
+                # Restate Cloud ingress endpoint for the navigator-prod
+                # environment. Find it under the env's "Ingress" in the
+                # Restate Cloud console; set it as a literal here or source it
+                # from the Secret. The trigger POSTs
+                # `${RESTATE_INGRESS_URL}/Heartbeat/<date-hour>/run`.
+                - name: RESTATE_INGRESS_URL
+                  value: https://YOUR_RESTATE_CLOUD_INGRESS
+                # Restate Cloud authenticates every ingress call with the tenant
+                # bearer. Without this the trigger POST 401s and the heartbeat
+                # silently never sends. Sourced from the same
+                # `navigator-web-secrets` Secret the web Deployment mounts.
+                # `optional` so KIND — where the in-cluster Operator needs no
+                # auth and this CronJob isn't applied — never blocks on it.
+                - name: RESTATE_AUTH_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: navigator-web-secrets
+                      key: RESTATE_AUTH_TOKEN
+                      optional: true
+                - name: RUST_LOG
+                  value: info
+              envFrom:
+                # Collector endpoint (OTEL_EXPORTER_OTLP_ENDPOINT) — the trigger
+                # emits the `navigator.workflow.trigger.fired` metric (flushed on
+                # exit) through the fail-closed redaction collector. Shared with
+                # web + workflows-service via one ConfigMap.
+                - configMapRef:
+                    name: navigator-otel-env
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                limits:
+                  memory: 128Mi

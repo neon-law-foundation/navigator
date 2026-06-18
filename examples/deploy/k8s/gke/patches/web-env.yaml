@@ -1,0 +1,132 @@
+# Replace the base manifest's env list wholesale with the prod
+# shape. Strategic merge with `$patch: replace` clobbers the base's
+# list rather than merging by name — necessary because three of the
+# base's entries (`DATABASE_URL`, `OTEL_EXPORTER_OTLP_ENDPOINT`,
+# `OAUTH_CLIENT_SECRET`, `SESSION_SECRET`) reference Secret objects
+# that don't exist in prod (`postgres`) or have values that crash
+# the binary (empty-string OTLP URL).
+#
+# Secrets (DATABASE_URL, SESSION_SECRET, OAUTH_CLIENT_SECRET,
+# RESTATE_BROKER_URL, RESTATE_AUTH_TOKEN, SENDGRID_API_KEY,
+# DOCUSIGN_ACCESS_TOKEN, DOCUSIGN_HMAC_KEY — the last required by the
+# `enforce_prod_invariants` boot check — XERO_TENANT_ID + XERO_CLIENT_ID
+# + XERO_CLIENT_SECRET for the Xero billing custom connection, and
+# optionally SENDGRID_FROM_EMAIL) come in via `envFrom` from the
+# `navigator-web-secrets` Kubernetes Secret. That Secret is
+# currently maintained out-of-band via `kubectl create secret
+# generic` — see `prompts/csi-driver-secrets-sync.md` for the plan
+# to sync it from Secret Manager. The same Secret is also
+# `envFrom`'d by the `workflows-service` Deployment so the
+# `email_send__welcome` worker handler picks up SendGrid without
+# a parallel secret to maintain.
+#
+# `RESTATE_BROKER_URL` is the Restate Cloud tenant ingress URL.
+# Pull it from the CLI's stored config rather than the web console,
+# so the value doesn't leak through shell history:
+#
+#   restate -y cloud login
+#   restate -y cloud env config --env navigator-prod
+#   restate -y cloud env describe --env navigator-prod
+#   # Add the broker + admin token to the K8s Secret:
+#   kubectl -n navigator create secret generic navigator-web-secrets \
+#       --from-literal=RESTATE_BROKER_URL=https://<id>.restate.cloud \
+#       --from-literal=RESTATE_AUTH_TOKEN=<token> \
+#       --dry-run=client -o yaml | kubectl apply -f -
+#
+# `OAUTH_CLIENT_ID` is committed in clear — OAuth client IDs are
+# public identifiers (they appear in browser-visible authorize URLs
+# anyway). Only the *secret* is in the K8s Secret.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  template:
+    spec:
+      containers:
+        - name: web
+          env:
+            - $patch: replace
+            - name: PORT
+              value: "3001"
+            - name: NAVIGATOR_EMAIL_BACKEND
+              value: sendgrid
+            - name: NAVIGATOR_STORAGE_BACKEND
+              value: gcs
+            # NAVIGATOR_STORAGE_ENDPOINT is deliberately omitted in prod:
+            # it's the emulator (fake-gcs) override the KIND base sets, and
+            # the `$patch: replace` above drops the base's whole env list.
+            # Do NOT add it back with `value: ""` — an empty string is a
+            # *present* endpoint to `cloud::GcsStorageConfig`, which then
+            # takes the emulator branch and every real-GCS request fails to
+            # build a URL. Leave it unset so the backend talks to GCS.
+            # Private documents bucket — client `blobs/<sha>` land here,
+            # NOT in the public `-assets` bucket. Resolved by
+            # `cloud::GcsStorageConfig` ahead of NAVIGATOR_STORAGE_BUCKET.
+            - name: NAVIGATOR_DOCUMENTS_BUCKET
+              value: YOUR_PROJECT_ID-documents
+            - name: NAVIGATOR_SEED_FILE
+              value: /seed/base.yaml
+            - name: OTEL_SERVICE_NAME
+              value: navigator-web
+            # OTEL_EXPORTER_OTLP_ENDPOINT is NOT declared inline: it comes in
+            # via `envFrom` the shared `navigator-otel-env` ConfigMap below
+            # (one source of truth for the collector URL). The base manifest's
+            # KIND endpoint was dropped by the `$patch: replace` above; the
+            # ConfigMap re-supplies the prod collector Service URL. Logs/traces/
+            # metrics flow through the fail-closed redaction collector.
+            - name: OAUTH_ISSUER_URL
+              value: https://accounts.google.com
+            - name: OAUTH_CLIENT_ID
+              value: YOUR_OAUTH_CLIENT_ID_BROWSER.apps.googleusercontent.com
+            - name: OAUTH_REDIRECT_URI
+              value: https://www.your-domain.example/auth/callback
+            # Base URL surfaced in the OpenAPI `servers` block at
+            # /openapi.json. Must include scheme and stop at the host —
+            # the document tacks `/api/*` paths onto this value.
+            - name: NAV_BASE_URL
+              value: https://www.your-domain.example
+            - name: NAVIGATOR_OPA_URL
+              value: http://localhost:8181
+            # Google OAuth access-token validator for /mcp.
+            # `web::google_oauth` posts the bearer token to Google's
+            # tokeninfo endpoint and accepts the request when the
+            # token's `aud`/`azp` is in this allowlist, `email_verified`
+            # is true, and the email ends with the required domain.
+            # Both Workspace OAuth clients are listed so either
+            # navigator-web's (browser SSO) or the Gemini Enterprise
+            # data-store client is accepted. Add another client by
+            # appending `,<id>.apps.googleusercontent.com`.
+            - name: GOOGLE_OAUTH_CLIENT_IDS
+              value: "YOUR_OAUTH_CLIENT_ID_GEMINI.apps.googleusercontent.com,YOUR_OAUTH_CLIENT_ID_BROWSER.apps.googleusercontent.com"
+            - name: GOOGLE_OAUTH_REQUIRED_HD
+              value: your-domain.example
+            # Enables the Vertex AI Gemini Flash router for free-form
+            # `message/send` calls on /api/aida/rpc (Gemini Enterprise
+            # sends user text without `metadata.skill`; the router
+            # translates that to a tool call). Auth via Workload
+            # Identity — the pod's GSA carries roles/aiplatform.user.
+            # When this env is unset the binary falls back to
+            # NullRouter and returns an enhanced-error Task.
+            - name: NAVIGATOR_GCP_PROJECT_ID
+              value: YOUR_PROJECT_ID
+            - name: NAVIGATOR_GCP_LOCATION
+              value: us-west4
+            # `gemini-2.5-flash` is the unpinned current Flash build.
+            # Probe before changing:
+            #   curl -X POST -H "Authorization: Bearer $(gcloud auth \
+            #     application-default print-access-token)" \
+            #     "https://us-west4-aiplatform.googleapis.com/v1/projects/\
+            #      YOUR_PROJECT_ID/locations/us-west4/publishers/google/\
+            #      models/<MODEL>:generateContent" -d '{}'
+            # 200 = available, 404 = model not in this region.
+            - name: NAVIGATOR_ROUTER_MODEL
+              value: gemini-2.5-flash
+          envFrom:
+            # Collector endpoint (OTEL_EXPORTER_OTLP_ENDPOINT) — shared with
+            # workflows-service and the *-trigger CronJobs.
+            - configMapRef:
+                name: navigator-otel-env
+            - secretRef:
+                name: navigator-web-secrets

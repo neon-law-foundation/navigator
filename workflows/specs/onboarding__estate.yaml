@@ -1,0 +1,38 @@
+questionnaire:
+  BEGIN:
+    _: recording_consent
+  recording_consent:
+    _: testator_name
+  testator_name:
+    _: executor_name
+  executor_name:
+    _: successor_trustee
+  successor_trustee:
+    _: guardian_for_minors
+  guardian_for_minors:
+    _: residuary_beneficiary
+  residuary_beneficiary:
+    _: healthcare_agent
+  healthcare_agent:
+    _: financial_agent
+  financial_agent:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    transcript_uploaded: document_intake__transcript
+  document_intake__transcript:
+    transcript_ready: extract__inputs
+  extract__inputs:
+    inputs_ready: document_drafts__estate
+  document_drafts__estate:
+    drafts_persisted: staff_review
+  staff_review:
+    approved: client_review
+    rejected: END
+  client_review:
+    client_approved: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: END
+    signature_declined: END
+  END: {}

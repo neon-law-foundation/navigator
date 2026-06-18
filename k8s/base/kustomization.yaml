@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Shared platform pieces — included by every overlay. The web
+# application itself lives at `web/web.yaml` and is opted in
+# explicitly by each overlay that wants it (the `kind-deps`
+# overlay deliberately omits it so the developer can run `web`
+# from the host).
+
+namespace: navigator
+
+resources:
+  - namespace.yaml
+  - opa/opa.yaml

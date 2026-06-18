@@ -1,0 +1,1150 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1316" height="3720" viewBox="0 0 1316 3720" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#666"/></marker></defs>
+<style>.t{fill:#fff;stroke:#666;stroke-width:1}.tt{fill:#eef;stroke:#666;stroke-width:1}.tn{fill:#222;font-weight:600}.cn{fill:#222}.ct{fill:#888}.cpk{fill:#c33;font-weight:600}.cfk{fill:#36c}.e{fill:none;stroke:#888;stroke-width:1.2}</style>
+<g class="edges">
+<path class="e" d="M214,93 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M214,115 L646,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M590,93 L326,2797" marker-end="url(#arrow)"/>
+<path class="e" d="M590,115 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M590,225 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M846,93 L326,2051" marker-end="url(#arrow)"/>
+<path class="e" d="M254,411 L990,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M254,477 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M254,587 L990,45" marker-end="url(#arrow)"/>
+<path class="e" d="M510,411 L326,2051" marker-end="url(#arrow)"/>
+<path class="e" d="M510,433 L326,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M510,455 L646,703" marker-end="url(#arrow)"/>
+<path class="e" d="M1206,411 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M1206,433 L30,1821" marker-end="url(#arrow)"/>
+<path class="e" d="M206,751 L646,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M206,773 L990,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M566,751 L990,2797" marker-end="url(#arrow)"/>
+<path class="e" d="M566,773 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M566,949 L30,363" marker-end="url(#arrow)"/>
+<path class="e" d="M862,751 L990,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M862,773 L990,45" marker-end="url(#arrow)"/>
+<path class="e" d="M1238,751 L30,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M238,1157 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M238,1223 L326,2051" marker-end="url(#arrow)"/>
+<path class="e" d="M510,1091 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M862,1113 L30,1317" marker-end="url(#arrow)"/>
+<path class="e" d="M862,1135 L30,1821" marker-end="url(#arrow)"/>
+<path class="e" d="M1230,1091 L646,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M1230,1135 L30,45" marker-end="url(#arrow)"/>
+<path class="e" d="M606,1365 L990,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M606,1431 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M918,1365 L990,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M918,1387 L646,703" marker-end="url(#arrow)"/>
+<path class="e" d="M918,1409 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M918,1475 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M918,1497 L326,1317" marker-end="url(#arrow)"/>
+<path class="e" d="M1182,1365 L326,2051" marker-end="url(#arrow)"/>
+<path class="e" d="M214,1639 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M214,1661 L990,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M862,1639 L990,1591" marker-end="url(#arrow)"/>
+<path class="e" d="M1286,1639 L990,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M510,1869 L646,1821" marker-end="url(#arrow)"/>
+<path class="e" d="M822,1891 L30,45" marker-end="url(#arrow)"/>
+<path class="e" d="M1254,1869 L326,2051" marker-end="url(#arrow)"/>
+<path class="e" d="M1254,1935 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M222,2099 L326,2051" marker-end="url(#arrow)"/>
+<path class="e" d="M582,2099 L326,3367" marker-end="url(#arrow)"/>
+<path class="e" d="M582,2121 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M582,2143 L646,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M582,2187 L990,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M822,2099 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M822,2121 L646,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M1190,2099 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M1190,2121 L990,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M510,2483 L646,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M1230,2527 L646,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M222,2845 L326,2797" marker-end="url(#arrow)"/>
+<path class="e" d="M862,2845 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M1174,2845 L326,2051" marker-end="url(#arrow)"/>
+<path class="e" d="M510,3075 L646,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M846,3075 L990,3027" marker-end="url(#arrow)"/>
+<path class="e" d="M542,3525 L990,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M542,3547 L990,45" marker-end="url(#arrow)"/>
+<path class="e" d="M870,3415 L990,2435" marker-end="url(#arrow)"/>
+</g>
+<g class="tables">
+<g transform="translate(30,30)">
+<rect class="t" width="184" height="272"/>
+<rect class="tt" width="184" height="30"/>
+<text class="tn" x="92" y="20" text-anchor="middle">addresses</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="172" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">person_id</text>
+<text class="cfk" x="172" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">entity_id</text>
+<text class="cfk" x="172" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">line1</text>
+<text class="ct" x="172" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">line2</text>
+<text class="ct" x="172" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">city</text>
+<text class="ct" x="172" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">region</text>
+<text class="ct" x="172" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">postal_code</text>
+<text class="ct" x="172" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">country</text>
+<text class="ct" x="172" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">inserted_at</text>
+<text class="ct" x="172" y="243" text-anchor="end">text</text>
+<text class="cn" x="12" y="265">updated_at</text>
+<text class="ct" x="172" y="265" text-anchor="end">text</text>
+</g>
+<g transform="translate(326,30)">
+<rect class="t" width="264" height="206"/>
+<rect class="tt" width="264" height="30"/>
+<text class="tn" x="132" y="20" text-anchor="middle">answers</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="252" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">question_id</text>
+<text class="cfk" x="252" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">person_id</text>
+<text class="cfk" x="252" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">value</text>
+<text class="ct" x="252" y="111" text-anchor="end">text</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="252" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="252" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">source</text>
+<text class="ct" x="252" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">authored_by_person_id</text>
+<text class="cfk" x="252" y="199" text-anchor="end">uuid FK</text>
+</g>
+<g transform="translate(646,30)">
+<rect class="t" width="200" height="294"/>
+<rect class="tt" width="200" height="30"/>
+<text class="tn" x="100" y="20" text-anchor="middle">attestations</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="188" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">notation_id</text>
+<text class="cfk" x="188" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">chain</text>
+<text class="ct" x="188" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">sha256</text>
+<text class="ct" x="188" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">status</text>
+<text class="ct" x="188" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">pda</text>
+<text class="ct" x="188" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">tx_signature</text>
+<text class="ct" x="188" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">firm_wallet</text>
+<text class="ct" x="188" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">client_wallet</text>
+<text class="ct" x="188" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">recorded_at</text>
+<text class="ct" x="188" y="243" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="265">inserted_at</text>
+<text class="ct" x="188" y="265" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="287">updated_at</text>
+<text class="ct" x="188" y="287" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(990,30)">
+<rect class="t" width="192" height="184"/>
+<rect class="tt" width="192" height="30"/>
+<text class="tn" x="96" y="20" text-anchor="middle">blobs</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="180" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">storage_key</text>
+<text class="ct" x="180" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">content_type</text>
+<text class="ct" x="180" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">byte_size</text>
+<text class="ct" x="180" y="111" text-anchor="end">bigint</text>
+<text class="cn" x="12" y="133">sha256_hex</text>
+<text class="ct" x="180" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="180" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="180" y="177" text-anchor="end">text</text>
+</g>
+<g transform="translate(30,348)">
+<rect class="t" width="224" height="316"/>
+<rect class="tt" width="224" height="30"/>
+<text class="tn" x="112" y="20" text-anchor="middle">communications</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="212" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">project_id</text>
+<text class="cfk" x="212" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">channel</text>
+<text class="ct" x="212" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">direction</text>
+<text class="ct" x="212" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">author_person_id</text>
+<text class="cfk" x="212" y="133" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="155">counterparty</text>
+<text class="ct" x="212" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">subject</text>
+<text class="ct" x="212" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">body</text>
+<text class="ct" x="212" y="199" text-anchor="end">text</text>
+<text class="cn" x="12" y="221">source_ref</text>
+<text class="ct" x="212" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">blob_id</text>
+<text class="cfk" x="212" y="243" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="265">occurred_at</text>
+<text class="ct" x="212" y="265" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="287">inserted_at</text>
+<text class="ct" x="212" y="287" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="309">updated_at</text>
+<text class="ct" x="212" y="309" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(326,348)">
+<rect class="t" width="184" height="228"/>
+<rect class="tt" width="184" height="30"/>
+<text class="tn" x="92" y="20" text-anchor="middle">contract_reviews</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="172" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">notation_id</text>
+<text class="cfk" x="172" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">playbook_id</text>
+<text class="cfk" x="172" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">document_id</text>
+<text class="cfk" x="172" y="111" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="133">status</text>
+<text class="ct" x="172" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">risk_summary</text>
+<text class="ct" x="172" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">findings</text>
+<text class="ct" x="172" y="177" text-anchor="end">jsonb</text>
+<text class="cn" x="12" y="199">inserted_at</text>
+<text class="ct" x="172" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">updated_at</text>
+<text class="ct" x="172" y="221" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(646,348)">
+<rect class="t" width="256" height="272"/>
+<rect class="tt" width="256" height="30"/>
+<text class="tn" x="128" y="20" text-anchor="middle">coupons</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="244" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">code</text>
+<text class="ct" x="244" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">discount_percent</text>
+<text class="ct" x="244" y="89" text-anchor="end">integer</text>
+<text class="cn" x="12" y="111">discount_amount_cents</text>
+<text class="ct" x="244" y="111" text-anchor="end">bigint</text>
+<text class="cn" x="12" y="133">product_code</text>
+<text class="ct" x="244" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">expires_at</text>
+<text class="ct" x="244" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">max_redemptions</text>
+<text class="ct" x="244" y="177" text-anchor="end">integer</text>
+<text class="cn" x="12" y="199">redeemed_count</text>
+<text class="ct" x="244" y="199" text-anchor="end">integer</text>
+<text class="cn" x="12" y="221">active</text>
+<text class="ct" x="244" y="221" text-anchor="end">boolean</text>
+<text class="cn" x="12" y="243">inserted_at</text>
+<text class="ct" x="244" y="243" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="265">updated_at</text>
+<text class="ct" x="244" y="265" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(990,348)">
+<rect class="t" width="216" height="162"/>
+<rect class="tt" width="216" height="30"/>
+<text class="tn" x="108" y="20" text-anchor="middle">credentials</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="204" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">person_id</text>
+<text class="cfk" x="204" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">jurisdiction_id</text>
+<text class="cfk" x="204" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">license_number</text>
+<text class="ct" x="204" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="204" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="204" y="155" text-anchor="end">text</text>
+</g>
+<g transform="translate(30,688)">
+<rect class="t" width="176" height="184"/>
+<rect class="tt" width="176" height="30"/>
+<text class="tn" x="88" y="20" text-anchor="middle">disclosures</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="164" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">entity_id</text>
+<text class="cfk" x="164" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">project_id</text>
+<text class="cfk" x="164" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">kind</text>
+<text class="ct" x="164" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">summary</text>
+<text class="ct" x="164" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="164" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="164" y="177" text-anchor="end">text</text>
+</g>
+<g transform="translate(326,688)">
+<rect class="t" width="240" height="272"/>
+<rect class="tt" width="240" height="30"/>
+<text class="tn" x="120" y="20" text-anchor="middle">document_comments</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="228" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">review_document_id</text>
+<text class="cfk" x="228" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">person_id</text>
+<text class="cfk" x="228" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">anchor_start</text>
+<text class="ct" x="228" y="111" text-anchor="end">integer</text>
+<text class="cn" x="12" y="133">anchor_end</text>
+<text class="ct" x="228" y="133" text-anchor="end">integer</text>
+<text class="cn" x="12" y="155">quoted_text</text>
+<text class="ct" x="228" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">body</text>
+<text class="ct" x="228" y="177" text-anchor="end">text</text>
+<text class="cn" x="12" y="199">resolved</text>
+<text class="ct" x="228" y="199" text-anchor="end">boolean</text>
+<text class="cn" x="12" y="221">inserted_at</text>
+<text class="ct" x="228" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="228" y="243" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="265">communication_id</text>
+<text class="cfk" x="228" y="265" text-anchor="end">uuid FK</text>
+</g>
+<g transform="translate(646,688)">
+<rect class="t" width="216" height="294"/>
+<rect class="tt" width="216" height="30"/>
+<text class="tn" x="108" y="20" text-anchor="middle">documents</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="204" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">project_id</text>
+<text class="cfk" x="204" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">blob_id</text>
+<text class="cfk" x="204" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">filename</text>
+<text class="ct" x="204" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">kind</text>
+<text class="ct" x="204" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="204" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="204" y="177" text-anchor="end">text</text>
+<text class="cn" x="12" y="199">source</text>
+<text class="ct" x="204" y="199" text-anchor="end">text</text>
+<text class="cn" x="12" y="221">source_revision_id</text>
+<text class="ct" x="204" y="221" text-anchor="end">text</text>
+<text class="cn" x="12" y="243">received_at</text>
+<text class="ct" x="204" y="243" text-anchor="end">text</text>
+<text class="cn" x="12" y="265">description</text>
+<text class="ct" x="204" y="265" text-anchor="end">text</text>
+<text class="cn" x="12" y="287">git_commit_oid</text>
+<text class="ct" x="204" y="287" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(990,688)">
+<rect class="t" width="248" height="316"/>
+<rect class="tt" width="248" height="30"/>
+<text class="tn" x="124" y="20" text-anchor="middle">email_conversation_messages</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="236" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">conversation_id</text>
+<text class="cfk" x="236" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">direction</text>
+<text class="ct" x="236" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">from_addr</text>
+<text class="ct" x="236" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">to_addr</text>
+<text class="ct" x="236" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">subject</text>
+<text class="ct" x="236" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">body_text</text>
+<text class="ct" x="236" y="177" text-anchor="end">text</text>
+<text class="cn" x="12" y="199">raw_storage_key</text>
+<text class="ct" x="236" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">provider_message_id</text>
+<text class="ct" x="236" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">in_reply_to</text>
+<text class="ct" x="236" y="243" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="265">command_payload</text>
+<text class="ct" x="236" y="265" text-anchor="end">text</text>
+<text class="cn" x="12" y="287">inserted_at</text>
+<text class="ct" x="236" y="287" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="309">updated_at</text>
+<text class="ct" x="236" y="309" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(30,1028)">
+<rect class="t" width="208" height="250"/>
+<rect class="tt" width="208" height="30"/>
+<text class="tn" x="104" y="20" text-anchor="middle">email_conversations</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="196" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">token</text>
+<text class="ct" x="196" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">external_email</text>
+<text class="ct" x="196" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">external_name</text>
+<text class="ct" x="196" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">person_id</text>
+<text class="cfk" x="196" y="133" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="155">subject</text>
+<text class="ct" x="196" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">status</text>
+<text class="ct" x="196" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">notation_id</text>
+<text class="cfk" x="196" y="199" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="221">inserted_at</text>
+<text class="ct" x="196" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="196" y="243" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(326,1028)">
+<rect class="t" width="184" height="228"/>
+<rect class="tt" width="184" height="30"/>
+<text class="tn" x="92" y="20" text-anchor="middle">email_tokens</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="172" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">person_id</text>
+<text class="cfk" x="172" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">email</text>
+<text class="ct" x="172" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">purpose</text>
+<text class="ct" x="172" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">token_hash</text>
+<text class="ct" x="172" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">expires_at</text>
+<text class="ct" x="172" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">used_at</text>
+<text class="ct" x="172" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">inserted_at</text>
+<text class="ct" x="172" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">updated_at</text>
+<text class="ct" x="172" y="221" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(646,1028)">
+<rect class="t" width="216" height="206"/>
+<rect class="tt" width="216" height="30"/>
+<text class="tn" x="108" y="20" text-anchor="middle">entities</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="204" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">name</text>
+<text class="ct" x="204" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">entity_type_id</text>
+<text class="cfk" x="204" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">jurisdiction_id</text>
+<text class="cfk" x="204" y="111" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="204" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="204" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">phone</text>
+<text class="ct" x="204" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">url</text>
+<text class="ct" x="204" y="199" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(990,1028)">
+<rect class="t" width="240" height="162"/>
+<rect class="tt" width="240" height="30"/>
+<text class="tn" x="120" y="20" text-anchor="middle">entity_billing_profiles</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="228" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">entity_id</text>
+<text class="cfk" x="228" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">billing_email</text>
+<text class="ct" x="228" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">billing_address_id</text>
+<text class="cfk" x="228" y="111" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="228" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="228" y="155" text-anchor="end">text</text>
+</g>
+<g transform="translate(30,1302)">
+<rect class="t" width="160" height="118"/>
+<rect class="tt" width="160" height="30"/>
+<text class="tn" x="80" y="20" text-anchor="middle">entity_types</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="148" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">name</text>
+<text class="ct" x="148" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="148" y="89" text-anchor="end">text</text>
+<text class="cn" x="12" y="111">updated_at</text>
+<text class="ct" x="148" y="111" text-anchor="end">text</text>
+</g>
+<g transform="translate(326,1302)">
+<rect class="t" width="280" height="250"/>
+<rect class="tt" width="280" height="30"/>
+<text class="tn" x="140" y="20" text-anchor="middle">expunge_records</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="268" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">project_id</text>
+<text class="cfk" x="268" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">path</text>
+<text class="ct" x="268" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">category</text>
+<text class="ct" x="268" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">authorized_by_person_id</text>
+<text class="cfk" x="268" y="133" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="155">head_before</text>
+<text class="ct" x="268" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">head_after</text>
+<text class="ct" x="268" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">note</text>
+<text class="ct" x="268" y="199" text-anchor="end">text</text>
+<text class="cn" x="12" y="221">inserted_at</text>
+<text class="ct" x="268" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="268" y="243" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(646,1302)">
+<rect class="t" width="272" height="250"/>
+<rect class="tt" width="272" height="30"/>
+<text class="tn" x="136" y="20" text-anchor="middle">expunge_requests</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="260" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">project_id</text>
+<text class="cfk" x="260" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">document_id</text>
+<text class="cfk" x="260" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">requested_by_person_id</text>
+<text class="cfk" x="260" y="111" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="133">status</text>
+<text class="ct" x="260" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">note</text>
+<text class="ct" x="260" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">resolved_by_person_id</text>
+<text class="cfk" x="260" y="177" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="199">expunge_record_id</text>
+<text class="cfk" x="260" y="199" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="221">inserted_at</text>
+<text class="ct" x="260" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="260" y="243" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(990,1302)">
+<rect class="t" width="192" height="228"/>
+<rect class="tt" width="192" height="30"/>
+<text class="tn" x="96" y="20" text-anchor="middle">filings</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="180" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">notation_id</text>
+<text class="cfk" x="180" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">kind</text>
+<text class="ct" x="180" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">office</text>
+<text class="ct" x="180" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">reference</text>
+<text class="ct" x="180" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">summary</text>
+<text class="ct" x="180" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">submitted_at</text>
+<text class="ct" x="180" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">inserted_at</text>
+<text class="ct" x="180" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">updated_at</text>
+<text class="ct" x="180" y="221" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(30,1576)">
+<rect class="t" width="184" height="206"/>
+<rect class="tt" width="184" height="30"/>
+<text class="tn" x="92" y="20" text-anchor="middle">git_access_tokens</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="172" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">person_id</text>
+<text class="cfk" x="172" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">project_id</text>
+<text class="cfk" x="172" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">token_hash</text>
+<text class="ct" x="172" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">scope</text>
+<text class="ct" x="172" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">expires_at</text>
+<text class="ct" x="172" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">inserted_at</text>
+<text class="ct" x="172" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="172" y="199" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(326,1576)">
+<rect class="t" width="216" height="140"/>
+<rect class="tt" width="216" height="30"/>
+<text class="tn" x="108" y="20" text-anchor="middle">git_repositories</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="204" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">remote_hash</text>
+<text class="ct" x="204" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">last_commit_sha</text>
+<text class="ct" x="204" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="204" y="111" text-anchor="end">text</text>
+<text class="cn" x="12" y="133">updated_at</text>
+<text class="ct" x="204" y="133" text-anchor="end">text</text>
+</g>
+<g transform="translate(646,1576)">
+<rect class="t" width="216" height="184"/>
+<rect class="tt" width="216" height="30"/>
+<text class="tn" x="108" y="20" text-anchor="middle">invoice_line_items</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="204" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">invoice_id</text>
+<text class="cfk" x="204" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">description</text>
+<text class="ct" x="204" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">quantity</text>
+<text class="ct" x="204" y="111" text-anchor="end">integer</text>
+<text class="cn" x="12" y="133">unit_price_cents</text>
+<text class="ct" x="204" y="133" text-anchor="end">bigint</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="204" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="204" y="177" text-anchor="end">text</text>
+</g>
+<g transform="translate(990,1576)">
+<rect class="t" width="296" height="206"/>
+<rect class="tt" width="296" height="30"/>
+<text class="tn" x="148" y="20" text-anchor="middle">invoices</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="284" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">entity_billing_profile_id</text>
+<text class="cfk" x="284" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">number</text>
+<text class="ct" x="284" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">status</text>
+<text class="ct" x="284" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">total_cents</text>
+<text class="ct" x="284" y="133" text-anchor="end">bigint</text>
+<text class="cn" x="12" y="155">currency</text>
+<text class="ct" x="284" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">inserted_at</text>
+<text class="ct" x="284" y="177" text-anchor="end">text</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="284" y="199" text-anchor="end">text</text>
+</g>
+<g transform="translate(30,1806)">
+<rect class="t" width="160" height="140"/>
+<rect class="tt" width="160" height="30"/>
+<text class="tn" x="80" y="20" text-anchor="middle">jurisdictions</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="148" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">name</text>
+<text class="ct" x="148" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">code</text>
+<text class="ct" x="148" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="148" y="111" text-anchor="end">text</text>
+<text class="cn" x="12" y="133">updated_at</text>
+<text class="ct" x="148" y="133" text-anchor="end">text</text>
+</g>
+<g transform="translate(326,1806)">
+<rect class="t" width="184" height="206"/>
+<rect class="tt" width="184" height="30"/>
+<text class="tn" x="92" y="20" text-anchor="middle">letters</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="172" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">mailroom_id</text>
+<text class="cfk" x="172" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">direction</text>
+<text class="ct" x="172" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">sender</text>
+<text class="ct" x="172" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">recipient</text>
+<text class="ct" x="172" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">summary</text>
+<text class="ct" x="172" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">inserted_at</text>
+<text class="ct" x="172" y="177" text-anchor="end">text</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="172" y="199" text-anchor="end">text</text>
+</g>
+<g transform="translate(646,1806)">
+<rect class="t" width="176" height="140"/>
+<rect class="tt" width="176" height="30"/>
+<text class="tn" x="88" y="20" text-anchor="middle">mailrooms</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="164" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">name</text>
+<text class="ct" x="164" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">address_id</text>
+<text class="cfk" x="164" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="164" y="111" text-anchor="end">text</text>
+<text class="cn" x="12" y="133">updated_at</text>
+<text class="ct" x="164" y="133" text-anchor="end">text</text>
+</g>
+<g transform="translate(990,1806)">
+<rect class="t" width="264" height="184"/>
+<rect class="tt" width="264" height="30"/>
+<text class="tn" x="132" y="20" text-anchor="middle">notation_clauses</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="252" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">notation_id</text>
+<text class="cfk" x="252" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">position</text>
+<text class="ct" x="252" y="89" text-anchor="end">integer</text>
+<text class="cn" x="12" y="111">body_markdown</text>
+<text class="ct" x="252" y="111" text-anchor="end">text</text>
+<text class="cn" x="12" y="133">authored_by_person_id</text>
+<text class="cfk" x="252" y="133" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="252" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="252" y="177" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(30,2036)">
+<rect class="t" width="192" height="250"/>
+<rect class="tt" width="192" height="30"/>
+<text class="tn" x="96" y="20" text-anchor="middle">notation_events</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="180" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">notation_id</text>
+<text class="cfk" x="180" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">machine_kind</text>
+<text class="ct" x="180" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">from_state</text>
+<text class="ct" x="180" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">to_state</text>
+<text class="ct" x="180" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">condition</text>
+<text class="ct" x="180" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">payload</text>
+<text class="ct" x="180" y="177" text-anchor="end">text</text>
+<text class="cn" x="12" y="199">recorded_at</text>
+<text class="ct" x="180" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">inserted_at</text>
+<text class="ct" x="180" y="221" text-anchor="end">text</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="180" y="243" text-anchor="end">text</text>
+</g>
+<g transform="translate(326,2036)">
+<rect class="t" width="256" height="360"/>
+<rect class="tt" width="256" height="30"/>
+<text class="tn" x="128" y="20" text-anchor="middle">notations</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="244" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">template_id</text>
+<text class="cfk" x="244" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">person_id</text>
+<text class="cfk" x="244" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">entity_id</text>
+<text class="cfk" x="244" y="111" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="133">state</text>
+<text class="ct" x="244" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">project_id</text>
+<text class="cfk" x="244" y="155" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="177">inserted_at</text>
+<text class="ct" x="244" y="177" text-anchor="end">text</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="244" y="199" text-anchor="end">text</text>
+<text class="cn" x="12" y="221">signature_request_id</text>
+<text class="ct" x="244" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">delivery</text>
+<text class="ct" x="244" y="243" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="265">discount_pct</text>
+<text class="ct" x="244" y="265" text-anchor="end">integer</text>
+<text class="cn" x="12" y="287">discount_amount_cents</text>
+<text class="ct" x="244" y="287" text-anchor="end">bigint</text>
+<text class="cn" x="12" y="309">discount_reason</text>
+<text class="ct" x="244" y="309" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="331">discount_approved_by</text>
+<text class="ct" x="244" y="331" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="353">discount_approved_at</text>
+<text class="ct" x="244" y="353" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(646,2036)">
+<rect class="t" width="176" height="162"/>
+<rect class="tt" width="176" height="30"/>
+<text class="tn" x="88" y="20" text-anchor="middle">person_entity_roles</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="164" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">person_id</text>
+<text class="cfk" x="164" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">entity_id</text>
+<text class="cfk" x="164" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">role</text>
+<text class="ct" x="164" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="164" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="164" y="155" text-anchor="end">text</text>
+</g>
+<g transform="translate(990,2036)">
+<rect class="t" width="200" height="162"/>
+<rect class="tt" width="200" height="30"/>
+<text class="tn" x="100" y="20" text-anchor="middle">person_project_roles</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="188" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">person_id</text>
+<text class="cfk" x="188" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">project_id</text>
+<text class="cfk" x="188" y="89" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="111">participation</text>
+<text class="ct" x="188" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="188" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="188" y="155" text-anchor="end">text</text>
+</g>
+<g transform="translate(30,2420)">
+<rect class="t" width="240" height="272"/>
+<rect class="tt" width="240" height="30"/>
+<text class="tn" x="120" y="20" text-anchor="middle">persons</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="228" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">name</text>
+<text class="ct" x="228" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">email</text>
+<text class="ct" x="228" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">oidc_subject</text>
+<text class="ct" x="228" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="228" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="228" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">role</text>
+<text class="ct" x="228" y="177" text-anchor="end">text</text>
+<text class="cn" x="12" y="199">preferred_language</text>
+<text class="ct" x="228" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">title</text>
+<text class="ct" x="228" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">phone</text>
+<text class="ct" x="228" y="243" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="265">xero_contact_id</text>
+<text class="ct" x="228" y="265" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(326,2420)">
+<rect class="t" width="184" height="184"/>
+<rect class="tt" width="184" height="30"/>
+<text class="tn" x="92" y="20" text-anchor="middle">playbooks</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="172" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">entity_id</text>
+<text class="cfk" x="172" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">name</text>
+<text class="ct" x="172" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">positions</text>
+<text class="ct" x="172" y="111" text-anchor="end">jsonb</text>
+<text class="cn" x="12" y="133">active</text>
+<text class="ct" x="172" y="133" text-anchor="end">boolean</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="172" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="172" y="177" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(646,2420)">
+<rect class="t" width="304" height="338"/>
+<rect class="tt" width="304" height="30"/>
+<text class="tn" x="152" y="20" text-anchor="middle">products</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="292" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">code</text>
+<text class="ct" x="292" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">display_name</text>
+<text class="ct" x="292" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">list_price_cents</text>
+<text class="ct" x="292" y="111" text-anchor="end">bigint</text>
+<text class="cn" x="12" y="133">currency</text>
+<text class="ct" x="292" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">cadence</text>
+<text class="ct" x="292" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">billing_kind</text>
+<text class="ct" x="292" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">active</text>
+<text class="ct" x="292" y="199" text-anchor="end">boolean</text>
+<text class="cn" x="12" y="221">xero_item_code</text>
+<text class="ct" x="292" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">matter_close_template_code</text>
+<text class="ct" x="292" y="243" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="265">inserted_at</text>
+<text class="ct" x="292" y="265" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="287">updated_at</text>
+<text class="ct" x="292" y="287" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="309">account_code</text>
+<text class="ct" x="292" y="309" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="331">retainer_template_code</text>
+<text class="ct" x="292" y="331" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(990,2420)">
+<rect class="t" width="240" height="228"/>
+<rect class="tt" width="240" height="30"/>
+<text class="tn" x="120" y="20" text-anchor="middle">projects</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="228" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">name</text>
+<text class="ct" x="228" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">status</text>
+<text class="ct" x="228" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">entity_id</text>
+<text class="cfk" x="228" y="111" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="228" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="228" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">git_initialized_at</text>
+<text class="ct" x="228" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">closed_at</text>
+<text class="ct" x="228" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">description</text>
+<text class="ct" x="228" y="221" text-anchor="end">text</text>
+</g>
+<g transform="translate(30,2782)">
+<rect class="t" width="192" height="184"/>
+<rect class="tt" width="192" height="30"/>
+<text class="tn" x="96" y="20" text-anchor="middle">question_translations</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="180" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">question_id</text>
+<text class="cfk" x="180" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">locale</text>
+<text class="ct" x="180" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">prompt</text>
+<text class="ct" x="180" y="111" text-anchor="end">text</text>
+<text class="cn" x="12" y="133">help_text</text>
+<text class="ct" x="180" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="180" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="180" y="177" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(326,2782)">
+<rect class="t" width="184" height="184"/>
+<rect class="tt" width="184" height="30"/>
+<text class="tn" x="92" y="20" text-anchor="middle">questions</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="172" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">code</text>
+<text class="ct" x="172" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">prompt</text>
+<text class="ct" x="172" y="89" text-anchor="end">text</text>
+<text class="cn" x="12" y="111">answer_type</text>
+<text class="ct" x="172" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="172" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="172" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">audience</text>
+<text class="ct" x="172" y="177" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(646,2782)">
+<rect class="t" width="216" height="206"/>
+<rect class="tt" width="216" height="30"/>
+<text class="tn" x="108" y="20" text-anchor="middle">relationship_logs</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="204" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">actor_person_id</text>
+<text class="cfk" x="204" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">subject_type</text>
+<text class="ct" x="204" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">subject_id</text>
+<text class="ct" x="204" y="111" text-anchor="end">uuid</text>
+<text class="cn" x="12" y="133">action</text>
+<text class="ct" x="204" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">detail</text>
+<text class="ct" x="204" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">inserted_at</text>
+<text class="ct" x="204" y="177" text-anchor="end">text</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="204" y="199" text-anchor="end">text</text>
+</g>
+<g transform="translate(990,2782)">
+<rect class="t" width="184" height="206"/>
+<rect class="tt" width="184" height="30"/>
+<text class="tn" x="92" y="20" text-anchor="middle">review_documents</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="172" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">notation_id</text>
+<text class="cfk" x="172" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">kind</text>
+<text class="ct" x="172" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">title</text>
+<text class="ct" x="172" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">body_html</text>
+<text class="ct" x="172" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">status</text>
+<text class="ct" x="172" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">inserted_at</text>
+<text class="ct" x="172" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="172" y="199" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(30,3012)">
+<rect class="t" width="200" height="272"/>
+<rect class="tt" width="200" height="30"/>
+<text class="tn" x="100" y="20" text-anchor="middle">sent_emails</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="188" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">recipient</text>
+<text class="ct" x="188" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">subject</text>
+<text class="ct" x="188" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">sender</text>
+<text class="ct" x="188" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">template_slug</text>
+<text class="ct" x="188" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">body</text>
+<text class="ct" x="188" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">outcome</text>
+<text class="ct" x="188" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">sent_at</text>
+<text class="ct" x="188" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">inserted_at</text>
+<text class="ct" x="188" y="221" text-anchor="end">text</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="188" y="243" text-anchor="end">text</text>
+<text class="cn" x="12" y="265">sg_message_id</text>
+<text class="ct" x="188" y="265" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(326,3012)">
+<rect class="t" width="184" height="206"/>
+<rect class="tt" width="184" height="30"/>
+<text class="tn" x="92" y="20" text-anchor="middle">share_issuances</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="172" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">entity_id</text>
+<text class="cfk" x="172" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">holder_name</text>
+<text class="ct" x="172" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">share_class</text>
+<text class="ct" x="172" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">shares</text>
+<text class="ct" x="172" y="133" text-anchor="end">bigint</text>
+<text class="cn" x="12" y="155">issued_at</text>
+<text class="ct" x="172" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">inserted_at</text>
+<text class="ct" x="172" y="177" text-anchor="end">text</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="172" y="199" text-anchor="end">text</text>
+</g>
+<g transform="translate(646,3012)">
+<rect class="t" width="200" height="228"/>
+<rect class="tt" width="200" height="30"/>
+<text class="tn" x="100" y="20" text-anchor="middle">statute_revisions</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="188" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">statute_id</text>
+<text class="cfk" x="188" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">body</text>
+<text class="ct" x="188" y="89" text-anchor="end">text</text>
+<text class="cn" x="12" y="111">body_sha256</text>
+<text class="ct" x="188" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">section_title</text>
+<text class="ct" x="188" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">history_note</text>
+<text class="ct" x="188" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">observed_at</text>
+<text class="ct" x="188" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">inserted_at</text>
+<text class="ct" x="188" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">updated_at</text>
+<text class="ct" x="188" y="221" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(990,3012)">
+<rect class="t" width="216" height="316"/>
+<rect class="tt" width="216" height="30"/>
+<text class="tn" x="108" y="20" text-anchor="middle">statutes</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="204" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">jurisdiction</text>
+<text class="ct" x="204" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">code</text>
+<text class="ct" x="204" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">chapter</text>
+<text class="ct" x="204" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">chapter_title</text>
+<text class="ct" x="204" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">section</text>
+<text class="ct" x="204" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">source_url</text>
+<text class="ct" x="204" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">status</text>
+<text class="ct" x="204" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">first_seen_at</text>
+<text class="ct" x="204" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">last_checked_at</text>
+<text class="ct" x="204" y="243" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="265">last_changed_at</text>
+<text class="ct" x="204" y="265" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="287">inserted_at</text>
+<text class="ct" x="204" y="287" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="309">updated_at</text>
+<text class="ct" x="204" y="309" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(30,3352)">
+<rect class="t" width="256" height="338"/>
+<rect class="tt" width="256" height="30"/>
+<text class="tn" x="128" y="20" text-anchor="middle">subscriptions</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="244" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">person_id</text>
+<text class="ct" x="244" y="67" text-anchor="end">uuid</text>
+<text class="cn" x="12" y="89">entity_id</text>
+<text class="ct" x="244" y="89" text-anchor="end">uuid</text>
+<text class="cn" x="12" y="111">project_id</text>
+<text class="ct" x="244" y="111" text-anchor="end">uuid</text>
+<text class="cn" x="12" y="133">product_code</text>
+<text class="ct" x="244" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">contact_name</text>
+<text class="ct" x="244" y="155" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="177">contact_email</text>
+<text class="ct" x="244" y="177" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="199">status</text>
+<text class="ct" x="244" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">started_at</text>
+<text class="ct" x="244" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">last_invoiced_period</text>
+<text class="ct" x="244" y="243" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="265">discount_percent</text>
+<text class="ct" x="244" y="265" text-anchor="end">integer</text>
+<text class="cn" x="12" y="287">discount_amount_cents</text>
+<text class="ct" x="244" y="287" text-anchor="end">bigint</text>
+<text class="cn" x="12" y="309">inserted_at</text>
+<text class="ct" x="244" y="309" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="331">updated_at</text>
+<text class="ct" x="244" y="331" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(326,3352)">
+<rect class="t" width="216" height="228"/>
+<rect class="tt" width="216" height="30"/>
+<text class="tn" x="108" y="20" text-anchor="middle">templates</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="204" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">code</text>
+<text class="ct" x="204" y="67" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="89">title</text>
+<text class="ct" x="204" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">respondent_type</text>
+<text class="ct" x="204" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="204" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="204" y="155" text-anchor="end">text</text>
+<text class="cn" x="12" y="177">project_id</text>
+<text class="cfk" x="204" y="177" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="199">blob_id</text>
+<text class="cfk" x="204" y="199" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="221">form_code</text>
+<text class="ct" x="204" y="221" text-anchor="end">varchar</text>
+</g>
+<g transform="translate(646,3352)">
+<rect class="t" width="224" height="250"/>
+<rect class="tt" width="224" height="30"/>
+<text class="tn" x="112" y="20" text-anchor="middle">xero_invoices</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="212" y="45" text-anchor="end">uuid PK</text>
+<text class="cn" x="12" y="67">project_id</text>
+<text class="cfk" x="212" y="67" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="89">xero_invoice_id</text>
+<text class="ct" x="212" y="89" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="111">reference</text>
+<text class="ct" x="212" y="111" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="133">status</text>
+<text class="ct" x="212" y="133" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="155">amount_cents</text>
+<text class="ct" x="212" y="155" text-anchor="end">bigint</text>
+<text class="cn" x="12" y="177">amount_paid_cents</text>
+<text class="ct" x="212" y="177" text-anchor="end">bigint</text>
+<text class="cn" x="12" y="199">currency</text>
+<text class="ct" x="212" y="199" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="221">inserted_at</text>
+<text class="ct" x="212" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="212" y="243" text-anchor="end">varchar</text>
+</g>
+</g>
+</svg>
+

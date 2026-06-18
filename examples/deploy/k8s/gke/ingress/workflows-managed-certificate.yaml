@@ -1,0 +1,22 @@
+# Google-managed TLS certificate for `workflows.your-domain.example`
+# — the hostname Restate Cloud uses to reach `workflows-service`.
+#
+# Attached to the shared `navigator-web-gke` Ingress alongside the
+# `navigator-web` cert via a comma-separated value in the
+# `networking.gke.io/managed-certificates` annotation. Two certs,
+# one LB; each cert covers exactly one hostname so that
+# revocations or renewals can target one host without disturbing
+# the other.
+#
+# See `ingress/managed-certificate.yaml` for the broader story
+# about ManagedCertificate vs Certificate Manager and the HTTP-01
+# challenge gotcha (DNS must resolve to the LB's IP before the
+# challenge can complete).
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: navigator-workflows
+  namespace: navigator
+spec:
+  domains:
+    - workflows.your-domain.example

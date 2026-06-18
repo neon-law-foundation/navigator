@@ -1,0 +1,181 @@
+lookup_fields:
+  - code
+# The firm's product catalog — the single source of truth for each
+# product's list price. List price is data; a discount is a recorded
+# override on the engagement (see `store::notation` / `billing`), never a
+# second row here. `code` is the marketing/Xero product key, NOT a
+# template prefix; the billing trigger is `matter_close_template_code`,
+# the originating template whose matter-close raises the flat fee.
+#
+# `account_code` is the Xero chart-of-accounts code this product's revenue
+# posts to (e.g. `200` = Sales). It lives with the product so both the
+# matter-close fee and the recurring-subscription invoice draw the Xero
+# mapping from the same row.
+#
+# Cents are exact and must match the historically-billed amounts —
+# changing one here changes what a client is invoiced.
+records:
+  # Neon Law Northstar — estate planning, $3,333 (PPP-adjusted anchor).
+  # The matter is opened by the `onboarding__estate` template, so the
+  # close fee triggers on that code even though the product is marketed
+  # as "Northstar".
+  - code: northstar
+    display_name: Neon Law Northstar
+    list_price_cents: 333300
+    currency: USD
+    cadence: once
+    billing_kind: matter_close_flat
+    active: true
+    xero_item_code: NORTHSTAR
+    account_code: "200"
+    matter_close_template_code: onboarding__estate
+    retainer_template_code: onboarding__retainer_northstar
+  # Neon Law Nest — Nevada entity formation, $1,111/yr. A per-formation
+  # fee billed at matter close, not a subscription.
+  - code: nest
+    display_name: Neon Law Nest
+    list_price_cents: 111100
+    currency: USD
+    cadence: yearly
+    billing_kind: matter_close_flat
+    active: true
+    xero_item_code: NEST
+    account_code: "200"
+    matter_close_template_code: onboarding__nest
+    retainer_template_code: onboarding__retainer_nest
+  # Neon Law Nexus — fractional general counsel, $2,222/mo. A monthly
+  # subscription, billed every period by the recurring-billing workflow —
+  # NOT a once-at-close fee, so no `matter_close_template_code`.
+  - code: nexus
+    display_name: Neon Law Nexus
+    list_price_cents: 222200
+    currency: USD
+    cadence: monthly
+    billing_kind: recurring
+    active: true
+    xero_item_code: NEXUS
+    account_code: "200"
+    matter_close_template_code: null
+    retainer_template_code: onboarding__retainer_nexus
+  # Neon Law Nautilus — debt-collection shield, $66/mo. Recurring, not a
+  # matter-close flat: no matter_close_template_code, raises no close fee.
+  - code: nautilus
+    display_name: Neon Law Nautilus
+    list_price_cents: 6600
+    currency: USD
+    cadence: monthly
+    billing_kind: recurring
+    active: true
+    xero_item_code: NAUTILUS
+    account_code: "200"
+    matter_close_template_code: null
+    retainer_template_code: onboarding__retainer_nautilus
+  # Neon Law Nook — brokerless real-estate closing, $9,999 one-time. The
+  # firm prepares the purchase contract and runs the closing for a sale
+  # where buyer and seller have already agreed on terms and neither is
+  # working with a broker. Billed once at matter close (like Northstar),
+  # NOT a subscription — so `billing_kind: matter_close_flat`, never
+  # `recurring`. The originating template `onboarding__realty` does not
+  # exist yet; until it (and its closing/escrow workflow) lands, no matter
+  # can close under this code, so the fee stays $0. Wiring the column now
+  # means the $9,999 fires automatically the day that template ships.
+  - code: nook
+    display_name: Neon Law Nook
+    list_price_cents: 999900
+    currency: USD
+    cadence: once
+    billing_kind: matter_close_flat
+    active: true
+    xero_item_code: NOOK
+    account_code: "200"
+    matter_close_template_code: onboarding__realty
+    retainer_template_code: onboarding__retainer_nook
+  # 1337 Lawyers — in-house litigation, $1,337/hr. Hourly, not a
+  # matter-close flat.
+  - code: litigation
+    display_name: 1337 Lawyers
+    list_price_cents: 133700
+    currency: USD
+    cadence: hourly
+    billing_kind: hourly
+    active: true
+    xero_item_code: LITIGATION
+    account_code: "200"
+    matter_close_template_code: null
+    retainer_template_code: onboarding__retainer_litigation
+  # Neon Law Nerd — expert-witness and litigation-consulting for software
+  # and data-access disputes, $1,337/hr. The firm's testifying-expert arm,
+  # billed by the hour like 1337 Lawyers (not a matter-close flat). The fee
+  # is for the analysis and testimony and is never contingent on the opinion
+  # reached or who prevails (RPC 3.4).
+  - code: nerd
+    display_name: Neon Law Nerd
+    list_price_cents: 133700
+    currency: USD
+    cadence: hourly
+    billing_kind: hourly
+    active: true
+    xero_item_code: NERD
+    account_code: "200"
+    matter_close_template_code: null
+    retainer_template_code: onboarding__retainer_nerd
+  # Neon Law Node — on-chain attorney attestation, $44 each. An attorney
+  # verifies a legal fact (e.g. accredited-investor status) and records the
+  # attestation on Solana: the attorney wallet, the client wallet, and a
+  # hash of the signed PDF. Priced per attestation (`cadence: each`), billed
+  # once at matter close — so `billing_kind: matter_close_flat`. The matter
+  # is opened and closed by its own retainer, so the close fee resolves from
+  # that originating template.
+  - code: node
+    display_name: Neon Law Node
+    list_price_cents: 4400
+    currency: USD
+    cadence: each
+    billing_kind: matter_close_flat
+    active: true
+    xero_item_code: NODE
+    account_code: "200"
+    matter_close_template_code: onboarding__retainer_node
+    retainer_template_code: onboarding__retainer_node
+  # Neon Law Newleaf — uncontested divorce, $555 one-time. A flat fee for a
+  # couple who have already agreed to part ways; court filing fees are
+  # excluded and passed through at cost. Billed once at matter close.
+  - code: newleaf
+    display_name: Neon Law Newleaf
+    list_price_cents: 55500
+    currency: USD
+    cadence: once
+    billing_kind: matter_close_flat
+    active: true
+    xero_item_code: NEWLEAF
+    account_code: "200"
+    matter_close_template_code: onboarding__retainer_newleaf
+    retainer_template_code: onboarding__retainer_newleaf
+  # Neon Law Namesake — USPTO trademark filing, $777 one-time, for one
+  # class. Additional classes are a separate fee. Billed once at matter
+  # close.
+  - code: namesake
+    display_name: Neon Law Namesake
+    list_price_cents: 77700
+    currency: USD
+    cadence: once
+    billing_kind: matter_close_flat
+    active: true
+    xero_item_code: NAMESAKE
+    account_code: "200"
+    matter_close_template_code: onboarding__retainer_namesake
+    retainer_template_code: onboarding__retainer_namesake
+  # Neon Law Nucleus — investment-fund formation, $8,888 one-time. Forms the
+  # Nevada fund and its governance entities and prepares the formation
+  # documents. A single one-time flat fee, billed once at matter close.
+  - code: nucleus
+    display_name: Neon Law Nucleus
+    list_price_cents: 888800
+    currency: USD
+    cadence: once
+    billing_kind: matter_close_flat
+    active: true
+    xero_item_code: NUCLEUS
+    account_code: "200"
+    matter_close_template_code: onboarding__retainer_nucleus
+    retainer_template_code: onboarding__retainer_nucleus

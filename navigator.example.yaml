@@ -1,0 +1,63 @@
+# navigator.example.yaml — white-label brand pack.
+#
+# Copy this to `navigator.yaml`, fill in your organization's identity,
+# drop your logos next to it, and run:
+#
+#     cargo run -p cli -- rebrand verify        # check the pack
+#     cargo run -p cli -- rebrand apply --out .devx/brand.env
+#     source .devx/brand.env && cargo run -p web
+#
+# `rebrand apply` compiles this manifest down to the same NAVIGATOR_* env
+# vars the app already reads (see views/src/brand.rs) and copies your
+# logos into web/public/. It does NOT introduce a new runtime contract —
+# `.env` keeps working for forks that don't want a manifest.
+#
+# Identity strings only. Navigator never machine-generates your binding
+# legal text: host your own terms of use + privacy policy on your site
+# and point `terms_url` / `privacy_url` at them (see `portal_only` below).
+
+brand:
+  # Display names. Overriding `firm` drops the linked ® in the footer —
+  # NeonLaw's registered mark is not your name.
+  firm: "Acme Law"
+  foundation: "Acme Law Foundation"
+
+  # Inbound support addresses (firm + foundation).
+  support_email: "support@acme.example"
+  foundation_email: "foundation@acme.example"
+
+  # One-line postal addresses rendered in the footer.
+  firm_address: "123 Main St Ste 100, Springfield, IL 62701"
+  foundation_address: "123 Main St Ste 200, Springfield, IL 62701"
+
+  # Public origin + DNS apex. `base_url` is where email logos and
+  # absolute links resolve; `primary_domain` hardens the Restate
+  # re-register URL and canonical-host checks.
+  base_url: "https://app.acme.example"
+  primary_domain: "acme.example"
+
+  # Where the firm's "Book a consultation" CTA points.
+  consultation_url: "https://calendar.acme.example/book"
+
+  # Off-site legal pages. In portal-only mode the in-app /terms and
+  # /privacy routes are unmounted, so set these to your own hosted pages.
+  # Leave empty to keep linking at the bundled in-app pages (NeonLaw's).
+  terms_url: "https://acme.example/terms"
+  privacy_url: "https://acme.example/privacy"
+
+  # Open-source CTA on the Foundation pages. Empty string hides it.
+  github_url: ""
+
+# White-label app-only deploy: mount only the portal + app surface and
+# 303 `/` to /portal. Your own marketing site (WordPress, etc.) owns the
+# public pages. Requires `terms_url` to be set (see `brand verify`).
+portal_only: true
+
+# Logos copied into web/public/ by `brand apply`. SVG is the on-page
+# mark; the PNG raster is the email logo + social-share card (scrapers
+# won't rasterize SVG). Paths are relative to this manifest.
+assets:
+  firm_logo: "./brand/logo-firm.svg"
+  firm_logo_raster: "./brand/logo-firm.png"
+  foundation_logo: "./brand/logo-foundation.svg"
+  foundation_logo_raster: "./brand/logo-foundation.png"

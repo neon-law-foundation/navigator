@@ -1,0 +1,19 @@
+# Annotate the navigator-web Service for container-native LB. The
+# GKE Ingress controller reads this annotation, provisions a NEG
+# (Network Endpoint Group) tracking the pod IPs directly, and binds
+# the LB's backend service to the NEG. Without this annotation the
+# GKE Ingress rejects ClusterIP Services: "expected NodePort or
+# LoadBalancer when not using NEGs".
+#
+# IAP is intentionally NOT attached here — this Service serves the
+# public site (/, /foundation, /portal, /api, …) and must remain reachable
+# without a sign-in wall. The IAP gate lives on the parallel
+# `navigator-web-mcp` Service under `../iap/navigator-web-mcp-service.yaml`,
+# which selects the same pods but is routed only for /mcp.
+apiVersion: v1
+kind: Service
+metadata:
+  name: navigator-web
+  namespace: navigator
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'

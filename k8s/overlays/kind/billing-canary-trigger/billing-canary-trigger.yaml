@@ -1,0 +1,51 @@
+# `billing-canary-trigger` — daily trigger for the `BillingCanary` workflow.
+#
+# The workflow itself is hosted by the `workflows-service` worker (it binds
+# `BillingCanaryService` alongside `Notation`, `Archives`, and `DriveSync`
+# — see `../workflows-service/`), so there is no separate billing pod. This
+# CronJob is the thin trigger: it POSTs to the Restate ingress to start one
+# invocation, then exits. Restate owns retries.
+#
+# The canary find-or-creates one stable contact in the connected Xero org
+# (the demo company in KIND) and asserts the resolve is idempotent — a live
+# heartbeat that the Xero integration still agrees with Xero's API.
+#
+# In KIND it need not fire on a schedule to be useful — trigger a run by
+# hand:
+#   kubectl create job --from=cronjob/billing-canary-trigger billing-canary-manual -n navigator
+#
+# Image `navigator-billing-canary-trigger:dev` is built from the shared
+# `images/Dockerfile.trigger` (--build-arg CRATE=billing-workflows).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: billing-canary-trigger
+  namespace: navigator
+  labels:
+    app: billing-canary-trigger
+spec:
+  # Weekly, Sunday 14:00 UTC (06:00 PST / 07:00 PDT). `0` = Sunday.
+  schedule: "0 14 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: billing-canary-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: billing-canary-trigger
+              image: navigator-billing-canary-trigger:dev
+              imagePullPolicy: IfNotPresent
+              env:
+                # In-cluster Restate ingress (see
+                # k8s/overlays/kind/deps/restate.yaml).
+                - name: RESTATE_INGRESS_URL
+                  value: http://restate.restate.svc.cluster.local:8080
+                - name: RUST_LOG
+                  value: info

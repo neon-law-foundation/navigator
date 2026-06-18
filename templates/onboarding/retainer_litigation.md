@@ -1,0 +1,107 @@
+---
+title: Litigation Engagement Agreement
+respondent_type: person_and_entity
+code: onboarding__retainer_litigation
+confidential: true
+questionnaire:
+  BEGIN:
+    _: client_name
+  client_name:
+    _: client_email
+  client_email:
+    _: project_name
+  project_name:
+    _: product_description
+  product_description:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    intake_submitted: intake_persisted__client
+  intake_persisted__client:
+    retainer_rendered: staff_review
+  staff_review:
+    approved: document_open__retainer_pdf
+    rejected: END
+  document_open__retainer_pdf:
+    pdf_persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: END
+    signature_declined: END
+  END: {}
+---
+This Engagement Agreement (the "Agreement") is entered into between Neon Law's litigation practice, **1337 Lawyers**
+(the "Firm"), and `{{client_name}}` (the "Client"), reachable at `{{client_email}}`, for the litigation matter referred
+to as `{{project_name}}`.
+
+**The work and the fee.** The Firm represents you in the high-stakes technology dispute described here:
+`{{product_description}}`. Litigation is billed by the hour at `$1,337` per hour against the engagement's rate sheet,
+with costs and expenses passed through at cost. Where the Firm and the Client agree to a contingency or hybrid fee
+instead of, or alongside, the hourly rate, the **contingency term is set out in a separate written fee agreement** that
+states the percentage, how the fee is calculated, and how litigation costs and expenses affect what you ultimately owe
+(RPC 1.5(c)); that writing controls the contingency portion, and this Agreement controls the rest.
+
+**Scope of the engagement.** The Firm's representation is limited to the litigation matter described above and in the
+clauses of this Agreement. A separate matter, an appeal, or a new proceeding requires a separate written engagement or a
+written amendment to this one signed by both the Client and the Firm.
+
+Either party may terminate this Agreement upon written notice, subject to the rules governing a lawyer's withdrawal from
+a pending matter. The Client remains responsible for fees and expenses incurred prior to termination.
+
+{{custom_clauses}}
+
+**How we take your case, and what we will not do.** The Firm will pursue only claims and defenses that are **warranted**
+— not frivolous (RPC 3.1); we will tell you candidly if a position lacks merit. The Firm does **not** acquire a
+proprietary interest in your cause of action or in the subject of the litigation beyond a fee expressly agreed in
+writing and any lien the law allows for fees and expenses (RPC 1.8(i)). Before we take your matter we check it against
+our current and former clients, and we will not take a matter where representing you would be directly adverse to a
+current client, or materially adverse to a former client on the same or a substantially related matter, without the
+informed written consent the rules require (RPC 1.7 and RPC 1.9).
+
+**Resolving a dispute — binding arbitration.** If a dispute arises out of or relates to this engagement or this
+Agreement, you and the Firm agree to resolve it by binding arbitration administered by **JAMS** under its Comprehensive
+Arbitration Rules & Procedures — or, where the amount in controversy is small enough to qualify, its Streamlined Rules.
+The arbitration is seated in **Reno, Nevada**, conducted confidentially, and decided under Nevada law; each party bears
+its share of the JAMS fees as those rules provide. By agreeing to arbitration, you and the Firm give up the right to a
+jury trial and to have the dispute decided in court — except as stated in the next paragraph. The arbitrator applies the
+same law and may award the same remedies a court could; this clause selects the forum for a dispute and does **not**
+limit, cap, or waive the Firm's responsibility for its own work. Because this is an agreement about how future disputes
+are handled, you have the right to consult independent counsel of your own choosing before you agree to it.
+
+**Your fee-arbitration rights are preserved.** Nothing in the arbitration clause waives or overrides any non-waivable
+statutory right you have to arbitration of a fee dispute — including, in California, the Mandatory Fee Arbitration Act
+(Bus. & Prof. Code § 6200 et seq.), and the corresponding fee-dispute programs of the State Bar of Nevada and the
+Washington State Bar Association. You keep those rights in full.
+
+**Reaching the Firm.** Email to **support@neonlaw.com** is the best and primary way to reach the Firm. You consent to
+electronic communication at that address and understand that routine correspondence, documents, and questions about your
+matter flow through it. The Firm sends invoices and case correspondence to you at `{{client_email}}`; you reach the Firm
+at support@neonlaw.com.
+
+**Firm-wide conflicts.** Neon Law is a small firm, and we treat a conflict for any one of our attorneys as a conflict
+for the entire firm. Before we take on a new matter, we check it against all of our current and former matters across
+every attorney here. If that check turns up a conflict we cannot properly take on, we will tell you promptly, decline
+the matter rather than wall it off internally, refer you to outside counsel, and return any materials you shared with
+us. The Firm neither pays nor accepts a referral fee on any matter it refers out. By engaging us, you acknowledge that
+our attorneys share matter information among themselves for this purpose.
+
+**Your file, kept for ten years.** The Firm keeps your complete matter file — every document, signed agreement, and the
+privileged correspondence we exchange with you — for ten years after your matter closes. You may request a copy of your
+file at any point during that period. After ten years, the Firm securely destroys the file and its contents.
+
+The Client acknowledges receipt of the Firm's privacy notice and agrees to electronic delivery of invoices and case
+correspondence at `{{client_email}}`.
+
+The Client and the Firm execute this Agreement electronically as of the dates signed below.
+
+{{client.signature}}
+
+{{client.date}}
+
+By initialing here, the Client acknowledges that this engagement is litigation representation billed by the hour, that
+any contingency or hybrid fee is set out in a separate written fee agreement, and that an appeal or a separate
+proceeding requires a separate written engagement with the Firm: {{client.initials}}
+
+{{firm.signature}}
+
+{{firm.date}}

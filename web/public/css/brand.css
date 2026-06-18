@@ -1,0 +1,263 @@
+/* Neon Law brand palette — Tailwind's cyan is the firm's primary color. */
+/* First-party (NOT vendored): loaded after bootstrap.min.css so these */
+/* token overrides win. The brand cyan is Tailwind's middle cyan, */
+/* cyan-500 #06b6d4; we map it onto Bootstrap's `primary`, and onto its */
+/* `blue` and `cyan` tokens too, so "primary", "the blue", and "the cyan" */
+/* are one color everywhere. cyan-600 #0891b2 and cyan-700 #0e7490 are */
+/* the hover and active shades; cyan-400 #22d3ee lifts links on dark. */
+
+:root,
+[data-bs-theme="light"] {
+  --bs-blue: #06b6d4;
+  --bs-cyan: #06b6d4;
+  --bs-primary: #06b6d4;
+  --bs-primary-rgb: 6, 182, 212;
+  --bs-primary-text-emphasis: #0e7490;
+  --bs-primary-bg-subtle: #cffafe;
+  --bs-primary-border-subtle: #a5f3fc;
+  /* Link text needs contrast on white, so links sit a step darker than */
+  /* the brand cyan (cyan-600), darkening again on hover (cyan-700). */
+  --bs-link-color: #0891b2;
+  --bs-link-color-rgb: 8, 145, 178;
+  --bs-link-hover-color: #0e7490;
+  --bs-link-hover-color-rgb: 14, 116, 144;
+}
+
+[data-bs-theme="dark"] {
+  --bs-blue: #06b6d4;
+  --bs-cyan: #06b6d4;
+  --bs-primary: #06b6d4;
+  --bs-primary-rgb: 6, 182, 212;
+  --bs-primary-text-emphasis: #22d3ee;
+  --bs-primary-bg-subtle: #032f38;
+  --bs-primary-border-subtle: #075e6f;
+  --bs-link-color: #22d3ee;
+  --bs-link-color-rgb: 34, 211, 238;
+  --bs-link-hover-color: #67e8f9;
+  --bs-link-hover-color-rgb: 103, 232, 249;
+}
+
+/* Bootstrap compiles the button color into per-component variables with */
+/* literal hex, so the :root token alone won't recolor buttons — restate */
+/* the cyan family on the two primary button variants the firm uses. */
+.btn-primary {
+  --bs-btn-bg: #06b6d4;
+  --bs-btn-border-color: #06b6d4;
+  --bs-btn-hover-bg: #0891b2;
+  --bs-btn-hover-border-color: #0891b2;
+  --bs-btn-active-bg: #0e7490;
+  --bs-btn-active-border-color: #0e7490;
+  --bs-btn-disabled-bg: #06b6d4;
+  --bs-btn-disabled-border-color: #06b6d4;
+  --bs-btn-focus-shadow-rgb: 6, 182, 212;
+}
+
+.btn-outline-primary {
+  --bs-btn-color: #0891b2;
+  --bs-btn-border-color: #06b6d4;
+  --bs-btn-hover-bg: #06b6d4;
+  --bs-btn-hover-border-color: #06b6d4;
+  --bs-btn-active-bg: #06b6d4;
+  --bs-btn-active-border-color: #06b6d4;
+  --bs-btn-focus-shadow-rgb: 6, 182, 212;
+  --bs-btn-disabled-color: #0891b2;
+  --bs-btn-disabled-border-color: #06b6d4;
+}
+
+/* "Sign in with Google" button on the sign-in page. Google's official */
+/* multi-color "G" is inlined as SVG (fixed brand colors); the BUTTON */
+/* chrome is themed from Bootstrap surface tokens — not hard-coded hex — */
+/* so it reads as a clean bordered surface button in both light and dark, */
+/* and a white-label tenant's brand pack recolors it for free. */
+.btn-google {
+  --bs-btn-bg: var(--bs-body-bg);
+  --bs-btn-color: var(--bs-body-color);
+  --bs-btn-border-color: var(--bs-border-color);
+  --bs-btn-hover-bg: var(--bs-tertiary-bg);
+  --bs-btn-hover-color: var(--bs-body-color);
+  --bs-btn-hover-border-color: var(--bs-border-color);
+  --bs-btn-active-bg: var(--bs-secondary-bg);
+  --bs-btn-active-color: var(--bs-body-color);
+  --bs-btn-active-border-color: var(--bs-border-color);
+}
+
+/* Content prose width. The page shell's <main> and <footer> share one */
+/* Bootstrap `.container` (views/src/layout.rs), so blog and marketing */
+/* prose already span the full footer width. Product/service pages used */
+/* to cap their body at a 78ch reading measure; per design review the */
+/* body now runs the full footer width on desktop to match, so */
+/* `.service-prose` no longer constrains the column — it stays as the */
+/* scoping hook for the content-image rule below. */
+.service-prose {
+  max-width: none;
+}
+
+/* Content images arrive from markdown as bare <img> with no responsive */
+/* class, so at intrinsic size they overflow the column. Cap every */
+/* in-prose image at the column (= footer/container) width, let it scale */
+/* down on smaller screens, and center it as its own block. The curated */
+/* `assets::picture` hero is a SIBLING of `.service-prose`, not a */
+/* descendant, and already ships `img-fluid` — so it stays untouched. */
+.blog-post img,
+.foundation-prose img,
+.service-prose img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin-block: 1.5rem;
+  margin-inline: auto;
+  border-radius: var(--bs-border-radius-lg);
+}
+
+/* Blog photos read better when they don't dominate the column. On a */
+/* wide enough viewport, cap each image by BOTH width and height and let */
+/* the browser fit it within whichever bound binds first (aspect ratio */
+/* preserved): a horizontal photo lands at ~65% of the column, while a */
+/* vertical photo is bound by `max-height` and ends up narrower instead */
+/* of running the full column height. `width: auto` lets the height cap */
+/* shrink the width. Small screens keep the 100% cap above — 65% of a */
+/* phone column would be too small to read. */
+@media (min-width: 768px) {
+  .blog-post img {
+    width: auto;
+    max-width: 65%;
+    max-height: 30rem;
+  }
+}
+
+/* Photo collage. When a post gathers several photos into one spot, they */
+/* are authored as a Bootstrap `.row.blog-collage` of `.col-*` tiles in */
+/* the markdown (two-up on a phone, three-up on desktop) — a markdown */
+/* bullet list was tried first, but the prose `<ul>` styling fought the */
+/* grid inside the 65ch column. Scoping to `.blog-collage` leaves the */
+/* single inline photos elsewhere in the letter on the stacked, centered */
+/* treatment above. Each markdown image lands wrapped in a `<p>`; zero */
+/* its margin so the tiles butt up tight, and render every photo as a */
+/* uniform square (object-fit: cover) so portrait and landscape sources */
+/* read as one tidy grid rather than a ragged set of mismatched heights. */
+.blog-post .blog-collage {
+  margin-block: 1.5rem;
+}
+
+.blog-post .blog-collage p {
+  margin: 0;
+}
+
+.blog-post .blog-collage img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: var(--bs-border-radius);
+  cursor: zoom-in;
+}
+
+/* Click-to-zoom lightbox (collage-lightbox.js). A tile is square-cropped */
+/* in the grid, so the overlay shows the FULL photo (object-fit: contain) */
+/* — nothing at the edges is cut off. A single reused overlay sits above */
+/* everything; `hidden` toggles it. The body class freezes scroll behind */
+/* the open overlay. */
+.collage-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1080;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.collage-lightbox[hidden] {
+  display: none;
+}
+
+body.collage-lightbox-open {
+  overflow: hidden;
+}
+
+.collage-lightbox__figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.collage-lightbox__img {
+  max-width: 100%;
+  max-height: 85vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--bs-border-radius-lg);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.5);
+}
+
+.collage-lightbox__caption {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.95rem;
+  text-align: center;
+  max-width: 65ch;
+}
+
+.collage-lightbox__caption[hidden] {
+  display: none;
+}
+
+.collage-lightbox__close {
+  position: absolute;
+  top: clamp(0.5rem, 2vw, 1.25rem);
+  right: clamp(0.5rem, 2vw, 1.25rem);
+  width: 2.75rem;
+  height: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  line-height: 1;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.collage-lightbox__close:hover,
+.collage-lightbox__close:focus-visible {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Notion-style page banner. A wide cover image leads each service page; */
+/* it is cropped to a short horizontal band regardless of the source */
+/* photo's aspect (portrait or wide), with the rounded corners the card */
+/* surfaces use. A sibling of `.service-prose`, so the content-image cap */
+/* above never applies to it. */
+.service-banner {
+  margin-inline: 0;
+}
+
+.service-banner-img {
+  height: clamp(11rem, 26vw, 20rem);
+  object-fit: cover;
+  border-radius: var(--bs-border-radius-xl);
+}
+
+/* The headline lifted out of the body sits centered under the title at a */
+/* comfortable measure, not the full content width. */
+.service-tagline {
+  max-width: 48rem;
+}
+
+/* The inline scales-of-justice mark (litigation) is an SVG sized at 1em */
+/* so it sits beside Bootstrap Icons glyphs; nudge its baseline down the */
+/* same `-.125em` the icon font uses so the title text aligns. */
+.libra-scales {
+  vertical-align: -0.125em;
+}

@@ -1,0 +1,58 @@
+[package]
+name = "statutes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Weekly Nevada Revised Statutes scraper + public-reference data layer.
+# The library fetches and parses the legislature's HTML chapter pages and
+# reconciles them into Postgres via `store::statutes` (insert-only
+# revisions). The weekly run is the two-step `Statutes` Restate workflow
+# (`workflow.rs`: scrape → Foundation-branded summary email), hosted by the
+# `workflows-service` worker and started by the thin `trigger` CronJob —
+# the same shape as `archives`. The `statutes-sync` bin remains as a
+# self-contained manual/dev entrypoint that runs the scrape without the
+# broker. See prompts/nrs-statute-scraper-design.md.
+[lib]
+name = "statutes"
+path = "src/lib.rs"
+
+# Manual/dev scrape entrypoint — runs the reconcile without Restate.
+[[bin]]
+name = "statutes-sync"
+path = "src/bin/statutes_sync.rs"
+
+# Thin CronJob entrypoint — POSTs to the Restate ingress to start one
+# `Statutes` workflow invocation, then exits.
+[[bin]]
+name = "trigger"
+path = "src/bin/trigger.rs"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+dotenvy.workspace = true
+encoding_rs.workspace = true
+reqwest.workspace = true
+restate-sdk.workspace = true
+scraper.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+store.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+telemetry.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+workflows.workspace = true
+
+[dev-dependencies]
+# Reach `store::test_support::pg()` for the reconcile tests (one
+# testcontainers Postgres per test binary).
+store = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

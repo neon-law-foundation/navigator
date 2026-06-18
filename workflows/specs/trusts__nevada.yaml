@@ -1,0 +1,22 @@
+questionnaire:
+  BEGIN:
+    _: trustee_name
+  trustee_name:
+    _: trust_property
+  trust_property:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    intake_submitted: intake_persisted__trustee
+  intake_persisted__trustee:
+    trust_rendered: staff_review
+  staff_review:
+    approved: document_open__trust_pdf
+    rejected: END
+  document_open__trust_pdf:
+    pdf_persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: END
+    signature_declined: END
+  END: {}

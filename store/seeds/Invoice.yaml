@@ -1,0 +1,21 @@
+lookup_fields:
+  - billing_profile_external_contact_id
+  - external_invoice_id
+records:
+  - billing_profile_provider: xero
+    billing_profile_external_contact_id: "00000000-0000-0000-0000-000000000001"
+    external_invoice_id: "00000000-0000-0000-0000-0000000000a1"
+    invoice_number: "INV-0001"
+    reference: "Seed fixture invoice"
+    status: authorised
+    invoice_type: accrec
+    currency_code: USD
+    invoice_date: "2026-04-01"
+    due_date: "2026-05-01"
+    sub_total: "1000.0000"
+    total_tax: "0.0000"
+    total: "1000.0000"
+    amount_due: "1000.0000"
+    amount_paid: "0.0000"
+    amount_credited: "0.0000"
+    external_updated_at: "2026-04-01T12:00:00Z"

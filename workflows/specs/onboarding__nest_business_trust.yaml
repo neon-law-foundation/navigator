@@ -1,0 +1,30 @@
+questionnaire:
+  BEGIN:
+    _: client_name
+  client_name:
+    _: client_email
+  client_email:
+    _: entity_name
+  entity_name:
+    _: registered_agent
+  registered_agent:
+    _: trustees
+  trustees:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    intake_submitted: intake_persisted__trustee
+  intake_persisted__trustee:
+    certificate_rendered: staff_review
+  staff_review:
+    approved: document_open__certificate_pdf
+    rejected: END
+  document_open__certificate_pdf:
+    pdf_persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: filing__nv_sos
+    signature_declined: END
+  filing__nv_sos:
+    filed: END
+  END: {}

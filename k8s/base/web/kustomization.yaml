@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Web app sub-package — referenced by overlays that include the
+# in-cluster `navigator-web` Deployment (everything except
+# `kind-deps`, which deliberately omits it so the developer can run
+# `web` from the host).
+
+resources:
+  - web.yaml

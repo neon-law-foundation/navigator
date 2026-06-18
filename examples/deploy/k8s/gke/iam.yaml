@@ -1,0 +1,23 @@
+# Kubernetes ServiceAccount for navigator-web with the Workload
+# Identity annotation. The matching GCP-side IAM bindings (GSA
+# creation, project-level role grants, the
+# `roles/iam.workloadIdentityUser` binding from KSA -> GSA,
+# bucket-level `roles/storage.objectUser` on the assets bucket,
+# secret-level `roles/secretmanager.secretAccessor` on each Secret
+# Manager secret) are managed via direct `gcloud` commands, not
+# Config Connector CRs.
+#
+# Why direct gcloud rather than Config Connector: the
+# `--addons=ConfigConnector` cluster flag didn't reliably stand the
+# controller up on this cluster's GKE version. Rather than chase
+# that, we accept the operational tax of running the bindings
+# out-of-band. See `prompts/cloud-logging-sink.md` and the
+# IAMPolicyMember examples that used to live here in git history
+# (commit 6b0ad75) for how it WOULD look with CC reconciling.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: navigator-web
+  namespace: navigator
+  annotations:
+    iam.gke.io/gcp-service-account: navigator-web@YOUR_PROJECT_ID.iam.gserviceaccount.com

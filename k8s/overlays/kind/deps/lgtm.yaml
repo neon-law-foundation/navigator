@@ -1,0 +1,120 @@
+# Grafana LGTM (Loki + Grafana + Tempo + Mimir) — one-process
+# observability stack for local KIND.
+#
+# The `grafana/otel-lgtm` image bundles Grafana with pre-configured
+# Loki (logs), Tempo (traces), Prometheus (metrics), and an OTel
+# Collector. Apps push everything to the collector's OTLP endpoint
+# and explore it in Grafana — no separate Loki/Tempo/Prometheus
+# manifests, no dashboards to import.
+#
+# Wire-up (`navigator start-dev-server` does all of this for you):
+#   - In-cluster apps (the `web` + `workflows-service` Deployments)
+#     set `OTEL_EXPORTER_OTLP_ENDPOINT` to this Service's in-cluster
+#     DNS, `http://lgtm.navigator.svc.cluster.local:4317`.
+#   - The host-side `web` binary (`cargo run -p web`) reaches the
+#     same OTLP gRPC port over a `navigator start-dev-server` port-forward; `.devx/env`
+#     carries `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`.
+#   - Grafana (port 3000) is port-forwarded to the host at
+#     http://localhost:3000 — `navigator start-dev-server` prints the URL. Login:
+#     anonymous Admin, login form disabled.
+#   - Datasources are auto-provisioned by the image; "Explore" lets
+#     you query Loki for logs, Tempo for traces, and Prometheus for
+#     metrics, filtered by `service.name` (e.g. `navigator-web`).
+#
+# Storage is ephemeral — `emptyDir`. Killing the pod wipes
+# telemetry; that's the right default for KIND.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lgtm
+  namespace: navigator
+  labels:
+    app: lgtm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: lgtm
+  template:
+    metadata:
+      labels:
+        app: lgtm
+    spec:
+      containers:
+        - name: lgtm
+          image: grafana/otel-lgtm:0.11.10
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: grafana
+              containerPort: 3000
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+          env:
+            # Stream every component's stdout to the pod log — by
+            # default the image silences them. Cheap on KIND; turn
+            # off in any future production-equivalent overlay.
+            - name: ENABLE_LOGS_ALL
+              value: "true"
+            # Grafana root URL — must match the host the browser
+            # uses, otherwise generated links break. `navigator start-dev-server`
+            # port-forwards Grafana to host port 3000.
+            - name: GF_SERVER_ROOT_URL
+              value: http://localhost:3000
+            # Local-dev convenience: anonymous viewer access so the
+            # operator opens the UI and is straight into the Explore
+            # tab. The pod is only reachable from inside KIND.
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: Admin
+            - name: GF_AUTH_DISABLE_LOGIN_FORM
+              value: "true"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "100m"
+            limits:
+              memory: "1500Mi"
+              cpu: "1500m"
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - name: data
+              mountPath: /data
+              # Bind Grafana + Loki + Tempo + Prometheus state under
+              # one mount — emptyDir survives container restarts but
+              # not pod restarts. Fine for local debugging.
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lgtm
+  namespace: navigator
+spec:
+  selector:
+    app: lgtm
+  ports:
+    - name: grafana
+      port: 3000
+      targetPort: 3000
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318

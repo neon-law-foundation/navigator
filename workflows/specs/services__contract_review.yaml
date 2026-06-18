@@ -1,0 +1,23 @@
+questionnaire:
+  BEGIN:
+    _: client_name
+  client_name:
+    _: client_email
+  client_email:
+    _: entity_name
+  entity_name:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    contract_uploaded: document_intake__inbound_contract
+  document_intake__inbound_contract:
+    intake_filed: analysis__contract_deviations
+  analysis__contract_deviations:
+    analysis_ready: staff_review
+  staff_review:
+    approved: document_open__review_memo
+    rejected: END
+  document_open__review_memo:
+    memo_rendered: END
+  END: {}

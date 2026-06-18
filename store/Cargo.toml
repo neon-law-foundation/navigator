@@ -1,0 +1,46 @@
+[package]
+name = "store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+# `test-support` exposes `store::test_support::pg()` to downstream
+# crates' integration tests. Off by default so non-test consumers
+# don't pull testcontainers into their build graph. Inside `store`
+# itself the helper is also gated on `cfg(test)`, so unit tests in
+# this crate get it automatically without the feature flag dance.
+test-support = ["dep:testcontainers", "dep:testcontainers-modules"]
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+cloud.workspace = true
+sea-orm.workspace = true
+sea-orm-migration.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sha2.workspace = true
+testcontainers = { workspace = true, optional = true }
+testcontainers-modules = { workspace = true, optional = true }
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+# Self-enable test-support so this crate's own unit + integration
+# tests reach `store::test_support::pg`. The optional testcontainers
+# deps come along via the feature so non-test consumers stay clean.
+store = { path = ".", features = ["test-support"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true

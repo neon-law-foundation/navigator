@@ -1,0 +1,23 @@
+questionnaire:
+  BEGIN:
+    _: client_name
+  client_name:
+    _: credit_bureau
+  credit_bureau:
+    _: tradeline
+  tradeline:
+    _: report_error
+  report_error:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    intake_submitted: document_open__fcra_dispute
+  document_open__fcra_dispute:
+    pdf_persisted: staff_review
+  staff_review:
+    approved: mailroom_send__fcra_dispute
+    rejected: END
+  mailroom_send__fcra_dispute:
+    mailed: END
+  END: {}

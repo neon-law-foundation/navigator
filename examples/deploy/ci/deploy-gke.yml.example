@@ -1,0 +1,201 @@
+name: deploy
+
+# Weekday GKE deploy cron — Mon-Thu at 06:00 UTC. Builds the
+# current `main` HEAD into both images, pushes to Artifact Registry
+# (us-west4-docker.pkg.dev), and commits the new image SHAs to
+# `k8s/overlays/gke/`. Config Sync in the production cluster
+# reconciles the new manifest within ~15 seconds and rolls out.
+#
+# Pull-based deploy: this workflow never touches kube-apiserver.
+# The only outbound credentials it holds are:
+#   - the federated GCP token (for docker push to GAR), minted via
+#     Workload Identity Federation from the runner's OIDC ID token —
+#     no static service account JSON key lives in repo secrets.
+#   - the repo write token (commit the SHA bump back to main).
+#
+# One-time WIF setup (run by the operator under their own gcloud
+# session — the `navigator` CLI has no subcommand for this yet):
+#   gcloud iam workload-identity-pools create github \
+#       --location global --project YOUR_PROJECT_ID
+#   gcloud iam workload-identity-pools providers create-oidc github \
+#       --location global --workload-identity-pool github \
+#       --project YOUR_PROJECT_ID \
+#       --issuer-uri https://token.actions.githubusercontent.com \
+#       --attribute-mapping \
+#         google.subject=assertion.sub,attribute.repository=assertion.repository \
+#         --attribute-condition 'assertion.repository=="neonlaw/Navigator"'
+#   gcloud iam service-accounts add-iam-policy-binding \
+#       deploy-bot@YOUR_PROJECT_ID.iam.gserviceaccount.com \
+#       --role roles/iam.workloadIdentityUser \
+#       --member \
+#         'principalSet://iam.googleapis.com/projects/<num>/locations/global/workloadIdentityPools/github/attribute.repository/neonlaw/Navigator'
+#   gcloud artifacts repositories add-iam-policy-binding navigator \
+#       --location us-west4 --project YOUR_PROJECT_ID \
+#       --member serviceAccount:deploy-bot@YOUR_PROJECT_ID.iam.gserviceaccount.com \
+#       --role roles/artifactregistry.writer
+#
+# Friday-Sunday is deliberately skipped: a Friday afternoon push
+# can page someone over the weekend; safer to absorb a 3-day cycle
+# than to chase issues in evening hours.
+#
+# Manual trigger: `workflow_dispatch` for emergency rollouts.
+
+on:
+  schedule:
+    # Mon-Thu 06:00 UTC. cron is UTC on GitHub-hosted runners.
+    - cron: "0 6 * * 1-4"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # commit the SHA bump back to main
+  id-token: write   # mint OIDC token for WIF -> GCP
+
+env:
+  GCP_PROJECT: YOUR_PROJECT_ID
+  GAR_REGION: us-west4
+  GAR_REPO: navigator
+  # Filled in by the operator after the one-time WIF setup above.
+  # Set as repo-level Actions variables, not secrets — these are
+  # not credentials, just public identifiers.
+  WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+  WIF_SERVICE_ACCOUNT: ${{ vars.GCP_DEPLOY_SA }}
+  # Restate CLI pin — keep in lockstep with `RESTATE_CLI_VERSION`
+  # in `cli/src/devx/mod.rs`. Drift between operator-laptop and CI
+  # silently desyncs `deployment register`.
+  RESTATE_CLI_VERSION: 1.6.2
+  # Public URL Restate Cloud uses to reach `workflows-service`.
+  # Backed by the ingress under `k8s/overlays/gke/ingress/`.
+  WORKFLOWS_PUBLIC_URL: https://workflows.your-domain.example/
+
+jobs:
+  build:
+    name: build + push ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: navigator-web
+            dockerfile: Dockerfile
+          - image: navigator-workflows-service
+            dockerfile: Dockerfile.workflows-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: authenticate to GCP via Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
+
+      - name: configure docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GAR_REGION }}-docker.pkg.dev --quiet
+
+      - name: image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.GAR_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.GAR_REPO }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  bump-manifests:
+    name: commit image SHA bumps to k8s/overlays/gke
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: compute image refs for ${{ github.sha }}
+        id: refs
+        env:
+          GCP_PROJECT: YOUR_PROJECT_ID
+          GAR_REGION: us-west4
+          GAR_REPO: navigator
+        run: |
+          short="$(echo "${{ github.sha }}" | cut -c1-7)"
+          base="${GAR_REGION}-docker.pkg.dev/${GCP_PROJECT}/${GAR_REPO}"
+          {
+            echo "web=${base}/navigator-web:sha-${short}"
+            echo "worker=${base}/navigator-workflows-service:sha-${short}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: bump web image in patches/web-image.yaml
+        run: |
+          sed -i "s|image: .*navigator-web:.*$|image: ${{ steps.refs.outputs.web }}|" \
+              k8s/overlays/gke/patches/web-image.yaml
+
+      - name: bump workflows-service image
+        run: |
+          sed -i "s|image: .*navigator-workflows-service:.*$|image: ${{ steps.refs.outputs.worker }}|" \
+              k8s/overlays/gke/workflows-service/deployment.yaml
+
+      - name: commit and push
+        run: |
+          git config user.name  "Northstar"
+          git config user.email "northstar@navigator.dev"
+          if git diff --quiet -- k8s/overlays/gke/; then
+              echo "no manifest changes; nothing to deploy"
+              exit 0
+          fi
+          git add k8s/overlays/gke/patches/web-image.yaml \
+                  k8s/overlays/gke/workflows-service/deployment.yaml
+          git commit -m "$(cat <<'EOF'
+          deploy: bump GKE image SHAs to ${{ github.sha }}
+
+          Weekday deploy cron — Config Sync will reconcile within
+          ~15s and roll the navigator-web + workflows-service
+          Deployments.
+
+          Co-Authored-By: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+          EOF
+          )"
+          git push origin HEAD:main
+
+  # Re-register the workflows-service worker with the Restate Cloud
+  # tenant so the broker doesn't keep dispatching to a stale image.
+  # The URL is stable (`workflows.your-domain.example`), but each
+  # `deployment register` snapshots the worker's current discovery
+  # response (services, handler signatures) — without this step the
+  # tenant pins to the old binary's contract.
+  register-restate:
+    name: register workflows-service with Restate Cloud
+    runs-on: ubuntu-latest
+    needs: bump-manifests
+    steps:
+      - name: install pinned Restate CLI
+        # The install script drops the binary in $HOME/.local/bin.
+        # Pin via env so a single edit keeps operator + CI aligned.
+        run: |
+          curl -fsSL https://restate.dev/install.sh \
+              | VERSION="${RESTATE_CLI_VERSION}" sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: register worker URL
+        # RESTATE_CLOUD_TOKEN is the only secret this job needs —
+        # stored as a repo secret (it's a CI credential, not a
+        # runtime credential, so it doesn't go in Secret Manager
+        # per `prompts/restate-cloud-cutover.md`).
+        env:
+          RESTATE_CLOUD_TOKEN: ${{ secrets.RESTATE_CLOUD_TOKEN }}
+        run: |
+          restate --version
+          restate -y deployments register "${WORKFLOWS_PUBLIC_URL}"
+          restate -y deployments list

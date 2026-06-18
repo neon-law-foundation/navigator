@@ -1,0 +1,60 @@
+lookup_fields:
+  - entity_id
+  - zip
+records:
+  - entity:
+      name: Shook Law PLLC
+      entity_type:
+        name: Professional LLC
+        jurisdiction:
+          name: Nevada
+    street: 5150 Mae Anne Ave Ste 405-9002
+    city: Reno
+    state: NV
+    country: USA
+    zip: "89523"
+    is_verified: true
+    mailroom:
+      name: Ridgeview Mail Center
+  - entity:
+      name: Neon Law Foundation
+      entity_type:
+        name: 501(c)(3) Non-Profit
+        jurisdiction:
+          name: Nevada
+    street: 5150 Mae Anne Ave Ste 405-9999
+    city: Reno
+    state: NV
+    country: USA
+    zip: "89523"
+    is_verified: true
+    mailroom:
+      name: Ridgeview Mail Center
+  - entity:
+      name: shook.family
+      entity_type:
+        name: Family Trust
+        jurisdiction:
+          name: Nevada
+    street: 5150 Mae Anne Ave Ste 405-9005
+    city: Reno
+    state: NV
+    country: USA
+    zip: "89523"
+    is_verified: true
+    mailroom:
+      name: Ridgeview Mail Center
+  - entity:
+      name: Nicholas Shook
+      entity_type:
+        name: Human
+        jurisdiction:
+          name: Washington
+    street: 5150 Mae Anne Ave Ste 405-9011
+    city: Reno
+    state: NV
+    country: USA
+    zip: "89523"
+    is_verified: true
+    mailroom:
+      name: Ridgeview Mail Center

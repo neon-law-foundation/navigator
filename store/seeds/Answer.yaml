@@ -1,0 +1,15 @@
+---
+lookup_fields:
+  - question_code
+  - person_email
+  - value
+records:
+  - question_code: personal_name
+    person_email: nick@neonlaw.com
+    value: "Nick Shook"
+  - question_code: personal_ssn
+    person_email: nick@neonlaw.com
+    value: "000-00-0000"
+  - question_code: staff_review
+    person_email: nick@neonlaw.com
+    value: "approved"

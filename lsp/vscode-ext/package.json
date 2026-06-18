@@ -1,0 +1,36 @@
+{
+  "name": "navigator-lsp",
+  "displayName": "Navigator LSP",
+  "description": "Navigator markdown rule diagnostics + source.fixAll via navigator-lsp",
+  "version": "0.1.0",
+  "publisher": "neonlaw",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Linters"],
+  "main": "./out/extension.js",
+  "activationEvents": ["onLanguage:markdown"],
+  "contributes": {
+    "configuration": {
+      "title": "Navigator LSP",
+      "properties": {
+        "navigator.lspPath": {
+          "type": "string",
+          "default": "navigator-lsp",
+          "description": "Absolute path or PATH-resolvable name of the navigator-lsp binary."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p ./",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}

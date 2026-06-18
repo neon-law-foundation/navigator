@@ -1,0 +1,33 @@
+[package]
+name = "telemetry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# The one observability seam for every Navigator binary. `telemetry::init`
+# wires `tracing` to stdout (JSON when an OTLP endpoint is configured, so pod
+# logs land in Cloud Logging -> BigQuery cleanly) and, when
+# `OTEL_EXPORTER_OTLP_ENDPOINT` is set, also exports OpenTelemetry traces and
+# metrics over OTLP. A leaf crate: it depends only on opentelemetry + tracing
+# so web, workflows-service, and every trigger can share it without a cycle.
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+opentelemetry.workspace = true
+opentelemetry_sdk.workspace = true
+opentelemetry-otlp.workspace = true
+opentelemetry-appender-tracing.workspace = true
+tracing.workspace = true
+tracing-opentelemetry.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+# The export-path providers spawn batch-flush tasks, so the offline
+# provider-construction test runs on a Tokio runtime.
+tokio.workspace = true
+
+[lints]
+workspace = true

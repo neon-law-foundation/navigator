@@ -1,0 +1,115 @@
+# syntax=docker/dockerfile:1.7
+
+# ---------- Stage 1: builder ----------
+#
+# Compile the `web` binary statically against musl so the runtime
+# image can be `gcr.io/distroless/static`. SeaORM's sqlx-postgres /
+# sqlx-sqlite backends pull in `ring` (rustls) which musl-targets
+# fine. We pin to the project's Rust 1.95.0 toolchain.
+
+FROM rust:1.95-bookworm AS builder
+
+# Toolchain prep: musl target + musl gcc for any C deps. The musl target
+# is chosen from BuildKit's automatic TARGETARCH so the SAME Dockerfile
+# builds a native aarch64 image on an Apple-Silicon dev laptop (for local
+# KIND) and an x86_64 image in CI / for GKE Autopilot (amd64). Building
+# x86_64-musl on an arm64 host is a cross-compile that breaks aws-lc-sys's
+# C build (`musl-gcc` rejects the x86-only `-m64`); selecting the native
+# target sidesteps it. `navigator power-push` forces `--platform linux/amd64`,
+# so prod images are always amd64 regardless of the build host.
+ARG TARGETARCH
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends musl-tools \
+    && rm -rf /var/lib/apt/lists/* \
+    && case "$TARGETARCH" in \
+         amd64) echo x86_64-unknown-linux-musl  > /tmp/rust-target ;; \
+         arm64) echo aarch64-unknown-linux-musl > /tmp/rust-target ;; \
+         *) echo "unsupported TARGETARCH: ${TARGETARCH:-unset}" >&2; exit 1 ;; \
+       esac \
+    && rustup target add "$(cat /tmp/rust-target)"
+
+WORKDIR /src
+
+# Copy the full workspace in one layer and build. We used to stage a
+# stub-prime step here to cache the dep build separately, but the
+# stubs left cached artifacts for our path deps (`store`, `views`,
+# `cloud`, `workflows`) that the real-source rebuild didn't always
+# invalidate, surfacing as "unresolved import store::entity" failures.
+# A single COPY + build is simpler and still benefits from Docker
+# layer caching when neither `Cargo.lock` nor source changes.
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY rules             rules
+COPY store             store
+COPY repos             repos
+COPY import            import
+COPY cli               cli
+COPY web               web
+COPY views             views
+COPY README.md         README.md
+COPY telemetry         telemetry
+COPY forms             forms
+COPY workflows         workflows
+COPY workflows-service workflows-service
+COPY cloud             cloud
+COPY compass           compass
+COPY mcp               mcp
+COPY features          features
+COPY lsp               lsp
+COPY pdf               pdf
+COPY templates         templates
+COPY archives          archives
+COPY statutes          statutes
+COPY billing           billing
+COPY billing-workflows billing-workflows
+# `web::docs` bakes the docs tree into the binary with
+# include_str!(concat!(CARGO_MANIFEST_DIR, "/../docs/…")). Those files
+# live outside any crate dir, so they must be staged explicitly or the
+# builder fails to resolve the include paths.
+COPY docs              docs
+
+RUN cargo build --release --target "$(cat /tmp/rust-target)" -p web \
+    && cp "target/$(cat /tmp/rust-target)/release/web" /usr/local/bin/web
+
+# ---------- Stage 2: runtime ----------
+#
+# distroless/static gives us a minimal scratch-equivalent base
+# pre-populated with ca-certificates and a non-root user. The image
+# carries only the statically linked binary plus the static asset
+# directories the server reads from disk at boot.
+
+FROM gcr.io/distroless/static:nonroot AS runtime
+
+WORKDIR /app
+
+COPY --from=builder /usr/local/bin/web /app/web
+COPY --from=builder /src/web/public  /app/public
+COPY --from=builder /src/web/content /app/content
+COPY --from=builder /src/templates             /app/templates
+
+# Identify the build. `navigator power-push` passes `--build-arg GIT_SHA=$(git
+# rev-parse HEAD)` (and the commit time) so the running binary can answer
+# `GET /version` with the exact commit it was built from — distroless has
+# no shell, so a runtime endpoint is the only way to read this. Baking it
+# here ties the reported SHA to the image bytes: it cannot drift from what
+# was deployed. A local `cargo run` (no build-arg) honestly reports
+# `unknown`.
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+ENV NAVIGATOR_GIT_SHA=$GIT_SHA \
+    NAVIGATOR_BUILD_TIME=$BUILD_TIME
+
+# Tell the binary where to find its assets. Override at deploy time
+# if you mount these in from a ConfigMap or PVC.
+ENV NAVIGATOR_PUBLIC_DIR=/app/public \
+    NAVIGATOR_BLOG_DIR=/app/content/blog \
+    NAVIGATOR_WORKSHOPS_DIR=/app/content/workshops \
+    NAVIGATOR_MARKETING_DIR=/app/content/marketing \
+    NAVIGATOR_ABOUT_DIR=/app/content/about \
+    APP_ENV=production \
+    PORT=3001
+
+EXPOSE 3001
+
+USER nonroot:nonroot
+
+ENTRYPOINT ["/app/web"]

@@ -1,0 +1,45 @@
+# Cloud SQL Auth Proxy sidecar — lets the `web` container reach
+# Cloud SQL Postgres at 127.0.0.1:5432 without managing an IP, a
+# password, or a TLS cert. The proxy authenticates to Cloud SQL via
+# the navigator-web KSA's bound GCP service account (Workload
+# Identity); the `--auto-iam-authn` flag tells it to issue an IAM
+# access token to Postgres on every connection so the password
+# column in the `web` SQL user record stays empty.
+#
+# `--private-ip` is intentionally OMITTED: the Cloud SQL instance
+# was provisioned with only a public IP (no VPC peering / private
+# service connection was set up). The proxy still encrypts its
+# upstream connection to Cloud SQL — IAM authn is the security
+# boundary, not network reachability.
+#
+# Resource requests:
+#   100m CPU / 64Mi memory — the proxy's documented floor. Autopilot
+#   will round up to whatever its enforcement requires.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  template:
+    spec:
+      containers:
+        - name: cloud-sql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.13.0
+          args:
+            - --auto-iam-authn
+            - --structured-logs
+            - YOUR_PROJECT_ID:us-west4:navigator-pg
+          ports:
+            - containerPort: 5432
+              name: postgres
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi

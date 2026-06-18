@@ -1,0 +1,7 @@
+lookup_fields:
+  - name
+records:
+  - name: Ridgeview Mail Center
+    mailbox_start: 9000
+    mailbox_end: 9999
+    capacity: 1000

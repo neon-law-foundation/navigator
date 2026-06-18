@@ -1,0 +1,56 @@
+# `heartbeat-trigger` — six-hourly trigger for the `Heartbeat` workflow.
+#
+# `Heartbeat` is the durable-execution liveness canary: a two-step Restate
+# workflow (beat -> notify) that depends on nothing — no database, no object
+# storage, no third-party API — so a green run can only mean the engine itself
+# is alive. It is hosted by the `workflows-service` worker (it binds
+# `HeartbeatService` alongside the `Notation` object — see
+# `../workflows-service/`), so there is no separate heartbeat pod. This CronJob
+# is the thin trigger: it POSTs to the Restate ingress to start one invocation,
+# then exits. Restate owns retries.
+#
+# In KIND it need not fire on a schedule to be useful — trigger a run by hand:
+#   kubectl create job --from=cronjob/heartbeat-trigger heartbeat-manual -n navigator
+#
+# Image `navigator-heartbeat-trigger:dev` is built by
+# `navigator image-heartbeat-trigger`.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: heartbeat-trigger
+  namespace: navigator
+  labels:
+    app: heartbeat-trigger
+spec:
+  # Every six hours (00:00 / 06:00 / 12:00 / 18:00 UTC). The trigger keys each
+  # invocation on the UTC date + hour, so the four daily runs each get a
+  # distinct Restate workflow key.
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 4
+  # Forbid + a finite deadline together: never overlap runs, but never let a
+  # stuck trigger (e.g. ImagePullBackOff, or a hung ingress POST) stay Active
+  # and skip every subsequent schedule. A healthy trigger exits in seconds.
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app: heartbeat-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: heartbeat-trigger
+              image: navigator-heartbeat-trigger:dev
+              imagePullPolicy: IfNotPresent
+              env:
+                # In-cluster Restate ingress (see
+                # k8s/overlays/kind/deps/restate.yaml).
+                - name: RESTATE_INGRESS_URL
+                  value: http://restate.restate.svc.cluster.local:8080
+                - name: RUST_LOG
+                  value: info

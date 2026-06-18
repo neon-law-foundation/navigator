@@ -1,0 +1,23 @@
+[package]
+name = "pdf"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+lopdf.workspace = true
+thiserror.workspace = true
+typst = "0.14"
+typst-pdf = "0.14"
+typst-as-lib = { version = "0.15", features = ["typst-kit-fonts", "typst-kit-embed-fonts"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,47 @@
+# `statutes-trigger` — weekly trigger for the `Statutes` workflow.
+#
+# The workflow itself is hosted by the `workflows-service` worker (it
+# binds `StatutesService` alongside the `Notation` object and the
+# `Archives` workflow — see `../workflows-service/`), so there is no
+# separate statutes worker pod. This CronJob is the thin trigger: it
+# POSTs to the Restate ingress to start one invocation, then exits.
+# Restate owns retries.
+#
+# In KIND it need not fire on a schedule to be useful — trigger a run
+# by hand:
+#   kubectl create job --from=cronjob/statutes-trigger statutes-trigger-manual -n navigator
+#
+# Image `navigator-statutes-trigger:dev` is built by
+# `navigator image-statutes-trigger`.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: statutes-trigger
+  namespace: navigator
+  labels:
+    app: statutes-trigger
+spec:
+  schedule: "0 10 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 4
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: statutes-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: statutes-trigger
+              image: navigator-statutes-trigger:dev
+              imagePullPolicy: IfNotPresent
+              env:
+                # In-cluster Restate ingress (see
+                # k8s/overlays/kind/deps/restate.yaml).
+                - name: RESTATE_INGRESS_URL
+                  value: http://restate.restate.svc.cluster.local:8080
+                - name: RUST_LOG
+                  value: info

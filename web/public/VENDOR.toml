@@ -1,0 +1,220 @@
+# Vendored front-end assets — single source of truth.
+#
+# Every third-party CSS/JS/font we serve from `web/public/` is pinned here by
+# version + SHA-256. The bytes on disk are the artifact; this file records what
+# they are and where they came from. `web/tests/vendor_assets.rs` recomputes
+# each `sha256` from `served_path` and fails on drift, so this file cannot lie.
+#
+# To refresh an asset, use the `update-web-assets` skill — never hand-edit a
+# minified blob. Minor/patch bumps are routine; a MAJOR bump (e.g. Bootstrap
+# 5 -> 6) restyles every page and must go through `/council` first.
+#
+# Fields:
+#   name         human label
+#   version      pinned upstream version
+#   upstream_url the exact URL the bytes were fetched from
+#   served_path  path under web/public/ (also the URL after the `/public` nest)
+#   sha256       SHA-256 of the on-disk bytes (enforced by the test)
+#   modified     true if we edited the file post-download (its sha will NOT
+#                match upstream; see `note`)
+
+[[asset]]
+name = "Bootstrap CSS"
+version = "5.3.3"
+upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+served_path = "css/bootstrap.min.css"
+sha256 = "14f77ebf4136f47eda9deb231897ade7d5560fb8f8505a9199ba6e4403c8304e"
+
+[[asset]]
+name = "Bootstrap JS bundle"
+version = "5.3.3"
+upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+served_path = "js/bootstrap.bundle.min.js"
+sha256 = "bba5a5f286507a889bb62ef2293c64c6899d344ba6a96b841dc2819f36d65076"
+
+[[asset]]
+name = "HTMX"
+version = "2.0.4"
+upstream_url = "https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
+served_path = "js/htmx.min.js"
+sha256 = "c1236cab76f00610b1bc85a777ed3eb8fdd4efc44072cfa2428aa68ddcd460f1"
+
+[[asset]]
+name = "Alpine.js"
+version = "3.14.3"
+upstream_url = "https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"
+served_path = "js/alpine.min.js"
+sha256 = "2160350e57ace86e2d8e28e91dcef20e3174451e33dc37d0dd96beaedae38b7d"
+
+[[asset]]
+name = "Bootstrap Icons CSS"
+version = "1.11.3"
+upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+served_path = "icons/bootstrap-icons.css"
+sha256 = "e24c95dab07541d06d5fbf7c3de358dae73d1b61f971efefbc4501791c613ce5"
+modified = true
+note = """
+The @font-face `src` URLs are rewritten to our local `./fonts/` paths, so the \
+on-disk bytes differ from upstream. On refresh, re-apply the font-path rewrite \
+after downloading, then record the new local sha256."""
+
+[[asset]]
+name = "Bootstrap Icons webfont"
+version = "1.11.3"
+upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/fonts/bootstrap-icons.woff2"
+served_path = "icons/fonts/bootstrap-icons.woff2"
+sha256 = "476adf42b40325098fcfa8b36ab3e769186bb4f6ce6a249753e2e1a9c22bf99e"
+
+# Noto Serif — the firm typeface (The Noto Project, OFL-1.1). Self-hosted from
+# the Fontsource @fontsource/noto-serif package; the bytes are the upstream
+# woff2 verbatim, one file per subset x style. The browser fetches only the
+# subsets a page needs (via the unicode-range in web/public/css/noto-serif.css).
+# The matching variable TTF masters (from google/fonts) are embedded in the
+# `pdf` crate for Typst rendering. No CDN on either surface.
+
+[[asset]]
+name = "Noto Serif latin 400 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-latin-400-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-latin-400-normal.woff2"
+sha256 = "4c0cbe3eec50d260754d681c17ee2af49a43d7fd93ce42877f665fcb1a889b87"
+
+[[asset]]
+name = "Noto Serif latin 700 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-latin-700-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-latin-700-normal.woff2"
+sha256 = "0d0b440760c93e6fec440ad438d10cea6c70367a0f5ecfcfa15cef0a85c67093"
+
+[[asset]]
+name = "Noto Serif latin 400 italic"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-latin-400-italic.woff2"
+served_path = "fonts/noto-serif/noto-serif-latin-400-italic.woff2"
+sha256 = "a7386f772de25b62a3a449fa5d9f3e09916b65cf6a6dfc52f5a103c276fee157"
+
+[[asset]]
+name = "Noto Serif latin-ext 400 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-latin-ext-400-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-latin-ext-400-normal.woff2"
+sha256 = "536857e8de0e3b12176fefbf1233a294c7dece1f2f4d018d26cb386a8de75cd0"
+
+[[asset]]
+name = "Noto Serif latin-ext 700 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-latin-ext-700-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-latin-ext-700-normal.woff2"
+sha256 = "52c9361ebb521542e71e5a11aa5683ab3bbd8df5428888e95786478bb1377cba"
+
+[[asset]]
+name = "Noto Serif latin-ext 400 italic"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-latin-ext-400-italic.woff2"
+served_path = "fonts/noto-serif/noto-serif-latin-ext-400-italic.woff2"
+sha256 = "4851e60df7e67b489609516bdc9f53d3ed8b6090c3e16e149350a88f172a574e"
+
+[[asset]]
+name = "Noto Serif cyrillic 400 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-cyrillic-400-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-cyrillic-400-normal.woff2"
+sha256 = "8deaf453448fb06f5cdd79262bc0a22a8af999541ef2639202f6dc44d0cae392"
+
+[[asset]]
+name = "Noto Serif cyrillic 700 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-cyrillic-700-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-cyrillic-700-normal.woff2"
+sha256 = "1dd6e758015cc8e424c0d57eabb94addf4adcba14c67ecdfd3b6386fc88295d0"
+
+[[asset]]
+name = "Noto Serif cyrillic 400 italic"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-cyrillic-400-italic.woff2"
+served_path = "fonts/noto-serif/noto-serif-cyrillic-400-italic.woff2"
+sha256 = "cc967469ff60e3386f8fc664b1df34ada138cfaac8ad4ae549b4849df687f27e"
+
+[[asset]]
+name = "Noto Serif cyrillic-ext 400 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-cyrillic-ext-400-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-cyrillic-ext-400-normal.woff2"
+sha256 = "0755b43b6a12ecbc955540aabe0e2753093eb744b6e0dbbab50c7a133bc5519b"
+
+[[asset]]
+name = "Noto Serif cyrillic-ext 700 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-cyrillic-ext-700-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-cyrillic-ext-700-normal.woff2"
+sha256 = "a81d26bfa75cf51c3249d83d4ad788f883b3c56ef32e297202fbeb1c84c30994"
+
+[[asset]]
+name = "Noto Serif cyrillic-ext 400 italic"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-cyrillic-ext-400-italic.woff2"
+served_path = "fonts/noto-serif/noto-serif-cyrillic-ext-400-italic.woff2"
+sha256 = "bb4982fa7f34b1814c5c1addcc64831a5c2657b4905fcb77a5d1914c36ebb602"
+
+[[asset]]
+name = "Noto Serif greek 400 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-greek-400-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-greek-400-normal.woff2"
+sha256 = "4f87b0a2fc2f0a9ce734414bb54edb9bb3e9f0143c4d17e3879881adf8058cfa"
+
+[[asset]]
+name = "Noto Serif greek 700 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-greek-700-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-greek-700-normal.woff2"
+sha256 = "bd24b899d9fe3955fed1c9b0ffa1d12aca02db45474fe906735456430a2efd36"
+
+[[asset]]
+name = "Noto Serif greek 400 italic"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-greek-400-italic.woff2"
+served_path = "fonts/noto-serif/noto-serif-greek-400-italic.woff2"
+sha256 = "8d51258200de4d85d209eac6f0cd6798ec251b7be4672e8a2e6e7f6f07dc8460"
+
+[[asset]]
+name = "Noto Serif greek-ext 400 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-greek-ext-400-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-greek-ext-400-normal.woff2"
+sha256 = "82791822ba505972b0be62837a4875a07547859f0f66189572372c05614fda66"
+
+[[asset]]
+name = "Noto Serif greek-ext 700 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-greek-ext-700-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-greek-ext-700-normal.woff2"
+sha256 = "bef9cf09cf749d942c62bd44295c25205ac425a4b036e1bea545976a31a2e563"
+
+[[asset]]
+name = "Noto Serif greek-ext 400 italic"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-greek-ext-400-italic.woff2"
+served_path = "fonts/noto-serif/noto-serif-greek-ext-400-italic.woff2"
+sha256 = "585d109a9951bf6a99b13386fe90dc4e19a0ad38c210bad0cd22140e238842d2"
+
+[[asset]]
+name = "Noto Serif vietnamese 400 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-vietnamese-400-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-vietnamese-400-normal.woff2"
+sha256 = "207dac0723db2e3832fb864c23a416dd953df68b27289acaec79ed94cd37b7ee"
+
+[[asset]]
+name = "Noto Serif vietnamese 700 normal"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-vietnamese-700-normal.woff2"
+served_path = "fonts/noto-serif/noto-serif-vietnamese-700-normal.woff2"
+sha256 = "e2c65dbf3abb07aee564c409257b942d3baedc2f4fe2f585ae88bf3d821503fc"
+
+[[asset]]
+name = "Noto Serif vietnamese 400 italic"
+version = "5.2.9"
+upstream_url = "https://registry.npmjs.org/@fontsource/noto-serif/-/noto-serif-5.2.9.tgz#files/noto-serif-vietnamese-400-italic.woff2"
+served_path = "fonts/noto-serif/noto-serif-vietnamese-400-italic.woff2"
+sha256 = "4b59ce2a13d696b34950c628aea26585b870169c78719f3d6fb6ad5dce00e4df"

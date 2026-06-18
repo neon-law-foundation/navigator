@@ -1,0 +1,47 @@
+/target
+# The bundled editor extensions are standalone packages (each carries
+# its own `[workspace]`), so they build into their OWN nested target/
+# dir rather than the repo-root one above. Keep those build artifacts
+# out of the tree.
+/lsp/zed-ext/target/
+# Zed writes the compiled extension wasm into the source dir on
+# "install dev extension" — a build output, not source.
+/lsp/zed-ext/extension.wasm
+**/*.rs.bk
+/.devx/
+/navigator.sqlite
+/navigator.sqlite.stale.*
+/prompts/
+/.claude/scheduled_tasks.lock
+/.agent/scheduled_tasks.lock
+/.playwright-mcp/
+# Root-level screenshots taken during UI iteration (about-*.png,
+# mobile-*.png, www-neonlaw-*.png, help-page-*.png, …). Keep them
+# out of the repo; they belong on the operator's machine.
+/*.png
+
+# Environment files. The workspace loads `.env` at startup via
+# `dotenvy::dotenv().ok()`. Real deployment values (project IDs,
+# OAuth client IDs, domain names, secrets) belong in your local
+# `.env`, never in git. `.env.example` is the only env file checked
+# in — it documents every variable the workspace reads.
+.env
+.env.*
+!.env.example
+
+# Output of `scripts/publish-oss.sh` / `cargo run -p cli -- oss-publish`
+# (Phase 6 — the clean-history snapshot used to seed the public repo).
+/dist-oss/
+
+# Transcoded responsive photo variants (~17 MB, 117 files). Generated
+# by `cli assets build` from the `/tmp` source photos and served in
+# production from the public `<project>-assets` GCS bucket via
+# `cli assets upload` — never in git, never baked into the image. A
+# fresh clone has empty photo slots until a local `cli assets build`
+# repopulates this directory (matches the workshop/marketing asset
+# pattern). The rest of `web/public` (Bootstrap, brand SVGs) stays
+# tracked and still ships in the image.
+/web/public/img/
+
+# Default local object-storage root (cloud::from_env fs backend)
+var/

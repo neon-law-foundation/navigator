@@ -1,0 +1,27 @@
+questionnaire:
+  BEGIN:
+    _: client_name
+  client_name:
+    _: client_email
+  client_email:
+    _: collector_name
+  collector_name:
+    _: collector_address
+  collector_address:
+    _: alleged_account
+  alleged_account:
+    _: consent_to_represent
+  consent_to_represent:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    intake_submitted: document_open__notice_of_representation
+  document_open__notice_of_representation:
+    pdf_persisted: staff_review
+  staff_review:
+    approved: mailroom_send__notice_of_representation
+    rejected: END
+  mailroom_send__notice_of_representation:
+    mailed: END
+  END: {}

@@ -1,0 +1,327 @@
+//! `aida_bulk_import` MCP tool.
+//!
+//! Unlike most of the catalog (one row per call, the LLM loops), this
+//! tool takes a whole document — a list of organizations and the people
+//! who work at them — and find-or-creates `entities`, `persons`, and
+//! the links between them in one shot. The unit of work is the document,
+//! the same shape `aida_create_notation` already accepts. All the logic
+//! lives in the shared `import` crate so the `cli import-contacts`
+//! subcommand and a future `web` upload route run the exact same engine.
+//!
+//! Writing clients into the system of record is privileged: the call is
+//! refused unless the authenticated [`Principal`] resolves to a
+//! staff-or-admin `persons` row. The contract and the LLM-generation
+//! instructions live in
+//! [`docs/bulk-contact-import.md`](../../../docs/bulk-contact-import.md).
+
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use serde_json::{json, Value};
+use store::entity::person;
+use store::Db;
+
+use super::ToolError;
+use crate::principal::Principal;
+
+/// Tool descriptor advertised by `tools/list`.
+#[must_use]
+pub fn descriptor() -> Value {
+    json!({
+        "name": "aida_bulk_import",
+        "description": "Bulk-import organizations and the people who work at them into \
+                        Navigator. Find-or-creates an entity per organization, a person per \
+                        contact, and a client_contact link between them. Idempotent: re-running \
+                        the same payload changes nothing. Staff/admin only. Use this when a user \
+                        hands you a list of contacts to load. Returns a per-row created/updated/ \
+                        unchanged/failed report.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "version": { "type": "integer", "description": "Contract version. Must be 1." },
+                "source": {
+                    "type": "string",
+                    "description": "Free-text provenance (e.g. \"legal-aid-outreach-2026-06\"). \
+                                    Recorded in telemetry, not stored on a row."
+                },
+                "organizations": {
+                    "type": "array",
+                    "description": "The organizations to create as entities.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "key": { "type": "string", "description": "Stable in-file id the people reference." },
+                            "name": { "type": "string" },
+                            "entity_type": { "type": "string", "description": "e.g. \"501(c)(3) Non-Profit\". Must already exist." },
+                            "jurisdiction": { "type": "string", "description": "Two-letter code, e.g. \"WA\"." },
+                            "phone": { "type": "string" },
+                            "url": { "type": "string", "description": "Website URL; canonicalized to https on the way in." }
+                        },
+                        "required": ["key", "name", "entity_type", "jurisdiction"]
+                    }
+                },
+                "people": {
+                    "type": "array",
+                    "description": "The people to create as persons, each linked to one organization.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "key": { "type": "string" },
+                            "name": { "type": "string" },
+                            "email": { "type": "string", "format": "email", "description": "Unique upsert key." },
+                            "title": { "type": "string" },
+                            "phone": { "type": "string" },
+                            "organization": { "type": "string", "description": "A key from this payload's organizations." },
+                            "entity_role": { "type": "string", "description": "Link role; defaults to client_contact." }
+                        },
+                        "required": ["key", "name", "email", "organization"]
+                    }
+                }
+            },
+            "required": ["organizations", "people"]
+        }
+    })
+}
+
+/// Validate the caller's tier, then apply the payload via the shared
+/// engine and return a per-row report.
+pub async fn call(
+    db: &Db,
+    principal: Option<&Principal>,
+    arguments: &Value,
+) -> Result<Value, ToolError> {
+    require_staff(db, principal).await?;
+
+    let payload: import::Payload = super::decode_args(arguments)?;
+    let report = import::apply(db, &payload)
+        .await
+        .map_err(|e| ToolError::Internal(e.to_string()))?;
+
+    let structured = serde_json::to_value(&report)
+        .map_err(|e| ToolError::Internal(format!("serialize report: {e}")))?;
+
+    // The tally alone ("0 created … 0 failed") reads as a silent
+    // non-result to a client that renders only the text Part and drops
+    // `structuredContent` — which is exactly what Gemini Enterprise does.
+    // When anything went wrong, fold the diagnostics and per-row reasons
+    // into the text so the caller sees *why*. See
+    // [`docs/aida-a2a-interaction.md`](../../../docs/aida-a2a-interaction.md).
+    let text = match report.problem_lines() {
+        Some(problems) => format!(
+            "Bulk import: {}.\n\nProblems:\n{problems}",
+            report.summary()
+        ),
+        None => format!("Bulk import: {}.", report.summary()),
+    };
+
+    Ok(json!({
+        "content": [{
+            "type": "text",
+            "text": text
+        }],
+        "structuredContent": structured
+    }))
+}
+
+/// Resolve the principal to a `persons` row and require a staff-or-admin
+/// tier. Writing clients into the system of record is not something an
+/// anonymous or client-tier caller may do.
+async fn require_staff(db: &Db, principal: Option<&Principal>) -> Result<(), ToolError> {
+    let email = principal
+        .map(|p| p.email.trim())
+        .filter(|e| !e.is_empty())
+        .ok_or_else(|| {
+            ToolError::Forbidden("bulk import requires an authenticated caller".into())
+        })?;
+
+    match person::Entity::find()
+        .filter(person::Column::Email.eq(email))
+        .one(db)
+        .await?
+    {
+        Some(p) if p.role.is_staff_tier() => Ok(()),
+        Some(_) => Err(ToolError::Forbidden(format!(
+            "{email} is not staff or admin; bulk import is restricted"
+        ))),
+        None => Err(ToolError::Forbidden(format!(
+            "{email} has no Navigator account; bulk import is restricted"
+        ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{call, descriptor};
+    use crate::principal::Principal;
+    use crate::tools::ToolError;
+    use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
+    use serde_json::json;
+    use store::entity::{entity, entity_type, jurisdiction, person, person_entity_role};
+    use store::Db;
+
+    async fn db_with_refs() -> Db {
+        let db = store::test_support::pg().await;
+        entity_type::ActiveModel {
+            name: Set("501(c)(3) Non-Profit".to_string()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        jurisdiction::ActiveModel {
+            name: Set("Washington".to_string()),
+            code: Set("WA".to_string()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        db
+    }
+
+    async fn seed_staff(db: &Db, email: &str) {
+        person::ActiveModel {
+            name: Set("Staffer".to_string()),
+            email: Set(email.to_string()),
+            role: Set(person::Role::Staff),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+    }
+
+    fn payload() -> serde_json::Value {
+        json!({
+            "version": 1,
+            "organizations": [
+                { "key": "njp", "name": "Northwest Justice Project",
+                  "entity_type": "501(c)(3) Non-Profit", "jurisdiction": "WA",
+                  "url": "http://NWJustice.org/?ref=x" }
+            ],
+            "people": [
+                { "key": "abigail", "name": "Abigail Daquiz", "email": "adaquiz@nwjustice.org",
+                  "title": "Executive Director", "organization": "njp" }
+            ]
+        })
+    }
+
+    #[test]
+    fn descriptor_names_the_tool_and_requires_orgs_and_people() {
+        let d = descriptor();
+        assert_eq!(d["name"], "aida_bulk_import");
+        let required = d["inputSchema"]["required"].as_array().unwrap();
+        let names: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
+        assert!(names.contains(&"organizations"));
+        assert!(names.contains(&"people"));
+    }
+
+    #[tokio::test]
+    async fn staff_caller_imports_and_canonicalizes() {
+        let db = db_with_refs().await;
+        seed_staff(&db, "staff@neonlaw.com").await;
+        let principal = Principal::new("staff@neonlaw.com");
+
+        let result = call(&db, Some(&principal), &payload()).await.unwrap();
+        assert_eq!(
+            result["structuredContent"]["organizations"][0]["status"],
+            "created"
+        );
+        assert_eq!(
+            result["structuredContent"]["people"][0]["status"],
+            "created"
+        );
+
+        // The org landed with a canonicalized URL, and the link exists.
+        let njp = entity::Entity::find()
+            .filter(entity::Column::Name.eq("Northwest Justice Project"))
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(njp.url.as_deref(), Some("https://nwjustice.org"));
+        let links = person_entity_role::Entity::find().all(&db).await.unwrap();
+        assert_eq!(links.len(), 1);
+        assert_eq!(links[0].role, "client_contact");
+    }
+
+    #[tokio::test]
+    async fn validation_reject_explains_why_in_the_text_content() {
+        // The silent-failure case the user hit: a structurally invalid
+        // payload (unsupported version) writes nothing. The tally alone
+        // would read as a message-less non-result; the text Part must
+        // carry the diagnostic so a text-only client (Gemini Enterprise)
+        // surfaces the reason.
+        let db = db_with_refs().await;
+        seed_staff(&db, "staff@neonlaw.com").await;
+        let principal = Principal::new("staff@neonlaw.com");
+        let mut bad = payload();
+        bad["version"] = json!(2);
+
+        let result = call(&db, Some(&principal), &bad).await.unwrap();
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("Problems:"), "no problems block: {text}");
+        assert!(
+            text.contains("unsupported contract version"),
+            "diagnostic not surfaced: {text}"
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_row_reason_reaches_the_text_content() {
+        // An unknown jurisdiction passes structural validation (ZZ is
+        // two letters) but fails at apply time as a per-row failure. The
+        // reason must reach the rendered text, not just structuredContent.
+        let db = db_with_refs().await;
+        seed_staff(&db, "staff@neonlaw.com").await;
+        let principal = Principal::new("staff@neonlaw.com");
+        let bad = json!({
+            "version": 1,
+            "organizations": [
+                { "key": "njp", "name": "Northwest Justice Project",
+                  "entity_type": "501(c)(3) Non-Profit", "jurisdiction": "ZZ" }
+            ],
+            "people": [
+                { "key": "abigail", "name": "Abigail Daquiz",
+                  "email": "adaquiz@nwjustice.org", "organization": "njp" }
+            ]
+        });
+
+        let result = call(&db, Some(&principal), &bad).await.unwrap();
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(text.contains("Problems:"), "no problems block: {text}");
+        assert!(
+            text.contains("unknown jurisdiction"),
+            "row failure reason not surfaced: {text}"
+        );
+        // The structured detail is still there for programmatic clients.
+        assert_eq!(
+            result["structuredContent"]["organizations"][0]["status"],
+            "failed"
+        );
+    }
+
+    #[tokio::test]
+    async fn anonymous_caller_is_forbidden() {
+        let db = db_with_refs().await;
+        let err = call(&db, None, &payload()).await.unwrap_err();
+        assert!(matches!(err, ToolError::Forbidden(_)));
+        // Nothing was written.
+        assert!(entity::Entity::find().all(&db).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn client_tier_caller_is_forbidden() {
+        let db = db_with_refs().await;
+        // A client-tier person (the default role) may not bulk-import.
+        person::ActiveModel {
+            name: Set("Aries".to_string()),
+            email: Set("aries@example.com".to_string()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        let principal = Principal::new("aries@example.com");
+        let err = call(&db, Some(&principal), &payload()).await.unwrap_err();
+        assert!(matches!(err, ToolError::Forbidden(_)));
+    }
+}

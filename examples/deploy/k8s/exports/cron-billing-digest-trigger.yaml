@@ -1,0 +1,78 @@
+# billing-digest daily trigger — starts one `BillingDigest` Restate workflow
+# invocation per day. The workflow itself is hosted by the `workflows-service`
+# worker (../gke/workflows-service/) — all workflows live there, so there is no
+# separate digest worker. This CronJob is a thin trigger that POSTs to the
+# Restate Cloud ingress and exits in seconds. Restate owns the retry schedule.
+#
+# `BillingDigest` emails firm ops a trailing-window GCP cost report: gross /
+# credits / net by service, the free-trial PROMOTION credit burned to date, and
+# the honest "real cost once the trial credit expires" figure (gross minus only
+# the perpetual free-tier DISCOUNT). It reads the BigQuery billing export, so
+# the worker needs BILLING_EXPORT_TABLE + BIGQUERY_PROJECT set (env on the
+# workflows-service Deployment); unset → the workflow is a clean no-op.
+#
+# Schedule `0 13 * * *` UTC = 05:00 PST (06:00 PDT). 13:00 clears the billing
+# export's ~24h lag and avoids every other cron (archives 10:00, statutes
+# 10:00 Sun, reconcile 11:00, heartbeat */6h, canary 14:00 Sun). The trigger
+# keys each invocation on the UTC date, so a same-day double-fire is a no-op.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: billing-digest-trigger
+  namespace: navigator
+  labels:
+    app: billing-digest-trigger
+spec:
+  schedule: "0 13 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
+  # Forbid + a finite deadline together: never overlap runs, but never let a
+  # stuck trigger (e.g. ImagePullBackOff, or a hung ingress POST) stay Active
+  # and skip every subsequent schedule. A healthy trigger exits in seconds.
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app: billing-digest-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: billing-digest-trigger
+              image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-billing-digest-trigger:latest
+              imagePullPolicy: Always
+              env:
+                # Restate Cloud ingress endpoint for the navigator-prod
+                # environment. The trigger POSTs
+                # `${RESTATE_INGRESS_URL}/BillingDigest/<run-date>/run`.
+                - name: RESTATE_INGRESS_URL
+                  value: https://YOUR_RESTATE_CLOUD_INGRESS
+                # Restate Cloud authenticates every ingress call with the
+                # tenant bearer. Sourced from the same `navigator-web-secrets`
+                # Secret the web Deployment mounts. `optional` so KIND — where
+                # this manifest isn't applied — never blocks on a missing key.
+                - name: RESTATE_AUTH_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: navigator-web-secrets
+                      key: RESTATE_AUTH_TOKEN
+                      optional: true
+                - name: RUST_LOG
+                  value: info
+              envFrom:
+                # Collector endpoint (OTEL_EXPORTER_OTLP_ENDPOINT) — the trigger
+                # emits the `navigator.workflow.trigger.fired` metric (flushed on
+                # exit) through the fail-closed redaction collector. Shared with
+                # web + workflows-service via one ConfigMap.
+                - configMapRef:
+                    name: navigator-otel-env
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                limits:
+                  memory: 128Mi

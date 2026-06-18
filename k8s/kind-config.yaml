@@ -1,0 +1,33 @@
+# KIND (Kubernetes IN Docker) cluster topology for Navigator's
+# end-to-end developer environment. One control-plane node, one
+# worker. Ports 80/443 land on a NodePort-backed ingress controller
+# (kept open so `localhost` reaches the cluster directly). The
+# The Keycloak admin console and the fake-gcs-server HTTP API get
+# their own host-port mappings so you don't need to mess with
+# Service port-forwards while iterating.
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: navigator
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80      # ingress HTTP
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 443     # ingress HTTPS (unused but exposed)
+        hostPort: 8443
+        protocol: TCP
+      - containerPort: 30080   # keycloak admin
+        hostPort: 30080
+        protocol: TCP
+      - containerPort: 30443   # fake-gcs-server HTTP API
+        hostPort: 30443
+        protocol: TCP
+  - role: worker
