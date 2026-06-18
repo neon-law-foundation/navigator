@@ -315,9 +315,9 @@ the matching one.
   and runs `cargo clean` between clippy and test so the standard hosted runner has enough disk. One shared
   `postgres:17-alpine` container backs the whole job via `TEST_DATABASE_URL` (so `store::test_support` makes a per-test
   schema in that single container instead of spawning a testcontainer per binary). Integration/KIND/docker/browser work
-  does **not** run here. **Auto-merge** is a GitHub-native repo setting (enabled per-PR with
-  `gh pr merge --auto --squash`), not a workflow — GitHub squash-merges the PR the moment this `ci.yml` run goes green,
-  which is why three workflows still suffice.
+  does **not** run here. **Auto-merge** is a GitHub-native repo setting (enabled per-PR with `gh pr merge --auto
+  --squash`), not a workflow — GitHub squash-merges the PR the moment this `ci.yml` run goes green, which is why three
+  workflows still suffice.
 - **Cron flow** — [`.github/workflows/release-tag.yml`](.github/workflows/release-tag.yml). Fires daily at **02:00 PST**
   (`0 10 * * *` UTC). Its only job is to cut a calendar release tag `YY.MM.DD` (e.g. `26.06.18` for 2026-06-18) and push
   it with a PAT (`secrets.RELEASE_PAT`) so the push re-triggers the tag flow below.
