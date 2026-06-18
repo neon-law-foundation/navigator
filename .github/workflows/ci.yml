@@ -22,7 +22,9 @@ on:
 jobs:
   rust:
     name: cargo test (workspace)
-    runs-on: ubuntu-latest
+    # The full Rust workspace exhausts the standard runner's disk during
+    # `cargo test --workspace`; larger Ubuntu runners provide the headroom.
+    runs-on: ubuntu-latest-8-cores
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
