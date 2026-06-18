@@ -1919,7 +1919,10 @@ async fn version() -> impl IntoResponse {
 
 async fn health(State(db): State<Db>) -> impl IntoResponse {
     match store::ping(&db).await {
-        Ok(()) => (StatusCode::OK, "ok"),
+        Ok(()) => (
+            StatusCode::OK,
+            "ok\nNothing here is legal advice without a signed retainer.",
+        ),
         Err(e) => {
             tracing::warn!(error = %e, "health: db ping failed");
             (StatusCode::SERVICE_UNAVAILABLE, "db unavailable")
