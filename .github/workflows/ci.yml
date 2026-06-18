@@ -18,6 +18,10 @@ on:
   # the single gate before merge — no redundant post-merge push build.
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
 
 jobs:
   rust:
@@ -73,3 +77,40 @@ jobs:
         env:
           TEST_DATABASE_URL: postgres://navigator:navigator@127.0.0.1:5432/navigator
         run: cargo test --workspace
+
+  enable-automerge:
+    name: enable PR auto-merge
+    needs: rust
+    if: >
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: enable auto-merge for current PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          current_head="$(gh pr view "${PR_URL}" --json headRefOid --jq .headRefOid)"
+          if [ "${current_head}" != "${PR_HEAD_SHA}" ]; then
+              echo "PR head moved from ${PR_HEAD_SHA} to ${current_head}; a newer CI run will handle auto-merge."
+              exit 0
+          fi
+
+          auto_merge_enabled="$(
+              gh pr view "${PR_URL}" \
+                  --json autoMergeRequest \
+                  --jq '.autoMergeRequest != null'
+          )"
+          if [ "${auto_merge_enabled}" = "true" ]; then
+              echo "Auto-merge is already enabled for ${PR_URL}."
+              exit 0
+          fi
+
+          gh pr merge --auto --squash \
+              --match-head-commit "${PR_HEAD_SHA}" \
+              "${PR_URL}"
