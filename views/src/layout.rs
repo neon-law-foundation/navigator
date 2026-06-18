@@ -275,9 +275,15 @@ impl<'a> PageLayout<'a> {
                                             (render_nav_link(link, self.locale))
                                         }
                                         @if self.auth == AuthState::Authenticated {
-                                            li.nav-item {
-                                                a.nav-link href="/portal" {
-                                                    (i18n::t(self.locale, "auth.portal"))
+                                            // The portal is the firm's client
+                                            // surface; the Foundation header
+                                            // (the 501(c)(3), not the firm)
+                                            // never links to it.
+                                            @if self.brand.is_law_firm {
+                                                li.nav-item {
+                                                    a.nav-link href="/portal" {
+                                                        (i18n::t(self.locale, "auth.portal"))
+                                                    }
                                                 }
                                             }
                                             li.nav-item {
@@ -763,6 +769,27 @@ mod tests {
         assert!(
             !out.contains("href=\"/auth/login\""),
             "authenticated nav should not link to /auth/login: {out}",
+        );
+    }
+
+    #[test]
+    fn authenticated_foundation_nav_omits_portal_link() {
+        // The portal is the firm's client surface. On Foundation-branded
+        // pages (the 501(c)(3), not the firm) the header never links to
+        // /portal, even when the visitor is signed in — sign-out still shows.
+        let body = html! { p { "x" } };
+        let out = PageLayout::new("Home")
+            .with_brand(*FOUNDATION_BRAND)
+            .with_auth(super::AuthState::Authenticated)
+            .render(&body)
+            .into_string();
+        assert!(
+            !out.contains("href=\"/portal\""),
+            "Foundation header should not link to /portal: {out}",
+        );
+        assert!(
+            out.contains("href=\"/auth/logout\">Sign out</a>"),
+            "Foundation header should still offer sign out: {out}",
         );
     }
 
