@@ -1,0 +1,59 @@
+name: release-tag
+
+# The cron flow — one of exactly three workflows in this repo (see CLAUDE.md
+# "CI/CD — three workflows, no more"). Fires once a day and does ONE thing:
+# cut a calendar release tag `YY.MM.DD` (e.g. `26.06.18` for 2026-06-18) at
+# the tip of `main`. Pushing that tag is what triggers the tag flow
+# (`deploy.yml`): KIND integration → build + push images to ghcr → email.
+#
+# Why a PAT and not the default GITHUB_TOKEN: a tag pushed with the built-in
+# GITHUB_TOKEN does NOT re-trigger other workflows (GitHub's recursion guard),
+# so `deploy.yml`'s `on: push: tags` would never fire. `secrets.RELEASE_PAT`
+# is a fine-grained PAT (or GitHub App token) with `contents: write` so the
+# tag push counts as a real actor and starts the deploy.
+
+on:
+  schedule:
+    # 02:00 America/Los_Angeles. Cron is UTC-only and has no DST, so this is
+    # pinned to PST (UTC-8): 02:00 PST = 10:00 UTC. During PDT (summer) it
+    # lands at 03:00 local — acceptable for an unattended nightly cut.
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cut-tag:
+    name: cut YY.MM.DD release tag
+    # Never run the auto-tagger from a fork — only the canonical repo cuts
+    # releases. Forks rebrand and run their own cadence.
+    if: github.repository == 'neon-law-foundation/Navigator'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Use the PAT so the tag push re-triggers `deploy.yml`.
+          token: ${{ secrets.RELEASE_PAT }}
+          fetch-depth: 0
+      - name: compute today's tag
+        id: tag
+        run: |
+          # 10:00 UTC is the same calendar day as 02:00 PST, so the UTC date
+          # is correct for a "PST 2am" cut.
+          TAG="$(date -u +'%y.%m.%d')"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $TAG"
+      - name: create + push tag (skip if it already exists)
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          git config user.name  "navigator-release-bot"
+          git config user.email "support@neonlaw.com"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+              echo "Tag ${TAG} already exists on origin — nothing to cut today."
+              exit 0
+          fi
+          git tag -a "${TAG}" -m "Navigator nightly release ${TAG}"
+          git push origin "refs/tags/${TAG}"
+          echo "Pushed tag ${TAG}; deploy.yml will take it from here."
