@@ -41,15 +41,14 @@ It has two fences, stated plainly:
   bring in local counsel when a question lives elsewhere.
 
 **For companies that are scaling.** This plan is built for software and emerging-technology companies that are building,
-hiring, and raising — not for a passive entity that just holds an asset. If all you need is a vehicle to hold real
-estate or an investment, that's [Neon Law Nest](/services/corporate). Custom contracts, negotiated agreements, and
-financings live here; routine formation and standard paperwork for a simple entity is Neon Law Nest.
+hiring, and raising — the custom contracts, negotiated agreements, and financings that come with growth. A passive
+entity that just holds real estate or an investment is [Neon Law Nest](/services/corporate).
 
 **Cap-table management, included when you incorporate in Nevada.** Incorporate your C corp in Nevada with us — Nevada
 over Delaware, with no state corporate income tax — and cap-table management comes with your $2,222 at no extra cost:
-the option pool, your SAFEs and notes, each priced round, and a clean record your next investor can diligence. It's a
-Nevada-C-corp service, included when you incorporate here. Already on a Delaware stack? We're still your counsel on
-everything else — cap-table management is the piece that comes with incorporating in Nevada.
+the option pool, your SAFEs and notes, each priced round, and a clean record your next investor can diligence. Already
+on a Delaware stack? We're still your counsel on everything else; cap-table management is the piece that comes with
+incorporating here.
 
 **Readiness, not certification.** When you need to be ready for a SOC 2 or HIPAA audit, we prepare your environment and
 quarterback the independent CPA firm that issues the attestation. We are your readiness counsel, not your auditor.

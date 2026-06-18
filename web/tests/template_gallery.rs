@@ -129,7 +129,8 @@ async fn off_list_template_path_404s() {
 
 #[tokio::test]
 async fn lsp_showcase_renders_with_install_command_and_disclaimer() {
-    let resp = get(empty_state().await, "/lsp").await;
+    // The LSP page lives under the Navigator package hub now.
+    let resp = get(empty_state().await, "/foundation/navigator/lsp").await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("cargo install --path lsp"));
@@ -140,4 +141,16 @@ async fn lsp_showcase_renders_with_install_command_and_disclaimer() {
     }
     // Disclaimer rides this page too.
     assert!(body.contains("not legal advice"));
+}
+
+#[tokio::test]
+async fn old_lsp_url_permanently_redirects_to_the_package_page() {
+    // `/lsp` was the old top-level URL; keep it as a permanent redirect so
+    // existing links never dead-end.
+    let resp = get(empty_state().await, "/lsp").await;
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        resp.headers().get("location").unwrap(),
+        "/foundation/navigator/lsp"
+    );
 }

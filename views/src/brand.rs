@@ -135,32 +135,14 @@ const FIRM_NAV: &[NavLink] = &[
 
 const FOUNDATION_NAV: &[NavLink] = &[
     NavLink::leaf("Mission", "/foundation/mission"),
-    // Workshops + Presentations + Navigator share one dropdown so the top
-    // nav stays compact and never runs off the edge on desktop — the
-    // same pattern the firm nav uses for "Services".
-    NavLink::dropdown(
-        "Learn",
-        &[
-            NavLink::leaf("Workshops", "/foundation/workshops/navigator"),
-            NavLink::leaf("Presentations", "/foundation/presentations"),
-            NavLink::leaf("Navigator", "/navigator"),
-            // "Editor plugin" is the reader-facing label for the
-            // `navigator-lsp` language server. It sits beside Navigator
-            // — the standard — because the LSP is how you get that
-            // standard's rules into your editor. The leaf points at the
-            // existing install/download page (`/lsp`), which
-            // hands you the binary and the per-editor setup. Plain words
-            // over "LSP": a reader who edits markdown knows "editor
-            // plugin," not the acronym.
-            NavLink::leaf("Editor plugin", "/lsp"),
-            // Nimbus is the done-for-you sibling of the self-host story:
-            // Workshops + Navigator teach you to run it yourself; Nimbus is
-            // the Foundation installing it on your own cloud and training
-            // your team. It sits beside them rather than in a fourth
-            // top-level item so the mobile nav stays at three.
-            NavLink::leaf("Nimbus", "/foundation/nimbus"),
-        ],
-    ),
+    // The Foundation publishes one thing — the open-source Navigator — and
+    // teaches lawyers to wield it. So the whole nav is just those two verbs:
+    // "Navigator" (the software: the LSP, CLI, MCP, and web app, each its
+    // own package page under the `/foundation/navigator` hub) and
+    // "Workshops" (the hands-on training). No "Learn" catch-all dropdown,
+    // no separate Presentations surface — a talk is just another workshop.
+    NavLink::leaf("Navigator", "/foundation/navigator"),
+    NavLink::leaf("Workshops", "/foundation/workshops/navigator"),
 ];
 
 /// Read an env var or fall back to the default. The returned slice
@@ -419,101 +401,51 @@ mod tests {
     }
 
     #[test]
-    fn foundation_top_nav_surfaces_mission_and_learn() {
+    fn foundation_top_nav_is_three_flat_leaves() {
         let labels: Vec<&str> = FOUNDATION_BRAND.nav.iter().map(|n| n.label).collect();
-        // Workshops + Presentations + Navigator live inside the "Learn"
-        // dropdown so the visible top-level count stays compact.
-        assert_eq!(labels, ["Mission", "Learn"]);
+        // The Foundation nav collapsed from "Mission + Learn dropdown" to
+        // three flat leaves: the software, the training, and the why.
+        assert_eq!(labels, ["Mission", "Navigator", "Workshops"]);
+        assert!(
+            FOUNDATION_BRAND.nav.iter().all(|n| !n.is_dropdown()),
+            "the Foundation nav no longer carries any dropdown"
+        );
+    }
+
+    #[test]
+    fn foundation_nav_navigator_points_at_the_package_hub() {
+        // "Navigator" is a flat top-level leaf at the hub that fans out to
+        // the per-package pages (lsp / cli / mcp / web).
+        let navigator = FOUNDATION_BRAND
+            .nav
+            .iter()
+            .find(|n| n.label == "Navigator")
+            .expect("Navigator leaf present");
+        assert!(!navigator.is_dropdown());
+        assert_eq!(navigator.href, "/foundation/navigator");
     }
 
     #[test]
     fn foundation_nav_workshops_points_at_single_canonical_workshop() {
-        let learn = FOUNDATION_BRAND
+        let workshops = FOUNDATION_BRAND
             .nav
             .iter()
-            .find(|n| n.label == "Learn")
-            .expect("Learn dropdown present");
-        assert!(
-            learn.is_dropdown(),
-            "Learn groups Workshops + Presentations"
-        );
-        let workshops = learn
-            .children
-            .iter()
             .find(|n| n.label == "Workshops")
-            .expect("Workshops leaf inside Learn");
+            .expect("Workshops leaf present");
         assert!(!workshops.is_dropdown());
         assert_eq!(workshops.href, "/foundation/workshops/navigator");
     }
 
     #[test]
-    fn foundation_nav_learn_dropdown_surfaces_presentations() {
-        let learn = FOUNDATION_BRAND
-            .nav
-            .iter()
-            .find(|n| n.label == "Learn")
-            .expect("Learn dropdown present");
-        let presentations = learn
-            .children
-            .iter()
-            .find(|n| n.label == "Presentations")
-            .expect("Presentations leaf inside Learn");
-        assert!(!presentations.is_dropdown());
-        assert_eq!(presentations.href, "/foundation/presentations");
-    }
-
-    #[test]
-    fn foundation_nav_nests_navigator_inside_learn() {
-        let learn = FOUNDATION_BRAND
-            .nav
-            .iter()
-            .find(|n| n.label == "Learn")
-            .expect("Learn dropdown present");
-        let navigator = learn
-            .children
-            .iter()
-            .find(|n| n.label == "Navigator")
-            .expect("Navigator leaf inside Learn");
-        assert!(!navigator.is_dropdown());
-        assert_eq!(navigator.href, "/navigator");
-    }
-
-    #[test]
-    fn foundation_nav_offers_editor_plugin_download_under_learn() {
-        // The navigator-lsp language server is reachable from "Learn" as
-        // "Editor plugin" — plain copy over the "LSP" acronym — and links
-        // to the existing install/download page at `/lsp`.
-        let learn = FOUNDATION_BRAND
-            .nav
-            .iter()
-            .find(|n| n.label == "Learn")
-            .expect("Learn dropdown present");
-        let plugin = learn
-            .children
-            .iter()
-            .find(|n| n.label == "Editor plugin")
-            .expect("Editor plugin leaf inside Learn");
-        assert!(!plugin.is_dropdown());
-        assert_eq!(plugin.href, "/lsp");
-    }
-
-    #[test]
-    fn foundation_nav_offers_nimbus_install_under_learn() {
-        // Nimbus (the white-label two-week install) lives inside "Learn"
-        // beside Navigator + Workshops — the self-host family — so the
-        // top nav stays at three visible items.
-        let learn = FOUNDATION_BRAND
-            .nav
-            .iter()
-            .find(|n| n.label == "Learn")
-            .expect("Learn dropdown present");
-        let nimbus = learn
-            .children
-            .iter()
-            .find(|n| n.label == "Nimbus")
-            .expect("Nimbus leaf inside Learn");
-        assert!(!nimbus.is_dropdown());
-        assert_eq!(nimbus.href, "/foundation/nimbus");
+    fn foundation_nav_has_no_presentations_or_learn_surface() {
+        // Presentations folded into Workshops; the "Learn" catch-all is gone.
+        assert!(
+            !FOUNDATION_BRAND
+                .nav
+                .iter()
+                .any(|n| n.label == "Learn" || n.label == "Presentations"),
+            "Learn / Presentations must not appear in the Foundation nav"
+        );
     }
 
     #[test]
