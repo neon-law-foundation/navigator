@@ -378,7 +378,10 @@ async fn health_returns_200_when_db_pings() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    assert_eq!(body_string(resp).await, "ok");
+    assert_eq!(
+        body_string(resp).await,
+        "ok\nNothing here is legal advice without a signed retainer."
+    );
 }
 
 #[tokio::test]
