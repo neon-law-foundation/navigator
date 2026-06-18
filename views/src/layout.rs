@@ -127,15 +127,25 @@ impl<'a> PageLayout<'a> {
         let full_title = format!("{} | {}", self.brand.site_name, self.title);
         html! {
             (DOCTYPE)
-            // `data-bs-theme="auto"` delegates the light/dark choice
-            // to the OS preference — matches the prior Pico behavior
-            // of honoring `prefers-color-scheme`. Bootstrap 5.3 wires
-            // theme tokens off this attribute.
+            // `data-bs-theme="auto"` is the no-JS marker for "resolve
+            // from the OS." Bootstrap 5.3 wires theme tokens off this
+            // attribute, but its CSS only understands `light`/`dark` —
+            // `auto` is inert until `color-scheme.js` (below) reads
+            // `prefers-color-scheme` and rewrites it to one or the other
+            // before first paint. No toggle: the OS preference is the
+            // single source of truth.
             html lang=(self.locale.code()) data-bs-theme="auto" {
                 head {
                     meta charset="utf-8";
                     meta name="viewport" content="width=device-width, initial-scale=1";
                     meta name="color-scheme" content="light dark";
+                    // First-party, OS-driven dark mode. Loaded
+                    // SYNCHRONOUSLY (no `defer`) and as early as possible
+                    // so it resolves `data-bs-theme` from the OS before
+                    // the body paints — a deferred script would flash the
+                    // light theme first. CSP forbids inline scripts, so
+                    // this is an external `'self'` file.
+                    script src="/public/js/color-scheme.js" {}
                     title { (full_title) }
                     @if let Some(d) = self.description {
                         meta name="description" content=(d);
@@ -1307,6 +1317,35 @@ mod tests {
         assert!(
             out.contains("script defer src=\"/public/js/collage-lightbox.js\""),
             "expected deferred first-party collage lightbox script, got: {out}",
+        );
+    }
+
+    #[test]
+    fn color_scheme_script_is_linked_synchronously_in_head() {
+        // OS-driven dark mode (no toggle): a first-party script reads
+        // `prefers-color-scheme` and rewrites `data-bs-theme` from `auto`
+        // to `light`/`dark`. It MUST load synchronously (no `defer`/
+        // `async`) so the theme is resolved before first paint — a
+        // deferred script would flash the wrong theme.
+        let out = render("Home", &html! { p { "x" } });
+        assert!(
+            out.contains("<script src=\"/public/js/color-scheme.js\"></script>"),
+            "expected a synchronous first-party color-scheme script, got: {out}",
+        );
+        // It loads before the body so the attribute is set pre-paint.
+        let script_idx = out
+            .find("/public/js/color-scheme.js")
+            .expect("color-scheme script linked");
+        let body_idx = out.find("<body>").expect("body present");
+        assert!(
+            script_idx < body_idx,
+            "color-scheme script must be in <head>, before <body>: {out}",
+        );
+        // It is NOT deferred — that would paint the light theme first.
+        assert!(
+            !out.contains("defer src=\"/public/js/color-scheme.js\"")
+                && !out.contains("color-scheme.js\" defer"),
+            "color-scheme script must not be deferred: {out}",
         );
     }
 
