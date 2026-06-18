@@ -26,7 +26,7 @@ RUN apt-get update \
 
 WORKDIR /src
 
-COPY Cargo.toml Cargo.lock rust-toolchain.toml AGENTS.md ./
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY rules             rules
 COPY store             store
 COPY repos             repos
