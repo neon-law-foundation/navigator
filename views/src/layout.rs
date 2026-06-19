@@ -354,7 +354,7 @@ impl<'a> PageLayout<'a> {
                             ))
                             " · "
                             (external_link_with_class(
-                                "https://www.mywsba.org/personifyebusiness/LegalDirectory.aspx",
+                                "https://www.mywsba.org/PersonifyEbusiness/LegalDirectory/LegalProfile.aspx?Usr_ID=000000063446",
                                 "link-secondary",
                                 html! { "Washington" },
                             ))
@@ -1037,10 +1037,12 @@ mod tests {
             footer.contains("apps.calbar.ca.gov/attorney/Licensee/Detail/337252"),
             "California admission should link to the Cal Bar profile"
         );
-        // Washington → WSBA Legal Directory landing (no public bar # confirmed yet).
+        // Washington → WSBA Legal Directory profile (Nicholas R. Shook).
         assert!(
-            footer.contains("mywsba.org/personifyebusiness/LegalDirectory.aspx"),
-            "Washington admission should link to the WSBA legal directory"
+            footer.contains(
+                "mywsba.org/PersonifyEbusiness/LegalDirectory/LegalProfile.aspx?Usr_ID=000000063446"
+            ),
+            "Washington admission should link to the WSBA attorney profile"
         );
         // Nevada → State Bar of Nevada profile (Bar No. 13400, Nicholas R. Shook).
         assert!(
