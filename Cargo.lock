@@ -1566,18 +1566,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "compass"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "assert_cmd",
- "clap",
- "predicates",
- "rules",
- "tempfile",
-]
-
-[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -113,7 +113,7 @@ jobs:
         run: cargo run -p cli -- e2e
 
       # ---------- cross-binary interop ----------
-      # Proves that `cli`, `compass`, and the in-cluster `web` all cohabit
+      # Proves that `cli` and the in-cluster `web` cohabit
       # on the same `store` schema + `rules` engine. The cli needs a real
       # Postgres — stand up a throwaway one on the runner (not the
       # in-cluster Postgres) so interop doesn't depend on port-forwarding.
@@ -141,8 +141,6 @@ jobs:
           cargo run -p cli --quiet -- list templates
           cargo run -p cli --quiet -- erd | head -5
           cargo run -p cli --quiet -- glossary jurisdiction
-      - name: interop — compass validates the bundled templates
-        run: cargo run -p compass --quiet -- validate templates
 
       # ---------- chromedriver-driven browser tests ----------
       # The full browser suite (login + admin-routes + retainer-walker)
