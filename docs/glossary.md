@@ -63,11 +63,6 @@ row holds only the metadata.
 Which of the two surfaces (`NEON_LAW` or `NEON_LAW_FOUNDATION`) a given route serves. The same `web` binary handles both
 — see the brand table in [`README.md`](../README.md).
 
-## Compass
-
-The downstream CLI in [`compass/`](../compass/). Same shape as the Navigator CLI, but ships its own rulebook (Navigator
-rules plus a C-family). Exists to prove that [`rules`](../rules/) is reusable outside Navigator.
-
 ## Council
 
 A **group of experts** the workspace convenes for a structured, twelve-voice review — spelled c-o-u-n-c-i-l. Navigator

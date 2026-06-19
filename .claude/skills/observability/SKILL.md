@@ -39,7 +39,7 @@ let _telemetry = telemetry::init("navigator-<name>");
 
 **Opt-out by design.** The seam is for the *service* binaries — the 9 that wire it are `web`, `workflows-service`, the
 four `*-trigger` jobs, `statutes-sync`, `statutes-trigger`, and `redirect`. The interactive / short-lived CLIs — `cli`
-(navigator), `compass`, `navigator-lsp` — deliberately do **not** init it: their output is for a human at a
+(navigator), `navigator-lsp` — deliberately do **not** init it: their output is for a human at a
 terminal (or an LSP client over stdio), not the lake, so instrumenting them would only add noise. Wiring a new *service*
 binary is the rule; a new CLI staying stdout-only is the exception, and it is a choice, not an oversight.
 

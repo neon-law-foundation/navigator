@@ -51,7 +51,6 @@ COPY forms             forms
 COPY workflows         workflows
 COPY workflows-service workflows-service
 COPY cloud             cloud
-COPY compass           compass
 COPY mcp               mcp
 COPY features          features
 COPY lsp               lsp

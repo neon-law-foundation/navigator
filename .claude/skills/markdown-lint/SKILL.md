@@ -33,7 +33,7 @@ What each piece does:
 ## Lint every workspace README in one pass
 
 ```bash
-for d in rules store views workflows cloud web cli compass mcp; do
+for d in rules store views workflows cloud web cli mcp; do
   cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes "$d"
 done
 ```
