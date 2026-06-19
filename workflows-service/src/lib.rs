@@ -19,6 +19,7 @@ pub mod email_config;
 pub mod heartbeat;
 pub mod journal;
 pub mod notation_service;
+pub mod notify_config;
 pub mod registry;
 
 pub use email_config::{from_env as email_from_env, EmailConfigError};
@@ -26,6 +27,7 @@ pub use notation_service::{
     CurrentStateResponse, NotationService, QuestionnaireSignalBody, SignalResponse, StartBody,
     WorkflowSignalBody,
 };
+pub use notify_config::from_env as notifier_from_env;
 
 #[cfg(test)]
 mod machine_kind_token_tests {
