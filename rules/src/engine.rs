@@ -9,6 +9,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use serde_yaml::Value;
 use walkdir::WalkDir;
 
 use crate::{Rule, SourceFile, Violation};
@@ -19,6 +20,18 @@ use crate::{Rule, SourceFile, Violation};
 pub struct LintReport {
     pub files_scanned: usize,
     pub violations: Vec<Violation>,
+}
+
+/// The validation family a Markdown file belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DocumentKind {
+    /// Ordinary prose/content Markdown: READMEs, docs, blog posts,
+    /// marketing pages, and other files whose frontmatter is not the
+    /// Navigator notation contract.
+    Markdown,
+    /// A Navigator notation Template: the static blueprint that declares
+    /// a questionnaire/workflow and becomes a running Notation later.
+    NotationTemplate,
 }
 
 impl LintReport {
@@ -185,6 +198,83 @@ impl RuleEngine {
     }
 }
 
+/// A rule engine that chooses the rule set per file.
+///
+/// Prose Markdown gets [`navigator_markdown_only_rules`]; notation
+/// templates get [`navigator_default_rules`]. This is the workspace-wide
+/// mode for mixed trees where marketing/blog/docs files and notation
+/// templates can all carry YAML frontmatter without sharing the same
+/// semantic contract.
+pub struct ClassifiedRuleEngine {
+    filter: Box<dyn FileFilter>,
+    valid_question_codes: Vec<String>,
+}
+
+impl ClassifiedRuleEngine {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            filter: Box::new(DefaultFileFilter::default()),
+            valid_question_codes: Vec::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn with_question_codes(mut self, codes: Vec<String>) -> Self {
+        self.valid_question_codes = codes;
+        self
+    }
+
+    #[must_use]
+    pub fn with_filter(mut self, filter: Box<dyn FileFilter>) -> Self {
+        self.filter = filter;
+        self
+    }
+
+    /// Walk `dir`, classify every included markdown file, and lint it
+    /// with the matching Navigator rule set.
+    pub fn lint_directory(&self, dir: &Path) -> io::Result<LintReport> {
+        let mut report = LintReport::default();
+        for entry in WalkDir::new(dir)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|e| {
+                if e.file_type().is_dir() && e.depth() > 0 {
+                    self.filter.include_dir(e.path())
+                } else {
+                    true
+                }
+            })
+        {
+            let entry = entry.map_err(io::Error::other)?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let path = entry.path();
+            if !self.filter.include_file(path) {
+                continue;
+            }
+            let contents = fs::read_to_string(path)?;
+            let file = SourceFile {
+                path: PathBuf::from(path),
+                contents,
+            };
+            report.violations.extend(lint_source_classified_with_codes(
+                &file,
+                &self.valid_question_codes,
+            ));
+            report.files_scanned += 1;
+        }
+        Ok(report)
+    }
+}
+
+impl Default for ClassifiedRuleEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The canonical Navigator rule set, in the stable presentation
 /// order. `F104` is included with no recognized codes by default —
 /// callers that want strict flow-code validation should construct a
@@ -195,18 +285,18 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
     use crate::{
         F101FrontmatterTitle, F102RespondentType, F103SnakeCaseFilename, F104FlowQuestionCodes,
         F105ConfidentialRequired, F106StaffReviewRequired, F107SignaturePlaceholders,
-        M001HeadingIncrement, M003HeadingStyle, M004ULStyle, M005ListIndent, M007ULIndent,
-        M009NoTrailingSpaces, M010NoHardTabs, M011NoReversedLinks, M012NoMultipleBlanks,
-        M018NoMissingSpaceATX, M019NoMultipleSpaceATX, M020NoMissingSpaceClosedATX,
-        M021NoMultipleSpaceClosedATX, M022BlanksAroundHeadings, M023HeadingStartLeft,
-        M024NoDuplicateHeading, M026NoTrailingPunctuation, M027NoMultipleSpaceBlockquote,
-        M028NoBlanksBlockquote, M029OLPrefix, M030ListMarkerSpace, M031BlanksAroundFences,
-        M032BlanksAroundLists, M034NoBareUrls, M035HRStyle, M037NoSpaceInEmphasis,
-        M038NoSpaceInCode, M039NoSpaceInLinks, M040FencedCodeLanguage, M042NoEmptyLinks,
-        M045NoAltText, M046CodeBlockStyle, M047SingleTrailingNewline, M048CodeFenceStyle,
-        M049EmphasisStyle, M050StrongStyle, M051LinkFragments, M052ReferenceLinksImages,
-        M053LinkImageReferenceDefinitions, M054LinkImageStyle, M055TablePipeStyle,
-        M056TableColumnCount, M058BlanksAroundTables, M059DescriptiveLinkText,
+        F108TemplateCodeRequired, M001HeadingIncrement, M003HeadingStyle, M004ULStyle,
+        M005ListIndent, M007ULIndent, M009NoTrailingSpaces, M010NoHardTabs, M011NoReversedLinks,
+        M012NoMultipleBlanks, M018NoMissingSpaceATX, M019NoMultipleSpaceATX,
+        M020NoMissingSpaceClosedATX, M021NoMultipleSpaceClosedATX, M022BlanksAroundHeadings,
+        M023HeadingStartLeft, M024NoDuplicateHeading, M026NoTrailingPunctuation,
+        M027NoMultipleSpaceBlockquote, M028NoBlanksBlockquote, M029OLPrefix, M030ListMarkerSpace,
+        M031BlanksAroundFences, M032BlanksAroundLists, M034NoBareUrls, M035HRStyle,
+        M037NoSpaceInEmphasis, M038NoSpaceInCode, M039NoSpaceInLinks, M040FencedCodeLanguage,
+        M042NoEmptyLinks, M045NoAltText, M046CodeBlockStyle, M047SingleTrailingNewline,
+        M048CodeFenceStyle, M049EmphasisStyle, M050StrongStyle, M051LinkFragments,
+        M052ReferenceLinksImages, M053LinkImageReferenceDefinitions, M054LinkImageStyle,
+        M055TablePipeStyle, M056TableColumnCount, M058BlanksAroundTables, M059DescriptiveLinkText,
         M060TableColumnStyle, S101LineLength,
     };
     vec![
@@ -218,6 +308,7 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
         Box::new(F105ConfidentialRequired),
         Box::new(F106StaffReviewRequired),
         Box::new(F107SignaturePlaceholders),
+        Box::new(F108TemplateCodeRequired),
         Box::new(M001HeadingIncrement),
         Box::new(M003HeadingStyle),
         Box::new(M004ULStyle),
@@ -266,6 +357,22 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
     ]
 }
 
+/// The default notation-template rules with strict question-code
+/// validation enabled by a caller-supplied registry. No database is
+/// touched here; callers decide whether and how to load the codes.
+#[must_use]
+pub fn navigator_default_rules_with_codes(valid_codes: &[String]) -> Vec<Box<dyn Rule>> {
+    let mut rules = navigator_default_rules();
+    for rule in &mut rules {
+        if rule.code() == "F104" {
+            *rule = Box::new(crate::F104FlowQuestionCodes::new(
+                valid_codes.iter().cloned(),
+            ));
+        }
+    }
+    rules
+}
+
 /// The Markdown-only subset of [`navigator_default_rules`] — every
 /// rule except the F-family, plus `S102` (line-packing). Suitable for
 /// linting arbitrary prose markdown (READMEs, blog posts, marketing
@@ -292,12 +399,86 @@ pub fn navigator_markdown_only_rules() -> Vec<Box<dyn Rule>> {
     rules
 }
 
+/// Classify a source file before choosing its validation rule set.
+///
+/// `code:` alone is deliberately not enough to make a file a notation
+/// template: content systems can also use stable codes. The notation
+/// markers are the machine declarations (`questionnaire:`/`workflow:`),
+/// plus the canonical `templates/` tree from the glossary.
+#[must_use]
+pub fn classify_source(file: &SourceFile) -> DocumentKind {
+    if path_is_notation_template(&file.path) || frontmatter_has_notation_machine(&file.contents) {
+        DocumentKind::NotationTemplate
+    } else {
+        DocumentKind::Markdown
+    }
+}
+
+#[must_use]
+pub fn navigator_classified_rules(file: &SourceFile) -> Vec<Box<dyn Rule>> {
+    navigator_classified_rules_with_codes(file, &[])
+}
+
+#[must_use]
+pub fn navigator_classified_rules_with_codes(
+    file: &SourceFile,
+    valid_codes: &[String],
+) -> Vec<Box<dyn Rule>> {
+    match classify_source(file) {
+        DocumentKind::Markdown => navigator_markdown_only_rules(),
+        DocumentKind::NotationTemplate => navigator_default_rules_with_codes(valid_codes),
+    }
+}
+
+#[must_use]
+pub fn lint_source_classified(file: &SourceFile) -> Vec<Violation> {
+    lint_source_classified_with_codes(file, &[])
+}
+
+fn lint_source_classified_with_codes(file: &SourceFile, valid_codes: &[String]) -> Vec<Violation> {
+    let rule_set = navigator_classified_rules_with_codes(file, valid_codes);
+    rule_set.iter().flat_map(|r| r.lint(file)).collect()
+}
+
+fn path_is_notation_template(path: &Path) -> bool {
+    if path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("README.md"))
+    {
+        return false;
+    }
+    path.components().any(|component| {
+        matches!(
+            component,
+            std::path::Component::Normal(seg) if seg == "templates"
+        )
+    })
+}
+
+fn frontmatter_has_notation_machine(contents: &str) -> bool {
+    let Some(fm) = crate::frontmatter::extract(contents) else {
+        return false;
+    };
+    let Ok(Value::Mapping(map)) = serde_yaml::from_str::<Value>(fm) else {
+        return false;
+    };
+    mapping_has_key(&map, "questionnaire") || mapping_has_key(&map, "workflow")
+}
+
+fn mapping_has_key(map: &serde_yaml::Mapping, key: &str) -> bool {
+    map.contains_key(Value::String(key.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{navigator_default_rules, DefaultFileFilter, FileFilter, RuleEngine};
+    use super::{
+        classify_source, lint_source_classified, navigator_default_rules, ClassifiedRuleEngine,
+        DefaultFileFilter, DocumentKind, FileFilter, RuleEngine,
+    };
     use crate::{F101FrontmatterTitle, F102RespondentType, Rule, S101LineLength};
     use std::fs;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use tempfile::TempDir;
 
     fn write(dir: &Path, rel: &str, contents: &str) {
@@ -317,6 +498,13 @@ mod tests {
             Box::new(F101FrontmatterTitle),
             Box::new(F102RespondentType),
         ]
+    }
+
+    fn source(path: &str, contents: &str) -> crate::SourceFile {
+        crate::SourceFile {
+            path: PathBuf::from(path),
+            contents: contents.to_string(),
+        }
     }
 
     #[test]
@@ -400,11 +588,11 @@ mod tests {
     /// literally so this test fails loudly if a future change
     /// silently reorders or drops a rule.
     const EXPECTED_DEFAULT_RULE_CODES: &[&str] = &[
-        "S101", "F101", "F102", "F103", "F104", "F105", "F106", "F107", "M001", "M003", "M004",
-        "M005", "M007", "M009", "M010", "M011", "M012", "M018", "M019", "M020", "M021", "M022",
-        "M023", "M024", "M026", "M027", "M028", "M029", "M030", "M031", "M032", "M034", "M035",
-        "M037", "M038", "M039", "M040", "M042", "M045", "M046", "M047", "M048", "M049", "M050",
-        "M051", "M052", "M053", "M054", "M055", "M056", "M058", "M059", "M060",
+        "S101", "F101", "F102", "F103", "F104", "F105", "F106", "F107", "F108", "M001", "M003",
+        "M004", "M005", "M007", "M009", "M010", "M011", "M012", "M018", "M019", "M020", "M021",
+        "M022", "M023", "M024", "M026", "M027", "M028", "M029", "M030", "M031", "M032", "M034",
+        "M035", "M037", "M038", "M039", "M040", "M042", "M045", "M046", "M047", "M048", "M049",
+        "M050", "M051", "M052", "M053", "M054", "M055", "M056", "M058", "M059", "M060",
     ];
 
     #[test]
@@ -434,6 +622,124 @@ mod tests {
         let pos = expected.iter().position(|c| *c == "S101").unwrap() + 1;
         expected.insert(pos, "S102");
         assert_eq!(codes, expected);
+    }
+
+    #[test]
+    fn classifier_treats_code_alone_as_markdown() {
+        let file = source(
+            "web/content/marketing/service.md",
+            "---\ntitle: Service\ncode: northstar\n---\n\nBody.\n",
+        );
+        assert_eq!(classify_source(&file), DocumentKind::Markdown);
+    }
+
+    #[test]
+    fn classifier_treats_questionnaire_or_workflow_as_notation_template() {
+        let questionnaire = source(
+            "draft.md",
+            "---\ntitle: Draft\nquestionnaire:\n  BEGIN:\n    _: END\n---\n",
+        );
+        let workflow = source(
+            "draft.md",
+            "---\ntitle: Draft\nworkflow:\n  BEGIN:\n    created: END\n---\n",
+        );
+        assert_eq!(
+            classify_source(&questionnaire),
+            DocumentKind::NotationTemplate
+        );
+        assert_eq!(classify_source(&workflow), DocumentKind::NotationTemplate);
+    }
+
+    #[test]
+    fn classifier_treats_templates_tree_as_notation_template() {
+        let file = source("templates/trust/draft.md", "Plain body.\n");
+        assert_eq!(classify_source(&file), DocumentKind::NotationTemplate);
+    }
+
+    #[test]
+    fn classified_lint_does_not_apply_f_rules_to_code_only_content() {
+        let file = source(
+            "web/content/marketing/service.md",
+            "---\ntitle: Service\ncode: northstar\n---\n\nBody.\n",
+        );
+        let codes: Vec<&str> = lint_source_classified(&file)
+            .iter()
+            .map(|v| v.code)
+            .collect();
+        assert!(
+            codes.iter().all(|code| !code.starts_with('F')),
+            "code-only content frontmatter must stay prose markdown, got {codes:?}",
+        );
+    }
+
+    #[test]
+    fn classified_lint_requires_code_for_notation_template() {
+        let file = source(
+            "draft.md",
+            r"---
+title: Draft
+respondent_type: person
+confidential: true
+questionnaire:
+  BEGIN:
+    created: client_name
+  client_name:
+    answered: END
+workflow:
+  BEGIN:
+    created: staff_review
+  staff_review:
+    approved: END
+---
+Body.
+",
+        );
+        let codes: Vec<&str> = lint_source_classified(&file)
+            .iter()
+            .map(|v| v.code)
+            .collect();
+        assert!(
+            codes.contains(&"F108"),
+            "expected missing code violation, got {codes:?}"
+        );
+    }
+
+    #[test]
+    fn classified_engine_lints_mixed_tree_without_postgres() {
+        let dir = TempDir::new().unwrap();
+        write(
+            dir.path(),
+            "web/content/marketing/service.md",
+            "---\ntitle: Service\ncode: northstar\n---\n\nBody.\n",
+        );
+        write(
+            dir.path(),
+            "templates/trust/nevada.md",
+            r"---
+title: Nevada Trust
+respondent_type: entity
+code: trusts__nevada
+confidential: true
+questionnaire:
+  BEGIN:
+    created: client_name
+  client_name:
+    answered: END
+workflow:
+  BEGIN:
+    created: staff_review
+  staff_review:
+    approved: END
+---
+Body.
+",
+        );
+        let report = ClassifiedRuleEngine::new()
+            .with_filter(Box::new(DefaultFileFilter::without_default_excludes()))
+            .lint_directory(dir.path())
+            .unwrap();
+        assert_eq!(report.files_scanned, 2);
+        assert!(report.is_clean(), "{:?}", report.violations);
     }
 
     #[test]

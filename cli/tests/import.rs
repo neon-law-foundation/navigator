@@ -140,7 +140,7 @@ async fn db_backed_validate_loads_codes_and_swaps_f104() {
         "loaded registry must contain canonical question codes; got {codes:?}",
     );
 
-    let ruleset = cli_import::rules_with_codes(&codes);
+    let ruleset = rules::navigator_default_rules_with_codes(&codes);
     let f104 = ruleset
         .iter()
         .find(|r| r.code() == "F104")

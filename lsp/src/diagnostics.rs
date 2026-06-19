@@ -1,7 +1,7 @@
 //! Run the Navigator rule set over a buffer and produce LSP
-//! `Diagnostic`s. The default rule set matches `cli validate
-//! --markdown-only` so a notation that's clean in the CLI is clean
-//! in the LSP and vice versa.
+//! `Diagnostic`s. The default rule selection matches classified
+//! `cli validate`: prose markdown gets markdown-only rules, while
+//! notation templates get frontmatter diagnostics too.
 
 use std::path::PathBuf;
 
@@ -10,8 +10,8 @@ use rules::{description_for_code, Rule, SourceFile, Violation};
 
 use crate::position::range_to_lsp_range;
 
-/// Lint `text` with the markdown-only rule set and return both the
-/// raw violations (so callers can wire `fix()` later) and the LSP
+/// Lint `text` with the classified rule set and return both the raw
+/// violations (so callers can wire `fix()` later) and the LSP
 /// diagnostic projection.
 #[must_use]
 pub fn lint_buffer(path: PathBuf, text: String) -> (SourceFile, Vec<Violation>) {
@@ -19,7 +19,7 @@ pub fn lint_buffer(path: PathBuf, text: String) -> (SourceFile, Vec<Violation>) 
         path,
         contents: text,
     };
-    let rule_set: Vec<Box<dyn Rule>> = rules::navigator_markdown_only_rules();
+    let rule_set: Vec<Box<dyn Rule>> = rules::navigator_classified_rules(&file);
     let mut violations = Vec::new();
     for rule in &rule_set {
         violations.extend(rule.lint(&file));
@@ -59,6 +59,31 @@ mod tests {
         assert!(
             violations.iter().any(|v| v.code == "M010"),
             "expected M010 violation, got: {:?}",
+            violations.iter().map(|v| v.code).collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn lint_buffer_keeps_code_only_frontmatter_in_markdown_mode() {
+        let (_file, violations) = lint_buffer(
+            std::path::PathBuf::from("web/content/marketing/service.md"),
+            "---\ntitle: Service\ncode: northstar\n---\n\nBody.\n".to_string(),
+        );
+        assert!(
+            violations.iter().all(|v| !v.code.starts_with('F')),
+            "code-only content frontmatter should not trigger notation diagnostics: {violations:?}",
+        );
+    }
+
+    #[test]
+    fn lint_buffer_flags_notation_template_frontmatter() {
+        let (_file, violations) = lint_buffer(
+            std::path::PathBuf::from("draft.md"),
+            "---\ntitle: Draft\nworkflow:\n  BEGIN:\n    created: END\n---\n".to_string(),
+        );
+        assert!(
+            violations.iter().any(|v| v.code == "F108"),
+            "notation template should require code, got {:?}",
             violations.iter().map(|v| v.code).collect::<Vec<_>>(),
         );
     }

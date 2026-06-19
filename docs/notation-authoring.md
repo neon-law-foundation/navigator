@@ -88,8 +88,9 @@ all three call the same `rules` crate. A template that is clean on your laptop i
 - **F-family (frontmatter shape, structural).** F101 title present; F102 valid `respondent_type`; F103 snake_case
   filename; F104 both machines declare `BEGIN`, reach `END`, and every state prefix resolves to a real Question code;
   F105 `confidential` is an explicit bool; F106 the `workflow:` has a bare `staff_review` state (the suffix form
-  `staff_review__for_grantor` does **not** satisfy it — the human-review gate must be unconditional). F-family rules are
-  diagnostic-only: a human must resolve them, the tool will not auto-rewrite legal structure.
+  `staff_review__for_grantor` does **not** satisfy it — the human-review gate must be unconditional); F108 `code` is the
+  stable Template identifier. F-family rules are diagnostic-only: a human must resolve them, the tool will not
+  auto-rewrite legal structure.
 - **M-family (markdown hygiene, ~50 rules).** Headings, lists, fences, tables, spacing. Most carry a safe autofix.
 - **S101 (line length).** 120 Unicode scalars per line, every `.md`. Frontmatter is linted too; folded YAML scalars let
   a long value wrap and still pass.
@@ -109,8 +110,9 @@ Neovim, Helix, Emacs, Zed. The authoring loop for a non-engineer legal author:
 1. **Type.** Open `templates/will/simple.md` in your editor. Write legal prose and frontmatter — no proprietary tool, no
    markup beyond markdown.
 2. **Live diagnostics.** On every keystroke the LSP lints the buffer and shows squiggles: F101 if `title:` is missing,
-   F104 if a workflow state names a question that does not exist, S101 past 120 chars, M-rules on shape. Hover any
-   squiggle for a plain-English explanation of the rule.
+   F104 if the questionnaire/workflow shape is broken, S101 past 120 chars, M-rules on shape. The CLI can add DB-backed
+   question-code checks when invoked with `--database-url`. Hover any squiggle for a plain-English explanation of the
+   rule.
 3. **Fix-all on save.** `source.fixAll` rewrites every mechanical issue — tabs, trailing whitespace, blank-line spacing,
    heading spacing — automatically. What remains is the *semantic* work only a human can do (an unmade `confidential`
    decision, a workflow that never reaches `END`).

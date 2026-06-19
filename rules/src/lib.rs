@@ -9,6 +9,7 @@ pub mod f104;
 pub mod f105;
 pub mod f106;
 pub mod f107;
+pub mod f108;
 pub mod frontmatter;
 pub mod m001;
 pub mod m003;
@@ -62,6 +63,7 @@ pub use f104::F104FlowQuestionCodes;
 pub use f105::F105ConfidentialRequired;
 pub use f106::F106StaffReviewRequired;
 pub use f107::F107SignaturePlaceholders;
+pub use f108::F108TemplateCodeRequired;
 pub use m001::M001HeadingIncrement;
 pub use m003::M003HeadingStyle;
 pub use m004::M004ULStyle;
@@ -110,8 +112,10 @@ pub use m060::M060TableColumnStyle;
 pub use s102::S102LinePacking;
 
 pub use engine::{
-    navigator_default_rules, navigator_markdown_only_rules, DefaultFileFilter, FileFilter,
-    LintReport, RuleEngine,
+    classify_source, lint_source_classified, navigator_classified_rules,
+    navigator_classified_rules_with_codes, navigator_default_rules,
+    navigator_default_rules_with_codes, navigator_markdown_only_rules, ClassifiedRuleEngine,
+    DefaultFileFilter, DocumentKind, FileFilter, LintReport, RuleEngine,
 };
 
 use std::ops::Range;
@@ -215,6 +219,7 @@ pub fn description_for_code(code: &str) -> &'static str {
         "F107" => {
             "Signature placeholders must name a known signer/field and a signing workflow state"
         }
+        "F108" => "Frontmatter must declare a stable `code`",
         "M001" => "Heading levels must increment by one",
         "M003" => "Headings must use the ATX (`# Heading`) style",
         "M004" => "Unordered list markers must be consistent",

@@ -38,11 +38,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Validate every `.md` under `<dir>` against the Navigator rule
-    /// set. DB-free by default: F104 performs structural checks
-    /// (BEGIN/END presence, questionnaire+workflow keys). Pass
-    /// `--database-url` (or set `DATABASE_URL`) to load the canonical
-    /// question registry and have F104 reject unknown codes.
+    /// Validate every `.md` under `<dir>` against the classified
+    /// Navigator rule set. DB-free by default: notation templates get
+    /// F-family structural checks, while prose markdown gets only
+    /// Markdown rules. Pass `--database-url` (or set `DATABASE_URL`) to
+    /// load the canonical question registry and have F104 reject
+    /// unknown codes.
     Validate {
         /// Directory to walk.
         dir: PathBuf,
@@ -1389,22 +1390,22 @@ async fn run_validate(
     fix: bool,
     database_url: Option<&str>,
 ) -> ExitCode {
-    let rule_set: Vec<Box<dyn rules::Rule>> = if markdown_only {
-        rules::navigator_markdown_only_rules()
+    let question_codes = if markdown_only {
+        Vec::new()
     } else if let Some(url) = database_url {
         let db = match open_postgres(url).await {
             Ok(d) => d,
             Err(code) => return code,
         };
         match import::load_question_codes(&db).await {
-            Ok(c) => import::rules_with_codes(&c),
+            Ok(c) => c,
             Err(e) => {
                 eprintln!("navigator: load question codes: {e}");
                 return ExitCode::from(2);
             }
         }
     } else {
-        rules::navigator_default_rules()
+        Vec::new()
     };
     let filter: Box<dyn rules::FileFilter> = if no_default_excludes {
         Box::new(rules::DefaultFileFilter::without_default_excludes())
@@ -1412,7 +1413,13 @@ async fn run_validate(
         Box::new(rules::DefaultFileFilter::default())
     };
     if fix {
-        let fix_report = match fix_directory(dir, &rule_set, filter.as_ref()) {
+        let fix_report = match fix_directory(dir, filter.as_ref(), |file| {
+            if markdown_only {
+                rules::navigator_markdown_only_rules()
+            } else {
+                rules::navigator_classified_rules_with_codes(file, &question_codes)
+            }
+        }) {
             Ok(r) => r,
             Err(e) => {
                 eprintln!("navigator: {e}");
@@ -1439,9 +1446,17 @@ async fn run_validate(
             ExitCode::from(1)
         };
     }
-    let mut engine = rules::RuleEngine::new(rule_set);
-    engine = engine.with_filter(filter);
-    let report = match engine.lint_directory(dir) {
+    let report = if markdown_only {
+        let engine =
+            rules::RuleEngine::new(rules::navigator_markdown_only_rules()).with_filter(filter);
+        engine.lint_directory(dir)
+    } else {
+        let engine = rules::ClassifiedRuleEngine::new()
+            .with_question_codes(question_codes)
+            .with_filter(filter);
+        engine.lint_directory(dir)
+    };
+    let report = match report {
         Ok(r) => r,
         Err(e) => {
             eprintln!("navigator: {e}");
@@ -1479,8 +1494,8 @@ struct FixReport {
 /// code string wins (deterministic).
 fn fix_directory(
     dir: &std::path::Path,
-    rule_set: &[Box<dyn rules::Rule>],
     filter: &dyn rules::FileFilter,
+    rules_for_file: impl Fn(&rules::SourceFile) -> Vec<Box<dyn rules::Rule>>,
 ) -> std::io::Result<FixReport> {
     let mut fixed_files = Vec::new();
     let mut remaining = Vec::new();
@@ -1508,8 +1523,9 @@ fn fix_directory(
             path: path.to_path_buf(),
             contents,
         };
+        let rule_set = rules_for_file(&file);
         let mut edits: Vec<(rules::TextEdit, &'static str)> = Vec::new();
-        for rule in rule_set {
+        for rule in &rule_set {
             for v in rule.lint(&file) {
                 if let Some(edit) = rule.fix(&file, &v) {
                     edits.push((edit, rule.code()));
@@ -1540,7 +1556,7 @@ fn fix_directory(
                 file.contents = new_contents;
             }
         }
-        for rule in rule_set {
+        for rule in &rule_set {
             remaining.extend(rule.lint(&file));
         }
     }

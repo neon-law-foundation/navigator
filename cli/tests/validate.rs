@@ -60,9 +60,9 @@ fn validate_exits_nonzero_on_violations_and_prints_each_one() {
 #[test]
 fn validate_default_rule_set_flags_missing_frontmatter() {
     let dir = TempDir::new().unwrap();
-    // Without `--markdown-only`, the F-family runs and should flag a
-    // plain markdown file with no notation frontmatter.
-    write(dir.path(), "Notes.md", "Just a body line.\n");
+    // Files under `templates/` are notation templates even before
+    // they have enough frontmatter to self-identify.
+    write(dir.path(), "templates/notes.md", "Just a body line.\n");
     navigator()
         .args(["validate"])
         .arg(dir.path())
@@ -71,6 +71,22 @@ fn validate_default_rule_set_flags_missing_frontmatter() {
         .code(1)
         .stdout(str::contains("F101"))
         .stdout(str::contains("F102"));
+}
+
+#[test]
+fn validate_default_treats_code_only_frontmatter_as_markdown() {
+    let dir = TempDir::new().unwrap();
+    write(
+        dir.path(),
+        "web/content/marketing/service.md",
+        "---\ntitle: Service\ncode: northstar\n---\n\nBody.\n",
+    );
+    navigator()
+        .args(["validate", "--no-default-excludes"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(str::contains("Scanned 1 file(s), found 0 violation(s)"));
 }
 
 #[test]
@@ -132,10 +148,11 @@ fn validate_fix_writes_back_autofixable_edits_and_reports_remaining() {
 #[test]
 fn validate_fix_leaves_diagnostic_only_violations_for_human() {
     let dir = TempDir::new().unwrap();
-    // M010 (autofixable) + F101 (diagnostic-only) in the same file.
+    // M010 (autofixable) + F101 (diagnostic-only) in the same
+    // notation-template file.
     write(
         dir.path(),
-        "Needs.md",
+        "templates/needs.md",
         "---\nrespondent_type: entity\n---\n\n\tTabbed\n",
     );
     navigator()
@@ -147,7 +164,7 @@ fn validate_fix_leaves_diagnostic_only_violations_for_human() {
         .stdout(str::contains("F101"))
         .stdout(str::contains("remaining violation"));
     // The autofixable tab is gone.
-    let after = fs::read_to_string(dir.path().join("Needs.md")).unwrap();
+    let after = fs::read_to_string(dir.path().join("templates/needs.md")).unwrap();
     assert!(
         !after.contains('\t'),
         "tab should be replaced; got: {after:?}"
