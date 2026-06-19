@@ -138,5 +138,4 @@ A validation check applied to markdown notations by the [`rules`](../rules/) cra
   well-formedness).
 - **S101** — the 120-character line-length limit. Applies to every `.md` file in the workspace.
 
-The `cli validate` subcommand runs the relevant subset per file. [Compass](glossary.md#compass) reuses the M and S
-families and adds its own C-family on top.
+The `cli validate` subcommand runs the relevant subset per file.

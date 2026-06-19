@@ -14,7 +14,7 @@ Pinned toolchain: **Rust 1.95.0**, edition 2021, `rustfmt` + `clippy` components
 ## Error handling
 
 - **Libraries** (`rules`, `views`, `workflows`): typed errors with `thiserror`. One enum per logical operation; variants carry source errors with `#[from]`.
-- **Binaries** (`cli`, `web`, `compass`): `anyhow::Result<T>` at the boundary. Convert library `thiserror` errors into `anyhow` with `?` and add context with `.context("…")` / `.with_context(|| …)`.
+- **Binaries** (`cli`, `web`): `anyhow::Result<T>` at the boundary. Convert library `thiserror` errors into `anyhow` with `?` and add context with `.context("…")` / `.with_context(|| …)`.
 - The HTTP error story (`AppError → IntoResponse`) lives in [[rust-axum]]; everything else funnels through `anyhow` in binaries.
 - **Never** `unwrap()` or `expect()` outside tests and `main()`. The acceptable forms in production code are:
   - `let Some(x) = … else { return Err(…) };`

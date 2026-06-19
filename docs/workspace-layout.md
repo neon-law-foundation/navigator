@@ -15,7 +15,6 @@ views        lib   — maud HTML view components
 workflows    lib   — durable workflow primitives (Restate-shaped); `web` submits jobs to the broker
 workflows-service bin `workflows-service` — Restate worker; hosts the `Notation`, `Archives`, `DriveSync`, billing-canary services + journal; only `restate-sdk` consumer
 cloud        lib   — storage trait + GCS/Fs backends
-compass      bin   `compass` — downstream consumer
 mcp          lib   — MCP server merged into `web` at /mcp (Claude / LibreChat / Cursor)
 features     lib   — Cucumber-rust BDD suite (`cargo test -p features`)
 forms        lib   — vendored government forms registry (FORMS.toml ledger + bundled canonical PDFs)

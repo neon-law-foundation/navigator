@@ -1,6 +1,6 @@
 //! Validation rules for markdown source files.
 //!
-//! Downstream consumers (the `cli` and `compass` binaries) build a
+//! Downstream consumers (the `cli` binary) build a
 //! [`RuleEngine`] from a set of rules and run it over a directory.
 
 pub mod engine;
