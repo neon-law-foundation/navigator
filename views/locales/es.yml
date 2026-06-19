@@ -23,6 +23,7 @@ banner:
 switcher:
   aria: Ver esta página en inglés
 footer:
+  github_star: Destacar Navigator en GitHub
   legal_in_english: "El texto legal vinculante de este sitio se proporciona en inglés."
 cta:
   email: "Escríbenos a %{email}"
