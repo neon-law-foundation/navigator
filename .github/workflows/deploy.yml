@@ -29,6 +29,25 @@ jobs:
     if: github.repository == 'neon-law-foundation/Navigator'
     runs-on: ubuntu-latest
     steps:
+      # The standard ubuntu-latest runner ships ~21-28 GB free on `/` — not
+      # enough for this job, which cold-builds BOTH images, loads them into
+      # KIND, and runs the full e2e/browser suite. Without this it dies with
+      # "No space left on device" mid build. Reclaim the ~30 GB of
+      # pre-installed tooling we never use (Android SDK, .NET, Haskell, the
+      # tool cache), mirroring the `rust` job in `ci.yml`. `large-packages:
+      # false` skips the slow apt purge — the quick removals free enough. We
+      # keep `docker-images: false` because this job's own image builds and
+      # KIND node image live in the Docker store.
+      - name: free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: false
+          swap-storage: false
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
 
