@@ -135,9 +135,9 @@ async fn lsp_showcase_renders_with_install_command_and_disclaimer() {
     let body = body_string(resp).await;
     assert!(body.contains("cargo install --path lsp"));
     assert!(body.contains("source.fixAll"));
-    // Every editor section is present.
-    for editor in ["VS Code", "Neovim", "Helix", "Emacs", "Zed"] {
-        assert!(body.contains(editor), "missing editor {editor}");
+    assert!(body.contains("Zed"));
+    for editor in ["VS Code", "Neovim", "Helix", "Emacs"] {
+        assert!(!body.contains(editor), "unexpected editor {editor}");
     }
     // Disclaimer rides this page too.
     assert!(body.contains("not legal advice"));
