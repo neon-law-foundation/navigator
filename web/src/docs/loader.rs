@@ -50,6 +50,7 @@ const MANIFEST: &[(&str, &str)] = &[
     doc!("erd", "docs/erd.md"),
     doc!("gemini-enterprise-mcp", "docs/gemini-enterprise-mcp.md"),
     doc!("git-project-repos", "docs/git-project-repos.md"),
+    doc!("gitops", "docs/gitops.md"),
     doc!("gke-prod", "docs/gke-prod.md"),
     doc!("glossary", "docs/glossary.md"),
     doc!("gov-forms", "docs/gov-forms.md"),
@@ -74,6 +75,7 @@ const MANIFEST: &[(&str, &str)] = &[
         "third-party-integrations",
         "docs/third-party-integrations.md"
     ),
+    doc!("workspace-layout", "docs/workspace-layout.md"),
     doc!("xero-billing", "docs/xero-billing.md"),
 ];
 

@@ -72,9 +72,9 @@ seconds.
 
 ## Daily deploy flow
 
-CI/CD is exactly three workflows (see CLAUDE.md, "CI/CD — three workflows, no more"): a lean PR flow (`ci.yml`), a
-nightly cron flow that cuts a calendar release tag (`release-tag.yml`), and a tag flow that integration-tests and
-publishes the images (`deploy.yml`).
+CI/CD is exactly three workflows (see [`gitops.md`](gitops.md#cicd--three-workflows-no-more)): a lean PR flow
+(`ci.yml`), a nightly cron flow that cuts a calendar release tag (`release-tag.yml`), and a tag flow that
+integration-tests and publishes the images (`deploy.yml`).
 
 ```text
 PR merged to main
