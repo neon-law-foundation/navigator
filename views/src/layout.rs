@@ -306,12 +306,16 @@ impl<'a> PageLayout<'a> {
                     }
                     main.container."py-4" { (body) }
                     footer.container."py-4"."border-top"."mt-4" {
-                        @if let Some(repo_url) = foundation_github_url() {
+                        // Public visitors can star the OSS project; signed-in
+                        // portal pages stay free of Git/GitHub jargon.
+                        @if self.auth == AuthState::Anonymous {
+                            @if let Some(repo_url) = foundation_github_url() {
                             div."mb-3" {
                                 (github_star_button(
                                     repo_url,
                                     &i18n::t(self.locale, "footer.github_star"),
                                 ))
+                            }
                             }
                         }
                         // On a localized page the legal strip below — bar
@@ -894,6 +898,20 @@ mod tests {
         assert!(
             out.contains(">Destacar Navigator en GitHub</span>"),
             "Spanish footer should localize the GitHub CTA: {out}"
+        );
+    }
+
+    #[test]
+    fn authenticated_footer_omits_github_star_cta() {
+        let out = PageLayout::new("Portal")
+            .with_auth(super::AuthState::Authenticated)
+            .render(&html! { p { "x" } })
+            .into_string();
+        let footer_idx = out.find("<footer").expect("footer present");
+        let footer = &out[footer_idx..];
+        assert!(
+            !footer.contains("GitHub") && !footer.contains("bi-star-fill"),
+            "authenticated footer should avoid public GitHub CTA: {footer}"
         );
     }
 
