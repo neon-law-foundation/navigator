@@ -13,6 +13,8 @@
 /navigator.sqlite.stale.*
 /prompts/
 /.claude/scheduled_tasks.lock
+# Local-only secret drop (Slack app creds, etc.) — values live in Doppler.
+/.slack.txt
 /.agent/scheduled_tasks.lock
 /.playwright-mcp/
 # Root-level screenshots taken during UI iteration (about-*.png,
