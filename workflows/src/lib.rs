@@ -26,6 +26,7 @@ pub mod guardrail;
 pub mod intake;
 pub mod nautilus;
 pub mod notation_session;
+pub mod notify;
 pub mod runtime;
 pub mod runtime_dispatching;
 pub mod runtime_restate;
@@ -62,6 +63,9 @@ pub use nautilus::{
 pub use notation_session::{
     answer_step, current_step, start_notation, NextStep, NotationSessionError, QuestionDescriptor,
     StartOutcome,
+};
+pub use notify::{
+    ops_slack_text, CapturingNotifier, Notifier, NotifyError, OpsEmailMirror, SlackNotifier,
 };
 pub use runtime::{InMemoryRuntime, StateMachineRuntime, WorkflowEvent, WorkflowRuntimeError};
 pub use runtime_dispatching::DispatchingRuntime;
