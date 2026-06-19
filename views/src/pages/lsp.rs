@@ -5,18 +5,17 @@
 //! The "here is the editor experience" half of the markdown-notation
 //! demo: one page that says what the LSP does (live rule diagnostics +
 //! one-click `source.fixAll`, zero telemetry), how to install it
-//! (`cargo install --path lsp`), and — reusing the per-editor snippets
-//! already written under `docs/lsp/` — how to wire it into VS Code,
-//! Neovim, Helix, Emacs, and Zed. The editor snippets are baked verbatim
-//! via `include_str!` so this page can never drift from those docs.
+//! (`cargo install --path lsp`), and — reusing the Zed setup snippet
+//! already written under `docs/lsp/` — how to wire it into Zed. The snippet
+//! is baked verbatim via `include_str!` so this page can never drift from the
+//! local docs.
 //!
 //! Prebuilt binaries are served straight from the public assets bucket:
 //! `cli lsp publish` pushes one `navigator-lsp` per platform to
 //! `lsp/<triple>/navigator-lsp`, and the download buttons here resolve
-//! through the `views::assets::asset_url` seam — `/public` in dev, the
-//! `<project>-assets` GCS bucket in production. A published `.vsix`
-//! stays a follow-up. The shared blueprint disclaimer rides this page
-//! too.
+//! through the `views::assets::asset_url` seam — `/public` in dev and the
+//! `<project>-assets` GCS bucket in production. The shared blueprint
+//! disclaimer rides this page too.
 
 use maud::{html, Markup};
 
@@ -27,26 +26,13 @@ use crate::lsp::{lsp_binary_key, LSP_TARGETS};
 use crate::{markdown, AuthState, PageLayout};
 
 /// The Navigator monorepo — home of the `lsp/` crate and the bundled
-/// editor extensions linked from this page.
+/// Zed extension linked from this page.
 const REPO_URL: &str = "https://github.com/neon-law-foundation/Navigator";
-const VSCODE_EXT_URL: &str =
-    "https://github.com/neon-law-foundation/Navigator/tree/main/lsp/vscode-ext";
 const ZED_EXT_URL: &str = "https://github.com/neon-law-foundation/Navigator/tree/main/lsp/zed-ext";
 
-// Per-editor setup snippets, single-sourced from `docs/lsp/`. The path
-// is relative to this crate's manifest dir (`views/`); the docs tree is
-// one level up. Baking them keeps this page byte-identical to the docs a
-// git reader sees.
-const NEOVIM: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../docs/lsp/neovim.md"
-));
-const HELIX: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/lsp/helix.md"));
-const EMACS: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/lsp/emacs.md"));
-const VSCODE: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../docs/lsp/vscode.md"
-));
+// The public page currently shows only the Zed setup path. Keep it
+// single-sourced from `docs/lsp/zed.md` so the local setup and the website
+// stay in sync.
 const ZED: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/lsp/zed.md"));
 
 #[must_use]
@@ -65,8 +51,7 @@ pub fn render(auth: AuthState) -> Markup {
                     " is one binary — JSON-RPC over stdio, zero telemetry — "
                     "that brings the same rule engine as "
                     code { "cli validate" }
-                    " into any LSP-aware editor: live diagnostics as you type "
-                    "and a one-click "
+                    " into Zed: live diagnostics as you type and a one-click "
                     code { "source.fixAll" }
                     " that cleans every safe-by-construction rule."
                 }
@@ -83,10 +68,7 @@ pub fn render(auth: AuthState) -> Markup {
             section."mt-4" {
                 h2 { "…or build from source" }
                 p {
-                    "Prefer to build it yourself? It takes one command. (A "
-                    "published VS Code "
-                    code { ".vsix" }
-                    " is still a planned follow-up.)"
+                    "Prefer to build it yourself? It takes one command."
                 }
                 pre { code {
                     "# put navigator-lsp on your $PATH\n"
@@ -98,13 +80,12 @@ pub fn render(auth: AuthState) -> Markup {
             }
 
             section."mt-4" {
-                h2 { "Bundled editor extensions" }
+                h2 { "Bundled editor extension" }
                 p {
-                    "VS Code and Zed ship ready-to-sideload extensions in the "
-                    "Navigator repo:"
+                    "Zed ships a ready-to-sideload extension in the Navigator "
+                    "repo:"
                 }
                 ul {
-                    li { (external_link(VSCODE_EXT_URL, html! { code { "lsp/vscode-ext/" } })) }
                     li { (external_link(ZED_EXT_URL, html! { code { "lsp/zed-ext/" } })) }
                 }
                 p {
@@ -117,18 +98,14 @@ pub fn render(auth: AuthState) -> Markup {
 
             section."mt-4" {
                 h2 { "Editor setup" }
-                (editor_section(VSCODE))
-                (editor_section(NEOVIM))
-                (editor_section(HELIX))
-                (editor_section(EMACS))
                 (editor_section(ZED))
             }
         }
     };
     PageLayout::new("Navigator LSP")
         .with_description(
-            "Install navigator-lsp — live markdown-notation diagnostics and \
-             one-click fixes in any LSP-aware editor. Zero telemetry.",
+            "Install navigator-lsp for Zed — live markdown-notation diagnostics \
+             and one-click fixes. Zero telemetry.",
         )
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
@@ -190,12 +167,13 @@ mod tests {
     use crate::AuthState;
 
     #[test]
-    fn shows_install_command_and_all_five_editors() {
+    fn shows_install_command_and_zed_setup_only() {
         let html = render(AuthState::Anonymous).into_string();
         assert!(html.contains("cargo install --path lsp"));
         assert!(html.contains("source.fixAll"));
-        for editor in ["VS Code", "Neovim", "Helix", "Emacs", "Zed"] {
-            assert!(html.contains(editor), "missing editor section {editor}");
+        assert!(html.contains("Zed"), "missing Zed setup section");
+        for editor in ["VS Code", "Neovim", "Helix", "Emacs"] {
+            assert!(!html.contains(editor), "unexpected editor section {editor}");
         }
     }
 
