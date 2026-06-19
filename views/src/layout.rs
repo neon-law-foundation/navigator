@@ -9,10 +9,11 @@
 use maud::{html, Markup, DOCTYPE};
 
 use crate::brand::{
-    firm_disclaimer, privacy_url, terms_url, NavLink, SiteBrand, FIRM_BRAND, FOUNDATION_BRAND,
+    firm_disclaimer, foundation_github_url, privacy_url, terms_url, NavLink, SiteBrand, FIRM_BRAND,
+    FOUNDATION_BRAND,
 };
 use crate::components::social::{social_meta, SocialMeta};
-use crate::components::{external_link_with_class, ExternalLink};
+use crate::components::{external_link_with_class, github_star_button, ExternalLink};
 use crate::i18n::{self, Locale};
 
 /// Whether the current request has a valid session. The layout uses
@@ -305,6 +306,18 @@ impl<'a> PageLayout<'a> {
                     }
                     main.container."py-4" { (body) }
                     footer.container."py-4"."border-top"."mt-4" {
+                        // Public visitors can star the OSS project; signed-in
+                        // portal pages stay free of Git/GitHub jargon.
+                        @if self.auth == AuthState::Anonymous {
+                            @if let Some(repo_url) = foundation_github_url() {
+                            div."mb-3" {
+                                (github_star_button(
+                                    repo_url,
+                                    &i18n::t(self.locale, "footer.github_star"),
+                                ))
+                            }
+                            }
+                        }
                         // On a localized page the legal strip below — bar
                         // admissions and the legal-advice disclaimer — stays
                         // English by policy: the binding artifact a client
@@ -459,7 +472,7 @@ fn render_nav_link(link: &NavLink, locale: Locale) -> Markup {
 #[cfg(test)]
 mod tests {
     use super::PageLayout;
-    use crate::brand::{FIRM_BRAND, FOUNDATION_BRAND};
+    use crate::brand::{foundation_github_url, FIRM_BRAND, FOUNDATION_BRAND};
     use maud::html;
 
     fn render(title: &str, body: &maud::Markup) -> String {
@@ -850,6 +863,56 @@ mod tests {
         let out = render("Home", &html! { p { "x" } });
         assert!(out.contains("href=\"/blog\""), "got: {out}");
         assert!(out.contains(">Blog</a>"), "got: {out}");
+    }
+
+    #[test]
+    fn footer_renders_github_star_cta_when_repo_is_configured() {
+        let Some(repo_url) = foundation_github_url() else {
+            return;
+        };
+        let out = render("Home", &html! { p { "x" } });
+        let footer_idx = out.find("<footer").expect("footer present");
+        let footer = &out[footer_idx..];
+        assert!(
+            footer.contains(&format!("href=\"{repo_url}\"")),
+            "footer should link the configured GitHub repo: {footer}"
+        );
+        assert!(footer.contains("bi-star-fill"), "{footer}");
+        assert!(
+            footer.contains(">Star Navigator on GitHub</span>"),
+            "{footer}"
+        );
+        assert!(footer.contains("rel=\"noopener noreferrer\""), "{footer}");
+    }
+
+    #[test]
+    fn spanish_footer_localizes_github_star_cta() {
+        if foundation_github_url().is_none() {
+            return;
+        }
+        let out = PageLayout::new("Inicio")
+            .with_locale(crate::i18n::Locale::Es)
+            .with_canonical_path("/")
+            .render(&html! { p { "x" } })
+            .into_string();
+        assert!(
+            out.contains(">Destacar Navigator en GitHub</span>"),
+            "Spanish footer should localize the GitHub CTA: {out}"
+        );
+    }
+
+    #[test]
+    fn authenticated_footer_omits_github_star_cta() {
+        let out = PageLayout::new("Portal")
+            .with_auth(super::AuthState::Authenticated)
+            .render(&html! { p { "x" } })
+            .into_string();
+        let footer_idx = out.find("<footer").expect("footer present");
+        let footer = &out[footer_idx..];
+        assert!(
+            !footer.contains("GitHub") && !footer.contains("bi-star-fill"),
+            "authenticated footer should avoid public GitHub CTA: {footer}"
+        );
     }
 
     #[test]
