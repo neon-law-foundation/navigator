@@ -131,11 +131,16 @@ spec:
               value: http://lgtm.navigator.svc.cluster.local:4317
             - name: OTEL_SERVICE_NAME
               value: navigator-web
-            # SendGrid stubs — the binary refuses to start without
-            # these (the production-invariants guard is unconditional
+            # SendGrid + DocuSign stubs — the binary refuses to start
+            # without these (the production-invariants guard in
+            # `web::config::enforce_prod_invariants` is unconditional
             # post SQLite cutover). KIND keeps NAVIGATOR_EMAIL_BACKEND
             # unset so the actual backend is CapturingEmail, but the
             # invariant still demands the env vars be non-empty. The
+            # webhook secrets (events + esignature) are never parsed at
+            # boot — they're stored as strings and only verified when
+            # the corresponding endpoint is hit, which the KIND smoke
+            # path never exercises — so opaque stubs are safe here. The
             # GKE overlay's `web-env.yaml` replaces the env list
             # wholesale with real Secret-backed values plus
             # NAVIGATOR_EMAIL_BACKEND=sendgrid, so these stubs only
@@ -143,6 +148,12 @@ spec:
             - name: SENDGRID_API_KEY
               value: SG.kind-stub
             - name: SENDGRID_INBOUND_SECRET
+              value: kind-stub
+            - name: SENDGRID_EVENTS_SECRET
+              value: kind-stub
+            - name: SENDGRID_EVENTS_PUBLIC_KEY
+              value: kind-stub
+            - name: DOCUSIGN_HMAC_KEY
               value: kind-stub
           readinessProbe:
             httpGet:
