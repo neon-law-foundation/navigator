@@ -46,10 +46,10 @@ with the client's answer — `{{client_name}}` becomes the actual name, `{{proje
 
 Frontmatter fields:
 
-- `title` — the human document title (F101 requires it non-empty).
-- `respondent_type` — one of `person`, `entity`, `person_and_entity` (F102).
+- `title` — the human document title (N101 requires it non-empty).
+- `respondent_type` — one of `person`, `entity`, `person_and_entity` (N102).
 - `code` — the stable, unique identifier (`onboarding__retainer`, `trusts__nevada`); how every surface refers to it.
-- `confidential` — an explicit `true`/`false` decision, never defaulted (F105).
+- `confidential` — an explicit `true`/`false` decision, never defaulted (N105).
 - `questionnaire:` — the intake state machine: `BEGIN → question_code → … → END`. Each step's `_:` is the "answered"
   transition. State names are `<question_code>__<discriminator>`; the prefix before `__` must be a real Question `code`.
 - `workflow:` — the post-intake state machine: render, staff review, signature, filing. Transitions fire on named
@@ -71,25 +71,25 @@ behavior is specified before the prose exists:
    above. Declare the `questionnaire:` walk and the `workflow:` states. Body prose uses `{{question_code}}`
    placeholders.
 3. **Seed the questions.** Add each new question `code` to `store/seeds/Question.yaml` (prompt, `question_type`,
-   help text). The questionnaire's state prefixes must resolve to these codes or F104 fails.
+   help text). The questionnaire's state prefixes must resolve to these codes or N104 fails.
 4. **Declare the workflow YAML.** Compose the post-intake flow from the shared step library (below) — never a one-off
    handler. Reuse `staff_review`, signature, and document steps so the flow stays auditable.
 5. **Wire the durable handlers.** Bind new workflow steps onto the existing `workflows-service` worker. Never stand up a
    per-workflow pod — one worker hosts every flow.
 
 A template is not legally usable until an attorney has reviewed the body copy. The `staff_review` state is mandatory
-(F106) precisely so a licensed human is always in the loop before anything is sent or filed.
+(N106) precisely so a licensed human is always in the loop before anything is sent or filed.
 
 ## The validation contract
 
 Three rule families guard every template, enforced identically in your editor, in `cli validate`, and in CI — because
 all three call the same `rules` crate. A template that is clean on your laptop is clean in the merge gate.
 
-- **F-family (frontmatter shape, structural).** F101 title present; F102 valid `respondent_type`; F103 snake_case
-  filename; F104 both machines declare `BEGIN`, reach `END`, and every state prefix resolves to a real Question code;
-  F105 `confidential` is an explicit bool; F106 the `workflow:` has a bare `staff_review` state (the suffix form
-  `staff_review__for_grantor` does **not** satisfy it — the human-review gate must be unconditional); F108 `code` is the
-  stable Template identifier. F-family rules are diagnostic-only: a human must resolve them, the tool will not
+- **N-family (notation template shape, structural).** N101 title present; N102 valid `respondent_type`; N103 snake_case
+  filename; N104 both machines declare `BEGIN`, reach `END`, and every state prefix resolves to a real Question code;
+  N105 `confidential` is an explicit bool; N106 the `workflow:` has a bare `staff_review` state (the suffix form
+  `staff_review__for_grantor` does **not** satisfy it — the human-review gate must be unconditional); N108 `code` is the
+  stable Template identifier. N-family rules are diagnostic-only: a human must resolve them, the tool will not
   auto-rewrite legal structure.
 - **M-family (markdown hygiene, ~50 rules).** Headings, lists, fences, tables, spacing. Most carry a safe autofix.
 - **S101 (line length).** 120 Unicode scalars per line, every `.md`. Frontmatter is linted too; folded YAML scalars let
@@ -109,8 +109,8 @@ Neovim, Helix, Emacs, Zed. The authoring loop for a non-engineer legal author:
 
 1. **Type.** Open `templates/will/simple.md` in your editor. Write legal prose and frontmatter — no proprietary tool, no
    markup beyond markdown.
-2. **Live diagnostics.** On every keystroke the LSP lints the buffer and shows squiggles: F101 if `title:` is missing,
-   F104 if the questionnaire/workflow shape is broken, S101 past 120 chars, M-rules on shape. The CLI can add DB-backed
+2. **Live diagnostics.** On every keystroke the LSP lints the buffer and shows squiggles: N101 if `title:` is missing,
+   N104 if the questionnaire/workflow shape is broken, S101 past 120 chars, M-rules on shape. The CLI can add DB-backed
    question-code checks when invoked with `--database-url`. Hover any squiggle for a plain-English explanation of the
    rule.
 3. **Fix-all on save.** `source.fixAll` rewrites every mechanical issue — tabs, trailing whitespace, blank-line spacing,

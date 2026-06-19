@@ -26,14 +26,14 @@ The first directory level is the **category** (`trust`, `llc`, `will`, `onboardi
 Two passes, both via the workspace's own CLI:
 
 - **Every file two or more levels deep** (`templates/<category>/<name>.md`) must pass the full Navigator ruleset —
-  M-family Markdown rules, the S101 120-character line limit, **and** the F-family frontmatter rules that enforce
+  M-family Markdown rules, the S101 120-character line limit, **and** the N-family notation-template rules that enforce
   template shape.
 
   ```bash
   cargo run -p cli --quiet -- validate templates
   ```
 
-- **This `README.md`** is linted like every other workspace README — M-family rules + S101 only, F-family skipped:
+- **This `README.md`** is linted like every other workspace README — M-family rules + S101 only, N-family skipped:
 
   ```bash
   cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes templates/README.md

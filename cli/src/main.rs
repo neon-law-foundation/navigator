@@ -40,14 +40,14 @@ struct Cli {
 enum Command {
     /// Validate every `.md` under `<dir>` against the classified
     /// Navigator rule set. DB-free by default: notation templates get
-    /// F-family structural checks, while prose markdown gets only
+    /// N-family structural checks, while prose markdown gets only
     /// Markdown rules. Pass `--database-url` (or set `DATABASE_URL`) to
-    /// load the canonical question registry and have F104 reject
+    /// load the canonical question registry and have N104 reject
     /// unknown codes.
     Validate {
         /// Directory to walk.
         dir: PathBuf,
-        /// Skip the F-family rules (frontmatter / Navigator notation
+        /// Skip the N-family rules (Navigator notation-template
         /// specific) and only run general Markdown checks.
         #[arg(long)]
         markdown_only: bool,
@@ -60,14 +60,14 @@ enum Command {
         /// Apply every safe-by-construction rule autofix
         /// (whitespace, ATX heading spacing, blockquote spacing) to
         /// the files in place, then re-validate. Diagnostic-only
-        /// rules (F-family frontmatter, M024 duplicate headings,
+        /// rules (N-family notation-template, M024 duplicate headings,
         /// M026 trailing punctuation) are still reported but not
         /// auto-fixed. The autofixed-source view is what the
         /// `navigator-lsp` `source.fixAll` action ships in editors.
         #[arg(long)]
         fix: bool,
         /// Postgres connection URL. When provided, loads the
-        /// canonical question-code registry so F104 can reject
+        /// canonical question-code registry so N104 can reject
         /// unknown codes. Falls back to the `DATABASE_URL`
         /// environment variable.
         #[arg(long, env = "DATABASE_URL")]

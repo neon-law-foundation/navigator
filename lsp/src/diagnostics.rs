@@ -70,7 +70,7 @@ mod tests {
             "---\ntitle: Service\ncode: northstar\n---\n\nBody.\n".to_string(),
         );
         assert!(
-            violations.iter().all(|v| !v.code.starts_with('F')),
+            violations.iter().all(|v| !v.code.starts_with('N')),
             "code-only content frontmatter should not trigger notation diagnostics: {violations:?}",
         );
     }
@@ -82,7 +82,7 @@ mod tests {
             "---\ntitle: Draft\nworkflow:\n  BEGIN:\n    created: END\n---\n".to_string(),
         );
         assert!(
-            violations.iter().any(|v| v.code == "F108"),
+            violations.iter().any(|v| v.code == "N108"),
             "notation template should require code, got {:?}",
             violations.iter().map(|v| v.code).collect::<Vec<_>>(),
         );

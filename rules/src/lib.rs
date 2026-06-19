@@ -189,7 +189,7 @@ pub trait Rule: Send + Sync {
 
     /// Produce a single source edit that resolves `violation`, if the
     /// rule is safe to autofix. Returns `None` by default — rules
-    /// that flag prose / structural concerns (F-family, M024 dup
+    /// that flag prose / structural concerns (N-family, M024 dup
     /// headings, M026 trailing punctuation) intentionally stay
     /// diagnostic-only.
     fn fix(&self, _file: &SourceFile, _violation: &Violation) -> Option<TextEdit> {
@@ -210,16 +210,16 @@ pub fn description_for_code(code: &str) -> &'static str {
     match code {
         "S101" => "Line exceeds the 120-character limit",
         "S102" => "Line could absorb more text from the next line",
-        "F101" => "Frontmatter must declare a non-empty `title`",
-        "F102" => "Frontmatter must declare a valid `respondent_type`",
-        "F103" => "Filename must be snake_case",
-        "F104" => "Workflow state references an unknown question code",
-        "F105" => "Frontmatter must declare `confidential`",
-        "F106" => "Frontmatter must declare `staff_review_required`",
-        "F107" => {
+        "N101" => "Notation template must declare a non-empty `title`",
+        "N102" => "Notation template must declare a valid `respondent_type`",
+        "N103" => "Notation template filename must be snake_case",
+        "N104" => "Notation workflow state references an unknown question code",
+        "N105" => "Notation template must declare `confidential`",
+        "N106" => "Notation workflow must include staff review",
+        "N107" => {
             "Signature placeholders must name a known signer/field and a signing workflow state"
         }
-        "F108" => "Frontmatter must declare a stable `code`",
+        "N108" => "Notation template must declare a stable `code`",
         "M001" => "Heading levels must increment by one",
         "M003" => "Headings must use the ATX (`# Heading`) style",
         "M004" => "Unordered list markers must be consistent",
@@ -330,12 +330,12 @@ impl Rule for S101LineLength {
     }
 }
 
-/// `F101` — markdown file must declare a non-empty `title` in YAML
+/// `N101` — notation template must declare a non-empty `title` in YAML
 /// frontmatter.
 pub struct F101FrontmatterTitle;
 
 impl F101FrontmatterTitle {
-    pub const CODE: &'static str = "F101";
+    pub const CODE: &'static str = "N101";
 }
 
 impl Rule for F101FrontmatterTitle {
@@ -369,12 +369,13 @@ impl Rule for F101FrontmatterTitle {
     }
 }
 
-/// `F102` — frontmatter must declare a `respondent_type` whose value
-/// is one of `entity`, `person`, or `person_and_entity`.
+/// `N102` — notation template frontmatter must declare a
+/// `respondent_type` whose value is one of `entity`, `person`, or
+/// `person_and_entity`.
 pub struct F102RespondentType;
 
 impl F102RespondentType {
-    pub const CODE: &'static str = "F102";
+    pub const CODE: &'static str = "N102";
     pub const VALID: &[&'static str] = &["entity", "person", "person_and_entity"];
 }
 
@@ -665,7 +666,7 @@ mod tests {
     fn f101_flags_missing_frontmatter() {
         let violations = F101FrontmatterTitle.lint(&file("# Just a heading\nNo frontmatter"));
         assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].code, "F101");
+        assert_eq!(violations[0].code, "N101");
         assert!(violations[0].message.contains("Missing"));
     }
 
@@ -713,7 +714,7 @@ mod tests {
         let contents = "---\nrespondent_type: corporation\n---\n";
         let violations = F102RespondentType.lint(&file(contents));
         assert_eq!(violations.len(), 1);
-        assert_eq!(violations[0].code, "F102");
+        assert_eq!(violations[0].code, "N102");
         assert!(violations[0].message.contains("corporation"));
     }
 

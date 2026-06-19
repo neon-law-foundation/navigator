@@ -10,7 +10,7 @@
 //!   catalogue of named things. The naming test below shares the
 //!   `rules::is_pascal_case` predicate so every registered name is checked
 //!   against one canonical definition of `PascalCase`. (Template `.md`
-//!   basenames follow the *separate* `snake_case` convention `F103` now
+//!   basenames follow the *separate* `snake_case` convention `N103` now
 //!   enforces — different artifact, different rule.)
 //! - **Virtual objects** — keyed, addressable services (`notation`, invoked as
 //!   `/notation/<id>/...`). Restate names objects in lowercase by convention,
@@ -49,7 +49,7 @@ mod tests {
     /// Every registered durable workflow is named `PascalCase`, checked with
     /// the canonical `rules::is_pascal_case` predicate so all registered names
     /// share one definition. (Template `.md` basenames follow the separate
-    /// `snake_case` convention `F103` enforces — a different artifact.)
+    /// `snake_case` convention `N103` enforces — a different artifact.)
     #[test]
     fn workflow_service_names_are_pascal_case() {
         for name in WORKFLOW_SERVICES {

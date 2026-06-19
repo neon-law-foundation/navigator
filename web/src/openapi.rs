@@ -177,8 +177,8 @@ pub fn document_with_base(base: &str) -> Value {
                in — not a `notations`-table row and not a persisted Template; nothing is \
                looked up or created, so this is the right call to lint a draft before it \
                exists anywhere. Mirrors `cli validate` rule-set selection: the default uses \
-               `navigator_default_rules` (M-family markdown + F-family frontmatter + S101 \
-               line length); set `markdown_only: true` to drop the F-family and enable \
+               `navigator_default_rules` (M-family markdown + N-family notation + S101 \
+               line length); set `markdown_only: true` to drop the N-family and enable \
                `S102` line packing.",
             "requestBody": {
               "required": true,
@@ -279,7 +279,7 @@ pub fn document_with_base(base: &str) -> Value {
                                  "description": "Raw markdown body, including any YAML frontmatter." },
               "path":          { "type": "string",
                                  "description": "Pretend filename so rules that key off the path \
-                                                 (e.g. F103 snake_case) have something to read. \
+                                                 (e.g. N103 snake_case) have something to read. \
                                                  Defaults to `notation.md`." },
               "markdown_only": { "type": "boolean",
                                  "description": "Lint with `navigator_markdown_only_rules` instead \
@@ -309,7 +309,7 @@ pub fn document_with_base(base: &str) -> Value {
             "type": "object",
             "required": ["code", "line", "message"],
             "properties": {
-              "code":    { "type": "string", "description": "Rule code, e.g. `S101`, `F101`." },
+              "code":    { "type": "string", "description": "Rule code, e.g. `S101`, `N101`." },
               "line":    { "type": "integer", "format": "int32" },
               "message": { "type": "string" }
             }

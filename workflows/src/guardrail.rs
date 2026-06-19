@@ -3,7 +3,7 @@
 //! Today: the **attorney-review gate** for filled government documents.
 //! A `document_open__*` step can fill a fillable government form
 //! (AcroForm) from questionnaire answers, but the output is
-//! *attorney-review-ready, never auto-filed*. F106 (and the firm's
+//! *attorney-review-ready, never auto-filed*. N106 (and the firm's
 //! competence / candor duties) require a licensed attorney to review
 //! the specific filled document before it is mailed or filed with a
 //! government office. [`staff_review_gates_filing`] proves the spec

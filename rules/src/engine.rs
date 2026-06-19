@@ -276,7 +276,7 @@ impl Default for ClassifiedRuleEngine {
 }
 
 /// The canonical Navigator rule set, in the stable presentation
-/// order. `F104` is included with no recognized codes by default —
+/// order. `N104` is included with no recognized codes by default —
 /// callers that want strict flow-code validation should construct a
 /// `RuleEngine` with their own list that supplies
 /// `F104FlowQuestionCodes::new(codes)`.
@@ -364,7 +364,7 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
 pub fn navigator_default_rules_with_codes(valid_codes: &[String]) -> Vec<Box<dyn Rule>> {
     let mut rules = navigator_default_rules();
     for rule in &mut rules {
-        if rule.code() == "F104" {
+        if rule.code() == "N104" {
             *rule = Box::new(crate::F104FlowQuestionCodes::new(
                 valid_codes.iter().cloned(),
             ));
@@ -374,7 +374,7 @@ pub fn navigator_default_rules_with_codes(valid_codes: &[String]) -> Vec<Box<dyn
 }
 
 /// The Markdown-only subset of [`navigator_default_rules`] — every
-/// rule except the F-family, plus `S102` (line-packing). Suitable for
+/// rule except the N-family, plus `S102` (line-packing). Suitable for
 /// linting arbitrary prose markdown (READMEs, blog posts, marketing
 /// copy) that doesn't carry the Navigator notation frontmatter and
 /// that benefits from being packed tight to the 120-character budget.
@@ -387,7 +387,7 @@ pub fn navigator_default_rules_with_codes(valid_codes: &[String]) -> Vec<Box<dyn
 pub fn navigator_markdown_only_rules() -> Vec<Box<dyn Rule>> {
     let mut rules: Vec<Box<dyn Rule>> = navigator_default_rules()
         .into_iter()
-        .filter(|r| !r.code().starts_with('F'))
+        .filter(|r| !r.code().starts_with('N'))
         .collect();
     // Place S102 right after S101 so the two line-length rules sit
     // next to each other.
@@ -578,8 +578,8 @@ mod tests {
         assert_eq!(report.files_scanned, 3);
         let codes: Vec<&str> = report.violations.iter().map(|v| v.code).collect();
         assert!(codes.contains(&"S101"));
-        assert!(codes.contains(&"F101"));
-        assert!(codes.contains(&"F102"));
+        assert!(codes.contains(&"N101"));
+        assert!(codes.contains(&"N102"));
         // No false positives from c.md.
         assert_eq!(report.violations.len(), 3);
     }
@@ -588,7 +588,7 @@ mod tests {
     /// literally so this test fails loudly if a future change
     /// silently reorders or drops a rule.
     const EXPECTED_DEFAULT_RULE_CODES: &[&str] = &[
-        "S101", "F101", "F102", "F103", "F104", "F105", "F106", "F107", "F108", "M001", "M003",
+        "S101", "N101", "N102", "N103", "N104", "N105", "N106", "N107", "N108", "M001", "M003",
         "M004", "M005", "M007", "M009", "M010", "M011", "M012", "M018", "M019", "M020", "M021",
         "M022", "M023", "M024", "M026", "M027", "M028", "M029", "M030", "M031", "M032", "M034",
         "M035", "M037", "M038", "M039", "M040", "M042", "M045", "M046", "M047", "M048", "M049",
@@ -606,18 +606,18 @@ mod tests {
     }
 
     #[test]
-    fn navigator_markdown_only_rules_drop_f_family_and_add_s102() {
+    fn navigator_markdown_only_rules_drop_n_family_and_add_s102() {
         use super::navigator_markdown_only_rules;
         let codes: Vec<&'static str> = navigator_markdown_only_rules()
             .iter()
             .map(|r| r.code())
             .collect();
-        assert!(codes.iter().all(|c| !c.starts_with('F')));
+        assert!(codes.iter().all(|c| !c.starts_with('N')));
         // S102 sits right after S101.
         let mut expected: Vec<&str> = EXPECTED_DEFAULT_RULE_CODES
             .iter()
             .copied()
-            .filter(|c| !c.starts_with('F'))
+            .filter(|c| !c.starts_with('N'))
             .collect();
         let pos = expected.iter().position(|c| *c == "S101").unwrap() + 1;
         expected.insert(pos, "S102");
@@ -657,7 +657,7 @@ mod tests {
     }
 
     #[test]
-    fn classified_lint_does_not_apply_f_rules_to_code_only_content() {
+    fn classified_lint_does_not_apply_n_rules_to_code_only_content() {
         let file = source(
             "web/content/marketing/service.md",
             "---\ntitle: Service\ncode: northstar\n---\n\nBody.\n",
@@ -667,7 +667,7 @@ mod tests {
             .map(|v| v.code)
             .collect();
         assert!(
-            codes.iter().all(|code| !code.starts_with('F')),
+            codes.iter().all(|code| !code.starts_with('N')),
             "code-only content frontmatter must stay prose markdown, got {codes:?}",
         );
     }
@@ -699,7 +699,7 @@ Body.
             .map(|v| v.code)
             .collect();
         assert!(
-            codes.contains(&"F108"),
+            codes.contains(&"N108"),
             "expected missing code violation, got {codes:?}"
         );
     }

@@ -1,11 +1,11 @@
-//! `F108` — notation templates must declare a stable `code:`.
+//! `N108` — notation templates must declare a stable `code:`.
 
 use crate::{frontmatter, line_byte_range, Rule, SourceFile, Violation};
 
 pub struct F108TemplateCodeRequired;
 
 impl F108TemplateCodeRequired {
-    pub const CODE: &'static str = "F108";
+    pub const CODE: &'static str = "N108";
 }
 
 impl Rule for F108TemplateCodeRequired {
@@ -58,7 +58,7 @@ mod tests {
     fn flags_missing_code() {
         let v = F108TemplateCodeRequired.lint(&file("---\ntitle: T\n---\n"));
         assert_eq!(v.len(), 1);
-        assert_eq!(v[0].code, "F108");
+        assert_eq!(v[0].code, "N108");
         assert!(v[0].message.contains("missing"));
     }
 
@@ -66,7 +66,7 @@ mod tests {
     fn flags_empty_code() {
         let v = F108TemplateCodeRequired.lint(&file("---\ncode:\n---\n"));
         assert_eq!(v.len(), 1);
-        assert_eq!(v[0].code, "F108");
+        assert_eq!(v[0].code, "N108");
         assert!(v[0].message.contains("empty"));
     }
 }

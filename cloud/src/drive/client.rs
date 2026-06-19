@@ -44,7 +44,7 @@ const DEFAULT_MAX_RETRIES: u32 = 3;
 /// representation we ingest is consistent across surfaces.
 ///
 /// - Docs → `text/markdown` (closest to authoring intent, lints
-///   cleanly with the workspace's S101 + F-family rules).
+///   cleanly with the workspace's S101 + N-family rules).
 /// - Sheets → `text/csv` (one sheet per file; multi-sheet workbooks
 ///   only export the first tab — accept that until someone asks
 ///   for `application/x-vnd.oasis.opendocument.spreadsheet`).

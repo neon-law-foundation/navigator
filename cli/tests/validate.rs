@@ -27,7 +27,7 @@ fn navigator() -> Command {
 fn validate_succeeds_on_clean_directory() {
     let dir = TempDir::new().unwrap();
     // Use markdown-only mode so the test doesn't need to satisfy the
-    // full F-family frontmatter expectations (questionnaire/workflow
+    // full N-family notation-template expectations (questionnaire/workflow
     // maps, confidential, staff_review). Those rules have dedicated
     // unit tests in the rules crate.
     write(dir.path(), "Notes.md", "Plain body line.\n");
@@ -69,8 +69,8 @@ fn validate_default_rule_set_flags_missing_frontmatter() {
         .assert()
         .failure()
         .code(1)
-        .stdout(str::contains("F101"))
-        .stdout(str::contains("F102"));
+        .stdout(str::contains("N101"))
+        .stdout(str::contains("N102"));
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn validate_fix_writes_back_autofixable_edits_and_reports_remaining() {
 #[test]
 fn validate_fix_leaves_diagnostic_only_violations_for_human() {
     let dir = TempDir::new().unwrap();
-    // M010 (autofixable) + F101 (diagnostic-only) in the same
+    // M010 (autofixable) + N101 (diagnostic-only) in the same
     // notation-template file.
     write(
         dir.path(),
@@ -161,7 +161,7 @@ fn validate_fix_leaves_diagnostic_only_violations_for_human() {
         .assert()
         .failure()
         .code(1)
-        .stdout(str::contains("F101"))
+        .stdout(str::contains("N101"))
         .stdout(str::contains("remaining violation"));
     // The autofixable tab is gone.
     let after = fs::read_to_string(dir.path().join("templates/needs.md")).unwrap();

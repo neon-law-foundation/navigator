@@ -518,7 +518,7 @@ invisible anchor token in the PDF text layer that the e-signature provider keys 
 
 The `signer` is a **role**, never a person's name (`{{firm.signature}}`, not `{{nick.signature}}`) — it resolves to a
 real [Person](#person) (the respondent, or the attorney of record) when the [Notation](notation.md#notation) runs. The
-`field` is the field type: `signature`, `initials`, or `date`. Validity is enforced by rule **F107**
+`field` is the field type: `signature`, `initials`, or `date`. Validity is enforced by rule **N107**
 ([`rules::f107`](../rules/src/f107.rs)): the signer and field must be known, and a Template that draws any signature
 block must declare a `sent_for_signature` (or `sent_for_signature__*`) [State](#state) to collect the signature.
 
