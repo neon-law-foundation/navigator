@@ -45,6 +45,18 @@ async fn empty_state() -> AppState {
     web::test_support::app_state(in_memory_db().await).await
 }
 
+async fn state_with_bundled_marketing() -> AppState {
+    let marketing_dir = std::path::Path::new(web::DEFAULT_MARKETING_DIR);
+    let marketing_docs =
+        web::marketing::loader::load_dir(marketing_dir).expect("bundled marketing content loads");
+    let marketing_es = web::marketing::loader::load_dir(&marketing_dir.join("es"))
+        .expect("bundled Spanish marketing content loads");
+    AppState {
+        marketing: MarketingIndex::new(marketing_docs).with_es(marketing_es),
+        ..web::test_support::app_state(in_memory_db().await).await
+    }
+}
+
 async fn empty_state_with_auth(auth: AuthConfig) -> AppState {
     AppState {
         auth,
@@ -123,6 +135,33 @@ async fn foundation_mission_renders_the_letter_under_the_foundation_brand() {
     let body = body_string(resp).await;
     assert!(body.contains("<title>Neon Law Foundation | Mission</title>"));
     assert!(body.contains("class=\"mission-letter\""));
+}
+
+#[tokio::test]
+async fn foundation_mission_links_training_to_the_workshop_not_the_repo() {
+    let app = web::build_router(
+        state_with_bundled_marketing().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    for uri in ["/foundation/mission", "/es/foundation/mission"] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = body_string(resp).await;
+        assert!(
+            body.contains("href=\"/foundation/workshops/navigator/readme\""),
+            "{uri} should link legal-aid training to the Navigator workshop: {body}",
+        );
+        assert_eq!(
+            body.matches("href=\"https://github.com/neon-law-foundation/navigator\"")
+                .count(),
+            1,
+            "{uri} should keep only the opening repository link",
+        );
+    }
 }
 
 #[tokio::test]

@@ -27,7 +27,7 @@ tenets:
 3. **Build community around the Navigator**. None of this matters if we aren't helping lawyers serve more clients. We
    host online and in-person workshops to help lawyers adopt the Navigator and tailor it to their practice to _increase
    access to justice_. If you're a legal aid organization, we'll provide free training on the [Neon Law
-   Navigator](https://github.com/neon-law-foundation/navigator).
+   Navigator](/foundation/workshops/navigator/readme).
 
 **Neon Law** is a boutique law firm that dogfoods the Neon Law Navigator. Because lawyers cannot serve adverse parties,
 the firm alone can't _serve access to justice_. Nor does the firm fund the mission alone — the Foundation is supported

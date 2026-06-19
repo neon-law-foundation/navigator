@@ -210,11 +210,18 @@ mod tests {
             "collage must render as a Bootstrap row, got: {}",
             post.body_html
         );
-        // Sixteen tiles — the original twelve plus a farewell row of four.
+        // Sixteen tiles total: fifteen standard `col-md-4` squares plus the
+        // Apple Park sunset, widened to a full-row `col-md-12` desktop banner.
         assert_eq!(
             post.body_html.matches("col-6 col-md-4").count(),
-            16,
-            "the grid must hold exactly sixteen tiles, got: {}",
+            15,
+            "the grid must hold fifteen standard tiles, got: {}",
+            post.body_html
+        );
+        assert!(
+            post.body_html
+                .contains("class=\"col-6 col-md-12 blog-collage-wide\""),
+            "the sunset must render as a full-width desktop banner, got: {}",
             post.body_html
         );
         // Every collage photo — including the four moved in from the letter
@@ -239,8 +246,9 @@ mod tests {
                 post.body_html
             );
         }
-        // The rainbow leads as a big picture BEFORE the grid; the grid
-        // itself closes on the apple-park-team group photo.
+        // The rainbow leads as a big picture BEFORE the grid; the grid now
+        // closes on the full-width Apple Park sunset banner, which sits last —
+        // after the apple-park-team group photo.
         let grid = post
             .body_html
             .find("blog-collage")
@@ -253,17 +261,17 @@ mod tests {
             rainbow < grid,
             "the rainbow must lead as a big picture before the collage grid"
         );
-        let apple = post
+        let team = post
             .body_html
             .find("apple-park-team.jpg")
-            .expect("apple tile present");
-        let sharks = post
+            .expect("apple-park-team tile present");
+        let sunset = post
             .body_html
-            .rfind("sharks-game.jpg")
-            .expect("sharks tile present");
+            .rfind("apple-park-sunset.jpg")
+            .expect("sunset tile present");
         assert!(
-            apple > sharks && apple > grid,
-            "the grid must close on the apple-park-team group photo"
+            sunset > team && sunset > grid,
+            "the grid must close on the full-width Apple Park sunset banner"
         );
         // The old bullet-list collage is gone.
         assert!(

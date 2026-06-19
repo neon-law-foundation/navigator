@@ -83,10 +83,6 @@ Nick
 
 </div><div class="col-6 col-md-4">
 
-![Sunrise at Apple Park](img/thanks-apple/apple-park-sunset.jpg)
-
-</div><div class="col-6 col-md-4">
-
 ![Product Marketing summer party](img/thanks-apple/farewell-crew.jpg)
 
 </div><div class="col-6 col-md-4">
@@ -100,5 +96,9 @@ Nick
 </div><div class="col-6 col-md-4">
 
 ![My wonderful Apple Park teammates](img/thanks-apple/apple-park-team.jpg)
+
+</div><div class="col-6 col-md-12 blog-collage-wide">
+
+![Sunrise at Apple Park](img/thanks-apple/apple-park-sunset.jpg)
 
 </div></div>
