@@ -31,7 +31,7 @@ principios:
    clientes. Ofrecemos talleres en línea y presenciales para ayudar a los abogados a adoptar el Navigator y adaptarlo a
    su práctica, y así *aumentar el acceso a la justicia*. Si usted representa a una organización de asistencia legal
    interesada, le ofreceremos capacitación gratuita sobre el uso del [Neon Law
-   Navigator](https://github.com/neon-law-foundation/navigator).
+   Navigator](/foundation/workshops/navigator/readme).
 
 **Neon Law** es un bufete boutique que pone a prueba el Neon Law Navigator en su propio trabajo. Como los abogados no
 pueden representar a partes con intereses contrapuestos, el bufete por sí solo no puede *servir al acceso a la
