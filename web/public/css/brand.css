@@ -156,6 +156,17 @@
   cursor: zoom-in;
 }
 
+/* One collage tile can span the full row on desktop: its column is widened */
+/* to `col-md-12` and tagged `.blog-collage-wide` in the markdown (used for */
+/* the panoramic Apple Park sunset). At the three-tile width the square crop */
+/* would balloon into a giant block, so drop `aspect-ratio` and let the full */
+/* landscape show. Mobile is untouched — the tile stays a half-width square. */
+@media (min-width: 768px) {
+  .blog-post .blog-collage .blog-collage-wide img {
+    aspect-ratio: auto;
+  }
+}
+
 /* Click-to-zoom lightbox (collage-lightbox.js). A tile is square-cropped */
 /* in the grid, so the overlay shows the FULL photo (object-fit: contain) */
 /* — nothing at the edges is cut off. A single reused overlay sits above */
