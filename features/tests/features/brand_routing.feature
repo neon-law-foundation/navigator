@@ -32,10 +32,14 @@ Feature: Public site brand routing
       | /foundation                       |
       | /foundation/mission               |
       | /foundation/contact               |
-      | /navigator                        |
       | /privacy                          |
       | /terms                            |
       | /foundation/workshops/navigator   |
+
+  Scenario: The bare /navigator permanently redirects to the Foundation hub
+    When a visitor opens /navigator
+    Then the response status is 308
+    And the response redirects to "/foundation/navigator"
 
   Scenario: The retired /education route returns 404
     When a visitor opens /education
