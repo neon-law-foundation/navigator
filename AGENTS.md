@@ -22,6 +22,19 @@ cargo test --workspace   # TEST_DATABASE_URL already targets the baked local Pos
 
 `cargo test` creates a per-run `test_<id>` schema against that one server, so there is no per-binary testcontainer.
 
+### Pull request walkthrough artifacts
+
+When a change affects public UI or portal UI, include the walkthrough artifacts in the PR body, not only in the final
+agent reply. Use the artifact HTML tags the PR tool understands, for example:
+
+```html
+<video src="/opt/cursor/artifacts/example_demo.mp4"></video>
+<img alt="Homepage without header" src="/opt/cursor/artifacts/homepage_no_header.webp" />
+```
+
+Prefer one short demo video plus the clearest screenshots that prove the changed states. If the PR tool rewrites the
+HTML to hosted links, that is fine; the important part is that reviewers can open the visual evidence from the PR.
+
 ### Running the full `web` app end-to-end (extra setup)
 
 `web` calls `enforce_prod_invariants` unconditionally and needs OIDC (Keycloak), OPA, and a GCS-compatible store on top
