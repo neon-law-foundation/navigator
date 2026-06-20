@@ -17,8 +17,8 @@ Feature: Workshop "Deploy the Navigator"
 
   The workshop is donated open-source infrastructure addressed to a
   deployer standing up their own instance — never to a legal client. It
-  therefore lives under the Foundation brand, which renders no
-  "not accepting clients" banner.
+  therefore lives under the Foundation brand, away from the firm's
+  client intake surface.
 
   Background:
     Given the "Deploy the Navigator" workshop is loaded from the content directory

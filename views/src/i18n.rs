@@ -4,7 +4,7 @@
 //! Two kinds of user-visible text get two mechanisms (see
 //! [`docs/i18n.md`](../../../docs/i18n.md)):
 //!
-//! - **Chrome** — navbar, auth links, the banner, the language switcher,
+//! - **Chrome** — navbar, auth links, the language switcher,
 //!   CTAs — is short, repeated, and engineer-owned. It lives in the YAML
 //!   catalogs under `views/locales/{en,es}.yml`, baked into the binary
 //!   with `include_str!` and looked up here with [`t`] / [`t_args`].
@@ -154,7 +154,7 @@ pub fn t(locale: Locale, key: &str) -> String {
 }
 
 /// `t` with `%{name}` interpolation, e.g.
-/// `t_args(locale, "banner.not_accepting", &[("firm", "Neon Law")])`.
+/// `t_args(locale, "cta.email", &[("email", "support@example.com")])`.
 #[must_use]
 pub fn t_args(locale: Locale, key: &str, args: &[(&str, &str)]) -> String {
     let mut out = t(locale, key);
@@ -296,14 +296,6 @@ mod tests {
 
     #[test]
     fn interpolation_substitutes_named_placeholders() {
-        assert_eq!(
-            t_args(Locale::En, "banner.not_accepting", &[("firm", "Neon Law")]),
-            "Neon Law is currently not accepting clients."
-        );
-        assert_eq!(
-            t_args(Locale::Es, "banner.not_accepting", &[("firm", "Neon Law")]),
-            "Neon Law no está aceptando clientes en este momento."
-        );
         assert_eq!(
             t_args(Locale::Es, "cta.email", &[("email", "support@neonlaw.com")]),
             "Escríbenos a support@neonlaw.com"

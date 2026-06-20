@@ -1,7 +1,7 @@
 # English — the source locale and the universal fallback.
 #
 # This is the chrome catalog: short, repeated, engineer-owned strings
-# (navbar, auth links, the banner, the language switcher, CTAs). Long
+# (navbar, auth links, the language switcher, CTAs). Long
 # prose (marketing pages, the mission letter) is NOT here — it lives as
 # Markdown under web/content/marketing/ and mission.md.
 #
@@ -23,9 +23,6 @@ auth:
   portal: Portal
   sign_in: Sign in
   sign_out: Sign out
-banner:
-  # %{firm} is the brand site name (e.g. "Neon Law").
-  not_accepting: "%{firm} is currently not accepting clients."
 switcher:
   # Shown as the link's aria-label; describes the action in the page's
   # CURRENT language. The visible label is the target language's own

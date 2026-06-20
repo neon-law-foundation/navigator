@@ -20,8 +20,6 @@ auth:
   portal: Portal
   sign_in: Iniciar sesión
   sign_out: Cerrar sesión
-banner:
-  not_accepting: "%{firm} no está aceptando clientes en este momento."
 switcher:
   aria: Ver esta página en inglés
 footer:
