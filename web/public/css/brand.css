@@ -37,6 +37,18 @@
   --bs-link-hover-color-rgb: 103, 232, 249;
 }
 
+/* Cards are the design system's shared surface. Bootstrap's defaults are */
+/* serviceable, but in dark mode the firm wants cards to read as a real */
+/* dark surface, not as light panels floating on a dark page. Scope this */
+/* through Bootstrap component tokens so every plain `.card` gets it. */
+[data-bs-theme="dark"] .card {
+  --bs-card-bg: var(--bs-tertiary-bg);
+  --bs-card-border-color: var(--bs-border-color);
+  --bs-card-cap-bg: rgba(var(--bs-body-color-rgb), 0.03);
+  --bs-card-cap-color: var(--bs-body-color);
+  box-shadow: 0 0.125rem 0.75rem rgba(0, 0, 0, 0.24);
+}
+
 /* Bootstrap compiles the button color into per-component variables with */
 /* literal hex, so the :root token alone won't recolor buttons — restate */
 /* the cyan family on the two primary button variants the firm uses. */
