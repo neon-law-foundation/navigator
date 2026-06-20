@@ -494,8 +494,8 @@ mod tests {
         );
         // Navbar chrome is translated; auth link too.
         assert!(
-            out.contains(">Inicio</a>"),
-            "nav 'Home' should be 'Inicio': {out}"
+            out.contains(">La Fundación</a>"),
+            "nav 'The Foundation' should be 'La Fundación': {out}"
         );
         assert!(
             out.contains(">Servicios</a>"),
@@ -752,6 +752,44 @@ mod tests {
         assert!(
             !out.contains("class=\"nav-item dropdown\""),
             "firm nav should no longer carry a dropdown, got: {out}"
+        );
+    }
+
+    #[test]
+    fn firm_nav_starts_with_foundation_cross_link() {
+        let out = render("Home", &html! { p { "x" } });
+        let nav = out
+            .split_once("<ul class=\"navbar-nav ms-auto mb-2 mb-lg-0\">")
+            .expect("navbar list should render")
+            .1;
+        assert!(
+            nav.starts_with(
+                "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/foundation\">\
+                 The Foundation</a></li>"
+            ),
+            "firm navbar should start with the Foundation cross-link, got: {nav}"
+        );
+        assert!(
+            !nav.contains("href=\"/\">Home</a>"),
+            "firm navbar should not keep the old Home leaf, got: {nav}"
+        );
+    }
+
+    #[test]
+    fn foundation_nav_starts_with_firm_cross_link() {
+        let out = PageLayout::new("Mission")
+            .with_brand(*FOUNDATION_BRAND)
+            .render(&html! { p { "x" } })
+            .into_string();
+        let nav = out
+            .split_once("<ul class=\"navbar-nav ms-auto mb-2 mb-lg-0\">")
+            .expect("navbar list should render")
+            .1;
+        assert!(
+            nav.starts_with(
+                "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/\">The Firm</a></li>"
+            ),
+            "Foundation navbar should start with the firm cross-link, got: {nav}"
         );
     }
 
