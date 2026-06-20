@@ -130,7 +130,7 @@ pub fn render_in(
     };
     // Notion-style stacked layout: a wide banner image leads the page,
     // then the product mark + brand title, then the product card, then
-    // the prose outline, and finally the booking CTA. We always lift the
+    // the prose outline, and finally the contact CTA. We always lift the
     // body's leading `<h1>` into the header lead so the brand title is the
     // page's single `<h1>` and the headline isn't repeated.
     let (headline, prose_body) = split_leading_h1(content.body_html);
