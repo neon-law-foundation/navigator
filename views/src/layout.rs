@@ -220,10 +220,14 @@ impl<'a> PageLayout<'a> {
                     // square grid crop never hides anyone. Inert unless a
                     // `.blog-collage` is present on the page.
                     script defer src="/public/js/collage-lightbox.js" {}
-                    // First-party: fills the footer GitHub CTA's star
-                    // count from the same-origin `/github-stars`
-                    // endpoint. Inert when the CTA is absent.
-                    script defer src="/public/js/github-stars.js" {}
+                    @if self.auth == AuthState::Anonymous {
+                        // First-party: fills the footer GitHub CTA's star
+                        // count from the same-origin `/github-stars`
+                        // endpoint. Authenticated portal pages do not
+                        // render the public OSS CTA or its GitHub-named
+                        // asset, preserving their no-Git-jargon invariant.
+                        script defer src="/public/js/github-stars.js" {}
+                    }
                 }
                 body {
                     header {
@@ -926,6 +930,10 @@ mod tests {
         assert!(
             !footer.contains("GitHub") && !footer.contains("bi-star-fill"),
             "authenticated footer should avoid public GitHub CTA: {footer}"
+        );
+        assert!(
+            !out.contains("/public/js/github-stars.js"),
+            "authenticated pages should not load the public GitHub CTA script: {out}"
         );
     }
 
