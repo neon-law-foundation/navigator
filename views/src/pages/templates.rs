@@ -158,7 +158,7 @@ pub fn detail(detail: &TemplateDetail<'_>, auth: AuthState) -> Markup {
                     p."mb-3" {
                         "A template is a blueprint. To have a licensed attorney "
                         "prepare, review, and sign a document for your situation, "
-                        "start a matter with the firm."
+                        "start a matter with the firm. Neon Law is accepting new clients."
                     }
                     a."btn"."btn-outline-primary" href=(detail.start_matter_href) {
                         "Start a matter"
@@ -217,6 +217,7 @@ mod tests {
         // The raw download.
         assert!(html.contains("/templates/nonprofit/form990_annual_report/download"));
         // The not-a-dead-end CTA.
+        assert!(html.contains("Neon Law is accepting new clients."));
         assert!(html.contains("Start a matter"));
         assert!(html.contains("href=\"/contact\""));
         assert!(

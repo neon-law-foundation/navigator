@@ -38,7 +38,7 @@ static FOUNDATION_CONTACT_EMAIL: LazyLock<String> = LazyLock::new(|| {
 pub fn render_firm(auth: AuthState) -> Markup {
     let title = format!("Contact {}", FIRM_BRAND.site_name);
     let intro = format!(
-        "Email {} with a short description of the matter — estate \
+        "{} is accepting new clients. Email us with a short description of the matter — estate \
          planning, corporate formation, ongoing services. We respond \
          within one business day with a flat-fee quote and a calendar \
          link.",
@@ -106,6 +106,7 @@ fn render(
             // Foundation card stays email-only. Off-site, so it routes
             // through `ExternalLink` for the new-tab + OWASP `rel` pair.
             @if brand.is_law_firm {
+                p."fw-semibold" { (crate::i18n::t(crate::Locale::En, "cta.accepting_clients")) }
                 p {
                     (ExternalLink::new(crate::brand::consultation_url())
                         .with_class("btn btn-primary")
@@ -143,6 +144,7 @@ mod tests {
             "firm contact should book a consultation: {html}"
         );
         assert!(html.contains("Book a Consultation"), "got: {html}");
+        assert!(html.contains("Now accepting new clients."), "got: {html}");
     }
 
     #[test]
@@ -153,6 +155,10 @@ mod tests {
         assert!(
             !html.contains(crate::brand::consultation_url()),
             "Foundation contact must not link the firm calendar: {html}"
+        );
+        assert!(
+            !html.contains("Now accepting new clients."),
+            "Foundation contact must not render firm intake copy: {html}"
         );
     }
 

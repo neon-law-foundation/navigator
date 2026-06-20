@@ -41,6 +41,7 @@ footer:
 cta:
   # %{email} is the contact address; the button text on marketing pages.
   email: "Email %{email}"
+  accepting_clients: "Now accepting new clients."
   # Primary firm CTA: books a flat-fee consultation on the firm calendar.
   consultation: "Book a Consultation"
 products:
@@ -49,7 +50,7 @@ products:
   lead: Our legal services
   learn_more: Learn more
   contact: Start a matter
-  cta_blurb: "Ready to begin? Tell us what you need and a licensed attorney will be in touch."
+  cta_blurb: "Now accepting new clients. Tell us what you need; a licensed attorney responds."
   billed_monthly: Billed monthly
   billed_yearly: Billed yearly
   billed_hourly: Billed hourly

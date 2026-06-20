@@ -124,6 +124,7 @@ pub fn render_in(
     // Foundation product pages (Nimbus) keep their own inbox. `cta` /
     // `cta_mailto` above remain the Foundation path.
     let books_consultation = content.brand.is_law_firm;
+    let accepting_clients = i18n::t(locale, "cta.accepting_clients");
     let consultation_label = i18n::t(locale, "cta.consultation");
     let (footer_label, footer_href) = if books_consultation {
         (
@@ -172,6 +173,9 @@ pub fn render_in(
             // 5. The call to action — the firm's booking calendar (a
             //    mailto inbox on a Foundation product page).
             footer."text-center"."mt-4"."mt-lg-5" {
+                @if books_consultation {
+                    p."fw-semibold"."mb-3" { (accepting_clients) }
+                }
                 (cta_button("btn btn-primary btn-lg", footer_label, footer_href))
             }
         }
@@ -404,6 +408,10 @@ mod tests {
         );
         assert!(html.contains("Book a Consultation"), "got: {html}");
         assert!(
+            html.contains("Now accepting new clients."),
+            "firm CTA should explicitly say the firm is accepting clients: {html}"
+        );
+        assert!(
             html.contains("rel=\"noopener noreferrer\""),
             "booking link must be external-safe: {html}"
         );
@@ -437,6 +445,10 @@ mod tests {
         assert!(
             !html.contains(">Services</summary>"),
             "Foundation page must not carry the firm Services dropdown, got: {html}"
+        );
+        assert!(
+            !html.contains("Now accepting new clients."),
+            "Foundation page must not render firm intake copy: {html}"
         );
     }
 
