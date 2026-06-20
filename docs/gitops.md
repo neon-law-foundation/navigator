@@ -67,9 +67,11 @@ Fires daily at **02:00 PST** (`0 10 * * *` UTC). Its only job is to cut a calend
 
 ### Tag flow — `deploy.yml`
 
-Triggered by the `YY.MM.DD` tag push. Runs the full **KIND integration** suite, then builds both images and pushes them
-to **ghcr.io** tagged with that date, then emails a deploy report to `nick@neonlaw.com` via SendGrid (from
-`support@neonlaw.com`, the `DEFAULT_FROM_EMAIL` in `workflows/src/email/service.rs`; key in `secrets.SENDGRID_API_KEY`).
+Triggered by the `YY.MM.DD` tag push. Runs the full **KIND integration** suite, then builds and pushes every image — the
+two service images (`navigator-web`, `navigator-workflows-service`) and the five CronJob trigger images
+(`navigator-*-trigger`) — to **ghcr.io** tagged with that date, then emails a deploy report to `nick@neonlaw.com` via
+SendGrid (from `support@neonlaw.com`, the `DEFAULT_FROM_EMAIL` in `workflows/src/email/service.rs`; key in
+`secrets.SENDGRID_API_KEY`).
 
 ## Publish vs. roll out
 

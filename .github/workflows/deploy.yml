@@ -4,10 +4,11 @@ name: deploy
 # "CI/CD — three workflows, no more"). Triggered by the `YY.MM.DD` tag that
 # the cron flow (`release-tag.yml`) cuts nightly. In strict order:
 #
-#   1. integration — build both images, stand up KIND, run the full e2e +
-#      interop + browser/accessibility suite against the live cluster.
-#   2. publish     — only if integration is green, push both images to
-#      ghcr.io tagged with the release date + `latest`.
+#   1. integration — build both service images, stand up KIND, run the full
+#      e2e + interop + browser/accessibility suite against the live cluster.
+#   2. publish     — only if integration is green, push all images (the two
+#      service images + the five CronJob trigger images) to ghcr.io tagged
+#      with the release date + `latest`.
 #   3. notify      — email a deploy report to nick@neonlaw.com via SendGrid
 #      (from support@neonlaw.com — `workflows::DEFAULT_FROM_EMAIL`).
 #
@@ -235,10 +236,15 @@ jobs:
               kubectl --namespace navigator logs --all-containers "$pod" --tail=200 || true
           done
 
-  # ---------- Stage 2: publish both images to ghcr.io ----------
-  # Only runs if integration is green. Re-builds with the gha cache the
-  # integration job just populated, so this is a near-no-op push, not a
-  # second cold build. Tagged with the release date + `latest`.
+  # ---------- Stage 2: publish every image to ghcr.io ----------
+  # Only runs if integration is green. Publishes the two service images
+  # (navigator-web, navigator-workflows-service) plus the five CronJob
+  # trigger images — all to ghcr.io tagged with the release date + `latest`,
+  # so prod pulls every image from one registry fed by CI (no hand-built
+  # AR side-channel). The two service images re-build against the gha cache
+  # the integration job just populated, so those are near-no-op pushes; the
+  # trigger images (one shared images/Dockerfile.trigger, parameterized by
+  # CRATE/BIN) cold-build here since integration doesn't build them.
   publish:
     name: publish ${{ matrix.image }} to ghcr.io
     needs: integration
@@ -249,8 +255,37 @@ jobs:
         include:
           - image: navigator-web
             dockerfile: images/Dockerfile.web
+            build-args: ""
           - image: navigator-workflows-service
             dockerfile: images/Dockerfile.workflows-service
+            build-args: ""
+          # Trigger images: shared Dockerfile.trigger, one per CronJob,
+          # selected by CRATE (workspace crate) + BIN (its trigger binary).
+          - image: navigator-heartbeat-trigger
+            dockerfile: images/Dockerfile.trigger
+            build-args: |
+              CRATE=workflows-service
+              BIN=heartbeat-trigger
+          - image: navigator-archives-trigger
+            dockerfile: images/Dockerfile.trigger
+            build-args: |
+              CRATE=archives
+              BIN=trigger
+          - image: navigator-statutes-trigger
+            dockerfile: images/Dockerfile.trigger
+            build-args: |
+              CRATE=statutes
+              BIN=trigger
+          - image: navigator-reconcile-invoices-trigger
+            dockerfile: images/Dockerfile.trigger
+            build-args: |
+              CRATE=billing-workflows
+              BIN=reconcile-trigger
+          - image: navigator-billing-digest-trigger
+            dockerfile: images/Dockerfile.trigger
+            build-args: |
+              CRATE=billing-workflows
+              BIN=billing-digest-trigger
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -276,6 +311,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
+          build-args: ${{ matrix.build-args }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -302,7 +338,7 @@ jobs:
               echo "::error::SENDGRID_API_KEY is unset — cannot send the deploy report"
               exit 1
           fi
-          BODY="Navigator ${TAG} shipped: KIND integration passed and both images (navigator-web, navigator-workflows-service) were pushed to ghcr.io tagged ${TAG} and latest.
+          BODY="Navigator ${TAG} shipped: KIND integration passed and all images (navigator-web, navigator-workflows-service, and the five navigator-*-trigger images) were pushed to ghcr.io tagged ${TAG} and latest.
 
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n \
