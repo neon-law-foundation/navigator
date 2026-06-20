@@ -231,6 +231,38 @@ impl GcpClient {
         })
     }
 
+    /// Issue a PATCH with a JSON body. In `DryRun`, logs+records the
+    /// serialized body and returns a 200 with `{}`. Used to reconcile
+    /// resources that already exist (e.g. an Artifact Registry repo's
+    /// cleanup policies) where `create` returns 409 and never updates.
+    pub async fn patch_json(
+        &self,
+        service: GcpService,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<HttpResponse, ClientError> {
+        let url = self.url(service, path);
+        if self.mode == Mode::DryRun {
+            let serialized =
+                serde_json::to_string(body).unwrap_or_else(|_| "<unserializable>".into());
+            return Ok(self.record_and_synthesize("PATCH", &url, Some(serialized)));
+        }
+        let token = self.token.token().await?;
+        let resp = self
+            .http
+            .patch(&url)
+            .bearer_auth(token)
+            .json(body)
+            .send()
+            .await?;
+        let status = resp.status().as_u16();
+        let resp_body = resp.bytes().await?.to_vec();
+        Ok(HttpResponse {
+            status,
+            body: resp_body,
+        })
+    }
+
     fn record_and_synthesize(
         &self,
         method: &'static str,
