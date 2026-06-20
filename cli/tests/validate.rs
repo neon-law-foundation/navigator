@@ -5,7 +5,7 @@
 //! will see — not just the library it wraps.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use assert_cmd::Command;
 use predicates::str;
@@ -112,6 +112,57 @@ fn validate_skips_readme_and_claude_files() {
         .assert()
         .success()
         .stdout(str::contains("Scanned 1 file(s)"));
+}
+
+/// The repository root, derived from this crate's manifest dir
+/// (`CARGO_MANIFEST_DIR` points at `cli/`; the workspace is one up).
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .canonicalize()
+        .expect("workspace root exists")
+}
+
+/// CI guard: every shipped example notation under `templates/` must pass
+/// the *classified* (default-mode) validator with zero violations.
+///
+/// Files under `templates/` are always classified as notation templates,
+/// so this runs the full N-family (N101–N108) plus the markdown rules
+/// against each one. It is the enforcement the prompt asks for — running
+/// inside `cargo test --workspace`, it fails CI the moment a template (or
+/// a newly added one) drifts out of conformance. Keep the example
+/// notations conforming; do not loosen this test to make a bad template
+/// pass.
+#[test]
+fn every_template_notation_passes_classified_validation() {
+    let templates = workspace_root().join("templates");
+    assert!(
+        templates.is_dir(),
+        "templates/ directory must exist at {}",
+        templates.display(),
+    );
+    navigator()
+        .arg("validate")
+        .arg(&templates)
+        .assert()
+        .success()
+        .stdout(str::contains("found 0 violation(s)"));
+}
+
+/// Companion guard: the same notations must also pass under
+/// `--markdown-only`, which forces the markdown rules (M-family + S101 +
+/// S102) onto every file regardless of classification. This catches
+/// prose-level regressions (long lines, hard tabs, trailing whitespace)
+/// that the notation-only path would not surface.
+#[test]
+fn every_template_notation_passes_markdown_only_validation() {
+    let templates = workspace_root().join("templates");
+    navigator()
+        .args(["validate", "--markdown-only"])
+        .arg(&templates)
+        .assert()
+        .success()
+        .stdout(str::contains("found 0 violation(s)"));
 }
 
 #[test]
