@@ -29,7 +29,8 @@ use devx::{DnsCmd, GcpCmd, RestateCmd};
 #[command(
     name = "navigator",
     version,
-    about = "Navigator CLI — notation validator/importer + live-site matter driver"
+    about = "Navigator CLI — notation validator/importer + live-site matter driver",
+    long_about = "Navigator CLI — notation validator/importer + live-site matter driver\n\nNothing here is legal advice. Navigator validates and moves legal notation, but an attorney remains responsible for legal advice and judgment."
 )]
 struct Cli {
     #[command(subcommand)]

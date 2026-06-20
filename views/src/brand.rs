@@ -125,7 +125,7 @@ impl NavLink {
 }
 
 const FIRM_NAV: &[NavLink] = &[
-    NavLink::leaf("Home", "/"),
+    NavLink::leaf("The Foundation", "/foundation"),
     // One flat "Services" link — no dropdown. `/services` is the DB-backed
     // catalog: every product and its list price on one page, the price a
     // prospect sees being the same row Xero invoices. Each card links out
@@ -134,6 +134,7 @@ const FIRM_NAV: &[NavLink] = &[
 ];
 
 const FOUNDATION_NAV: &[NavLink] = &[
+    NavLink::leaf("The Firm", "/"),
     NavLink::leaf("Mission", "/foundation/mission"),
     // The Foundation publishes one thing — the open-source Navigator — and
     // teaches lawyers to wield it. So the whole nav is just those two verbs:
@@ -395,17 +396,19 @@ mod tests {
     }
 
     #[test]
-    fn firm_top_nav_holds_three_visible_items_for_mobile() {
+    fn firm_top_nav_starts_with_foundation_cross_link() {
         let labels: Vec<&str> = FIRM_BRAND.nav.iter().map(|n| n.label).collect();
-        assert_eq!(labels, ["Home", "Services"]);
+        assert_eq!(labels, ["The Foundation", "Services"]);
+        assert_eq!(FIRM_BRAND.nav[0].href, "/foundation");
     }
 
     #[test]
-    fn foundation_top_nav_is_three_flat_leaves() {
+    fn foundation_top_nav_is_four_flat_leaves() {
         let labels: Vec<&str> = FOUNDATION_BRAND.nav.iter().map(|n| n.label).collect();
-        // The Foundation nav collapsed from "Mission + Learn dropdown" to
-        // three flat leaves: the software, the training, and the why.
-        assert_eq!(labels, ["Mission", "Navigator", "Workshops"]);
+        // The Foundation nav starts with the firm cross-link, then the
+        // software, training, and why surfaces.
+        assert_eq!(labels, ["The Firm", "Mission", "Navigator", "Workshops"]);
+        assert_eq!(FOUNDATION_BRAND.nav[0].href, "/");
         assert!(
             FOUNDATION_BRAND.nav.iter().all(|n| !n.is_dropdown()),
             "the Foundation nav no longer carries any dropdown"
