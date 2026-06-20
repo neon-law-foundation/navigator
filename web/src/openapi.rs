@@ -287,7 +287,7 @@ pub fn document_with_base(base: &str) -> Value {
             },
             "example": {
               "contents":
-                "---\ntitle: Trust\nrespondent_type: entity\nconfidential: false\n\
+                "---\ntitle: Trust\ncode: trust\nrespondent_type: entity\nconfidential: false\n\
                  questionnaire:\n  BEGIN:\n    next: END\n  END: {}\n\
                  workflow:\n  BEGIN:\n    next: staff_review\n  \
                  staff_review:\n    next: END\n  END: {}\n---\n\nBody.\n",
