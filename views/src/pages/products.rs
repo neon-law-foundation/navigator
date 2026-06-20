@@ -13,6 +13,7 @@
 use maud::{html, Markup};
 
 use crate::brand::FIRM_BRAND;
+use crate::components::Card;
 use crate::{i18n, AuthState, Locale, PageLayout};
 
 /// One product's display fields, borrowed from the `web` crate's owned
@@ -81,10 +82,12 @@ pub fn index_in(
                                 p."display-6"."fw-bold"."mb-1" {
                                     (card.price)
                                     @if !card.cadence_suffix.is_empty() {
-                                        span."fs-6"."fw-normal"."text-muted" { (card.cadence_suffix) }
+                                        span."fs-6"."fw-normal"."text-body-secondary" {
+                                            (card.cadence_suffix)
+                                        }
                                     }
                                 }
-                                p."card-text"."text-muted" { (card.description) }
+                                p."card-text"."text-body-secondary" { (card.description) }
                             }
                             div."card-footer"."bg-transparent" {
                                 a."btn"."btn-outline-primary"."btn-sm" href=(card.learn_href) {
@@ -95,9 +98,12 @@ pub fn index_in(
                     }
                 }
             }
-            section."mt-5"."p-4"."bg-light".rounded {
-                p."mb-3" { (i18n::t(locale, "products.cta_blurb")) }
-                a."btn"."btn-primary" href="/contact" { (contact_label) }
+            section."mt-5" {
+                (Card::new(html! {
+                    p."mb-3" { (i18n::t(locale, "products.cta_blurb")) }
+                    a."btn"."btn-primary" href="/contact" { (contact_label) }
+                })
+                .render())
             }
         }
     };
@@ -155,6 +161,19 @@ mod tests {
         assert!(
             html.contains("<i class=\"bi bi-shield-fill-check me-2\" aria-hidden=\"true\"></i>"),
             "icon card should render its glyph, got: {html}"
+        );
+    }
+
+    #[test]
+    fn index_cta_uses_shared_card_surface_not_light_panel() {
+        let html = index(&cards(), AuthState::Anonymous).into_string();
+        assert!(
+            html.contains("Ready to begin? Tell us what you need"),
+            "got: {html}"
+        );
+        assert!(
+            !html.contains("bg-light"),
+            "CTA should inherit dark-mode card tokens instead of forcing bg-light: {html}"
         );
     }
 
