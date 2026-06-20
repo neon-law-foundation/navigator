@@ -168,9 +168,7 @@ mod tests {
     fn index_cta_uses_shared_card_surface_not_light_panel() {
         let html = index(&cards(), AuthState::Anonymous).into_string();
         assert!(
-            html.contains(
-                "This is the Neon Law services website. Contact us if you need help with a legal matter."
-            ),
+            html.contains("Ready to begin? Tell us what you need"),
             "got: {html}"
         );
         assert!(
@@ -191,10 +189,6 @@ mod tests {
         // Spanish heading from the catalog, and the contact CTA points at
         // the `/es` contact page.
         assert!(html.contains("Servicios"), "got: {html}");
-        assert!(
-            html.contains("Este es el sitio web de servicios de Neon Law."),
-            "got: {html}"
-        );
         // The contact CTA is English-only — same `/contact` in both
         // locales — but the button label localizes.
         assert!(html.contains("href=\"/contact\""), "got: {html}");

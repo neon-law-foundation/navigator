@@ -73,7 +73,7 @@ async fn template_detail_has_frontmatter_disclaimer_and_start_a_matter_cta() {
     // The UPL disclaimer partial.
     assert!(body.contains("does not create an attorney"));
     // A download must not be a dead end.
-    assert!(body.contains("Contact us"));
+    assert!(body.contains("Start a matter"));
     assert!(body.contains("href=\"/contact\""));
     // And the raw-download link.
     assert!(body.contains("/templates/nonprofit/form990_annual_report/download"));

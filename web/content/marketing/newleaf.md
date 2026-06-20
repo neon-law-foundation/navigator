@@ -14,8 +14,8 @@ pricing:
       - "A licensed attorney prepares and files the dissolution documents"
       - "We represent both of you jointly, with a written conflict waiver"
       - "One flat fee — court filing fees excluded, passed through at cost"
-    cta_label: "Contact us"
-    cta_href: "/contact"
+    cta_label: "Book a Consultation"
+    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
     featured_label: "$555 once"
 ---

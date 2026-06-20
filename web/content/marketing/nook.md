@@ -16,8 +16,8 @@ pricing:
       - "We coordinate the closing and the settlement of funds, and record the deed with the county"
       - "We can represent you as the buyer, you as the seller, or — with both of you consenting in writing — both sides"
       - "One flat legal fee, paid once at closing — no percentage of the sale price"
-    cta_label: "Contact us"
-    cta_href: "/contact"
+    cta_label: "Book a Consultation"
+    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
     featured_label: "$9,999 at closing"
 ---

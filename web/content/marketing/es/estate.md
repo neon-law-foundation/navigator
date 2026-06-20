@@ -14,8 +14,8 @@ pricing:
       - "Un testamento, un fideicomiso y directivas de salud y financieras"
       - "Cada documento revisado por un abogado con licencia"
       - "Usted lee y comenta cada uno en línea antes de firmar"
-    cta_label: "Contáctenos"
-    cta_href: "/contact"
+    cta_label: "Reserve una consulta"
+    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
     featured_label: "$3,333, pago único"
 ---

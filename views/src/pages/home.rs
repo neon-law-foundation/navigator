@@ -47,10 +47,6 @@ pub fn render_in(auth: AuthState, locale: Locale) -> Markup {
             p."lead"."mb-5" {
                 "An American law firm offering flat-fee legal services with a licensed attorney in the loop."
             }
-            p."fw-semibold"."mb-3" {
-                "This is the website for Neon Law. You can contact us about legal services."
-            }
-            a."btn"."btn-primary"."btn-lg"."mb-5" href="/contact" { "Contact us" }
             h1."display-5"."mb-3" { (FOUNDATION_BRAND.site_name) }
             p."lead"."mb-0" {
                 "An American non-profit pursuing access to justice through open-source tools and legal-aid education."
@@ -62,9 +58,8 @@ pub fn render_in(auth: AuthState, locale: Locale) -> Markup {
     PageLayout::new(&title)
         .with_description(
             "Neon Law is an American law firm offering flat-fee legal services with a licensed \
-             attorney in the loop. This is the website for Neon Law; contact us about legal \
-             services. The Neon Law Foundation pursues access to justice through open-source \
-             tools and legal-aid education.",
+             attorney in the loop; the Neon Law Foundation pursues access to justice through \
+             open-source tools and legal-aid education.",
         )
         .with_auth(auth)
         .with_locale(locale)
@@ -104,10 +99,6 @@ mod tests {
         assert!(html.contains(
             "An American law firm offering flat-fee legal services with a licensed attorney in the loop."
         ));
-        assert!(html.contains(
-            "This is the website for Neon Law. You can contact us about legal services."
-        ));
-        assert!(html.contains("href=\"/contact\""));
         assert!(html.contains(
             "An American non-profit pursuing access to justice through open-source tools and legal-aid education."
         ));

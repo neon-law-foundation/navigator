@@ -15,8 +15,8 @@ pricing:
       - "Un informe pericial escrito y testimonio por declaración o en juicio"
       - "Una opinión independiente — los honorarios son por el trabajo, nunca por la conclusión ni el resultado"
       - "Como perito que declara o que asesora; un procedimiento separado requiere un acuerdo por separado"
-    cta_label: "Contáctenos"
-    cta_href: "/contact"
+    cta_label: "Reserve una consulta"
+    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
     featured_label: "$1,337/hora"
 ---

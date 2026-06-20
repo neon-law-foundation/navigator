@@ -15,8 +15,8 @@ pricing:
       - "Enviamos cartas de validación de deuda, de disputa y de cese de contacto amparadas en sus derechos"
       - "Un abogado con licencia revisa y firma cada carta que enviamos"
       - "Una tarifa fija — nunca nos quedamos con un porcentaje de su deuda"
-    cta_label: "Contáctenos"
-    cta_href: "/contact"
+    cta_label: "Reserve una consulta"
+    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
     featured_label: "$66/mes"
 ---

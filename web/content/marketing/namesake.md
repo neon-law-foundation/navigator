@@ -14,8 +14,8 @@ pricing:
       - "Routine prosecution to registration is included"
       - "The USPTO filing fee for the class is passed through at cost"
       - "Each additional class is a separate flat fee"
-    cta_label: "Contact us"
-    cta_href: "/contact"
+    cta_label: "Book a Consultation"
+    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
     featured_label: "$777 once"
 ---

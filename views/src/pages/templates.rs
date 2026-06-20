@@ -7,7 +7,7 @@
 //! notation format itself (the YAML frontmatter is rendered verbatim),
 //! and download the raw `.md` to take with them. Every page carries the
 //! shared [`legal_blueprint_disclaimer`] UPL guardrail and ends with a
-//! contact call to action so a download is never a dead end.
+//! "start a matter" call to action so a download is never a dead end.
 //!
 //! Firm-branded — this is a firm document-services surface that routes a
 //! serious prospect into an opened matter. The `web` crate owns the
@@ -61,7 +61,7 @@ pub struct TemplateDetail<'a> {
     pub frontmatter: &'a str,
     /// `/templates/:category/:name/download` — the raw `.md` route.
     pub download_href: &'a str,
-    /// Where the contact call to action routes a serious prospect.
+    /// Where "start a matter" routes a serious prospect.
     pub start_matter_href: &'a str,
 }
 
@@ -158,10 +158,10 @@ pub fn detail(detail: &TemplateDetail<'_>, auth: AuthState) -> Markup {
                     p."mb-3" {
                         "A template is a blueprint. To have a licensed attorney "
                         "prepare, review, and sign a document for your situation, "
-                        "contact the firm."
+                        "start a matter with the firm."
                     }
                     a."btn"."btn-outline-primary" href=(detail.start_matter_href) {
-                        "Contact us"
+                        "Start a matter"
                     }
                 })
                 .render())
@@ -217,8 +217,7 @@ mod tests {
         // The raw download.
         assert!(html.contains("/templates/nonprofit/form990_annual_report/download"));
         // The not-a-dead-end CTA.
-        assert!(html.contains("contact the firm."));
-        assert!(html.contains("Contact us"));
+        assert!(html.contains("Start a matter"));
         assert!(html.contains("href=\"/contact\""));
         assert!(
             !html.contains("bg-light"),

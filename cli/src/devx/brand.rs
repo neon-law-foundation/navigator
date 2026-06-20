@@ -73,6 +73,7 @@ struct Brand {
     foundation_address: Option<String>,
     base_url: Option<String>,
     primary_domain: Option<String>,
+    consultation_url: Option<String>,
     terms_url: Option<String>,
     privacy_url: Option<String>,
     github_url: Option<String>,
@@ -129,6 +130,7 @@ fn env_block(m: &Manifest) -> String {
     push("NAVIGATOR_FOUNDATION_ADDRESS", &b.foundation_address);
     push("NAV_BASE_URL", &b.base_url);
     push("NAVIGATOR_PRIMARY_DOMAIN", &b.primary_domain);
+    push("NAVIGATOR_CONSULTATION_URL", &b.consultation_url);
     push("NAVIGATOR_TERMS_URL", &b.terms_url);
     push("NAVIGATOR_PRIVACY_URL", &b.privacy_url);
     // github_url is intentionally emitted even when empty: an empty value

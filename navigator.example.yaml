@@ -36,6 +36,9 @@ brand:
   base_url: "https://app.acme.example"
   primary_domain: "acme.example"
 
+  # Where the firm's "Book a consultation" CTA points.
+  consultation_url: "https://calendar.acme.example/book"
+
   # Off-site legal pages. In portal-only mode the in-app /terms and
   # /privacy routes are unmounted, so set these to your own hosted pages.
   # Leave empty to keep linking at the bundled in-app pages (NeonLaw's).

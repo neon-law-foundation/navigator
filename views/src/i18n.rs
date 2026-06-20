@@ -4,7 +4,7 @@
 //! Two kinds of user-visible text get two mechanisms (see
 //! [`docs/i18n.md`](../../../docs/i18n.md)):
 //!
-//! - **Chrome** — auth links, the language switcher,
+//! - **Chrome** — navbar, auth links, the language switcher,
 //!   CTAs — is short, repeated, and engineer-owned. It lives in the YAML
 //!   catalogs under `views/locales/{en,es}.yml`, baked into the binary
 //!   with `include_str!` and looked up here with [`t`] / [`t_args`].
@@ -164,7 +164,7 @@ pub fn t_args(locale: Locale, key: &str, args: &[(&str, &str)]) -> String {
     out
 }
 
-/// Translate a navigation label. Known chrome labels route through the
+/// Translate a navbar label. Known chrome labels route through the
 /// catalog; product proper nouns (Nexus, Northstar, Navigator, …) and
 /// any unrecognized label pass through verbatim. In `En` the catalog
 /// value equals the input, so English output is unchanged.
@@ -190,7 +190,7 @@ pub fn nav_label(label: &str, locale: Locale) -> String {
 ///
 /// This list MUST match the `/es/...` routes mounted in
 /// `web::build_router` one-for-one: an entry with no mounted route sends
-/// localized links to a 404. The
+/// the Spanish navbar to a 404. The
 /// `every_es_enabled_path_resolves_in_spanish` integration test in
 /// `web/tests/routes.rs` enforces the agreement.
 pub const ES_ENABLED_PATHS: &[&str] = &[

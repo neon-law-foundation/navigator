@@ -80,7 +80,7 @@ pub fn render(content: &FoundationContent<'_>, auth: AuthState) -> Markup {
     let mailto = format!("mailto:{email}");
     let body = html! {
         // Hero — the "why" before anything scrolls. A Bootstrap
-        // `bg-body-tertiary` band so it tracks the page surface and
+        // `bg-body-tertiary` band so it tracks the navbar tone and
         // stays dark-mode-safe via `data-bs-theme="auto"`.
         section."p-4"."p-md-5"."mb-4"."rounded-3"."bg-body-tertiary" {
             p."text-uppercase"."fw-semibold"."text-body-secondary"."small"."mb-2" {

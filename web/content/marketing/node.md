@@ -15,8 +15,8 @@ pricing:
       - "We do not independently investigate or cross-reference — the attestation rests on your records"
       - "Recorded on Solana: our wallet, your wallet, and a hash of the signed attestation"
       - "One flat fee per attestation — network fees passed through at cost"
-    cta_label: "Contact us"
-    cta_href: "/contact"
+    cta_label: "Book a Consultation"
+    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
     featured_label: "$44 each"
 ---

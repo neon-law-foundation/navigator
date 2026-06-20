@@ -27,13 +27,13 @@ footer:
   legal_in_english: "El texto legal vinculante de este sitio se proporciona en inglés."
 cta:
   email: "Escríbenos a %{email}"
-  contact_us: "Contáctenos"
+  consultation: "Reserve una consulta"
 products:
   heading: Servicios
   lead: Nuestros servicios legales
   learn_more: Más información
-  contact: Contáctenos
-  cta_blurb: "Este es el sitio web de servicios de Neon Law. Contáctenos si necesita ayuda con un asunto legal."
+  contact: Inicie un asunto
+  cta_blurb: "¿Listo para empezar? Cuéntenos qué necesita y un abogado con licencia se comunicará con usted."
   billed_monthly: Facturación mensual
   billed_yearly: Facturación anual
   billed_hourly: Facturación por hora

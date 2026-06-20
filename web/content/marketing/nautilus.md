@@ -15,8 +15,8 @@ pricing:
       - "We send debt-validation, dispute, and cease-contact letters under your rights"
       - "A licensed attorney reviews and signs every letter we send"
       - "One flat fee — we never take a percentage of your debt"
-    cta_label: "Contact us"
-    cta_href: "/contact"
+    cta_label: "Book a Consultation"
+    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
     featured_label: "$66/month"
 ---

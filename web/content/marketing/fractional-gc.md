@@ -16,8 +16,8 @@ pricing:
       - "A two-business-day response on everything you send us"
       - "An attorney admitted in California, Nevada, and Washington in the loop on every matter"
       - "Operators who also read your cloud accounts, deployments, and security posture"
-    cta_label: "Contact us"
-    cta_href: "/contact"
+    cta_label: "Book a Consultation"
+    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
     featured_label: "$2,222 a month, all in"
 ---

@@ -165,6 +165,24 @@ pub fn firm_email() -> &'static str {
     *FIRM_EMAIL
 }
 
+/// Firm consultation booking URL — the calendar where a prospective
+/// client books a flat-fee consultation. This is the link behind every
+/// firm "Book a Consultation" CTA (the home + service-page footers, the
+/// service hero fallback, the firm contact card). Defaults to NeonLaw's
+/// real Google Calendar appointment page; override via
+/// `NAVIGATOR_CONSULTATION_URL` so an OSS fork points at its own
+/// scheduler without forking source. Resolved once per process.
+#[must_use]
+pub fn consultation_url() -> &'static str {
+    static URL: LazyLock<&'static str> = LazyLock::new(|| {
+        env_or_static(
+            "NAVIGATOR_CONSULTATION_URL",
+            "https://calendar.app.google/GueqKHiAuqXEwkRG8",
+        )
+    });
+    *URL
+}
+
 /// Where the footer's "Terms" link points. Defaults to the in-app
 /// `/terms` page (NeonLaw's bundled terms of use). A white-label deploy
 /// — a firm whose own marketing site already hosts its terms — sets

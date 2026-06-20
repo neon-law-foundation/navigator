@@ -41,14 +41,15 @@ footer:
 cta:
   # %{email} is the contact address; the button text on marketing pages.
   email: "Email %{email}"
-  contact_us: "Contact us"
+  # Primary firm CTA: books a flat-fee consultation on the firm calendar.
+  consultation: "Book a Consultation"
 products:
   # The DB-backed `/services` catalog page: every product and its price.
   heading: Services
   lead: Our legal services
   learn_more: Learn more
-  contact: Contact us
-  cta_blurb: "This is the Neon Law services website. Contact us if you need help with a legal matter."
+  contact: Start a matter
+  cta_blurb: "Ready to begin? Tell us what you need and a licensed attorney will be in touch."
   billed_monthly: Billed monthly
   billed_yearly: Billed yearly
   billed_hourly: Billed hourly

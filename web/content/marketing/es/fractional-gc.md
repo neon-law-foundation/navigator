@@ -17,8 +17,8 @@ pricing:
       - "Una respuesta en dos días hábiles a todo lo que nos envíe"
       - "Un abogado admitido en California, Nevada y Washington en el proceso de cada asunto"
       - "Operadores que también leen sus cuentas en la nube, sus despliegues y su postura de seguridad"
-    cta_label: "Contáctenos"
-    cta_href: "/contact"
+    cta_label: "Reserve una consulta"
+    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
     featured_label: "$2,222 al mes, todo incluido"
 ---
