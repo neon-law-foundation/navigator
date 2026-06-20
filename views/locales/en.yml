@@ -29,7 +29,7 @@ switcher:
   # name (its endonym), supplied by `Locale::endonym`.
   aria: View this page in Spanish
 footer:
-  github_star: Star Navigator on GitHub
+  github_star: Star The Neon Law Navigator
   # Shown ONLY on localized (non-English) pages, heading the footer's
   # legal strip — bar admissions and the legal-advice disclaimer stay
   # English by policy, because the binding artifact a client signs is

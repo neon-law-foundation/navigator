@@ -220,6 +220,10 @@ impl<'a> PageLayout<'a> {
                     // square grid crop never hides anyone. Inert unless a
                     // `.blog-collage` is present on the page.
                     script defer src="/public/js/collage-lightbox.js" {}
+                    // First-party: fills the footer GitHub CTA's star
+                    // count from the same-origin `/github-stars`
+                    // endpoint. Inert when the CTA is absent.
+                    script defer src="/public/js/github-stars.js" {}
                 }
                 body {
                     header {
@@ -888,9 +892,10 @@ mod tests {
         );
         assert!(footer.contains("bi-star-fill"), "{footer}");
         assert!(
-            footer.contains(">Star Navigator on GitHub</span>"),
+            footer.contains(">Star The Neon Law Navigator</span>"),
             "{footer}"
         );
+        assert!(footer.contains("data-github-star-count"), "{footer}");
         assert!(footer.contains("rel=\"noopener noreferrer\""), "{footer}");
     }
 
@@ -905,7 +910,7 @@ mod tests {
             .render(&html! { p { "x" } })
             .into_string();
         assert!(
-            out.contains(">Destacar Navigator en GitHub</span>"),
+            out.contains(">Destacar The Neon Law Navigator</span>"),
             "Spanish footer should localize the GitHub CTA: {out}"
         );
     }
