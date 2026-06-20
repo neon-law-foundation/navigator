@@ -51,14 +51,11 @@ pub struct SiteBrand {
     /// from [`logo_href`].
     pub social_image: &'static str,
     pub nav: &'static [NavLink],
-    /// When true, the layout renders the "not accepting clients" banner
-    /// above the header. Foundation pages (the 501(c)(3) doesn't
-    /// practice law) leave this false. The legal-advice disclaimer is no
-    /// longer gated here — the unified footer always shows the firm's via
-    /// [`firm_disclaimer`].
+    /// When true, the layout renders firm-only portal links. Foundation
+    /// pages (the 501(c)(3) doesn't practice law) leave this false. The
+    /// legal-advice disclaimer is no longer gated here — the unified footer
+    /// always shows the firm's via [`firm_disclaimer`].
     pub is_law_firm: bool,
-    /// Banner above the header on firm-branded pages.
-    pub firm_not_accepting_clients: &'static str,
     /// USPTO record URL for the brand wordmark when it is a registered
     /// trademark. When `Some`, the footer renders a linked `®` after the
     /// brand name. `None` for the Foundation (the registered mark is the
@@ -267,7 +264,6 @@ pub static FIRM_BRAND: LazyLock<SiteBrand> = LazyLock::new(|| {
     // fork overrides the firm name, its name is not our trademark, so the
     // footer drops the linked `®`.
     let firm_name_overridden = matches!(env::var("NAVIGATOR_BRAND_FIRM"), Ok(v) if !v.is_empty());
-    let banner = Box::leak(format!("{name} is currently not accepting clients.").into_boxed_str());
     SiteBrand {
         site_name: name,
         tagline: "A small firm built for access to justice.",
@@ -279,7 +275,6 @@ pub static FIRM_BRAND: LazyLock<SiteBrand> = LazyLock::new(|| {
         social_image: "/public/logo-firm.png",
         nav: FIRM_NAV,
         is_law_firm: true,
-        firm_not_accepting_clients: banner,
         trademark_registration_url: if firm_name_overridden {
             None
         } else {
@@ -303,7 +298,6 @@ pub static FOUNDATION_BRAND: LazyLock<SiteBrand> = LazyLock::new(|| {
         social_image: "/public/logo-foundation.png",
         nav: FOUNDATION_NAV,
         is_law_firm: false,
-        firm_not_accepting_clients: "",
         trademark_registration_url: None,
     }
 });
@@ -366,16 +360,6 @@ mod tests {
         assert!(disclaimer.contains("Nothing on this site is legal advice"));
         assert!(disclaimer.contains("signed retainer"));
         assert!(disclaimer.contains("past results do not guarantee a similar result"));
-    }
-
-    #[test]
-    fn firm_not_accepting_clients_banner_states_the_firm_is_closed() {
-        assert!(FIRM_BRAND
-            .firm_not_accepting_clients
-            .contains(FIRM_BRAND.site_name));
-        assert!(FIRM_BRAND
-            .firm_not_accepting_clients
-            .contains("not accepting clients"));
     }
 
     #[test]

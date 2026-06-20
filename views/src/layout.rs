@@ -57,8 +57,8 @@ impl<'a> PageLayout<'a> {
 
     /// Render the page in `locale`. Defaults to [`Locale::En`], whose
     /// output is byte-identical to the pre-i18n layout. Setting `Es`
-    /// switches the `<html lang>`, the navbar labels and hrefs, the auth
-    /// links, and the "not accepting clients" banner to Spanish chrome.
+    /// switches the `<html lang>`, the navbar labels and hrefs, and the
+    /// auth links to Spanish chrome.
     #[must_use]
     pub fn with_locale(mut self, locale: Locale) -> Self {
         self.locale = locale;
@@ -222,28 +222,6 @@ impl<'a> PageLayout<'a> {
                     script defer src="/public/js/collage-lightbox.js" {}
                 }
                 body {
-                    @if self.brand.is_law_firm {
-                        // Bootstrap alert chrome (warning tone) + a
-                        // brand-specific `firm-not-accepting` class
-                        // kept for any custom overrides. `rounded-0`
-                        // + `mb-0` so it hugs the top of the page.
-                        div."alert"."alert-warning"."rounded-0"."mb-0"."text-center"
-                            .firm-not-accepting
-                            role="status"
-                            aria-live="polite"
-                        {
-                            // In English this resolves byte-identically to
-                            // `brand.firm_not_accepting_clients`; in Spanish
-                            // it draws from the chrome catalog.
-                            strong {
-                                (i18n::t_args(
-                                    self.locale,
-                                    "banner.not_accepting",
-                                    &[("firm", self.brand.site_name)],
-                                ))
-                            }
-                        }
-                    }
                     header {
                         nav.navbar.navbar-expand-lg."bg-body-tertiary" {
                             div.container-fluid {
@@ -510,10 +488,9 @@ mod tests {
             out.contains("href=\"/es/services\""),
             "Spanish nav should prefix the Services href with /es: {out}"
         );
-        // The banner is translated via the catalog.
         assert!(
-            out.contains("no está aceptando clientes"),
-            "Spanish banner should be translated: {out}"
+            !out.contains("no está aceptando clientes"),
+            "Spanish page should not render the closed-to-clients banner: {out}"
         );
     }
 
@@ -697,17 +674,11 @@ mod tests {
     }
 
     #[test]
-    fn firm_not_accepting_banner_uses_bootstrap_alert_chrome() {
+    fn firm_brand_does_not_render_not_accepting_clients_banner() {
         let out = render("Home", &html! { p { "x" } });
         assert!(
-            out.contains("alert alert-warning"),
-            "firm banner should adopt Bootstrap alert chrome (warning tone), got: {out}",
-        );
-        // Brand-specific class kept for any future custom override.
-        assert!(out.contains("firm-not-accepting"));
-        assert!(
-            out.contains("rounded-0") && out.contains("mb-0"),
-            "alert should hug the top: no rounded corners, no bottom margin, got: {out}",
+            !out.contains("not accepting clients"),
+            "firm pages must not carry the firm-closed banner: {out}"
         );
     }
 
@@ -1239,23 +1210,6 @@ mod tests {
             );
             assert!(out.contains("signed retainer"), "{name} footer: {out}");
         }
-    }
-
-    #[test]
-    fn firm_brand_renders_not_accepting_clients_banner_above_header() {
-        let out = render("Home", &html! { p { "x" } });
-        let banner_idx = out
-            .find(FIRM_BRAND.firm_not_accepting_clients)
-            .expect("expected firm banner copy");
-        let header_idx = out.find("<header>").expect("expected header element");
-        assert!(
-            banner_idx < header_idx,
-            "banner must render above the header, got: {out}"
-        );
-        assert!(
-            out.contains("role=\"status\""),
-            "banner should be a status region for assistive tech: {out}"
-        );
     }
 
     #[test]
