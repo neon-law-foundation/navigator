@@ -15,8 +15,17 @@
 # ingress port. The default is empty (deny all); without this
 # block, `navigator-web` cannot reach the broker.
 #
-# Pin `compute.image` to a tag in production (e.g. `restate:1.5`).
-# `latest` is fine in KIND.
+# Pin `compute.image` to an explicit tag — never `latest`. This
+# overlay is applied by BOTH local `deploy` and CI's `deploy.yml`,
+# and the server tag must stay aligned with the operator chart and
+# restate CLI pinned in `cli/src/devx/mod.rs`
+# (`RESTATE_OPERATOR_VERSION` / `RESTATE_CLI_VERSION`). Keep all
+# three on the same release: server 1.7.0 ⇄ operator 2.6.1 ⇄ CLI
+# 1.7.0. The 2.6.x operator is the generation built for the 1.7
+# server line; the older 2.5.1 operator could not provision a 1.7.0
+# node (its gRPC `ProvisionCluster` call to `restate-0…:5122` failed
+# with a `transport error`, leaving the node stuck `0/1` "awaiting
+# provisioning"). `:latest` last drifted onto 1.7.0 on 2026-06-18.
 apiVersion: restate.dev/v1
 kind: RestateCluster
 metadata:
@@ -26,7 +35,7 @@ spec:
   cluster:
     autoProvision: true
   compute:
-    image: docker.restate.dev/restatedev/restate:latest
+    image: docker.restate.dev/restatedev/restate:1.7.0
   security:
     networkPeers:
       ingress:

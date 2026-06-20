@@ -20,38 +20,38 @@
 
 [[asset]]
 name = "Bootstrap CSS"
-version = "5.3.3"
-upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+version = "5.3.8"
+upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
 served_path = "css/bootstrap.min.css"
-sha256 = "14f77ebf4136f47eda9deb231897ade7d5560fb8f8505a9199ba6e4403c8304e"
+sha256 = "d85327d99c7a3ee1f9b5d0500d1370acea3ad2db39c163c2f51f232baedbdede"
 
 [[asset]]
 name = "Bootstrap JS bundle"
-version = "5.3.3"
-upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+version = "5.3.8"
+upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
 served_path = "js/bootstrap.bundle.min.js"
-sha256 = "bba5a5f286507a889bb62ef2293c64c6899d344ba6a96b841dc2819f36d65076"
+sha256 = "e4fd49181388c48ec5040bd3fe66f57c29c8e67fcd8502b3354b96ec7ab47cc7"
 
 [[asset]]
 name = "HTMX"
-version = "2.0.4"
-upstream_url = "https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"
+version = "2.0.10"
+upstream_url = "https://unpkg.com/htmx.org@2.0.10/dist/htmx.min.js"
 served_path = "js/htmx.min.js"
-sha256 = "c1236cab76f00610b1bc85a777ed3eb8fdd4efc44072cfa2428aa68ddcd460f1"
+sha256 = "71ea67185bfa8c98c39d31717c6fce5d852370fcdfd129db4543774d3145c0de"
 
 [[asset]]
 name = "Alpine.js"
-version = "3.14.3"
-upstream_url = "https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"
+version = "3.15.12"
+upstream_url = "https://unpkg.com/alpinejs@3.15.12/dist/cdn.min.js"
 served_path = "js/alpine.min.js"
-sha256 = "2160350e57ace86e2d8e28e91dcef20e3174451e33dc37d0dd96beaedae38b7d"
+sha256 = "57b37d7cae9a27d965fdae4adcc844245dfdc407e655aee85dcfff3a08036a3f"
 
 [[asset]]
 name = "Bootstrap Icons CSS"
-version = "1.11.3"
-upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+version = "1.13.1"
+upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.css"
 served_path = "icons/bootstrap-icons.css"
-sha256 = "e24c95dab07541d06d5fbf7c3de358dae73d1b61f971efefbc4501791c613ce5"
+sha256 = "787d1145b6e2187f4e5c1cf9716a9eae7dd9aecf9681dbb45362eaa7e7dc8163"
 modified = true
 note = """
 The @font-face `src` URLs are rewritten to our local `./fonts/` paths, so the \
@@ -60,10 +60,10 @@ after downloading, then record the new local sha256."""
 
 [[asset]]
 name = "Bootstrap Icons webfont"
-version = "1.11.3"
-upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/fonts/bootstrap-icons.woff2"
+version = "1.13.1"
+upstream_url = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/fonts/bootstrap-icons.woff2"
 served_path = "icons/fonts/bootstrap-icons.woff2"
-sha256 = "476adf42b40325098fcfa8b36ab3e769186bb4f6ce6a249753e2e1a9c22bf99e"
+sha256 = "6c75710364a1ca5604267716f6d28997b26319fdb078cf11e0b42ab66ff2ea61"
 
 # Noto Serif — the firm typeface (The Noto Project, OFL-1.1). Self-hosted from
 # the Fontsource @fontsource/noto-serif package; the bytes are the upstream

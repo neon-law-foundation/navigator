@@ -41,8 +41,13 @@ const DEFAULT_NAMESPACE: &str = "navigator";
 const INGRESS_MANIFEST: &str = "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/kind/deploy.yaml";
 
 // Restate Operator — same chart drives KIND and GKE. Release notes:
-// https://github.com/restatedev/restate-operator/releases.
-const RESTATE_OPERATOR_VERSION: &str = "2.5.1";
+// https://github.com/restatedev/restate-operator/releases. Keep this
+// aligned with the server image in `k8s/overlays/kind/deps/restate.yaml`
+// and `RESTATE_CLI_VERSION` below: 2.6.x is the operator generation
+// built for the 1.7 server line. The older 2.5.1 operator could not
+// provision a 1.7.0 node (its `ProvisionCluster` gRPC call failed with
+// a `transport error`, wedging the node at `0/1` "awaiting provisioning").
+const RESTATE_OPERATOR_VERSION: &str = "2.6.1";
 
 // Restate CLI — pinned so operator-laptop and CI-runner versions
 // don't drift. The CLI talks to Restate Cloud's admin API; a
@@ -50,7 +55,9 @@ const RESTATE_OPERATOR_VERSION: &str = "2.5.1";
 // editing this constant and the matching `RESTATE_CLI_VERSION`
 // env in `.github/workflows/deploy.yml`. 1.6.x renamed
 // `deployment` to `deployments` and `--env` to `--environment`.
-const RESTATE_CLI_VERSION: &str = "1.6.2";
+// Tracks the server line (see `RESTATE_OPERATOR_VERSION` above and
+// the server image in `restate.yaml`) — keep all three on 1.7.x.
+const RESTATE_CLI_VERSION: &str = "1.7.0";
 
 // Last-resort public HTTPS endpoint Restate Cloud uses to reach the
 // `workflows-service` worker. Backed by the ingress + managed cert
