@@ -103,7 +103,7 @@ jobs:
         run: |
           helm upgrade --install restate-operator \
               oci://ghcr.io/restatedev/restate-operator-helm \
-              --version 2.5.1 \
+              --version 2.6.1 \
               --namespace restate-operator --create-namespace
           kubectl --namespace restate-operator wait \
               --for=condition=available --timeout=180s deployment --all
