@@ -49,6 +49,12 @@ jobs:
           large-packages: false
           docker-images: false
           swap-storage: false
+      # free-disk-space deletes /opt/hostedtoolcache (tool-cache: true), but the
+      # runner is unprivileged and /opt is root-owned, so helm/kind-action below
+      # can't recreate it to install kubectl/kind — it dies with only "Cache
+      # directory '/opt/hostedtoolcache' does not exist". Recreate it, runner-owned.
+      - name: restore tool-cache dir
+        run: sudo mkdir -p /opt/hostedtoolcache && sudo chown "$USER":"$USER" /opt/hostedtoolcache
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
 
