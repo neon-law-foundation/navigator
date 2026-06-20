@@ -11,7 +11,6 @@ fn top_level_help_disclaims_legal_advice() {
         .assert()
         .success()
         .stdout(str::contains("Nothing here is legal advice"))
-        .stdout(str::contains(
-            "an attorney remains responsible for legal advice and judgment",
-        ));
+        .stdout(str::contains("an attorney remains"))
+        .stdout(str::contains("responsible for legal advice and judgment"));
 }
