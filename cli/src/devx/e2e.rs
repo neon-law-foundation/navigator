@@ -32,7 +32,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
 
-use super::{require_tools, run, use_kind_context, wait_rollout, KindConfig};
+use super::{require_tools, run, use_kind_context, wait_for_condition, wait_rollout, KindConfig};
 
 /// Local host port the OPA port-forward binds for the policy probe.
 /// Distinct from the standard 8181 a `devx up` may already forward, so
@@ -251,9 +251,25 @@ fn wait_for_restate(cfg: &KindConfig) -> Result<()> {
             bail!("workflows-service not registered with Restate Cloud tenant");
         }
     } else {
-        wait_rollout("statefulset", "restate", cfg)?;
+        // The Operator places the cluster in its own `restate` namespace
+        // (not cfg.namespace) and names the StatefulSet from the CR spec,
+        // not literally "restate" — so wait on the RestateCluster CR's
+        // `Ready` condition, the same contract `deploy`'s
+        // wait_for_dep_rollouts uses.
+        let (ns, resource, condition) = restate_ready_target();
+        wait_for_condition(ns, resource, condition)?;
     }
     wait_rollout("deployment", "workflows-service", cfg)
+}
+
+/// The (namespace, resource, condition) the in-cluster Restate readiness
+/// wait targets. The Restate Operator reconciles the `RestateCluster` CR
+/// into a `StatefulSet` in a namespace named after the cluster (`restate`),
+/// *not* in `cfg.namespace` and *not* under a guessable `StatefulSet` name —
+/// so the readiness gate is the CR's own `Ready` condition. Pulled out so
+/// the namespace/resource choice is unit-testable (see tests below).
+fn restate_ready_target() -> (&'static str, &'static str, &'static str) {
+    ("restate", "restatecluster/restate", "Ready")
 }
 
 /// Hit `/health` through the KIND ingress and require HTTP 200.
@@ -503,5 +519,23 @@ mod tests {
         assert!(sql.contains("'staff'"));
         assert!(sql.contains("ON CONFLICT (email)"));
         assert!(sql.contains("staff@neonlaw.com"));
+    }
+
+    #[test]
+    fn restate_readiness_waits_in_the_operator_namespace() {
+        // Regression guard for the smoke-check failure where wait_for_restate
+        // queried `statefulset/restate` in cfg.namespace (`navigator`) — the
+        // Operator places it in the `restate` namespace, so the wait must
+        // target that namespace and the RestateCluster CR, not a StatefulSet.
+        let (ns, resource, condition) = restate_ready_target();
+        assert_eq!(
+            ns, "restate",
+            "Restate Operator reconciles the cluster into its own `restate` namespace, not cfg.namespace"
+        );
+        assert!(
+            resource.starts_with("restatecluster/"),
+            "wait on the RestateCluster CR's Ready condition, not a guessed StatefulSet name: {resource}"
+        );
+        assert_eq!(condition, "Ready");
     }
 }
