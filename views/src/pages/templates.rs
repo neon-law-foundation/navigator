@@ -17,7 +17,7 @@
 use maud::{html, Markup};
 
 use crate::brand::FIRM_BRAND;
-use crate::components::legal_blueprint_disclaimer;
+use crate::components::{legal_blueprint_disclaimer, Card};
 use crate::{AuthState, PageLayout};
 
 /// One template's display fields, borrowed from the `web` crate's owned
@@ -152,16 +152,19 @@ pub fn detail(detail: &TemplateDetail<'_>, auth: AuthState) -> Markup {
                     "Download " (card.name) ".md"
                 }
             }
-            section."mt-5"."p-4"."bg-light".rounded {
-                h2."h5" { "Want a lawyer to stand behind it?" }
-                p."mb-3" {
-                    "A template is a blueprint. To have a licensed attorney "
-                    "prepare, review, and sign a document for your situation, "
-                    "start a matter with the firm."
-                }
-                a."btn"."btn-outline-primary" href=(detail.start_matter_href) {
-                    "Start a matter"
-                }
+            section."mt-5" {
+                (Card::new(html! {
+                    h2."h5" { "Want a lawyer to stand behind it?" }
+                    p."mb-3" {
+                        "A template is a blueprint. To have a licensed attorney "
+                        "prepare, review, and sign a document for your situation, "
+                        "start a matter with the firm."
+                    }
+                    a."btn"."btn-outline-primary" href=(detail.start_matter_href) {
+                        "Start a matter"
+                    }
+                })
+                .render())
             }
         }
     };
@@ -216,5 +219,9 @@ mod tests {
         // The not-a-dead-end CTA.
         assert!(html.contains("Start a matter"));
         assert!(html.contains("href=\"/contact\""));
+        assert!(
+            !html.contains("bg-light"),
+            "CTA should inherit dark-mode card tokens instead of forcing bg-light: {html}"
+        );
     }
 }
