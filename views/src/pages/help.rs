@@ -59,12 +59,6 @@ pub fn render(groups: &BTreeMap<String, Vec<PartnerEntry<'_>>>, auth: AuthState)
                     (small_email) " and the foundation will update it."
                 }
             }
-            p {
-                small {
-                    "Nothing here is legal advice. These listings are a public resource, "
-                    "not a substitute for speaking with an attorney about your situation."
-                }
-            }
 
             @if groups.is_empty() {
                 (empty_state())
@@ -205,13 +199,6 @@ mod tests {
         // like the firm IS the help.
         assert!(html.contains("We do not practice"));
         assert!(html.contains("immigration"));
-    }
-
-    #[test]
-    fn page_disclaims_legal_advice_in_the_help_copy() {
-        let html = render(&empty_groups(), crate::AuthState::Anonymous).into_string();
-        assert!(html.contains("Nothing here is legal advice"));
-        assert!(html.contains("not a substitute for speaking with an attorney"));
     }
 
     #[test]
