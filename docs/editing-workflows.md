@@ -44,7 +44,7 @@ The `questionnaire:` block is a linear state machine of question codes walked on
    `_` chain intact (`BEGIN: { _: first }`, … `last: { _: END }`).
 2. The prefix of every questionnaire state must be a **seeded question code**. Reuse an existing code from
    [`store/seeds/Question.yaml`](../store/seeds/Question.yaml) when one fits — the walker renders the prompt from that
-   row, and rule `F104` validates the code exists. If you need a new code, add a record to `Question.yaml` (and a row to
+   row, and rule `N104` validates the code exists. If you need a new code, add a record to `Question.yaml` (and a row to
    `QuestionTranslation.yaml` for every non-English locale, so the questionnaire still reads in the client's language —
    see [`i18n.md`](i18n.md)).
 3. Reference the answer in the body as `{{question_code}}`; it is substituted at render time.
@@ -83,7 +83,7 @@ The `workflow:` block is a state machine whose state-name **prefix** selects the
 Rules to hold when editing:
 
 - **Add the prefix to `step_kind_for` first** if it is genuinely new, or `workflow_integrity` fails with "unrouted".
-- **`staff_review` gates every government submission** (`F106` + `workflows::staff_review_precedes_submission`): no
+- **`staff_review` gates every government submission** (`N106` + `workflows::staff_review_precedes_submission`): no
   `filing__*` / `mailroom_send` / `e_filing__*` state may be reachable without first crossing a bare `staff_review`.
 - **`END` must stay reachable** from `BEGIN`, and every branch target must be a declared state.
 

@@ -210,7 +210,7 @@ async fn assert_letter_end(world: &mut NautilusWorld) {
 #[then("the letter was sent to the collector only after attorney review")]
 async fn assert_gated_send(world: &mut NautilusWorld) {
     // Structural guarantee: no submission state is reachable without first
-    // crossing `staff_review` (the F106 gate the firm relies on).
+    // crossing `staff_review` (the N106 gate the firm relies on).
     let spec = workflow_spec_from_yaml(
         bundled_spec_yaml("nautilus__debt_validation").expect("bundled spec"),
     )

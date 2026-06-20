@@ -15,7 +15,7 @@
 //! reachable without first crossing `staff_review`
 //! ([`crate::staff_review_precedes_submission`]). So a `filings` row
 //! means a licensed attorney approved the specific submission: nothing
-//! is mailed or filed with a government office unreviewed (F106).
+//! is mailed or filed with a government office unreviewed (N106).
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

@@ -27,7 +27,7 @@ One worker pod hosts **every** service — new workflows bind onto the same endp
 serves one virtual object — `notation` (questionnaire + workflow timelines on one journal) — and the durable workflows
 `Archives`, `Statutes`, `Heartbeat`, `BillingCanary`, `MatterCloseInvoice`, `RecurringBilling`, and `ReconcileInvoices`.
 The exact set is the single source of truth in `workflows_service::registry`, whose tests assert every workflow name is
-PascalCase (template filenames follow the separate snake_case convention `F103` enforces) and that the registry never
+PascalCase (template filenames follow the separate snake_case convention `N103` enforces) and that the registry never
 drifts from the worker's actual `.bind(...)` calls. In the reference deploy the worker runs behind
 `workflows.your-domain.example` (Restate worker + Envoy sidecar).
 

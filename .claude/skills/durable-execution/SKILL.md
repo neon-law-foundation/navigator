@@ -118,7 +118,7 @@ them is what silently broke prod. Never paste either into the repo.
   `every_workspace_member_is_copied_into_each_workspace_image` in the `cli` crate (`cli::devx`).
 - **Registered workflow names are PascalCase** and the registry matches `main.rs`'s `.bind(...)` calls — guarded by the
   `workflows_service::registry` tests (shares `rules::is_pascal_case`; template filenames are the separate snake_case
-  convention `F103` enforces).
+  convention `N103` enforces).
 - **Trigger CronJobs carry `activeDeadlineSeconds` + `startingDeadlineSeconds`** so Forbid can't wedge them.
 - **`start_workflow` has a 30s HTTP timeout** so a hung ingress can't keep a trigger pod alive.
 - **Debugging stays identifier-and-status only — never client content** (the standing no-content rule; see the

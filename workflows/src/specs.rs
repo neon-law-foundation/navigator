@@ -33,7 +33,7 @@ pub const RETAINER_INTAKE_SPEC_YAML: &str = include_str!("../specs/onboarding__r
 
 /// Welcome-email workflow spec. Lives outside [`BUNDLED_SPEC_YAML`]
 /// because the welcome flow is a notification, not a legal-document
-/// notation — the F-family lint rules (staff_review required, state
+/// notation — the N-family lint rules (staff_review required, state
 /// names map to question codes) assume the latter and don't apply.
 /// The worker reads this constant directly when handling the
 /// `onboarding__welcome` notation.

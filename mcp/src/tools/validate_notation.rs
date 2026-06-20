@@ -18,7 +18,7 @@ use serde_json::{json, Value};
 use super::ToolError;
 
 /// Default pretend filename used when the caller does not pass one.
-/// `snake_case` so the default does not itself trip the `F103`
+/// `snake_case` so the default does not itself trip the `N103`
 /// filename rule.
 const DEFAULT_PATH: &str = "notation.md";
 
@@ -31,9 +31,9 @@ pub fn descriptor() -> Value {
              list of violations. Does NOT persist anything — safe to \
              call repeatedly while drafting. Pass `contents` (the raw \
              markdown, including any YAML frontmatter), optionally a \
-             `path` (used by filename-aware rules like F103 and to \
+             `path` (used by filename-aware rules like N103 and to \
              label the response), and `markdown_only: true` to skip \
-             the F-family frontmatter rules (use this for plain \
+             the N-family notation-template rules (use this for plain \
              prose). Returns `clean: true` with an empty `violations` \
              array when the file passes, or `clean: false` with one \
              entry per violation (`code`, `line`, `message`).",
@@ -50,7 +50,7 @@ pub fn descriptor() -> Value {
                     "type": "string",
                     "description":
                         "Optional pretend filename so rules that key \
-                         off the path (`F103` snake_case) and the \
+                         off the path (`N103` snake_case) and the \
                          response have something meaningful to report. \
                          Defaults to `notation.md`."
                 },
@@ -58,7 +58,7 @@ pub fn descriptor() -> Value {
                     "type": "boolean",
                     "description":
                         "When true, lint with the Markdown-only rule \
-                         set (drops the F-family, adds `S102` line \
+                         set (drops the N-family, adds `S102` line \
                          packing) — same as \
                          `cli validate --markdown-only`. Defaults to \
                          false: the full Navigator-notation rule set \
@@ -178,11 +178,12 @@ mod tests {
 
     #[tokio::test]
     async fn clean_notation_returns_clean_true_and_no_violations() {
-        // Minimal notation that satisfies every F-rule — copied from
+        // Minimal notation that satisfies every N-rule — copied from
         // the REST integration test so the two surfaces stay aligned.
         let contents = "---\n\
 title: Trust\n\
 respondent_type: entity\n\
+code: trusts__nevada\n\
 confidential: false\n\
 questionnaire:\n  \
   BEGIN:\n    \
@@ -221,14 +222,14 @@ Body.\n";
             .iter()
             .map(|v| v["code"].as_str().unwrap())
             .collect();
-        assert!(codes.contains(&"F101"), "expected F101, got {codes:?}");
-        assert!(codes.contains(&"F102"), "expected F102, got {codes:?}");
+        assert!(codes.contains(&"N101"), "expected N101, got {codes:?}");
+        assert!(codes.contains(&"N102"), "expected N102, got {codes:?}");
         assert!(codes.contains(&"S101"), "expected S101, got {codes:?}");
     }
 
     #[tokio::test]
-    async fn markdown_only_drops_the_f_family() {
-        // No frontmatter at all — would trip F101 in the default set.
+    async fn markdown_only_drops_the_n_family() {
+        // No frontmatter at all — would trip N101 in the default set.
         let result = call(&json!({
             "contents": "# Heading\n\nBody paragraph.\n",
             "markdown_only": true,
@@ -242,8 +243,8 @@ Body.\n";
             .map(|v| v["code"].as_str().unwrap())
             .collect();
         assert!(
-            codes.iter().all(|c| !c.starts_with('F')),
-            "F-family must not run when markdown_only=true, got {codes:?}"
+            codes.iter().all(|c| !c.starts_with('N')),
+            "N-family must not run when markdown_only=true, got {codes:?}"
         );
     }
 

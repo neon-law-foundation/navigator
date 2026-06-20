@@ -122,7 +122,7 @@ impl Server {
         };
         let path = uri_to_path(uri);
         let (file, violations) = lint_buffer(path, text.clone());
-        let rule_set: Vec<Box<dyn rules::Rule>> = rules::navigator_markdown_only_rules();
+        let rule_set: Vec<Box<dyn rules::Rule>> = rules::navigator_classified_rules(&file);
         let mut actions = Vec::new();
         let mut all_edits: Vec<(rules::TextEdit, &'static str)> = Vec::new();
         for v in &violations {

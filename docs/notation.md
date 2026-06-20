@@ -83,7 +83,7 @@ to. **The Template declares the questionnaire; the Notation asks it.**
 
 > **Status — declared and walked.** The questionnaire state machine
 > is structurally validated by
-> [`rules::F104`](../rules/src/f104.rs) **and** executed step-by-step
+> the [`N104` rule implementation](../rules/src/f104.rs) **and** executed step-by-step
 > by [`web::retainer_walk`](../web/src/retainer_walk.rs): one
 > question per request, one [Answer](#answer) per advance, one
 > [Notation Event](glossary.md#notation-event) per transition. The walker
@@ -134,7 +134,7 @@ a no-op.
 A validation check applied to markdown notations by the [`rules`](../rules/) crate. Three families:
 
 - **M-family** — generic Markdown hygiene (headings, list spacing, code-fence languages, link targets).
-- **F-family** — Navigator notation frontmatter shape (required keys, question-code resolution, template/workflow
+- **N-family** — Navigator notation template shape (required keys, question-code resolution, template/workflow
   well-formedness).
 - **S101** — the 120-character line-length limit. Applies to every `.md` file in the workspace.
 

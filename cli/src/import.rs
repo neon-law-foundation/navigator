@@ -15,7 +15,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use rules::{navigator_default_rules, DefaultFileFilter, FileFilter, Rule, Violation};
+use rules::{navigator_default_rules, DefaultFileFilter, FileFilter, Violation};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
@@ -26,26 +26,10 @@ use walkdir::WalkDir;
 /// Load every known question code from the `questions` table and
 /// return them as a strict registry suitable for passing to
 /// `F104FlowQuestionCodes::new`. Used by `navigator validate` after a
-/// directory has been imported so F104 can flag unknown codes.
+/// directory has been imported so N104 can flag unknown codes.
 pub async fn load_question_codes(db: &DatabaseConnection) -> anyhow::Result<Vec<String>> {
     let rows = question::Entity::find().all(db).await?;
     Ok(rows.into_iter().map(|q| q.code).collect())
-}
-
-/// Build a rule set identical to the default but with `F104` swapped
-/// for an instance constructed against `valid_codes`. Used by the
-/// `validate` subcommand so question-code validation actually fires.
-#[must_use]
-pub fn rules_with_codes(valid_codes: &[String]) -> Vec<Box<dyn Rule>> {
-    let mut rules = navigator_default_rules();
-    for rule in &mut rules {
-        if rule.code() == "F104" {
-            *rule = Box::new(rules::F104FlowQuestionCodes::new(
-                valid_codes.iter().cloned(),
-            ));
-        }
-    }
-    rules
 }
 
 /// Outcome of a single import run: how many templates and questions
@@ -71,7 +55,7 @@ struct TemplateFrontmatter {
 }
 
 /// Walk `dir`, validate every `*.md` (with the default Navigator rule
-/// set minus F104 question-code validation since we're populating the
+/// set minus N104 question-code validation since we're populating the
 /// registry as we go), and insert one `templates` row + one `questions`
 /// row per referenced question code. Files with any rule violation
 /// are skipped — they're recorded in [`ImportReport::violations`] for
@@ -165,7 +149,7 @@ async fn persist_template(
     // may carry a `__label` suffix; the question code is the prefix.
     // `BEGIN` and `END` are control states and never registered;
     // `staff_review` is a workflow state but we register it so a later
-    // `F104` pass keyed on the populated `questions` table doesn't
+    // `N104` pass keyed on the populated `questions` table doesn't
     // flag it as unknown.
     let mut codes: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     for map in [&fm.questionnaire, &fm.workflow].into_iter().flatten() {
