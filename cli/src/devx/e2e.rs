@@ -259,8 +259,17 @@ fn wait_for_restate(cfg: &KindConfig) -> Result<()> {
         let (ns, resource, condition) = restate_ready_target();
         wait_for_condition(ns, resource, condition)?;
     }
-    wait_rollout("deployment", "workflows-service", cfg)
+    // workflows-service is a RestateDeployment CR (Operator-managed), not a
+    // plain Deployment — `deployment/workflows-service` returns NotFound. It
+    // lives in cfg.namespace (unlike the cluster). Wait on the CR's `Ready`
+    // condition, the same contract `deploy`'s wait_for_dep_rollouts uses.
+    wait_for_condition(&cfg.namespace, WORKFLOWS_SERVICE_READY_RESOURCE, "Ready")
 }
+
+/// The Operator-managed resource whose `Ready` condition gates
+/// workflows-service readiness. It is a `RestateDeployment` CR, not a plain
+/// `Deployment` — querying `deployment/workflows-service` returns `NotFound`.
+const WORKFLOWS_SERVICE_READY_RESOURCE: &str = "restatedeployment/workflows-service";
 
 /// The (namespace, resource, condition) the in-cluster Restate readiness
 /// wait targets. The Restate Operator reconciles the `RestateCluster` CR
@@ -537,5 +546,16 @@ mod tests {
             "wait on the RestateCluster CR's Ready condition, not a guessed StatefulSet name: {resource}"
         );
         assert_eq!(condition, "Ready");
+    }
+
+    #[test]
+    fn workflows_service_readiness_targets_the_restatedeployment_cr() {
+        // Regression guard: workflows-service is an Operator-managed
+        // RestateDeployment CR, not a plain Deployment — querying
+        // `deployment/workflows-service` returns NotFound.
+        assert!(
+            WORKFLOWS_SERVICE_READY_RESOURCE.starts_with("restatedeployment/"),
+            "wait on the RestateDeployment CR, not a plain Deployment: {WORKFLOWS_SERVICE_READY_RESOURCE}"
+        );
     }
 }
