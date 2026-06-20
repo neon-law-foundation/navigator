@@ -47,6 +47,7 @@ pub mod expunge_route;
 pub mod git_http;
 pub mod git_lfs;
 pub mod git_meta;
+mod github_stars;
 pub mod google_oauth;
 pub mod gov_forms;
 pub mod idp_admin;
@@ -636,6 +637,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
         .route("/health", get(health))
         .route("/readyz", get(readyz))
         .route("/version", get(version))
+        .route("/github-stars", get(github_stars::handler))
         .route(
             "/webhook/sendgrid/inbound/:secret",
             axum::routing::post(inbound_email::webhook),
