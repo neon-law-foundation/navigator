@@ -27,7 +27,7 @@ pub fn legal_blueprint_disclaimer() -> Markup {
                 "written for a specific jurisdiction — check the "
                 "jurisdiction label before you rely on it. To have a "
                 "licensed attorney prepare and stand behind a document, "
-                "start a matter with the firm."
+                "contact the firm."
             }
         }
     }

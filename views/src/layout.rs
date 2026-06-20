@@ -2,24 +2,21 @@
 //!
 //! `PageLayout::new(title).render(body)` produces a full document:
 //! doctype, the head (charset, viewport, color-scheme, favicon,
-//! title), a Bootstrap navbar (brand mark + nav with dropdowns),
-//! the body slot wrapped in `<main class="container py-4">`, and a
-//! `<footer class="container py-4 border-top mt-4">`.
+//! title), the body slot wrapped in `<main class="container py-4">`,
+//! and a `<footer class="container py-4 border-top mt-4">`.
 
 use maud::{html, Markup, DOCTYPE};
 
 use crate::brand::{
-    firm_disclaimer, foundation_github_url, privacy_url, terms_url, NavLink, SiteBrand, FIRM_BRAND,
+    firm_disclaimer, foundation_github_url, privacy_url, terms_url, SiteBrand, FIRM_BRAND,
     FOUNDATION_BRAND,
 };
 use crate::components::social::{social_meta, SocialMeta};
 use crate::components::{external_link_with_class, github_star_button, ExternalLink};
 use crate::i18n::{self, Locale};
 
-/// Whether the current request has a valid session. The layout uses
-/// this to render the auth-aware tail of the header nav: an "Admin"
-/// and "Sign out" pair for signed-in visitors, or a "Sign in" link
-/// (pointing at the OIDC start endpoint) for everyone else.
+/// Whether the current request has a valid session. The layout uses this
+/// to keep signed-in portal pages free of public GitHub chrome.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum AuthState {
     #[default]
@@ -57,8 +54,7 @@ impl<'a> PageLayout<'a> {
 
     /// Render the page in `locale`. Defaults to [`Locale::En`], whose
     /// output is byte-identical to the pre-i18n layout. Setting `Es`
-    /// switches the `<html lang>`, the navbar labels and hrefs, and the
-    /// auth links to Spanish chrome.
+    /// switches the `<html lang>` and localized footer chrome.
     #[must_use]
     pub fn with_locale(mut self, locale: Locale) -> Self {
         self.locale = locale;
@@ -67,7 +63,7 @@ impl<'a> PageLayout<'a> {
 
     /// Declare this page's locale-less canonical path (e.g.
     /// `/services/estate`). When set, the layout emits `hreflang`
-    /// alternates for every locale and renders the one-tap navbar
+    /// alternates for every locale and renders the one-tap footer
     /// language switcher. Set this only on pages that actually have a
     /// translated twin, so the switcher never points at a 404.
     #[must_use]
@@ -203,7 +199,7 @@ impl<'a> PageLayout<'a> {
                     }
                     // All three scripts are `defer` so they don't
                     // block the first paint. Bootstrap bundles
-                    // Popper.js for dropdowns; HTMX powers in-page
+                    // Popper.js for Bootstrap components; HTMX powers in-page
                     // partial swaps (admin delete); Alpine handles
                     // small reactivity bits (modals, toggles) in
                     // admin only.
@@ -222,66 +218,6 @@ impl<'a> PageLayout<'a> {
                     script defer src="/public/js/collage-lightbox.js" {}
                 }
                 body {
-                    header {
-                        nav.navbar.navbar-expand-lg."bg-body-tertiary" {
-                            div.container-fluid {
-                                a.navbar-brand."d-flex"."align-items-center"."gap-2"
-                                    href="/"
-                                    aria-label=(format!("{} home", self.brand.site_name))
-                                {
-                                    img src=(self.brand.logo_href)
-                                        alt=(self.brand.site_name)
-                                        height="32"
-                                        width="32";
-                                    strong { (self.brand.site_name) }
-                                }
-                                // Mobile hamburger — toggles the
-                                // .navbar-collapse target via the
-                                // Bootstrap JS bundle. Hidden on >=lg.
-                                button.navbar-toggler
-                                    type="button"
-                                    data-bs-toggle="collapse"
-                                    data-bs-target="#main-nav"
-                                    aria-controls="main-nav"
-                                    aria-expanded="false"
-                                    aria-label="Toggle navigation"
-                                {
-                                    span."navbar-toggler-icon" {}
-                                }
-                                div.collapse."navbar-collapse" id="main-nav" {
-                                    ul.navbar-nav."ms-auto"."mb-2"."mb-lg-0" {
-                                        @for link in self.brand.nav {
-                                            (render_nav_link(link, self.locale))
-                                        }
-                                        @if self.auth == AuthState::Authenticated {
-                                            // The portal is the firm's client
-                                            // surface; the Foundation header
-                                            // (the 501(c)(3), not the firm)
-                                            // never links to it.
-                                            @if self.brand.is_law_firm {
-                                                li.nav-item {
-                                                    a.nav-link href="/portal" {
-                                                        (i18n::t(self.locale, "auth.portal"))
-                                                    }
-                                                }
-                                            }
-                                            li.nav-item {
-                                                a.nav-link href="/auth/logout" {
-                                                    (i18n::t(self.locale, "auth.sign_out"))
-                                                }
-                                            }
-                                        } @else {
-                                            li.nav-item {
-                                                a.nav-link href="/auth/login" {
-                                                    (i18n::t(self.locale, "auth.sign_in"))
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                     main.container."py-4" { (body) }
                     footer.container."py-4"."border-top"."mt-4" {
                         // Public visitors can star the OSS project; signed-in
@@ -386,7 +322,7 @@ impl<'a> PageLayout<'a> {
                             a.link-secondary href="/statutes" { "Statutes" }
                             // One-tap language switcher — only on pages with a
                             // translated twin. Rides the same policy-link row as
-                            // Mission/Privacy/etc. (moved here from the navbar):
+                            // Mission/Privacy/etc.:
                             // visible label is the TARGET language in its own
                             // name; aria-label is in the current language.
                             @if let Some(path) = self.canonical_path {
@@ -406,41 +342,6 @@ impl<'a> PageLayout<'a> {
                             (firm_disclaimer())
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-fn render_nav_link(link: &NavLink, locale: Locale) -> Markup {
-    if link.is_dropdown() {
-        html! {
-            li.nav-item.dropdown {
-                a."nav-link"."dropdown-toggle"
-                    href="#"
-                    role="button"
-                    data-bs-toggle="dropdown"
-                    aria-expanded="false"
-                {
-                    (i18n::nav_label(link.label, locale))
-                }
-                ul.dropdown-menu {
-                    @for child in link.children {
-                        li { a.dropdown-item href=(i18n::localize_href(child.href, locale)) {
-                            @if let Some(icon) = child.icon {
-                                i class={ "bi bi-" (icon) " me-2" } aria-hidden="true" {}
-                            }
-                            (i18n::nav_label(child.label, locale))
-                        } }
-                    }
-                }
-            }
-        }
-    } else {
-        html! {
-            li.nav-item {
-                a.nav-link href=(i18n::localize_href(link.href, locale)) {
-                    (i18n::nav_label(link.label, locale))
                 }
             }
         }
@@ -470,23 +371,9 @@ mod tests {
             out.contains("<html lang=\"es\" data-bs-theme=\"auto\">"),
             "Spanish page must declare lang=es, got: {out}"
         );
-        // Navbar chrome is translated; auth link too.
         assert!(
-            out.contains(">La Fundación</a>"),
-            "nav 'The Foundation' should be 'La Fundación': {out}"
-        );
-        assert!(
-            out.contains(">Servicios</a>"),
-            "nav 'Services' should be 'Servicios'"
-        );
-        assert!(
-            out.contains("href=\"/auth/login\">Iniciar sesión</a>"),
-            "auth 'Sign in' should be 'Iniciar sesión': {out}"
-        );
-        // Internal nav hrefs are /es-prefixed.
-        assert!(
-            out.contains("href=\"/es/services\""),
-            "Spanish nav should prefix the Services href with /es: {out}"
+            !out.contains("<header>") && !out.contains("navbar"),
+            "layout should not render global header/nav chrome: {out}"
         );
         assert!(
             !out.contains("no está aceptando clientes"),
@@ -683,173 +570,11 @@ mod tests {
     }
 
     #[test]
-    fn header_uses_bootstrap_navbar_pattern_with_brand_logo() {
+    fn layout_does_not_render_a_global_header_or_nav() {
         let out = render("Home", &html! { p { "x" } });
         assert!(
-            out.contains("<nav class=\"navbar navbar-expand-lg bg-body-tertiary\">"),
-            "expected Bootstrap navbar shell, got: {out}",
-        );
-        assert!(
-            out.contains("class=\"navbar-brand"),
-            "expected navbar-brand on the logo link, got: {out}",
-        );
-        assert!(out.contains("<img src=\"/public/logo-firm.svg\""));
-        let expected = format!("<strong>{}</strong>", FIRM_BRAND.site_name);
-        assert!(out.contains(&expected), "header missing brand name: {out}");
-    }
-
-    #[test]
-    fn navbar_includes_mobile_hamburger_toggler() {
-        // Below the lg breakpoint Bootstrap collapses navbar-nav into
-        // a button that toggles the .navbar-collapse div.
-        let out = render("Home", &html! { p { "x" } });
-        assert!(
-            out.contains("class=\"navbar-toggler\""),
-            "expected mobile navbar-toggler, got: {out}",
-        );
-        assert!(out.contains("data-bs-target=\"#main-nav\""));
-        assert!(out.contains("id=\"main-nav\""));
-    }
-
-    #[test]
-    fn firm_services_renders_as_a_flat_nav_link() {
-        // The Services dropdown collapsed to a single flat link to the
-        // `/services` catalog — the firm nav no longer opens a dropdown.
-        let out = render("Home", &html! { p { "x" } });
-        assert!(
-            out.contains("class=\"nav-link\" href=\"/services\""),
-            "expected a flat Services nav-link, got: {out}"
-        );
-        assert!(
-            !out.contains("class=\"nav-item dropdown\""),
-            "firm nav should no longer carry a dropdown, got: {out}"
-        );
-    }
-
-    #[test]
-    fn firm_nav_starts_with_foundation_cross_link() {
-        let out = render("Home", &html! { p { "x" } });
-        let nav = out
-            .split_once("<ul class=\"navbar-nav ms-auto mb-2 mb-lg-0\">")
-            .expect("navbar list should render")
-            .1;
-        assert!(
-            nav.starts_with(
-                "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/foundation\">\
-                 The Foundation</a></li>"
-            ),
-            "firm navbar should start with the Foundation cross-link, got: {nav}"
-        );
-        assert!(
-            !nav.contains("href=\"/\">Home</a>"),
-            "firm navbar should not keep the old Home leaf, got: {nav}"
-        );
-    }
-
-    #[test]
-    fn foundation_nav_starts_with_firm_cross_link() {
-        let out = PageLayout::new("Mission")
-            .with_brand(*FOUNDATION_BRAND)
-            .render(&html! { p { "x" } })
-            .into_string();
-        let nav = out
-            .split_once("<ul class=\"navbar-nav ms-auto mb-2 mb-lg-0\">")
-            .expect("navbar list should render")
-            .1;
-        assert!(
-            nav.starts_with(
-                "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/\">The Firm</a></li>"
-            ),
-            "Foundation navbar should start with the firm cross-link, got: {nav}"
-        );
-    }
-
-    #[test]
-    fn anonymous_nav_shows_sign_in_not_admin() {
-        let out = render("Home", &html! { p { "x" } });
-        assert!(
-            out.contains("href=\"/auth/login\">Sign in</a>"),
-            "expected `Sign in` link, got: {out}",
-        );
-        assert!(
-            !out.contains("href=\"/portal\""),
-            "anonymous nav should not link to /portal: {out}",
-        );
-    }
-
-    #[test]
-    fn authenticated_nav_shows_portal_not_sign_in() {
-        let body = html! { p { "x" } };
-        let out = PageLayout::new("Home")
-            .with_auth(super::AuthState::Authenticated)
-            .render(&body)
-            .into_string();
-        assert!(
-            out.contains("href=\"/portal\">Portal</a>"),
-            "expected `Portal` link, got: {out}",
-        );
-        assert!(
-            !out.contains("href=\"/auth/login\""),
-            "authenticated nav should not link to /auth/login: {out}",
-        );
-    }
-
-    #[test]
-    fn authenticated_foundation_nav_omits_portal_link() {
-        // The portal is the firm's client surface. On Foundation-branded
-        // pages (the 501(c)(3), not the firm) the header never links to
-        // /portal, even when the visitor is signed in — sign-out still shows.
-        let body = html! { p { "x" } };
-        let out = PageLayout::new("Home")
-            .with_brand(*FOUNDATION_BRAND)
-            .with_auth(super::AuthState::Authenticated)
-            .render(&body)
-            .into_string();
-        assert!(
-            !out.contains("href=\"/portal\""),
-            "Foundation header should not link to /portal: {out}",
-        );
-        assert!(
-            out.contains("href=\"/auth/logout\">Sign out</a>"),
-            "Foundation header should still offer sign out: {out}",
-        );
-    }
-
-    #[test]
-    fn authenticated_nav_shows_sign_out_link() {
-        let body = html! { p { "x" } };
-        let out = PageLayout::new("Home")
-            .with_auth(super::AuthState::Authenticated)
-            .render(&body)
-            .into_string();
-        assert!(
-            out.contains("href=\"/auth/logout\">Sign out</a>"),
-            "expected `Sign out` link, got: {out}",
-        );
-    }
-
-    #[test]
-    fn nav_links_carry_bootstrap_nav_item_class() {
-        // Every top-level nav <li> wears nav-item; every anchor wears
-        // nav-link. Pico's bare <li><a> wouldn't render correctly
-        // inside .navbar-nav.
-        let out = render("Home", &html! { p { "x" } });
-        assert!(
-            out.contains("class=\"nav-item\""),
-            "expected nav-item class on top-level <li>, got: {out}",
-        );
-        assert!(
-            out.contains("class=\"nav-link\""),
-            "expected nav-link class on anchors, got: {out}",
-        );
-    }
-
-    #[test]
-    fn anonymous_nav_does_not_show_sign_out_link() {
-        let out = render("Home", &html! { p { "x" } });
-        assert!(
-            !out.contains("href=\"/auth/logout\""),
-            "anonymous nav should not link to /auth/logout: {out}",
+            !out.contains("<header>") && !out.contains("navbar") && !out.contains("main-nav"),
+            "layout should not render a global header/nav: {out}",
         );
     }
 
@@ -1360,8 +1085,8 @@ mod tests {
 
     #[test]
     fn bootstrap_bundle_js_is_deferred() {
-        // The bundle includes Popper.js — used by navbar dropdowns,
-        // future modals/tooltips/toasts. `defer` so it doesn't block
+        // The bundle includes Popper.js — used by future
+        // modals/tooltips/toasts. `defer` so it doesn't block
         // first paint.
         let out = render("Home", &html! { p { "x" } });
         assert!(

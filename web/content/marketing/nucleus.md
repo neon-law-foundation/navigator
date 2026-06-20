@@ -13,8 +13,8 @@ pricing:
       - "A licensed attorney forms the fund and its general-partner entity"
       - "Formation and governance documents prepared"
       - "One flat fee, paid once — Nevada filing fees passed through at cost"
-    cta_label: "Book a Consultation"
-    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
+    cta_label: "Contact us"
+    cta_href: "/contact"
     featured: true
     featured_label: "$8,888 once"
 ---

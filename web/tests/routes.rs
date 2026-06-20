@@ -299,11 +299,9 @@ async fn spanish_home_declares_lang_es_and_translates_chrome() {
         body.contains("<html lang=\"es\""),
         "Spanish home must declare lang=es: {body}"
     );
-    // Navbar chrome is translated and hrefs are /es-prefixed.
-    assert!(body.contains(">Servicios</a>"), "nav should be translated");
     assert!(
-        body.contains("href=\"/es/services\""),
-        "Spanish nav hrefs should be /es-prefixed: {body}"
+        !body.contains("navbar") && !body.contains("main-nav"),
+        "Spanish home should not render a global header/nav: {body}"
     );
     // hreflang alternates + the switcher back to English.
     assert!(body.contains("hreflang=\"es\""));
@@ -359,10 +357,9 @@ async fn spanish_service_page_translates_chrome_and_falls_back_to_english_body()
 
 #[tokio::test]
 async fn every_es_enabled_path_resolves_in_spanish() {
-    // The i18n allow-list (which the navbar and `localize_href` use to
-    // /es-prefix hrefs) and the mounted /es routes must agree: every path
-    // the chrome will prefix has to resolve: a path listed as ES-enabled
-    // but never mounted would 404 the Spanish navbar.
+    // The i18n allow-list (which `localize_href` uses to /es-prefix hrefs)
+    // and the mounted /es routes must agree: every path the chrome will
+    // prefix has to resolve.
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -747,9 +744,9 @@ async fn services_estate_uses_marketing_doc_when_present() {
     let body = body_string(resp).await;
     assert!(body.contains("<title>Neon Law | Estate planning</title>"));
     assert!(body.contains("<h2>Drafted</h2>"));
-    // The firm CTA books a consultation on the calendar, not a mailto.
-    assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
-    assert!(body.contains("Book a Consultation"));
+    // The firm CTA points to the contact page.
+    assert!(body.contains("href=\"/contact\""));
+    assert!(body.contains("Contact us"));
 }
 
 #[tokio::test]
@@ -831,9 +828,9 @@ async fn services_litigation_uses_marketing_doc_when_present() {
     let body = body_string(resp).await;
     assert!(body.contains("<title>Neon Law | Litigation</title>"));
     assert!(body.contains("connect you with trial counsel"));
-    // The firm CTA books a consultation on the calendar, not a mailto.
-    assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
-    assert!(body.contains("Book a Consultation"));
+    // The firm CTA points to the contact page.
+    assert!(body.contains("href=\"/contact\""));
+    assert!(body.contains("Contact us"));
 }
 
 #[tokio::test]
@@ -865,9 +862,9 @@ async fn services_nautilus_uses_marketing_doc_when_present() {
     assert!(body.contains("<title>Neon Law | Nautilus</title>"));
     assert!(body.contains("Put a lawyer between you and the collectors"));
     assert!(body.contains("we never take a percentage of your debt"));
-    // The firm CTA books a consultation on the calendar, not a mailto.
-    assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
-    assert!(body.contains("Book a Consultation"));
+    // The firm CTA points to the contact page.
+    assert!(body.contains("href=\"/contact\""));
+    assert!(body.contains("Contact us"));
 }
 
 #[tokio::test]
@@ -888,9 +885,9 @@ async fn services_corporate_falls_back_to_default_when_no_doc() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("<title>Neon Law | Corporate services</title>"));
-    // The firm CTA books a consultation on the calendar, not a mailto.
-    assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
-    assert!(body.contains("Book a Consultation"));
+    // The firm CTA points to the contact page.
+    assert!(body.contains("href=\"/contact\""));
+    assert!(body.contains("Contact us"));
 }
 
 #[tokio::test]
@@ -1934,8 +1931,8 @@ async fn design_page_renders_the_component_gallery() {
         "renders the cyan toast tone"
     );
     assert!(
-        body.contains("id=\"design-navbar-example\""),
-        "renders the navbar example"
+        !body.contains("id=\"design-navbar-example\""),
+        "design page should not render a navbar example"
     );
     // Code snippets + the vendored highlighter that styles them, plus a
     // verbatim line from a grounded snippet (the views design::tests drift

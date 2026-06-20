@@ -169,7 +169,7 @@ mod tests {
         let html = index(&cards(), AuthState::Anonymous).into_string();
         assert!(
             html.contains(
-                "Now accepting new clients. Tell us what you need; a licensed attorney responds."
+                "This is the Neon Law services website. Contact us if you need help with a legal matter."
             ),
             "got: {html}"
         );
@@ -191,7 +191,10 @@ mod tests {
         // Spanish heading from the catalog, and the contact CTA points at
         // the `/es` contact page.
         assert!(html.contains("Servicios"), "got: {html}");
-        assert!(html.contains("Aceptamos clientes nuevos."), "got: {html}");
+        assert!(
+            html.contains("Este es el sitio web de servicios de Neon Law."),
+            "got: {html}"
+        );
         // The contact CTA is English-only — same `/contact` in both
         // locales — but the button label localizes.
         assert!(html.contains("href=\"/contact\""), "got: {html}");

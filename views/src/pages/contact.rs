@@ -16,7 +16,6 @@ use std::sync::LazyLock;
 use maud::{html, Markup};
 
 use crate::brand::{foundation_github_url, SiteBrand, FIRM_BRAND, FOUNDATION_BRAND};
-use crate::components::ExternalLink;
 use crate::{AuthState, PageLayout};
 
 /// Firm contact email. Defaults to NeonLaw's real address; override
@@ -38,10 +37,8 @@ static FOUNDATION_CONTACT_EMAIL: LazyLock<String> = LazyLock::new(|| {
 pub fn render_firm(auth: AuthState) -> Markup {
     let title = format!("Contact {}", FIRM_BRAND.site_name);
     let intro = format!(
-        "{} is accepting new clients. Email us with a short description of the matter — estate \
-         planning, corporate formation, ongoing services. We respond \
-         within one business day with a flat-fee quote and a calendar \
-         link.",
+        "This is the website for {}. Contact us by email with a short description of the matter — \
+         estate planning, corporate formation, ongoing services.",
         FIRM_BRAND.site_name,
     );
     render(
@@ -101,16 +98,13 @@ fn render(
                     dd { a href=(href) { (href) } }
                 }
             }
-            // The firm's primary action is booking a flat-fee
-            // consultation on the calendar the intro promises; the
-            // Foundation card stays email-only. Off-site, so it routes
-            // through `ExternalLink` for the new-tab + OWASP `rel` pair.
+            // The firm's primary action is a direct email contact link;
+            // the Foundation card stays email-only in the details above.
             @if brand.is_law_firm {
-                p."fw-semibold" { (crate::i18n::t(crate::Locale::En, "cta.accepting_clients")) }
                 p {
-                    (ExternalLink::new(crate::brand::consultation_url())
-                        .with_class("btn btn-primary")
-                        .render(html! { (crate::i18n::t(crate::Locale::En, "cta.consultation")) }))
+                    a."btn"."btn-primary" href=(format!("mailto:{email}")) {
+                        (crate::i18n::t(crate::Locale::En, "cta.contact_us"))
+                    }
                 }
             }
         }
@@ -137,14 +131,12 @@ mod tests {
     }
 
     #[test]
-    fn firm_contact_offers_a_consultation_booking_button() {
+    fn firm_contact_offers_a_contact_button() {
         let html = render_firm(crate::AuthState::Anonymous).into_string();
-        assert!(
-            html.contains(&format!("href=\"{}\"", crate::brand::consultation_url())),
-            "firm contact should book a consultation: {html}"
-        );
-        assert!(html.contains("Book a Consultation"), "got: {html}");
-        assert!(html.contains("Now accepting new clients."), "got: {html}");
+        assert!(html.contains("This is the website for"), "got: {html}");
+        assert!(html.contains("Contact us"), "got: {html}");
+        assert!(html.contains(&format!("href=\"mailto:{}\"", &*FIRM_CONTACT_EMAIL)));
+        assert!(!html.contains("accepting new clients"), "got: {html}");
     }
 
     #[test]
@@ -153,11 +145,11 @@ mod tests {
         // email-only.
         let html = render_foundation(crate::AuthState::Anonymous).into_string();
         assert!(
-            !html.contains(crate::brand::consultation_url()),
+            !html.contains("calendar.app.google"),
             "Foundation contact must not link the firm calendar: {html}"
         );
         assert!(
-            !html.contains("Now accepting new clients."),
+            !html.contains("accepting new clients"),
             "Foundation contact must not render firm intake copy: {html}"
         );
     }

@@ -15,8 +15,8 @@ pricing:
       - "A written expert report and testimony by deposition or at trial"
       - "An independent opinion — the fee is for the work, never contingent on the conclusion or the outcome"
       - "Engaged as a testifying or consulting expert; a separate proceeding needs a separate engagement"
-    cta_label: "Book a Consultation"
-    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
+    cta_label: "Contact us"
+    cta_href: "/contact"
     featured: true
     featured_label: "$1,337/hour"
 ---

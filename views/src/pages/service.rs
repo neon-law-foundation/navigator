@@ -5,9 +5,8 @@
 //! Each route hands a `ServiceContent` to [`render`]; the helper wraps the
 //! body in the page's own brand chrome (firm or Foundation, carried on
 //! `ServiceContent::brand`) and tacks on a CTA so the page never ships
-//! without a way to make contact — a "Book a Consultation" link to the
-//! firm calendar on firm pages, a mailto to the Foundation inbox on
-//! Foundation product pages.
+//! without a way to make contact — `/contact` on firm pages, a mailto to
+//! the Foundation inbox on Foundation product pages.
 
 use maud::{html, Markup, PreEscaped};
 
@@ -83,9 +82,8 @@ pub struct ServiceContent<'a> {
     pub brand: SiteBrand,
     /// Contact inbox for the page. On Foundation product pages this is
     /// the mailto target + "Email …" button label for the footer and
-    /// hero-fallback CTAs. On firm pages those CTAs instead book a
-    /// consultation (see [`crate::brand::consultation_url`]), so this is
-    /// unused there.
+    /// hero-fallback CTAs. On firm pages those CTAs route to `/contact`,
+    /// so this is unused there.
     pub cta_email: &'a str,
     /// The product's mark, rendered before the brand title — a Bootstrap
     /// Icon glyph name without the `bi-` prefix (e.g. `"diagram-3-fill"`),
@@ -105,7 +103,7 @@ pub fn render(content: &ServiceContent<'_>, auth: AuthState) -> Markup {
 
 /// Render a service page in `locale`. `canonical_path` (e.g.
 /// `/services/estate`) is the locale-less path; when `Some`, the layout
-/// emits the `hreflang` alternates and the navbar language switcher. The
+/// emits the `hreflang` alternates and the footer language switcher. The
 /// English path with `None` is byte-identical to the pre-i18n page.
 #[must_use]
 pub fn render_in(
@@ -120,17 +118,13 @@ pub fn render_in(
     // brand inbox (firm vs Foundation); owned here so the `&str` lives
     // through the `body` build below.
     let cta_mailto = format!("mailto:{}", content.cta_email);
-    // Firm pages drive every CTA to the consultation calendar; the
+    // Firm pages drive every CTA to the contact page; the
     // Foundation product pages (Nimbus) keep their own inbox. `cta` /
     // `cta_mailto` above remain the Foundation path.
-    let books_consultation = content.brand.is_law_firm;
-    let accepting_clients = i18n::t(locale, "cta.accepting_clients");
-    let consultation_label = i18n::t(locale, "cta.consultation");
-    let (footer_label, footer_href) = if books_consultation {
-        (
-            consultation_label.as_str(),
-            crate::brand::consultation_url(),
-        )
+    let is_firm_page = content.brand.is_law_firm;
+    let contact_label = i18n::t(locale, "cta.contact_us");
+    let (footer_label, footer_href) = if is_firm_page {
+        (contact_label.as_str(), "/contact")
     } else {
         (cta.as_str(), cta_mailto.as_str())
     };
@@ -170,11 +164,13 @@ pub fn render_in(
             }
             // 4. The short outline.
             (PreEscaped(&prose))
-            // 5. The call to action — the firm's booking calendar (a
-            //    mailto inbox on a Foundation product page).
+            // 5. The call to action — the firm's contact page (a mailto
+            //    inbox on a Foundation product page).
             footer."text-center"."mt-4"."mt-lg-5" {
-                @if books_consultation {
-                    p."fw-semibold"."mb-3" { (accepting_clients) }
+                @if is_firm_page {
+                    p."fw-semibold"."mb-3" {
+                        "This is the " (content.brand.site_name) " website. You can contact us here."
+                    }
                 }
                 (cta_button("btn btn-primary btn-lg", footer_label, footer_href))
             }
@@ -343,7 +339,7 @@ mod tests {
     fn the_product_card_sits_above_the_prose_and_the_footer_books_a_consultation() {
         // In the stacked layout the product (pricing) card renders in its
         // own section above the prose outline, and the closing footer CTA
-        // is the firm's booking calendar — a large primary button.
+        // is the firm's contact page — a large primary button.
         let mut content = fixture("Neon Law Nautilus", "<h1>Headline</h1><p>the outline</p>");
         content.hero_image = Some("migrating-birds");
         content.pricing = vec![PricingCard {
@@ -359,11 +355,10 @@ mod tests {
             card_at < outline_at,
             "card must sit above the outline, got: {html}"
         );
-        // The closing CTA is the firm booking calendar as a large button.
+        // The closing CTA is the firm contact page as a large button.
         assert!(
-            html.contains("btn btn-primary btn-lg")
-                && html.contains(crate::brand::consultation_url()),
-            "footer CTA should book the consultation calendar, got: {html}"
+            html.contains("btn btn-primary btn-lg") && html.contains("href=\"/contact\""),
+            "footer CTA should link the contact page, got: {html}"
         );
         let footer_cta_at = html.rfind("btn btn-primary btn-lg").unwrap();
         assert!(
@@ -398,22 +393,17 @@ mod tests {
 
     #[test]
     fn firm_page_cta_books_a_consultation() {
-        // A firm service page with no pricing falls back to the booking
-        // CTA: an external-safe link to the firm consultation calendar,
-        // not a mailto.
+        // A firm service page with no pricing falls back to the contact
+        // CTA, not a mailto.
         let html = render(&fixture("X", "<p>x</p>"), crate::AuthState::Anonymous).into_string();
         assert!(
-            html.contains(&format!("href=\"{}\"", crate::brand::consultation_url())),
-            "firm CTA should link the consultation calendar: {html}"
+            html.contains("href=\"/contact\""),
+            "firm CTA should link the contact page: {html}"
         );
-        assert!(html.contains("Book a Consultation"), "got: {html}");
+        assert!(html.contains("Contact us"), "got: {html}");
         assert!(
-            html.contains("Now accepting new clients."),
-            "firm CTA should explicitly say the firm is accepting clients: {html}"
-        );
-        assert!(
-            html.contains("rel=\"noopener noreferrer\""),
-            "booking link must be external-safe: {html}"
+            html.contains("This is the") && html.contains("website. You can contact us here."),
+            "firm CTA should use simple website/contact language: {html}"
         );
         assert!(
             !html.contains("mailto:support@neonlaw.com"),
@@ -447,8 +437,8 @@ mod tests {
             "Foundation page must not carry the firm Services dropdown, got: {html}"
         );
         assert!(
-            !html.contains("Now accepting new clients."),
-            "Foundation page must not render firm intake copy: {html}"
+            !html.contains("website. You can contact us here."),
+            "Foundation page must not render firm contact-page copy: {html}"
         );
     }
 

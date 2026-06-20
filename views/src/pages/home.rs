@@ -13,7 +13,7 @@
 
 use maud::{html, Markup};
 
-use crate::brand::{consultation_url, FIRM_BRAND, FOUNDATION_BRAND};
+use crate::brand::{FIRM_BRAND, FOUNDATION_BRAND};
 use crate::components::ExternalLink;
 use crate::{i18n, AuthState, Locale, PageLayout};
 
@@ -48,11 +48,9 @@ pub fn render_in(auth: AuthState, locale: Locale) -> Markup {
                 "An American law firm offering flat-fee legal services with a licensed attorney in the loop."
             }
             p."fw-semibold"."mb-3" {
-                "Now accepting new clients for flat-fee matters."
+                "This is the website for Neon Law. You can contact us about legal services."
             }
-            (ExternalLink::new(consultation_url())
-                .with_class("btn btn-primary btn-lg mb-5")
-                .render(html! { "Book a Consultation" }))
+            a."btn"."btn-primary"."btn-lg"."mb-5" href="/contact" { "Contact us" }
             h1."display-5"."mb-3" { (FOUNDATION_BRAND.site_name) }
             p."lead"."mb-0" {
                 "An American non-profit pursuing access to justice through open-source tools and legal-aid education."
@@ -63,9 +61,10 @@ pub fn render_in(auth: AuthState, locale: Locale) -> Markup {
     let title = i18n::nav_label("Home", locale);
     PageLayout::new(&title)
         .with_description(
-            "Neon Law is accepting new clients for flat-fee legal services with a licensed \
-             attorney in the loop; the Neon Law Foundation pursues access to justice through \
-             open-source tools and legal-aid education.",
+            "Neon Law is an American law firm offering flat-fee legal services with a licensed \
+             attorney in the loop. This is the website for Neon Law; contact us about legal \
+             services. The Neon Law Foundation pursues access to justice through open-source \
+             tools and legal-aid education.",
         )
         .with_auth(auth)
         .with_locale(locale)
@@ -105,8 +104,10 @@ mod tests {
         assert!(html.contains(
             "An American law firm offering flat-fee legal services with a licensed attorney in the loop."
         ));
-        assert!(html.contains("Now accepting new clients for flat-fee matters."));
-        assert!(html.contains(crate::brand::consultation_url()));
+        assert!(html.contains(
+            "This is the website for Neon Law. You can contact us about legal services."
+        ));
+        assert!(html.contains("href=\"/contact\""));
         assert!(html.contains(
             "An American non-profit pursuing access to justice through open-source tools and legal-aid education."
         ));

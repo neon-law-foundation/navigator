@@ -6,10 +6,9 @@
 //! place. Every block here is the *real* component the rest of the app
 //! uses — the [`Card`](crate::components::Card) and
 //! [`Toast`](crate::components::Toast) builders, the
-//! [`pricing_section`](crate::components::pricing_section), the
-//! [`FormCard`](crate::components::FormCard), and the navbar baked into
-//! [`PageLayout`](crate::PageLayout) — so the gallery can never drift from
-//! production.
+//! [`pricing_section`](crate::components::pricing_section), and the
+//! [`FormCard`](crate::components::FormCard) — so the gallery can never
+//! drift from production.
 //!
 //! The primary color is the brand cyan (Tailwind cyan-500 `#06b6d4`),
 //! remapped onto Bootstrap's `primary` in `web/public/css/brand.css`; this
@@ -107,7 +106,6 @@ pub fn render(auth: AuthState) -> Markup {
         (cards_section())
         (pricing_cards_section())
         (toasts_section())
-        (navbar_section(auth))
         (forms_section())
         (code_section())
         // Highlight.js (vendored) for the code samples above — the same
@@ -117,8 +115,8 @@ pub fn render(auth: AuthState) -> Markup {
 
     PageLayout::new("Design system")
         .with_description(
-            "Neon Law's design system — the shared Bootstrap cards, toasts, navbar, \
-             and brand cyan palette.",
+            "Neon Law's design system — the shared Bootstrap cards, toasts, and \
+             brand cyan palette.",
         )
         .with_auth(auth)
         .render(&body)
@@ -283,45 +281,6 @@ fn toasts_section() -> Markup {
     )
 }
 
-fn navbar_section(auth: AuthState) -> Markup {
-    // The live navbar sits at the top of this very page (it's baked into
-    // PageLayout). Render a static, self-contained replica here so the
-    // class structure is documented in one place without a second sticky
-    // header. Distinct id so it never collides with the live #main-nav.
-    let _ = auth;
-    group(
-        "Navbar",
-        "The same Bootstrap navbar PageLayout renders site-wide — brand mark, \
-         collapsible links, and a mobile hamburger.",
-        &html! {
-            nav."navbar"."navbar-expand-lg"."bg-body-tertiary"."border"."rounded" {
-                div."container-fluid" {
-                    a."navbar-brand"."d-flex"."align-items-center"."gap-2" href="#design" {
-                        strong { "Neon Law" }
-                    }
-                    button."navbar-toggler" type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#design-navbar-example"
-                        aria-controls="design-navbar-example"
-                        aria-expanded="false"
-                        aria-label="Toggle navigation"
-                    {
-                        span."navbar-toggler-icon" {}
-                    }
-                    div."collapse"."navbar-collapse" id="design-navbar-example" {
-                        ul."navbar-nav"."ms-auto"."mb-2"."mb-lg-0" {
-                            li."nav-item" { a."nav-link"."active" href="#design" { "Home" } }
-                            li."nav-item" { a."nav-link" href="#design" { "Services" } }
-                            li."nav-item" { a."nav-link" href="#design" { "About" } }
-                            li."nav-item" { a."nav-link" href="#design" { "Sign in" } }
-                        }
-                    }
-                }
-            }
-        },
-    )
-}
-
 fn code_section() -> Markup {
     group(
         "Code",
@@ -369,9 +328,6 @@ mod tests {
         assert!(out.contains("text-bg-danger"), "has a danger toast");
         assert!(out.contains("text-bg-primary"), "has a cyan toast");
         assert!(out.contains("toast-body"));
-        // The navbar example.
-        assert!(out.contains("navbar navbar-expand-lg"), "has a navbar");
-        assert!(out.contains("id=\"design-navbar-example\""));
         // Code samples + the vendored highlighter that styles them.
         assert!(out.contains("class=\"language-rust\""), "has code blocks");
         assert!(out.contains("highlight.min.js"), "loads highlight.js");
@@ -411,8 +367,8 @@ mod tests {
     #[test]
     fn gallery_carries_the_shared_chrome() {
         let out = render(AuthState::Anonymous).into_string();
-        // PageLayout wraps it: brand title + the live navbar at the top.
+        // PageLayout wraps it with the shared document chrome.
         assert!(out.contains("<title>Neon Law | Design system</title>"));
-        assert!(out.contains("id=\"main-nav\""));
+        assert!(!out.contains("id=\"main-nav\""));
     }
 }

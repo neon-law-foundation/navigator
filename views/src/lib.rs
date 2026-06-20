@@ -460,11 +460,11 @@ mod tests {
     }
 
     #[test]
-    fn forbidden_page_with_authenticated_shows_portal_link_in_nav() {
+    fn forbidden_page_with_authenticated_keeps_global_header_removed() {
         let out = forbidden_page_with_auth(AuthState::Authenticated).into_string();
         assert!(
-            out.contains("href=\"/portal\">Portal</a>"),
-            "authenticated 403 should still keep the portal link in the nav: {out}",
+            !out.contains("href=\"/portal\">Portal</a>") && !out.contains("navbar"),
+            "authenticated 403 should not render the removed global nav: {out}",
         );
     }
 }

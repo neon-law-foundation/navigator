@@ -15,8 +15,8 @@ pricing:
       - "Un abogado con licencia dirige su asunto desde la carta de reclamación hasta el juicio"
       - "Casos selectos por cuota litis, mediante acuerdo escrito por separado"
       - "¿Fuera de nuestra área, con conflicto o sin capacidad? Le referimos a abogados litigantes de confianza"
-    cta_label: "Reserve una consulta"
-    cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
+    cta_label: "Contáctenos"
+    cta_href: "/contact"
     featured: true
     featured_label: "$1,337/hora"
 ---
