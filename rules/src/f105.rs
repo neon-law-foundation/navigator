@@ -1,12 +1,13 @@
-//! `F105` — frontmatter must declare a `confidential:` field set
-//! to `true` or `false`. `README.md` files are exempt.
+//! `N105` — notation template frontmatter must declare a
+//! `confidential:` field set to `true` or `false`. `README.md` files
+//! are exempt.
 
 use crate::{frontmatter, line_byte_range, Rule, SourceFile, Violation};
 
 pub struct F105ConfidentialRequired;
 
 impl F105ConfidentialRequired {
-    pub const CODE: &'static str = "F105";
+    pub const CODE: &'static str = "N105";
 }
 
 impl Rule for F105ConfidentialRequired {
@@ -77,7 +78,7 @@ mod tests {
         let f = file("trust.md", "---\ntitle: T\n---\n");
         let v = F105ConfidentialRequired.lint(&f);
         assert_eq!(v.len(), 1);
-        assert_eq!(v[0].code, "F105");
+        assert_eq!(v[0].code, "N105");
         assert!(v[0].message.contains("missing"));
     }
 

@@ -1,4 +1,4 @@
-//! `F107` — signature placeholders must resolve.
+//! `N107` — notation template signature placeholders must resolve.
 //!
 //! A *signature placeholder* is a `{{ … }}` token whose trimmed inner
 //! text contains a `.` — e.g. `{{client.signature}}`. The dot is the
@@ -38,7 +38,7 @@
 //! placement, so the template can never reach the provider with one half
 //! of the pair missing.
 //!
-//! Files without frontmatter are skipped: F107 is a notation-template
+//! Files without frontmatter are skipped: N107 is a notation-template
 //! rule, not a check on arbitrary prose that happens to contain a
 //! `{{x.y}}` token.
 
@@ -51,7 +51,7 @@ use crate::{frontmatter, Rule, SourceFile, Violation};
 pub struct F107SignaturePlaceholders;
 
 impl F107SignaturePlaceholders {
-    pub const CODE: &'static str = "F107";
+    pub const CODE: &'static str = "N107";
 
     /// Recognized signer roles. Roles, never names — extend this list
     /// when a new signer (e.g. `witness`, `notary`) enters the bench.
@@ -325,7 +325,7 @@ mod tests {
         let body = with_signing_workflow("{{spouse.signature}}\n");
         let v = F107SignaturePlaceholders.lint(&file(&body));
         assert_eq!(v.len(), 1, "{v:?}");
-        assert_eq!(v[0].code, "F107");
+        assert_eq!(v[0].code, "N107");
         assert!(v[0].message.contains("unknown signer role `spouse`"));
     }
 
@@ -370,7 +370,7 @@ mod tests {
                     END: {}\n---\nDear {{client_name}}, please sign offline.\n";
         let v = F107SignaturePlaceholders.lint(&file(body));
         assert_eq!(v.len(), 1, "{v:?}");
-        assert_eq!(v[0].code, "F107");
+        assert_eq!(v[0].code, "N107");
         assert!(
             v[0].message.contains("no signature anchor"),
             "message was: {}",

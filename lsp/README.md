@@ -17,9 +17,10 @@ symbols.
 
 ## Rule set
 
-`navigator-lsp` lints with the markdown-only subset of Navigator rules (every `M-` rule plus `S101` line-length and
-`S102` line-packing). F-family frontmatter rules are excluded since the LSP runs against arbitrary `*.md` files, not
-only Navigator notation. The CLI's `validate` walks the same rule set when invoked with `--markdown-only`.
+`navigator-lsp` uses the same classified rule selection as `cli validate`: ordinary prose markdown gets every `M-` rule
+plus `S101` line-length and `S102` line-packing, while notation templates also get the N-family notation rules. A file
+is treated as a notation template when it lives under `templates/` or its frontmatter declares a `questionnaire:` or
+`workflow:` block. A `code:` key alone is not enough to switch modes.
 
 ## Autofix surface
 
@@ -34,7 +35,7 @@ only Navigator notation. The CLI's `validate` walks the same rule set when invok
 - `M021` — collapse multi-space before closing `#`.
 - `M027` — collapse multi-space after blockquote `>`.
 
-Diagnostic-only (stays for a human): F-family, `M024` duplicate heading, `M026` trailing punctuation, `M005` list
+Diagnostic-only (stays for a human): N-family, `M024` duplicate heading, `M026` trailing punctuation, `M005` list
 indent, `S101` long line (no safe break heuristic in v1).
 
 Conflict resolution when two rules want to edit overlapping ranges in the same `source.fixAll` batch: sort by

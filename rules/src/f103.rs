@@ -1,5 +1,5 @@
 #![allow(clippy::doc_markdown)]
-//! `F103` — markdown filename basename must be snake_case.
+//! `N103` — notation template filename basename must be snake_case.
 //!
 //! Templates under `templates/` catalogue domain documents (an
 //! LLC formation, a 501(c)(3) formation, a Nevada annual report).
@@ -40,7 +40,7 @@ use crate::{line_byte_range, Rule, SourceFile, Violation};
 pub struct F103SnakeCaseFilename;
 
 impl F103SnakeCaseFilename {
-    pub const CODE: &'static str = "F103";
+    pub const CODE: &'static str = "N103";
 }
 
 impl Rule for F103SnakeCaseFilename {
@@ -111,8 +111,8 @@ fn to_snake_case(name: &str) -> String {
 /// no separators (`_`, `-`, space), and is otherwise alphanumeric
 /// ASCII.
 ///
-/// Public not for `F103` — which now enforces snake_case on template
-/// filenames — but for the `workflows-service` registry test, which
+/// Public not for `N103` — which enforces snake_case on notation
+/// template filenames — but for the `workflows-service` registry test, which
 /// reuses this exact predicate to assert every registered Restate
 /// *workflow* name is PascalCase. Template filenames and workflow
 /// service names are intentionally separate conventions.
@@ -172,7 +172,7 @@ mod tests {
     fn flags_pascal_case_filename_and_suggests_snake() {
         let v = F103SnakeCaseFilename.lint(&file_named("MyDocument.md"));
         assert_eq!(v.len(), 1);
-        assert_eq!(v[0].code, "F103");
+        assert_eq!(v[0].code, "N103");
         assert!(v[0].message.contains("my_document"));
     }
 

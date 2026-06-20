@@ -140,12 +140,12 @@ async fn db_backed_validate_loads_codes_and_swaps_f104() {
         "loaded registry must contain canonical question codes; got {codes:?}",
     );
 
-    let ruleset = cli_import::rules_with_codes(&codes);
-    let f104 = ruleset
+    let ruleset = rules::navigator_default_rules_with_codes(&codes);
+    let n104 = ruleset
         .iter()
-        .find(|r| r.code() == "F104")
-        .expect("rule set must contain a swapped F104");
-    assert_eq!(f104.code(), "F104");
+        .find(|r| r.code() == "N104")
+        .expect("rule set must contain a swapped N104");
+    assert_eq!(n104.code(), "N104");
 }
 
 #[tokio::test]

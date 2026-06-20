@@ -55,29 +55,29 @@ Feature: Template validation rules
     When the markdown is linted with rule "S101"
     Then 0 violations are reported
 
-  Scenario: F101 flags missing frontmatter
+  Scenario: N101 flags missing frontmatter
     Given the markdown:
       """
       # No frontmatter here
       Just a body.
       """
-    When the markdown is linted with rule "F101"
+    When the markdown is linted with rule "N101"
     Then 1 violation is reported
-    And the violation code is "F101"
+    And the violation code is "N101"
     And the violation message contains "Missing"
 
-  Scenario: F101 flags an empty title
+  Scenario: N101 flags an empty title
     Given the markdown:
       """
       ---
       title:
       ---
       """
-    When the markdown is linted with rule "F101"
+    When the markdown is linted with rule "N101"
     Then 1 violation is reported
     And the violation message contains "empty"
 
-  Scenario: F102 rejects an invalid respondent_type value
+  Scenario: N102 rejects an invalid respondent_type value
     Given the markdown:
       """
       ---
@@ -85,11 +85,11 @@ Feature: Template validation rules
       respondent_type: corporation
       ---
       """
-    When the markdown is linted with rule "F102"
+    When the markdown is linted with rule "N102"
     Then 1 violation is reported
     And the violation message contains "corporation"
 
-  Scenario Outline: F102 accepts each valid respondent_type
+  Scenario Outline: N102 accepts each valid respondent_type
     Given the markdown:
       """
       ---
@@ -97,7 +97,7 @@ Feature: Template validation rules
       respondent_type: <kind>
       ---
       """
-    When the markdown is linted with rule "F102"
+    When the markdown is linted with rule "N102"
     Then 0 violations are reported
 
     Examples:

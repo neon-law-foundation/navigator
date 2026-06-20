@@ -157,7 +157,7 @@ impl GalleryTemplate {
 }
 
 /// The frontmatter shape we read off each template. Only the two fields
-/// the gallery needs; the F-rules validate the rest.
+/// the gallery needs; the N-rules validate the rest.
 #[derive(serde::Deserialize)]
 struct Frontmatter {
     title: String,

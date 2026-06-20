@@ -9,7 +9,7 @@
 //! keys its field off of.
 //!
 //! We reuse [`rules::f107::signature_placeholders`] — the same grammar
-//! the F107 validator enforces — so a placeholder that lints clean is a
+//! the N107 validator enforces — so a placeholder that lints clean is a
 //! placeholder we know how to render. The returned
 //! [`SignatureField`]s become the manifest the provider turns into
 //! anchored tabs (see [`crate::signature`]).
@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 use crate::signature::{SignatureField, SignatureFieldKind};
 
 /// Map a placeholder's `field` half to its typed kind. Unknown kinds
-/// return `None`; the caller leaves such tokens untouched (F107 would
+/// return `None`; the caller leaves such tokens untouched (N107 would
 /// already have flagged them at validation time).
 fn parse_kind(field: &str) -> Option<SignatureFieldKind> {
     match field {
@@ -76,7 +76,7 @@ fn anchor_string(signer: &str, field: &str, n: usize) -> String {
 /// Replace every recognized signature placeholder in `body` with its
 /// Typst block + invisible anchor, returning the rewritten Typst source
 /// and the ordered list of fields placed. Unrecognized dotted tokens
-/// are left verbatim (a valid template has none — F107 guards that).
+/// are left verbatim (a valid template has none — N107 guards that).
 #[must_use]
 pub fn expand_signatures(body: &str) -> (String, Vec<SignatureField>) {
     let placeholders = rules::f107::signature_placeholders(body);

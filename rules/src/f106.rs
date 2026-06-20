@@ -1,4 +1,4 @@
-//! `F106` — workflow must include a `staff_review` state.
+//! `N106` — notation workflow must include a `staff_review` state.
 //!
 //! Exact-match check on the workflow's state keys — a state like
 //! `staff_review__for_grantor` does *not* satisfy this rule; the
@@ -14,7 +14,7 @@ use crate::{frontmatter, line_byte_range, Rule, SourceFile, Violation};
 pub struct F106StaffReviewRequired;
 
 impl F106StaffReviewRequired {
-    pub const CODE: &'static str = "F106";
+    pub const CODE: &'static str = "N106";
 }
 
 #[derive(Debug, Deserialize)]
@@ -102,7 +102,7 @@ workflow:
 ";
         let v = F106StaffReviewRequired.lint(&file(body));
         assert_eq!(v.len(), 1);
-        assert_eq!(v[0].code, "F106");
+        assert_eq!(v[0].code, "N106");
         assert!(v[0].message.contains("staff_review"));
     }
 

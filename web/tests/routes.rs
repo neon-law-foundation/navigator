@@ -1619,13 +1619,15 @@ async fn api_entity_by_id_404s_when_missing() {
 async fn api_validate_notation_returns_clean_for_valid_markdown() {
     let state = empty_state().await;
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
-    // Minimal notation that satisfies every F-rule:
-    //   F101 title, F102 respondent_type, F103 snake_case filename (default),
-    //   F104 questionnaire + workflow with BEGIN reaching END,
-    //   F105 confidential, F106 workflow contains bare `staff_review` state.
+    // Minimal notation that satisfies every N-rule:
+    //   N101 title, N102 respondent_type, N103 snake_case filename (default),
+    //   N104 questionnaire + workflow with BEGIN reaching END,
+    //   N105 confidential, N106 workflow contains bare `staff_review` state,
+    //   N108 code.
     let contents = "---\n\
 title: Trust\n\
 respondent_type: entity\n\
+code: trusts__nevada\n\
 confidential: false\n\
 questionnaire:\n  \
   BEGIN:\n    \
@@ -1690,12 +1692,12 @@ async fn api_validate_notation_reports_frontmatter_and_line_length_violations() 
         .map(|v| v["code"].as_str().unwrap())
         .collect();
     assert!(
-        codes.contains(&"F101"),
-        "expected F101 (title), got {codes:?}"
+        codes.contains(&"N101"),
+        "expected N101 (title), got {codes:?}"
     );
     assert!(
-        codes.contains(&"F102"),
-        "expected F102 (respondent_type), got {codes:?}"
+        codes.contains(&"N102"),
+        "expected N102 (respondent_type), got {codes:?}"
     );
     assert!(
         codes.contains(&"S101"),
@@ -1707,7 +1709,7 @@ async fn api_validate_notation_reports_frontmatter_and_line_length_violations() 
 async fn api_validate_notation_markdown_only_drops_frontmatter_rules() {
     let state = empty_state().await;
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
-    // No frontmatter at all — would trip F101 in the default set.
+    // No frontmatter at all — would trip N101 in the default set.
     let body = serde_json::json!({
         "contents": "# Heading\n\nBody paragraph.\n",
         "markdown_only": true,
@@ -1732,8 +1734,8 @@ async fn api_validate_notation_markdown_only_drops_frontmatter_rules() {
         .map(|v| v["code"].as_str().unwrap())
         .collect();
     assert!(
-        codes.iter().all(|c| !c.starts_with('F')),
-        "F-family must not run when markdown_only=true, got {codes:?}"
+        codes.iter().all(|c| !c.starts_with('N')),
+        "N-family must not run when markdown_only=true, got {codes:?}"
     );
 }
 

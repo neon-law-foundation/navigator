@@ -143,14 +143,14 @@ pub struct ValidateRequest {
     /// Raw markdown body, including any YAML frontmatter.
     pub contents: String,
     /// Optional pretend filename so rules that key off the path
-    /// (`F103` snake_case) and the response have something meaningful
+    /// (`N103` snake_case) and the response have something meaningful
     /// to report. Defaults to `notation.md` — a snake_case placeholder
     /// so the default doesn't pollute the response with a filename
     /// complaint the caller never intended.
     #[serde(default)]
     pub path: Option<String>,
     /// When true, lint with the Markdown-only rule set (drops the
-    /// F-family, adds `S102` line packing) — same as
+    /// N-family, adds `S102` line packing) — same as
     /// `cli validate --markdown-only`. Defaults to false: the full
     /// Navigator-notation rule set runs.
     #[serde(default)]

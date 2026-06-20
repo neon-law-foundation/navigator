@@ -24,6 +24,7 @@ use workflows::InMemoryRuntime;
 struct BrandWorld {
     app: Option<axum::Router>,
     last_status: Option<StatusCode>,
+    last_location: Option<String>,
     last_body: String,
 }
 
@@ -65,6 +66,11 @@ async fn visit(world: &mut BrandWorld, path: String) {
         .await
         .unwrap();
     world.last_status = Some(resp.status());
+    world.last_location = resp
+        .headers()
+        .get(axum::http::header::LOCATION)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned);
     world.last_body = body_string(resp).await;
 }
 
@@ -93,6 +99,16 @@ async fn page_is_not_branded(world: &mut BrandWorld, brand: String) {
     assert!(
         !world.last_body.contains(&needle),
         "page unexpectedly branded {brand:?} (og:site_name)",
+    );
+}
+
+#[then(regex = r#"^the response redirects to "([^"]+)"$"#)]
+async fn redirects_to(world: &mut BrandWorld, target: String) {
+    assert_eq!(
+        world.last_location.as_deref(),
+        Some(target.as_str()),
+        "expected Location header {target:?}, got {:?}",
+        world.last_location,
     );
 }
 

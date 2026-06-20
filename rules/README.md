@@ -18,8 +18,9 @@ The `navigator_default_rules()` and `navigator_markdown_only_rules()` constructo
 
 ## What's next
 
-`cli` depends on this crate. To add a new rule, follow the F-family pattern — one file under `src/` with unit tests next
-to the impl — and then wire it into three places so it ships and the stability guard keeps catching accidental reorders:
+`cli` depends on this crate. To add a new notation rule, follow the N-family pattern — one file under `src/` with unit
+tests next to the impl — and then wire it into three places so it ships and the stability guard keeps catching
+accidental reorders:
 
 1. `pub mod` + `pub use` for the new struct in `src/lib.rs`.
 2. `Box::new(...)` in `navigator_default_rules()` in `src/engine.rs`, at the position the rule should hold in the

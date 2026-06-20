@@ -1,4 +1,4 @@
-//! `F104` — questionnaire and workflow state names must reference
+//! `N104` — questionnaire and workflow state names must reference
 //! valid question codes.
 //!
 //! State name shape: `<question_code>__<discriminator>` (the
@@ -21,7 +21,7 @@ pub struct F104FlowQuestionCodes {
 }
 
 impl F104FlowQuestionCodes {
-    pub const CODE: &'static str = "F104";
+    pub const CODE: &'static str = "N104";
 
     #[must_use]
     pub fn new<I, S>(codes: I) -> Self
