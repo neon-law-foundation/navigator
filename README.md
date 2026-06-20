@@ -50,7 +50,7 @@ Licensed under either of the following at your option.
 - Apache License, Version 2.0 ([local copy](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
 - MIT license ([local copy](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
-### Trademarks
+## Trademarks
 
 The license above covers the **code**: fork it, modify it, ship it, even sell it under Apache-2.0 or MIT. It does
 **not** grant any right to the **names and marks** of **Neon Law**. **"Neon Law"** is a registered trademark of Shook
@@ -60,7 +60,7 @@ The reason is non-deception, not control: a fork wearing the firm's name could i
 stand behind software no attorney reviewed. So **adopt your own name,** and if you are interested, help us enable custom
 branding for your organization.
 
-## Not Legal Advice
+## No Legal Advice
 
 Nothing here is legal advice. Using it does not create an attorney-client relationship. We are not legally responsible
 for any actions you take with Neon Law Navigator unless it's agreed and signed in writing.
