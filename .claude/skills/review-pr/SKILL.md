@@ -139,7 +139,10 @@ git push
 
 ## Step 8 — Resolve every comment (REQUIRED)
 
-This step is the point of the skill. **A PR is not reviewed until every comment has a reply.** For each finding:
+This step is the point of the skill. **A PR is not reviewed until every comment has a reply *and* every thread you have
+handled is marked resolved.** Replying is not enough on its own: branch protection requires conversations to be
+resolved, so an answered-but-unresolved thread still **blocks auto-merge** — the PR sits there green but unmergeable.
+Always do both, in this order: reply (say what you did), then resolve the thread. For each finding:
 
 **Reply to inline threads** (use the comment id from Step 4a):
 
@@ -172,8 +175,10 @@ gh api graphql -f query='mutation($id:ID!){ resolveReviewThread(input:{threadId:
   -F id=<threadId>
 ```
 
-Resolve a thread only after it is genuinely handled (fixed-and-pushed, or replied-with-rationale). Leave it open only
-when you are deferring to the user and they haven't decided yet — and say so explicitly in the reply.
+Resolve a thread only after it is genuinely handled (fixed-and-pushed, or replied-with-rationale) — and resolving is
+mandatory, not optional: an unresolved thread keeps the PR from merging even when the reply is already there. Leave a
+thread open **only** when you are deferring to the user and they haven't decided yet — and say so explicitly in the
+reply, since you are knowingly leaving the merge blocked until they answer.
 
 ## Step 9 — Report
 
@@ -184,7 +189,8 @@ Call out anything still open and why.
 ## Boundaries
 
 - **Comment resolution is non-negotiable.** Never end a review with an unanswered reviewer/bot comment. Reply to every
-  one; resolve the ones you've handled.
+  one *and* mark every handled thread resolved — a reply without resolution still blocks auto-merge, so both are
+  required to actually land the PR.
 - **Don't rubber-stamp the bots.** Every bot finding is adjudicated against the real code before it earns a reply —
   false positives get a reasoned refutation, not a fix.
 - **The user decides what lands.** Recommend, then ask, before applying a fix. No silent fixes, no silent skips.
