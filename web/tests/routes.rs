@@ -2646,6 +2646,13 @@ async fn openapi_json_is_served() {
 
 #[tokio::test]
 async fn api_docs_serves_swagger_ui_shell_with_csp() {
+    // No session cookie / bearer token on this request: the Swagger UI
+    // documentation shell is public, alongside `/openapi.json`. The OPA
+    // exemption that enforces this at the gate is pinned by the
+    // `anonymous → /api/docs` decision in `cli::devx::e2e::opa_cases`;
+    // here the router runs with a passthrough policy, so this asserts
+    // the handler wiring and that an anonymous caller is never bounced
+    // to `/auth/login`.
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -2659,7 +2666,11 @@ async fn api_docs_serves_swagger_ui_shell_with_csp() {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "the API documentation must render for an anonymous caller, not redirect to auth"
+    );
     let csp = resp
         .headers()
         .get("content-security-policy")
