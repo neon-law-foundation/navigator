@@ -78,11 +78,11 @@ jobs:
       # directory '/opt/hostedtoolcache' does not exist". Recreate it, runner-owned.
       - name: restore tool-cache dir
         run: sudo mkdir -p /opt/hostedtoolcache && sudo chown "$USER":"$USER" /opt/hostedtoolcache
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
 
       - name: build navigator-web
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: images/Dockerfile.web
@@ -92,7 +92,7 @@ jobs:
           cache-from: type=gha,scope=navigator-web
           cache-to: type=gha,mode=max,scope=navigator-web
       - name: build navigator-workflows-service
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: images/Dockerfile.workflows-service
@@ -369,10 +369,10 @@ jobs:
               CRATE=billing-workflows
               BIN=billing-digest-trigger
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
       - name: log in to ghcr.io
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -382,14 +382,14 @@ jobs:
         run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
       - name: image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ steps.img.outputs.name }}
           tags: |
             type=raw,value=latest
             type=raw,value=${{ github.ref_name }}
       - name: build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
