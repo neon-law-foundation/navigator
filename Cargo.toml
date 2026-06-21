@@ -91,7 +91,7 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "rus
 scraper = "0.24"
 encoding_rs = "0.8"
 sha2 = "0.11"
-toml = "0.8"
+toml = "1.1"
 # tower-cookies + maud: held at 0.10 / 0.26 — both newer versions require axum 0.8 (own session).
 tower-cookies = "0.10"
 maud = { version = "0.26", features = ["axum"] }
