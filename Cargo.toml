@@ -75,7 +75,7 @@ http-body-util = "0.1"
 # pixel slice. Lean — default features off, JPEG codec only on `image`.
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 webp = "0.3"
-ravif = { version = "0.11", default-features = false }
+ravif = { version = "0.13", default-features = false }
 rgb = "0.8"
 base64 = "0.22"
 hmac = "0.13"
@@ -91,7 +91,7 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "rus
 scraper = "0.24"
 encoding_rs = "0.8"
 sha2 = "0.11"
-toml = "0.8"
+toml = "1.1"
 # tower-cookies + maud: held at 0.10 / 0.26 — both newer versions require axum 0.8 (own session).
 tower-cookies = "0.10"
 maud = { version = "0.26", features = ["axum"] }
