@@ -33,6 +33,7 @@ rots a PR. This skill exists to make sure that never happens: **no comment is le
 6. **Ask** the user, per actionable comment, whether to fix it (recommendation first).
 7. **Fix** the ones they approve — on the PR branch, with the covering test, honoring the gate.
 8. **Resolve** every comment — reply via `gh` to each thread; mark real threads resolved. This step is mandatory.
+9. **Report** — give the user your findings, every verdict, the fix shas, and confirmation that all threads are closed.
 
 Each step assumes the prior one. Do them in order.
 
@@ -87,19 +88,28 @@ for example, puts unplaceable findings in its summary, not inline):
 
 ```bash
 # (a) inline review comments — anchored to a file + line, these form resolvable threads
-gh api repos/<slug>/pulls/<N>/comments --jq '.[] | {id, user: .user.login, path, line, in_reply_to_id, body}'
+gh api --paginate repos/<slug>/pulls/<N>/comments --jq '.[] | {id, user: .user.login, path, line, in_reply_to_id, body}'
 
 # (b) issue/PR-level comments — top-level, includes bot review SUMMARIES (Greptile/CodeRabbit overview)
-gh api repos/<slug>/issues/<N>/comments --jq '.[] | {id, user: .user.login, body}'
+gh api --paginate repos/<slug>/issues/<N>/comments --jq '.[] | {id, user: .user.login, body}'
 
 # (c) review bodies — the "approve/request-changes" top notes
 gh pr view <N> --repo <slug> --json reviews -q '.reviews[] | {author: .author.login, state, body}'
 ```
 
+`--paginate` is load-bearing: without it `gh api` returns only the first page (30 items) and silently drops every
+comment past it — and a PR with more than 30 inline comments is exactly where leaving one unanswered is easiest, which
+would break this skill's core invariant.
+
 Read bot summaries in full — they often carry P-rated findings (P1/P2/P3), a confidence score, and "comments outside
 diff" that never became inline threads. Treat every distinct finding as a comment to adjudicate, wherever it lives.
 
 ## Step 5 — Adjudicate each comment
+
+First, **filter the Step 4a set to thread roots** — comments where `in_reply_to_id` is null. The non-null ones are
+existing replies (a bot or human already responded), not new findings; adjudicating them produces duplicate re-replies
+and inflates the question set. Keep the replies around for context — they tell you whether a thread is already
+answered — but only roots enter the loop below.
 
 For **each** finding, do not take the bot's word for it. Open the cited file at the head commit and decide:
 
@@ -167,13 +177,21 @@ thread ids, then resolve each one you've answered:
 gh api graphql -f query='
 query($owner:String!,$repo:String!,$pr:Int!){
   repository(owner:$owner,name:$repo){ pullRequest(number:$pr){
-    reviewThreads(first:100){ nodes{ id isResolved
-      comments(first:1){ nodes{ author{login} path } } } } } }
+    reviewThreads(first:100){
+      pageInfo{ hasNextPage endCursor }
+      nodes{ id isResolved
+        comments(first:1){ nodes{ databaseId author{login} path line } } } } } }
 }' -F owner=<owner> -F repo=<repo> -F pr=<N>
 
 gh api graphql -f query='mutation($id:ID!){ resolveReviewThread(input:{threadId:$id}){ thread{ isResolved } } }' \
   -F id=<threadId>
 ```
+
+Match each thread to the finding you handled by its first comment's `databaseId` — that is the same id you collected in
+Step 4a, so the mapping is exact. Don't match on `author` + `path` alone: when one reviewer leaves several comments on
+one file they collide, and you risk resolving the wrong thread while a real one stays open and blocks the merge. If
+`reviewThreads.pageInfo.hasNextPage` is true, fetch the next page with `reviewThreads(first:100, after:<endCursor>)`
+before you assume you have them all — the same first-page-only trap as the REST calls in Step 4.
 
 Resolve a thread only after it is genuinely handled (fixed-and-pushed, or replied-with-rationale) — and resolving is
 mandatory, not optional: an unresolved thread keeps the PR from merging even when the reply is already there. Leave a
