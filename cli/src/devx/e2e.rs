@@ -118,6 +118,11 @@ fn opa_cases() -> Vec<OpaCase> {
             expected: true,
             input: req_anon(&["openapi.json"], "GET"),
         },
+        OpaCase {
+            desc: "anonymous → /api/docs",
+            expected: true,
+            input: req_anon(&["api", "docs"], "GET"),
+        },
     ]
 }
 
@@ -453,8 +458,9 @@ mod tests {
     #[test]
     fn opa_cases_cover_every_documented_decision() {
         let cases = opa_cases();
-        // One row per assertion the old e2e.sh made.
-        assert_eq!(cases.len(), 11);
+        // One row per assertion the old e2e.sh made, plus the public
+        // documentation exemptions (/openapi.json and /api/docs).
+        assert_eq!(cases.len(), 12);
         // The deny cases are present and false; the allow cases true.
         let denied: Vec<_> = cases
             .iter()
@@ -465,6 +471,15 @@ mod tests {
         assert!(denied.contains(&"client → /mcp"));
         assert!(denied.contains(&"client → /api/aida/rpc"));
         assert!(denied.contains(&"client → /portal/admin/people"));
+        // The API documentation is public: both the schema and the
+        // Swagger UI that renders it allow an anonymous caller.
+        let allowed_anon: Vec<_> = cases
+            .iter()
+            .filter(|c| c.expected)
+            .map(|c| c.desc)
+            .collect();
+        assert!(allowed_anon.contains(&"anonymous → /openapi.json"));
+        assert!(allowed_anon.contains(&"anonymous → /api/docs"));
     }
 
     #[test]

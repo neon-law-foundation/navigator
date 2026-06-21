@@ -82,9 +82,11 @@ pub fn document_with_base(base: &str) -> Value {
           "Read-only JSON listings for the Navigator domain tables, plus a stateless \
            markdown notation validator. Every `/api/*` endpoint requires OIDC \
            authentication — either a browser session cookie issued by the OAuth flow \
-           at `/auth/login`, or a JWT bearer token. The OpenAPI document itself \
-           (`/openapi.json`) stays public so callers can discover the schema. The MCP \
-           endpoint at `/mcp` (JSON-RPC, Google OAuth bearer) is documented separately.",
+           at `/auth/login`, or a JWT bearer token. The documentation itself stays \
+           public: both the OpenAPI document (`/openapi.json`) and the Swagger UI that \
+           renders it (`/api/docs`) are reachable without a session, so the schema is \
+           discoverable before signing in. The MCP endpoint at `/mcp` (JSON-RPC, \
+           Google OAuth bearer) is documented separately.",
         "contact": { "name": FIRM_BRAND.site_name, "url": contact_url }
       },
       "servers": [
