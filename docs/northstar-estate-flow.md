@@ -76,8 +76,8 @@ lives at `templates/onboarding/estate.md` with the mirrored standalone spec at
   Zoom, in person) and transcribed offline by Ada on the already-paid Google Gemini Enterprise (~$0 marginal cost — the
   access-to-justice lever); the transcript is then **uploaded** through the reusable `document_intake__*` step, which
   files it into the matter (`store::documents::ingest_bytes`). The upload is phone-friendly — a text paste, a file, or a
-  link — never "scan a PDF". There is no live speech-to-text and no real-time streaming: a client may be on a park bench
-  with no signal, and the sitting's gravity is the product, not a laptop running captions.
+  link — never "scan a PDF". The shipped path does not require live speech-to-text or real-time streaming: a client may
+  be on a park bench with no signal, and the sitting's gravity is the product, not a laptop running captions.
 - `document_intake__transcript --transcript_ready--> extract__inputs` — the filed transcript advances to extraction.
 - `extract__inputs --inputs_ready--> document_drafts__estate` — structured estate inputs are derived from the
   transcript and written as `answers` (source `extracted`): the testator's name, executor, successor trustee,
@@ -136,11 +136,15 @@ first and swapped in DocuSign). Status:
   signed engagement letter and the firm's file-retention policy, not by code; the workflow records the deletion when it
   runs. Retention is a legal decision, so it lives in the engagement letter — the pipeline only enforces whatever window
   that decision sets.
-- **Transcription.** There is no live speech-to-text. The sitting is recorded offline and transcribed by Ada on the
+- **Transcription.** The shipped lane is offline-first. The sitting is recorded offline and transcribed by Ada on the
   already-paid Google Gemini Enterprise (memory `project_gemini_enterprise_mcp`), keeping the data inside the same GCP
   trust boundary as the rest of client data (GCP-only, per the workspace cloud rule) at ~$0 marginal cost. That
   transcript is then uploaded through the reusable `document_intake__transcript` step and stored as a document; the
   recording stays the source of truth until the drafts are approved.
+
+Live transcript coverage is a planned adjunct, not a replacement for the offline lane. The generic design is
+[`live-inquiry-coverage.md`](live-inquiry-coverage.md): Northstar can seed a Live Inquiry Session from this Template's
+questionnaire, persist transcript segments immediately, and show staff which estate-plan Inquiries still need follow-up.
 
 ## Legal and ethics constraints
 
@@ -159,9 +163,9 @@ These carry into the build and must not be designed away:
 
 - **Scope** is fixed: will + revocable trust + health/financial directives only. Probate / administration and a
   special-needs trust are separate engagements, not Northstar variants (see the top of this document).
-- **Recording** storage, retention, and transcription are settled above: `cloud::StorageService` under the matter
-  prefix, matter-life-plus-retention-window deletion governed by the engagement letter, and offline transcription by
-  Ada/Gemini Enterprise in-project (no live speech-to-text), with the transcript uploaded through `document_intake__*`.
+- **Recording** storage, retention, and the offline transcription lane are settled above: `cloud::StorageService` under
+  the matter prefix, matter-life-plus-retention-window deletion governed by the engagement letter, and transcription by
+  Ada/Gemini Enterprise in-project, with the transcript uploaded through `document_intake__*`.
 - **Review viewer** stays the first-party `<northstar-review>` element. TipTap was considered and declined to avoid a
   JavaScript build step; the anchor model is engine-independent, so a richer editor can be swapped in later (through
   `/council`, as a new front-end dependency) without changing the server's comment contract.
