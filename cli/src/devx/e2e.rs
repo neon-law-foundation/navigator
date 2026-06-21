@@ -343,12 +343,43 @@ fn check_health() -> Result<()> {
 fn check_opa(cfg: &KindConfig) -> Result<()> {
     let _pf = PortForward::spawn(cfg, "svc/opa", OPA_PROBE_PORT, 8181)?;
     wait_for_port(OPA_PROBE_PORT, Duration::from_secs(10))?;
-    for case in opa_cases() {
+
+    // OPA was rolled out only seconds ago. `wait_for_port` confirms the local
+    // forward is listening, but kubectl port-forward can accept the local
+    // connection and then stall on its first dial to a freshly-Ready pod, and
+    // OPA's ConfigMap-bundled policy may not have hot-loaded yet. So retry the
+    // whole decision table against a deadline — every request is `--max-time`
+    // capped so a stalled forward fails fast instead of hanging until the job
+    // timeout, the same loud-but-bounded guard `check_health` carries (an
+    // un-capped curl here is exactly how a stuck deploy used to run for hours).
+    let url = format!("http://127.0.0.1:{OPA_PROBE_PORT}/v1/data/navigator/authz/allow");
+    let cases = opa_cases();
+    let deadline = Instant::now() + Duration::from_mins(1);
+    let mut attempt = 0;
+    loop {
+        attempt += 1;
+        match opa_probe_once(&url, &cases) {
+            Ok(()) => {
+                eprintln!("OPA policy OK (after {attempt} attempt(s))");
+                return Ok(());
+            }
+            Err(e) if Instant::now() < deadline => {
+                eprintln!("    OPA not ready ({e:#}); retrying in 2s [attempt {attempt}]");
+                sleep(Duration::from_secs(2));
+            }
+            Err(e) => return Err(e.context("OPA decision probe did not pass within 60s")),
+        }
+    }
+}
+
+/// One pass over the OPA decision table. Returns `Err` on the first request
+/// that fails or whose decision drifts, so the caller can retry the whole
+/// table while OPA finishes coming up. Every request is `--max-time` capped.
+fn opa_probe_once(url: &str, cases: &[OpaCase]) -> Result<()> {
+    for case in cases {
         let out = Command::new("curl")
-            .args(["-fsS", "-X", "POST"])
-            .arg(format!(
-                "http://127.0.0.1:{OPA_PROBE_PORT}/v1/data/navigator/authz/allow"
-            ))
+            .args(["-fsS", "--max-time", "10", "-X", "POST"])
+            .arg(url)
             .args(["-H", "content-type: application/json", "--data"])
             .arg(&case.input)
             .output()
@@ -357,7 +388,7 @@ fn check_opa(cfg: &KindConfig) -> Result<()> {
             bail!(
                 "OPA query failed for {}: {}",
                 case.desc,
-                String::from_utf8_lossy(&out.stderr)
+                String::from_utf8_lossy(&out.stderr).trim()
             );
         }
         let got = String::from_utf8_lossy(&out.stdout);
@@ -371,7 +402,6 @@ fn check_opa(cfg: &KindConfig) -> Result<()> {
         }
         eprintln!("    {} → {}", case.desc, case.expected);
     }
-    eprintln!("OPA policy OK");
     Ok(())
 }
 
