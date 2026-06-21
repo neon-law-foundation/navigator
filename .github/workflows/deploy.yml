@@ -12,6 +12,11 @@ name: deploy
 #   3. notify      — email a deploy report to nick@neonlaw.com via SendGrid
 #      (from support@neonlaw.com — `workflows::DEFAULT_FROM_EMAIL`).
 #
+# Plus one out-of-band guard: `notify-failure` posts to the engineering Slack
+# channel (tagging Nick) whenever ANY of the three stages fails, so a broken
+# nightly deploy is seen immediately. It carries only the tag + run URL — the
+# "identifiers and counts, never content" rule binds here too.
+#
 # The image tag is the release tag itself (`github.ref_name`, e.g. 26.06.18).
 
 on:
@@ -425,3 +430,43 @@ jobs:
               exit 1
           fi
           echo "Deploy report emailed to nick@neonlaw.com"
+
+  # ---------- Failure guard: alert the engineering Slack channel ----------
+  # Fires whenever ANY of integration/publish/notify fails (failure() is true
+  # if any needed job — or its upstream — failed, even when later jobs were
+  # skipped as a result). Posts to the engineering channel via the prod ops
+  # incoming webhook (SLACK_WEBHOOK_URL, synced from Doppler) and tags Nick.
+  # Like the email above: tag + run URL only, never client content.
+  notify-failure:
+    name: slack — alert engineering on failure
+    needs: [integration, publish, notify]
+    if: failure()
+    runs-on: ubuntu-latest
+    # A single webhook POST — cap it so a hung request can't keep the run open.
+    timeout-minutes: 10
+    steps:
+      - name: post failure alert to engineering Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TAG: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the failure alert"
+              exit 1
+          fi
+          TEXT=":x: Navigator deploy ${TAG} failed — <@U0BBT5DG3QE> please investigate.
+          Run: ${RUN_URL}"
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
+              -X POST "${SLACK_WEBHOOK_URL}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}")
+          echo "Slack responded ${code}"
+          # Slack incoming webhooks return 200 with body "ok" on success.
+          if [ "${code}" != "200" ]; then
+              echo "::error::Slack post failed (${code})"
+              cat /tmp/slack.out || true
+              exit 1
+          fi
+          echo "Failure alert posted to engineering Slack"
