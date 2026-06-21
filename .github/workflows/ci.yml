@@ -2,13 +2,18 @@ name: ci
 
 # The PR flow — one of exactly three workflows in this repo (see CLAUDE.md
 # "CI/CD — three workflows, no more"). Lean on purpose: fmt + clippy +
-# `cargo test --workspace`, nothing else. Integration (KIND), docker image
-# builds, browser tests, and the deploy email all live in the tag flow
-# (`deploy.yml`), cut nightly by the cron flow (`release-tag.yml`).
+# `cargo test --workspace`, run under `cargo llvm-cov` so the SAME test pass
+# also emits the lcov uploaded to Codecov for per-PR diff coverage (no second
+# test run). Integration (KIND), docker image builds, browser tests, and the
+# deploy email all live in the tag flow (`deploy.yml`), cut nightly by the
+# cron flow (`release-tag.yml`).
 #
-# Do NOT add audit/deny/coverage/cucumber/docker/e2e jobs back here — the
-# Cucumber BDD suite already runs inside `cargo test --workspace`, and the
-# heavy paths belong in the nightly tag flow so PR latency stays low.
+# Do NOT add audit/deny/cucumber/docker/e2e jobs back here — the Cucumber BDD
+# suite already runs inside `cargo test --workspace`, and the heavy paths
+# belong in the nightly tag flow so PR latency stays low. Coverage is the one
+# deliberate exception: it piggybacks on the existing test pass so reviewers
+# see diff coverage on the PR, and a Codecov upload hiccup never blocks the
+# merge gate (`fail_ci_if_error: false`).
 
 on:
   # Pull requests targeting `main` only. `main` itself never runs CI on push:
@@ -54,7 +59,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.95.0
-          components: rustfmt, clippy
+          # llvm-tools-preview supplies the instrumentation `cargo llvm-cov`
+          # needs to produce the lcov uploaded to Codecov.
+          components: rustfmt, clippy, llvm-tools-preview
+      - name: install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
       - name: cache cargo
         uses: Swatinem/rust-cache@v2
         with:
@@ -91,10 +100,20 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: clear clippy artifacts
         run: cargo clean
-      - name: cargo test
+      # `cargo llvm-cov` runs the identical `cargo test --workspace` pass (incl.
+      # the Cucumber BDD suite) under instrumentation, so coverage is a byproduct
+      # of the test gate — not a second run — and emits lcov.info for Codecov.
+      - name: cargo test (with coverage)
         env:
           TEST_DATABASE_URL: postgres://navigator:navigator@127.0.0.1:5432/navigator
-        run: cargo test --workspace
+        run: cargo llvm-cov --workspace --lcov --output-path lcov.info
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info
+          # Never let a Codecov outage block the auto-merge gate.
+          fail_ci_if_error: false
 
   enable-automerge:
     name: enable PR auto-merge
