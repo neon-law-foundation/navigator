@@ -97,6 +97,13 @@ jobs:
           cluster_name: navigator
           config: k8s/kind-config.yaml
           wait: 60s
+          # Pin the kind BINARY in lockstep with the node image below. The
+          # v1.36.1 node ships a containerd that writes config version 4, which
+          # only kind >= v0.31.0 can parse — `helm/kind-action@v1`'s default
+          # (older) kind otherwise dies at `kind load` with
+          # `unknown containerd config version: 4`. Bump this and node_image
+          # together; v0.31.0 is the release that publishes this exact digest.
+          version: v0.31.0
           # Pin the node image to the exact digest we validate locally so CI
           # can't silently drift onto a different Kubernetes/kindnet build —
           # the classic "passes on my machine, hangs in CI" gap. This is the
