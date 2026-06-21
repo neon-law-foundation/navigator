@@ -273,9 +273,11 @@ transaction. Per-channel data (email headers, fax metadata) belongs in per-chann
 
 ## Inquiry
 
-One thing a transcript-bearing session should answer. A Template [Question](notation.md#question) can become an Inquiry,
-but the term is broader: deposition outline items, witness-prep prompts, and intake checklist items can also be
-Inquiries. An ordered group of Inquiries is an **Inquiry Set**.
+One thing a transcript-bearing session should answer. By default, an Inquiry is the normalized live-coverage projection
+of a Template Question: the markdown Template declares the `questionnaire:`, the LSP/CLI validate it, and the Live
+Inquiry Session tracks whether the transcript answered it. The term is broader than [Question](notation.md#question)
+because deposition outline items, witness-prep prompts, and intake checklist items can also be Inquiries. An ordered
+group of Inquiries is an **Inquiry Set**.
 
 Use Inquiry rather than "interrogatory" for the generic product noun: an interrogatory is already a formal written
 discovery device in litigation.

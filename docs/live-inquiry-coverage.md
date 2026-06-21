@@ -1,8 +1,10 @@
 # Live Inquiry Coverage
 
-Live Inquiry Coverage is the generic shape behind the proposed Northstar live-sitting helper. A user brings a set of
-things the session must answer, Navigator listens to a transcript as it develops, and the matter page shows which items
-are answered, ambiguous, or still need follow-up.
+Live Inquiry Coverage is the generic shape behind the proposed Northstar live-sitting helper. The common dock point is
+the markdown Template that already creates a Notation: its frontmatter declares the `questionnaire:` and `workflow:`
+graphs, the LSP/CLI validate that structure, and a running Notation binds those declarations to a Project. Live coverage
+projects the Template's declared Questions into an Inquiry Set, listens to a transcript as it develops, and shows which
+items are answered, ambiguous, or still need follow-up.
 
 Northstar estate sittings are the first use case. The model must also fit later litigation prep, depositions, witness
 interviews, intake interviews, and any other transcript-bearing matter session.
@@ -32,6 +34,58 @@ Only a staff action can turn a finding into a confirmed Answer.
 
 That keeps the current human-review boundary intact: machine-extracted values are visibly different from staff/client
 answers until an attorney reviews them.
+
+## Template-first dock point
+
+The smallest useful implementation starts from the Notation Template markdown file, not from a separate live-transcript
+configuration language.
+
+```text
+templates/<category>/<snake_case_name>.md
+  -> YAML frontmatter `questionnaire:`
+  -> normalized Inquiry Set
+  -> Live Inquiry Session
+  -> Transcript Segments
+  -> Coverage Findings
+  -> optional staff-confirmed Answers
+```
+
+Why this is the right common point:
+
+- The Template is already the legal/workflow source of truth: it declares which Questions to ask and what workflow runs
+  after intake.
+- The LSP, CLI, and CI already validate the Template shape, including questionnaire reachability and question-code
+  resolution.
+- A Notation already turns that Template into a Project-bound runtime instance, so a Live Inquiry Session can attach to
+  a real `notation_id` instead of inventing a second matter lifecycle.
+- Later litigation/deposition use cases can still use explicit Inquiry Sets, but the first path stays a projection of
+  the existing `questionnaire:` graph.
+
+Normalization is a read-side projection. It should not mutate the Template, the Question seed, or the Notation runtime:
+
+```rust
+pub struct InquiryDraft {
+    pub code: String,
+    pub prompt: String,
+    pub answer_type: String,
+    pub source: InquirySource,
+}
+
+pub enum InquirySource {
+    TemplateQuestion {
+        template_code: String,
+        question_code: String,
+    },
+    InquirySet {
+        inquiry_set_code: String,
+        inquiry_code: String,
+    },
+}
+```
+
+For Northstar v1, every reachable `questionnaire:` Question becomes one `InquiryDraft` with
+`InquirySource::TemplateQuestion`. The live system then tracks coverage against those Inquiries while the existing
+Notation workflow remains the authority for document generation, staff review, client review, and signing.
 
 ## Entity relationship sketch
 
@@ -145,7 +199,7 @@ be mapped to the respondent or another expected role.
 
 ## Notation template integration
 
-The generic path should work with no Template grammar change: the initial Inquiry Set can be derived from a Template's
+The generic path should work with no Template grammar change: the initial Inquiry Set is derived from a Template's
 existing `questionnaire` graph.
 
 ```yaml
@@ -158,8 +212,8 @@ questionnaire:
     _: executor_name
 ```
 
-For Northstar, that means each questionnaire `Question` becomes an Inquiry for the live sitting. The Inquiry Set is
-Project-scoped when staff customize it for one client, and workspace-shared when it is the default for a Template.
+For Northstar, each questionnaire `Question` becomes an Inquiry for the live sitting. The Inquiry Set is Project-scoped
+when staff customize it for one client, and workspace-shared when it is the default for a Template.
 
 A later Template extension can make the mapping explicit without replacing the questionnaire:
 
@@ -182,10 +236,13 @@ live_inquiry:
   respondent_speaker_role: witness
 ```
 
+That explicit `live_inquiry:` block is phase two. Phase one should infer `mode: derive_from_questionnaire` whenever a
+Template has a questionnaire and the staff starts a Live Inquiry Session from a Notation.
+
 ## Staff flow
 
 1. Staff opens a Project and starts a Live Inquiry Session.
-2. Navigator seeds the Inquiry Set from the Notation questionnaire or a selected Inquiry Set.
+2. Navigator loads the Notation's Template and normalizes its questionnaire into an Inquiry Set.
 3. Transcript segments persist immediately as final provider segments arrive.
 4. Coverage inference runs against the latest segment window and updates Coverage Findings.
 5. Staff sees follow-up prompts while the session is still live.
@@ -221,7 +278,7 @@ surfaces.
 ## Acceptance criteria for the first implementation
 
 - Staff can start a Live Inquiry Session from a Northstar Project.
-- The session is seeded from the estate Template questionnaire.
+- The session is seeded by normalizing the estate Template questionnaire; no new Template grammar is required for v1.
 - Final transcript segments persist immediately.
 - Coverage Findings update while the browser stays on the same page.
 - Findings cite transcript segment ids as evidence.
