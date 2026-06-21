@@ -6,7 +6,7 @@
 # which needs `cc`-flavored distroless rather than `static`).
 #
 # Image conventions match Dockerfile (the `web` image): same Rust
-# toolchain pin (rust-toolchain.toml → 1.95.0), same musl target,
+# toolchain pin (rust-toolchain.toml → 1.96.0), same musl target,
 # same distroless base family.
 
 FROM rust:1.96-bookworm AS builder
