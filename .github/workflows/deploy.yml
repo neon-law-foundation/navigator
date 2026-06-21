@@ -23,6 +23,17 @@ on:
   push:
     tags:
       - "[0-9][0-9].[0-9][0-9].[0-9][0-9]"
+    # CI-iteration seam. Pushing a branch named `kind-ci/**` runs ONLY the
+    # KIND integration job below — publish/notify/notify-failure are all
+    # gated on a tag ref, so a branch run pushes no images, sends no email,
+    # and posts no Slack. This lets a change to *this workflow* (or the KIND
+    # wiring it exercises) be proven green on a branch before it's tagged into
+    # the nightly deploy, without cutting a throwaway `YY.MM.DD` tag. Not a
+    # fourth workflow — same deploy.yml, just an extra trigger on the one job
+    # that needs pre-tag iteration.
+    branches:
+      - "kind-ci/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -97,13 +108,12 @@ jobs:
           cluster_name: navigator
           config: k8s/kind-config.yaml
           wait: 60s
-          # Pin the kind BINARY in lockstep with the node image below. The
-          # v1.36.1 node ships a containerd that writes config version 4, which
-          # only kind >= v0.31.0 can parse — `helm/kind-action@v1`'s default
-          # (older) kind otherwise dies at `kind load` with
-          # `unknown containerd config version: 4`. Bump this and node_image
-          # together; v0.31.0 is the release that publishes this exact digest.
-          version: v0.31.0
+          # Pin the kind BINARY in lockstep with the node image below. v0.32.0's
+          # `kind load` understands the containerd config v4 that the v1.36.1
+          # node writes, and it is the release that publishes this exact node
+          # digest — so binary and node land together on the latest. Bump this
+          # and node_image together.
+          version: v0.32.0
           # Pin the node image to the exact digest we validate locally so CI
           # can't silently drift onto a different Kubernetes/kindnet build —
           # the classic "passes on my machine, hangs in CI" gap. This is the
@@ -314,6 +324,9 @@ jobs:
   publish:
     name: publish ${{ matrix.image }} to ghcr.io
     needs: integration
+    # Tag-only. A `kind-ci/**` branch run stops after integration — it must
+    # never push branch-tagged images to ghcr.io.
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     # Cold image build + ghcr push; cap it so a stuck registry/build can't
     # hang the release indefinitely.
@@ -395,6 +408,9 @@ jobs:
   notify:
     name: email deploy report
     needs: publish
+    # Tag-only (publish is already tag-gated; stated here too so a branch run
+    # never emails a deploy report).
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     # A single SendGrid call — should be seconds; cap it so a hung HTTP
     # request can't keep the workflow open.
@@ -447,7 +463,9 @@ jobs:
   notify-failure:
     name: slack — alert engineering on failure
     needs: [integration, publish, notify]
-    if: failure()
+    # Tag-only: a failed `kind-ci/**` branch iteration is expected churn and
+    # must not page engineering — only a failed nightly deploy does.
+    if: failure() && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     # A single webhook POST — cap it so a hung request can't keep the run open.
     timeout-minutes: 10
