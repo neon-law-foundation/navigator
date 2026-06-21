@@ -75,7 +75,7 @@ http-body-util = "0.1"
 # pixel slice. Lean — default features off, JPEG codec only on `image`.
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 webp = "0.3"
-ravif = { version = "0.11", default-features = false }
+ravif = { version = "0.13", default-features = false }
 rgb = "0.8"
 base64 = "0.22"
 hmac = "0.13"
