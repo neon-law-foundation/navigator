@@ -205,10 +205,46 @@ Browser WebSocket
 
 **Debounce coverage inference.** Transcript segments persist the moment they arrive, but coverage inference does *not*
 run per-segment — that would be a Gemini/Vertex call on every utterance, which is both noisy and expensive. Instead,
-coalesce segments and run inference at most once per debounce window. Start with a window of **up to ~30 seconds** (or
-on an explicit "evaluate now" staff action) as a deliberately cheap first cut, then tune. The exact window and its cost
-envelope want a spend review before build — `/gcp-spend` for current Gemini/Speech-to-Text rates and `/council` for the
-cadence-vs-cost trade-off.
+coalesce segments and run inference at most once per debounce window, defaulting to **30 seconds** (or on an explicit
+"evaluate now" staff action). Keep the window a single named, tunable constant. Tune it for live *responsiveness*, not
+for cost — the [cost model](#cost-model) below shows cost is not the binding constraint here.
+
+## Cost model
+
+Forward estimate at published Google Cloud rates (as of June 2026; confirm before build):
+
+- **Speech-to-Text v2 streaming** — `$0.016` / minute.
+- **Gemini 2.5 Flash (Vertex) coverage inference** — `$0.30` / M input tokens, `$2.50` / M output tokens.
+
+Per one-hour Live Inquiry Session (each inference call re-sends the Inquiry Set plus a transcript window and returns
+Coverage Findings):
+
+| Component | Driver | Per session |
+| --- | --- | --- |
+| Speech-to-Text (streaming) | 60 min × `$0.016` | **~`$0.96` — fixed, cadence-independent** |
+| Coverage inference @ 30 s debounce | ~120 calls × ~7k in / ~1k out | ~`$0.25`–`0.55` |
+| **Total** | | **~`$1.20`–`1.50`** |
+
+What the debounce window buys — the inference line item only:
+
+| Cadence | Inference calls / hr | Inference $ / session |
+| --- | --- | --- |
+| Per final segment (~every 5 s, no debounce) | ~720 | ~`$3.30` |
+| **30 s debounce (default)** | ~120 | ~`$0.25`–`0.55` |
+| 60 s debounce | ~60 | ~`$0.15`–`0.30` |
+
+Conclusions:
+
+- **Debounce is clearly worth it** — vs. per-segment it cuts inference cost ~85% and removes redundant re-evaluation of
+  unchanged Inquiries.
+- **30 s is the default for responsiveness, not cost.** It already captures most of the savings; going to 60 s saves
+  only ~`$0.25` while hurting how fast staff see coverage during a live interview.
+- **Speech-to-Text dominates total cost and is independent of inference cadence**, so cadence tuning is a second-order
+  lever. At realistic volume (~20 sittings / month ≈ ~`$28` / month) cost is not a binding constraint on this feature.
+- **If cost ever does bite, the levers are Speech-to-Text-side, not the debounce dial**: a discounted dynamic-batch tier
+  (`$0.004` / min) for post-hoc rather than live coverage, or routing coverage through the already-paid Gemini
+  Enterprise seam ([`northstar-estate-flow.md`](northstar-estate-flow.md)) at ~`$0` marginal inference cost. These are
+  deferred options, not v1 work.
 
 ## Speaker attribution
 
