@@ -9,6 +9,36 @@ items are answered, ambiguous, or still need follow-up.
 Northstar estate sittings are the first use case. The model must also fit later litigation prep, depositions, witness
 interviews, intake interviews, and any other transcript-bearing matter session.
 
+## Feature gating
+
+Live transcription is **off by default and gated behind a feature flag**. The offline-first lane
+([`northstar-estate-flow.md`](northstar-estate-flow.md)) remains the shipped default; live coverage is an opt-in adjunct
+a deployment turns on deliberately. The flag has two layers so the speech-to-text and coverage code is not even loaded
+until it is enabled:
+
+- **Compile-time (Cargo feature `live-transcription`).** The Google Speech-to-Text / Vertex provider implementations,
+  their SDK dependencies, and the WebSocket session handler compile in only under this feature. A default build of `web`
+  carries none of that code or its credentials surface. This is also what keeps the workspace's GCP-isolation invariant
+  intact: the provider implementations live in the `cloud` crate behind the feature, and `web` depends only on the
+  `LiveTranscriptProvider` / `InquiryCoverageProvider` traits, never the GCP SDK directly
+  ([`docs/multi-cloud.md`](multi-cloud.md)).
+- **Runtime flag.** Even in a binary built with the feature, a per-deployment flag controls whether the routes and UI
+  are exposed. A deployment that has not turned it on behaves exactly as today — offline upload only.
+
+Because the flag also gates whether the feature exists at all, it cleanly resolves the product tension: nothing about a
+default Northstar sitting changes ("the sitting's gravity is the product, not a laptop running captions") unless a
+deployment explicitly opts into live coverage, and live coverage is a staff-side tool — most naturally a deposition,
+witness, or intake interview — rather than captions running during a solemn estate sitting.
+
+## Language scope
+
+**English only for v1, by design.** The live transcript, the coverage inference, and the Inquiry prompts are all
+English. This matches the workspace English-first invariant ([`docs/i18n.md`](i18n.md)): the only two sanctioned
+localization surfaces are marketing pages and questionnaire intake *prompts* via `question_translations`, and neither is
+a live-transcript surface. Non-English live intake (e.g. a Spanish-language interview) is explicitly out of scope for
+the first implementation and would be a later, separately-designed lane — it is not a silent assumption to discover at
+build time.
+
 ## Vocabulary
 
 - **Inquiry** — one thing the session should answer. It is broader than a notation `Question`: a Template question can
@@ -160,16 +190,25 @@ pub trait InquiryCoverageProvider: Send + Sync {
 ```
 
 For v1, prefer Google Cloud Speech-to-Text v2 for speech-to-text and a Gemini/Vertex-backed `InquiryCoverageProvider`
-for coverage. Browser code should not talk to provider credentials directly:
+for coverage. These provider implementations live in the `cloud` crate behind the `live-transcription` Cargo feature
+(see [Feature gating](#feature-gating)); `web` holds only the traits and the handler. Browser code should not talk to
+provider credentials directly:
 
 ```text
 Browser WebSocket
   -> web live-session handler
   -> provider stream client
-  -> append transcript segment
-  -> run coverage inference
+  -> append transcript segment immediately
+  -> debounce, then run coverage inference on the latest window
   -> push coverage update over WebSocket
 ```
+
+**Debounce coverage inference.** Transcript segments persist the moment they arrive, but coverage inference does *not*
+run per-segment — that would be a Gemini/Vertex call on every utterance, which is both noisy and expensive. Instead,
+coalesce segments and run inference at most once per debounce window. Start with a window of **up to ~30 seconds** (or
+on an explicit "evaluate now" staff action) as a deliberately cheap first cut, then tune. The exact window and its cost
+envelope want a spend review before build — `/gcp-spend` for current Gemini/Speech-to-Text rates and `/council` for the
+cadence-vs-cost trade-off.
 
 ## Speaker attribution
 
@@ -248,7 +287,20 @@ Template has a questionnaire and the staff starts a Live Inquiry Session from a 
 5. Staff sees follow-up prompts while the session is still live.
 6. Staff maps provider speaker labels to Persons/roles when needed.
 7. Staff ends the session and files the final transcript through the existing document-intake lane.
-8. Staff confirms any proposed values that should become notation Answers.
+8. The filed transcript is routed to the matter's DRI — the responsible attorney / person on the intake — for review
+   (see [Post-session handoff](#post-session-handoff)).
+9. Staff confirms any proposed values that should become notation Answers.
+
+## Post-session handoff
+
+Live capture itself stays outside Restate: a WebSocket stream is synchronous, stateful, and replay-unsafe, so it is a
+plain `web` concern, not a durable workflow. The **durable** boundary is at session end. Once the final transcript is
+filed through `document_intake__transcript`, a Restate-durable step routes it to the matter's **DRI** — the responsible
+attorney / person on the intake — so a human owns the transcript for review and confirmation. Modeling this as a durable
+step (rather than a fire-and-forget notification) means the handoff survives a crash, is journaled, and is auditable —
+the same diligence story as retainer dispatch and the matter-close invoice
+([`docs/durable-workflows.md`](durable-workflows.md)). The notification carries identifiers only (session id, notation
+id, DRI person id) — never transcript text ([`docs/observability.md`](observability.md)).
 
 ## Route sketch
 
@@ -277,12 +329,18 @@ surfaces.
 
 ## Acceptance criteria for the first implementation
 
+- The whole feature is off unless the `live-transcription` Cargo feature is built **and** the runtime flag is enabled; a
+  default build of `web` carries none of the provider code or credentials surface.
+- With the flag off, Northstar behaves exactly as today — offline upload only.
 - Staff can start a Live Inquiry Session from a Northstar Project.
 - The session is seeded by normalizing the estate Template questionnaire; no new Template grammar is required for v1.
+- Transcript, coverage, and Inquiry prompts are English only for v1.
 - Final transcript segments persist immediately.
-- Coverage Findings update while the browser stays on the same page.
+- Coverage Findings update while the browser stays on the same page, on a debounced window (≤ ~30 s) rather than
+  per-segment.
 - Findings cite transcript segment ids as evidence.
 - Speaker labels can be mapped to Persons/roles after the provider emits them.
 - Ending the session files the final transcript through `document_intake__transcript`.
+- Ending the session routes the filed transcript to the matter DRI through a Restate-durable handoff step.
 - No Coverage Finding becomes a confirmed Answer without staff action.
 - Logs and traces include identifiers, counts, statuses, and latency only; never transcript text or answer bodies.

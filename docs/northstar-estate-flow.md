@@ -142,9 +142,11 @@ first and swapped in DocuSign). Status:
   transcript is then uploaded through the reusable `document_intake__transcript` step and stored as a document; the
   recording stays the source of truth until the drafts are approved.
 
-Live transcript coverage is a planned adjunct, not a replacement for the offline lane. The generic design is
-[`live-inquiry-coverage.md`](live-inquiry-coverage.md): Northstar can seed a Live Inquiry Session from this Template's
-questionnaire, persist transcript segments immediately, and show staff which estate-plan Inquiries still need follow-up.
+Live transcript coverage is a planned adjunct, not a replacement for the offline lane — and it is **off by default,
+behind the `live-transcription` feature flag**, so a default Northstar sitting is unchanged unless a deployment opts in.
+The generic design is [`live-inquiry-coverage.md`](live-inquiry-coverage.md): when enabled, Northstar can seed a Live
+Inquiry Session from this Template's questionnaire, persist transcript segments immediately, and show staff which
+estate-plan Inquiries still need follow-up.
 
 ## Legal and ethics constraints
 
