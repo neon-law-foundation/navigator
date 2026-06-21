@@ -41,12 +41,13 @@ const DEFAULT_NAMESPACE: &str = "navigator";
 const INGRESS_MANIFEST: &str = "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/kind/deploy.yaml";
 
 // Restate Operator — same chart drives KIND and GKE. Release notes:
-// https://github.com/restatedev/restate-operator/releases. Keep this
-// aligned with the server image in `k8s/overlays/kind/deps/restate.yaml`
-// and `RESTATE_CLI_VERSION` below: 2.6.x is the operator generation
-// built for the 1.7 server line. The older 2.5.1 operator could not
-// provision a 1.7.0 node (its `ProvisionCluster` gRPC call failed with
-// a `transport error`, wedging the node at `0/1` "awaiting provisioning").
+// https://github.com/restatedev/restate-operator/releases. Kept aligned
+// with the server image in `k8s/overlays/kind/deps/restate.yaml` and
+// `RESTATE_CLI_VERSION` below (2.6.1 / 1.7.0). NOTE: the local "restate
+// won't provision" wedge was NOT a version skew — it was the operator's
+// own `deny-all` NetworkPolicy being enforced by recent kindnet, which
+// blocked the operator→node `:5122` provisioning dial. The fix lives in
+// `restate.yaml` (`security.disableNetworkPolicies: true`), not here.
 const RESTATE_OPERATOR_VERSION: &str = "2.6.1";
 
 // Restate CLI — pinned so operator-laptop and CI-runner versions

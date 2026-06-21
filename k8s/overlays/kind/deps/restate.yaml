@@ -11,21 +11,31 @@
 # RestateDeployment CRs (see `k8s/workflows-service/`) reference
 # this cluster by name via `spec.restate.register.cluster: restate`.
 #
-# `security.networkPeers.ingress` whitelists who may call the
-# ingress port. The default is empty (deny all); without this
-# block, `navigator-web` cannot reach the broker.
+# `disableNetworkPolicies: true` is load-bearing for this KIND overlay
+# (local `deploy` AND CI's `deploy.yml`). When `autoProvision` is on, the
+# operator provisions by dialing the node's fabric port
+# `restate-0.restate-cluster…:5122`. The operator also reconciles a
+# `deny-all` NetworkPolicy plus selective allows (including one that opens
+# :5122 to the operator pod). Recent kindnet (≥ v20260528) *enforces*
+# NetworkPolicy but does NOT honor that operator allow rule, so the
+# provisioning dial is dropped → `transport error` → `ProvisioningFailed`,
+# and the node sits at `0/1` "awaiting provisioning" forever (restate 1.7.0
+# then crash-loops on its init deadline). This is independent of the
+# operator/server version — operator 2.5.1+1.6.2, 2.6.1+1.6.2 and 2.6.1+1.7.0
+# all wedge under enforcing kindnet, and all provision the instant the
+# policies are gone. Older kindnet (CI's historical node image, and prod's
+# CNI) didn't enforce, which is why this surfaced as "local-only." These KIND
+# clusters are single-app and ephemeral, so dropping the policies costs no
+# real isolation. If a security-sensitive overlay ever needs the policies,
+# split it out rather than flipping this back on for KIND.
 #
-# Pin `compute.image` to an explicit tag — never `latest`. This
-# overlay is applied by BOTH local `deploy` and CI's `deploy.yml`,
-# and the server tag must stay aligned with the operator chart and
-# restate CLI pinned in `cli/src/devx/mod.rs`
-# (`RESTATE_OPERATOR_VERSION` / `RESTATE_CLI_VERSION`). Keep all
-# three on the same release: server 1.7.0 ⇄ operator 2.6.1 ⇄ CLI
-# 1.7.0. The 2.6.x operator is the generation built for the 1.7
-# server line; the older 2.5.1 operator could not provision a 1.7.0
-# node (its gRPC `ProvisionCluster` call to `restate-0…:5122` failed
-# with a `transport error`, leaving the node stuck `0/1` "awaiting
-# provisioning"). `:latest` last drifted onto 1.7.0 on 2026-06-18.
+# `security.networkPeers.ingress` whitelists who may call the ingress port
+# (kept for documentation/intent even though policies are disabled here).
+#
+# Pin `compute.image` to an explicit tag — never `latest`. Keep server,
+# operator chart, and restate CLI on the same release (server 1.7.0 ⇄
+# operator 2.6.1 ⇄ CLI 1.7.0; the latter two in `cli/src/devx/mod.rs`).
+# `:latest` last drifted onto 1.7.0 on 2026-06-18.
 apiVersion: restate.dev/v1
 kind: RestateCluster
 metadata:
@@ -37,6 +47,7 @@ spec:
   compute:
     image: docker.restate.dev/restatedev/restate:1.7.0
   security:
+    disableNetworkPolicies: true
     networkPeers:
       ingress:
         - namespaceSelector:
