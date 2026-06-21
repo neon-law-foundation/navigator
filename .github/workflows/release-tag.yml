@@ -31,7 +31,7 @@ jobs:
     if: github.repository == 'neon-law-foundation/Navigator'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Use the PAT so the tag push re-triggers `deploy.yml`.
           token: ${{ secrets.RELEASE_PAT }}
