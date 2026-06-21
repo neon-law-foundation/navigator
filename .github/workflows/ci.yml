@@ -55,7 +55,7 @@ jobs:
           large-packages: false
           docker-images: false
           swap-storage: false
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.95.0
@@ -108,7 +108,7 @@ jobs:
           TEST_DATABASE_URL: postgres://navigator:navigator@127.0.0.1:5432/navigator
         run: cargo llvm-cov --workspace --lcov --output-path lcov.info
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
