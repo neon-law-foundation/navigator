@@ -7,7 +7,7 @@
 # sqlx-sqlite backends pull in `ring` (rustls) which musl-targets
 # fine. We pin to the project's Rust 1.95.0 toolchain.
 
-FROM rust:1.95-bookworm AS builder
+FROM rust:1.96-bookworm AS builder
 
 # Toolchain prep: musl target + musl gcc for any C deps. The musl target
 # is chosen from BuildKit's automatic TARGETARCH so the SAME Dockerfile
