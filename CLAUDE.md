@@ -90,6 +90,12 @@ cargo test --workspace
 CI is exactly **three workflows, no fourth**. The full lifecycle — the flow every committing skill inherits, the
 pre-commit gate, the three workflows, and pull-based deploy — is in [`docs/gitops.md`](docs/gitops.md).
 
+**Reviewing a PR means resolving every comment.** A PR is not "reviewed" until each reviewer comment — Greptile,
+CodeRabbit, any bot, any human — has been adjudicated against the real code and answered via the `gh` CLI: fixed and
+replied, or acknowledged-with-rationale and replied, with real review threads marked resolved. Never leave a comment
+hanging. The full recipe (read → assess → collect every comment → ask → fix → reply + resolve) is the `review-pr`
+skill.
+
 ## AIDA — the agent
 
 **AIDA** is Navigator's domain agent: one tool catalog (`mcp/src/tools/`), two LLM-agnostic protocol surfaces — **A2A**
