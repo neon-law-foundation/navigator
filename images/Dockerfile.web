@@ -5,7 +5,7 @@
 # Compile the `web` binary statically against musl so the runtime
 # image can be `gcr.io/distroless/static`. SeaORM's sqlx-postgres /
 # sqlx-sqlite backends pull in `ring` (rustls) which musl-targets
-# fine. We pin to the project's Rust 1.95.0 toolchain.
+# fine. We pin to the project's Rust 1.96.0 toolchain.
 
 FROM rust:1.96-bookworm AS builder
 
