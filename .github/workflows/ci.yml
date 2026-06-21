@@ -64,6 +64,14 @@ jobs:
           components: rustfmt, clippy, llvm-tools-preview
       - name: install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
+      # OPA backs the authorization policy gate. `cli/tests/opa_policy.rs`
+      # extracts the real Rego from `k8s/base/opa/opa.yaml` and runs
+      # `opa test` over it; with `CI` set, a missing `opa` binary is a hard
+      # failure (the test refuses to silently skip the policy gate).
+      - name: install OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: latest
       - name: cache cargo
         uses: Swatinem/rust-cache@v2
         with:
