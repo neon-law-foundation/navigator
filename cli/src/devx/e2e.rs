@@ -206,6 +206,7 @@ pub fn run_e2e(cfg: &KindConfig) -> Result<()> {
 
     eprintln!("=== checking dependent services ===");
     for dep in ["postgres", "fake-gcs-server", "keycloak", "opa"] {
+        eprintln!("    waiting for deployment/{dep} rollout");
         wait_rollout("deployment", dep, cfg)?;
     }
     wait_for_restate(cfg)?;
@@ -262,12 +263,17 @@ fn wait_for_restate(cfg: &KindConfig) -> Result<()> {
         // `Ready` condition, the same contract `deploy`'s
         // wait_for_dep_rollouts uses.
         let (ns, resource, condition) = restate_ready_target();
+        eprintln!("    waiting for {resource} {condition} in namespace {ns}");
         wait_for_condition(ns, resource, condition)?;
     }
     // workflows-service is a RestateDeployment CR (Operator-managed), not a
     // plain Deployment — `deployment/workflows-service` returns NotFound. It
     // lives in cfg.namespace (unlike the cluster). Wait on the CR's `Ready`
     // condition, the same contract `deploy`'s wait_for_dep_rollouts uses.
+    eprintln!(
+        "    waiting for {WORKFLOWS_SERVICE_READY_RESOURCE} Ready in namespace {}",
+        cfg.namespace
+    );
     wait_for_condition(&cfg.namespace, WORKFLOWS_SERVICE_READY_RESOURCE, "Ready")
 }
 
@@ -287,22 +293,49 @@ fn restate_ready_target() -> (&'static str, &'static str, &'static str) {
 }
 
 /// Hit `/health` through the KIND ingress and require HTTP 200.
+///
+/// Two guards make this loud-but-bounded instead of an indefinite hang.
+/// `--max-time` caps each individual request, so a wedged ingress that
+/// accepts the connection but never answers can't block the whole `e2e`
+/// step (that un-capped curl was a load-bearing reason a stuck deploy ran
+/// for hours). The retry loop tolerates the few seconds the ingress can
+/// lag behind a freshly-Ready pod, and every attempt logs its status so a
+/// failure says *what* the ingress returned, not just "not 200".
 fn check_health() -> Result<()> {
     let host = std::env::var("INGRESS_HOST").unwrap_or_else(|_| "localhost:8080".to_string());
-    let out = Command::new("curl")
-        .args(["-sS", "-o", "/dev/null", "-w", "%{http_code}"])
-        .arg("--resolve")
-        .arg("localhost:8080:127.0.0.1")
-        .arg(format!("http://{host}/health"))
-        .output()
-        .context("curl /health")?;
-    let status = String::from_utf8_lossy(&out.stdout);
-    let status = status.trim();
-    if status != "200" {
-        bail!("expected HTTP 200 from /health, got {status}");
+    let url = format!("http://{host}/health");
+    let deadline = Instant::now() + Duration::from_mins(1);
+    let mut attempt = 0;
+    loop {
+        attempt += 1;
+        let out = Command::new("curl")
+            .args([
+                "-sS",
+                "--max-time",
+                "10",
+                "-o",
+                "/dev/null",
+                "-w",
+                "%{http_code}",
+            ])
+            .arg("--resolve")
+            .arg("localhost:8080:127.0.0.1")
+            .arg(&url)
+            .output()
+            .context("curl /health")?;
+        let status = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if status == "200" {
+            eprintln!("    health OK ({status}) after {attempt} attempt(s)");
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            bail!(
+                "expected HTTP 200 from {url} within 60s; last status {status:?} after {attempt} attempt(s)"
+            );
+        }
+        eprintln!("    /health not ready (status {status:?}); retrying in 2s [attempt {attempt}]");
+        sleep(Duration::from_secs(2));
     }
-    eprintln!("health OK ({status})");
-    Ok(())
 }
 
 /// Port-forward OPA, wait for it to accept connections, then assert

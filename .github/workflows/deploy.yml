@@ -29,6 +29,13 @@ jobs:
     name: KIND integration (tag ${{ github.ref_name }})
     if: github.repository == 'neon-law-foundation/Navigator'
     runs-on: ubuntu-latest
+    # Fail fast instead of hanging for hours. A healthy run (cold image
+    # builds + KIND e2e + browser/accessibility suite) lands in ~35-45 min;
+    # a wedged dependency (e.g. Restate not provisioning) used to leave the
+    # `e2e` waits and smoke checks spinning until someone cancelled it by
+    # hand — one such run burned 2h15m. 60 min gives headroom over a slow
+    # cold build while capping a wedge at a bounded, log-bearing failure.
+    timeout-minutes: 60
     steps:
       # The standard ubuntu-latest runner ships ~21-28 GB free on `/` — not
       # enough for this job, which cold-builds BOTH images, loads them into
@@ -85,6 +92,13 @@ jobs:
           cluster_name: navigator
           config: k8s/kind-config.yaml
           wait: 60s
+          # Pin the node image to the exact digest we validate locally so CI
+          # can't silently drift onto a different Kubernetes/kindnet build —
+          # the classic "passes on my machine, hangs in CI" gap. This is the
+          # image the full stack (incl. Restate provisioning under enforcing
+          # kindnet v20260528) was verified Ready on; bump it deliberately,
+          # in lockstep with the local KIND node image.
+          node_image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
       - name: load images into kind
         run: |
           kind load docker-image navigator-web:dev               --name navigator
@@ -235,11 +249,45 @@ jobs:
       - name: dump diagnostics on failure
         if: failure()
         run: |
-          kubectl --namespace navigator get all -o wide
-          kubectl --namespace navigator describe pods
-          for pod in $(kubectl --namespace navigator get pods -o name); do
-              echo "=== logs: $pod ==="
-              kubectl --namespace navigator logs --all-containers "$pod" --tail=200 || true
+          set +e
+          # The timeout-minutes on this job makes a wedge fail (not hang till a
+          # human cancels it), so this block finally runs on the failures that
+          # matter. Cast wide: the app namespace AND the Restate namespaces,
+          # because the historical wedge was the operator failing to provision
+          # restate-0 — which lives in `restate`/`restate-operator`, never in
+          # `navigator`, so the old navigator-only dump showed nothing useful.
+          echo "##[group]nodes + disk pressure"
+          kubectl get nodes -o wide
+          kubectl describe nodes | grep -A6 -iE "Conditions:|DiskPressure|MemoryPressure|PIDPressure" || true
+          df -h / /var/lib/docker 2>/dev/null || df -h
+          echo "##[endgroup]"
+          echo "##[group]all pods, all namespaces"
+          kubectl get pods -A -o wide
+          echo "##[endgroup]"
+          echo "##[group]recent events (all namespaces, by time)"
+          kubectl get events -A --sort-by=.lastTimestamp | tail -80
+          echo "##[endgroup]"
+          # Restate CRs carry the provisioning status in their conditions —
+          # the single most useful signal when restate-0 sits at 0/1.
+          for ns in restate restate-operator navigator; do
+              echo "##[group]namespace: $ns"
+              kubectl --namespace "$ns" get all -o wide
+              kubectl --namespace "$ns" describe pods
+              echo "##[endgroup]"
+          done
+          echo "##[group]Restate CRs (provisioning status conditions)"
+          kubectl get restatecluster,restatedeployment -A -o wide
+          kubectl describe restatecluster -A
+          kubectl describe restatedeployment -A
+          echo "##[endgroup]"
+          for ns in restate restate-operator navigator; do
+              for pod in $(kubectl --namespace "$ns" get pods -o name); do
+                  echo "##[group]logs: $ns/$pod"
+                  kubectl --namespace "$ns" logs --all-containers "$pod" --tail=200
+                  echo "--- previous (if crash-looped) ---"
+                  kubectl --namespace "$ns" logs --all-containers --previous "$pod" --tail=80 2>/dev/null || true
+                  echo "##[endgroup]"
+              done
           done
 
   # ---------- Stage 2: publish every image to ghcr.io ----------
@@ -255,6 +303,9 @@ jobs:
     name: publish ${{ matrix.image }} to ghcr.io
     needs: integration
     runs-on: ubuntu-latest
+    # Cold image build + ghcr push; cap it so a stuck registry/build can't
+    # hang the release indefinitely.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -333,6 +384,9 @@ jobs:
     name: email deploy report
     needs: publish
     runs-on: ubuntu-latest
+    # A single SendGrid call — should be seconds; cap it so a hung HTTP
+    # request can't keep the workflow open.
+    timeout-minutes: 10
     steps:
       - name: send deploy email via SendGrid
         env:
