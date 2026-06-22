@@ -140,7 +140,7 @@ url = "2"
 # working tree) into a plain ZIP — never a git packfile or bundle.
 # default-features off keeps the heavy codecs (aes, bzip2, zstd) out; we
 # only need deflate.
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 fantoccini = "0.22"
 # opentelemetry suite: held at 0.27 — 0.32 reorganizes TracerProvider/Resource builders (own session).
