@@ -11,7 +11,7 @@ routes.
 
 ## 0. Prerequisites
 
-- Rust 1.95 (`rustup toolchain install 1.95.0`)
+- Rust 1.96 (`rustup toolchain install 1.96.0`)
 - Docker (for image builds and the testcontainers-backed test suite)
 - `kubectl`, `kustomize`, `gcloud` (only if you're following the GCP example)
 - A domain you control, with the ability to set A records

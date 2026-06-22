@@ -149,7 +149,7 @@ jobs:
       - name: install rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.95.0
+          toolchain: 1.96.0
       - name: cache cargo
         uses: Swatinem/rust-cache@v2
       - name: wait for rollouts and run smoke checks

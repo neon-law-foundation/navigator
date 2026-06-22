@@ -6,7 +6,7 @@ General workspace rules, architecture invariants, and the "how to work" guide li
 ## Cursor Cloud specific instructions
 
 A committed [`.cursor/environment.json`](.cursor/environment.json) + [`.cursor/Dockerfile`](.cursor/Dockerfile) define
-the agent base image, so build + lint + test work out of the box. The image bakes the pinned Rust 1.95.0 toolchain
+the agent base image, so build + lint + test work out of the box. The image bakes the pinned Rust 1.96.0 toolchain
 (rustfmt + clippy), the native build deps (`build-essential`, `pkg-config`, `libssl-dev`, `libpq-dev`,
 `protobuf-compiler`), and a local PostgreSQL seeded with a superuser role/db `navigator` (password `navigator`). On each
 boot `install` runs `cargo fetch` and `start` runs `sudo service postgresql start`; `TEST_DATABASE_URL` is preset in the

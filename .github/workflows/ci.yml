@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.95.0
+          toolchain: 1.96.0
           # llvm-tools-preview supplies the instrumentation `cargo llvm-cov`
           # needs to produce the lcov uploaded to Codecov.
           components: rustfmt, clippy, llvm-tools-preview
