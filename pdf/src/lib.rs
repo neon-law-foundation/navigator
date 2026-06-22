@@ -1,7 +1,8 @@
 //! PDF rendering for Navigator's legal documents.
 //!
-//! Backed by the [Typst](https://typst.app) embedded compiler via the
-//! `typst-as-lib` wrapper. Callers feed Typst markup to [`render`] and
+//! Backed by the [Typst](https://typst.app) embedded compiler, driven
+//! directly through a small in-crate [`World`](typst::World)
+//! implementation. Callers feed Typst markup to [`render`] and
 //! get back the PDF bytes; the [`StorageService`](cloud::StorageService)
 //! seam handles persistence.
 //!
@@ -142,23 +143,27 @@ impl RedactionStyle {
 /// or [`PdfError::Export`] if the PDF stage fails after a successful
 /// compile.
 pub fn render(source: &str) -> Result<Vec<u8>, PdfError> {
-    use typst::layout::PagedDocument;
-    use typst_as_lib::TypstEngine;
+    use typst::foundations::Bytes;
+    use typst::syntax::{FileId, RootedPath, VirtualPath, VirtualRoot};
+    use typst_layout::PagedDocument;
 
     // Prepend the font set-rule so Noto Serif is the default family for
-    // whatever `source` renders. The embedded masters are registered
-    // with `.fonts(..)`; `.search_fonts_with(..)` is kept so Typst can
-    // still fall back for any glyph Noto Serif lacks.
+    // whatever `source` renders. The embedded masters take precedence in
+    // the world's font set; system + typst-kit embedded fonts are kept as
+    // fallback for any glyph Noto Serif lacks.
     let with_font = format!("{FONT_PREAMBLE}{source}");
-    let engine = TypstEngine::builder()
-        .main_file(with_font)
-        .fonts([NOTO_SERIF, NOTO_SERIF_ITALIC])
-        .with_static_file_resolver([(LOGO_PATH, FIRM_LOGO)])
-        .search_fonts_with(typst_as_lib::typst_kit_options::TypstKitFontOptions::default())
-        .build();
 
-    let doc: PagedDocument = engine
-        .compile()
+    // The firm logo is registered at the same virtual path the letterhead
+    // chrome references via `#image(..)`, resolved relative to the main
+    // file's (root) directory.
+    let logo_path = VirtualPath::new(LOGO_PATH).expect("static logo path is valid");
+    let logo = (
+        FileId::new(RootedPath::new(VirtualRoot::Project, logo_path)),
+        Bytes::new(FIRM_LOGO),
+    );
+    let world = world::PdfWorld::new(with_font, &[NOTO_SERIF, NOTO_SERIF_ITALIC], vec![logo]);
+
+    let doc: PagedDocument = typst::compile(&world)
         .output
         .map_err(|diags| PdfError::Compile(format_diagnostics(&diags)))?;
 
@@ -186,6 +191,106 @@ pub fn render_with_redactions(
 
 fn format_diagnostics<T: std::fmt::Debug>(diags: &T) -> String {
     format!("{diags:?}")
+}
+
+/// The minimal [`World`](typst::World) the embedded compiler needs: one
+/// in-memory main source, a fixed set of virtual files (the firm logo),
+/// and a font set of the embedded firm masters plus typst-kit's embedded
+/// and system fonts as fallback. There is no filesystem or package
+/// access — every input is provided up front, so rendering is hermetic.
+mod world {
+    use typst::diag::{FileError, FileResult};
+    use typst::foundations::{Bytes, Datetime, Duration};
+    use typst::syntax::{FileId, RootedPath, Source, VirtualPath, VirtualRoot};
+    use typst::text::{Font, FontBook};
+    use typst::utils::LazyHash;
+    use typst::{Library, LibraryExt, World};
+    use typst_kit::fonts::FontStore;
+
+    pub struct PdfWorld {
+        library: LazyHash<Library>,
+        fonts: FontStore,
+        main: FileId,
+        source: Source,
+        files: Vec<(FileId, Bytes)>,
+    }
+
+    impl PdfWorld {
+        /// Build a world from the main source text, the embedded firm font
+        /// masters (registered first so they win in fallback ordering), and
+        /// any additional virtual files (e.g. the logo) the markup resolves.
+        pub fn new(
+            source: String,
+            embedded_fonts: &[&'static [u8]],
+            files: Vec<(FileId, Bytes)>,
+        ) -> Self {
+            let main_path = VirtualPath::new("main.typ").expect("static main path is valid");
+            let main = FileId::new(RootedPath::new(VirtualRoot::Project, main_path));
+            let source = Source::new(main, source);
+
+            let mut fonts = FontStore::new();
+            for data in embedded_fonts {
+                for font in Font::iter(Bytes::new(*data)) {
+                    let info = font.info().clone();
+                    fonts.push((font, info));
+                }
+            }
+            fonts.extend(typst_kit::fonts::embedded());
+            fonts.extend(typst_kit::fonts::system());
+
+            Self {
+                library: LazyHash::new(Library::default()),
+                fonts,
+                main,
+                source,
+                files,
+            }
+        }
+    }
+
+    impl World for PdfWorld {
+        fn library(&self) -> &LazyHash<Library> {
+            &self.library
+        }
+
+        fn book(&self) -> &LazyHash<FontBook> {
+            self.fonts.book()
+        }
+
+        fn main(&self) -> FileId {
+            self.main
+        }
+
+        fn source(&self, id: FileId) -> FileResult<Source> {
+            if id == self.main {
+                Ok(self.source.clone())
+            } else {
+                Err(FileError::NotFound(id.vpath().get_without_slash().into()))
+            }
+        }
+
+        fn file(&self, id: FileId) -> FileResult<Bytes> {
+            if id == self.main {
+                return Ok(Bytes::from_string(self.source.text().to_string()));
+            }
+            self.files
+                .iter()
+                .find(|(fid, _)| *fid == id)
+                .map(|(_, bytes)| bytes.clone())
+                .ok_or_else(|| FileError::NotFound(id.vpath().get_without_slash().into()))
+        }
+
+        fn font(&self, index: usize) -> Option<Font> {
+            self.fonts.font(index)
+        }
+
+        fn today(&self, _offset: Option<Duration>) -> Option<Datetime> {
+            // Deterministic by design: a rendered legal document must not
+            // depend on the wall clock. Templates that need a date carry it
+            // in the source, so `datetime.today()` is intentionally absent.
+            None
+        }
+    }
 }
 
 #[cfg(test)]
