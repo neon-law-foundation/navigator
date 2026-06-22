@@ -145,7 +145,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 fantoccini = "0.22"
 # opentelemetry suite: held at 0.27 — 0.32 reorganizes TracerProvider/Resource builders (own session).
 opentelemetry = "0.27"
-opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry_sdk = { version = "0.32", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.27", default-features = false, features = ["grpc-tonic", "trace", "metrics", "logs"] }
 # Bridges `tracing` log records to the OTLP LoggerProvider. Lockstep-versioned with
 # opentelemetry 0.27 — bump together, never alone.
