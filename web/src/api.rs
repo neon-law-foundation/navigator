@@ -22,9 +22,9 @@ use store::Db;
 pub fn routes() -> Router<Db> {
     Router::new()
         .route("/api/people", axum::routing::get(list_people))
-        .route("/api/people/:id", axum::routing::get(get_person))
+        .route("/api/people/{id}", axum::routing::get(get_person))
         .route("/api/entities", axum::routing::get(list_entities))
-        .route("/api/entities/:id", axum::routing::get(get_entity))
+        .route("/api/entities/{id}", axum::routing::get(get_entity))
         .route("/api/jurisdictions", axum::routing::get(list_jurisdictions))
         .route("/api/entity-types", axum::routing::get(list_entity_types))
         .route(

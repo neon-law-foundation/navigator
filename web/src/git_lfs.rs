@@ -12,8 +12,8 @@
 //! - `POST .../info/lfs/objects/batch` — the client announces the
 //!   objects it wants to upload or download; we return an `actions`
 //!   href per object pointing back at the transfer endpoints below.
-//! - `PUT  .../info/lfs/objects/:oid` — upload an object's bytes.
-//! - `GET  .../info/lfs/objects/:oid` — download an object's bytes.
+//! - `PUT  .../info/lfs/objects/{oid}` — upload an object's bytes.
+//! - `GET  .../info/lfs/objects/{oid}` — download an object's bytes.
 //!
 //! All three reuse the transport's PAT + project ACL
 //! ([`crate::git_http::authorize_project`]): download needs read, upload
@@ -40,9 +40,9 @@ const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 /// transport.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/projects/:repo/info/lfs/objects/batch", post(batch))
+        .route("/projects/{repo}/info/lfs/objects/batch", post(batch))
         .route(
-            "/projects/:repo/info/lfs/objects/:oid",
+            "/projects/{repo}/info/lfs/objects/{oid}",
             get(download).put(upload),
         )
 }

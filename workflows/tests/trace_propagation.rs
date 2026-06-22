@@ -21,7 +21,7 @@ async fn start_workflow_injects_w3c_traceparent_when_a_span_is_active() {
     opentelemetry::global::set_text_map_propagator(
         opentelemetry_sdk::propagation::TraceContextPropagator::new(),
     );
-    let provider = opentelemetry_sdk::trace::TracerProvider::builder().build();
+    let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder().build();
     let tracer = provider.tracer("trace-propagation-test");
     let subscriber =
         tracing_subscriber::registry().with(tracing_opentelemetry::layer().with_tracer(tracer));

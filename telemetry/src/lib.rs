@@ -32,10 +32,10 @@ use opentelemetry::trace::TracerProvider as _;
 use opentelemetry::KeyValue;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::logs::LoggerProvider;
+use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace::TracerProvider;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -66,9 +66,9 @@ pub mod outcome {
 /// batched spans/metrics/logs before the process exits.
 #[must_use = "dropping the guard immediately flushes and tears down telemetry"]
 pub struct TelemetryGuard {
-    tracer: Option<TracerProvider>,
+    tracer: Option<SdkTracerProvider>,
     meter: Option<SdkMeterProvider>,
-    logger: Option<LoggerProvider>,
+    logger: Option<SdkLoggerProvider>,
 }
 
 impl TelemetryGuard {
@@ -97,9 +97,9 @@ impl Drop for TelemetryGuard {
 /// the same way — the tests exercise this without touching the process-global
 /// subscriber, which can only be installed once.
 struct ExportProviders {
-    tracer: TracerProvider,
+    tracer: SdkTracerProvider,
     meter: SdkMeterProvider,
-    logger: LoggerProvider,
+    logger: SdkLoggerProvider,
 }
 
 /// Normalize the raw `OTEL_EXPORTER_OTLP_ENDPOINT` value: an unset, empty, or
@@ -116,10 +116,9 @@ fn normalize_endpoint(raw: Option<String>) -> Option<String> {
 /// connection — tonic connects lazily on first export — so this is safe to call
 /// offline (and the unit tests do exactly that).
 fn build_export_providers(endpoint: &str, service_name: &str) -> ExportProviders {
-    let resource = Resource::new(vec![KeyValue::new(
-        "service.name",
-        service_name.to_string(),
-    )]);
+    let resource = Resource::builder()
+        .with_service_name(service_name.to_string())
+        .build();
 
     // Traces — one batch span exporter.
     let span_exporter = opentelemetry_otlp::SpanExporter::builder()
@@ -127,8 +126,8 @@ fn build_export_providers(endpoint: &str, service_name: &str) -> ExportProviders
         .with_endpoint(endpoint)
         .build()
         .expect("build OTLP span exporter");
-    let tracer = TracerProvider::builder()
-        .with_batch_exporter(span_exporter, opentelemetry_sdk::runtime::Tokio)
+    let tracer = SdkTracerProvider::builder()
+        .with_batch_exporter(span_exporter)
         .with_resource(resource.clone())
         .build();
 
@@ -138,11 +137,7 @@ fn build_export_providers(endpoint: &str, service_name: &str) -> ExportProviders
         .with_endpoint(endpoint)
         .build()
         .expect("build OTLP metric exporter");
-    let reader = opentelemetry_sdk::metrics::PeriodicReader::builder(
-        metric_exporter,
-        opentelemetry_sdk::runtime::Tokio,
-    )
-    .build();
+    let reader = opentelemetry_sdk::metrics::PeriodicReader::builder(metric_exporter).build();
     let meter = SdkMeterProvider::builder()
         .with_reader(reader)
         .with_resource(resource.clone())
@@ -155,8 +150,8 @@ fn build_export_providers(endpoint: &str, service_name: &str) -> ExportProviders
         .with_endpoint(endpoint)
         .build()
         .expect("build OTLP log exporter");
-    let logger = LoggerProvider::builder()
-        .with_batch_exporter(log_exporter, opentelemetry_sdk::runtime::Tokio)
+    let logger = SdkLoggerProvider::builder()
+        .with_batch_exporter(log_exporter)
         .with_resource(resource)
         .build();
 
@@ -390,7 +385,9 @@ pub fn parent_context_from(
 /// (fresh root) when no `traceparent` is present.
 pub fn set_span_parent(span: &tracing::Span, traceparent: Option<&str>, tracestate: Option<&str>) {
     use tracing_opentelemetry::OpenTelemetrySpanExt;
-    span.set_parent(parent_context_from(traceparent, tracestate));
+    // `set_parent` returns a `Result` as of tracing-opentelemetry 0.33; parenting
+    // is best-effort telemetry, so a failure to attach is intentionally ignored.
+    let _ = span.set_parent(parent_context_from(traceparent, tracestate));
 }
 
 #[cfg(test)]
