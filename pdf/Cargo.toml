@@ -11,6 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 lopdf.workspace = true
+pulldown-cmark = { workspace = true, default-features = false }
 thiserror.workspace = true
 typst = "0.14"
 typst-pdf = "0.14"

@@ -28,6 +28,7 @@ Subcommands split by whether they need a database:
 | Subcommand          | Needs DB? | Notes                                                |
 | ------------------- | --------- | ---------------------------------------------------- |
 | `validate`          | no        | N104 runs in structural mode only.                   |
+| `render`            | no        | Validation-gated template → PDF; `--format letter`.  |
 | `format`            | no        | Whitespace + bullet cleanup on one `.md`.            |
 | `glossary`          | no        | Looks up workspace vocabulary by term.               |
 | `scaffold`          | no        | Drops template + workflow + feature stubs.           |
