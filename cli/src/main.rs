@@ -1590,7 +1590,16 @@ fn run_render(
         body = body.replace(&format!("{{{{{code}}}}}"), value);
     }
 
-    let bytes = match pdf::render_document(&body, format) {
+    // Source the letterhead from the canonical firm brand so the
+    // rendered address honors the same `NAVIGATOR_*` overrides as the
+    // website footer.
+    let brand = &views::brand::FIRM_BRAND;
+    let letterhead = pdf::Letterhead {
+        name: brand.site_name.to_string(),
+        contact: "neonlaw.com".to_string(),
+        address: brand.postal_address.to_string(),
+    };
+    let bytes = match pdf::render_document(&body, format, &letterhead) {
         Ok(b) => b,
         Err(e) => {
             eprintln!("navigator: render {}: {e}", file.display());
