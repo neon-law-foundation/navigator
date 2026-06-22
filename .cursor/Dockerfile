@@ -44,13 +44,13 @@ RUN service postgresql start \
     && su - postgres -c "createdb -O navigator navigator" \
     && service postgresql stop
 
-# Pinned Rust toolchain. `rust-toolchain.toml` already pins 1.95.0, so any
+# Pinned Rust toolchain. `rust-toolchain.toml` already pins 1.96.0, so any
 # `cargo` invocation in the repo uses it; we install it here so it is present
 # offline and the rustfmt/clippy components are ready.
 USER ubuntu
 WORKDIR /home/ubuntu
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-        | sh -s -- -y --default-toolchain 1.95.0 --profile minimal -c rustfmt -c clippy
+        | sh -s -- -y --default-toolchain 1.96.0 --profile minimal -c rustfmt -c clippy
 USER root
 
 # Make cargo/rustc available on PATH for every (non-login) shell the agent uses.

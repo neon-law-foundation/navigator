@@ -32,7 +32,7 @@ acting on anything below, and keep the doc, not this file, authoritative.
 - **Secrets in Doppler.** Values for `.env.example` live in Doppler (`dev` / `prd`); prod renders to GCP Secret Manager.
   Doppler sits **above** the env-var interface — the workspace builds and runs with no Doppler account. →
   [`docs/secrets-doppler.md`](docs/secrets-doppler.md)
-- **Toolchain.** Pinned in `rust-toolchain.toml`: Rust 1.95.0, edition 2021, clippy pedantic at warn, `unsafe_code =
+- **Toolchain.** Pinned in `rust-toolchain.toml`: Rust 1.96.0, edition 2021, clippy pedantic at warn, `unsafe_code =
   "forbid"`.
 
 ## How to work

@@ -9,7 +9,7 @@ description: >
 
 # Rust conventions in the navigator workspace
 
-Pinned toolchain: **Rust 1.95.0**, edition 2021, `rustfmt` + `clippy` components, `unsafe_code = "forbid"` at workspace lint level. Workspace clippy: `pedantic` at warn, with `module_name_repetitions`, `missing_errors_doc`, `missing_panics_doc` allowed.
+Pinned toolchain: **Rust 1.96.0**, edition 2021, `rustfmt` + `clippy` components, `unsafe_code = "forbid"` at workspace lint level. Workspace clippy: `pedantic` at warn, with `module_name_repetitions`, `missing_errors_doc`, `missing_panics_doc` allowed.
 
 ## Error handling
 
