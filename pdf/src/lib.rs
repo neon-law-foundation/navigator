@@ -39,11 +39,15 @@
 use thiserror::Error;
 
 pub mod acroform;
+pub mod format;
+pub mod markdown;
 
 pub use acroform::{
     blank_acroform, blank_acroform_with, field_names, fill_acroform, read_field_value,
     read_field_values, read_widget_appearance_state, FieldSpec,
 };
+pub use format::{render_document, OutputFormat};
+pub use markdown::to_typst;
 
 /// The firm typeface, embedded so PDF rendering never depends on a
 /// font installed on the host. These are the Google Fonts Noto Serif
@@ -52,6 +56,16 @@ pub use acroform::{
 const NOTO_SERIF: &[u8] = include_bytes!("../assets/fonts/NotoSerif/NotoSerif-VF.ttf");
 const NOTO_SERIF_ITALIC: &[u8] =
     include_bytes!("../assets/fonts/NotoSerif/NotoSerif-Italic-VF.ttf");
+
+/// The firm logo, embedded so the letterhead in [`OutputFormat::Letter`]
+/// never depends on a file on disk. Registered with the Typst engine
+/// under the virtual path [`LOGO_PATH`], which a chrome preamble
+/// references via `#image(..)`.
+const FIRM_LOGO: &[u8] = include_bytes!("../assets/brand/logo-firm.png");
+
+/// The virtual path the embedded [`FIRM_LOGO`] is resolvable at inside
+/// Typst markup — kept in one place so [`format`] and [`render`] agree.
+pub(crate) const LOGO_PATH: &str = "logo-firm.png";
 
 /// Typst set-rule making Noto Serif the document default. Prepended
 /// to every source by [`render`]; a caller's own `#set text` rule that
@@ -139,6 +153,7 @@ pub fn render(source: &str) -> Result<Vec<u8>, PdfError> {
     let engine = TypstEngine::builder()
         .main_file(with_font)
         .fonts([NOTO_SERIF, NOTO_SERIF_ITALIC])
+        .with_static_file_resolver([(LOGO_PATH, FIRM_LOGO)])
         .search_fonts_with(typst_as_lib::typst_kit_options::TypstKitFontOptions::default())
         .build();
 

@@ -74,6 +74,32 @@ enum Command {
         #[arg(long, env = "DATABASE_URL")]
         database_url: Option<String>,
     },
+    /// Render a single notation template to a PDF, framed by an output
+    /// format (a plain document, or a firm `letter` on Neon Law
+    /// letterhead with the logo).
+    ///
+    /// The file is validated against the same notation rule set as
+    /// `validate` first — a template with any violation is refused. The
+    /// output format is taken from the template's `output:` frontmatter
+    /// field, overridable with `--format`; absent both, it renders
+    /// plain. Markdown is converted to Typst and compiled in pure Rust
+    /// (no shell-out). `{{placeholder}}` tokens render verbatim unless
+    /// filled with `--answer code=value`.
+    Render {
+        /// Path to the notation template (`.md`).
+        file: PathBuf,
+        /// Where to write the rendered PDF.
+        #[arg(long)]
+        out: PathBuf,
+        /// Output format (`plain` or `letter`). Overrides the
+        /// template's `output:` frontmatter field when set.
+        #[arg(long)]
+        format: Option<String>,
+        /// Fill a `{{code}}` placeholder with `value`. Repeatable:
+        /// `--answer counterparty_legal_name="NEON GmbH"`.
+        #[arg(long = "answer", value_parser = parse_answer)]
+        answers: Vec<(String, String)>,
+    },
     /// Import every clean template under `<dir>` into a Postgres
     /// database.
     ///
@@ -916,6 +942,7 @@ enum ListSubject {
     Letters,
 }
 
+#[allow(clippy::too_many_lines)] // one flat dispatch match; splitting it hurts readability
 fn main() -> ExitCode {
     // `.env` is picked up before `clap` reads its `env = "..."`
     // defaults. No-op when no file is present, so CI/cluster deploys
@@ -940,6 +967,12 @@ fn main() -> ExitCode {
             fix,
             database_url.as_deref(),
         )),
+        Command::Render {
+            file,
+            out,
+            format,
+            answers,
+        } => run_render(&file, &out, format.as_deref(), &answers),
         Command::Import { dir, database_url } => {
             runtime().block_on(run_import(&dir, &database_url))
         }
@@ -1480,6 +1513,118 @@ async fn run_validate(
     } else {
         ExitCode::from(1)
     }
+}
+
+/// Parse a `--answer code=value` argument into its halves. The value
+/// may itself contain `=`; only the first `=` splits.
+fn parse_answer(raw: &str) -> Result<(String, String), String> {
+    let (code, value) = raw
+        .split_once('=')
+        .ok_or_else(|| format!("expected `code=value`, got `{raw}`"))?;
+    if code.is_empty() {
+        return Err(format!("empty answer code in `{raw}`"));
+    }
+    Ok((code.to_string(), value.to_string()))
+}
+
+/// Render one notation template to a PDF. Validates the file against the
+/// notation rule set, resolves the output format (CLI override →
+/// `output:` frontmatter → plain), fills any `{{code}}` placeholders
+/// from `answers`, and writes the compiled PDF to `out`.
+fn run_render(
+    file: &std::path::Path,
+    out: &std::path::Path,
+    format_override: Option<&str>,
+    answers: &[(String, String)],
+) -> ExitCode {
+    let contents = match std::fs::read_to_string(file) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("navigator: read {}: {e}", file.display());
+            return ExitCode::from(2);
+        }
+    };
+
+    // Gate on validation: only a clean notation template renders. Use
+    // the same DB-free classified rule set as `validate`.
+    let source = rules::SourceFile {
+        path: file.to_path_buf(),
+        contents: contents.clone(),
+    };
+    let violations: Vec<rules::Violation> =
+        rules::navigator_classified_rules_with_codes(&source, &[])
+            .iter()
+            .flat_map(|r| r.lint(&source))
+            .collect();
+    if !violations.is_empty() {
+        for v in &violations {
+            print_violation(&v.path.display().to_string(), v.line, v.code, &v.message);
+        }
+        eprintln!(
+            "navigator: {} validation violation(s); not rendering",
+            violations.len()
+        );
+        return ExitCode::from(1);
+    }
+
+    // Resolve the output format: explicit flag wins, else the
+    // template's `output:` field, else plain.
+    let declared = rules::frontmatter::extract(&contents)
+        .and_then(|fm| rules::frontmatter::field(fm, "output"))
+        .filter(|s| !s.is_empty());
+    let format_name = format_override.map(str::to_string).or(declared);
+    let format = match format_name.as_deref().map(pdf::OutputFormat::parse) {
+        // No format declared anywhere: render a plain document.
+        None => pdf::OutputFormat::Plain,
+        Some(Some(f)) => f,
+        Some(None) => {
+            let name = format_name.unwrap_or_default();
+            eprintln!("navigator: unknown --format `{name}` (expected `plain` or `letter`)");
+            return ExitCode::from(2);
+        }
+    };
+
+    // Body is everything after the frontmatter block; fill placeholders.
+    let mut body = strip_frontmatter(&contents).to_string();
+    for (code, value) in answers {
+        body = body.replace(&format!("{{{{{code}}}}}"), value);
+    }
+
+    let bytes = match pdf::render_document(&body, format) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("navigator: render {}: {e}", file.display());
+            return ExitCode::from(2);
+        }
+    };
+    if let Err(e) = std::fs::write(out, &bytes) {
+        eprintln!("navigator: write {}: {e}", out.display());
+        return ExitCode::from(2);
+    }
+    println!(
+        "{}",
+        palette::dim(format!(
+            "Rendered {} ({format:?}, {} bytes) → {}",
+            file.display(),
+            bytes.len(),
+            out.display()
+        ))
+    );
+    ExitCode::SUCCESS
+}
+
+/// Return the body of a notation file — everything after the leading
+/// YAML frontmatter block. When there is no recognized frontmatter, the
+/// whole string is the body.
+fn strip_frontmatter(contents: &str) -> &str {
+    let Some(after_open) = contents.strip_prefix("---\n") else {
+        return contents;
+    };
+    if let Some(end) = after_open.find("\n---\n") {
+        return after_open[end + "\n---\n".len()..].trim_start_matches('\n');
+    }
+    // Closer at EOF with no body, or no closer at all.
+    after_open.strip_suffix("\n---").map_or(contents, |_| "")
 }
 
 struct FixReport {
