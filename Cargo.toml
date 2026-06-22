@@ -39,7 +39,7 @@ arrow = { version = "58", default-features = false }
 assert_cmd = "2"
 async-trait = "0.1"
 # axum: held at 0.7 — 0.8 changes extractor trait signatures + Host extractor (own session).
-axum = "0.7"
+axum = "0.8"
 bytes = "1"
 # gzip codec — git smart-HTTP clients gzip the upload-pack RPC request body
 # (`Content-Encoding: gzip`); the transport in `web` decompresses it.
