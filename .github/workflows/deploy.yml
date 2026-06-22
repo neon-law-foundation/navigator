@@ -40,27 +40,85 @@ permissions:
   packages: write
 
 jobs:
+  # ---------- Stage 0: build both service images in parallel ----------
+  # Each image cold-compiles the whole Rust workspace (~15 min apiece).
+  # Building them as a parallel matrix here — instead of two sequential
+  # `docker build` steps inside `integration` — overlaps those compiles so
+  # the wall-clock is ~one build, not two. It also stops `integration` from
+  # burning ~31 of its ~44 minutes building before it can even start the
+  # e2e suite (which is itself only ~6 min), keeping the whole run well
+  # under the 60-min cap even on a cold cache.
+  #
+  # Each image is pushed to ghcr.io under an ephemeral, per-run tag that
+  # `integration` pulls and loads into KIND. Auth is the automatic
+  # GITHUB_TOKEN (+ `permissions: packages: write`); the navigator-web and
+  # navigator-workflows-service packages must grant this repo Write access
+  # under their "Manage Actions access" settings, exactly as the
+  # auto-created trigger-image packages already have.
+  build:
+    name: build ${{ matrix.image }}
+    if: github.repository == 'neon-law-foundation/Navigator'
+    runs-on: ubuntu-latest
+    # Cold workspace compile; cap so a stuck build can't hang the run.
+    timeout-minutes: 45
+    strategy:
+      # One red build means the e2e can't run — stop the sibling too.
+      fail-fast: true
+      matrix:
+        include:
+          - image: navigator-web
+            dockerfile: images/Dockerfile.web
+          - image: navigator-workflows-service
+            dockerfile: images/Dockerfile.workflows-service
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: derive ephemeral image ref
+        id: ref
+        # Lowercase the owner (ghcr rejects uppercase) and tag by run id +
+        # attempt so concurrent runs and re-runs never collide.
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}:ci-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+      - name: build and push (ephemeral CI tag)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.ref.outputs.ref }}
+          # Same gha cache scope the publish job reads, so a tag run's
+          # publish rebuild stays a near-no-op.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
   # ---------- Stage 1: KIND end-to-end integration ----------
   integration:
     name: KIND integration (tag ${{ github.ref_name }})
+    needs: build
     if: github.repository == 'neon-law-foundation/Navigator'
     runs-on: ubuntu-latest
-    # Fail fast instead of hanging for hours. A healthy run (cold image
-    # builds + KIND e2e + browser/accessibility suite) lands in ~35-45 min;
-    # a wedged dependency (e.g. Restate not provisioning) used to leave the
-    # `e2e` waits and smoke checks spinning until someone cancelled it by
-    # hand — one such run burned 2h15m. 60 min gives headroom over a slow
-    # cold build while capping a wedge at a bounded, log-bearing failure.
+    # Fail fast instead of hanging for hours. With the image builds moved
+    # to the parallel `build` job, a healthy run here is just the KIND
+    # stand-up + e2e/browser/accessibility suite (~15 min); a wedged
+    # dependency (e.g. Restate not provisioning) used to leave the `e2e`
+    # waits and smoke checks spinning until someone cancelled it by hand —
+    # one such run burned 2h15m. 60 min leaves wide headroom while capping
+    # a wedge at a bounded, log-bearing failure.
     timeout-minutes: 60
     steps:
-      # The standard ubuntu-latest runner ships ~21-28 GB free on `/` — not
-      # enough for this job, which cold-builds BOTH images, loads them into
-      # KIND, and runs the full e2e/browser suite. Without this it dies with
-      # "No space left on device" mid build. Reclaim the ~30 GB of
+      # The standard ubuntu-latest runner ships ~21-28 GB free on `/`. This
+      # job pulls both service images, loads them into KIND, and compiles +
+      # runs the full e2e/browser suite on the runner — enough to risk "No
+      # space left on device" without a sweep. Reclaim the ~30 GB of
       # pre-installed tooling we never use (Android SDK, .NET, Haskell, the
       # tool cache), mirroring the `rust` job in `ci.yml`. `large-packages:
       # false` skips the slow apt purge — the quick removals free enough. We
-      # keep `docker-images: false` because this job's own image builds and
+      # keep `docker-images: false` because the pulled service images and the
       # KIND node image live in the Docker store.
       - name: free disk space
         uses: jlumbroso/free-disk-space@main
@@ -79,28 +137,12 @@ jobs:
       - name: restore tool-cache dir
         run: sudo mkdir -p /opt/hostedtoolcache && sudo chown "$USER":"$USER" /opt/hostedtoolcache
       - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-
-      - name: build navigator-web
-        uses: docker/build-push-action@v7
+      - name: log in to ghcr.io
+        uses: docker/login-action@v4
         with:
-          context: .
-          file: images/Dockerfile.web
-          push: false
-          load: true
-          tags: navigator-web:dev
-          cache-from: type=gha,scope=navigator-web
-          cache-to: type=gha,mode=max,scope=navigator-web
-      - name: build navigator-workflows-service
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: images/Dockerfile.workflows-service
-          push: false
-          load: true
-          tags: navigator-workflows-service:dev
-          cache-from: type=gha,scope=navigator-workflows-service
-          cache-to: type=gha,mode=max,scope=navigator-workflows-service
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: install kind
         uses: helm/kind-action@v1
@@ -121,10 +163,23 @@ jobs:
           # kindnet v20260528) was verified Ready on; bump it deliberately,
           # in lockstep with the local KIND node image.
           node_image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
-      - name: load images into kind
+      - name: pull service images and load into kind
+        # The parallel `build` job pushed both images under the per-run
+        # ephemeral tag; pull them, retag to the `:dev` names the KIND
+        # manifests reference (imagePullPolicy: IfNotPresent), and load them
+        # into the node. `set -euo pipefail` so a failed pull fails the step.
         run: |
-          kind load docker-image navigator-web:dev               --name navigator
-          kind load docker-image navigator-workflows-service:dev --name navigator
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          tag="ci-${{ github.run_id }}-${{ github.run_attempt }}"
+          for img in navigator-web navigator-workflows-service; do
+              ref="ghcr.io/${owner}/${img}:${tag}"
+              echo "::group::load ${img}"
+              docker pull "$ref"
+              docker tag "$ref" "${img}:dev"
+              kind load docker-image "${img}:dev" --name navigator
+              echo "::endgroup::"
+          done
       - name: install nginx-ingress
         run: |
           kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/kind/deploy.yaml
@@ -234,12 +289,21 @@ jobs:
           cat /tmp/pg-port-forward.log
           exit 1
 
+      # NAV_REQUIRE_HARNESS=1 turns the browser tests' "harness unreachable"
+      # self-skip into a hard panic (non-zero exit) — in CI the harness is
+      # always expected up, so a skip here is a real failure, not a green
+      # pass. `set -o pipefail` makes the pipe through `tee` surface cargo's
+      # exit code rather than tee's (it is GitHub's default, set explicitly
+      # so the guarantee can't drift). The downstream "did not self-skip"
+      # grep stays as a second line of defense.
       - name: browser e2e — full suite
         env:
           NAV_BASE_URL: http://localhost:8080
           WEBDRIVER_URL: http://localhost:9515
           DATABASE_URL: postgres://navigator:navigator@localhost:15432/navigator
+          NAV_REQUIRE_HARNESS: "1"
         run: |
+          set -o pipefail
           cargo test -p web --test browser_e2e -- \
               --test-threads=1 --nocapture 2>&1 | tee /tmp/browser_e2e.log
 
@@ -247,7 +311,9 @@ jobs:
         env:
           NAV_BASE_URL: http://localhost:8080
           WEBDRIVER_URL: http://localhost:9515
+          NAV_REQUIRE_HARNESS: "1"
         run: |
+          set -o pipefail
           cargo test -p web --test accessibility_e2e -- \
               --test-threads=1 --nocapture 2>&1 | tee /tmp/accessibility_e2e.log
 
@@ -462,7 +528,7 @@ jobs:
   # Like the email above: tag + run URL only, never client content.
   notify-failure:
     name: slack — alert engineering on failure
-    needs: [integration, publish, notify]
+    needs: [build, integration, publish, notify]
     # Tag-only: a failed `kind-ci/**` branch iteration is expected churn and
     # must not page engineering — only a failed nightly deploy does.
     if: failure() && startsWith(github.ref, 'refs/tags/')
