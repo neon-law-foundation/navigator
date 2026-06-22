@@ -81,9 +81,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: derive ephemeral image ref
         id: ref
-        # Lowercase the owner (ghcr rejects uppercase) and tag by run id +
-        # attempt so concurrent runs and re-runs never collide.
-        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}:ci-${{ github.run_id }}-${{ github.run_attempt }}" >> "$GITHUB_OUTPUT"
+        # Lowercase the owner (ghcr rejects uppercase) and tag by commit SHA
+        # so the tag is stable across re-runs: a `--failed` re-run of only
+        # `integration` (where `build` does NOT re-run) still finds the image
+        # `build` already pushed for this commit.
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}:ci-${{ github.sha }}" >> "$GITHUB_OUTPUT"
       - name: build and push (ephemeral CI tag)
         uses: docker/build-push-action@v7
         with:
@@ -171,7 +173,7 @@ jobs:
         run: |
           set -euo pipefail
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          tag="ci-${{ github.run_id }}-${{ github.run_attempt }}"
+          tag="ci-${{ github.sha }}"
           for img in navigator-web navigator-workflows-service; do
               ref="ghcr.io/${owner}/${img}:${tag}"
               echo "::group::load ${img}"
