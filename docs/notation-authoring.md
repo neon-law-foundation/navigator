@@ -215,6 +215,20 @@ answers in `web`, then threads the result to the **worker** as a `DocumentPayloa
 durability. `web` reads the PDF back from storage to hand to the signature provider. This is one-directional: template →
 fresh PDF.
 
+**Rendering a template to PDF offline — `navigator render`.** For an ad-hoc PDF outside the durable workflow (a demand
+letter to send by hand, a draft for review), `navigator render <template.md> --out <file.pdf>` takes any
+validation-passing notation template and compiles it in pure Rust. Because templates are authored in **Markdown** but
+the `pdf` crate compiles **Typst**, the body is converted by `pdf::markdown::to_typst` (headings, emphasis, lists, block
+quotes, inline code, links) before rendering — the missing seam between the two markups. The command validates the file
+against the same rule set as `navigator validate` and refuses to render a template with any violation.
+
+**Output formats — the letterhead seam.** How the document is dressed is an `OutputFormat` (`pdf::format`): `plain`
+(page geometry + firm typeface) or `letter` (Neon Law letterhead with the embedded logo). A template declares its
+default in an optional `output:` frontmatter field (validated by rule `N109`); `--format` overrides per render. New
+forms — pleading paper, a fax cover — are a new `OutputFormat` variant plus its Typst chrome preamble; the conversion
+and embedded logo are shared. Fill `{{placeholder}}` tokens with repeated `--answer code=value` flags; unfilled tokens
+render verbatim.
+
 **Filling fillable government PDFs — done.** `pdf::fill_acroform(blank_pdf, fields)` opens an existing fillable PDF (a
 Nevada SoS articles form, an IRS Form 990) via `lopdf`, walks its AcroForm `/Fields`, sets each `/V`, and sets
 `/NeedAppearances` so a viewer regenerates the field appearances — a read-modify-write path distinct from the Typst

@@ -5562,6 +5562,7 @@ name = "pdf"
 version = "0.1.0"
 dependencies = [
  "lopdf",
+ "pulldown-cmark",
  "tempfile",
  "thiserror 2.0.18",
  "typst",
