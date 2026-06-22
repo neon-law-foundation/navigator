@@ -150,7 +150,7 @@ opentelemetry-otlp = { version = "0.27", default-features = false, features = ["
 # Bridges `tracing` log records to the OTLP LoggerProvider. Lockstep-versioned with
 # opentelemetry 0.27 — bump together, never alone.
 opentelemetry-appender-tracing = "0.27"
-tracing-opentelemetry = "0.28"
+tracing-opentelemetry = "0.33"
 telemetry = { path = "telemetry" }
 views = { path = "views" }
 walkdir = "2.5"
