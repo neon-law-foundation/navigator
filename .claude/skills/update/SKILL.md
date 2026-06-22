@@ -52,7 +52,7 @@ cargo update --dry-run       # preview what would move
 - "Latest version" here means **latest compatible**. Crossing a **major** (which `cargo upgrade --incompatible` does)
   can break APIs and is an architecture call — surface it, take it through `/council`, and do NOT fold it into this
   sweep. Respect the existing pin comments in `Cargo.toml` (e.g. `maud`/`tower-cookies` held for axum 0.7).
-- The toolchain pin (`rust-toolchain.toml` → 1.95.0) does **not** move as part of `/update`.
+- The toolchain pin (`rust-toolchain.toml` → 1.96.0) does **not** move as part of `/update`.
 
 Gate, then commit on its own (`chore(deps): cargo update (lockfile)`):
 
