@@ -1579,7 +1579,15 @@ fn run_render(
         Some(Some(f)) => f,
         Some(None) => {
             let name = format_name.unwrap_or_default();
-            eprintln!("navigator: unknown --format `{name}` (expected `plain` or `letter`)");
+            // Derive the accepted list from the format enum so a new
+            // variant shows up in the hint without a manual edit here.
+            // `plain` is the implicit default and absent from
+            // `FRONTMATTER_VALUES`, so prepend it.
+            let known = std::iter::once("plain")
+                .chain(pdf::OutputFormat::FRONTMATTER_VALUES.iter().copied())
+                .collect::<Vec<_>>()
+                .join(", ");
+            eprintln!("navigator: unknown --format `{name}` (expected one of: {known})");
             return ExitCode::from(2);
         }
     };

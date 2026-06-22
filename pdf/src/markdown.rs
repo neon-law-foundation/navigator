@@ -225,6 +225,19 @@ mod tests {
         // `{{name}}` carries no Typst meaning; it must survive so the
         // caller can substitute it (before or after conversion).
         assert_eq!(to_typst("Hello `{{name}}`"), "Hello #raw(\"{{name}}\")");
+        // The at-risk path is a *bare* token in prose, not backtick-wrapped:
+        // `{` / `}` are deliberately absent from `escape_text` because Typst
+        // markup treats them as literal characters (code is `#{..}`). So an
+        // unfilled token must reach the page verbatim — escaping it to
+        // `\{\{name\}\}` would corrupt the passthrough guarantee.
+        assert_eq!(to_typst("Hello {{name}}"), "Hello {{name}}");
+        // Even an own-line token and a dotted token (both present in real
+        // templates) survive unescaped and compile.
+        assert_eq!(to_typst("{{custom_clauses}}"), "{{custom\\_clauses}}");
+        assert_eq!(
+            to_typst("Signed {{client.signature}}"),
+            "Signed {{client.signature}}"
+        );
     }
 
     #[test]
