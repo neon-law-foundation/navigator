@@ -20,7 +20,7 @@
 # host-port forwarding (Keycloak :30080, fake-gcs :30443) plus
 # explicit `-p` flags for the rest.
 
-FROM rust:1.95-bookworm
+FROM rust:1.96-bookworm
 
 ARG KIND_VERSION=v0.24.0
 ARG KUBECTL_VERSION=v1.31.0
