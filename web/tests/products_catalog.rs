@@ -157,6 +157,13 @@ async fn catalog_lists_every_active_product_at_the_db_price() {
         "the litigation card wears the inline scales-of-justice SVG"
     );
 
+    assert!(
+        body.contains("Flat fee per phase")
+            && body.contains("quoted after case assessment")
+            && !body.contains("$1,337/hour"),
+        "litigation card should advertise quoted phase pricing instead of hourly billing"
+    );
+
     // The catalog is a curated lineup, not alphabetical or by-price: the
     // repdigit ladder by leading digit — Nest → Nexus → Northstar → Node →
     // Newleaf → Nautilus → Namesake → Nucleus → Nook, with 1337 last.
@@ -212,6 +219,11 @@ async fn new_service_detail_pages_render_with_their_marketing_copy() {
         ("/services/newleaf", "uncontested divorce", "$555"),
         ("/services/namesake", "filed with the USPTO", "$777"),
         ("/services/nucleus", "Nevada fund", "$8,888"),
+        (
+            "/services/litigation",
+            "Flat fee per phase",
+            "pro-rata refund",
+        ),
         ("/services/nerd", "put a nerd on the stand", "$1,337"),
         ("/services/pro-bono", "Statement of Legal Aid", "Free"),
     ] {
