@@ -41,7 +41,7 @@ COPY mcp               mcp
 COPY features          features
 COPY lsp               lsp
 COPY pdf               pdf
-COPY templates         templates
+COPY notation_templates notation_templates
 COPY archives          archives
 COPY import            import
 COPY statutes          statutes
@@ -70,7 +70,7 @@ WORKDIR /app
 COPY --from=builder /src/target/x86_64-unknown-linux-musl/release/web /app/web
 COPY --from=builder /src/web/public  /app/public
 COPY --from=builder /src/web/content /app/content
-COPY --from=builder /src/templates   /app/templates
+COPY --from=builder /src/notation_templates   /app/notation_templates
 
 # Same asset env as `Dockerfile`, plus the repo-volume root. The repo
 # root is overridden to the PVC mount by the Deployment; this default
