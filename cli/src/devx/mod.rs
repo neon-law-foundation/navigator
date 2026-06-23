@@ -417,7 +417,7 @@ pub fn dispatch(command: crate::Command) -> Result<()> {
             dry_run,
             restart_only,
             tag,
-        } => power_push::run_power_push(power_push::PowerPushOpts {
+        } => power_push::run_power_push(&power_push::PowerPushOpts {
             dry_run,
             restart_only,
             tag,

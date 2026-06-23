@@ -317,12 +317,12 @@ pub struct PowerPushOpts {
 }
 
 /// Entry point for `Cmd::PowerPush`.
-pub fn run_power_push(opts: PowerPushOpts) -> Result<()> {
+pub fn run_power_push(opts: &PowerPushOpts) -> Result<()> {
     let cfg = PowerPushConfig::from_env()?;
     if opts.restart_only {
         return restart_only(&cfg, opts.dry_run);
     }
-    roll(&cfg, &opts)
+    roll(&cfg, opts)
 }
 
 /// The no-rebuild push: restart both deployments so the pods re-read a
@@ -352,7 +352,7 @@ fn restart_only(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
 /// Roll the cluster onto an already-published `YY.MM.DD` ghcr tag.
 /// CI built and published the images; this only updates the cluster:
 /// resolve the tag → confirm the Secret satisfies the new binary's boot
-/// invariants → pin BOTH deployments AND every trigger CronJob to that
+/// invariants → pin BOTH deployments AND every trigger `CronJob` to that
 /// tag → wait → re-register the worker with Restate → smoke-check. No
 /// build, no push, no skew — every navigator image in sync at one tag.
 fn roll(cfg: &PowerPushConfig, opts: &PowerPushOpts) -> Result<()> {
@@ -385,9 +385,15 @@ fn roll(cfg: &PowerPushConfig, opts: &PowerPushOpts) -> Result<()> {
 
     // 2b. Fail fast if the two service images aren't actually published at
     //     this tag — pinning a deployment to a missing tag wedges it in
-    //     ImagePullBackOff. (Skipped in dry-run / for the resolved-latest
-    //     placeholder, which has nothing to verify against.)
-    if !dry_run && opts.tag.is_some() {
+    //     ImagePullBackOff. Verify on every live run, regardless of how the
+    //     tag was chosen: the auto-resolve path picks the latest tag from
+    //     navigator-web alone, so without this the workflows-service image is
+    //     never checked, and a partial CI publish (web tag lands, the
+    //     workflows-service publish leg fails — they run as a fail-fast:false
+    //     matrix) would still roll workflows-service onto a missing tag.
+    //     Skipped only in dry-run, where `resolve_latest_tag` returns a
+    //     placeholder with nothing to verify against.
+    if !dry_run {
         ensure_tag_published(&cfg.ghcr_owner, "navigator-web", &tag)?;
         ensure_tag_published(&cfg.ghcr_owner, "navigator-workflows-service", &tag)?;
     }
@@ -434,13 +440,13 @@ fn roll(cfg: &PowerPushConfig, opts: &PowerPushOpts) -> Result<()> {
     Ok(())
 }
 
-/// Re-pin every navigator trigger CronJob to `tag`. Discovers the
-/// CronJobs from the live cluster and re-points any container whose image
+/// Re-pin every navigator trigger `CronJob` to `tag`. Discovers the
+/// `CronJobs` from the live cluster and re-points any container whose image
 /// is one of ours (`ghcr.io/<owner>/navigator-*`) — no hard-coded list,
 /// so a newly added trigger is covered automatically. Each image is
 /// re-pinned only after confirming `tag` is actually published for it;
 /// a trigger whose image hasn't published `tag` yet is skipped with a
-/// warning rather than wedged in ImagePullBackOff.
+/// warning rather than wedged in `ImagePullBackOff`.
 fn pin_cronjob_images(cfg: &PowerPushConfig, tag: &str, dry_run: bool) -> Result<()> {
     let prefix = format!("{}/", cfg.registry());
     if dry_run {
@@ -613,7 +619,7 @@ fn ghcr_tag_exists(owner: &str, image: &str, tag: &str) -> bool {
 /// Bail unless `tag` is published for `ghcr.io/<owner>/<image>`. Used to
 /// fail a roll fast — before any `kubectl set image` — when a service
 /// image is missing the requested tag (which would otherwise wedge the
-/// deployment in ImagePullBackOff). Distinguishes a lookup error (network)
+/// deployment in `ImagePullBackOff`). Distinguishes a lookup error (network)
 /// from an honestly-absent tag.
 fn ensure_tag_published(owner: &str, image: &str, tag: &str) -> Result<()> {
     let tags = fetch_ghcr_tags(owner, image)

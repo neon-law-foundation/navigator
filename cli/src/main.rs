@@ -422,7 +422,7 @@ enum Command {
     /// cluster. Default flow: resolve the `YY.MM.DD` ghcr tag (latest
     /// published, or `--tag`) → confirm the prod Secret satisfies the new
     /// binary's boot invariants → roll out BOTH deployments at that tag →
-    /// pin every trigger CronJob to the same tag → re-register the worker
+    /// pin every trigger `CronJob` to the same tag → re-register the worker
     /// with Restate, so every navigator image ends in sync at one
     /// `YY.MM.DD`. Reads every project / region / domain / cluster value
     /// from `.env`; never builds images locally.
