@@ -71,7 +71,7 @@ pub struct AdminState {
     pub signature_provider: Arc<dyn SignatureProvider>,
     /// Parsed questionnaire spec from the bundled retainer
     /// template. Drives the per-step walker at
-    /// `/portal/admin/notations/{{id}}/step`.
+    /// `/portal/admin/notations/{id}/step`.
     pub retainer_intake_questionnaire: workflows::QuestionnaireSpec,
     /// Same `Arc` as `workflow_runtime` — kept as a separate field so
     /// the questionnaire walker reads from a name that matches the
@@ -423,7 +423,7 @@ fn register_firm_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminStat
 /// are row-scoped via [`crate::access::visible_projects`] in the
 /// handlers themselves; every write surface gates on `staff_tier` so
 /// a client sees `404` on every URL they can't act on. The role
-/// branch on `GET /{{id}}` is what splits the lightweight client view
+/// branch on `GET /{id}` is what splits the lightweight client view
 /// (in [`crate::portal::projects::detail`]) from the admin-chrome
 /// view (header + documents + upload — rendered by
 /// [`projects_detail`]).
@@ -845,7 +845,7 @@ async fn people_delete(
     delete_response(&headers, "/portal/admin/people")
 }
 
-/// POST /portal/admin/people/{{id}}/welcome — render the welcome email
+/// POST /portal/admin/people/{id}/welcome — render the welcome email
 /// body for this person and dispatch it through the configured
 /// `EmailService`. The `LoggingEmail` decorator journals one row to
 /// `sent_emails` per attempt; the admin can inspect the result at
@@ -1918,7 +1918,7 @@ async fn projects_edit_staff_only(
     .into_response()
 }
 
-/// `GET /portal/projects/{{id}}` — role-aware project detail.
+/// `GET /portal/projects/{id}` — role-aware project detail.
 ///
 /// - **Client** → forward to the lightweight view in
 ///   [`crate::portal::projects::detail`] (no Edit / Upload / Delete
@@ -1927,7 +1927,7 @@ async fn projects_edit_staff_only(
 ///   non-participants.
 /// - **Staff / Admin** → render the admin chrome (`projects_detail`):
 ///   header + documents table + multipart upload form + drive sync
-///   button. Edit form stays at `/portal/projects/{{id}}/edit`.
+///   button. Edit form stays at `/portal/projects/{id}/edit`.
 async fn projects_detail_role_aware(
     State(db): State<Db>,
     State(storage): State<std::sync::Arc<dyn cloud::StorageService>>,

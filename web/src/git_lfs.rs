@@ -36,7 +36,7 @@ use crate::AppState;
 /// LFS JSON content type for batch requests and responses.
 const LFS_CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
 
-/// Mount the LFS routes. `:repo` is `<project-id>.git`, matching the
+/// Mount the LFS routes. `{repo}` is `<project-id>.git`, matching the
 /// transport.
 pub fn routes() -> Router<AppState> {
     Router::new()
