@@ -49,7 +49,7 @@ COPY mcp               mcp
 COPY features          features
 COPY lsp               lsp
 COPY pdf               pdf
-COPY templates         templates
+COPY notation_templates notation_templates
 COPY archives          archives
 COPY import            import
 COPY statutes          statutes
