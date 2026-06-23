@@ -18,9 +18,9 @@
 //!   (`nevada`, `california`, `washington`); never a state the firm
 //!   cannot practice in.
 //! - **forum** — the counterparty / sovereign the document is filed with
-//!   (`state`, `clark_county`, `irs`, …), or `private` when there is no
+//!   (`state`, `clark_county`, `irs`, …), or `internal` when there is no
 //!   government counterparty. Forum is required everywhere: a document
-//!   with no government counterparty is `private`, not absent.
+//!   with no government counterparty is `internal`, not absent.
 //! - **practice_area** — the body of law, drawn from the standard MBE/MEE
 //!   subjects plus the firm's own practice areas (`debt_relief`,
 //!   `taxation`, …).
@@ -66,10 +66,13 @@ pub const PRACTICE_AREAS: &[&str] = &[
 ];
 
 /// The forums that name the third path segment — the counterparty or
-/// sovereign a document is filed with, or `private` when there is no
-/// government counterparty. Counties and agencies live here (they are not
-/// jurisdiction rows); tribal nations are sovereigns that *could* become
-/// jurisdiction rows later. Single source of truth.
+/// sovereign a document is filed with, or `internal` when there is no
+/// government counterparty. `internal` means "no government/sovereign on
+/// the other side" — a document that stays within the client relationship
+/// — **not** "internal to the firm"; the firm-vs-client distinction lives
+/// elsewhere. Counties and agencies live here (they are not jurisdiction
+/// rows); tribal nations are sovereigns that *could* become jurisdiction
+/// rows later. Single source of truth.
 ///
 /// The list is deliberately **flat / scope-agnostic**: a county or agency
 /// forum (`clark_county`, `washoe_county`, …) validates under any scope,
@@ -78,7 +81,7 @@ pub const PRACTICE_AREAS: &[&str] = &[
 /// firm's template set is small enough that the flat list is the simpler,
 /// fixed-depth grammar we want today.
 pub const FORUMS: &[&str] = &[
-    "private",
+    "internal",
     "state",
     "clark_county",
     "washoe_county",
@@ -167,7 +170,7 @@ impl Rule for F110JurisdictionPath {
         };
 
         // Expected shape: [jurisdiction, scope, forum, practice_area,
-        // file.md] — exactly five segments. Forum is mandatory (`private`
+        // file.md] — exactly five segments. Forum is mandatory (`internal`
         // when there is no government counterparty), so the depth is
         // fixed.
         if rel.len() != 5 {
@@ -194,7 +197,7 @@ impl Rule for F110JurisdictionPath {
         if !FORUMS.contains(&forum) {
             violations.push(format!(
                 "Unknown forum `{forum}`; expected one of {FORUMS:?} \
-                 (use `private` when there is no government counterparty)"
+                 (use `internal` when there is no government counterparty)"
             ));
         } else if !is_snake_case(forum) {
             // Forums in the closed list are already snake_case; this guards
@@ -241,7 +244,7 @@ mod tests {
     #[test]
     fn accepts_a_well_formed_jurisdiction_path() {
         let v = F110JurisdictionPath.lint(&at(
-            "notation_templates/united_states/nevada/private/trusts_and_estates/trust.md",
+            "notation_templates/united_states/nevada/internal/trusts_and_estates/trust.md",
         ));
         assert!(v.is_empty(), "{v:?}");
     }
@@ -266,7 +269,7 @@ mod tests {
     fn accepts_a_firm_practice_area() {
         // `debt_relief` is not on the bar list but is a firm practice area.
         let v = F110JurisdictionPath.lint(&at(
-            "notation_templates/united_states/federal/private/debt_relief/fcra_dispute.md",
+            "notation_templates/united_states/federal/internal/debt_relief/fcra_dispute.md",
         ));
         assert!(v.is_empty(), "{v:?}");
     }
@@ -327,7 +330,7 @@ mod tests {
     fn flags_unknown_scope() {
         // Arizona is not a firm admission.
         let v = F110JurisdictionPath.lint(&at(
-            "notation_templates/united_states/arizona/private/torts/negligence.md",
+            "notation_templates/united_states/arizona/internal/torts/negligence.md",
         ));
         assert_eq!(v.len(), 1);
         assert!(
@@ -353,7 +356,7 @@ mod tests {
     #[test]
     fn flags_unknown_practice_area() {
         let v = F110JurisdictionPath.lint(&at(
-            "notation_templates/united_states/nevada/private/space_law/asteroid.md",
+            "notation_templates/united_states/nevada/internal/space_law/asteroid.md",
         ));
         assert_eq!(v.len(), 1);
         assert!(

@@ -37,11 +37,12 @@ notation_templates/
   keeps the path vocabulary and the seeded reference data in sync.
 - **Scope** — `federal`, or one of the firm's states of admission: `nevada`, `california`, `washington`. The closed
   list is the firm's actual bar admissions, never a state the firm cannot practice in.
-- **Forum** — the counterparty or sovereign the document is filed with, or `private` when there is no government
+- **Forum** — the counterparty or sovereign the document is filed with, or `internal` when there is no government
   counterparty. The forum sits **above** the practice area because that is how the firm's filing and workflow
-  integrations are organized. It is **mandatory**: a document with no government counterparty is `private`, not absent.
-  The closed list: `private`, `state`, `clark_county`, `washoe_county`, `secretary_of_state`, `department_of_taxation`,
-  `irs`, `uspto`. Counties and agencies live here, not in the `jurisdictions` table.
+  integrations are organized. It is **mandatory**: a document with no government counterparty is `internal`, not absent.
+  `internal` means "no government/sovereign on the other side" — it stays within the client relationship — **not**
+  "internal to the firm." The closed list: `internal`, `state`, `clark_county`, `washoe_county`, `secretary_of_state`,
+  `department_of_taxation`, `irs`, `uspto`. Counties and agencies live here, not in the `jurisdictions` table.
 - **Practice area** — the body of law, drawn from the standard MBE/MEE subject list **plus the firm's own practice
   areas** the bar list does not cover (`debt_relief`, `taxation`, `intellectual_property`, `immigration`,
   `landlord_tenant`), so the folder reads the way a lawyer already files law in their head:
@@ -123,12 +124,12 @@ brand-named retainers) go to `neon_law/`. The intended destinations:
 
 | Legacy path | Destination |
 | --- | --- |
-| `trust/nevada.md`, `will/simple.md`, `northstar/*.md` | `united_states/nevada/private/trusts_and_estates/` |
+| `trust/nevada.md`, `will/simple.md`, `northstar/*.md` | `united_states/nevada/internal/trusts_and_estates/` |
 | `nest/*.md`, `annual_report/nevada.md` | `united_states/nevada/state/business_associations/` |
 | `dissolution/nevada.md`, `nonprofit/nevada_*.md` | `united_states/nevada/state/business_associations/` |
 | `llc/california.md` | `united_states/california/state/business_associations/` |
-| `nautilus/*.md` (FDCPA/FCRA letters) | `united_states/federal/private/debt_relief/` |
-| `nexus/fractional_gc.md` (work product) | `united_states/nevada/private/business_associations/` |
+| `nautilus/*.md` (FDCPA/FCRA letters) | `united_states/federal/internal/debt_relief/` |
+| `nexus/fractional_gc.md` (work product) | `united_states/nevada/internal/business_associations/` |
 | `nonprofit/form990_annual_report.md` | `united_states/federal/irs/taxation/` |
 | `nv_state_tax_filing/modified_business_tax.md` | `united_states/nevada/state/taxation/` |
 | `closing/letter.md` | `correspondence/` |
@@ -144,7 +145,7 @@ nonprofit entries to deep paths is part of that same follow-up, since it changes
 1. Find (or create) the folder that names the jurisdiction, scope, forum, and practice area (or the right operational
    bin).
 2. Drop a markdown file named after the document, in `snake_case`
-   (`united_states/nevada/private/trusts_and_estates/trust.md`).
+   (`united_states/nevada/internal/trusts_and_estates/trust.md`).
 3. Frontmatter: `title`, a stable, unique `code` (e.g. `trusts__nevada`), `respondent_type`, `confidential`, plus the
    `questionnaire:` and `workflow:` state machines.
 4. Body: legal prose with `{{question_code}}` placeholders that reference codes declared in `questionnaire:`.
