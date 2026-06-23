@@ -1867,19 +1867,25 @@ async fn workshops_material_step(
         .into_response()
 }
 
-/// `GET /version` — report the git commit of the build that is actually
-/// running, so an operator/CI/AIDA/browser can confirm which commit prod
+/// `GET /version` — report the release of the build that is actually
+/// running, so an operator/CI/AIDA/browser can confirm which release prod
 /// is on without shelling into a (shell-less) distroless pod.
 ///
-/// The SHA is baked into the image at build time: `images/Dockerfile.web`
-/// turns the `GIT_SHA` build-arg into `NAVIGATOR_GIT_SHA`, which `navigator
-/// power-push` sets to `git rev-parse HEAD`. This ties the reported SHA
-/// to the image bytes — it cannot drift from what was deployed. A local
-/// `cargo run` honestly reports `"unknown"` (no env var, no build-arg).
+/// The headline field is `release`: the `YY.MM.DD` ghcr tag the daily
+/// `deploy.yml` published, baked into the image as `NAVIGATOR_RELEASE_TAG`.
+/// Under the ghcr model an image is pulled by that dated tag, so `release`
+/// is what a `power-push` rolls onto and what an operator pins — it is the
+/// deploy's identity. The git fields stay alongside it for traceability:
+/// `images/Dockerfile.web` turns the `GIT_SHA`/`BUILD_TIME` build-args
+/// (set by CI to the released commit) into `NAVIGATOR_GIT_SHA` /
+/// `NAVIGATOR_BUILD_TIME`. All three are baked into the image bytes, so
+/// they cannot drift from what was deployed. A local `cargo run` honestly
+/// reports `"unknown"` (no env var, no build-arg).
 ///
 /// Public, unauthenticated, exempt from the private-mode gate — it is an
 /// ops/health-class endpoint like `/health` and `/readyz`.
 async fn version() -> impl IntoResponse {
+    let release = std::env::var("NAVIGATOR_RELEASE_TAG").unwrap_or_else(|_| "unknown".into());
     let commit_full = std::env::var("NAVIGATOR_GIT_SHA").unwrap_or_else(|_| "unknown".into());
     // The short SHA is the load-bearing field. Derive it from the full
     // one (first 7 chars) so the two can never disagree.
@@ -1890,6 +1896,7 @@ async fn version() -> impl IntoResponse {
     };
     let built = std::env::var("NAVIGATOR_BUILD_TIME").unwrap_or_else(|_| "unknown".into());
     axum::Json(serde_json::json!({
+        "release": release,
         "commit": commit,
         "commit_full": commit_full,
         "built": built,
@@ -1974,11 +1981,12 @@ mod version_tests {
     use tower::ServiceExt;
 
     /// `GET /version` answers 200 with a JSON body, reflects the baked
-    /// `NAVIGATOR_GIT_SHA` when present (short = first 7 of the full SHA),
-    /// and falls back to `"unknown"` when it is unset. The handler needs
-    /// no `State`, so a one-route router exercises the real route wiring
-    /// without standing up a DB. Both cases run in one test, sequentially,
-    /// because the env var is process-global.
+    /// `NAVIGATOR_RELEASE_TAG` + `NAVIGATOR_GIT_SHA` when present (short =
+    /// first 7 of the full SHA), and falls back to `"unknown"` when they
+    /// are unset. The handler needs no `State`, so a one-route router
+    /// exercises the real route wiring without standing up a DB. Both
+    /// cases run in one test, sequentially, because the env var is
+    /// process-global.
     #[tokio::test]
     async fn version_reports_baked_sha_or_unknown() {
         async fn get_version_json() -> serde_json::Value {
@@ -1999,20 +2007,24 @@ mod version_tests {
 
         // SAFETY: single-threaded within this test; no other code reads
         // NAVIGATOR_GIT_SHA, so there is no concurrent reader to race.
+        std::env::set_var("NAVIGATOR_RELEASE_TAG", "26.06.23");
         std::env::set_var(
             "NAVIGATOR_GIT_SHA",
             "ef143cba1fdd299c0f57f99eddb7806df5464b68",
         );
         std::env::set_var("NAVIGATOR_BUILD_TIME", "2026-06-11T17:01:25-07:00");
         let v = get_version_json().await;
+        assert_eq!(v["release"], "26.06.23");
         assert_eq!(v["commit"], "ef143cb");
         assert_eq!(v["commit_full"], "ef143cba1fdd299c0f57f99eddb7806df5464b68");
         assert_eq!(v["built"], "2026-06-11T17:01:25-07:00");
         assert!(v["crate_version"].is_string());
 
+        std::env::remove_var("NAVIGATOR_RELEASE_TAG");
         std::env::remove_var("NAVIGATOR_GIT_SHA");
         std::env::remove_var("NAVIGATOR_BUILD_TIME");
         let v = get_version_json().await;
+        assert_eq!(v["release"], "unknown");
         assert_eq!(v["commit"], "unknown");
         assert_eq!(v["commit_full"], "unknown");
         assert_eq!(v["built"], "unknown");
