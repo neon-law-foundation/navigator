@@ -67,7 +67,7 @@ pub use f106::F106StaffReviewRequired;
 pub use f107::F107SignaturePlaceholders;
 pub use f108::F108TemplateCodeRequired;
 pub use f109::F109OutputFormat;
-pub use f110::{F110JurisdictionPath, BAR_EXAM_TOPICS, JURISDICTIONS};
+pub use f110::{F110JurisdictionPath, FORUMS, JURISDICTIONS, PRACTICE_AREAS};
 pub use m001::M001HeadingIncrement;
 pub use m003::M003HeadingStyle;
 pub use m004::M004ULStyle;

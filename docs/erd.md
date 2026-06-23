@@ -268,6 +268,7 @@ erDiagram
         CHARACTER VARYING code
         TEXT inserted_at
         TEXT updated_at
+        CHARACTER VARYING jurisdiction_type
     }
     letters {
         UUID id PK
