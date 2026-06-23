@@ -334,6 +334,23 @@ mod tests {
     }
 
     #[test]
+    fn doc_route_slugs_are_unique_after_kebab() {
+        // `_`→`-` is lossy, so two manifest stems differing only by `_`
+        // vs `-` would publish at one `/docs` URL and `DocsIndex::find`
+        // would silently return the first. Fail the build if that ever
+        // happens instead of shadowing a doc in production.
+        use std::collections::HashSet;
+        let mut seen = HashSet::new();
+        for doc in bundled().docs() {
+            assert!(
+                seen.insert(doc.slug.clone()),
+                "two docs map to the kebab route slug `{}` — rename one",
+                doc.slug
+            );
+        }
+    }
+
+    #[test]
     fn underscore_doc_publishes_at_its_kebab_slug() {
         // `docs/retainer_intake.md` is the only underscore doc; its route
         // slug is the kebab-case form, even though the manifest key (and

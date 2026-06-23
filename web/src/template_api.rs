@@ -145,6 +145,41 @@ mod tests {
     }
 
     #[test]
+    fn no_two_templates_in_a_directory_collide_under_kebab() {
+        // The load-bearing invariant behind `find_raw`: the `_`→`-` URL
+        // mapping is lossy, so two files in the same directory whose stems
+        // differ only by `_` vs `-` (`a_b.md` and `a-b.md`) would map to
+        // one URL — `find_raw` would silently serve the first and the
+        // other would be unreachable. Walk the whole embedded tree and
+        // fail the build if that ever ships, rather than serving the wrong
+        // bytes in production.
+        use super::TEMPLATES;
+        use std::collections::HashMap;
+
+        let mut stack = vec![&TEMPLATES];
+        while let Some(dir) = stack.pop() {
+            let mut seen: HashMap<String, &str> = HashMap::new();
+            for file in dir.files() {
+                let Some(stem) = file.path().file_stem().and_then(|s| s.to_str()) else {
+                    continue;
+                };
+                let kebab = views::slug::to_url(stem);
+                if let Some(prev) = seen.insert(kebab.clone(), stem) {
+                    panic!(
+                        "templates `{}` and `{}` in {} both map to the kebab URL stem `{}` — \
+                         rename one so every notation_templates URL is unambiguous",
+                        prev,
+                        stem,
+                        dir.path().display(),
+                        kebab,
+                    );
+                }
+            }
+            stack.extend(dir.dirs());
+        }
+    }
+
+    #[test]
     fn is_public_fails_closed_without_the_key() {
         assert!(!is_public("---\ntitle: X\n---\nbody"));
         assert!(!is_public("no frontmatter at all"));
