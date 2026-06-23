@@ -154,6 +154,9 @@ records:
   - name: Wyoming
     code: WY
     jurisdiction_type: state
+  - name: United States
+    code: US
+    jurisdiction_type: country
   - name: Germany
     code: GMBH
     jurisdiction_type: country
