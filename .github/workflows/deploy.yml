@@ -380,6 +380,45 @@ jobs:
               done
           done
 
+  # ---------- ghcr retention sweep ----------
+  # The `build` matrix leaves a per-commit `ci-<sha>` tag on navigator-web +
+  # navigator-workflows-service every run, and each nightly release leaves a
+  # dated tag on all seven images — left alone, ghcr grows without bound (the
+  # Greptile P2 on this file). Apply a flat retention policy with the maintained
+  # snok/container-retention-policy action: delete every version older than seven
+  # days. `latest` and the recent dated tags are re-pushed by `publish` on each
+  # nightly run, so their versions stay under the cutoff; only stale images go.
+  #
+  # Tag-only (+ manual) so it runs as a once-daily sweep on the nightly build,
+  # not on every `kind-ci/**` iteration; `needs: publish` so the fresh `latest`
+  # / dated images exist before we prune, and `always()` so a publish hiccup
+  # doesn't skip the day's retention.
+  prune-old-images:
+    name: prune ghcr versions older than 7 days
+    needs: publish
+    if: >-
+      always() && github.repository == 'neon-law-foundation/Navigator'
+      && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    # Housekeeping must never red a green release: a transient ghcr/API hiccup
+    # surfaces as an annotation, not a failed nightly build.
+    continue-on-error: true
+    steps:
+      - name: prune container versions older than 7 days
+        uses: snok/container-retention-policy@v3.1.0
+        with:
+          account: ${{ github.repository_owner }}
+          # RELEASE_PAT (Doppler navigator-gitops/prd, synced to repo secrets,
+          # also used by release-tag.yml). A PAT — not the temporal
+          # GITHUB_TOKEN — is what lets the `navigator-*` wildcard match, so a
+          # newly added trigger image is swept with no list to keep in sync.
+          token: ${{ secrets.RELEASE_PAT }}
+          image-names: "navigator-*"
+          # cut-off 7d removes every version older than a week; tag-selection
+          # both also clears untagged layers.
+          cut-off: 7d
+          tag-selection: both
+
   # ---------- Stage 2: publish every image to ghcr.io ----------
   # Only runs if integration is green. Publishes the two service images
   # (navigator-web, navigator-workflows-service) plus the five CronJob
