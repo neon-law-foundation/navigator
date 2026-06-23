@@ -93,6 +93,12 @@ impl SeedReport {
 // Bundled at compile time so the installed `navigator` binary is
 // self-contained — no runtime lookup of `store/seeds/`.
 
+/// The canonical jurisdiction reference data, embedded at compile time.
+/// Exposed so cross-crate reconciliation tests (e.g. `cli`) can assert the
+/// path vocabulary in `rules::f110` stays in sync with the seeded rows
+/// without reaching into `store`'s private modules.
+pub const JURISDICTION_SEED_YAML: &str = canonical::JURISDICTION;
+
 mod canonical {
     pub const JURISDICTION: &str = include_str!("../seeds/Jurisdiction.yaml");
     pub const ENTITY_TYPE: &str = include_str!("../seeds/EntityType.yaml");
@@ -581,6 +587,7 @@ async fn seed_products(db: &DatabaseConnection, report: &mut SeedReport) -> anyh
 struct JurisdictionRec {
     name: String,
     code: String,
+    jurisdiction_type: String,
 }
 
 async fn seed_jurisdictions(
@@ -599,6 +606,7 @@ async fn seed_jurisdictions(
         jurisdiction::ActiveModel {
             name: ActiveValue::Set(rec.name),
             code: ActiveValue::Set(rec.code),
+            jurisdiction_type: ActiveValue::Set(rec.jurisdiction_type),
             ..Default::default()
         }
         .insert(db)
@@ -1553,12 +1561,18 @@ mod tests {
             .await
             .expect("seed");
         let js = jurisdiction::Entity::find().all(&db).await.unwrap();
-        // 50 states + DC + Germany = 52 rows.
-        assert_eq!(js.len(), 52);
+        // 50 states + DC + United States + Germany = 53 rows.
+        assert_eq!(js.len(), 53);
         let codes: Vec<&str> = js.iter().map(|j| j.code.as_str()).collect();
-        for code in ["NV", "CA", "NY", "TX", "WY", "DC", "GMBH"] {
+        for code in ["NV", "CA", "NY", "TX", "WY", "DC", "US", "GMBH"] {
             assert!(codes.contains(&code), "expected `{code}` in jurisdictions");
         }
+        // `jurisdiction_type` is reconciled with the seed: states are
+        // `state`, the federal sovereigns are `country`.
+        let by_code = |c: &str| js.iter().find(|j| j.code == c).unwrap();
+        assert_eq!(by_code("NV").jurisdiction_type, "state");
+        assert_eq!(by_code("US").jurisdiction_type, "country");
+        assert_eq!(by_code("GMBH").jurisdiction_type, "country");
     }
 
     #[tokio::test]

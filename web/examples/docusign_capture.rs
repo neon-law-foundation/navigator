@@ -69,7 +69,7 @@ async fn main() {
     // does not have to match.
     let app = Router::new()
         .route("/", post(capture))
-        .route("/*rest", post(capture))
+        .route("/{*rest}", post(capture))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))

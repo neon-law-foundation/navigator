@@ -17,7 +17,8 @@
 //!    *inside* the journaled closure so a replay re-uses the recorded instant
 //!    rather than reading the clock again — the same pattern `archives` and
 //!    `billing-workflows` use.
-//! 2. `ctx.run("notify")` — email the operator the journaled beat. Because
+//! 2. `ctx.run("notify")` — notify the operator (a Slack ops notice) of the
+//!    journaled beat. Because
 //!    step 2 reads step 1's *journaled* output, a worker crash between the two
 //!    steps replays step 1 from the journal instead of re-executing it: that
 //!    replay is precisely the durability this workflow exists to prove.

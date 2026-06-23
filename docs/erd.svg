@@ -617,19 +617,21 @@
 <text class="ct" x="284" y="199" text-anchor="end">text</text>
 </g>
 <g transform="translate(30,1806)">
-<rect class="t" width="160" height="140"/>
-<rect class="tt" width="160" height="30"/>
-<text class="tn" x="80" y="20" text-anchor="middle">jurisdictions</text>
+<rect class="t" width="232" height="162"/>
+<rect class="tt" width="232" height="30"/>
+<text class="tn" x="116" y="20" text-anchor="middle">jurisdictions</text>
 <text class="cn" x="12" y="45">id</text>
-<text class="cpk" x="148" y="45" text-anchor="end">uuid PK</text>
+<text class="cpk" x="220" y="45" text-anchor="end">uuid PK</text>
 <text class="cn" x="12" y="67">name</text>
-<text class="ct" x="148" y="67" text-anchor="end">varchar</text>
+<text class="ct" x="220" y="67" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="89">code</text>
-<text class="ct" x="148" y="89" text-anchor="end">varchar</text>
+<text class="ct" x="220" y="89" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="111">inserted_at</text>
-<text class="ct" x="148" y="111" text-anchor="end">text</text>
+<text class="ct" x="220" y="111" text-anchor="end">text</text>
 <text class="cn" x="12" y="133">updated_at</text>
-<text class="ct" x="148" y="133" text-anchor="end">text</text>
+<text class="ct" x="220" y="133" text-anchor="end">text</text>
+<text class="cn" x="12" y="155">jurisdiction_type</text>
+<text class="ct" x="220" y="155" text-anchor="end">varchar</text>
 </g>
 <g transform="translate(326,1806)">
 <rect class="t" width="184" height="206"/>

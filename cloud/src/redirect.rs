@@ -19,11 +19,11 @@
 //! function over `(host, uri)` so it's trivially unit-testable.
 //! The axum wrapper in [`router`] turns `None` into 404.
 
-use axum::extract::Host;
 use axum::http::{StatusCode, Uri};
 use axum::response::Redirect;
 use axum::routing::any;
 use axum::Router;
+use axum_extra::extract::Host;
 
 const CHAT_TARGET: &str = "https://vertexaisearch.cloud.google.com/us/home/cid/1bf2ea37-8d10-473b-bd4d-f80428be4345?hl=en_US";
 
