@@ -35,14 +35,17 @@ cargo run -p cli -- start-dev-server
 
 If you want to deploy Navigator to the cloud, we recommend [Google Cloud](https://cloud.google.com) with
 [Doppler](https://doppler.com), [Restate](https://restate.dev), [Twilio](https://twilio.com),
-[DNSimple](https://dnsimple.com), and [Mercury](https://mercury.com). If those are set up, you can then run the
-following, then visit what you put in Doppler as the value of `NAVIGATOR_BASE_URL`.
+[DNSimple](https://dnsimple.com), and [Mercury](https://mercury.com). GitHub Actions builds and publishes the dated
+container images to [ghcr.io](https://ghcr.io); you then roll a published image onto your GKE cluster with one command
+and visit your `NAVIGATOR_PRIMARY_DOMAIN`:
 
 ```bash
-doppler run -- cargo run -p cli -- deploy
+doppler run -- cargo run --release -p cli -- power-push --tag YY.MM.DD
 ```
 
-For each command, the error messages will tell you what you need. Loop that back to your LLM of choice, like Claude.
+The full edit → merge → release → deploy lifecycle is documented in [GitOps](docs/gitops.md). Cluster setup lives in
+[GKE production](docs/gke-prod.md); a from-scratch fork install is in [OSS install](docs/oss-install.md). For each
+command, the error messages will tell you what you need. Loop that back to your LLM of choice, like Claude.
 
 ## License
 

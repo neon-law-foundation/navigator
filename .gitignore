@@ -15,6 +15,7 @@
 /.claude/scheduled_tasks.lock
 # Local-only secret drop (Slack app creds, etc.) — values live in Doppler.
 /.slack.txt
+/.navigator
 /.agent/scheduled_tasks.lock
 /.agents/
 /.codex/

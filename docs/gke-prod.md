@@ -87,7 +87,7 @@ Daily 02:00 PST (10:00 UTC)
             └─→ the tag push triggers .github/workflows/deploy.yml
                   ├─ KIND integration suite (e2e + interop + browser)
                   ├─ build + push both images to ghcr.io tagged YY.MM.DD + latest
-                  └─ email a deploy report to nick@neonlaw.com via SendGrid
+                  └─ post a "ready to deploy" hand-off to the engineering Slack channel
                         Images are on the shelf, tagged by date.
 ```
 
