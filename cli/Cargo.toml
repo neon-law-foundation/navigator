@@ -24,6 +24,7 @@ google-cloud-token.workspace = true
 image.workspace = true
 import.workspace = true
 owo-colors.workspace = true
+pdf.workspace = true
 rand.workspace = true
 ravif.workspace = true
 reqwest.workspace = true
@@ -47,7 +48,6 @@ webp.workspace = true
 [dev-dependencies]
 assert_cmd.workspace = true
 axum.workspace = true
-pdf.workspace = true
 predicates.workspace = true
 store = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true

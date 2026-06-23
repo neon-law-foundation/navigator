@@ -17,12 +17,12 @@ improves, and together we build a more just society for all.
 Navigator](https://github.com/neon-law-foundation/navigator) — an open source legal platform based on these three
 tenets:
 
-1. **Extract determinism from legal interpretation**. Our lawyers review common workflows, then create programmatic
-   variants from their interpretation. For example, we read "How to create a Nevada LLC" and then built a Rust,
-   durable-execution workflow with common Linux Foundation technologies. We build many such workflows — from immigration
-   to restraining orders to fund formation — all to _accommodate access to justice_.
-2. **Write Markdown instead of Word**. When legal text is reasoned like code, we can leverage developer
-   tooling like git, code editors, [LSPs](/foundation/navigator/lsp), [CLIs](/foundation/navigator/cli), and
+1. **Extract repeatable workflows**. Our lawyers review common workflows, then create programmatic variants from their
+   interpretation. For example, we read "How to create a Nevada LLC" and then built a Rust, durable-execution workflow
+   with common Linux Foundation technologies. We build many such workflows — from immigration to restraining orders to
+   fund formation — all to _accommodate access to justice_.
+2. **Write legal documents like code**. When legal text is reasoned like code, we can leverage developer tooling like
+   git, code editors, [LSPs](/foundation/navigator/lsp), [CLIs](/foundation/navigator/cli), and
    [MCPs](/foundation/navigator/mcp) to _deliver access to justice_.
 3. **Build community around the Navigator**. None of this matters if we aren't helping lawyers serve more clients. We
    host online and in-person workshops to help lawyers adopt the Navigator and tailor it to their practice to _increase

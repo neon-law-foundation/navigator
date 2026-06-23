@@ -10,6 +10,7 @@ pub mod f105;
 pub mod f106;
 pub mod f107;
 pub mod f108;
+pub mod f109;
 pub mod frontmatter;
 pub mod m001;
 pub mod m003;
@@ -64,6 +65,7 @@ pub use f105::F105ConfidentialRequired;
 pub use f106::F106StaffReviewRequired;
 pub use f107::F107SignaturePlaceholders;
 pub use f108::F108TemplateCodeRequired;
+pub use f109::F109OutputFormat;
 pub use m001::M001HeadingIncrement;
 pub use m003::M003HeadingStyle;
 pub use m004::M004ULStyle;
@@ -220,6 +222,7 @@ pub fn description_for_code(code: &str) -> &'static str {
             "Signature placeholders must name a known signer/field and a signing workflow state"
         }
         "N108" => "Notation template must declare a stable `code`",
+        "N109" => "Notation template `output:` must name a known render format",
         "M001" => "Heading levels must increment by one",
         "M003" => "Headings must use the ATX (`# Heading`) style",
         "M004" => "Unordered list markers must be consistent",
