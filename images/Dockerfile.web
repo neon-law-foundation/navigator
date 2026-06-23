@@ -55,7 +55,7 @@ COPY mcp               mcp
 COPY features          features
 COPY lsp               lsp
 COPY pdf               pdf
-COPY templates         templates
+COPY notation_templates notation_templates
 COPY archives          archives
 COPY statutes          statutes
 COPY billing           billing
@@ -83,7 +83,7 @@ WORKDIR /app
 COPY --from=builder /usr/local/bin/web /app/web
 COPY --from=builder /src/web/public  /app/public
 COPY --from=builder /src/web/content /app/content
-COPY --from=builder /src/templates             /app/templates
+COPY --from=builder /src/notation_templates    /app/notation_templates
 
 # Identify the build. `navigator power-push` passes `--build-arg GIT_SHA=$(git
 # rev-parse HEAD)` (and the commit time) so the running binary can answer
