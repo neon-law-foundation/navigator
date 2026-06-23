@@ -4,7 +4,7 @@ slug: nerd
 hero_image: bengaluru-skyline
 description: >
   Neon Law Nerd is the firm's expert-witness practice for software and data-access disputes — an independent technical
-  opinion, a written report, and testimony, billed at $1,337 an hour and never on contingency.
+  opinion, a written report, and testimony, billed at $1,337 an hour.
 pricing:
   - title: "Neon Law Nerd"
     price: "$1,337"
