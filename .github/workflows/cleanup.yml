@@ -8,10 +8,11 @@ name: cleanup
 # run never shares state with a release.
 #
 # Today it carries one task: prune ghcr. Every day at 04:00 PST it deletes
-# every `navigator-*` container version older than 7 days, then posts a Slack
+# every `navigator-*` container version older than 14 days, then posts a Slack
 # summary (tagging Nick on failure). `latest` and the recent dated tags are
 # re-pushed daily by deploy.yml's publish job, so their versions stay under the
-# cutoff and only genuinely stale images are swept.
+# cutoff and only genuinely stale images are swept. A 14-day window keeps two
+# weeks of dated `YY.MM.DD` releases pullable for rollback before they age out.
 
 on:
   schedule:
@@ -29,7 +30,7 @@ permissions:
 
 jobs:
   cleanup:
-    name: prune ghcr versions older than 7 days
+    name: prune ghcr versions older than 14 days
     # Never run from a fork — only the canonical repo owns these packages.
     # Deliberately NOT continue-on-error: a real failure should fail the job so
     # `cleanup-failed` can page Nick — this is alerted housekeeping, not silent
@@ -40,7 +41,7 @@ jobs:
     # open until the job-level default times out.
     timeout-minutes: 15
     steps:
-      - name: prune container versions older than 7 days
+      - name: prune container versions older than 14 days
         uses: snok/container-retention-policy@v3.1.0
         with:
           account: ${{ github.repository_owner }}
@@ -51,9 +52,9 @@ jobs:
           # scope to delete versions at all.
           token: ${{ secrets.RELEASE_PAT }}
           image-names: "navigator-*"
-          # cut-off 7d removes every version older than a week; tag-selection
+          # cut-off 14d removes every version older than two weeks; tag-selection
           # both also clears untagged layers.
-          cut-off: 7d
+          cut-off: 14d
           tag-selection: both
 
   notify-cleanup:
@@ -72,7 +73,7 @@ jobs:
               echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the cleanup notice"
               exit 1
           fi
-          TEXT=":broom: Navigator ghcr cleanup ran — pruned navigator-* image versions older than 7 days.
+          TEXT=":broom: Navigator ghcr cleanup ran — pruned navigator-* image versions older than 14 days.
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
           code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
