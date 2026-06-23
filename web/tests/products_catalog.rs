@@ -213,8 +213,8 @@ async fn catalog_lists_every_active_product_at_the_db_price() {
 async fn new_service_detail_pages_render_with_their_marketing_copy() {
     // Each new product has its own `/services/<slug>` detail page, rendered
     // from `web/content/marketing/<slug>.md`. Drive each English page and
-    // confirm it returns 200 with its headline + DB-priced figure.
-    for (path, needle, price) in [
+    // confirm it returns 200 with its headline + representative fee marker.
+    for (path, needle, fee_marker) in [
         ("/services/node", "recorded on-chain", "$44"),
         ("/services/newleaf", "uncontested divorce", "$555"),
         ("/services/namesake", "filed with the USPTO", "$777"),
@@ -236,7 +236,10 @@ async fn new_service_detail_pages_render_with_their_marketing_copy() {
         assert_eq!(resp.status(), StatusCode::OK, "{path} should render");
         let body = body_string(resp).await;
         assert!(body.contains(needle), "{path} missing copy {needle:?}");
-        assert!(body.contains(price), "{path} missing price {price}");
+        assert!(
+            body.contains(fee_marker),
+            "{path} missing fee marker {fee_marker}"
+        );
     }
 }
 
