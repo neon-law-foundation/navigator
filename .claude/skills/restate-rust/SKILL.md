@@ -99,7 +99,7 @@ against drift):
 ```rust
 Endpoint::builder()
     .bind(NotationService::new(db.clone(), email.clone(), storage).serve())
-    .bind(HeartbeatService::new(ops_email.clone()).serve())
+    .bind(HeartbeatService::new(ops_delivery.clone()).serve())
     .build()
 ```
 
