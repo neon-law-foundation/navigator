@@ -50,9 +50,14 @@ acting on anything below, and keep the doc, not this file, authoritative.
   Never point `web` at ad-hoc local services. Full recipe: the `web-preview` and `kind-local-dev` skills,
   [`docs/RUNBOOK.md`](docs/RUNBOOK.md). Local telemetry (Tempo/Loki/Prometheus at `localhost:3000`): the `grafana-lgtm`
   skill; emit-side seam: the `observability` skill and [`docs/observability.md`](docs/observability.md).
-- **Machine-bound commands run on the user's machine.** Anything driving the cluster, a browser, or a cloud project
-  (`docker`, `kind`, `kubectl`, `gcloud`, e2e, `power-push`) — propose the exact command; the user can prefix it with
-  `!` to run it in-session so the output lands in the conversation.
+- **Machine-bound commands: run them directly when the environment is local and reversible.** Anything driving the KIND
+  cluster, a local browser, the Docker daemon, or the workspace toolchain — `docker`, `kind`, `kubectl`, the `navigator`
+  CLI subcommands, the browser e2e suite (including starting `chromedriver` + a Postgres port-forward, and
+  rebuilding/redeploying the `navigator-web:dev` image) — **the agent may run these itself here.** Asked to "run the
+  kind tests", bring up the harness it needs (chromedriver on `:9515`, a `kubectl` port-forward of `deployment/postgres`
+  to `15432:5432`, `grant-staff`, and the CI env vars `NAV_BASE_URL` + `DATABASE_URL` + `NAV_REQUIRE_HARNESS=1`) and run
+  `cargo test -p web --test browser_e2e`. Only *production* or *irreversible* cloud actions (`gcloud`, `power-push`, a
+  real `deploy` to prod) stay propose-only — print the exact command and let the user prefix it with `!`.
 - **Scratch output never lands in the working tree.** Screenshots and any throwaway file go under `/tmp` (e.g.
   `/tmp/navigator-screenshots/`, `mkdir -p` first), never the repo. Committed visual artifacts (e.g. `docs/erd.svg`) are
   the exception.
