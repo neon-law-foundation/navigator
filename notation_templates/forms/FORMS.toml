@@ -1,7 +1,7 @@
 # Vendored government forms — single source of truth.
 #
 # Every official form we fill and file is pinned here by canonical source,
-# printed revision, and SHA-256. The bytes on disk (at `templates/` +
+# printed revision, and SHA-256. The bytes on disk (at `notation_templates/` +
 # `object_path`) are the canonical example; this file records what they are
 # and where they came from. `forms/tests/vendored_forms.rs` recomputes each
 # `sha256` from the bundled bytes and fails on drift, so this file cannot lie.
@@ -21,7 +21,7 @@
 #   retrieved    the day we pulled the bytes
 #   sha256       SHA-256 of the PDF bytes (enforced by the guard test)
 #   fill         acroform | overlay | none
-#   object_path  path in the assets bucket; repo path is `templates/` + this
+#   object_path  path in the assets bucket; repo path is `notation_templates/` + this
 #   note         acquisition caveats, if any
 
 [[form]]

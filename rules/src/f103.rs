@@ -1,7 +1,7 @@
 #![allow(clippy::doc_markdown)]
 //! `N103` — notation template filename basename must be snake_case.
 //!
-//! Templates under `templates/` catalogue domain documents (an
+//! Templates under `notation_templates/` catalogue domain documents (an
 //! LLC formation, a 501(c)(3) formation, a Nevada annual report).
 //! Each template's frontmatter `code` is already snake_case with a
 //! `__` category separator (`onboarding__retainer_nest`,

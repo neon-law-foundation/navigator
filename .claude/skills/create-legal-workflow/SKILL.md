@@ -54,7 +54,7 @@ admin routes must name a Person with the right role.
 Template to copy from:
 [`features/tests/features/retainer_intake.feature`](../../../features/tests/features/retainer_intake.feature).
 
-### 2. Template + questionnaire — `templates/<category>/<snake_case_name>.md`
+### 2. Template + questionnaire — `notation_templates/<category>/<snake_case_name>.md`
 
 The Template is the static blueprint. One markdown file with YAML
 frontmatter and a body of legal prose. Required frontmatter keys:
@@ -88,11 +88,11 @@ See [`CLAUDE.md`](../../../CLAUDE.md#human-language-english-first).
 
 Working examples — copy the closest one:
 
-- [`templates/onboarding/retainer.md`](../../../templates/onboarding/retainer.md)
+- [`notation_templates/onboarding/retainer.md`](../../../notation_templates/onboarding/retainer.md)
   — person + entity, four-question intake, five-state workflow.
-- [`templates/llc/california.md`](../../../templates/llc/california.md)
+- [`notation_templates/llc/california.md`](../../../notation_templates/llc/california.md)
   — entity-only, three-question, three-state workflow.
-- [`templates/trust/nevada.md`](../../../templates/trust/nevada.md) —
+- [`notation_templates/trust/nevada.md`](../../../notation_templates/trust/nevada.md) —
   entity-only trust formation.
 
 The template's job is to turn validated answers into a **candidate
@@ -258,7 +258,7 @@ cargo fmt
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 # Plus the markdown lint if you touched any .md (templates, docs, this skill):
-cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes templates/
+cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes notation_templates/
 ```
 
 **Branch → PR → auto-merge — never commit on `main`.** Per [`CLAUDE.md`](../../../CLAUDE.md) Commit discipline, do the

@@ -2,7 +2,7 @@
 //!
 //! The estate plan is a *suite* of templates — the onboarding matter
 //! (`onboarding/estate.md`) plus the four instrument stubs under
-//! `templates/northstar/`. The recorded sitting must answer every
+//! `notation_templates/northstar/`. The recorded sitting must answer every
 //! question the suite needs, so the extraction step has a value for
 //! every `{{placeholder}}` the instruments render. This test pins that
 //! invariant at authoring time, cross-file, so a hand-edit that adds a
@@ -61,16 +61,16 @@ fn seeded_question_codes() -> BTreeSet<String> {
 }
 
 const INSTRUMENTS: &[&str] = &[
-    "templates/northstar/will.md",
-    "templates/northstar/trust.md",
-    "templates/northstar/directive_health.md",
-    "templates/northstar/directive_financial.md",
+    "notation_templates/northstar/will.md",
+    "notation_templates/northstar/trust.md",
+    "notation_templates/northstar/directive_health.md",
+    "notation_templates/northstar/directive_financial.md",
 ];
 
 #[test]
 fn estate_suite_questions_are_all_asked_and_seeded() {
     let root = workspace_root();
-    let asked = data_placeholders(&read(&root.join("templates/onboarding/estate.md")));
+    let asked = data_placeholders(&read(&root.join("notation_templates/onboarding/estate.md")));
     assert!(
         !asked.is_empty(),
         "the Estate onboarding template declares no questions — wrong path?"

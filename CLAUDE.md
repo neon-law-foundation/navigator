@@ -114,7 +114,7 @@ Swapping the router means a new `impl AgentRouter` selected from `web::build_rou
   should be justifiable against it.
 - `README.md` — workspace overview, install, demo. `cli/README.md` — per-subcommand reference.
 - `.claude/skills/council/` — the Council of Twelve architecture-review pattern (`/council`).
-- `k8s/` — KIND manifests. `templates/` — notation templates. `store/seeds/` — canonical reference-data YAML.
+- `k8s/` — KIND manifests. `notation_templates/` — notation templates. `store/seeds/` — canonical reference-data YAML.
 
 ## Local-only convention: `prompts/`
 

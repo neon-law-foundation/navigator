@@ -205,7 +205,7 @@ impl WorkflowSpec {
 /// questionnaire spec to a workflow runtime call (or vice versa).
 ///
 /// Wire shape (matches the retainer template's
-/// [`templates/onboarding/retainer.md`](../../../templates/onboarding/retainer.md)
+/// [`notation_templates/onboarding/retainer.md`](../../../notation_templates/onboarding/retainer.md)
 /// `questionnaire:` block):
 ///
 /// ```yaml

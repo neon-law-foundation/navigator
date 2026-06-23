@@ -102,7 +102,7 @@ async fn template_downloads_verbatim_markdown_as_an_attachment() {
     let body = body_string(resp).await;
     // Verbatim bytes: the same source the git reader sees, frontmatter
     // fence and all.
-    let source = include_str!("../../templates/nonprofit/form990_annual_report.md");
+    let source = include_str!("../../notation_templates/nonprofit/form990_annual_report.md");
     assert_eq!(body, source);
 }
 
