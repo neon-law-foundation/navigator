@@ -94,6 +94,10 @@ Daily 02:00 PST (10:00 UTC)
 The images are published, not rolled out — promoting a dated image to the GKE cluster (the Config Sync reconcile, or an
 operator-driven `power-push`) is a separate, deliberate step, not part of the nightly tag flow.
 
+The published packages are **public** on ghcr.io, so the GKE nodes pull them anonymously — there is no imagePullSecret
+and no registry credential to rotate. Old dated tags are pruned after **14 days** by the maintenance workflow
+(`cleanup.yml`); a fork that defers a roll past two weeks should pin and roll a tag while it is still on the shelf.
+
 Friday-Sunday is deliberately skipped — see the comment in `deploy.yml`.
 
 Manual rollout: `gh workflow run deploy.yml` triggers the same sequence on demand.

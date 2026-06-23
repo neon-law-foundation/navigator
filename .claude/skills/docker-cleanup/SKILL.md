@@ -81,8 +81,10 @@ docker image prune -a -f  # removes every image not used by a container
 docker system df          # after
 ```
 
-`-a` deletes untagged *and* unused-but-tagged images. On a laptop that runs many [[power-push]] iterations, the
-Artifact Registry tags (`navigator-web:<short-sha>`) accumulate and this is usually the biggest win after build cache.
+`-a` deletes untagged *and* unused-but-tagged images. On a laptop that rebuilds images repeatedly (KIND deploys,
+`navigator image` runs), the local `navigator-web:dev` / `navigator-workflows-service:dev` tags and their intermediate
+layers accumulate and this is usually the biggest win after build cache. (Prod images live in `ghcr.io` and are built by
+CI, never on the laptop — see [[power-push]].)
 
 Images for *running* containers are skipped automatically — the two KIND workload images stay put.
 

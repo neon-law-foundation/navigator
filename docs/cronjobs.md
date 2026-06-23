@@ -40,7 +40,8 @@ Everything is Rust and env-driven — no per-deployment value is baked into a co
    `CLAUDE.md`). Flavor A is a thin "POST and exit"; flavor B does the work and exits non-zero on failure so the Job is
    marked failed.
 2. **An image** — servers from `images/Dockerfile.<name>`; triggers from the shared `images/Dockerfile.trigger`
-   `cargo run -p cli -- image-<name>`. Tag it with the HEAD short SHA and push to Artifact Registry.
+   `cargo run -p cli -- image-<name>`. CI (`deploy.yml`) publishes it to `ghcr.io/<owner>/navigator-<name>` tagged
+   `YY.MM.DD` (the release date) + `latest`; the GKE nodes pull it anonymously (the packages are public).
 3. **A manifest** under [`examples/deploy/k8s/exports/`](../examples/deploy/k8s/exports/) with placeholders
    (`YOUR_PROJECT_ID`, the image tag, any ingress URL), namespace `navigator`. Render real values at apply time; keep
    the committed file generic.
@@ -68,7 +69,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: nrs-scraper
-              image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-nrs-scraper:TAG
+              image: ghcr.io/neon-law-foundation/navigator-nrs-scraper:YY.MM.DD
               envFrom:
                 - secretRef:
                     name: navigator-web-secrets   # DATABASE_URL, storage creds, etc.
@@ -87,24 +88,25 @@ year-round, set `spec.timeZone: "America/Los_Angeles"` instead of doing the math
 
 ## Build and deploy
 
-Cron images are **separate** from the `power-push` two-image bundle (`navigator-web` + `workflows-service`) — power-push
-does not build them. Ship a cron image out-of-band:
+CI owns image publishing. Cron trigger images are built and pushed by `deploy.yml` to `ghcr.io/<owner>/navigator-<name>`
+tagged `YY.MM.DD` + `latest` — the same GitHub-published flow as `navigator-web` and `workflows-service`, never a local
+`docker build` + push side channel. Nothing is built on a laptop, and the public packages are pulled anonymously by the
+GKE nodes (no imagePullSecret). Deploying a cron job is therefore just: pin the manifest to the published `YY.MM.DD` tag
+and apply.
 
 ```bash
 set -a; source <(doppler run --project navigator --config prd -- printenv | grep '^NAVIGATOR_'); set +a   # or .env
-SHA=$(git rev-parse --short HEAD)
-REPO="${NAVIGATOR_GCP_LOCATION}-docker.pkg.dev/${NAVIGATOR_GCP_PROJECT_ID}/${NAVIGATOR_GKE_CLUSTER_NAME}"
-
-cargo run --release -p cli -- image-<name>
-docker tag  "navigator-<name>:dev" "${REPO}/navigator-<name>:${SHA}"
-docker push "${REPO}/navigator-<name>:${SHA}"
+TAG=$(git ls-remote --tags --refs origin | grep -oE '[0-9]{2}\.[0-9]{2}\.[0-9]{2}$' | sort | tail -1)  # latest release
 
 # Render placeholders to a temp file (keep the committed manifest generic), then apply:
-sed -e "s|YOUR_PROJECT_ID|${NAVIGATOR_GCP_PROJECT_ID}|g" -e "s|:TAG|:${SHA}|g" \
+sed -e "s|YOUR_PROJECT_ID|${NAVIGATOR_GCP_PROJECT_ID}|g" -e "s|:YY.MM.DD|:${TAG}|g" \
   examples/deploy/k8s/exports/cron-<name>.yaml > /tmp/cron-<name>.yaml
 kubectl apply -f /tmp/cron-<name>.yaml
-docker rmi "navigator-<name>:dev" 2>/dev/null || true
 ```
+
+> The daily tag flow publishes `navigator-web` and `navigator-workflows-service` today; a new cron *trigger* image must
+> be added to `deploy.yml`'s publish matrix so it ships the same GitHub-built way. Don't reintroduce a local build +
+> push for it as a side channel.
 
 ## Operating a CronJob
 
@@ -124,12 +126,12 @@ end-to-end after deploy.
    otherwise self-contained batch (B).
 2. Write the Rust binary; **make a re-run safe** — the schedule is at-least-once, and a failed run just runs again next
    period. Exit non-zero on failure so the Job is marked failed and shows in history.
-3. Add a server `images/Dockerfile.<name>` (or a `--build-arg CRATE=` row for a trigger) and the `navigator
-   image-<name>` build target.
+3. Add a server `images/Dockerfile.<name>` (or a `--build-arg CRATE=` row for a trigger) and the
+   `navigator image-<name>` build target, and add the image to `deploy.yml`'s publish matrix so CI pushes it to ghcr.io.
 4. Add `cron-<name>.yaml` under `examples/deploy/k8s/exports/` with placeholders, namespace `navigator`, a UTC schedule
    with a Pacific comment.
-5. Build, push, render, apply (above). For flavor A, also re-register the worker — see
-   [durable-workflows.md](durable-workflows.md#the-registration-gotcha).
+5. Once CI has published the image, render the manifest to the `YY.MM.DD` tag and apply (above). For flavor A, also
+   re-register the worker — see [durable-workflows.md](durable-workflows.md#the-registration-gotcha).
 6. Verify with `create job --from` before trusting the schedule.
 
 ## See also

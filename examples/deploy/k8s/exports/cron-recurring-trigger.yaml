@@ -38,7 +38,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: recurring-trigger
-              image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-recurring-billing-trigger:latest
+              image: ghcr.io/neon-law-foundation/navigator-recurring-billing-trigger:YY.MM.DD
               imagePullPolicy: Always
               env:
                 # Restate Cloud ingress endpoint for the navigator-prod

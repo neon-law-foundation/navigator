@@ -59,11 +59,13 @@ failure that emits nothing. Match the key to the cadence.
 
 ## Ranked failure modes (what actually breaks, with the detector)
 
-1. **Trigger image missing from Artifact Registry.** A fresh `*-trigger` build also fails if any workspace crate is
-   absent from the Dockerfile COPY lists (the `forms` crate did exactly this and took every trigger image down).
-   *Detect:* `navigator doctor` flags `ImagePullBackOff`; `gcloud artifacts docker images describe <image>:<tag>`.
-   *Fix:* rebuild + push the trigger image (`docker build -f images/Dockerfile.trigger --build-arg CRATE=<crate>
-   [--build-arg BIN=<bin>] -t <reg>/navigator-<name>:<sha> .` then push), repoint the CronJob image.
+1. **Trigger image missing from ghcr.io.** A fresh `*-trigger` build also fails if any workspace crate is absent from
+   the Dockerfile COPY lists (the `forms` crate did exactly this and took every trigger image down). Trigger images are
+   published to `ghcr.io/<owner>/navigator-<name>-trigger` and pulled anonymously (the packages are public). *Detect:*
+   `navigator doctor` flags `ImagePullBackOff`; `docker manifest inspect ghcr.io/<owner>/navigator-<name>-trigger:<tag>`
+   confirms whether the tag was published. *Fix:* publish the trigger image through `deploy.yml` (the daily tag flow
+   owns image builds — never a local `docker build` + push side channel), then repoint the CronJob image to that
+   `ghcr.io/...:YY.MM.DD` tag.
 2. **Forbid wedge.** A failed trigger Job stays `Active`, and `concurrencyPolicy: Forbid` skips every subsequent run — a
    silent multi-day outage. *Detect:* `navigator doctor`. *Fix:* `kubectl -n navigator delete job <name>`; the
    `activeDeadlineSeconds: 120` backstop now self-terminates a stuck job going forward.

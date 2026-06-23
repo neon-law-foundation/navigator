@@ -59,7 +59,7 @@ spec:
       serviceAccountName: workflows-service
       containers:
         - name: worker
-          image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-workflows-service:fa989a6
+          image: ghcr.io/neon-law-foundation/navigator-workflows-service:YY.MM.DD
           imagePullPolicy: Always
           ports:
             - containerPort: 9080

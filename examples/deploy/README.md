@@ -1,9 +1,10 @@
 # `examples/deploy/` — sample cloud-deployment scaffolding
 
-This directory holds the GKE / Cloud SQL / Artifact Registry deployment that NeonLaw's own production cluster runs
-against, restructured as **examples** so the canonical workspace surface is just "build the crates + build the Docker
-images". The OSS user picks one of these example overlays, substitutes the placeholders for their own cloud identifiers,
-and applies.
+This directory holds the GKE / Cloud SQL deployment that NeonLaw's own production cluster runs against, restructured as
+**examples** so the canonical workspace surface is just "build the crates + build the Docker images". The OSS user picks
+one of these example overlays, substitutes the placeholders for their own cloud identifiers, and applies. Container
+images are pulled from **public ghcr.io** (`ghcr.io/neon-law-foundation/navigator-*`) — published by CI, pulled
+anonymously, so there is no in-cluster registry credential and no Artifact Registry to provision.
 
 Nothing under `examples/deploy/` is on the default cargo build path. Nothing under here gets imported by Rust code. The
 only Rust crate that references it is `cli`, and only via the `KUSTOMIZE_GKE = "examples/deploy/k8s/gke"` constant that
@@ -16,9 +17,12 @@ not part of the application's runtime.
   Production-ready shape; substitute placeholders to run.
 - **`k8s/exports/`** — Optional nightly `archives` export `CronJob` that snapshots Postgres → Parquet → GCS → BigLake.
   Skip if you don't run analytics.
-- **`ci/deploy-gke.yml.example`** — GitHub Actions workflow that pushes images to Artifact Registry on a Monday-to-
-  Thursday cron and commits the new image SHAs back so Config Sync rolls them out. Copy this file to the path
-  `.github/workflows/deploy.yml` in your fork after substituting.
+
+There is no CI example to copy: a fork inherits the canonical
+[`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml), which builds every image and publishes it to that
+fork's own `ghcr.io` (the publish job derives the owner from `${{ github.repository_owner }}`) tagged `YY.MM.DD` +
+`latest`. Make those packages public so the cluster pulls them anonymously, then pin the dated tag in your overlay (or
+roll it with `navigator power-push`).
 
 ## Placeholder contract
 
