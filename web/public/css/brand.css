@@ -52,13 +52,24 @@
 /* Bootstrap compiles the button color into per-component variables with */
 /* literal hex, so the :root token alone won't recolor buttons — restate */
 /* the cyan family on the two primary button variants the firm uses. */
+/* The brand cyan (cyan-500 #06b6d4) is too light to carry Bootstrap's */
+/* default white button text at WCAG AA: white on cyan-500 is only */
+/* 2.43:1, well under the 4.5:1 floor (axe-core flags it `serious`). */
+/* Rather than dull the brand into a darker cyan, we keep the bright */
+/* cyan fill and switch the label to a dark cyan ink (cyan-950 #083344, */
+/* 5.52:1) — then BRIGHTEN on hover/active (cyan-400 7.41:1, cyan-300 */
+/* 9.24:1) so the press reads as a neon glow. Every state clears AA. */
 .btn-primary {
+  --bs-btn-color: #083344;
   --bs-btn-bg: #06b6d4;
   --bs-btn-border-color: #06b6d4;
-  --bs-btn-hover-bg: #0891b2;
-  --bs-btn-hover-border-color: #0891b2;
-  --bs-btn-active-bg: #0e7490;
-  --bs-btn-active-border-color: #0e7490;
+  --bs-btn-hover-color: #083344;
+  --bs-btn-hover-bg: #22d3ee;
+  --bs-btn-hover-border-color: #22d3ee;
+  --bs-btn-active-color: #083344;
+  --bs-btn-active-bg: #67e8f9;
+  --bs-btn-active-border-color: #67e8f9;
+  --bs-btn-disabled-color: #083344;
   --bs-btn-disabled-bg: #06b6d4;
   --bs-btn-disabled-border-color: #06b6d4;
   --bs-btn-focus-shadow-rgb: 6, 182, 212;
