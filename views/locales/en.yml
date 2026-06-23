@@ -63,7 +63,9 @@ products:
   desc_northstar: Your will, trust, and health and financial directives, prepared and signed in one recorded conversation.
   desc_nautilus: A licensed attorney as your representative for debt-collection mail and calls, answered under your rights.
   desc_nook: A flat-fee real-estate closing for a sale you have already agreed on, with no broker on either side.
-  desc_litigation: High-stakes technology litigation, billed hourly with select cases taken on contingency.
+  litigation_phase_price: Flat fee per phase
+  litigation_phase_suffix: " — quoted after case assessment"
+  desc_litigation: High-stakes technology litigation, quoted as a flat fee per phase after case assessment.
   desc_nerd: An independent expert witness on software and data-access disputes, billed hourly.
   desc_node: An attorney attestation of a fact, like accredited-investor status, recorded on-chain on Solana.
   desc_newleaf: A flat-fee uncontested divorce for a couple who have already agreed to part ways.
