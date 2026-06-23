@@ -9,9 +9,11 @@ name: deploy
 #   2. publish     — only if integration is green, push all images (the two
 #      service images + the five CronJob trigger images) to ghcr.io tagged
 #      with the release date + `latest`.
-#   3. notify      — post a deploy report to the engineering Slack channel via
-#      the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from Doppler).
-#      No @-mention — a successful deploy is an FYI, not a page.
+#   3. notify      — post a "ready to deploy" hand-off to the engineering Slack
+#      channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from
+#      Doppler), tagging Nick with the exact `power-push` command to roll the new
+#      images to prod. The prod roll is a deliberate manual step (docs/gitops.md),
+#      so the green-deploy message is an actionable hand-off, not a silent FYI.
 #
 # Plus one out-of-band guard: `notify-failure` posts to the engineering Slack
 # channel (tagging Nick) whenever ANY of the three stages fails, so a broken
@@ -488,15 +490,17 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
-  # ---------- Stage 3: post the deploy report to Slack ----------
-  # Sent only after both images are published. Posts to the engineering
-  # channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from
-  # Doppler) — the same channel and webhook the failure guard below uses, just
-  # WITHOUT the @-mention, because a green deploy is an FYI and shouldn't page.
-  # The one rule still binds: identifiers and counts, never content — the body
-  # carries the tag and the run URL, nothing client-bearing.
+  # ---------- Stage 3: post the "ready to deploy" hand-off to Slack ----------
+  # Sent only after both images are published. Posts to the engineering channel
+  # via the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from Doppler) —
+  # the same channel and webhook the failure guard below uses. Unlike a silent
+  # FYI, this tags Nick and carries the exact `power-push` command, because the
+  # prod roll is a deliberate manual step (docs/gitops.md): the images are on the
+  # shelf, and a human rolls them. The one rule still binds: identifiers and
+  # counts, never content — the body carries the tag, the run URL, and the roll
+  # command, nothing client-bearing.
   notify:
-    name: slack deploy report
+    name: slack ready-to-deploy hand-off
     needs: publish
     # Tag-only (publish is already tag-gated; stated here too so a branch run
     # never posts a deploy report).
@@ -506,17 +510,26 @@ jobs:
     # request can't keep the workflow open.
     timeout-minutes: 10
     steps:
-      - name: post deploy report to engineering Slack
+      - name: post ready-to-deploy hand-off to engineering Slack
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Who to @-mention on the hand-off (the on-call). A Doppler-managed,
+          # GitHub-synced secret rather than a hard-coded user id, so a fork tags
+          # its own on-call (or none). See SLACK_OPS_MENTION in .env.example.
+          SLACK_OPS_MENTION: ${{ secrets.SLACK_OPS_MENTION }}
           TAG: ${{ github.ref_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
-              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the deploy report"
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the ready-to-deploy message"
               exit 1
           fi
-          TEXT=":rocket: Navigator ${TAG} shipped — KIND integration passed and all images (navigator-web, navigator-workflows-service, and the five navigator-*-trigger images) were pushed to ghcr.io tagged ${TAG} and latest.
+          # Concise hand-off: tag the on-call, state the build is ready, and hand
+          # over the exact roll command (escaped backticks → literal Slack code
+          # span). The prod roll is a deliberate manual step — see docs/gitops.md.
+          TEXT=":rocket: Navigator ${TAG} is built and published to ghcr — ready to deploy. ${SLACK_OPS_MENTION}
+          Roll it to prod:
+          \`doppler run --project navigator --config prd -- cargo run --release -p cli -- power-push --tag ${TAG}\`
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
           code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
@@ -553,6 +566,7 @@ jobs:
       - name: post failure alert to engineering Slack
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_OPS_MENTION: ${{ secrets.SLACK_OPS_MENTION }}
           TAG: ${{ github.ref_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -560,7 +574,7 @@ jobs:
               echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the failure alert"
               exit 1
           fi
-          TEXT=":x: Navigator deploy ${TAG} failed — <@U0BBT5DG3QE> please investigate.
+          TEXT=":x: Navigator deploy ${TAG} failed — ${SLACK_OPS_MENTION} please investigate.
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
           code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \

@@ -56,8 +56,8 @@ CI/CD path, so a retention change never lands in a release diff and a cleanup ru
 | --- | --- | --- |
 | [`ci.yml`](../.github/workflows/ci.yml) | `pull_request` → `main` | lean fmt + clippy + `cargo test --workspace` |
 | [`release-tag.yml`](../.github/workflows/release-tag.yml) | cron 02:00 PST | cut + push the `YY.MM.DD` tag |
-| [`deploy.yml`](../.github/workflows/deploy.yml) | `YY.MM.DD` tag push | integration → push images → email report |
-| [`cleanup.yml`](../.github/workflows/cleanup.yml) | cron 04:00 PST | prune ghcr versions > 7 days (maintenance) |
+| [`deploy.yml`](../.github/workflows/deploy.yml) | `YY.MM.DD` tag push | integration → push images → Slack hand-off |
+| [`cleanup.yml`](../.github/workflows/cleanup.yml) | cron 04:00 PST | prune ghcr versions > 14 days (maintenance) |
 
 ### PR flow — `ci.yml`
 
@@ -78,15 +78,17 @@ Fires daily at **02:00 PST** (`0 10 * * *` UTC). Its only job is to cut a calend
 
 Triggered by the `YY.MM.DD` tag push. Runs the full **KIND integration** suite, then builds and pushes every image — the
 two service images (`navigator-web`, `navigator-workflows-service`) and the five CronJob trigger images
-(`navigator-*-trigger`) — to **ghcr.io** tagged with that date, then emails a deploy report to `nick@neonlaw.com` via
-SendGrid (from `support@neonlaw.com`, the `DEFAULT_FROM_EMAIL` in `workflows/src/email/service.rs`; key in
-`secrets.SENDGRID_API_KEY`).
+(`navigator-*-trigger`) — to **ghcr.io** tagged with that date plus `latest`. On success it posts a **"ready to
+deploy"** message to the engineering Slack channel (the prod ops incoming webhook, `secrets.SLACK_WEBHOOK_URL`, synced
+from Doppler), tagging Nick with the exact `power-push` command to roll the new images to prod; a failure on any stage
+posts a separate alert to the same channel, also tagging Nick. The images are published, **not** rolled out — see
+[Publish vs. roll out](#publish-vs-roll-out) below.
 
 ### Maintenance flow — `cleanup.yml`
 
 Separate from the CI/CD three, on its own cron and knowing nothing about tags. Fires daily at **04:00 PST** (12:00 UTC)
 — two hours after the tag cut, so the day's fresh images already exist — and prunes ghcr: it deletes every `navigator-*`
-container version older than 7 days via
+container version older than 14 days via
 [`snok/container-retention-policy`](https://github.com/snok/container-retention-policy), authenticated with
 `secrets.RELEASE_PAT` (the PAT's package scope is what drives the `navigator-*` wildcard; the temporal `GITHUB_TOKEN`
 can do neither). `latest` and the recent dated tags are re-pushed daily by `deploy.yml`, so their versions stay under
@@ -95,7 +97,28 @@ maintenance belongs here, not in a CI/CD workflow.
 
 ## Publish vs. roll out
 
-The tag flow **publishes** dated images to ghcr.io; it does **not** roll them onto the cluster. Promoting a dated image
-to production is a separate, deliberate step — either a Config Sync reconcile or the operator-driven `power-push` (the
-[`power-push`](../.claude/skills/power-push/SKILL.md) skill). The cluster's pull-based, credential-free delivery is
-documented in [`gke-prod.md`](gke-prod.md#trust-boundary).
+The tag flow **publishes** dated images to ghcr.io; it does **not** roll them onto the cluster. **There is no automatic
+production rollout, by design** — promoting a dated image to prod is a separate, deliberate, operator-driven step. This
+keeps every cluster mutation in the hands of a human at a trusted, authenticated workstation: GitHub Actions holds no
+GCP credential, no cluster access, and no path to write to prod.
+
+### The manual deploy
+
+When the **"ready to deploy"** Slack message lands (the green-deploy hand-off from `deploy.yml`), an operator rolls the
+published image onto the GKE cluster with `power-push` — this is the exact command the Slack message hands you, with the
+date filled in:
+
+```bash
+doppler run --project navigator --config prd -- \
+  cargo run --release -p cli -- power-push --tag YY.MM.DD
+```
+
+`power-push` builds **nothing** — the images already exist from the tag flow. It resolves the published tag, confirms
+the prod Secret satisfies the new binary's boot invariants, pins **both** deployments (`navigator-web` and
+`workflows-service`) plus the trigger CronJobs to that tag, rolls them out together, and re-registers the worker with
+Restate. The full recipe — the pre-roll Secret check, the manifest-drift guard, and the no-rebuild restart path for a
+bare secret rotation — lives in the [`power-push`](../.claude/skills/power-push/SKILL.md) skill. The cluster's
+pull-based, credential-free image delivery is documented in [`gke-prod.md`](gke-prod.md#trust-boundary).
+
+Forks that run a GitOps controller (Config Sync, Argo CD, Flux) can let the controller reconcile the overlay instead of
+running `power-push` by hand; this repo's production roll is the manual `power-push` above.

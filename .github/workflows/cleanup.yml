@@ -102,13 +102,14 @@ jobs:
       - name: post cleanup failure alert to Slack
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_OPS_MENTION: ${{ secrets.SLACK_OPS_MENTION }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
               echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the failure alert"
               exit 1
           fi
-          TEXT=":x: Navigator ghcr cleanup failed — <@U0BBT5DG3QE> please investigate.
+          TEXT=":x: Navigator ghcr cleanup failed — ${SLACK_OPS_MENTION} please investigate.
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
           code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
