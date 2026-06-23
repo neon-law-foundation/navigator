@@ -106,13 +106,14 @@ mod tests {
     #[test]
     fn index_links_each_post_by_slug() {
         let posts = vec![PostSummary {
-            slug: "thanks_apple",
+            // The `web` loader hands the view kebab-case slugs.
+            slug: "thanks-apple",
             date: "June 19, 2026",
             title: "Thanks, Apple",
             description: "A short note of thanks.",
         }];
         let html = render_index(&posts, crate::AuthState::Anonymous).into_string();
-        assert!(html.contains("href=\"/blog/thanks_apple\""));
+        assert!(html.contains("href=\"/blog/thanks-apple\""));
         assert!(html.contains("Thanks, Apple"));
         assert!(html.contains("June 19, 2026"));
         assert!(html.contains("A short note of thanks."));

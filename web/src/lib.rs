@@ -877,19 +877,39 @@ async fn blog_index(State(blog): State<BlogIndex>, MaybeAuth(auth): MaybeAuth) -
     views::pages::blog::render_index(&summaries, auth)
 }
 
+/// Build the kebab-case redirect target for a file-backed asset route
+/// when any path segment is in the legacy underscore form, or `None`
+/// when every segment is already canonical.
+///
+/// Borrowing the JSON:API member-name convention, every public asset URL
+/// uses hyphens (see [`views::slug`]); this powers the permanent
+/// redirect that lands a `…_…` link on its canonical `…-…` home, shared
+/// by the blog, template, and docs routes so the rule can't drift apart.
+fn kebab_redirect_path(segments: &[&str]) -> Option<String> {
+    if segments.iter().any(|s| views::slug::needs_redirect(s)) {
+        let path = segments
+            .iter()
+            .map(|s| views::slug::to_url(s))
+            .collect::<Vec<_>>()
+            .join("/");
+        Some(format!("/{path}"))
+    } else {
+        None
+    }
+}
+
 /// `GET /blog/{slug}` — one post, or a 404 page when the slug is unknown.
 ///
-/// Slugs are canonically underscore-delimited (`thanks_apple`). A request
-/// for the hyphenated form (`thanks-apple`) is permanently redirected to
-/// the underscore form so external links written either way resolve.
+/// Slugs are canonically kebab-case (`thanks-apple`). A request for the
+/// legacy underscore form (`thanks_apple`) is permanently redirected to
+/// the hyphenated form so external links written either way resolve.
 async fn blog_post(
     State(blog): State<BlogIndex>,
     MaybeAuth(auth): MaybeAuth,
     AxumPath(slug): AxumPath<String>,
 ) -> impl IntoResponse {
-    if slug.contains('-') {
-        let canonical = slug.replace('-', "_");
-        return axum::response::Redirect::permanent(&format!("/blog/{canonical}")).into_response();
+    if let Some(to) = kebab_redirect_path(&["blog", &slug]) {
+        return axum::response::Redirect::permanent(&to).into_response();
     }
     match blog.get(&slug) {
         Some(post) => {
@@ -1040,6 +1060,9 @@ async fn docs_page(
     MaybeAuth(auth): MaybeAuth,
     AxumPath(slug): AxumPath<String>,
 ) -> impl IntoResponse {
+    if let Some(to) = kebab_redirect_path(&["docs", &slug]) {
+        return axum::response::Redirect::permanent(&to).into_response();
+    }
     match docs.find(&slug) {
         Some(doc) => (
             StatusCode::OK,
@@ -1087,9 +1110,16 @@ async fn template_detail(
     MaybeAuth(auth): MaybeAuth,
     AxumPath((category, name)): AxumPath<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some(to) = kebab_redirect_path(&["templates", &category, &name]) {
+        return axum::response::Redirect::permanent(&to).into_response();
+    }
     match template_gallery::find(&category, &name) {
         Some(t) => {
-            let download_href = format!("/templates/{}/{}/download", t.category, t.name);
+            let download_href = format!(
+                "/templates/{}/{}/download",
+                views::slug::to_url(t.category),
+                views::slug::to_url(t.name)
+            );
             let detail = views::pages::templates::TemplateDetail {
                 card: template_card(t),
                 frontmatter: t.frontmatter(),
@@ -1113,6 +1143,9 @@ async fn template_detail(
 async fn template_download(
     AxumPath((category, name)): AxumPath<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some(to) = kebab_redirect_path(&["templates", &category, &name, "download"]) {
+        return axum::response::Redirect::permanent(&to).into_response();
+    }
     match template_gallery::find(&category, &name) {
         Some(t) => {
             let mut headers = axum::http::HeaderMap::new();
@@ -1141,6 +1174,9 @@ async fn template_download(
 async fn api_template_raw(
     AxumPath((category, name)): AxumPath<(String, String)>,
 ) -> impl IntoResponse {
+    if let Some(to) = kebab_redirect_path(&["api", "templates", &category, &name]) {
+        return axum::response::Redirect::permanent(&to).into_response();
+    }
     match template_api::find_raw(&category, &name) {
         Some(raw) => (
             StatusCode::OK,

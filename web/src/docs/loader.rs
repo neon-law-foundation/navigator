@@ -85,7 +85,10 @@ pub fn bundled() -> DocsIndex {
     let mut docs: Vec<Doc> = MANIFEST
         .iter()
         .map(|(slug, raw)| Doc {
-            slug: (*slug).to_string(),
+            // The manifest keys are the on-disk file stems (so the
+            // completeness test can diff them against `docs/*.md`); the
+            // route slug is their kebab-case URL form.
+            slug: views::slug::to_url(slug),
             title: title_from_markdown(raw, slug),
             body_html: render_markdown(raw),
         })
@@ -139,6 +142,10 @@ pub fn rewrite_link(dest: &str) -> String {
     if stem.is_empty() {
         return dest.to_string();
     }
+    // URLs are kebab-case; the file stem keeps its underscores. The
+    // `#anchor` is a heading slug (which may legitimately hold
+    // underscores), so it is passed through untouched.
+    let stem = views::slug::to_url(stem);
     match anchor {
         Some(a) => format!("/docs/{stem}#{a}"),
         None => format!("/docs/{stem}"),
@@ -249,7 +256,14 @@ mod tests {
         assert_eq!(rewrite_link("notation.md#x"), "/docs/notation#x");
         assert_eq!(rewrite_link("glossary.md"), "/docs/glossary");
         assert_eq!(rewrite_link("access-model.md"), "/docs/access-model");
-        assert_eq!(rewrite_link("retainer_intake.md"), "/docs/retainer_intake");
+        // An underscore filename is rewritten to its kebab-case URL,
+        // while a heading anchor (which may carry underscores) is left as
+        // authored.
+        assert_eq!(rewrite_link("retainer_intake.md"), "/docs/retainer-intake");
+        assert_eq!(
+            rewrite_link("retainer_intake.md#step_one"),
+            "/docs/retainer-intake#step_one"
+        );
     }
 
     #[test]
@@ -317,6 +331,22 @@ mod tests {
                  \"docs/{stem}.md\")` line so it publishes at /docs/{stem}"
             );
         }
+    }
+
+    #[test]
+    fn underscore_doc_publishes_at_its_kebab_slug() {
+        // `docs/retainer_intake.md` is the only underscore doc; its route
+        // slug is the kebab-case form, even though the manifest key (and
+        // the file on disk) keep the underscore.
+        let ix = bundled();
+        assert!(
+            ix.find("retainer-intake").is_some(),
+            "retainer_intake.md should publish at /docs/retainer-intake"
+        );
+        assert!(
+            ix.find("retainer_intake").is_none(),
+            "the underscore slug is not a valid route — the handler redirects it"
+        );
     }
 
     #[test]

@@ -34,8 +34,25 @@ pub fn find_raw(category: &str, name: &str) -> Option<&'static str> {
     {
         return None;
     }
-    let rel = format!("{category}/{name}.md");
-    let raw = TEMPLATES.get_file(&rel)?.contents_utf8()?;
+    // URLs are kebab-case (the route redirects an underscore request to
+    // its hyphenated home first); the embedded tree keeps the on-disk
+    // underscore names. Match by comparing the canonical kebab form of
+    // both sides — `_`→`-` is not invertible, so we resolve forward from
+    // the real names rather than guess a filename from the slug.
+    let (want_category, want_name) = (views::slug::to_url(category), views::slug::to_url(name));
+    let dir = TEMPLATES.dirs().find(|d| {
+        d.path()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| views::slug::to_url(n) == want_category)
+    })?;
+    let file = dir.files().find(|f| {
+        f.path()
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .is_some_and(|s| views::slug::to_url(s) == want_name)
+    })?;
+    let raw = file.contents_utf8()?;
     is_public(raw).then_some(raw)
 }
 
@@ -83,6 +100,25 @@ mod tests {
             raw.contains("Nevada"),
             "served the actual Nevada entity-formation template"
         );
+    }
+
+    #[test]
+    fn resolves_the_kebab_url_form_to_underscore_filenames() {
+        // The route serves kebab-case URLs; the embedded tree keeps the
+        // on-disk underscore names. A kebab `name` segment must resolve to
+        // its underscore file…
+        let by_kebab = find_raw("nonprofit", "form990-annual-report")
+            .expect("kebab name resolves to form990_annual_report.md");
+        assert!(by_kebab.contains("Form 990"));
+        // …and so must a kebab `category` segment (`annual_report` →
+        // `annual-report`).
+        assert!(
+            find_raw("annual-report", "nevada").is_some(),
+            "kebab category resolves to the annual_report/ folder"
+        );
+        // The legacy underscore spellings still resolve (the route only
+        // redirects the browser; direct callers and tests keep working).
+        assert!(find_raw("nonprofit", "form990_annual_report").is_some());
     }
 
     #[test]
