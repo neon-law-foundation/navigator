@@ -70,6 +70,13 @@ pub const PRACTICE_AREAS: &[&str] = &[
 /// government counterparty. Counties and agencies live here (they are not
 /// jurisdiction rows); tribal nations are sovereigns that *could* become
 /// jurisdiction rows later. Single source of truth.
+///
+/// The list is deliberately **flat / scope-agnostic**: a county or agency
+/// forum (`clark_county`, `washoe_county`, …) validates under any scope,
+/// so a geographically odd path like `california/washoe_county/...` passes
+/// N110. Keying forums per scope is a future refinement, not a gap — the
+/// firm's template set is small enough that the flat list is the simpler,
+/// fixed-depth grammar we want today.
 pub const FORUMS: &[&str] = &[
     "private",
     "state",
@@ -179,12 +186,20 @@ impl Rule for F110JurisdictionPath {
             violations.push(format!(
                 "Unknown scope `{scope}` under `{jurisdiction}/`; expected one of {scopes:?}"
             ));
+        } else if !is_snake_case(scope) {
+            // Scopes in the closed list are already snake_case; this guards
+            // a future list edit that slips in a non-snake entry.
+            violations.push(format!("Scope `{scope}` is not snake_case"));
         }
         if !FORUMS.contains(&forum) {
             violations.push(format!(
                 "Unknown forum `{forum}`; expected one of {FORUMS:?} \
                  (use `private` when there is no government counterparty)"
             ));
+        } else if !is_snake_case(forum) {
+            // Forums in the closed list are already snake_case; this guards
+            // a future list edit that slips in a non-snake entry.
+            violations.push(format!("Forum `{forum}` is not snake_case"));
         }
         if !PRACTICE_AREAS.contains(&practice_area) {
             violations.push(format!(
@@ -354,5 +369,30 @@ mod tests {
             "notation_templates/united_states/arizona/mars_colony/space_law/x.md",
         ));
         assert_eq!(v.len(), 3);
+    }
+
+    #[test]
+    fn closed_lists_stay_snake_case() {
+        // The `is_snake_case` guards on scope, forum, and practice_area are
+        // unreachable while every list entry is snake_case — which is
+        // exactly the invariant they defend. This test fails the moment a
+        // future list edit slips in a non-snake entry, catching the drift
+        // at test time the way the inline guards catch it at lint time.
+        use super::{FORUMS, JURISDICTIONS, PRACTICE_AREAS};
+        use crate::is_snake_case;
+        for forum in FORUMS {
+            assert!(is_snake_case(forum), "forum `{forum}` is not snake_case");
+        }
+        for area in PRACTICE_AREAS {
+            assert!(
+                is_snake_case(area),
+                "practice area `{area}` is not snake_case"
+            );
+        }
+        for (_, scopes) in JURISDICTIONS {
+            for scope in *scopes {
+                assert!(is_snake_case(scope), "scope `{scope}` is not snake_case");
+            }
+        }
     }
 }
