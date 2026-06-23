@@ -1,9 +1,9 @@
 //! Provenance guard for vendored government forms.
 //!
-//! `templates/forms/FORMS.toml` is the single source of truth for every
+//! `notation_templates/forms/FORMS.toml` is the single source of truth for every
 //! official form we fill and file. This test recomputes the SHA-256 of each
 //! form's bundled bytes, asserts it equals the recorded `sha256`, and
-//! cross-checks the on-disk file at `templates/` + `object_path` — so the
+//! cross-checks the on-disk file at `notation_templates/` + `object_path` — so the
 //! ledger, the `include_bytes!` bundle, and the working tree can never
 //! silently drift apart. Same shape as `web/tests/vendor_assets.rs`: a
 //! convention enforced by a test, not by discipline.
@@ -45,7 +45,7 @@ fn vendored_forms_match_ledger() {
         );
 
         let disk_path = workspace_root()
-            .join("templates")
+            .join("notation_templates")
             .join(&form.meta.object_path);
         let disk = std::fs::read(&disk_path).unwrap_or_else(|e| {
             panic!(

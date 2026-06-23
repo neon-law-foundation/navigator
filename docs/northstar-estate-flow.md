@@ -68,7 +68,7 @@ and workflow machinery; the workflow is hosted by `workflows-service` (one worke
 ### Workflow shape: `onboarding__estate` (engine shipped)
 
 The estate matter is one notation, `onboarding__estate`, driven by a workflow from the shared step library. The template
-lives at `templates/onboarding/estate.md` with the mirrored standalone spec at
+lives at `notation_templates/onboarding/estate.md` with the mirrored standalone spec at
 `workflows/specs/onboarding__estate.yaml`; the shape is pinned by `workflows/tests/estate_intake_spec.rs` and
 `features/tests/features/estate_intake.feature`. The states:
 

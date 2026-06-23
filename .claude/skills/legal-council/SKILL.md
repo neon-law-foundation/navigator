@@ -12,7 +12,7 @@ description: >
   tax filings) with intentional weight toward access-to-justice perspectives. This council shapes copy that will
   *become* a notation (template body, questionnaire prompt, engagement letter, follow-up email) — it does not write the
   notation itself. Trigger when the user says any of "legal council", "spawn legal council", or "spawn council", or when
-  reviewing draft legal copy before it lands in `templates/` or a questionnaire seed. Default to Scorpio + Capricorn
+  reviewing draft legal copy before it lands in `notation_templates/` or a questionnaire seed. Default to Scorpio + Capricorn
   only; expand to full twelve only when the user asks for the full council. Skip for already-binding documents (a signed
   retainer) — those go through staff review, not the council. Render inline as voices → consensus → revised copy.
 ---
@@ -45,7 +45,7 @@ legal advice to a client.
 ## When to invoke
 
 - A draft of **client-facing copy** is on the table: a template body
-  in `templates/`, a questionnaire prompt that a Person will read, a
+  in `notation_templates/`, a questionnaire prompt that a Person will read, a
   follow-up email, an intake-form blurb.
 - A **glossary or definition** that the firm and the applicant must
   both understand the same way.
@@ -164,7 +164,7 @@ has no analogue elsewhere yet" is fine. Filling all twelve with empty
 flavor text is worse than passing.
 
 **The bench is the firm's starting cast.** Practice mix evolves; so
-should this list. When a new workflow lands in `templates/` that none
+should this list. When a new workflow lands in `notation_templates/` that none
 of the twelve credibly represent — a new bar specialty, a new client
 population — name the gap in a council session and propose a swap
 rather than asking a misfit voice to stretch. The zodiac is fixed at
@@ -222,7 +222,7 @@ twelve; the lawyers are not.
   convening, list the concrete facts the copy will state: addresses
   and suite numbers, each entity's state of incorporation and entity
   type, bar numbers, emails, fees. Confirm each against the repo
-  (`store/seeds/Address.yaml`, `templates/`, the bar strip in
+  (`store/seeds/Address.yaml`, `notation_templates/`, the bar strip in
   `views/src/layout.rs`) and ask the user — in one batch, for the
   whole draft — for anything not pinned there. The Foundation is a
   **Nevada** 501(c)(3) at 5150 Mae Anne Ave Ste 405-9999; the firm is

@@ -1,7 +1,7 @@
 //! `GET /api/templates/:category/:name` — raw template markdown, served
 //! inline so a reader on neonlaw.com sees the same bytes a git reader
 //! sees. This backs the repository README's template links (e.g.
-//! `templates/nest/nevada.md`) without the `templates/` tree leaving the
+//! `notation_templates/nest/nevada.md`) without the `notation_templates/` tree leaving the
 //! workspace root: it is still `include_str!`-d by `store::seed` and
 //! scanned by `cli validate`. Here `web` embeds the whole tree a second
 //! time, read-only, purely to serve it over HTTP.
@@ -15,10 +15,10 @@
 
 use include_dir::{include_dir, Dir};
 
-/// The repository `templates/` tree, embedded at build time. The path is
+/// The repository `notation_templates/` tree, embedded at build time. The path is
 /// resolved against `web`'s manifest dir, so it tracks the dir in place
 /// at the workspace root.
-static TEMPLATES: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../templates");
+static TEMPLATES: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../notation_templates");
 
 /// Raw markdown for a non-confidential template, or `None` when the path
 /// is unknown, the template is confidential, or the segments could be a

@@ -126,7 +126,7 @@ hide.
 Source-of-truth order:
 
 1. **The seed data and templates** — `store/seeds/Address.yaml` (firm and Foundation addresses, suites, jurisdictions),
-   `templates/nonprofit/` (the Foundation is a **Nevada** 501(c)(3)), and the bar-admission strip in
+   `notation_templates/nonprofit/` (the Foundation is a **Nevada** 501(c)(3)), and the bar-admission strip in
    `views/src/layout.rs` (CA No. 337252, NV No. 13400, WA).
 2. **The user** — for anything not pinned in the repo, or any value that looks even slightly off. Ask; don't assume.
 

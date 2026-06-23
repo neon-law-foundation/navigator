@@ -7,14 +7,14 @@ doc is about evolving what is already shipped.
 
 The guiding idea, proven by the end-to-end journey suite in [`features/`](../features/): **the questionnaire and the
 workflow are the tested contract; the template body is replaceable.** A stub template (see
-[`templates/nest/nevada.md`](../templates/nest/nevada.md)) ships a real, tested flow with placeholder prose, and the
-prose is filled in later without touching the flow.
+[`notation_templates/nest/nevada.md`](../notation_templates/nest/nevada.md)) ships a real, tested flow with
+placeholder prose, and the prose is filled in later without touching the flow.
 
 ## The four artifacts of one workflow
 
 A single workflow `code` (e.g. `onboarding__nest`) is defined in four places that must stay in lockstep:
 
-1. **The template markdown** — `templates/<category>/<snake_case_name>.md`. Its YAML frontmatter carries the
+1. **The template markdown** — `notation_templates/<category>/<snake_case_name>.md`. Its YAML frontmatter carries the
    `questionnaire:` and `workflow:` blocks plus `title` / `code` / `respondent_type`; the body after the frontmatter is
    the document prose.
 2. **The standalone spec** — `workflows/specs/<code>.yaml`. The same `questionnaire:` + `workflow:` blocks, no body.
@@ -120,7 +120,7 @@ Run the cheap structural tests first, then the journey that exercises the flow e
 ```bash
 cargo test -p workflows --test workflow_integrity --test spec_coherence
 cargo test -p features --test <journey>          # e.g. nest_formation, northstar_estate
-cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes templates/<category>/<snake_case_name>.md
+cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes notation_templates/<category>/<snake_case_name>.md
 ```
 
 **Green means green.** Cucumber's `.run()` is non-fatal: a failing *or skipped* scenario still exits `0`. Read the

@@ -11,7 +11,7 @@
 //! pins against).
 //!
 //! Adding a new workflow: drop a notation template under
-//! `templates/<category>/<name>.md`, write the same `workflow:` +
+//! `notation_templates/<category>/<name>.md`, write the same `workflow:` +
 //! `questionnaire:` blocks into `workflows/specs/<code>.yaml`, and
 //! add the file to [`BUNDLED_SPEC_YAML`] below. The coherence test
 //! in `workflows/tests/spec_coherence.rs` catches any drift between
@@ -25,7 +25,8 @@ use crate::spec::{QuestionnaireSpec, WorkflowSpec, WorkflowSpecError};
 /// by the rendering layer (`views::notation::render_filled_in`) and
 /// the integrity / coherence tests; the workflow spec itself now
 /// loads from [`RETAINER_INTAKE_SPEC_YAML`].
-pub const RETAINER_INTAKE_TEMPLATE: &str = include_str!("../../templates/onboarding/retainer.md");
+pub const RETAINER_INTAKE_TEMPLATE: &str =
+    include_str!("../../notation_templates/onboarding/retainer.md");
 
 /// Standalone YAML carrying both `questionnaire:` and `workflow:`
 /// blocks for the retainer intake template.

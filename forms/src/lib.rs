@@ -1,9 +1,9 @@
 //! Vendored government forms — the bundled registry behind
-//! `templates/forms/`.
+//! `notation_templates/forms/`.
 //!
 //! Every official form we fill and file is vendored from its canonical
 //! source (the issuing authority's own domain) and pinned in
-//! `templates/forms/FORMS.toml` by printed revision and SHA-256 — see the
+//! `notation_templates/forms/FORMS.toml` by printed revision and SHA-256 — see the
 //! `vendor-gov-forms` skill for the acquisition discipline. This crate
 //! bundles the ledger and the PDF bytes into the binary (`include_str!` /
 //! `include_bytes!`) so every consumer — the walker building an
@@ -42,7 +42,7 @@ pub struct FormMeta {
     pub sha256: String,
     /// How the form is filled: `acroform` | `overlay` | `none`.
     pub fill: String,
-    /// Path in the assets bucket; the repo path is `templates/` + this.
+    /// Path in the assets bucket; the repo path is `notation_templates/` + this.
     pub object_path: String,
     /// Acquisition caveats, if any.
     #[serde(default)]
@@ -72,22 +72,26 @@ pub enum FormsError {
     MissingLedgerEntry(String),
 }
 
-const LEDGER_TOML: &str = include_str!("../../templates/forms/FORMS.toml");
+const LEDGER_TOML: &str = include_str!("../../notation_templates/forms/FORMS.toml");
 
 /// The bundled PDF bytes, keyed by `form_code`. One row per ledger entry;
 /// the guard test fails if the two ever disagree.
 const BUNDLED: &[(&str, &[u8])] = &[
     (
         "nv_sos__llc_formation",
-        include_bytes!("../../templates/forms/nv_sos/nv_sos__llc_formation-2023-08.pdf"),
+        include_bytes!("../../notation_templates/forms/nv_sos/nv_sos__llc_formation-2023-08.pdf"),
     ),
     (
         "nv_sos__profit_corp_formation",
-        include_bytes!("../../templates/forms/nv_sos/nv_sos__profit_corp_formation-2024-05.pdf"),
+        include_bytes!(
+            "../../notation_templates/forms/nv_sos/nv_sos__profit_corp_formation-2024-05.pdf"
+        ),
     ),
     (
         "nv_sos__business_trust_formation",
-        include_bytes!("../../templates/forms/nv_sos/nv_sos__business_trust_formation-2023-08.pdf"),
+        include_bytes!(
+            "../../notation_templates/forms/nv_sos/nv_sos__business_trust_formation-2023-08.pdf"
+        ),
     ),
 ];
 
