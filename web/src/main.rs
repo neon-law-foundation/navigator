@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::Context;
 
@@ -46,6 +47,18 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("configuring object storage")?;
     tracing::info!("object storage configured");
+
+    // The canonical seed writes template bodies as blobs to object storage.
+    // In KIND the web pod can start before fake-gcs-server is reachable, so
+    // wait for the store to answer a probe before seeding — otherwise the
+    // first seed fails on a connection error and the pod crash-loops (with a
+    // growing backoff) until the dependency is up. That crash-loop window is
+    // the root of the KIND e2e flake. The `fs` backend answers instantly, so
+    // this is a no-op for local/`fs` dev.
+    cloud::wait_until_ready(&storage, Duration::from_mins(1))
+        .await
+        .context("waiting for object storage to become ready")?;
+    tracing::info!("object storage ready");
 
     let seed_report = store::seed::seed_canonical(&db, &storage)
         .await
