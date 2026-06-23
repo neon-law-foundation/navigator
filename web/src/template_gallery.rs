@@ -214,11 +214,19 @@ pub fn gallery() -> &'static [GalleryTemplate] {
 
 /// Look up one allow-listed template. `None` — and therefore a 404 at
 /// the route — for anything not on the curated list.
+///
+/// Matching is kebab-insensitive: the route serves kebab-case URLs
+/// (`form990-annual-report`) while the manifest carries the on-disk file
+/// stems (`form990_annual_report`), so both segments are compared in
+/// their canonical [`views::slug::to_url`] form. The route still
+/// redirects an underscore request to its kebab URL first; this only has
+/// to resolve the kebab form back to the stem.
 #[must_use]
 pub fn find(category: &str, name: &str) -> Option<&'static GalleryTemplate> {
-    GALLERY
-        .iter()
-        .find(|t| t.category == category && t.name == name)
+    let (want_category, want_name) = (views::slug::to_url(category), views::slug::to_url(name));
+    GALLERY.iter().find(|t| {
+        views::slug::to_url(t.category) == want_category && views::slug::to_url(t.name) == want_name
+    })
 }
 
 #[cfg(test)]
@@ -251,6 +259,17 @@ mod tests {
     fn title_is_parsed_from_each_template_frontmatter() {
         let t = find("nonprofit", "form990_annual_report").expect("listed");
         assert!(t.title.contains("Form 990"), "got title {:?}", t.title);
+    }
+
+    #[test]
+    fn find_resolves_the_kebab_url_form_to_the_underscore_stem() {
+        // The route hands `find` the kebab-case URL segment; it must
+        // resolve to the manifest entry whose on-disk stem still carries
+        // underscores. Both spellings reach the same template.
+        let kebab = find("nonprofit", "form990-annual-report").expect("kebab form resolves");
+        let underscore = find("nonprofit", "form990_annual_report").expect("stem form resolves");
+        assert_eq!(kebab.name, "form990_annual_report");
+        assert_eq!(kebab.name, underscore.name);
     }
 
     #[test]

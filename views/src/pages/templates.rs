@@ -24,10 +24,11 @@ use crate::{AuthState, PageLayout};
 /// gallery entry for the duration of the render.
 pub struct TemplateCard<'a> {
     /// Category folder (`nonprofit`) — the first `/templates/:category`
-    /// path segment.
+    /// path segment, kebab-cased for the URL.
     pub category: &'a str,
-    /// File stem (`form990_annual_report`) — the `:name` path segment and
-    /// the download filename base.
+    /// File stem (`form990_annual_report`) — kebab-cased for the
+    /// `:name` path segment, and shown verbatim as the download
+    /// filename base.
     pub name: &'a str,
     /// Human title, parsed from the template's frontmatter `title`.
     pub title: &'a str,
@@ -41,7 +42,12 @@ pub struct TemplateCard<'a> {
 
 impl TemplateCard<'_> {
     fn detail_href(&self) -> String {
-        format!("/templates/{}/{}", self.category, self.name)
+        // URLs are kebab-case; the file stem keeps its underscores.
+        format!(
+            "/templates/{}/{}",
+            crate::slug::to_url(self.category),
+            crate::slug::to_url(self.name)
+        )
     }
 
     fn badge(&self) -> Markup {
@@ -195,7 +201,10 @@ mod tests {
     fn index_lists_cards_with_disclaimer() {
         let html = index(&[card()], AuthState::Anonymous).into_string();
         assert!(html.contains("Template gallery"));
-        assert!(html.contains("/templates/nonprofit/form990_annual_report"));
+        // The detail link is kebab-cased even though the file stem keeps
+        // its underscores.
+        assert!(html.contains("/templates/nonprofit/form990-annual-report"));
+        assert!(!html.contains("/templates/nonprofit/form990_annual_report"));
         assert!(html.contains("Federal · United States"));
         // The shared disclaimer rides every gallery page.
         assert!(html.contains("not legal advice"));
@@ -206,7 +215,7 @@ mod tests {
         let d = TemplateDetail {
             card: card(),
             frontmatter: "title: IRS Form 990\ncode: form_990__annual_report",
-            download_href: "/templates/nonprofit/form990_annual_report/download",
+            download_href: "/templates/nonprofit/form990-annual-report/download",
             start_matter_href: "/contact",
         };
         let html = detail(&d, AuthState::Anonymous).into_string();
@@ -214,8 +223,10 @@ mod tests {
         assert!(html.contains("code: form_990__annual_report"));
         // The disclaimer.
         assert!(html.contains("does not create an attorney"));
-        // The raw download.
-        assert!(html.contains("/templates/nonprofit/form990_annual_report/download"));
+        // The raw download link is the kebab-cased route…
+        assert!(html.contains("/templates/nonprofit/form990-annual-report/download"));
+        // …while the downloaded filename keeps the on-disk underscore stem.
+        assert!(html.contains("Download form990_annual_report.md"));
         // The not-a-dead-end CTA.
         assert!(html.contains("Start a matter"));
         assert!(html.contains("href=\"/contact\""));

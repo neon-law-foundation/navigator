@@ -9,8 +9,10 @@
 //! The `YYYYMMDD` prefix is the publish date — the one piece of metadata
 //! we derive from the filename rather than the front-matter. It sorts the
 //! index newest-first and dates each post. Everything after the first `_`
-//! is the slug (the URL is `/blog/<slug>`). A file whose prefix is not a
-//! valid date is skipped with a warning rather than failing the boot.
+//! is the slug, lowered to kebab-case for the URL (`/blog/<slug>`, so
+//! `thanks_apple` is served at `/blog/thanks-apple`). A file whose prefix
+//! is not a valid date is skipped with a warning rather than failing the
+//! boot.
 //!
 //! Front-matter (`title`, `description`) and the markdown body are parsed
 //! by the shared [`marketing::loader`], so a post file is shaped exactly
@@ -33,7 +35,8 @@ const NON_POST_FILES: &[&str] = &["README.md", ".gitkeep"];
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlogPost {
     /// Routing key — the part of the filename after the `YYYYMMDD_`
-    /// date prefix (e.g. `thanks_apple`). Served at `/blog/<slug>`.
+    /// date prefix, in kebab-case (`thanks_apple` → `thanks-apple`).
+    /// Served at `/blog/<slug>`.
     pub slug: String,
     /// Publish date, parsed from the filename's `YYYYMMDD` prefix.
     pub date: NaiveDate,
@@ -88,13 +91,18 @@ impl BlogIndex {
 /// Split a post filename stem into its `(date, slug)` parts. Returns
 /// `None` when the stem has no `_`, an empty slug, or a prefix that
 /// isn't a valid `YYYYMMDD` date — the loader then skips the file.
+///
+/// The slug is the canonical kebab-case URL form
+/// ([`views::slug::to_url`]): `20260619_thanks_apple.md` is served at
+/// `/blog/thanks-apple`, so the dated-underscore filename convention and
+/// the hyphenated URL convention stay decoupled.
 fn parse_post_filename(stem: &str) -> Option<(NaiveDate, String)> {
     let (date_part, slug) = stem.split_once('_')?;
     if slug.is_empty() {
         return None;
     }
     let date = NaiveDate::parse_from_str(date_part, "%Y%m%d").ok()?;
-    Some((date, slug.to_string()))
+    Some((date, views::slug::to_url(slug)))
 }
 
 /// Walk `dir` for blog posts. Returns an empty index (not an error)
@@ -177,11 +185,12 @@ mod tests {
         // `YYYYMMDD_slug.md` name whose prefix is the publish date and
         // whose remainder is the URL slug, plus `title`/`description`
         // front-matter. The first post — `20260619_thanks_apple.md` —
-        // is served at `/blog/thanks_apple`, dated 2026-06-19.
+        // is served at the kebab-case URL `/blog/thanks-apple`, dated
+        // 2026-06-19.
         let ix = load_dir(std::path::Path::new(crate::DEFAULT_BLOG_DIR)).unwrap();
         let post = ix
-            .get("thanks_apple")
-            .expect("first post should load from the bundled blog dir at slug `thanks_apple`");
+            .get("thanks-apple")
+            .expect("first post should load from the bundled blog dir at slug `thanks-apple`");
         assert_eq!(post.date, NaiveDate::from_ymd_opt(2026, 6, 19).unwrap());
         assert_eq!(post.title, "Thanks, Apple");
         assert!(
@@ -203,7 +212,7 @@ mod tests {
         // tests) — even though it sits inside raw HTML. This pins the lead,
         // the grid shape, and that every tile is a real resolved `<img>`.
         let ix = load_dir(std::path::Path::new(crate::DEFAULT_BLOG_DIR)).unwrap();
-        let post = ix.get("thanks_apple").expect("thanks_apple post loads");
+        let post = ix.get("thanks-apple").expect("thanks-apple post loads");
         // The Bootstrap grid wrapper passed through as raw HTML.
         assert!(
             post.body_html.contains("class=\"row g-2 blog-collage\""),
@@ -290,7 +299,9 @@ mod tests {
     fn parses_date_and_slug_from_filename() {
         let (date, slug) = parse_post_filename("20260619_thanks_apple").unwrap();
         assert_eq!(date, NaiveDate::from_ymd_opt(2026, 6, 19).unwrap());
-        assert_eq!(slug, "thanks_apple");
+        // The slug is the kebab-case URL form, even though the file name
+        // keeps its underscores.
+        assert_eq!(slug, "thanks-apple");
     }
 
     #[test]
@@ -317,12 +328,12 @@ mod tests {
         let posts = ix.posts();
         assert_eq!(posts.len(), 1);
         let p = &posts[0];
-        assert_eq!(p.slug, "thanks_apple");
+        assert_eq!(p.slug, "thanks-apple");
         assert_eq!(p.date, NaiveDate::from_ymd_opt(2026, 6, 19).unwrap());
         assert_eq!(p.title, "Thanks, Apple");
         assert_eq!(p.description, "A short note of thanks.");
         assert!(p.body_html.contains("thank you"));
-        assert!(ix.get("thanks_apple").is_some());
+        assert!(ix.get("thanks-apple").is_some());
     }
 
     #[test]
