@@ -687,9 +687,9 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             // `/services` page replaces the old Services dropdown; each
             // card links out to a `/services/<slug>` detail.
             .route("/services", get(service_index))
-            .route("/services/fractional-gc", get(service_fractional_gc))
-            .route("/services/estate", get(service_estate))
-            .route("/services/corporate", get(service_corporate))
+            .route("/services/nexus", get(service_nexus))
+            .route("/services/northstar", get(service_northstar))
+            .route("/services/nest", get(service_nest))
             .route("/services/nautilus", get(service_nautilus))
             .route("/services/nook", get(service_nook))
             .route("/services/litigation", get(service_litigation))
@@ -705,9 +705,9 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/es", get(home_es))
             .route("/es/foundation/mission", get(foundation_mission_es))
             .route("/es/services", get(service_index_es))
-            .route("/es/services/fractional-gc", get(service_fractional_gc_es))
-            .route("/es/services/estate", get(service_estate_es))
-            .route("/es/services/corporate", get(service_corporate_es))
+            .route("/es/services/nexus", get(service_nexus_es))
+            .route("/es/services/northstar", get(service_northstar_es))
+            .route("/es/services/nest", get(service_nest_es))
             .route("/es/services/nautilus", get(service_nautilus_es))
             .route("/es/services/nook", get(service_nook_es))
             .route("/es/services/litigation", get(service_litigation_es))
@@ -1189,23 +1189,23 @@ struct ServicePage {
     icon: Option<&'static str>,
 }
 
-const SERVICE_ESTATE: ServicePage = ServicePage {
-    slug: "estate",
-    canonical_path: "/services/estate",
+const SERVICE_NORTHSTAR: ServicePage = ServicePage {
+    slug: "northstar",
+    canonical_path: "/services/northstar",
     fallback_title: "Estate planning",
     surface: Surface::Firm,
     icon: Some("star-fill"),
 };
-const SERVICE_CORPORATE: ServicePage = ServicePage {
-    slug: "corporate",
-    canonical_path: "/services/corporate",
+const SERVICE_NEST: ServicePage = ServicePage {
+    slug: "nest",
+    canonical_path: "/services/nest",
     fallback_title: "Corporate services",
     surface: Surface::Firm,
     icon: Some("building-fill"),
 };
-const SERVICE_FRACTIONAL_GC: ServicePage = ServicePage {
-    slug: "fractional-gc",
-    canonical_path: "/services/fractional-gc",
+const SERVICE_NEXUS: ServicePage = ServicePage {
+    slug: "nexus",
+    canonical_path: "/services/nexus",
     fallback_title: "Fractional GC",
     surface: Surface::Firm,
     icon: Some("diagram-3-fill"),
@@ -1290,14 +1290,14 @@ const SERVICE_NIMBUS: ServicePage = ServicePage {
     icon: Some("cloud-fill"),
 };
 
-async fn service_estate(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_ESTATE, a.0, views::Locale::En)
+async fn service_northstar(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NORTHSTAR, a.0, views::Locale::En)
 }
-async fn service_corporate(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_CORPORATE, a.0, views::Locale::En)
+async fn service_nest(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NEST, a.0, views::Locale::En)
 }
-async fn service_fractional_gc(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_FRACTIONAL_GC, a.0, views::Locale::En)
+async fn service_nexus(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NEXUS, a.0, views::Locale::En)
 }
 async fn service_nautilus(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NAUTILUS, a.0, views::Locale::En)
@@ -1336,14 +1336,14 @@ async fn foundation_nimbus(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NIMBUS, a.0, views::Locale::En)
 }
 
-async fn service_estate_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_ESTATE, a.0, views::Locale::Es)
+async fn service_northstar_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NORTHSTAR, a.0, views::Locale::Es)
 }
-async fn service_corporate_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_CORPORATE, a.0, views::Locale::Es)
+async fn service_nest_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NEST, a.0, views::Locale::Es)
 }
-async fn service_fractional_gc_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_FRACTIONAL_GC, a.0, views::Locale::Es)
+async fn service_nexus_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NEXUS, a.0, views::Locale::Es)
 }
 async fn service_nautilus_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NAUTILUS, a.0, views::Locale::Es)
@@ -1485,14 +1485,15 @@ fn render_service(
 }
 
 /// Map a product `code` to the `/services/<slug>` marketing page that
-/// describes it. The product key and the page slug diverge (Northstar's
-/// page is `/services/estate`), so the mapping is explicit; an unknown
-/// code falls back to the services index.
+/// describes it. Each page slug now matches its product code, so the
+/// mapping is a straight `/services/<code>`; it stays explicit (rather
+/// than formatting the code in) to keep the route table auditable and to
+/// fall back to the services index for an unknown code.
 fn product_service_path(code: &str) -> &'static str {
     match code {
-        "northstar" => "/services/estate",
-        "nest" => "/services/corporate",
-        "nexus" => "/services/fractional-gc",
+        "northstar" => "/services/northstar",
+        "nest" => "/services/nest",
+        "nexus" => "/services/nexus",
         "nautilus" => "/services/nautilus",
         "nook" => "/services/nook",
         "litigation" => "/services/litigation",

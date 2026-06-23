@@ -66,7 +66,7 @@ impl<'a> PageLayout<'a> {
     }
 
     /// Declare this page's locale-less canonical path (e.g.
-    /// `/services/estate`). When set, the layout emits `hreflang`
+    /// `/services/northstar`). When set, the layout emits `hreflang`
     /// alternates for every locale and renders the one-tap navbar
     /// language switcher. Set this only on pages that actually have a
     /// translated twin, so the switcher never points at a 404.
@@ -508,12 +508,14 @@ mod tests {
         // English page that declares a Spanish twin.
         let out = PageLayout::new("Home")
             .with_locale(Locale::En)
-            .with_canonical_path("/services/estate")
+            .with_canonical_path("/services/northstar")
             .render(&html! { p { "x" } })
             .into_string();
-        assert!(out.contains("<link rel=\"alternate\" hreflang=\"en\" href=\"/services/estate\">"));
         assert!(
-            out.contains("hreflang=\"es\" href=\"/es/services/estate\""),
+            out.contains("<link rel=\"alternate\" hreflang=\"en\" href=\"/services/northstar\">")
+        );
+        assert!(
+            out.contains("hreflang=\"es\" href=\"/es/services/northstar\""),
             "es alternate should point at the /es twin: {out}"
         );
         assert!(out.contains("hreflang=\"x-default\""));
@@ -523,7 +525,7 @@ mod tests {
             out.contains("language-switcher") && out.contains(">Español</a>"),
             "English page should offer a Spanish switcher: {out}"
         );
-        assert!(out.contains("href=\"/es/services/estate\""));
+        assert!(out.contains("href=\"/es/services/northstar\""));
     }
 
     #[test]

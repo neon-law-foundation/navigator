@@ -1,6 +1,6 @@
 ---
 title: "Neon Law Nest"
-slug: corporate
+slug: nest
 hero_image: mojave-yucca
 description: >
   Neon Law Nest is a Nevada entity to hold what you own — $1,111 a year. Comprehensive formation and the routine
@@ -38,7 +38,7 @@ match what the entity holds.
 single-purpose entity needs — the filings, the operating agreement, the registered agent, and the everyday legal
 questions of holding an asset — and it renews each year to keep the entity in good standing. A scaling software or
 emerging-technology company, with employees, investors, a cap table, and negotiated contracts, is [Neon Law
-Nexus](/services/fractional-gc), our fractional general counsel.
+Nexus](/services/nexus), our fractional general counsel.
 
 **Your Reno base.** Your business address, mailbox, and coworking desk are at Ridgeview Mail Center on Mae Anne Ave in
 Reno: [ridgeviewmailcenter.com](https://www.ridgeviewmailcenter.com/).

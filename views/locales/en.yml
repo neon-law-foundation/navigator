@@ -64,7 +64,7 @@ products:
   desc_nautilus: A licensed attorney as your representative for debt-collection mail and calls, answered under your rights.
   desc_nook: A flat-fee real-estate closing for a sale you have already agreed on, with no broker on either side.
   desc_litigation: High-stakes technology litigation, billed hourly with select cases taken on contingency.
-  desc_nerd: An independent expert witness on software and data-access disputes, billed hourly — never on contingency.
+  desc_nerd: An independent expert witness on software and data-access disputes, billed hourly.
   desc_node: An attorney attestation of a fact, like accredited-investor status, recorded on-chain on Solana.
   desc_newleaf: A flat-fee uncontested divorce for a couple who have already agreed to part ways.
   desc_namesake: A flat-fee U.S. trademark filing for one class, prepared and filed by a licensed attorney.

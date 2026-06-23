@@ -1,6 +1,6 @@
 ---
 title: "Neon Law Northstar"
-slug: estate
+slug: northstar
 hero_image: lake-tahoe
 description: >
   Neon Law Northstar es su plan patrimonial en una sola sesión — $3,333 por una conversación grabada que se convierte en
@@ -42,7 +42,7 @@ le cotizamos su tarifa ajustada por PPA antes de firmar cualquier carta de encar
 
 **Para personas, no para empresas.** Northstar planifica lo que usted deja a las personas que ama —su testamento, su
 fideicomiso y sus directivas. Si lo que desea es una empresa para resguardar un activo, como una LLC para un alquiler o
-una inversión, eso es el [Neon Law Nest](/es/services/corporate).
+una inversión, eso es el [Neon Law Nest](/es/services/nest).
 
 **La carta de encargo rige.** Una carta de encargo por escrito, firmada antes de empezar, establece el alcance exacto,
 la tarifa, cualquier tarifa fuera de alcance y los términos de terminación. Antes de enviar esa carta, verificamos

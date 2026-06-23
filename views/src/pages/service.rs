@@ -1,5 +1,5 @@
-//! Shared rendering for the firm's service pages (`/services/fractional-gc`,
-//! `/services/estate`, `/services/corporate`) and the Foundation's product
+//! Shared rendering for the firm's service pages (`/services/nexus`,
+//! `/services/northstar`, `/services/nest`) and the Foundation's product
 //! pages (`/foundation/nimbus`).
 //!
 //! Each route hands a `ServiceContent` to [`render`]; the helper wraps the
@@ -104,7 +104,7 @@ pub fn render(content: &ServiceContent<'_>, auth: AuthState) -> Markup {
 }
 
 /// Render a service page in `locale`. `canonical_path` (e.g.
-/// `/services/estate`) is the locale-less path; when `Some`, the layout
+/// `/services/northstar`) is the locale-less path; when `Some`, the layout
 /// emits the `hreflang` alternates and the navbar language switcher. The
 /// English path with `None` is byte-identical to the pre-i18n page.
 #[must_use]

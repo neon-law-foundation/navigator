@@ -1,6 +1,6 @@
 ---
 title: "Neon Law Nexus"
-slug: fractional-gc
+slug: nexus
 hero_image: bengaluru-skyline
 description: >
   Neon Law Nexus is fractional general counsel for scaling software and emerging-technology companies — $2,222 a month
@@ -42,7 +42,7 @@ It has two fences, stated plainly:
 
 **For companies that are scaling.** This plan is built for software and emerging-technology companies that are building,
 hiring, and raising — the custom contracts, negotiated agreements, and financings that come with growth. A passive
-entity that just holds real estate or an investment is [Neon Law Nest](/services/corporate).
+entity that just holds real estate or an investment is [Neon Law Nest](/services/nest).
 
 **Cap-table management, included when you incorporate in Nevada.** Incorporate your C corp in Nevada with us — Nevada
 over Delaware, with no state corporate income tax — and cap-table management comes with your $2,222 at no extra cost:
