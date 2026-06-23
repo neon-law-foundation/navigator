@@ -16,6 +16,8 @@
 # Local-only secret drop (Slack app creds, etc.) — values live in Doppler.
 /.slack.txt
 /.agent/scheduled_tasks.lock
+/.agents/
+/.codex/
 /.playwright-mcp/
 # Root-level screenshots taken during UI iteration (about-*.png,
 # mobile-*.png, www-neonlaw-*.png, help-page-*.png, …). Keep them
@@ -47,3 +49,9 @@
 
 # Default local object-storage root (cloud::from_env fs backend)
 var/
+
+# No other language, rust only
+node_modules/
+package.json
+pyproject.toml
+.venv

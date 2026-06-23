@@ -73,6 +73,30 @@
   --bs-btn-disabled-bg: #06b6d4;
   --bs-btn-disabled-border-color: #06b6d4;
   --bs-btn-focus-shadow-rgb: 6, 182, 212;
+  color: #083344;
+  background-color: #06b6d4;
+  border-color: #06b6d4;
+}
+
+.btn-primary:hover {
+  color: #083344;
+  background-color: #22d3ee;
+  border-color: #22d3ee;
+}
+
+.btn-primary:active,
+.btn-primary.active,
+.btn-primary.show {
+  color: #083344;
+  background-color: #67e8f9;
+  border-color: #67e8f9;
+}
+
+.btn-primary:disabled,
+.btn-primary.disabled {
+  color: #083344;
+  background-color: #06b6d4;
+  border-color: #06b6d4;
 }
 
 .btn-outline-primary {
@@ -113,6 +137,104 @@
 /* scoping hook for the content-image rule below. */
 .service-prose {
   max-width: none;
+}
+
+/* Litigation phase sequence. The cards use Tailwind's cyan scale while */
+/* keeping text/background pairs AA-safe: cyan-950 text through cyan-500 */
+/* and white only on cyan-700. */
+.litigation-phases {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 1rem;
+  margin-block: 1.5rem 2rem;
+}
+
+.litigation-phase {
+  min-height: 12rem;
+  padding: 1rem;
+  border-radius: var(--bs-border-radius);
+  border: 1px solid rgba(8, 51, 68, 0.18);
+}
+
+[data-bs-theme="dark"] .litigation-phase {
+  border-color: rgba(236, 254, 255, 0.2);
+  box-shadow: 0 0.125rem 0.75rem rgba(0, 0, 0, 0.24);
+}
+
+.phase-num {
+  margin-bottom: 0.35rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.litigation-phase h3 {
+  margin-bottom: 0.5rem;
+  font-size: 1.15rem;
+}
+
+.litigation-phase p:last-child {
+  margin-bottom: 0;
+}
+
+.litigation-phase-0 {
+  color: #083344;
+  background: #cffafe;
+}
+
+.litigation-phase-1 {
+  color: #083344;
+  background: #a5f3fc;
+}
+
+.litigation-phase-2 {
+  color: #083344;
+  background: #67e8f9;
+}
+
+.litigation-phase-3 {
+  color: #083344;
+  background: #22d3ee;
+}
+
+.litigation-phase-4 {
+  color: #083344;
+  background: #06b6d4;
+}
+
+.litigation-phase-5 {
+  color: #fff;
+  background: #0e7490;
+}
+
+[data-bs-theme="dark"] .litigation-phase-0 {
+  color: #ecfeff;
+  background: #083344;
+}
+
+[data-bs-theme="dark"] .litigation-phase-1 {
+  color: #ecfeff;
+  background: #164e63;
+}
+
+[data-bs-theme="dark"] .litigation-phase-2 {
+  color: #ecfeff;
+  background: #155e75;
+}
+
+[data-bs-theme="dark"] .litigation-phase-3 {
+  color: #fff;
+  background: #0e7490;
+}
+
+[data-bs-theme="dark"] .litigation-phase-4 {
+  color: #083344;
+  background: #22d3ee;
+}
+
+[data-bs-theme="dark"] .litigation-phase-5 {
+  color: #083344;
+  background: #67e8f9;
 }
 
 /* Content images arrive from markdown as bare <img> with no responsive */

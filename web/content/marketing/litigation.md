@@ -3,22 +3,23 @@ title: "1337 Lawyers"
 slug: litigation
 hero_image: wa-capitol-blossoms
 description: >
-  1337 Lawyers is Neon Law's litigation practice for high-stakes technology disputes — billed at $1,337 an hour, and in
-  select cases on contingency by separate written agreement.
+  1337 Lawyers is Neon Law's litigation practice for high-stakes technology disputes, quoted as a flat fee per phase
+  after a case assessment.
 pricing:
   - title: "1337 Lawyers"
-    price: "$1,337"
-    cadence: "/hour"
+    price: "Flat fee per phase"
+    cadence: " quoted after assessment"
     blurb: "Our litigation practice for high-stakes technology disputes."
     features:
       - "Commercial, IP and trade-secret, software and SaaS contract, and founder and equity disputes"
-      - "A licensed attorney leads your matter from demand letter through trial"
-      - "Select cases taken on contingency, by separate written agreement"
+      - "A licensed attorney quotes each phase up front after the Phase 0 case assessment"
+      - "AI-assisted discovery and evidence workflows help make fixed per-phase pricing predictable"
+      - "Phases are billed one at a time, in advance"
       - "Outside our lane, conflicted, or at capacity? We refer you to trial counsel we trust"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
-    featured_label: "$1,337/hour"
+    featured_label: "Quoted per phase"
 ---
 
 # When your company is under attack, we take the fight
@@ -29,12 +30,15 @@ technology disputes — the matters where a software company's future turns on t
 
 [[pricing]]
 
-## 1337 Lawyers — l33t
+## Flat fee per phase
 
-The name is a numeronym: **1337** reads as *l33t*, the hacker shorthand our clients grew up writing, and it is the rate.
-We bill litigation at **$1,337 an hour** — a real number on a real engagement letter, not a teaser. In select cases we
-take the matter on contingency, set out in a separate written agreement so you know exactly how the fee and the costs
-work before we file.
+The name is a numeronym: **1337** reads as *l33t*, the hacker shorthand our clients grew up writing. The billing model
+is different: litigation is quoted as a flat fee per phase after the Phase 0 case assessment. There is no hourly meter
+and no surprise bill. We quote the phase before it begins, bill that phase in advance, and move one phase at a time.
+
+We use AI to keep costs down, especially in discovery, where document review, e-discovery, deposition preparation, and
+evidence organization can otherwise consume the budget. That tooling is what makes fixed per-phase pricing possible and
+predictable.
 
 ## The disputes we take
 
@@ -45,6 +49,32 @@ Our litigation practice focuses on technology and the companies that build it:
 - Software, SaaS, and licensing-contract fights
 - Founder, equity, and ownership disputes
 
+## Litigation phases
+
+<div class="litigation-phases" aria-label="Litigation phase sequence">
+  <section class="litigation-phase litigation-phase-0"><p class="phase-num">Phase 0</p><h3>Case Assessment</h3>
+    <p>Intake, conflict check, case evaluation, and the per-phase quote. Often credited toward Phase 1.</p></section>
+  <section class="litigation-phase litigation-phase-1"><p class="phase-num">Phase 1</p><h3>Pleadings</h3>
+    <p>File the complaint or the answer; includes filing or opposing a motion to dismiss.</p></section>
+  <section class="litigation-phase litigation-phase-2"><p class="phase-num">Phase 2</p><h3>Discovery</h3>
+    <p>Document requests, interrogatories, depositions, and e-discovery. AI cuts the most cost here.</p></section>
+  <section class="litigation-phase litigation-phase-3"><p class="phase-num">Phase 3</p><h3>Dispositive Motions</h3>
+    <p>Summary judgment, filed or opposed. Quoted before the phase begins.</p></section>
+  <section class="litigation-phase litigation-phase-4"><p class="phase-num">Phase 4</p><h3>Trial</h3>
+    <p>Trial prep and the trial itself. Quoted before the phase begins.</p></section>
+  <section class="litigation-phase litigation-phase-5"><p class="phase-num">Phase 5</p><h3>Post-Trial / Appeal</h3>
+    <p>Separate quote, optional. Used only when the case needs post-trial or appellate work.</p></section>
+</div>
+
+## How phase pricing works
+
+You only pay for the phase you are in. Each phase fee is earned by completing that phase. It is not non-refundable. If a
+matter resolves mid-phase, the client receives a pro-rata refund of the unearned portion of the current phase. Completed
+phases are fully earned.
+
+Each phase works for plaintiff or defense side. Phase 0 produces the first quote, and each later phase is quoted up
+front before that phase begins.
+
 ## When we refer out
 
 We do not take every dispute. When a matter is outside our lane, conflicted, or beyond our capacity, we refer you to
@@ -54,4 +84,5 @@ way of turning you away.
 ## Start the conversation
 
 Email **[support@neonlaw.com](mailto:support@neonlaw.com)** with a short description of the dispute. We respond within
-one business day. A written engagement letter signed before we start states the exact scope, the rate, and the terms.
+one business day. A written engagement letter signed before we start states the exact scope, the current phase fee, and
+the terms.

@@ -1587,12 +1587,12 @@ fn product_description_key(code: &str) -> &'static str {
 /// is a deliberate lineup — the firm's flat-fee products in ascending
 /// "repdigit" order by leading digit (Nest $1,111 → Nexus $2,222 →
 /// Northstar $3,333 → Node $44 → Newleaf $555 → Nautilus $66 → Namesake
-/// $777 → Nucleus $8,888 → Nook $9,999), with the two $1,337/hour tech
-/// siblings last — Neon Law Nerd (expert witness) then 1337 Lawyers
-/// (litigation) — not an alphabetical or strictly by-price list. A `code`
-/// not listed here sorts after the curated set, keeping its `list_active`
-/// display-name position. This is a presentation choice, so it lives in the
-/// render layer rather than on the product row.
+/// $777 → Nucleus $8,888 → Nook $9,999), followed by Neon Law Nerd
+/// (expert witness) and 1337 Lawyers (litigation) — not an alphabetical
+/// or strictly by-price list. A `code` not listed here sorts after the
+/// curated set, keeping its `list_active` display-name position. This is
+/// a presentation choice, so it lives in the render layer rather than on
+/// the product row.
 const CATALOG_ORDER: [&str; 11] = [
     "nest",
     "nexus",
@@ -1615,11 +1615,11 @@ fn catalog_rank(code: &str) -> usize {
         .unwrap_or(CATALOG_ORDER.len())
 }
 
-/// Render the `/services` catalog from the `products` table. The price on
-/// each card is formatted from `list_price_cents` — never hard-coded — so
-/// the page can't show a number Xero wouldn't bill. A DB error degrades
-/// to an empty catalog rather than a 500 (the page is public chrome, not
-/// a transaction).
+/// Render the `/services` catalog from the `products` table. Numeric card
+/// prices are formatted from `list_price_cents`, except litigation: it no
+/// longer publishes a dollar figure, so the card advertises quoted
+/// phase-based pricing. A DB error degrades to an empty catalog rather
+/// than a 500 (the page is public chrome, not a transaction).
 async fn render_products(db: &Db, auth: views::AuthState, locale: views::Locale) -> Markup {
     // Owned display fields outlive the borrowed `ProductCard` slice below.
     struct Owned {
@@ -1637,13 +1637,26 @@ async fn render_products(db: &Db, auth: views::AuthState, locale: views::Locale)
     products.sort_by_key(|p| catalog_rank(&p.code));
     let mut owned: Vec<Owned> = products
         .into_iter()
-        .map(|p| Owned {
-            display_name: p.display_name,
-            price: store::products::format_price(p.list_price_cents),
-            cadence_suffix: store::products::cadence_suffix(&p.cadence).to_string(),
-            description: views::i18n::t(locale, product_description_key(&p.code)),
-            learn_href: views::i18n::localize_href(product_service_path(&p.code), locale),
-            icon: product_icon_for(&p.code),
+        .map(|p| {
+            let (price, cadence_suffix) = if p.code == "litigation" {
+                (
+                    views::i18n::t(locale, "products.litigation_phase_price"),
+                    views::i18n::t(locale, "products.litigation_phase_suffix"),
+                )
+            } else {
+                (
+                    store::products::format_price(p.list_price_cents),
+                    store::products::cadence_suffix(&p.cadence).to_string(),
+                )
+            };
+            Owned {
+                display_name: p.display_name,
+                price,
+                cadence_suffix,
+                description: views::i18n::t(locale, product_description_key(&p.code)),
+                learn_href: views::i18n::localize_href(product_service_path(&p.code), locale),
+                icon: product_icon_for(&p.code),
+            }
         })
         .collect();
     // Pro bono closes the catalog: free legal help for people who can't
