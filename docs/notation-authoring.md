@@ -7,8 +7,9 @@ enforces, what runs after a client finishes intake, and what is still on the roa
 
 ## What a notation is, in one paragraph
 
-A **Template** is a static blueprint: one markdown file with YAML frontmatter, checked into `templates/`. A **Notation**
-is that Template come to life — one running instance bound to a [Person](glossary.md#person) (the respondent), exactly
+A **Template** is a static blueprint: one markdown file with YAML frontmatter, checked into `notation_templates/`.
+A **Notation** is that Template come to life — one running instance bound to a [Person](glossary.md#person) (the
+respondent), exactly
 one [Project](glossary.md#project), and optionally an [Entity](glossary.md#entity) — advancing through two state
 machines the Template declares. In client English a Notation-in-a-Project is the **Engagement** (or **Retainer**). The
 Template *declares*; Restate *runs*. Everything below is about writing good Templates and growing what their workflows
@@ -16,8 +17,9 @@ can do.
 
 ## Anatomy of a template file
 
-Every template lives at `templates/<category>/<snake_case_name>.md` and has two parts: YAML frontmatter (the contract)
-and a markdown body (the document, with `{{question_code}}` placeholders). Here is the shipped retainer's frontmatter
+Every template lives at `notation_templates/<category>/<snake_case_name>.md` and has two parts: YAML frontmatter
+(the contract) and a markdown body (the document, with `{{question_code}}` placeholders). Here is the shipped
+retainer's frontmatter
 (the real file wraps this block in `---` fences, then the prose body follows):
 
 ```yaml
@@ -67,8 +69,8 @@ behavior is specified before the prose exists:
 
 1. **Write the `.feature` first.** Describe the matter as a BDD scenario in `features/` using only Person / Entity
    role nouns from [`glossary.md`](glossary.md). The feature is the spec; the template satisfies it.
-2. **Write the template + questionnaire.** Create `templates/<category>/<snake_case_name>.md` with the frontmatter
-   above. Declare the `questionnaire:` walk and the `workflow:` states. Body prose uses `{{question_code}}`
+2. **Write the template + questionnaire.** Create `notation_templates/<category>/<snake_case_name>.md` with the
+   frontmatter above. Declare the `questionnaire:` walk and the `workflow:` states. Body prose uses `{{question_code}}`
    placeholders.
 3. **Seed the questions.** Add each new question `code` to `store/seeds/Question.yaml` (prompt, `question_type`,
    help text). The questionnaire's state prefixes must resolve to these codes or N104 fails.
@@ -107,8 +109,8 @@ cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path
 editor and CI can never disagree. Supported editors ship copy-paste configs under [`lsp/`](../lsp) docs: VS Code,
 Neovim, Helix, Emacs, Zed. The authoring loop for a non-engineer legal author:
 
-1. **Type.** Open `templates/will/simple.md` in your editor. Write legal prose and frontmatter — no proprietary tool, no
-   markup beyond markdown.
+1. **Type.** Open `notation_templates/will/simple.md` in your editor. Write legal prose and frontmatter — no
+   proprietary tool, no markup beyond markdown.
 2. **Live diagnostics.** On every keystroke the LSP lints the buffer and shows squiggles: N101 if `title:` is missing,
    N104 if the questionnaire/workflow shape is broken, S101 past 120 chars, M-rules on shape. The CLI can add DB-backed
    question-code checks when invoked with `--database-url`. Hover any squiggle for a plain-English explanation of the

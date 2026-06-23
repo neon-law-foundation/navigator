@@ -737,7 +737,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
                 get(template_download),
             )
             // Raw template markdown as an API — the bytes the README's
-            // `templates/<cat>/<name>.md` links point at on the website.
+            // `notation_templates/<cat>/<name>.md` links point at on the website.
             .route("/api/templates/:category/:name", get(api_template_raw))
             .route(
                 "/lsp",
@@ -1072,7 +1072,7 @@ fn template_card(
 }
 
 /// `GET /templates` — the public, no-login gallery index. Lists the
-/// curated, client-safe subset of `templates/`.
+/// curated, client-safe subset of `notation_templates/`.
 async fn templates_index(MaybeAuth(auth): MaybeAuth) -> Markup {
     let cards: Vec<_> = template_gallery::gallery()
         .iter()
@@ -1136,8 +1136,8 @@ async fn template_download(
 /// `GET /api/templates/:category/:name` — the raw template markdown,
 /// served inline as `text/markdown`. Unlike `/templates/.../download`
 /// (the curated gallery, attachment-dispositioned), this serves any
-/// `confidential: false` template under `templates/` so the README's
-/// `templates/<cat>/<name>.md` links resolve on the site. Confidential
+/// `confidential: false` template under `notation_templates/` so the README's
+/// `notation_templates/<cat>/<name>.md` links resolve on the site. Confidential
 /// templates and unknown paths 404.
 async fn api_template_raw(
     AxumPath((category, name)): AxumPath<(String, String)>,

@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn render_emits_readme_under_foundation_brand_with_rewritten_links() {
-        let readme = "# CLI\n\nSee [the glossary](docs/glossary.md) and [a template](templates/nest/nevada.md).\n";
+        let readme = "# CLI\n\nSee [the glossary](docs/glossary.md) and [a template](notation_templates/nest/nevada.md).\n";
         let html = render(
             "Navigator CLI",
             "The navigator operator CLI.",

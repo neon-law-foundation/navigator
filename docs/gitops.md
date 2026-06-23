@@ -46,16 +46,18 @@ this.
   Plus the markdown lint (`cargo run -p cli -- validate --markdown-only --no-default-excludes <path>`) if you touched
   any `.md` file.
 
-## CI/CD — three workflows, no more
+## CI/CD — three workflows, plus maintenance
 
-GitHub Actions carries exactly **three** workflows, one per trigger. Do not add a fourth; fold any new automation into
-the matching one.
+GitHub Actions carries exactly **three CI/CD** workflows, one per trigger — do not fold new gate logic into a fourth.
+Periodic housekeeping is the one carve-out: it lives in a separate **maintenance** workflow on its own cron, outside the
+CI/CD path, so a retention change never lands in a release diff and a cleanup run never shares state with a deploy.
 
 | Workflow | Trigger | Job |
 | --- | --- | --- |
 | [`ci.yml`](../.github/workflows/ci.yml) | `pull_request` → `main` | lean fmt + clippy + `cargo test --workspace` |
 | [`release-tag.yml`](../.github/workflows/release-tag.yml) | cron 02:00 PST | cut + push the `YY.MM.DD` tag |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | `YY.MM.DD` tag push | integration → push images → email report |
+| [`cleanup.yml`](../.github/workflows/cleanup.yml) | cron 04:00 PST | prune ghcr versions > 7 days (maintenance) |
 
 ### PR flow — `ci.yml`
 
@@ -79,6 +81,17 @@ two service images (`navigator-web`, `navigator-workflows-service`) and the five
 (`navigator-*-trigger`) — to **ghcr.io** tagged with that date, then emails a deploy report to `nick@neonlaw.com` via
 SendGrid (from `support@neonlaw.com`, the `DEFAULT_FROM_EMAIL` in `workflows/src/email/service.rs`; key in
 `secrets.SENDGRID_API_KEY`).
+
+### Maintenance flow — `cleanup.yml`
+
+Separate from the CI/CD three, on its own cron and knowing nothing about tags. Fires daily at **04:00 PST** (12:00 UTC)
+— two hours after the tag cut, so the day's fresh images already exist — and prunes ghcr: it deletes every `navigator-*`
+container version older than 7 days via
+[`snok/container-retention-policy`](https://github.com/snok/container-retention-policy), authenticated with
+`secrets.RELEASE_PAT` (the PAT's package scope is what drives the `navigator-*` wildcard; the temporal `GITHUB_TOKEN`
+can do neither). `latest` and the recent dated tags are re-pushed daily by `deploy.yml`, so their versions stay under
+the cutoff and only stale images are swept. It then posts a Slack summary, tagging Nick on failure. New scheduled
+maintenance belongs here, not in a CI/CD workflow.
 
 ## Publish vs. roll out
 

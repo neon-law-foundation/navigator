@@ -544,7 +544,7 @@ layers share the name:
 
 - **The declared workflow** — what a lawyer writes in the template's `workflow:` block. Plain YAML: a set of named
   States, transitions keyed by event, a `BEGIN` and an `END`. Lives next to the questionnaire under
-  [`templates/`](../templates/).
+  [`notation_templates/`](../notation_templates/).
 - **The executed workflow** — how the declared workflow actually runs. The [`workflows`](../workflows/) crate owns this
   layer: the [Workflow Spec](#workflow-spec) parser, the [Workflow Runtime](#workflow-runtime) trait, and the
   [Restate](#restate) adapter that drives it durably in production.

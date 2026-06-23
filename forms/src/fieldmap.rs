@@ -105,15 +105,19 @@ pub enum FieldMapError {
 const BUNDLED_MAPS: &[(&str, &str)] = &[
     (
         "nv_sos__llc_formation",
-        include_str!("../../templates/forms/nv_sos/nv_sos__llc_formation.fields.toml"),
+        include_str!("../../notation_templates/forms/nv_sos/nv_sos__llc_formation.fields.toml"),
     ),
     (
         "nv_sos__profit_corp_formation",
-        include_str!("../../templates/forms/nv_sos/nv_sos__profit_corp_formation.fields.toml"),
+        include_str!(
+            "../../notation_templates/forms/nv_sos/nv_sos__profit_corp_formation.fields.toml"
+        ),
     ),
     (
         "nv_sos__business_trust_formation",
-        include_str!("../../templates/forms/nv_sos/nv_sos__business_trust_formation.fields.toml"),
+        include_str!(
+            "../../notation_templates/forms/nv_sos/nv_sos__business_trust_formation.fields.toml"
+        ),
     ),
 ];
 

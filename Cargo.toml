@@ -44,7 +44,7 @@ bytes = "1"
 # gzip codec — git smart-HTTP clients gzip the upload-pack RPC request body
 # (`Content-Encoding: gzip`); the transport in `web` decompresses it.
 flate2 = "1"
-# Compile-time directory embed — `web` bakes the workspace `templates/`
+# Compile-time directory embed — `web` bakes the workspace `notation_templates/`
 # tree into the binary to serve raw non-confidential templates at
 # `/api/templates/...` without the dir leaving the workspace root.
 include_dir = "0.7"

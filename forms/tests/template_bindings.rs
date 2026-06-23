@@ -3,7 +3,7 @@
 //! The `form:` frontmatter key selects the `AcroForm` rendering path in
 //! the workflow walker; a binding to a form that was never vendored
 //! would surface as a runtime error at staff-approve time. This guard
-//! moves that failure to CI: walk `templates/**/*.md`, extract any
+//! moves that failure to CI: walk `notation_templates/**/*.md`, extract any
 //! `form:` value, and assert the registry (and its field map) carries
 //! it.
 
@@ -13,7 +13,7 @@ fn templates_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("forms sits under the workspace root")
-        .join("templates")
+        .join("notation_templates")
 }
 
 fn walk_markdown(dir: &Path, out: &mut Vec<PathBuf>) {

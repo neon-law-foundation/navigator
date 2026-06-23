@@ -126,7 +126,7 @@ async fn staff_walks_the_full_retainer_questionnaire_end_to_end() {
     //
     // Preconditions (beyond the module's chromedriver + KIND
     // requirements): the `onboarding__retainer` template must
-    // have been imported via `navigator import templates/`
+    // have been imported via `navigator import notation_templates/`
     // (RUNBOOK step 4), and `store/seeds/Question.yaml` must
     // have been seeded so the four walker question codes are
     // looked up successfully.

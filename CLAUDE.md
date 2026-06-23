@@ -92,8 +92,10 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-CI is exactly **three workflows, no fourth**. The full lifecycle — the flow every committing skill inherits, the
-pre-commit gate, the three workflows, and pull-based deploy — is in [`docs/gitops.md`](docs/gitops.md).
+CI/CD is exactly **three workflows** (`ci` / `release-tag` / `deploy`) — don't fold new gate logic into a fourth.
+Periodic housekeeping is the one carve-out: it lives in a separate **maintenance** workflow (`cleanup.yml`, daily ghcr
+retention) on its own cron, outside the CI/CD gate. The full lifecycle — the flow every committing skill inherits, the
+pre-commit gate, the workflows, and pull-based deploy — is in [`docs/gitops.md`](docs/gitops.md).
 
 **Reviewing a PR means resolving every comment.** A PR is not "reviewed" until each reviewer comment — Greptile,
 CodeRabbit, any bot, any human — has been adjudicated against the real code and answered via the `gh` CLI: fixed and
@@ -118,7 +120,7 @@ Swapping the router means a new `impl AgentRouter` selected from `web::build_rou
   should be justifiable against it.
 - `README.md` — workspace overview, install, demo. `cli/README.md` — per-subcommand reference.
 - `.claude/skills/council/` — the Council of Twelve architecture-review pattern (`/council`).
-- `k8s/` — KIND manifests. `templates/` — notation templates. `store/seeds/` — canonical reference-data YAML.
+- `k8s/` — KIND manifests. `notation_templates/` — notation templates. `store/seeds/` — canonical reference-data YAML.
 
 ## Local-only convention: `prompts/`
 

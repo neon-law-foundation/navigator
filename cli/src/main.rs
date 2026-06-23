@@ -181,7 +181,7 @@ enum Command {
         #[command(subcommand)]
         action: AssetsAction,
     },
-    /// Vendored government forms (`templates/forms/` + FORMS.toml).
+    /// Vendored government forms (`notation_templates/forms/` + FORMS.toml).
     Forms {
         #[command(subcommand)]
         action: FormsAction,
@@ -271,7 +271,7 @@ enum Command {
         action: NotationAction,
     },
     /// Drop the three files that a new legal workflow starts with:
-    /// `templates/<category>/<jurisdiction>.md`,
+    /// `notation_templates/<category>/<jurisdiction>.md`,
     /// `workflows/specs/<code>.yaml`, and
     /// `features/tests/features/<matter>.feature`. Idempotent —
     /// existing files are left alone.
@@ -279,7 +279,7 @@ enum Command {
         /// Snake-case matter slug, e.g. `incorporation`,
         /// `estate_planning`. Forms the prefix of the template `code`.
         matter: String,
-        /// Directory under `templates/` to drop the markdown into.
+        /// Directory under `notation_templates/` to drop the markdown into.
         #[arg(long)]
         category: String,
         /// Jurisdiction name (`PascalCase` for the filename,
@@ -506,7 +506,7 @@ enum AssetsAction {
 #[derive(Subcommand)]
 enum FormsAction {
     /// Push every vendored blank (the `forms` registry bundled from
-    /// `templates/forms/`) to the assets bucket at its FORMS.toml
+    /// `notation_templates/forms/`) to the assets bucket at its FORMS.toml
     /// `object_path`. Idempotent — existing keys are skipped, since a
     /// form revision is immutable (a refresh lands at a new path).
     /// Auth is ADC; the emulator endpoint is honored via
@@ -1417,6 +1417,20 @@ async fn run_notation(action: NotationAction) -> ExitCode {
     }
 }
 
+/// The `N111` cross-file code-uniqueness pass for `validate`. Builds its
+/// own filter because the lint engine takes ownership of the primary one.
+fn code_uniqueness_pass(
+    dir: &std::path::Path,
+    no_default_excludes: bool,
+) -> std::io::Result<Vec<rules::Violation>> {
+    let filter: Box<dyn rules::FileFilter> = if no_default_excludes {
+        Box::new(rules::DefaultFileFilter::without_default_excludes())
+    } else {
+        Box::new(rules::DefaultFileFilter::default())
+    };
+    rules::code_uniqueness_violations(dir, filter.as_ref())
+}
+
 async fn run_validate(
     dir: &std::path::Path,
     markdown_only: bool,
@@ -1490,13 +1504,25 @@ async fn run_validate(
             .with_filter(filter);
         engine.lint_directory(dir)
     };
-    let report = match report {
+    let mut report = match report {
         Ok(r) => r,
         Err(e) => {
             eprintln!("navigator: {e}");
             return ExitCode::from(2);
         }
     };
+    // Cross-file `N111`: notation template `code` must be unique across
+    // the tree. Only meaningful for the classified (notation) rule set,
+    // not the markdown-only prose pass.
+    if !markdown_only {
+        match code_uniqueness_pass(dir, no_default_excludes) {
+            Ok(mut v) => report.violations.append(&mut v),
+            Err(e) => {
+                eprintln!("navigator: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    }
     for v in &report.violations {
         print_violation(&v.path.display().to_string(), v.line, v.code, &v.message);
     }
