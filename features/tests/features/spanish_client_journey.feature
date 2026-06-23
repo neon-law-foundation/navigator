@@ -17,7 +17,7 @@ Feature: Spanish-language client journey, end to end
     When a Spanish-speaking client opens "/es/services"
     Then the page is served in Spanish
     And the navigation stays within the "/es" funnel
-    When a Spanish-speaking client opens "/es/services/corporate"
+    When a Spanish-speaking client opens "/es/services/nest"
     Then the page is served in Spanish
     And the navigation stays within the "/es" funnel
     When a Spanish-speaking client opens "/es/foundation/mission"

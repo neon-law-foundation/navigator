@@ -196,9 +196,9 @@ pub fn nav_label(label: &str, locale: Locale) -> String {
 pub const ES_ENABLED_PATHS: &[&str] = &[
     "/",
     "/services",
-    "/services/fractional-gc",
-    "/services/corporate",
-    "/services/estate",
+    "/services/nexus",
+    "/services/nest",
+    "/services/northstar",
     "/services/nautilus",
     "/services/nook",
     "/services/litigation",
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn from_path_detects_spanish_prefix() {
         assert_eq!(Locale::from_path("/es"), Locale::Es);
-        assert_eq!(Locale::from_path("/es/services/estate"), Locale::Es);
+        assert_eq!(Locale::from_path("/es/services/northstar"), Locale::Es);
         assert_eq!(Locale::from_path("/"), Locale::En);
         assert_eq!(Locale::from_path("/services"), Locale::En);
         // No false positive on a path that merely starts with "es".
@@ -355,8 +355,8 @@ mod tests {
     fn localize_href_prefixes_enabled_paths_in_spanish_only() {
         assert_eq!(localize_href("/", Locale::Es), "/es");
         assert_eq!(
-            localize_href("/services/estate", Locale::Es),
-            "/es/services/estate"
+            localize_href("/services/northstar", Locale::Es),
+            "/es/services/northstar"
         );
         assert_eq!(
             localize_href("/foundation/mission", Locale::Es),
@@ -364,8 +364,8 @@ mod tests {
         );
         // English never rewrites.
         assert_eq!(
-            localize_href("/services/estate", Locale::En),
-            "/services/estate"
+            localize_href("/services/northstar", Locale::En),
+            "/services/northstar"
         );
         // A path with no Spanish twin falls back to its English target.
         assert_eq!(localize_href("/contact", Locale::Es), "/contact");

@@ -1,6 +1,6 @@
 ---
 title: "Neon Law Nexus"
-slug: fractional-gc
+slug: nexus
 hero_image: bengaluru-skyline
 description: >
   Neon Law Nexus es asesoría jurídica general fraccionada para empresas de software y tecnología emergente en
@@ -44,8 +44,8 @@ Tiene dos límites, dicho con claridad:
 
 **Para empresas que están escalando.** Este plan está hecho para empresas de software y tecnología emergente que están
 construyendo, contratando y levantando capital —no para una entidad pasiva que solo resguarda un activo. Si lo único que
-necesita es un vehículo para resguardar un inmueble o una inversión, eso es el [Neon Law Nest](/es/services/corporate).
-Los contratos a medida, los acuerdos negociados y los financiamientos viven aquí; la constitución de rutina y el papeleo
+necesita es un vehículo para resguardar un inmueble o una inversión, eso es el [Neon Law Nest](/es/services/nest). Los
+contratos a medida, los acuerdos negociados y los financiamientos viven aquí; la constitución de rutina y el papeleo
 estándar de una entidad simple son Neon Law Nest.
 
 **Gestión de la tabla de capitalización, incluida cuando se constituye en Nevada.** Constituya su sociedad C en Nevada
