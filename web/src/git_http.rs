@@ -57,12 +57,12 @@ use crate::AppState;
 /// Realm announced on a `401`. Git prompts the user for a credential.
 const REALM: &str = "Navigator matter repository";
 
-/// Mount the transport routes. `:repo` captures `<project-id>.git`.
+/// Mount the transport routes. `{repo}` captures `<project-id>.git`.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/projects/:repo/info/refs", get(info_refs))
-        .route("/projects/:repo/git-upload-pack", post(upload_pack))
-        .route("/projects/:repo/git-receive-pack", post(receive_pack))
+        .route("/projects/{repo}/info/refs", get(info_refs))
+        .route("/projects/{repo}/git-upload-pack", post(upload_pack))
+        .route("/projects/{repo}/git-receive-pack", post(receive_pack))
 }
 
 /// `?service=git-upload-pack` (or `git-receive-pack`).

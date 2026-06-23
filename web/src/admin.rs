@@ -71,7 +71,7 @@ pub struct AdminState {
     pub signature_provider: Arc<dyn SignatureProvider>,
     /// Parsed questionnaire spec from the bundled retainer
     /// template. Drives the per-step walker at
-    /// `/portal/admin/notations/:id/step`.
+    /// `/portal/admin/notations/{id}/step`.
     pub retainer_intake_questionnaire: workflows::QuestionnaireSpec,
     /// Same `Arc` as `workflow_runtime` — kept as a separate field so
     /// the questionnaire walker reads from a name that matches the
@@ -146,7 +146,7 @@ pub fn routes(
     // registry, the same canonical examples the workflows fill.
     r = r
         .route("/portal/forms", get(crate::gov_forms::index_get))
-        .route("/portal/forms/:file", get(crate::gov_forms::download_get));
+        .route("/portal/forms/{file}", get(crate::gov_forms::download_get));
     let bearer_sessions = sessions.clone();
     r.with_state(state)
         .layer(middleware::from_fn_with_state(
@@ -184,75 +184,75 @@ fn register_firm_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminStat
             get(crate::retainer_walk::start_get).post(crate::retainer_walk::start_post),
         )
         .route(
-            &format!("{prefix}/notations/:id/step"),
+            &format!("{prefix}/notations/{{id}}/step"),
             get(crate::retainer_walk::step_get).post(crate::retainer_walk::step_post),
         )
         // Hand the matter's client their self-serve intake link.
         .route(
-            &format!("{prefix}/notations/:id/send-intake"),
+            &format!("{prefix}/notations/{{id}}/send-intake"),
             post(crate::retainer_walk::send_intake_post),
         )
         // Attorney approves a notation parked at staff_review (it carries
         // custom content): fires `approved` so the worker renders + persists
         // the reviewed bytes, then parks at `document_open__retainer_pdf`.
         .route(
-            &format!("{prefix}/notations/:id/approve-send"),
+            &format!("{prefix}/notations/{{id}}/approve-send"),
             post(crate::retainer_walk::approve_send_post),
         )
         // The deliberate send half: confirms the worker's PDF landed, then
         // dispatches exactly one envelope. 409 + JSON reason when not ready.
         .route(
-            &format!("{prefix}/notations/:id/send"),
+            &format!("{prefix}/notations/{{id}}/send"),
             post(crate::retainer_walk::send_post),
         )
         // Review/approve screen for a notation parked at staff_review —
         // where the matter-open form lands staff after opening a matter
         // with a retainer.
         .route(
-            &format!("{prefix}/notations/:id/review"),
+            &format!("{prefix}/notations/{{id}}/review"),
             get(crate::retainer_walk::review_get),
         )
         // Northstar: the attorney releases the generated estate drafts to
         // the client — advances staff_review → client_review and flips each
         // draft to pending_review (visible on the Phase A review surface).
         .route(
-            &format!("{prefix}/notations/:id/release-drafts"),
+            &format!("{prefix}/notations/{{id}}/release-drafts"),
             post(crate::estate::release_drafts_post),
         )
         // Per-notation custom clauses spliced into the assembled document.
         .route(
-            &format!("{prefix}/notations/:id/clauses"),
+            &format!("{prefix}/notations/{{id}}/clauses"),
             get(crate::clauses::clauses_page).post(crate::clauses::clause_add),
         )
         .route(
-            &format!("{prefix}/notations/:id/clauses/:cid/edit"),
+            &format!("{prefix}/notations/{{id}}/clauses/{{cid}}/edit"),
             post(crate::clauses::clause_edit),
         )
         .route(
-            &format!("{prefix}/notations/:id/clauses/:cid/delete"),
+            &format!("{prefix}/notations/{{id}}/clauses/{{cid}}/delete"),
             post(crate::clauses::clause_delete),
         )
         .route(
-            &format!("{prefix}/notations/:id/clauses/:cid/move"),
+            &format!("{prefix}/notations/{{id}}/clauses/{{cid}}/move"),
             post(crate::clauses::clause_move),
         )
         .route(
-            &format!("{prefix}/notations/:id/sign"),
+            &format!("{prefix}/notations/{{id}}/sign"),
             get(crate::esign_view::sign_get),
         )
         .route(
-            &format!("{prefix}/projects/:id/close"),
+            &format!("{prefix}/projects/{{id}}/close"),
             post(crate::retainer_walk::close_matter_post),
         )
         .route(
-            &format!("{prefix}/notations/:id/documents/:doc_id"),
+            &format!("{prefix}/notations/{{id}}/documents/{{doc_id}}"),
             get(crate::documents::download),
         )
         // Admin-only governed expunge of a filed document — drives the
         // history-rewrite + storage-delete + audit primitive. The
         // handler 404s any non-admin session.
         .route(
-            &format!("{prefix}/documents/:doc_id/expunge"),
+            &format!("{prefix}/documents/{{doc_id}}/expunge"),
             get(crate::expunge_route::confirm).post(crate::expunge_route::run),
         )
         // Client document-deletion requests: a staff/admin queue, with
@@ -262,11 +262,11 @@ fn register_firm_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminStat
             get(crate::expunge_request_route::admin_queue),
         )
         .route(
-            &format!("{prefix}/expunge-requests/:id/authorize"),
+            &format!("{prefix}/expunge-requests/{{id}}/authorize"),
             post(crate::expunge_request_route::admin_authorize),
         )
         .route(
-            &format!("{prefix}/expunge-requests/:id/deny"),
+            &format!("{prefix}/expunge-requests/{{id}}/deny"),
             post(crate::expunge_request_route::admin_deny),
         )
         .route(
@@ -276,13 +276,16 @@ fn register_firm_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminStat
         .route(&format!("{prefix}/people.csv"), get(people_csv))
         .route(&format!("{prefix}/people/new"), get(people_new))
         .route(
-            &format!("{prefix}/people/:id"),
+            &format!("{prefix}/people/{{id}}"),
             get(people_edit).post(people_update),
         )
-        .route(&format!("{prefix}/people/:id/edit"), get(people_edit))
-        .route(&format!("{prefix}/people/:id/delete"), post(people_delete))
+        .route(&format!("{prefix}/people/{{id}}/edit"), get(people_edit))
         .route(
-            &format!("{prefix}/people/:id/welcome"),
+            &format!("{prefix}/people/{{id}}/delete"),
+            post(people_delete),
+        )
+        .route(
+            &format!("{prefix}/people/{{id}}/welcome"),
             post(people_send_welcome),
         )
         .route(
@@ -292,16 +295,19 @@ fn register_firm_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminStat
         .route(&format!("{prefix}/entities.csv"), get(entities_csv))
         .route(&format!("{prefix}/entities/new"), get(entities_new))
         .route(
-            &format!("{prefix}/entities/:id"),
+            &format!("{prefix}/entities/{{id}}"),
             get(entities_edit).post(entities_update),
         )
-        .route(&format!("{prefix}/entities/:id/edit"), get(entities_edit))
         .route(
-            &format!("{prefix}/entities/:id/delete"),
+            &format!("{prefix}/entities/{{id}}/edit"),
+            get(entities_edit),
+        )
+        .route(
+            &format!("{prefix}/entities/{{id}}/delete"),
             post(entities_delete),
         )
         .route(
-            &format!("{prefix}/entities/:id/cap-table"),
+            &format!("{prefix}/entities/{{id}}/cap-table"),
             get(entity_cap_table),
         )
         // Inbound-contract-review playbooks: a Company's negotiating
@@ -316,11 +322,11 @@ fn register_firm_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminStat
             get(crate::admin_playbooks::new_form),
         )
         .route(
-            &format!("{prefix}/playbooks/:id"),
+            &format!("{prefix}/playbooks/{{id}}"),
             post(crate::admin_playbooks::update),
         )
         .route(
-            &format!("{prefix}/playbooks/:id/edit"),
+            &format!("{prefix}/playbooks/{{id}}/edit"),
             get(crate::admin_playbooks::edit_form),
         )
         // Attorney review screen for an inbound contract review: act on
@@ -328,23 +334,23 @@ fn register_firm_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminStat
         // deliver the memo) or reject. Row-scoped to the matter in the
         // handlers.
         .route(
-            &format!("{prefix}/contract-reviews/:id"),
+            &format!("{prefix}/contract-reviews/{{id}}"),
             get(crate::admin_contract_reviews::show),
         )
         .route(
-            &format!("{prefix}/contract-reviews/:id/findings/:idx"),
+            &format!("{prefix}/contract-reviews/{{id}}/findings/{{idx}}"),
             post(crate::admin_contract_reviews::save_finding),
         )
         .route(
-            &format!("{prefix}/contract-reviews/:id/summary"),
+            &format!("{prefix}/contract-reviews/{{id}}/summary"),
             post(crate::admin_contract_reviews::save_summary),
         )
         .route(
-            &format!("{prefix}/contract-reviews/:id/approve"),
+            &format!("{prefix}/contract-reviews/{{id}}/approve"),
             post(crate::admin_contract_reviews::approve),
         )
         .route(
-            &format!("{prefix}/contract-reviews/:id/reject"),
+            &format!("{prefix}/contract-reviews/{{id}}/reject"),
             post(crate::admin_contract_reviews::reject),
         )
         // Read-only listings — these tables are seeded by the
@@ -380,7 +386,7 @@ fn register_firm_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminStat
         .route(&format!("{prefix}/addresses"), get(addresses_list))
         .route(&format!("{prefix}/mailrooms"), get(mailrooms_list))
         .route(&format!("{prefix}/letters"), get(letters_list))
-        .route(&format!("{prefix}/letters/:id"), get(letter_detail))
+        .route(&format!("{prefix}/letters/{{id}}"), get(letter_detail))
         .route(&format!("{prefix}/email-log"), get(email_log_index))
         .route(&format!("{prefix}/blobs"), get(blobs_list))
         .route(&format!("{prefix}/documents"), get(documents_list))
@@ -417,7 +423,7 @@ fn register_firm_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminStat
 /// are row-scoped via [`crate::access::visible_projects`] in the
 /// handlers themselves; every write surface gates on `staff_tier` so
 /// a client sees `404` on every URL they can't act on. The role
-/// branch on `GET /:id` is what splits the lightweight client view
+/// branch on `GET /{id}` is what splits the lightweight client view
 /// (in [`crate::portal::projects::detail`]) from the admin-chrome
 /// view (header + documents + upload — rendered by
 /// [`projects_detail`]).
@@ -426,23 +432,26 @@ fn register_project_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminS
         .route(&format!("{prefix}.csv"), get(projects_csv))
         .route(&format!("{prefix}/new"), get(projects_new_staff_only))
         .route(
-            &format!("{prefix}/:id"),
+            &format!("{prefix}/{{id}}"),
             get(projects_detail_role_aware).post(projects_update_staff_only),
         )
-        .route(&format!("{prefix}/:id/edit"), get(projects_edit_staff_only))
         .route(
-            &format!("{prefix}/:id/delete"),
+            &format!("{prefix}/{{id}}/edit"),
+            get(projects_edit_staff_only),
+        )
+        .route(
+            &format!("{prefix}/{{id}}/delete"),
             post(projects_delete_staff_only),
         )
         .route(
-            &format!("{prefix}/:id/documents/upload"),
+            &format!("{prefix}/{{id}}/documents/upload"),
             post(crate::project_documents::upload),
         )
         // Northstar: file a sitting's transcript into an estate matter
         // (text / file / link) — threads the reusable document-intake
         // step through the workflow's `transcript_uploaded` signal.
         .route(
-            &format!("{prefix}/:id/notations/:nid/transcript"),
+            &format!("{prefix}/{{id}}/notations/{{nid}}/transcript"),
             post(crate::transcript_intake::upload),
         )
         // Inbound contract review: a Nexus client (or staff) uploads a
@@ -451,27 +460,27 @@ fn register_project_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminS
         // analysis web-side, and lands at `staff_review`. Row-scoped in
         // the handler.
         .route(
-            &format!("{prefix}/:id/contract-review"),
+            &format!("{prefix}/{{id}}/contract-review"),
             post(crate::contract_review_walk::upload),
         )
         .route(
-            &format!("{prefix}/:id/documents/:doc_id"),
+            &format!("{prefix}/{{id}}/documents/{{doc_id}}"),
             get(crate::project_documents::detail),
         )
         .route(
-            &format!("{prefix}/:id/documents/:doc_id/download"),
+            &format!("{prefix}/{{id}}/documents/{{doc_id}}/download"),
             get(crate::project_documents::download),
         )
         // Client/staff "download all my documents" — a ZIP of the
         // matter's current files (repo HEAD), row-scoped in the handler.
         .route(
-            &format!("{prefix}/:id/documents.zip"),
+            &format!("{prefix}/{{id}}/documents.zip"),
             get(crate::project_export::download_all),
         )
         // Client-initiated "Delete this document" — records a pending
         // request a staff/admin later authorizes. Request-only.
         .route(
-            &format!("{prefix}/:id/documents/:doc_id/request-deletion"),
+            &format!("{prefix}/{{id}}/documents/{{doc_id}}/request-deletion"),
             post(crate::expunge_request_route::client_request),
         )
         // Northstar: the client approves their estate plan, firing
@@ -480,7 +489,7 @@ fn register_project_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminS
         // gated in the handler; OPA allows the path for any authenticated
         // caller.
         .route(
-            &format!("{prefix}/:id/approve-plan"),
+            &format!("{prefix}/{{id}}/approve-plan"),
             post(crate::estate::approve_plan_post),
         )
         // Comment-only client review surface (Northstar Phase A). The
@@ -488,29 +497,29 @@ fn register_project_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminS
         // attorney has advanced past `draft`; comments POST back as
         // form-encoded (CSRF-checked) and list as JSON for the viewer.
         .route(
-            &format!("{prefix}/:id/review/:doc_id"),
+            &format!("{prefix}/{{id}}/review/{{doc_id}}"),
             get(crate::review::review_page),
         )
         .route(
-            &format!("{prefix}/:id/review/:doc_id/comments"),
+            &format!("{prefix}/{{id}}/review/{{doc_id}}/comments"),
             get(crate::review::list_comments).post(crate::review::create_comment),
         )
         // The matter's single privileged conversation log — document
         // comments, email (both directions), and portal messages interleaved
         // in time. Row-scoped; clients never see firm-internal notes.
         .route(
-            &format!("{prefix}/:id/conversation"),
+            &format!("{prefix}/{{id}}/conversation"),
             get(crate::conversation::thread_page),
         )
         .route(
-            &format!("{prefix}/:id/conversation/messages"),
+            &format!("{prefix}/{{id}}/conversation/messages"),
             post(crate::conversation::post_message),
         )
         // Client self-serve intake (the magic link): the demand-side
         // mirror of the admin walker. Row-scoped to the matter; the
         // client answers the client-facing questions, source `client`.
         .route(
-            &format!("{prefix}/:id/intake/:notation_id"),
+            &format!("{prefix}/{{id}}/intake/{{notation_id}}"),
             get(crate::intake::intake_page).post(crate::intake::intake_save),
         )
 }
@@ -836,7 +845,7 @@ async fn people_delete(
     delete_response(&headers, "/portal/admin/people")
 }
 
-/// POST /portal/admin/people/:id/welcome — render the welcome email
+/// POST /portal/admin/people/{id}/welcome — render the welcome email
 /// body for this person and dispatch it through the configured
 /// `EmailService`. The `LoggingEmail` decorator journals one row to
 /// `sent_emails` per attempt; the admin can inspect the result at
@@ -1909,7 +1918,7 @@ async fn projects_edit_staff_only(
     .into_response()
 }
 
-/// `GET /portal/projects/:id` — role-aware project detail.
+/// `GET /portal/projects/{id}` — role-aware project detail.
 ///
 /// - **Client** → forward to the lightweight view in
 ///   [`crate::portal::projects::detail`] (no Edit / Upload / Delete
@@ -1918,7 +1927,7 @@ async fn projects_edit_staff_only(
 ///   non-participants.
 /// - **Staff / Admin** → render the admin chrome (`projects_detail`):
 ///   header + documents table + multipart upload form + drive sync
-///   button. Edit form stays at `/portal/projects/:id/edit`.
+///   button. Edit form stays at `/portal/projects/{id}/edit`.
 async fn projects_detail_role_aware(
     State(db): State<Db>,
     State(storage): State<std::sync::Arc<dyn cloud::StorageService>>,

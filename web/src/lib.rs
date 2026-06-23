@@ -219,7 +219,7 @@ pub const DEFAULT_BLOG_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/content
 pub struct AppState {
     pub db: Db,
     pub workshops: WorkshopIndex,
-    /// Workspace docs published at `/docs/:slug`, baked from the
+    /// Workspace docs published at `/docs/{slug}`, baked from the
     /// `docs/` tree at compile time. See [`docs`].
     pub docs: DocsIndex,
     pub marketing: MarketingIndex,
@@ -274,7 +274,7 @@ pub struct AppState {
     /// flat-fee invoice through this seam.
     pub billing_provider: Arc<dyn billing::BillingProvider>,
     /// Coarse path secret the e-signature provider must include in its
-    /// completion-webhook URL (`/webhook/esignature/:secret`). Same
+    /// completion-webhook URL (`/webhook/esignature/{secret}`). Same
     /// `None`-accepts-any-token dev posture as `inbound_email_secret`;
     /// loaded from `DOCUSIGN_WEBHOOK_SECRET`. Defense-in-depth — the
     /// real gate is `esignature_hmac_key`. See [`esignature_webhook`].
@@ -295,7 +295,7 @@ pub struct AppState {
     /// `enforce_prod_invariants`. Loaded from `SENDGRID_INBOUND_SECRET`.
     pub inbound_email_secret: Option<String>,
     /// Shared secret SendGrid's Event Webhook must include in the
-    /// delivery-event URL path (`/api/email-events/:secret`). Same
+    /// delivery-event URL path (`/api/email-events/{secret}`). Same
     /// `None`-accepts-any-token dev posture as `inbound_email_secret`;
     /// loaded from `SENDGRID_EVENTS_SECRET`. See [`email_events`].
     pub email_events_secret: Option<String>,
@@ -399,7 +399,6 @@ impl FromRef<AppState> for Arc<dyn cloud::StorageService> {
 /// swap in the layout.
 pub struct MaybeAuth(pub views::AuthState);
 
-#[async_trait::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for MaybeAuth
 where
     S: Send + Sync,
@@ -639,15 +638,15 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
         .route("/version", get(version))
         .route("/github-stars", get(github_stars::handler))
         .route(
-            "/webhook/sendgrid/inbound/:secret",
+            "/webhook/sendgrid/inbound/{secret}",
             axum::routing::post(inbound_email::webhook),
         )
         .route(
-            "/api/email-events/:secret",
+            "/api/email-events/{secret}",
             axum::routing::post(email_events::webhook),
         )
         .route(
-            "/webhook/esignature/:secret",
+            "/webhook/esignature/{secret}",
             axum::routing::post(esignature_webhook::webhook),
         )
         .route("/docusign/consent-callback", get(docusign_consent_callback));
@@ -664,7 +663,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
         router = router
             .route("/", get(home))
             .route("/blog", get(blog_index))
-            .route("/blog/:slug", get(blog_post))
+            .route("/blog/{slug}", get(blog_post))
             .route("/contact", get(contact))
             .route("/foundation", get(foundation))
             .route("/foundation/mission", get(foundation_mission))
@@ -720,33 +719,33 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/es/services/pro-bono", get(service_pro_bono_es))
             .route("/foundation/workshops/navigator", get(workshops_index))
             .route(
-                "/foundation/workshops/navigator/:slug",
+                "/foundation/workshops/navigator/{slug}",
                 get(workshops_material),
             )
             .route(
-                "/foundation/workshops/navigator/:slug/step/:step",
+                "/foundation/workshops/navigator/{slug}/step/{step}",
                 get(workshops_material_step),
             )
-            .route("/docs/:slug", get(docs_page))
+            .route("/docs/{slug}", get(docs_page))
             // Public, no-login template gallery + the LSP showcase — the
             // "our legal documents are plain markdown" demo surfaces.
             .route("/templates", get(templates_index))
-            .route("/templates/:category/:name", get(template_detail))
+            .route("/templates/{category}/{name}", get(template_detail))
             .route(
-                "/templates/:category/:name/download",
+                "/templates/{category}/{name}/download",
                 get(template_download),
             )
             // Raw template markdown as an API — the bytes the README's
             // `notation_templates/<cat>/<name>.md` links point at on the website.
-            .route("/api/templates/:category/:name", get(api_template_raw))
+            .route("/api/templates/{category}/{name}", get(api_template_raw))
             .route(
                 "/lsp",
                 get(|| async { axum::response::Redirect::permanent("/foundation/navigator/lsp") }),
             )
             .route("/design", get(design_page))
             .route("/statutes", get(statutes::index))
-            .route("/statutes/nrs/:chapter", get(statutes::chapter))
-            .route("/statutes/nrs/:chapter/:section", get(statutes::section))
+            .route("/statutes/nrs/{chapter}", get(statutes::chapter))
+            .route("/statutes/nrs/{chapter}/{section}", get(statutes::section))
             // Presentations folded into Workshops — a talk is just another
             // hands-on workshop now. Redirect the old surface so deep
             // links to a talk land on its workshop twin.
@@ -757,7 +756,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
                 }),
             )
             .route(
-                "/foundation/presentations/:slug",
+                "/foundation/presentations/{slug}",
                 get(|AxumPath(slug): AxumPath<String>| async move {
                     axum::response::Redirect::permanent(&format!(
                         "/foundation/workshops/navigator/{slug}"
@@ -765,7 +764,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
                 }),
             )
             .route(
-                "/foundation/presentations/:slug/step/:step",
+                "/foundation/presentations/{slug}/step/{step}",
                 get(
                     |AxumPath((slug, step)): AxumPath<(String, u32)>| async move {
                         axum::response::Redirect::permanent(&format!(
@@ -878,7 +877,7 @@ async fn blog_index(State(blog): State<BlogIndex>, MaybeAuth(auth): MaybeAuth) -
     views::pages::blog::render_index(&summaries, auth)
 }
 
-/// `GET /blog/:slug` — one post, or a 404 page when the slug is unknown.
+/// `GET /blog/{slug}` — one post, or a 404 page when the slug is unknown.
 ///
 /// Slugs are canonically underscore-delimited (`thanks_apple`). A request
 /// for the hyphenated form (`thanks-apple`) is permanently redirected to
@@ -1033,7 +1032,7 @@ fn foundation_mission_in(
     views::pages::mission::render_in(&content, auth, locale)
 }
 
-/// `GET /docs/:slug` — a workspace doc rendered from the baked `docs/`
+/// `GET /docs/{slug}` — a workspace doc rendered from the baked `docs/`
 /// tree. Public even in private mode (reference vocabulary, like
 /// `/privacy`). Unknown slugs 404.
 async fn docs_page(
@@ -1081,7 +1080,7 @@ async fn templates_index(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::templates::index(&cards, auth)
 }
 
-/// `GET /templates/:category/:name` — one template's detail page: the
+/// `GET /templates/{category}/{name}` — one template's detail page: the
 /// notation frontmatter, a download link, and a start-a-matter CTA. A
 /// template not on the curated allow-list 404s (never leaks).
 async fn template_detail(
@@ -1108,7 +1107,7 @@ async fn template_detail(
     }
 }
 
-/// `GET /templates/:category/:name/download` — the raw `.md`, served
+/// `GET /templates/{category}/{name}/download` — the raw `.md`, served
 /// verbatim (same bytes a git reader sees) as a `text/markdown`
 /// attachment. Off-list paths 404 rather than guessing a file.
 async fn template_download(
@@ -1133,7 +1132,7 @@ async fn template_download(
     }
 }
 
-/// `GET /api/templates/:category/:name` — the raw template markdown,
+/// `GET /api/templates/{category}/{name}` — the raw template markdown,
 /// served inline as `text/markdown`. Unlike `/templates/.../download`
 /// (the curated gallery, attachment-dispositioned), this serves any
 /// `confidential: false` template under `notation_templates/` so the README's
@@ -1799,7 +1798,7 @@ async fn workshops_material(
     MaybeAuth(auth): MaybeAuth,
     AxumPath(slug): AxumPath<String>,
 ) -> impl IntoResponse {
-    // `…/:slug.md` is the raw-Markdown twin of `…/:slug`. matchit
+    // `…/{slug}.md` is the raw-Markdown twin of `…/{slug}`. matchit
     // captures the whole `readme.md` segment into `slug`, so we branch
     // on the suffix here rather than registering a second route.
     if let Some(stem) = slug.strip_suffix(".md") {
