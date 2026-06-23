@@ -7,7 +7,7 @@
 //! [`rewrite_link`] so they also resolve on the web:
 //!
 //! - a top-level `docs/<name>.md` → the published `/docs/<name>` route;
-//! - a `templates/<cat>/<name>.md` → the raw `/api/templates/<cat>/<name>`
+//! - a `notation_templates/<cat>/<name>.md` → the raw `/api/templates/<cat>/<name>`
 //!   endpoint (`web::template_api`);
 //! - every other repo-relative path (nested docs, `LICENSE-*`) → the
 //!   GitHub source, so no link dead-ends;
@@ -73,9 +73,9 @@ pub(crate) fn rewrite_link(dest: &str) -> String {
             return with_anchor(&format!("/docs/{stem}"), anchor);
         }
     }
-    // A `templates/<cat>/<name>.md` maps to the raw template API.
+    // A `notation_templates/<cat>/<name>.md` maps to the raw template API.
     if let Some(stem) = path
-        .strip_prefix("templates/")
+        .strip_prefix("notation_templates/")
         .and_then(|rest| rest.strip_suffix(".md"))
     {
         if stem.matches('/').count() == 1 {
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn template_links_map_to_the_raw_api() {
         assert_eq!(
-            rewrite_link("templates/nest/nevada.md"),
+            rewrite_link("notation_templates/nest/nevada.md"),
             "/api/templates/nest/nevada"
         );
     }

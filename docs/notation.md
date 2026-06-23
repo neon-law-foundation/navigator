@@ -18,7 +18,8 @@ and no workflow has run.
 Identified by a stable `code` like `llc-california` or `onboarding-retainer`.
 
 - Schema: [`store::entity::template`](../store/src/entity/template.rs)
-- Files: [`templates/`](../templates/) — `category/snake_case_name.md`, e.g. `templates/trust/nevada.md`.
+- Files: [`notation_templates/`](../notation_templates/) — `category/snake_case_name.md`, e.g.
+  `notation_templates/trust/nevada.md`.
 
 > **Storage.** The markdown body lives in
 > [`cloud::StorageService`](../cloud/) like every other artifact: the

@@ -11,9 +11,9 @@ corporation under NRS 78, business trust under NRS 88A); the same pipeline is bu
 nvsos.gov (canonical source)
    │  browser download — the vendor-gov-forms skill
    ▼
-templates/forms/<authority>/<form_code>-<revision>.pdf   ← canonical example, committed
-templates/forms/FORMS.toml                               ← provenance ledger (sha256, revision, source_url)
-templates/forms/<authority>/<form_code>.fields.toml      ← field map, derived from a dump of the bytes
+notation_templates/forms/<authority>/<form_code>-<revision>.pdf   ← canonical example, committed
+notation_templates/forms/FORMS.toml                               ← provenance ledger (sha256, revision, source_url)
+notation_templates/forms/<authority>/<form_code>.fields.toml      ← field map, derived from a dump of the bytes
    │  include_bytes! / include_str!
    ▼
 forms crate (registry + fieldmap resolution)
@@ -31,9 +31,10 @@ filing__nv_sos                                           ← staff files (Silver
 
 ## Vendoring: canonical source, on disk, no guessing
 
-Every form's exact bytes are committed under `templates/forms/` and pinned in
-[`templates/forms/FORMS.toml`](../templates/forms/FORMS.toml) by authority, printed revision date, canonical source URL,
-retrieval date, and SHA-256. The acquisition discipline — issuing authority's own domain only, never a mirror or the
+Every form's exact bytes are committed under `notation_templates/forms/` and pinned in
+[`notation_templates/forms/FORMS.toml`](../notation_templates/forms/FORMS.toml) by authority, printed revision
+date, canonical source URL, retrieval date, and SHA-256. The acquisition discipline — issuing authority's own
+domain only, never a mirror or the
 Wayback Machine; one commit per acquisition or refresh so `git log` is the verifiable timestamp ledger — lives in the
 `vendor-gov-forms` skill. Field maps and templates are authored only from a dump of the on-disk bytes: real government
 field names include `undefined`, `City_5`, and `Name of Registered Agenl` (a typo printed in the official form), so

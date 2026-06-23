@@ -54,7 +54,7 @@ invariant, so an auto-send path fails the test rather than reaching a client.
 ## The shared template library
 
 All five letters carry role-scoped signature anchors so the **attorney** signs, and each rides the step chain above.
-Each lands under `templates/nautilus/` with a paired `workflows/specs/<code>.yaml` registered in
+Each lands under `notation_templates/nautilus/` with a paired `workflows/specs/<code>.yaml` registered in
 `workflows::specs::BUNDLED_SPEC_YAML` and pinned by `workflows/tests/spec_coherence.rs`:
 
 - `notice_of_representation` — FDCPA 15 U.S.C. §1692c(a)(2) — built in workflow 01.

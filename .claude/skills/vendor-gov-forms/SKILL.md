@@ -29,7 +29,7 @@ form, and a provenance question years later is answered by `git log`, not by mem
 ## Canonical example on disk — no guessing
 
 A vendored form's exact bytes are **committed to the repo** beside the ledger, at
-`templates/forms/<authority>/<form_code>-<revision>.pdf`. Nothing — no field map, no overlay coordinate map, no template
+`notation_templates/forms/<authority>/<form_code>-<revision>.pdf`. Nothing — no field map, no overlay coordinate map, no template
 body — is authored until those bytes are on disk, and everything is derived from a dump of *those bytes*:
 
 - Field names come from walking the PDF's AcroForm with `lopdf` (the `pdf` crate's own dependency), never from the
@@ -103,7 +103,7 @@ Record how the form can be filled in the ledger's `fill` field — it decides wh
 
 ## Storage: canonical bytes in the repo, a serving copy in the bucket
 
-- The canonical copy is the committed file under `templates/forms/` (see "no guessing" above) — git history is its
+- The canonical copy is the committed file under `notation_templates/forms/` (see "no guessing" above) — git history is its
   audit trail and the guard test pins it to the ledger.
 - The same bytes are uploaded to the assets bucket (`NAVIGATOR_ASSETS_BUCKET`, by convention `<project>-assets`) at
   the ledger's `object_path`, and the website serves blank-form downloads to **logged-in** users from there. Bucket

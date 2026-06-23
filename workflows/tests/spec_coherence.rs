@@ -19,7 +19,7 @@ fn templates_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("workflows crate lives one level below the workspace root")
-        .join("templates")
+        .join("notation_templates")
 }
 
 fn read_template_for(code: &str) -> String {

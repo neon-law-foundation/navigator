@@ -1,7 +1,7 @@
 //! The curated, public template gallery served at `/templates`.
 //!
 //! A visitor browses a small, **client-safe** subset of the workspace
-//! `templates/` tree and downloads the raw `.md` — the same bytes a git
+//! `notation_templates/` tree and downloads the raw `.md` — the same bytes a git
 //! reader sees, so the markdown notation format speaks for itself. This
 //! reuses the [`crate::docs`] "bake the file in, serve it verbatim"
 //! shape; it does not invent a second file streamer.
@@ -63,7 +63,7 @@ struct ManifestEntry {
 }
 
 /// `include_str!` a template by `category/name`, resolved from the
-/// `web` crate manifest dir (the `templates/` tree is one level up).
+/// `web` crate manifest dir (the `notation_templates/` tree is one level up).
 macro_rules! template {
     ($category:literal, $name:literal, $jurisdiction:expr, $blurb:literal) => {
         ManifestEntry {
@@ -73,7 +73,7 @@ macro_rules! template {
             jurisdiction: $jurisdiction,
             raw: include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../templates/",
+                "/../notation_templates/",
                 $category,
                 "/",
                 $name,
