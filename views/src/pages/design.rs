@@ -136,12 +136,15 @@ fn group(title: &str, blurb: &str, inner: &Markup) -> Markup {
 }
 
 fn palette_section() -> Markup {
-    // The brand family from brand.css: cyan-500 primary plus the hover /
-    // active / subtle shades the buttons and links use.
+    // The brand family from brand.css: cyan-500 primary plus the link
+    // hover / active / subtle shades. (Solid buttons can't carry white
+    // text on cyan-500 at WCAG AA, so `.btn-primary` keeps the cyan-500
+    // fill but uses a dark cyan ink and BRIGHTENS toward cyan-400/300 on
+    // hover/active — see the `.btn-primary` block in brand.css.)
     let swatches = [
         ("Primary (cyan-500)", "#06b6d4", "bg-primary"),
-        ("Hover (cyan-600)", "#0891b2", ""),
-        ("Active (cyan-700)", "#0e7490", ""),
+        ("Link hover (cyan-600)", "#0891b2", ""),
+        ("Link active (cyan-700)", "#0e7490", ""),
         ("Subtle bg", "#cffafe", "bg-primary-bg-subtle"),
     ];
     group(
