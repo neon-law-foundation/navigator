@@ -65,7 +65,7 @@ pub use notation_session::{
     StartOutcome,
 };
 pub use notify::{
-    ops_slack_text, CapturingNotifier, Notifier, NotifyError, OpsEmailMirror, SlackNotifier,
+    ops_slack_text, CapturingNotifier, Notifier, NotifyError, SlackNotifier, SlackOpsDelivery,
 };
 pub use runtime::{InMemoryRuntime, StateMachineRuntime, WorkflowEvent, WorkflowRuntimeError};
 pub use runtime_dispatching::DispatchingRuntime;

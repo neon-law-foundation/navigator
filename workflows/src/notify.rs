@@ -1,30 +1,34 @@
 //! Ops-notification seam — the chat sibling of [`crate::email::EmailService`].
 //!
-//! Navigator's durable workflows already prove their liveness by *emailing*
-//! firm ops (the six-hourly `Heartbeat`, the nightly `Archives` digest, the
-//! `BillingCanary`, …). Those emails arrive over and over, so the signal is
-//! easy to miss in an inbox — the very failure mode that hid a real heartbeat
-//! gap once. This module adds a second, parallel delivery path: an incoming
-//! **Slack** webhook to the engineering channel, so the same internal signal
-//! lands where engineers already watch.
+//! Navigator's durable workflows prove their liveness by notifying firm ops
+//! (the six-hourly `Heartbeat`, the nightly `Archives` digest, the
+//! `BillingCanary`, …). That signal goes to an incoming **Slack** webhook on
+//! the engineering channel — where engineers already watch — and **no longer
+//! also goes out as email**: a recurring liveness signal is trivial to lose in
+//! an inbox (the very failure mode that hid a real heartbeat gap once), so once
+//! Slack delivery proved reliable the firm dropped the duplicate ops email (the
+//! follow-up to the dual-send introduced in PR #13).
 //!
-//! Two pieces, mirroring [`crate::email`] exactly:
+//! Two pieces:
 //!
 //! - [`Notifier`] — the trait, with a real [`SlackNotifier`] (POSTs
 //!   `{"text": …}` to an incoming webhook) and a [`CapturingNotifier`] that
 //!   keeps messages in memory for KIND/tests so nothing leaves the binary.
-//! - [`OpsEmailMirror`] — an [`EmailService`] decorator that sends the email
-//!   through its inner backend **and** best-effort mirrors it to a notifier.
+//! - [`SlackOpsDelivery`] — an [`EmailService`] adapter that delivers an ops
+//!   notice to a [`Notifier`] (Slack) *instead of* sending email. The ops
+//!   workflows render their notice as an [`OutboundEmail`] and hand it to their
+//!   `EmailService`; wiring them with this adapter routes the notice to Slack
+//!   and sends no mail at all.
 //!
-//! **The load-bearing boundary:** [`OpsEmailMirror`] must wrap **only**
-//! internal/operations email services — `Heartbeat`, `Archives`, `Statutes`,
+//! **The load-bearing boundary:** [`SlackOpsDelivery`] must back **only**
+//! internal/operations services — `Heartbeat`, `Archives`, `Statutes`,
 //! `BillingCanary`, `BillingDigest`. Those carry no client, matter, or PII
-//! data (their recipients are env-pinned to firm ops). It must **never** wrap
+//! data (their recipients are env-pinned to firm ops). It must **never** back
 //! a client-facing email service (`Notation`, `RecurringBilling` invoices):
-//! mirroring client email into a chat channel would push client content across
-//! the firm's trust boundary, violating the standing no-content rule (see the
-//! `observability` skill). The boundary is enforced at the wiring point in
-//! `workflows-service`'s `main.rs`, not by per-message inspection here.
+//! pushing client content into a chat channel would cross the firm's trust
+//! boundary, violating the standing no-content rule (see the `observability`
+//! skill). The boundary is enforced at the wiring point in `workflows-service`'s
+//! `main.rs`, not by per-message inspection here.
 
 use std::sync::{Arc, Mutex};
 
@@ -137,48 +141,48 @@ pub fn ops_slack_text(email: &OutboundEmail) -> String {
     format!("*{}*\n{}", email.subject, email.body)
 }
 
-/// An [`EmailService`] decorator that, on every send, delivers the email
-/// through `inner` **and then** best-effort mirrors it to `notifier`.
+/// An [`EmailService`] adapter that delivers an ops notice to a [`Notifier`]
+/// (Slack) **instead of** sending email. The internal/ops workflows render
+/// their notice as an [`OutboundEmail`] and hand it to their `EmailService`;
+/// backing them with this adapter posts that notice to the engineering channel
+/// and sends no mail.
 ///
-/// Email is the source of truth: a notifier failure is logged and swallowed,
-/// never propagated, so a Slack outage can never fail the durable email step
-/// (the workflow's `ctx.run("notify")`) and trigger a spurious retry. Wrap
-/// ONLY internal/ops email services — see the module-level boundary note.
+/// Slack is now the single delivery path for the ops signal, so — unlike the
+/// former best-effort dual-send mirror — a delivery failure **is** propagated
+/// as an [`EmailError`]. That fails the workflow's durable `ctx.run("notify")`
+/// step, so Restate retries and redelivers once Slack recovers, rather than
+/// silently dropping the only copy of the signal. Back ONLY internal/ops
+/// services — see the module-level boundary note.
 #[derive(Clone)]
-pub struct OpsEmailMirror {
-    inner: Arc<dyn EmailService>,
+pub struct SlackOpsDelivery {
     notifier: Arc<dyn Notifier>,
 }
 
-impl OpsEmailMirror {
+impl SlackOpsDelivery {
     #[must_use]
-    pub fn new(inner: Arc<dyn EmailService>, notifier: Arc<dyn Notifier>) -> Self {
-        Self { inner, notifier }
+    pub fn new(notifier: Arc<dyn Notifier>) -> Self {
+        Self { notifier }
     }
 }
 
 #[async_trait]
-impl EmailService for OpsEmailMirror {
+impl EmailService for SlackOpsDelivery {
     async fn send(&self, email: OutboundEmail) -> Result<SendReceipt, EmailError> {
-        // Render the mirror text before `inner.send` consumes the email.
-        let text = ops_slack_text(&email);
-        let receipt = self.inner.send(email).await?;
-        if let Err(err) = self.notifier.notify(text).await {
-            // Best effort: the email already went out, so do not fail the
-            // durable step. Carry no body — only the error, an identifier-safe
-            // signal — to stay within the no-content rule.
-            tracing::warn!(error = %err, "ops Slack mirror failed; email was sent");
-        }
-        Ok(receipt)
+        self.notifier
+            .notify(ops_slack_text(&email))
+            .await
+            .map_err(|err| EmailError::Transport(err.to_string()))?;
+        // No mail was sent, so there is no provider message id to surface.
+        Ok(SendReceipt { message_id: None })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        ops_slack_text, CapturingNotifier, Notifier, NotifyError, OpsEmailMirror, SlackNotifier,
+        ops_slack_text, CapturingNotifier, Notifier, NotifyError, SlackNotifier, SlackOpsDelivery,
     };
-    use crate::email::service::{CapturingEmail, EmailService, OutboundEmail};
+    use crate::email::service::{EmailError, EmailService, OutboundEmail};
     use async_trait::async_trait;
     use std::sync::Arc;
 
@@ -219,19 +223,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mirror_sends_email_and_notifies_on_success() {
-        let email = Arc::new(CapturingEmail::new());
+    async fn delivery_posts_notice_to_slack_only() {
         let notifier = Arc::new(CapturingNotifier::new());
-        let mirror = OpsEmailMirror::new(email.clone(), notifier.clone());
+        let delivery = SlackOpsDelivery::new(notifier.clone());
 
-        mirror.send(ops_email()).await.expect("send succeeds");
+        delivery.send(ops_email()).await.expect("send succeeds");
 
-        assert_eq!(email.captured().len(), 1, "email delivered through inner");
-        assert_eq!(notifier.captured().len(), 1, "mirrored to Slack");
+        assert_eq!(notifier.captured().len(), 1, "notice posted to Slack");
         assert!(notifier.captured()[0].contains("heartbeat"));
     }
 
-    /// A notifier whose every send fails — proves the mirror swallows the error.
+    /// A notifier whose every send fails — proves the adapter surfaces the error.
     struct FailingNotifier;
     #[async_trait]
     impl Notifier for FailingNotifier {
@@ -241,16 +243,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn mirror_still_sends_email_when_notifier_fails() {
-        let email = Arc::new(CapturingEmail::new());
-        let mirror = OpsEmailMirror::new(email.clone(), Arc::new(FailingNotifier));
+    async fn delivery_propagates_failure_so_durable_step_retries() {
+        let delivery = SlackOpsDelivery::new(Arc::new(FailingNotifier));
 
-        // A Slack outage must NOT fail the durable email step.
-        mirror
+        // Slack is the only delivery path now, so a Slack outage MUST fail the
+        // durable notify step (Restate then retries) rather than be swallowed.
+        let err = delivery
             .send(ops_email())
             .await
-            .expect("email send succeeds despite notifier failure");
+            .expect_err("a Slack failure must surface to the caller");
 
-        assert_eq!(email.captured().len(), 1, "email still delivered");
+        assert!(matches!(err, EmailError::Transport(_)));
     }
 }

@@ -60,7 +60,7 @@ from there.
 kube CronJob (0 10 * * *) --fires--> trigger pod --POST /Archives/<date>/run/send--> Restate ingress
                                                                                           | Accepted
                                                                                           v
-                                                          worker runs: snapshot -> cost -> email (journaled)
+                                                          worker runs: snapshot -> cost -> notify (journaled)
 ```
 
 To inspect or fire the schedule by hand:
@@ -76,7 +76,7 @@ Restate admits **at most one invocation per workflow key**. The key choice *is* 
 
 - **Nightly Archives** keys on the **UTC run date**, so a double-fire on the same day is a silent no-op — exactly what
   a backup wants.
-- **Manual runs** key on a unique `manual-<uuid>`, so every click actually executes and emails — a test button that
+- **Manual runs** key on a unique `manual-<uuid>`, so every click actually executes and notifies — a test button that
   deduped against the nightly run would look broken.
 
 ## Auth: two tokens, two ports
@@ -173,13 +173,14 @@ itself alive right now?* A silent `Archives` is ambiguous (engine down, or just 
 no database, no object storage, no third-party API — so a green run can only mean the engine accepted an invocation,
 journaled step one, and ran step two to completion. It fires **every six hours** (`0 */6 * * *` UTC), keyed on the UTC
 date + hour so the four daily runs each get a distinct workflow key (a date-only key would dedupe three of four into
-no-ops). Each run emails firm ops a **"Where to look"** report carrying the exact Restate Cloud + GCP console links and
-the kubectl/curl chain below — so the same email that confirms health onboards whoever debugs its *absence*.
+no-ops). Each run posts firm ops a **"Where to look"** notice to the engineering Slack channel carrying the exact
+Restate Cloud + GCP console links and the kubectl/curl chain below — so the same notice that confirms health onboards
+whoever debugs its *absence*. (Ops notices go to Slack only; the duplicate email was dropped once Slack proved itself.)
 
-The signal that matters most is the missing one: **a six-hour window with no heartbeat email means the engine may be
-down** — walk the chain below. Like every new service, `Heartbeat` is invisible at the ingress until the deployment is
-**re-registered** (see [the registration gotcha](#the-registration-gotcha)); the absence of its first email after a ship
-is itself the test that re-register happened.
+The signal that matters most is the missing one: **a six-hour window with no heartbeat notice in Slack means the engine
+may be down** — walk the chain below. Like every new service, `Heartbeat` is invisible at the ingress until the
+deployment is **re-registered** (see [the registration gotcha](#the-registration-gotcha)); the absence of its first
+notice after a ship is itself the test that re-register happened.
 
 ## Debugging "the workflow didn't run"
 
