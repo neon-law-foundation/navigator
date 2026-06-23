@@ -15,6 +15,7 @@ pub mod lsp;
 pub mod markdown;
 pub mod notation;
 pub mod pages;
+pub mod slug;
 
 pub use brand::SiteBrand;
 pub use i18n::Locale;

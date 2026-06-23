@@ -34,8 +34,25 @@ pub fn find_raw(category: &str, name: &str) -> Option<&'static str> {
     {
         return None;
     }
-    let rel = format!("{category}/{name}.md");
-    let raw = TEMPLATES.get_file(&rel)?.contents_utf8()?;
+    // URLs are kebab-case (the route redirects an underscore request to
+    // its hyphenated home first); the embedded tree keeps the on-disk
+    // underscore names. Match by comparing the canonical kebab form of
+    // both sides — `_`→`-` is not invertible, so we resolve forward from
+    // the real names rather than guess a filename from the slug.
+    let (want_category, want_name) = (views::slug::to_url(category), views::slug::to_url(name));
+    let dir = TEMPLATES.dirs().find(|d| {
+        d.path()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| views::slug::to_url(n) == want_category)
+    })?;
+    let file = dir.files().find(|f| {
+        f.path()
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .is_some_and(|s| views::slug::to_url(s) == want_name)
+    })?;
+    let raw = file.contents_utf8()?;
     is_public(raw).then_some(raw)
 }
 
@@ -86,6 +103,25 @@ mod tests {
     }
 
     #[test]
+    fn resolves_the_kebab_url_form_to_underscore_filenames() {
+        // The route serves kebab-case URLs; the embedded tree keeps the
+        // on-disk underscore names. A kebab `name` segment must resolve to
+        // its underscore file…
+        let by_kebab = find_raw("nonprofit", "form990-annual-report")
+            .expect("kebab name resolves to form990_annual_report.md");
+        assert!(by_kebab.contains("Form 990"));
+        // …and so must a kebab `category` segment (`annual_report` →
+        // `annual-report`).
+        assert!(
+            find_raw("annual-report", "nevada").is_some(),
+            "kebab category resolves to the annual_report/ folder"
+        );
+        // The legacy underscore spellings still resolve (the route only
+        // redirects the browser; direct callers and tests keep working).
+        assert!(find_raw("nonprofit", "form990_annual_report").is_some());
+    }
+
+    #[test]
     fn refuses_a_confidential_template() {
         // The retainer is `confidential: true` and must never be served
         // over the public API even though the path is valid.
@@ -106,6 +142,41 @@ mod tests {
         assert!(find_raw("nest", "../onboarding/retainer").is_none());
         assert!(find_raw("nest/..", "nevada").is_none());
         assert!(find_raw("", "nevada").is_none());
+    }
+
+    #[test]
+    fn no_two_templates_in_a_directory_collide_under_kebab() {
+        // The load-bearing invariant behind `find_raw`: the `_`→`-` URL
+        // mapping is lossy, so two files in the same directory whose stems
+        // differ only by `_` vs `-` (`a_b.md` and `a-b.md`) would map to
+        // one URL — `find_raw` would silently serve the first and the
+        // other would be unreachable. Walk the whole embedded tree and
+        // fail the build if that ever ships, rather than serving the wrong
+        // bytes in production.
+        use super::TEMPLATES;
+        use std::collections::HashMap;
+
+        let mut stack = vec![&TEMPLATES];
+        while let Some(dir) = stack.pop() {
+            let mut seen: HashMap<String, &str> = HashMap::new();
+            for file in dir.files() {
+                let Some(stem) = file.path().file_stem().and_then(|s| s.to_str()) else {
+                    continue;
+                };
+                let kebab = views::slug::to_url(stem);
+                if let Some(prev) = seen.insert(kebab.clone(), stem) {
+                    panic!(
+                        "templates `{}` and `{}` in {} both map to the kebab URL stem `{}` — \
+                         rename one so every notation_templates URL is unambiguous",
+                        prev,
+                        stem,
+                        dir.path().display(),
+                        kebab,
+                    );
+                }
+            }
+            stack.extend(dir.dirs());
+        }
     }
 
     #[test]

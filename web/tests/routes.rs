@@ -4710,7 +4710,7 @@ async fn statutes_unknown_chapter_returns_404() {
 
 fn blog_state_with_one_post() -> web::BlogIndex {
     web::BlogIndex::new(vec![web::BlogPost {
-        slug: "thanks_apple".into(),
+        slug: "thanks-apple".into(),
         date: chrono::NaiveDate::from_ymd_opt(2026, 6, 19).unwrap(),
         title: "Thanks, Apple".into(),
         description: "A short note of thanks.".into(),
@@ -4730,7 +4730,7 @@ async fn blog_index_lists_posts() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("Thanks, Apple"));
-    assert!(body.contains("href=\"/blog/thanks_apple\""));
+    assert!(body.contains("href=\"/blog/thanks-apple\""));
     assert!(body.contains("June 19, 2026"));
 }
 
@@ -4742,7 +4742,7 @@ async fn blog_post_renders_body() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/blog/thanks_apple")
+                .uri("/blog/thanks-apple")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4768,7 +4768,7 @@ async fn real_thanks_apple_post_is_capped_and_renders_the_photo_collage() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/blog/thanks_apple")
+                .uri("/blog/thanks-apple")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4817,18 +4817,18 @@ async fn blog_unknown_slug_returns_404() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
-/// The hyphenated form of a slug permanently redirects to the canonical
-/// underscore form — `thanks-apple` becomes `thanks_apple` — so links
-/// written either way resolve to the same post.
+/// The legacy underscore form of a slug permanently redirects to the
+/// canonical kebab-case form — `thanks_apple` becomes `thanks-apple` —
+/// so links written either way resolve to the same post.
 #[tokio::test]
-async fn blog_hyphenated_slug_redirects_to_underscore() {
+async fn blog_underscore_slug_redirects_to_kebab() {
     let mut state = empty_state().await;
     state.blog = blog_state_with_one_post();
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/blog/thanks-apple")
+                .uri("/blog/thanks_apple")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4839,17 +4839,17 @@ async fn blog_hyphenated_slug_redirects_to_underscore() {
         resp.headers()
             .get(axum::http::header::LOCATION)
             .and_then(|v| v.to_str().ok()),
-        Some("/blog/thanks_apple"),
+        Some("/blog/thanks-apple"),
     );
 }
 
-/// Every hyphen in a multi-word slug is rewritten, and the redirect
+/// Every underscore in a multi-word slug is rewritten, and the redirect
 /// target then resolves to the real post.
 #[tokio::test]
-async fn blog_redirect_rewrites_all_hyphens_and_target_resolves() {
+async fn blog_redirect_rewrites_all_underscores_and_target_resolves() {
     let mut state = empty_state().await;
     state.blog = web::BlogIndex::new(vec![web::BlogPost {
-        slug: "a_long_post_title".into(),
+        slug: "a-long-post-title".into(),
         date: chrono::NaiveDate::from_ymd_opt(2026, 6, 19).unwrap(),
         title: "A Long Post Title".into(),
         description: "Multi-word slug.".into(),
@@ -4857,12 +4857,12 @@ async fn blog_redirect_rewrites_all_hyphens_and_target_resolves() {
     }]);
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
 
-    // Hyphenated request → 308 to the all-underscore form.
+    // Underscore request → 308 to the all-hyphen form.
     let resp = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/blog/a-long-post-title")
+                .uri("/blog/a_long_post_title")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4875,7 +4875,7 @@ async fn blog_redirect_rewrites_all_hyphens_and_target_resolves() {
         .and_then(|v| v.to_str().ok())
         .unwrap()
         .to_string();
-    assert_eq!(location, "/blog/a_long_post_title");
+    assert_eq!(location, "/blog/a-long-post-title");
 
     // Following the redirect lands on the real post.
     let resp = app
@@ -4892,16 +4892,16 @@ async fn blog_redirect_rewrites_all_hyphens_and_target_resolves() {
     assert!(body.contains("Body here."));
 }
 
-/// A slug with no hyphen is served directly — no redirect bounce.
+/// A kebab-case slug is served directly — no redirect bounce.
 #[tokio::test]
-async fn blog_underscore_slug_is_served_without_redirect() {
+async fn blog_kebab_slug_is_served_without_redirect() {
     let mut state = empty_state().await;
     state.blog = blog_state_with_one_post();
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/blog/thanks_apple")
+                .uri("/blog/thanks-apple")
                 .body(Body::empty())
                 .unwrap(),
         )

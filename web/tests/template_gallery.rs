@@ -63,7 +63,7 @@ async fn gallery_index_renders_for_an_anonymous_visitor() {
 async fn template_detail_has_frontmatter_disclaimer_and_start_a_matter_cta() {
     let resp = get(
         empty_state().await,
-        "/templates/nonprofit/form990_annual_report",
+        "/templates/nonprofit/form990-annual-report",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -75,15 +75,48 @@ async fn template_detail_has_frontmatter_disclaimer_and_start_a_matter_cta() {
     // A download must not be a dead end.
     assert!(body.contains("Start a matter"));
     assert!(body.contains("href=\"/contact\""));
-    // And the raw-download link.
-    assert!(body.contains("/templates/nonprofit/form990_annual_report/download"));
+    // And the raw-download link — kebab-cased, like every asset URL.
+    assert!(body.contains("/templates/nonprofit/form990-annual-report/download"));
+}
+
+#[tokio::test]
+async fn template_underscore_url_redirects_to_kebab() {
+    // The on-disk stem keeps its underscores; the URL is kebab-case. A
+    // request for the legacy underscore form permanently redirects to the
+    // hyphenated home.
+    let resp = get(
+        empty_state().await,
+        "/templates/nonprofit/form990_annual_report",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        resp.headers()
+            .get(axum::http::header::LOCATION)
+            .and_then(|v| v.to_str().ok()),
+        Some("/templates/nonprofit/form990-annual-report"),
+    );
+
+    // The download route redirects too, preserving the trailing segment.
+    let resp = get(
+        empty_state().await,
+        "/templates/nonprofit/form990_annual_report/download",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        resp.headers()
+            .get(axum::http::header::LOCATION)
+            .and_then(|v| v.to_str().ok()),
+        Some("/templates/nonprofit/form990-annual-report/download"),
+    );
 }
 
 #[tokio::test]
 async fn template_downloads_verbatim_markdown_as_an_attachment() {
     let resp = get(
         empty_state().await,
-        "/templates/nonprofit/form990_annual_report/download",
+        "/templates/nonprofit/form990-annual-report/download",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -93,6 +126,8 @@ async fn template_downloads_verbatim_markdown_as_an_attachment() {
             .unwrap(),
         "text/markdown; charset=utf-8"
     );
+    // The downloaded file keeps its on-disk underscore name (the bytes a
+    // git reader sees), even though the route that serves it is kebab.
     assert_eq!(
         resp.headers()
             .get(axum::http::header::CONTENT_DISPOSITION)

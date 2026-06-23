@@ -70,7 +70,8 @@ pub(crate) fn rewrite_link(dest: &str) -> String {
         .and_then(|rest| rest.strip_suffix(".md"))
     {
         if !stem.contains('/') {
-            return with_anchor(&format!("/docs/{stem}"), anchor);
+            // URLs are kebab-case; the file stem keeps its underscores.
+            return with_anchor(&format!("/docs/{}", crate::slug::to_url(stem)), anchor);
         }
     }
     // A `notation_templates/<cat>/<name>.md` maps to the raw template API.
@@ -79,7 +80,11 @@ pub(crate) fn rewrite_link(dest: &str) -> String {
         .and_then(|rest| rest.strip_suffix(".md"))
     {
         if stem.matches('/').count() == 1 {
-            return with_anchor(&format!("/api/templates/{stem}"), anchor);
+            // Kebab-case both the category and the name segments.
+            return with_anchor(
+                &format!("/api/templates/{}", crate::slug::to_url(stem)),
+                anchor,
+            );
         }
     }
     // Everything else repo-relative resolves against the GitHub source.
@@ -134,6 +139,11 @@ mod tests {
             "/docs/notation#templates"
         );
         assert_eq!(rewrite_link("docs/glossary.md"), "/docs/glossary");
+        // An underscore doc filename is rewritten to its kebab-case URL.
+        assert_eq!(
+            rewrite_link("docs/retainer_intake.md"),
+            "/docs/retainer-intake"
+        );
     }
 
     #[test]
@@ -141,6 +151,15 @@ mod tests {
         assert_eq!(
             rewrite_link("notation_templates/nest/nevada.md"),
             "/api/templates/nest/nevada"
+        );
+        // Underscores in either segment become hyphens in the URL.
+        assert_eq!(
+            rewrite_link("notation_templates/nonprofit/form990_annual_report.md"),
+            "/api/templates/nonprofit/form990-annual-report"
+        );
+        assert_eq!(
+            rewrite_link("notation_templates/annual_report/nevada.md"),
+            "/api/templates/annual-report/nevada"
         );
     }
 
