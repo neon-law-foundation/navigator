@@ -19,7 +19,7 @@ The five client-visible steps:
    take the time they need; nothing is final until they have seen it.
 5. **Signing.** Documents go to e-signature (the existing DocuSign flow) once the client approves.
 
-The marketing surface lives at `/services/estate` (title and nav label "Northstar").
+The marketing surface lives at `/services/northstar` (title and nav label "Northstar").
 
 ## Phase A — comment-only review surface (shipped)
 

@@ -16,11 +16,11 @@ Feature: Public site brand routing
     And the page is not branded "Neon Law Foundation"
 
     Examples:
-      | path                |
-      | /                   |
-      | /contact            |
-      | /services/estate    |
-      | /services/corporate |
+      | path                 |
+      | /                    |
+      | /contact             |
+      | /services/northstar  |
+      | /services/nest       |
 
   Scenario Outline: Foundation-branded pages carry the Foundation brand
     When a visitor opens <path>

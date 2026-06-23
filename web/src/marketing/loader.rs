@@ -332,8 +332,8 @@ mod tests {
     #[test]
     fn parse_reads_nested_pricing_block_into_typed_cards() {
         let raw = "---\n\
-                   title: \"Fractional GC\"\n\
-                   slug: fractional-gc\n\
+                   title: \"Neon Law Nexus\"\n\
+                   slug: nexus\n\
                    pricing:\n\
                    \x20 - title: Seed\n\
                    \x20   price: \"$3,500\"\n\

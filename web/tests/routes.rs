@@ -331,7 +331,7 @@ async fn spanish_service_page_translates_chrome_and_falls_back_to_english_body()
     // English doc present; NO es twin for this slug → graceful fallback to
     // the English body under a Spanish shell.
     state.marketing = MarketingIndex::new(vec![marketing_doc(
-        "estate",
+        "northstar",
         "Estate",
         "<p>English estate body</p>",
     )]);
@@ -339,7 +339,7 @@ async fn spanish_service_page_translates_chrome_and_falls_back_to_english_body()
     let body = body_string(
         app.oneshot(
             Request::builder()
-                .uri("/es/services/estate")
+                .uri("/es/services/northstar")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -354,7 +354,7 @@ async fn spanish_service_page_translates_chrome_and_falls_back_to_english_body()
         "fallback to en body: {body}"
     );
     // The switcher points back to English at the twin path.
-    assert!(body.contains("href=\"/services/estate\"") && body.contains(">English</a>"));
+    assert!(body.contains("href=\"/services/northstar\"") && body.contains(">English</a>"));
 }
 
 #[tokio::test]
@@ -722,9 +722,9 @@ async fn old_presentation_urls_permanently_redirect_to_workshops() {
 }
 
 #[tokio::test]
-async fn services_estate_uses_marketing_doc_when_present() {
+async fn services_northstar_uses_marketing_doc_when_present() {
     let docs = vec![web::MarketingDoc {
-        slug: "estate".into(),
+        slug: "northstar".into(),
         title: "Estate planning".into(),
         description: "wills and trusts".into(),
         body_html: "<h2>Drafted</h2><p>Trusts.</p>".into(),
@@ -737,7 +737,7 @@ async fn services_estate_uses_marketing_doc_when_present() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/services/estate")
+                .uri("/services/northstar")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -753,14 +753,14 @@ async fn services_estate_uses_marketing_doc_when_present() {
 }
 
 #[tokio::test]
-async fn services_estate_renders_a_split_hero_from_the_hero_image_metadata() {
+async fn services_northstar_renders_a_split_hero_from_the_hero_image_metadata() {
     // The `hero_image:` frontmatter key turns a product page into a split
     // hero: the "Neon Law …" brand title becomes the page <h1> beside the
     // curated photo, and the body's own leading <h1> is lifted up into the
     // hero lead (so it isn't repeated). This drives the full web→view seam
     // — the metadata read in `service_page` plus the view's hero render.
     let docs = vec![web::MarketingDoc {
-        slug: "estate".into(),
+        slug: "northstar".into(),
         title: "Neon Law Northstar".into(),
         description: "your estate plan in one sitting".into(),
         body_html: "<h1>Your estate plan, in one sitting</h1><p>One recorded sitting.</p>".into(),
@@ -776,7 +776,7 @@ async fn services_estate_renders_a_split_hero_from_the_hero_image_metadata() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/services/estate")
+                .uri("/services/northstar")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -871,7 +871,7 @@ async fn services_nautilus_uses_marketing_doc_when_present() {
 }
 
 #[tokio::test]
-async fn services_corporate_falls_back_to_default_when_no_doc() {
+async fn services_nest_falls_back_to_default_when_no_doc() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -879,7 +879,7 @@ async fn services_corporate_falls_back_to_default_when_no_doc() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/services/corporate")
+                .uri("/services/nest")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -894,9 +894,9 @@ async fn services_corporate_falls_back_to_default_when_no_doc() {
 }
 
 #[tokio::test]
-async fn services_fractional_gc_uses_marketing_doc_when_present() {
+async fn services_nexus_uses_marketing_doc_when_present() {
     let docs = vec![web::MarketingDoc {
-        slug: "fractional-gc".into(),
+        slug: "nexus".into(),
         title: "Fractional GC".into(),
         description: "Fractional general counsel for software startups.".into(),
         body_html: "<p>lead</p><p>[[pricing]]</p><h2>Everything but litigation</h2><p>Two-business-day response.</p>"
@@ -920,7 +920,7 @@ async fn services_fractional_gc_uses_marketing_doc_when_present() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/services/fractional-gc")
+                .uri("/services/nexus")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -936,6 +936,64 @@ async fn services_fractional_gc_uses_marketing_doc_when_present() {
     assert!(body.contains("2 of 10 filled"));
     assert!(body.contains("$5,000"));
     assert!(body.contains("Two-business-day response on everything you send us"));
+}
+
+#[tokio::test]
+async fn service_pages_live_at_their_product_codename_slug() {
+    // Every service detail page is reached at `/services/<product-code>`:
+    // the three pages that used a descriptive slug (estate, corporate,
+    // fractional-gc) now match their product code (northstar, nest, nexus),
+    // in lockstep with `product_service_path`. Drive the bundled content so
+    // each page renders its real copy in both locales.
+    let app = web::build_router(
+        state_with_bundled_marketing().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    for path in [
+        "/services/northstar",
+        "/services/nest",
+        "/services/nexus",
+        "/es/services/northstar",
+        "/es/services/nest",
+        "/es/services/nexus",
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "{path} should render");
+    }
+}
+
+#[tokio::test]
+async fn old_descriptive_service_slugs_are_gone_with_no_redirect() {
+    // The rename keeps NO back-compat for the old descriptive URLs — the
+    // user asked not to preserve them. The former paths must 404 (not 301),
+    // so this pins that we didn't silently leave a redirect behind.
+    let app = web::build_router(
+        state_with_bundled_marketing().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    for path in [
+        "/services/estate",
+        "/services/corporate",
+        "/services/fractional-gc",
+        "/es/services/estate",
+        "/es/services/corporate",
+        "/es/services/fractional-gc",
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "{path} should be gone with no redirect"
+        );
+    }
 }
 
 // The `/services` index is now the DB-backed product catalog (it replaced

@@ -138,7 +138,7 @@ mod tests {
                 price: "$2,222",
                 cadence_suffix: "/month",
                 description: "A full legal retainer for a scaling company.",
-                learn_href: "/services/fractional-gc",
+                learn_href: "/services/nexus",
                 icon: None,
             },
         ]
@@ -155,7 +155,7 @@ mod tests {
         assert!(html.contains("A lawyer between you and the collectors."));
         // Each card links to its service page.
         assert!(html.contains("href=\"/services/nautilus\""));
-        assert!(html.contains("href=\"/services/fractional-gc\""));
+        assert!(html.contains("href=\"/services/nexus\""));
         // A card with an icon renders its Bootstrap glyph on the title; a
         // card with `icon: None` renders none.
         assert!(

@@ -1,6 +1,6 @@
 ---
 title: "Neon Law Northstar"
-slug: estate
+slug: northstar
 hero_image: lake-tahoe
 description: >
   Neon Law Northstar is your estate plan in one sitting — $3,333 for one recorded conversation that becomes a will,

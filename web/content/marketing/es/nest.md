@@ -1,6 +1,6 @@
 ---
 title: "Neon Law Nest"
-slug: corporate
+slug: nest
 hero_image: mojave-yucca
 description: >
   Neon Law Nest es una entidad de Nevada para resguardar lo que posee — $1,111 al año. Constitución integral y el
@@ -35,7 +35,7 @@ trabajo legal de rutina.
 **Hecha para resguardar, no para escalar.** Este es el plan para una entidad simple y de propósito único —una LLC para
 una propiedad o una inversión, una sociedad tenedora de un solo activo, o una organización sin fines de lucro.
 ¿Construye una empresa de software o tecnología emergente con empleados, inversionistas y una tabla de capitalización?
-Eso es [Neon Law Nexus](/es/services/fractional-gc), no esto.
+Eso es [Neon Law Nexus](/es/services/nexus), no esto.
 
 **Una LLC, o no.** La mayoría de los clientes constituyen una LLC de Nevada (NRS Capítulo 86), pero la misma tarifa
 levanta una corporación sin fines de lucro (NRS Capítulo 82) u otra entidad simple cuando esa es la forma correcta.
@@ -44,7 +44,7 @@ Redactamos el acuerdo operativo o los estatutos para que coincidan con lo que la
 **Trabajo estándar, tarifa fija — el trabajo a medida es Neon Law Nexus.** Los $1,111 cubren la constitución integral y
 el papeleo de rutina que necesita una entidad simple: el acuerdo operativo, las presentaciones, el agente registrado y
 las preguntas legales cotidianas que conlleva resguardar un activo. Los contratos negociados, los acuerdos a medida y
-los financiamientos son el trabajo de [Neon Law Nexus](/es/services/fractional-gc), nuestra asesoría jurídica general
+los financiamientos son el trabajo de [Neon Law Nexus](/es/services/nexus), nuestra asesoría jurídica general
 fraccionada.
 
 **Una tarifa, todo incluido.** Los $1,111 cubren la constitución, el acuerdo operativo, el agente registrado, las

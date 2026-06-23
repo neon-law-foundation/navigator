@@ -133,7 +133,7 @@ async fn catalog_lists_every_active_product_at_the_db_price() {
     assert!(body.contains("/month"), "recurring products show /month");
     // Each card links to the product's service page.
     assert!(body.contains("href=\"/services/nautilus\""));
-    assert!(body.contains("href=\"/services/fractional-gc\""));
+    assert!(body.contains("href=\"/services/nexus\""));
     assert!(body.contains("href=\"/services/node\""));
     assert!(body.contains("href=\"/services/newleaf\""));
     assert!(body.contains("href=\"/services/namesake\""));
