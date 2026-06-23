@@ -37,7 +37,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: statutes-trigger
-              image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-statutes-trigger:latest
+              image: ghcr.io/neon-law-foundation/navigator-statutes-trigger:YY.MM.DD
               imagePullPolicy: Always
               env:
                 # Restate Cloud ingress endpoint for the navigator-prod

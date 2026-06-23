@@ -9,8 +9,8 @@
 use maud::{html, Markup, DOCTYPE};
 
 use crate::brand::{
-    firm_disclaimer, foundation_github_url, privacy_url, terms_url, NavLink, SiteBrand, FIRM_BRAND,
-    FOUNDATION_BRAND,
+    deployed_release, firm_disclaimer, foundation_github_url, privacy_url, terms_url, NavLink,
+    SiteBrand, FIRM_BRAND, FOUNDATION_BRAND,
 };
 use crate::components::social::{social_meta, SocialMeta};
 use crate::components::{external_link_with_class, github_star_button, ExternalLink};
@@ -412,6 +412,25 @@ impl<'a> PageLayout<'a> {
                         }
                         p.firm-disclaimer.small."text-body-secondary"."mb-0" {
                             (firm_disclaimer())
+                        }
+                        // Deployed-release stamp — the `YY.MM.DD` ghcr tag this
+                        // image was published under (same value as `/version`'s
+                        // `release`). Makes a push verifiable from the page
+                        // itself: ship a new image and this line changes. Links
+                        // to the matching GitHub release tag when the repo URL is
+                        // known. Hidden on local dev, where the tag is unset.
+                        @if let Some(release) = deployed_release() {
+                            p.small."text-body-secondary"."mt-2"."mb-0" {
+                                @if let Some(repo) = foundation_github_url() {
+                                    (external_link_with_class(
+                                        &format!("{repo}/releases/tag/{release}"),
+                                        "link-secondary text-decoration-none",
+                                        html! { "Navigator " (release) },
+                                    ))
+                                } @else {
+                                    "Navigator " (release)
+                                }
+                            }
                         }
                     }
                 }

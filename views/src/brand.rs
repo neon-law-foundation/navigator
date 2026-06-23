@@ -255,6 +255,25 @@ pub fn firm_disclaimer() -> &'static str {
     *DISCLAIMER
 }
 
+/// The deployed release — the `YY.MM.DD` ghcr tag this image was
+/// published under, baked into the web image by `deploy.yml` as
+/// `NAVIGATOR_RELEASE_TAG` (the same value `GET /version` reports as
+/// `release`). Rendered in the footer so a push is visible end-to-end:
+/// the moment a new image is live on the site, the footer's version
+/// changes. `None` on a local `cargo run` (the env var is unset, or the
+/// build honestly reports `unknown`), so dev never shows a bogus
+/// version. Resolved once per process.
+#[must_use]
+pub fn deployed_release() -> Option<&'static str> {
+    static RELEASE: LazyLock<Option<&'static str>> =
+        LazyLock::new(|| match env::var("NAVIGATOR_RELEASE_TAG") {
+            Ok(v) if v.is_empty() || v == "unknown" => None,
+            Ok(v) => Some(&*Box::leak(v.into_boxed_str())),
+            Err(_) => None,
+        });
+    *RELEASE
+}
+
 /// Law-firm brand. Name overridable via `NAVIGATOR_BRAND_FIRM`. The
 /// default matches `NeonLaw`'s canonical deployment; OSS forks set the
 /// env var to rebrand without forking source.

@@ -417,15 +417,15 @@ enum Command {
         namespace: Option<String>,
     },
     /// One-shot "ship to prod" — the executable form of the
-    /// `power-push` skill. Default flow: verify (fmt/clippy/test/
-    /// markdown) → build BOTH images → push BOTH to Artifact Registry
-    /// → archive a git bundle to the GCS source bucket → confirm the
-    /// prod Secret satisfies the new binary's boot invariants → roll
-    /// out BOTH deployments at HEAD's short SHA → re-register the
-    /// worker with Restate → reclaim the local images. Reads every
-    /// project / region / domain / cluster value from `.env`; assumes
-    /// HEAD is already committed (the image tag is HEAD's SHA — this
-    /// never commits for you).
+    /// `power-push` skill. CI (`deploy.yml`) builds and publishes the
+    /// images to ghcr.io tagged `YY.MM.DD`; power-push only rolls the
+    /// cluster. Default flow: resolve the `YY.MM.DD` ghcr tag (latest
+    /// published, or `--tag`) → confirm the prod Secret satisfies the new
+    /// binary's boot invariants → roll out BOTH deployments at that tag →
+    /// pin every trigger `CronJob` to the same tag → re-register the worker
+    /// with Restate, so every navigator image ends in sync at one
+    /// `YY.MM.DD`. Reads every project / region / domain / cluster value
+    /// from `.env`; never builds images locally.
     PowerPush {
         /// Print every command instead of running it.
         #[arg(long)]
@@ -435,10 +435,11 @@ enum Command {
         /// after rotating a key in the K8s Secret.
         #[arg(long)]
         restart_only: bool,
-        /// Skip the fmt/clippy/test/markdown gates. Only safe when
-        /// shipping a SHA already verified in this session.
+        /// The `YY.MM.DD` ghcr tag to roll onto. Omit to roll the latest
+        /// published tag (resolved from ghcr). Both deployments are
+        /// pinned to the same tag — never a version skew.
         #[arg(long)]
-        skip_verify: bool,
+        tag: Option<String>,
     },
     /// DNS provisioning. Ensures MX / SPF / DMARC (+ optional DKIM)
     /// for a domain via the configured DNS provider (`DNSimple` today).

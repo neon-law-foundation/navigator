@@ -82,7 +82,7 @@ project id flows through `.env`. The five suffixes and who owns each:
 | Documents | `-documents` | Private client PDFs (`notations/<id>/…`) + `blobs/<sha>` | `NAVIGATOR_DOCUMENTS_BUCKET` |
 | Exports | `-exports` | Archives snapshots (Parquet / Iceberg) | `NAVIGATOR_STORAGE_BUCKET` |
 | Logs | `-logs` | Log sink (Nearline) | — (sink config) |
-| Source | `-source` | `power-push` git bundles | — (`gcloud storage cp`) |
+| Source | `-source` | legacy git-bundle archive (power-push no longer writes it) | — (`gcloud storage cp`) |
 
 Every bucket except `-assets` is private. The `cloud` crate only ever opens the **documents** and **exports** buckets at
 runtime; assets is write-only via `cli assets upload`, and logs/source are managed outside the `StorageService` seam.
@@ -162,8 +162,11 @@ pipeline order.
 - **Global static IPv4** — `navigator-ingress-ip` (shell-out in `gke.rs`).
 - **Fleet membership + Config Sync `RootSync`** — created via shell-out in `gke.rs`. RootSync is **not currently
   reconciling** because the repo isn't pushed to a git remote yet.
-- **Artifact Registry** — DOCKER repo `navigator` in `us-west4`; push host is `us-west4-docker.pkg.dev`. See
-  [`artifact_registry`](../cli/src/devx/gcp/artifact_registry.rs).
+
+There is **no Artifact Registry**. Container images are built by CI (`deploy.yml`) and published to the **public**
+`ghcr.io/neon-law-foundation/navigator-*` packages, tagged `YY.MM.DD` (the release date) + `latest`; the GKE nodes pull
+them anonymously, so there is no in-cluster registry credential and nothing to rotate. `navigator gcp setup` never
+provisioned an Artifact Registry repo.
 
 ### Archives bucket layout
 
@@ -190,19 +193,16 @@ pod). So shipping archives is: rebuild `workflows-service` (the `archives` lib c
 image for the nightly CronJob.
 
 ```bash
-# 1. Rebuild + roll out workflows-service (now hosts the Archives workflow).
-#    Follow the power-push "workflows-service variant"; add the storage env
-#    (NAVIGATOR_STORAGE_BUCKET=YOUR_PROJECT_ID-exports) so the snapshot phase
-#    can write Parquet. Already registered with Restate Cloud — no new register.
+# 1. Roll workflows-service onto the latest published image (it now hosts the
+#    Archives workflow). Use the power-push skill; ensure the storage env
+#    (NAVIGATOR_STORAGE_BUCKET=YOUR_PROJECT_ID-exports) is on the Deployment so
+#    the snapshot phase can write Parquet. Re-register with Restate after the roll.
 
-# 2. Build + push the nightly trigger image.
-cargo run -p cli -- image-archives-trigger
-TAG=$(git rev-parse --short HEAD)
-docker tag  navigator-archives-trigger:dev \
-  us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-archives-trigger:$TAG
-docker push us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-archives-trigger:$TAG
-sed -i "s|navigator-archives-trigger:dev|navigator-archives-trigger:$TAG|" \
-  examples/deploy/k8s/exports/cron-archives-trigger.yaml
+# 2. Point the nightly trigger CronJob at the published ghcr image. CI (deploy.yml)
+#    builds and publishes navigator-archives-trigger to ghcr.io tagged YY.MM.DD;
+#    the GKE nodes pull it anonymously (public package). Pin the manifest to the tag:
+TAG=$(git ls-remote --tags --refs origin | grep -oE '[0-9]{2}\.[0-9]{2}\.[0-9]{2}$' | sort | tail -1)
+sed -i "s|:YY.MM.DD|:$TAG|" examples/deploy/k8s/exports/cron-archives-trigger.yaml
 kubectl --context=gke_YOUR_PROJECT_ID_us-west4_navigator-prod apply -k examples/deploy/k8s/exports/
 
 # 3. Trigger a run to seed the bucket so external-table schema inference works:
@@ -234,8 +234,8 @@ host. Cloud Run domain mappings auto-provision and renew certs and stay inside t
 these hosts see (dozens/day).
 
 **Region note: `us-west1`, not `us-west4`.** Cloud Run domain mappings are not supported in `us-west4` (the rest of our
-stack runs there); they are supported in `us-west1` (Oregon — geographically closest supported region). The Artifact
-Registry image still lives in `us-west4`; cross-region pulls work fine.
+stack runs there); they are supported in `us-west1` (Oregon — geographically closest supported region). The image is
+pulled from `ghcr.io` (region-agnostic), so the Cloud Run region is independent of where the rest of the stack runs.
 
 **Org-policy prerequisite.** The org `neonlaw.com` enforces `constraints/iam.allowedPolicyMemberDomains`, which blocks
 `allUsers` IAM bindings (Cloud Run requires that for unauthenticated public access). The project-level override is set
@@ -254,14 +254,15 @@ gcloud resource-manager org-policies set-policy /tmp/redirect-allusers.yaml --pr
 Setting that policy requires `roles/orgpolicy.policyAdmin` at the org level (not bundled into
 `roles/resourcemanager.organizationAdmin`).
 
-#### Build, push, deploy
+#### Deploy
+
+CI (`deploy.yml`) builds the redirect image and publishes it to the **public**
+`ghcr.io/neon-law-foundation/navigator-redirect` package, tagged `YY.MM.DD` + `latest`; Cloud Run pulls it anonymously.
+Deploying is just pointing the service at the published tag:
 
 ```bash
-TAG=$(git rev-parse --short HEAD)
-IMAGE=us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/redirect:$TAG
-
-docker build -f images/Dockerfile.redirect -t "$IMAGE" .
-docker push "$IMAGE"
+TAG=$(git ls-remote --tags --refs origin | grep -oE '[0-9]{2}\.[0-9]{2}\.[0-9]{2}$' | sort | tail -1)
+IMAGE="ghcr.io/neon-law-foundation/navigator-redirect:$TAG"
 
 gcloud run deploy redirect \
   --project=YOUR_PROJECT_ID --region=us-west1 \

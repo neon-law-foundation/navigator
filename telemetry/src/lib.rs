@@ -115,10 +115,21 @@ fn normalize_endpoint(raw: Option<String>) -> Option<String> {
 /// resources that can drift). Building an exporter does **not** open a
 /// connection — tonic connects lazily on first export — so this is safe to call
 /// offline (and the unit tests do exactly that).
-fn build_export_providers(endpoint: &str, service_name: &str) -> ExportProviders {
-    let resource = Resource::builder()
-        .with_service_name(service_name.to_string())
-        .build();
+fn build_export_providers(
+    endpoint: &str,
+    service_name: &str,
+    release: Option<&str>,
+) -> ExportProviders {
+    // Tag every signal with the deployed release (`YY.MM.DD`) under the OTel
+    // `service.version` convention, so a span/metric/log in Cloud Trace or
+    // BigQuery says which release emitted it. This is the headless
+    // counterpart to `web`'s `GET /version`: the worker and the trigger
+    // CronJobs have no HTTP surface, but they self-report their release here.
+    let mut builder = Resource::builder().with_service_name(service_name.to_string());
+    if let Some(release) = release {
+        builder = builder.with_attribute(KeyValue::new("service.version", release.to_string()));
+    }
+    let resource = builder.build();
 
     // Traces — one batch span exporter.
     let span_exporter = opentelemetry_otlp::SpanExporter::builder()
@@ -175,6 +186,13 @@ pub fn init(default_service_name: &str) -> TelemetryGuard {
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| default_service_name.to_string());
 
+    // The deployed release (`YY.MM.DD`), baked into every image as
+    // `NAVIGATOR_RELEASE_TAG`. `None` on a local build (unset, or the honest
+    // `unknown`), so dev telemetry carries no bogus version.
+    let release = std::env::var("NAVIGATOR_RELEASE_TAG")
+        .ok()
+        .filter(|s| !s.trim().is_empty() && s != "unknown");
+
     // JSON to stdout when exporting (prod) so Cloud Logging -> BigQuery parses
     // each field; human-readable otherwise. Boxed so both arms share one type.
     let fmt_layer = if endpoint.is_some() {
@@ -191,6 +209,11 @@ pub fn init(default_service_name: &str) -> TelemetryGuard {
             .with(env_filter)
             .with(fmt_layer)
             .init();
+        tracing::info!(
+            service = %service_name,
+            release = %release.as_deref().unwrap_or("unknown"),
+            "telemetry initialized (stdout only)"
+        );
         return TelemetryGuard {
             tracer: None,
             meter: None,
@@ -204,9 +227,10 @@ pub fn init(default_service_name: &str) -> TelemetryGuard {
         tracer,
         meter,
         logger,
-    } = build_export_providers(&endpoint, &service_name);
+    } = build_export_providers(&endpoint, &service_name, release.as_deref());
 
-    let otel_trace_layer = tracing_opentelemetry::layer().with_tracer(tracer.tracer(service_name));
+    let otel_trace_layer =
+        tracing_opentelemetry::layer().with_tracer(tracer.tracer(service_name.clone()));
 
     // Register the meter provider globally so `record_trigger_fired` (and any
     // future instrument) reaches it.
@@ -223,6 +247,12 @@ pub fn init(default_service_name: &str) -> TelemetryGuard {
         .with(otel_trace_layer)
         .with(otel_log_layer)
         .init();
+
+    tracing::info!(
+        service = %service_name,
+        release = %release.as_deref().unwrap_or("unknown"),
+        "telemetry initialized (stdout + OTLP)"
+    );
 
     TelemetryGuard {
         tracer: Some(tracer),
@@ -425,7 +455,8 @@ mod tests {
     /// the flush task make progress while shutdown blocks.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn export_providers_build_all_three_signals_offline() {
-        let providers = build_export_providers("http://127.0.0.1:4317", "telemetry-test");
+        let providers =
+            build_export_providers("http://127.0.0.1:4317", "telemetry-test", Some("26.06.23"));
         // All three signals are present; shutting down flushes (no-op here,
         // nothing batched) without panicking or requiring a live collector.
         let _ = providers.tracer.shutdown();

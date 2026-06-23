@@ -36,7 +36,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: reconcile-invoices-trigger
-              image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-reconcile-invoices-trigger:latest
+              image: ghcr.io/neon-law-foundation/navigator-reconcile-invoices-trigger:YY.MM.DD
               imagePullPolicy: Always
               env:
                 # Restate Cloud ingress endpoint for the navigator-prod

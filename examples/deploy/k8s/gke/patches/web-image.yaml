@@ -1,8 +1,11 @@
-# Pin the prod web image to a specific Artifact Registry SHA. The
-# weekday cron in `.github/workflows/deploy.yml` builds `main` HEAD,
-# pushes to `us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/...`,
-# then commits the new SHA here. Hand-bumping is also fine —
-# Config Sync notices and rolls forward on the next 15s tick.
+# Pin the prod web image to a specific published ghcr release. The daily
+# tag flow in `.github/workflows/deploy.yml` builds `main` HEAD and
+# publishes to `ghcr.io/neon-law-foundation/navigator-web:YY.MM.DD` (the
+# release date) + `latest`. Pin the dated `YY.MM.DD` tag here — never
+# `:latest` on a workload — and `navigator power-push` (or a hand-bump
+# that Config Sync rolls forward on the next 15s tick) moves it. A fork
+# swaps `neon-law-foundation` for its own org; the public packages pull
+# anonymously, so no imagePullSecret is needed.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,5 +16,5 @@ spec:
     spec:
       containers:
         - name: web
-          image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-web:74e5f4a
+          image: ghcr.io/neon-law-foundation/navigator-web:YY.MM.DD
           imagePullPolicy: IfNotPresent
