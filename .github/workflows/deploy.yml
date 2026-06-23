@@ -9,8 +9,9 @@ name: deploy
 #   2. publish     — only if integration is green, push all images (the two
 #      service images + the five CronJob trigger images) to ghcr.io tagged
 #      with the release date + `latest`.
-#   3. notify      — email a deploy report to nick@neonlaw.com via SendGrid
-#      (from support@neonlaw.com — `workflows::DEFAULT_FROM_EMAIL`).
+#   3. notify      — post a deploy report to the engineering Slack channel via
+#      the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from Doppler).
+#      No @-mention — a successful deploy is an FYI, not a page.
 #
 # Plus one out-of-band guard: `notify-failure` posts to the engineering Slack
 # channel (tagging Nick) whenever ANY of the three stages fails, so a broken
@@ -468,66 +469,58 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
-  # ---------- Stage 3: email the deploy report ----------
-  # Sent only after both images are published. From support@neonlaw.com
-  # (workflows::DEFAULT_FROM_EMAIL) to nick@neonlaw.com via the SendGrid v3
-  # API. The one rule still binds: identifiers and counts, never content —
-  # the body carries the tag and the run URL, nothing client-bearing.
+  # ---------- Stage 3: post the deploy report to Slack ----------
+  # Sent only after both images are published. Posts to the engineering
+  # channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from
+  # Doppler) — the same channel and webhook the failure guard below uses, just
+  # WITHOUT the @-mention, because a green deploy is an FYI and shouldn't page.
+  # The one rule still binds: identifiers and counts, never content — the body
+  # carries the tag and the run URL, nothing client-bearing.
   notify:
-    name: email deploy report
+    name: slack deploy report
     needs: publish
     # Tag-only (publish is already tag-gated; stated here too so a branch run
-    # never emails a deploy report).
+    # never posts a deploy report).
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    # A single SendGrid call — should be seconds; cap it so a hung HTTP
+    # A single webhook POST — should be seconds; cap it so a hung HTTP
     # request can't keep the workflow open.
     timeout-minutes: 10
     steps:
-      - name: send deploy email via SendGrid
+      - name: post deploy report to engineering Slack
         env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           TAG: ${{ github.ref_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ -z "${SENDGRID_API_KEY}" ]; then
-              echo "::error::SENDGRID_API_KEY is unset — cannot send the deploy report"
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the deploy report"
               exit 1
           fi
-          BODY="Navigator ${TAG} shipped: KIND integration passed and all images (navigator-web, navigator-workflows-service, and the five navigator-*-trigger images) were pushed to ghcr.io tagged ${TAG} and latest.
-
+          TEXT=":rocket: Navigator ${TAG} shipped — KIND integration passed and all images (navigator-web, navigator-workflows-service, and the five navigator-*-trigger images) were pushed to ghcr.io tagged ${TAG} and latest.
           Run: ${RUN_URL}"
-          PAYLOAD=$(jq -n \
-              --arg to "nick@neonlaw.com" \
-              --arg from "support@neonlaw.com" \
-              --arg subject "Navigator deploy ${TAG} succeeded" \
-              --arg body "${BODY}" \
-              '{
-                personalizations: [ { to: [ { email: $to } ] } ],
-                from: { email: $from },
-                subject: $subject,
-                content: [ { type: "text/plain", value: $body } ]
-              }')
-          code=$(curl -sS -o /tmp/sendgrid.out -w '%{http_code}' \
-              -X POST https://api.sendgrid.com/v3/mail/send \
-              -H "Authorization: Bearer ${SENDGRID_API_KEY}" \
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
+              -X POST "${SLACK_WEBHOOK_URL}" \
               -H "Content-Type: application/json" \
               -d "${PAYLOAD}")
-          echo "SendGrid responded ${code}"
-          # SendGrid returns 202 Accepted on success.
-          if [ "${code}" != "202" ]; then
-              echo "::error::SendGrid send failed (${code})"
-              cat /tmp/sendgrid.out || true
+          echo "Slack responded ${code}"
+          # Slack incoming webhooks return 200 with body "ok" on success.
+          if [ "${code}" != "200" ]; then
+              echo "::error::Slack post failed (${code})"
+              cat /tmp/slack.out || true
               exit 1
           fi
-          echo "Deploy report emailed to nick@neonlaw.com"
+          echo "Deploy report posted to engineering Slack"
 
   # ---------- Failure guard: alert the engineering Slack channel ----------
   # Fires whenever ANY of integration/publish/notify fails (failure() is true
   # if any needed job — or its upstream — failed, even when later jobs were
   # skipped as a result). Posts to the engineering channel via the prod ops
-  # incoming webhook (SLACK_WEBHOOK_URL, synced from Doppler) and tags Nick.
-  # Like the email above: tag + run URL only, never client content.
+  # incoming webhook (SLACK_WEBHOOK_URL, synced from Doppler) and tags Nick —
+  # the @-mention is what separates this paging alert from the un-tagged
+  # success report above. Like that report: tag + run URL only, never client
+  # content.
   notify-failure:
     name: slack — alert engineering on failure
     needs: [build, integration, publish, notify]
