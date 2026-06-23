@@ -34,6 +34,7 @@ data:
           "email": "staff@neonlaw.com",
           "emailVerified": true,
           "firstName": "Staff",
+          "lastName": "Member",
           "credentials": [
             { "type": "password", "value": "staff", "temporary": false }
           ]
