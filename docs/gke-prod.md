@@ -81,7 +81,7 @@ PR merged to main
   └─→ .github/workflows/ci.yml runs fmt + clippy + cargo test --workspace
       (no images built — the PR flow is lean by design)
 
-Daily 02:00 PST (10:00 UTC)
+Daily 05:00 PST (13:00 UTC)
   └─→ .github/workflows/release-tag.yml cuts tag YY.MM.DD (e.g. 26.06.18)
       and pushes it with secrets.RELEASE_PAT
             └─→ the tag push triggers .github/workflows/deploy.yml

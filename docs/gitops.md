@@ -58,9 +58,9 @@ CI/CD path, so a retention change never lands in a release diff and a cleanup ru
 | Workflow | Trigger | Job |
 | --- | --- | --- |
 | [`ci.yml`](../.github/workflows/ci.yml) | `pull_request` → `main` | lean fmt + clippy + `cargo test --workspace` |
-| [`release-tag.yml`](../.github/workflows/release-tag.yml) | cron 02:00 PST | cut + push the `YY.MM.DD` tag |
+| [`release-tag.yml`](../.github/workflows/release-tag.yml) | cron 05:00 PST | cut + push the `YY.MM.DD` tag |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | `YY.MM.DD` tag push | integration → push images → Slack hand-off |
-| [`cleanup.yml`](../.github/workflows/cleanup.yml) | cron 04:00 PST | prune ghcr versions > 14 days (maintenance) |
+| [`cleanup.yml`](../.github/workflows/cleanup.yml) | cron 07:00 PST | prune ghcr versions > 14 days (maintenance) |
 
 ### PR flow — `ci.yml`
 
@@ -74,7 +74,7 @@ Integration/KIND/docker/browser work does **not** run here.
 
 ### Cron flow — `release-tag.yml`
 
-Fires daily at **02:00 PST** (`0 10 * * *` UTC). Its only job is to cut a calendar release tag `YY.MM.DD` (e.g.
+Fires daily at **05:00 PST** (`0 13 * * *` UTC). Its only job is to cut a calendar release tag `YY.MM.DD` (e.g.
 `26.06.18` for 2026-06-18) and push it with a PAT (`secrets.RELEASE_PAT`) so the push re-triggers the tag flow below.
 
 ### Tag flow — `deploy.yml`
@@ -89,7 +89,7 @@ posts a separate alert to the same channel, also tagging Nick. The images are pu
 
 ### Maintenance flow — `cleanup.yml`
 
-Separate from the CI/CD three, on its own cron and knowing nothing about tags. Fires daily at **04:00 PST** (12:00 UTC)
+Separate from the CI/CD three, on its own cron and knowing nothing about tags. Fires daily at **07:00 PST** (15:00 UTC)
 — two hours after the tag cut, so the day's fresh images already exist — and prunes ghcr: it deletes every `navigator-*`
 container version older than 14 days via
 [`snok/container-retention-policy`](https://github.com/snok/container-retention-policy), authenticated with
