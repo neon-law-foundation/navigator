@@ -37,6 +37,12 @@ jobs:
       CARGO_INCREMENTAL: "0"
       CARGO_PROFILE_DEV_DEBUG: "0"
       CARGO_PROFILE_TEST_DEBUG: "0"
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      # Treat the cache as an accelerator, never as part of correctness. If the
+      # GitHub cache service hiccups, rustc runs locally and the gate still
+      # proves the code path.
+      SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
     steps:
       # The standard ubuntu-latest runner ships ~21-28 GB free on `/` — not
       # enough for this workspace's test artifacts (arrow/parquet/iceberg/
@@ -79,6 +85,8 @@ jobs:
           # Restoring target/ makes the standard hosted runner run out of
           # disk once clippy and test artifacts accumulate.
           cache-targets: false
+      - name: cache rustc outputs with sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
       # One Postgres for the whole job — "the same postgres container."
       # With `TEST_DATABASE_URL` set, `store::test_support` connects here
       # and creates a per-test schema instead of spawning a testcontainer
@@ -132,6 +140,11 @@ jobs:
           files: lcov.info
           # Never let a Codecov outage block the auto-merge gate.
           fail_ci_if_error: false
+      - name: show sccache stats
+        if: always()
+        continue-on-error: true
+        run: |
+          "${SCCACHE_PATH:-sccache}" --show-stats
 
   enable-automerge:
     name: enable PR auto-merge
