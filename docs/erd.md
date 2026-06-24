@@ -353,6 +353,7 @@ erDiagram
         CHARACTER VARYING title
         CHARACTER VARYING phone
         CHARACTER VARYING xero_contact_id
+        CHARACTER VARYING profile_image_url
     }
     playbooks {
         UUID id PK
@@ -506,6 +507,19 @@ erDiagram
         UUID blob_id FK
         CHARACTER VARYING form_code
     }
+    testimonials {
+        UUID id PK
+        UUID project_id FK
+        UUID person_id FK
+        CHARACTER VARYING product_code FK
+        TEXT quote
+        CHARACTER VARYING attribution_label
+        CHARACTER VARYING consented_at
+        CHARACTER VARYING published_at
+        INTEGER display_order
+        CHARACTER VARYING inserted_at
+        CHARACTER VARYING updated_at
+    }
     xero_invoices {
         UUID id PK
         UUID project_id FK
@@ -583,6 +597,8 @@ erDiagram
     statutes ||--o{ statute_revisions : "statute_id"
     projects ||--o{ templates : "project_id"
     blobs ||--o{ templates : "blob_id"
+    projects ||--o{ testimonials : "project_id"
+    persons ||--o{ testimonials : "person_id"
+    products ||--o{ testimonials : "product_code"
     projects ||--o{ xero_invoices : "project_id"
-
 ```

@@ -50,4 +50,5 @@ pub mod statute;
 pub mod statute_revision;
 pub mod subscription;
 pub mod template;
+pub mod testimonial;
 pub mod xero_invoice;
