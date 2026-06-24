@@ -568,7 +568,7 @@ async fn notations_serves_the_tree_readme_under_foundation_brand() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("<title>Neon Law Foundation | Notations</title>"));
-    assert!(body.contains(">notation_templates</h1>"));
+    assert!(body.contains(">Notation</h1>"));
     assert!(body.contains("Every file is markdown with a YAML frontmatter block"));
     assert!(body.contains("href=\"/docs/notation\""));
     assert!(body.contains("href=\"/foundation/navigator#trademarks\""));
