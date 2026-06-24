@@ -42,20 +42,54 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: prune container versions older than 14 days
-        uses: snok/container-retention-policy@v3.1.0
-        with:
-          account: ${{ github.repository_owner }}
+        env:
           # RELEASE_PAT (Doppler navigator-gitops/prd, synced to repo secrets).
-          # A PAT — not the temporal GITHUB_TOKEN — is what lets the
-          # `navigator-*` wildcard match, so a newly added trigger image is
-          # swept with no list to keep in sync, and what carries the package
-          # scope to delete versions at all.
-          token: ${{ secrets.RELEASE_PAT }}
-          image-names: "navigator-*"
-          # cut-off 14d removes every version older than two weeks; tag-selection
-          # both also clears untagged layers.
-          cut-off: 14d
-          tag-selection: both
+          # A PAT — not the temporal GITHUB_TOKEN — is what carries the package
+          # scope to list and delete org-owned package versions.
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GH_ORG: ${{ github.repository_owner }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+              echo "::error::RELEASE_PAT is unset — cannot prune ghcr packages"
+              exit 1
+          fi
+
+          cutoff_epoch="$(date -u -d '14 days ago' +%s)"
+          deleted=0
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "${workdir}"' EXIT
+
+          gh api --paginate \
+              "/orgs/${GH_ORG}/packages?package_type=container&per_page=100" \
+              --jq '.[] | select(.name | startswith("navigator-")) | .name' \
+              > "${workdir}/packages"
+
+          while IFS= read -r package; do
+              [ -n "${package}" ] || continue
+              echo "Inspecting ${package}"
+
+              gh api --paginate \
+                  "/orgs/${GH_ORG}/packages/container/${package}/versions?per_page=100" \
+                  --jq '.[] | [.id, .updated_at, (.metadata.container.tags // [] | join(","))] | @tsv' \
+                  > "${workdir}/${package}.versions"
+
+              while IFS=$'\t' read -r version_id updated_at tags; do
+                  [ -n "${version_id}" ] || continue
+                  updated_epoch="$(date -u -d "${updated_at}" +%s)"
+
+                  if [ "${updated_epoch}" -ge "${cutoff_epoch}" ]; then
+                      continue
+                  fi
+
+                  echo "Deleting ${package} version ${version_id} (${updated_at}; tags: ${tags:-<untagged>})"
+                  gh api \
+                      --method DELETE \
+                      "/orgs/${GH_ORG}/packages/container/${package}/versions/${version_id}"
+                  deleted=$((deleted + 1))
+              done < "${workdir}/${package}.versions"
+          done < "${workdir}/packages"
+
+          echo "Deleted ${deleted} stale ghcr package version(s)"
 
   notify-cleanup:
     name: slack — ghcr cleanup ran

@@ -60,12 +60,10 @@ fn rewrite_link(dest: &str) -> String {
         return with_anchor("/foundation/navigator", anchor);
     }
     if let Some(stem) = path.strip_suffix(".md") {
-        if stem.matches('/').count() == 1 {
-            return with_anchor(
-                &format!("/api/templates/{}", crate::slug::to_url(stem)),
-                anchor,
-            );
-        }
+        return with_anchor(
+            &format!("/api/templates/{}", crate::slug::to_url(stem)),
+            anchor,
+        );
     }
     with_anchor(&format!("{REPO_BLOB_BASE}{path}"), anchor)
 }
@@ -87,13 +85,13 @@ mod tests {
         let html = render(AuthState::Anonymous).into_string();
         assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(html.contains("<title>Neon Law Foundation | Notations</title>"));
-        assert!(html.contains(">notation_templates</h1>"));
+        assert!(html.contains(">Notation</h1>"));
         assert!(html.contains("Every file is markdown with a YAML frontmatter block"));
     }
 
     #[test]
     fn notation_templates_page_is_tied_to_the_readme() {
-        assert!(README.starts_with("# notation_templates"));
+        assert!(README.starts_with("# Notation"));
         assert!(README.contains("## Naming convention"));
     }
 
@@ -115,19 +113,22 @@ mod tests {
     }
 
     #[test]
-    fn two_segment_template_links_map_to_the_raw_api() {
-        assert_eq!(rewrite_link("nest/nevada.md"), "/api/templates/nest/nevada");
+    fn template_links_map_to_the_raw_api() {
         assert_eq!(
-            rewrite_link("annual_report/nevada.md"),
-            "/api/templates/annual-report/nevada"
+            rewrite_link("united_states/nevada/state/business_associations/entity_formation.md"),
+            "/api/templates/united-states/nevada/state/business-associations/entity-formation"
+        );
+        assert_eq!(
+            rewrite_link("united_states/nevada/state/business_associations/annual_report.md"),
+            "/api/templates/united-states/nevada/state/business-associations/annual-report"
         );
     }
 
     #[test]
     fn other_relative_links_point_at_the_github_source() {
         assert_eq!(
-            rewrite_link("united_states/nevada/internal/trusts_and_estates/trust.md"),
-            "https://github.com/neon-law-foundation/Navigator/blob/main/notation_templates/united_states/nevada/internal/trusts_and_estates/trust.md"
+            rewrite_link("forms/FORMS.toml"),
+            "https://github.com/neon-law-foundation/Navigator/blob/main/notation_templates/forms/FORMS.toml"
         );
     }
 }

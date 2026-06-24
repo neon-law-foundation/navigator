@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn render_emits_readme_under_foundation_brand_with_rewritten_links() {
-        let readme = "# CLI\n\nSee [the glossary](docs/glossary.md) and [a template](notation_templates/nest/nevada.md).\n";
+        let readme = "# CLI\n\nSee [the glossary](docs/glossary.md) and [a template](notation_templates/united_states/nevada/state/business_associations/entity_formation.md).\n";
         let html = render(
             "Navigator CLI",
             "The navigator operator CLI.",
@@ -176,7 +176,9 @@ mod tests {
         // the raw template API.
         assert!(html.contains("href=\"/docs/glossary\""), "got: {html}");
         assert!(
-            html.contains("href=\"/api/templates/nest/nevada\""),
+            html.contains(
+                "href=\"/api/templates/united-states/nevada/state/business-associations/entity-formation\""
+            ),
             "got: {html}"
         );
         // The cross-package strip rides above the body.
