@@ -23,9 +23,10 @@ pub async fn cover(args: CoverArgs) -> anyhow::Result<()> {
             let project_id = args
                 .google_project
                 .or_else(|| std::env::var("GCLOUD_PROJECT").ok())
+                .or_else(|| std::env::var("NAVIGATOR_GCP_PROJECT_ID").ok())
                 .ok_or_else(|| {
                     anyhow!(
-                        "GOOGLE_CLOUD_PROJECT, GCLOUD_PROJECT, or --google-project is required with --audio"
+                        "GOOGLE_CLOUD_PROJECT, GCLOUD_PROJECT, NAVIGATOR_GCP_PROJECT_ID, or --google-project is required with --audio"
                     )
                 })?;
             let mut config = cloud::GoogleSpeechConfig::new(project_id);
