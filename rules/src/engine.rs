@@ -793,7 +793,7 @@ Body.
         );
         write(
             dir.path(),
-            "notation_templates/trust/nevada.md",
+            "notation_templates/united_states/nevada/internal/trusts_and_estates/trust.md",
             r"---
 title: Nevada Trust
 respondent_type: entity

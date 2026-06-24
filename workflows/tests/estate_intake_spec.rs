@@ -1,6 +1,6 @@
 //! Integration test for the Northstar estate-plan workflow.
 //!
-//! The spec lives in the frontmatter of `notation_templates/onboarding/estate.md`
+//! The spec lives in the frontmatter of `notation_templates/engagements/estate.md`
 //! so the template and this test fail together if either drifts. The
 //! first test asserts the parsed state-machine shape; the second drives
 //! a notation through the happy path on the in-memory runtime to confirm
@@ -15,7 +15,7 @@ use workflows::{
 
 const TEMPLATE_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../notation_templates/onboarding/estate.md",
+    "/../notation_templates/engagements/estate.md",
 );
 
 const KIND: MachineKind = MachineKind::Workflow;

@@ -122,10 +122,12 @@ fn the_template_code_the_section_names_is_a_real_seeded_template() {
         section.contains("onboarding__nest"),
         "the workshop must name the `onboarding__nest` template",
     );
-    let template = repo_file("notation_templates/nest/nevada.md");
+    let template = repo_file(
+        "notation_templates/united_states/nevada/state/business_associations/entity_formation.md",
+    );
     assert!(
         template.contains("code: onboarding__nest"),
-        "`notation_templates/nest/nevada.md` no longer declares `code: onboarding__nest` — \
+        "`notation_templates/united_states/nevada/state/business_associations/entity_formation.md` no longer declares `code: onboarding__nest` — \
          the workshop's `--template onboarding__nest` is now a dead command",
     );
 }
