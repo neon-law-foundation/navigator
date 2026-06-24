@@ -4,7 +4,7 @@ description: >
   Update the workspace's Rust crate dependencies. Two distinct operations under one verb: `cargo update` (refresh
   `Cargo.lock` to the latest SEMVER-COMPATIBLE versions — routine, reversible, the monthly default) and `cargo upgrade`
   (rewrite version requirements in `Cargo.toml`, which can cross MAJOR versions — explicit, reviewed, occasional). The
-  toolchain is pinned at Rust 1.95.0 (`rust-toolchain.toml`); updates must keep building under it. Trigger when the user
+  toolchain is pinned at Rust 1.96.0 (`rust-toolchain.toml`); updates must keep building under it. Trigger when the user
   says "update the crates", "bump dependencies", "cargo update", "upgrade the Rust deps", or as the crate half of a
   periodic refresh. This is SEPARATE from `update-web-assets` (vendored Bootstrap/HTMX/Alpine/Icons) — never bundle the
   two in one commit. To do BOTH in one periodic sweep (still two commits), use the `update` skill (`/update`).
@@ -12,7 +12,7 @@ description: >
 
 # Updating Rust crate dependencies
 
-The workspace pins a toolchain (`rust-toolchain.toml` → **1.95.0**) and declares shared versions in the root
+The workspace pins a toolchain (`rust-toolchain.toml` → **1.96.0**) and declares shared versions in the root
 `[workspace.dependencies]`, which member crates reference via `<dep>.workspace = true`. Some deps are deliberately held
 back — e.g. `tower-cookies = "0.10"` / `maud = "0.26"` are capped because newer versions require axum 0.8 (see the
 comment in `Cargo.toml`). **Respect existing pin comments**; if a bump would cross one, stop and surface it rather than
@@ -45,10 +45,10 @@ cargo upgrade -p <crate> --incompatible   # allow a major bump for one crate
 A major bump that ripples across crates (e.g. an axum 0.7→0.8 that drags tower-cookies + maud) is an architecture
 decision — take it through `/council` before editing manifests.
 
-## MSRV gate — stays at 1.95.0
+## MSRV gate — stays at 1.96.0
 
 Do not bump `rust-toolchain.toml` as part of a dependency update. If a new crate version requires a rustc newer than the
-pinned 1.95.0, that is its own decision: stop, name the crate and the MSRV it demands, and ask before raising the
+pinned 1.96.0, that is its own decision: stop, name the crate and the MSRV it demands, and ask before raising the
 toolchain. Keeping the pin is what guarantees dev == KIND == prod build the same bytes.
 
 ## Verification — the standard gate

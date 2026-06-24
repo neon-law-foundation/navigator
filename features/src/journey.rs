@@ -234,10 +234,13 @@ pub async fn client(db: &Db, name: &str, email: &str) -> entity::person::Model {
 /// admin retainer-walk's project bootstrap, for journeys that drive the
 /// notation directly through the worker rather than the web walker.
 pub async fn matter(db: &Db, person_id: uuid::Uuid, name: &str) -> uuid::Uuid {
+    let __dri = store::test_support::dri_person(db).await;
     let project_id = entity::project::ActiveModel {
         name: ActiveValue::Set(name.into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(db)

@@ -10,6 +10,8 @@ pub mod f105;
 pub mod f106;
 pub mod f107;
 pub mod f108;
+pub mod f109;
+pub mod f110;
 pub mod frontmatter;
 pub mod m001;
 pub mod m003;
@@ -64,6 +66,8 @@ pub use f105::F105ConfidentialRequired;
 pub use f106::F106StaffReviewRequired;
 pub use f107::F107SignaturePlaceholders;
 pub use f108::F108TemplateCodeRequired;
+pub use f109::F109OutputFormat;
+pub use f110::{F110JurisdictionPath, FORUMS, JURISDICTIONS, PRACTICE_AREAS};
 pub use m001::M001HeadingIncrement;
 pub use m003::M003HeadingStyle;
 pub use m004::M004ULStyle;
@@ -112,8 +116,8 @@ pub use m060::M060TableColumnStyle;
 pub use s102::S102LinePacking;
 
 pub use engine::{
-    classify_source, lint_source_classified, navigator_classified_rules,
-    navigator_classified_rules_with_codes, navigator_default_rules,
+    classify_source, code_uniqueness_violations, lint_source_classified,
+    navigator_classified_rules, navigator_classified_rules_with_codes, navigator_default_rules,
     navigator_default_rules_with_codes, navigator_markdown_only_rules, ClassifiedRuleEngine,
     DefaultFileFilter, DocumentKind, FileFilter, LintReport, RuleEngine,
 };
@@ -220,6 +224,9 @@ pub fn description_for_code(code: &str) -> &'static str {
             "Signature placeholders must name a known signer/field and a signing workflow state"
         }
         "N108" => "Notation template must declare a stable `code`",
+        "N109" => "Notation template `output:` must name a known render format",
+        "N110" => "Notation template under a jurisdiction must encode it in the path",
+        "N111" => "Notation template `code` must be unique across the tree",
         "M001" => "Heading levels must increment by one",
         "M003" => "Headings must use the ATX (`# Heading`) style",
         "M004" => "Unordered list markers must be consistent",

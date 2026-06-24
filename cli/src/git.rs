@@ -33,7 +33,7 @@ pub fn random_pat() -> String {
 
 /// The clone URL for a Project: `<base>/projects/<id>.git`. `base` is
 /// the deployment's public origin (`https://www.your-domain.example`) —
-/// never hard-coded (`feedback_skills_no_hardcoded_values`).
+/// never hard-coded.
 #[must_use]
 pub fn clone_url(base: &str, project_id: Uuid) -> String {
     format!("{}/projects/{project_id}.git", base.trim_end_matches('/'))

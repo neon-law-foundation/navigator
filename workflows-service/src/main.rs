@@ -16,7 +16,7 @@ use billing_workflows::reconcile::{ReconcileInvoices, ReconcileInvoicesService};
 use billing_workflows::recurring::{RecurringBilling, RecurringBillingService};
 use restate_sdk::prelude::*;
 use statutes::workflow::{Statutes, StatutesService};
-use workflows::{EmailService, OpsEmailMirror};
+use workflows::{EmailService, SlackOpsDelivery};
 use workflows_service::heartbeat::{Heartbeat, HeartbeatService};
 use workflows_service::notation_service::Notation;
 use workflows_service::{email_from_env, notifier_from_env, NotationService};
@@ -47,13 +47,14 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Internal ops notifications (Heartbeat, Archives, Statutes, BillingCanary,
-    // BillingDigest) dual-send: the email backend above PLUS a Slack incoming
-    // webhook to the engineering channel, so the recurring liveness signal also
-    // lands where engineers watch. `ops_email` wraps the bare email backend in
-    // a best-effort Slack mirror; a Slack outage never fails the durable email
-    // step. Client-facing services (Notation, RecurringBilling invoices) keep
-    // the plain `email` backend — mirroring client content into chat would
-    // cross the firm's no-content trust boundary.
+    // BillingDigest) deliver to a Slack incoming webhook on the engineering
+    // channel — where engineers watch — and no longer also go out as email: a
+    // recurring liveness signal is easy to lose in an inbox, so the duplicate
+    // ops email was dropped once Slack proved reliable. `ops_delivery` routes
+    // each rendered ops notice to Slack via the `EmailService` seam (no mail).
+    // Client-facing services (Notation, RecurringBilling invoices) keep the
+    // plain `email` backend — pushing client content into chat would cross the
+    // firm's no-content trust boundary.
     let notifier = notifier_from_env();
     tracing::info!(
         backend = if workflows_service::notify_config::slack_enabled(|k| std::env::var(k).ok()) {
@@ -63,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
         },
         "workflows-service ops-notification backend"
     );
-    let ops_email: Arc<dyn EmailService> = Arc::new(OpsEmailMirror::new(email.clone(), notifier));
+    let ops_delivery: Arc<dyn EmailService> = Arc::new(SlackOpsDelivery::new(notifier));
 
     // Object storage for `document_open__*` step dispatch (the worker
     // renders the PDF and persists it here). Same `cloud::from_env`
@@ -93,12 +94,12 @@ async fn main() -> anyhow::Result<()> {
         Endpoint::builder()
             // Client-facing email → plain backend (no Slack mirror).
             .bind(NotationService::new(db.clone(), email.clone(), storage).serve())
-            // Internal ops email → dual-sent to Slack via `ops_email`.
-            .bind(ArchivesService::new(ops_email.clone()).serve())
-            .bind(StatutesService::new(ops_email.clone()).serve())
-            .bind(HeartbeatService::new(ops_email.clone()).serve())
-            .bind(BillingCanaryService::new(ops_email.clone()).serve())
-            .bind(BillingDigestService::new(ops_email).serve())
+            // Internal ops notice → Slack only via `ops_delivery` (no email).
+            .bind(ArchivesService::new(ops_delivery.clone()).serve())
+            .bind(StatutesService::new(ops_delivery.clone()).serve())
+            .bind(HeartbeatService::new(ops_delivery.clone()).serve())
+            .bind(BillingCanaryService::new(ops_delivery.clone()).serve())
+            .bind(BillingDigestService::new(ops_delivery).serve())
             .bind(MatterCloseInvoiceService::new(db.clone()).serve())
             // Client-facing invoices → plain backend (no Slack mirror).
             .bind(RecurringBillingService::new(db.clone(), email).serve())

@@ -8,6 +8,7 @@ mod credentials;
 mod devx;
 mod drive;
 mod erd;
+mod events;
 mod format;
 mod forms_sync;
 mod git;
@@ -74,6 +75,43 @@ enum Command {
         /// environment variable.
         #[arg(long, env = "DATABASE_URL")]
         database_url: Option<String>,
+    },
+    /// Validate reviewable event markdown under `<dir>`.
+    ///
+    /// Event files mirror the blog convention (`YYYYMMDD_slug.md`) and
+    /// require structured front matter for title, description, local
+    /// Pacific start/end times, place, current external event provider,
+    /// and optional post-event video/recap links.
+    ValidateEvents {
+        /// Directory to walk.
+        #[arg(default_value = "web/content/events")]
+        dir: PathBuf,
+    },
+    /// Render a single notation template to a PDF, framed by an output
+    /// format (a plain document, or a firm `letter` on Neon Law
+    /// letterhead with the logo).
+    ///
+    /// The file is validated against the same notation rule set as
+    /// `validate` first — a template with any violation is refused. The
+    /// output format is taken from the template's `output:` frontmatter
+    /// field, overridable with `--format`; absent both, it renders
+    /// plain. Markdown is converted to Typst and compiled in pure Rust
+    /// (no shell-out). `{{placeholder}}` tokens render verbatim unless
+    /// filled with `--answer code=value`.
+    Render {
+        /// Path to the notation template (`.md`).
+        file: PathBuf,
+        /// Where to write the rendered PDF.
+        #[arg(long)]
+        out: PathBuf,
+        /// Output format (`plain` or `letter`). Overrides the
+        /// template's `output:` frontmatter field when set.
+        #[arg(long)]
+        format: Option<String>,
+        /// Fill a `{{code}}` placeholder with `value`. Repeatable:
+        /// `--answer counterparty_legal_name="NEON GmbH"`.
+        #[arg(long = "answer", value_parser = parse_answer)]
+        answers: Vec<(String, String)>,
     },
     /// Import every clean template under `<dir>` into a Postgres
     /// database.
@@ -156,7 +194,7 @@ enum Command {
         #[command(subcommand)]
         action: AssetsAction,
     },
-    /// Vendored government forms (`templates/forms/` + FORMS.toml).
+    /// Vendored government forms (`notation_templates/forms/` + FORMS.toml).
     Forms {
         #[command(subcommand)]
         action: FormsAction,
@@ -246,7 +284,7 @@ enum Command {
         action: NotationAction,
     },
     /// Drop the three files that a new legal workflow starts with:
-    /// `templates/<category>/<jurisdiction>.md`,
+    /// `notation_templates/<category>/<jurisdiction>.md`,
     /// `workflows/specs/<code>.yaml`, and
     /// `features/tests/features/<matter>.feature`. Idempotent —
     /// existing files are left alone.
@@ -254,7 +292,7 @@ enum Command {
         /// Snake-case matter slug, e.g. `incorporation`,
         /// `estate_planning`. Forms the prefix of the template `code`.
         matter: String,
-        /// Directory under `templates/` to drop the markdown into.
+        /// Directory under `notation_templates/` to drop the markdown into.
         #[arg(long)]
         category: String,
         /// Jurisdiction name (`PascalCase` for the filename,
@@ -396,16 +434,16 @@ enum Command {
         #[arg(long)]
         namespace: Option<String>,
     },
-    /// One-shot "ship to prod" — the executable form of the
-    /// `power-push` skill. Default flow: verify (fmt/clippy/test/
-    /// markdown) → build BOTH images → push BOTH to Artifact Registry
-    /// → archive a git bundle to the GCS source bucket → confirm the
-    /// prod Secret satisfies the new binary's boot invariants → roll
-    /// out BOTH deployments at HEAD's short SHA → re-register the
-    /// worker with Restate → reclaim the local images. Reads every
-    /// project / region / domain / cluster value from `.env`; assumes
-    /// HEAD is already committed (the image tag is HEAD's SHA — this
-    /// never commits for you).
+    /// One-shot "ship to prod" — the executable path documented in
+    /// `docs/cloud-operations.md`. CI (`deploy.yml`) builds and publishes
+    /// the images to ghcr.io tagged `YY.MM.DD`; power-push only rolls the
+    /// cluster. Default flow: resolve the `YY.MM.DD` ghcr tag (latest
+    /// published, or `--tag`) → confirm the prod Secret satisfies the new
+    /// binary's boot invariants → roll out BOTH deployments at that tag →
+    /// pin every trigger `CronJob` to the same tag → re-register the worker
+    /// with Restate, so every navigator image ends in sync at one
+    /// `YY.MM.DD`. Reads every project / region / domain / cluster value
+    /// from `.env`; never builds images locally.
     PowerPush {
         /// Print every command instead of running it.
         #[arg(long)]
@@ -415,10 +453,11 @@ enum Command {
         /// after rotating a key in the K8s Secret.
         #[arg(long)]
         restart_only: bool,
-        /// Skip the fmt/clippy/test/markdown gates. Only safe when
-        /// shipping a SHA already verified in this session.
+        /// The `YY.MM.DD` ghcr tag to roll onto. Omit to roll the latest
+        /// published tag (resolved from ghcr). Both deployments are
+        /// pinned to the same tag — never a version skew.
         #[arg(long)]
-        skip_verify: bool,
+        tag: Option<String>,
     },
     /// DNS provisioning. Ensures MX / SPF / DMARC (+ optional DKIM)
     /// for a domain via the configured DNS provider (`DNSimple` today).
@@ -486,7 +525,7 @@ enum AssetsAction {
 #[derive(Subcommand)]
 enum FormsAction {
     /// Push every vendored blank (the `forms` registry bundled from
-    /// `templates/forms/`) to the assets bucket at its FORMS.toml
+    /// `notation_templates/forms/`) to the assets bucket at its FORMS.toml
     /// `object_path`. Idempotent — existing keys are skipped, since a
     /// form revision is immutable (a refresh lands at a new path).
     /// Auth is ADC; the emulator endpoint is honored via
@@ -821,6 +860,13 @@ enum ProjectAction {
         /// Entity.
         #[arg(long)]
         entity_name: Option<String>,
+        /// Email of the pre-existing **client** Person this matter is
+        /// opened for — its client-side DRI. Required: every matter has a
+        /// client of record, and it must be a `role = client` person
+        /// (create the client first). The staff-side DRI defaults to the
+        /// firm principal.
+        #[arg(long)]
+        client_email: String,
         /// Lifecycle status. `open`, `closed`, or `archived`.
         #[arg(long, default_value = "open")]
         status: String,
@@ -963,6 +1009,7 @@ enum LiveTranscriptionAction {
     },
 }
 
+#[allow(clippy::too_many_lines)] // one flat dispatch match; splitting it hurts readability
 fn main() -> ExitCode {
     // `.env` is picked up before `clap` reads its `env = "..."`
     // defaults. No-op when no file is present, so CI/cluster deploys
@@ -987,6 +1034,13 @@ fn main() -> ExitCode {
             fix,
             database_url.as_deref(),
         )),
+        Command::ValidateEvents { dir } => events::run_validate(&dir),
+        Command::Render {
+            file,
+            out,
+            format,
+            answers,
+        } => run_render(&file, &out, format.as_deref(), &answers),
         Command::Import { dir, database_url } => {
             runtime().block_on(run_import(&dir, &database_url))
         }
@@ -1229,6 +1283,7 @@ async fn run_project(action: ProjectAction) -> ExitCode {
         ProjectAction::Create {
             name,
             entity_name,
+            client_email,
             status,
             database_url,
             skip_migrate_and_seed,
@@ -1236,6 +1291,7 @@ async fn run_project(action: ProjectAction) -> ExitCode {
             run_project_create(
                 &name,
                 entity_name.as_deref(),
+                &client_email,
                 &status,
                 &database_url,
                 skip_migrate_and_seed,
@@ -1270,6 +1326,7 @@ async fn run_project(action: ProjectAction) -> ExitCode {
 async fn run_project_create(
     name: &str,
     entity_name: Option<&str>,
+    client_email: &str,
     status: &str,
     database_url: &str,
     skip_migrate_and_seed: bool,
@@ -1295,7 +1352,7 @@ async fn run_project_create(
             return ExitCode::from(2);
         }
     }
-    match project::create(&db, name, entity_name, status).await {
+    match project::create(&db, name, entity_name, client_email, status).await {
         Ok(p) => {
             println!(
                 "{} {} (status={}, entity_id={})",
@@ -1468,6 +1525,20 @@ async fn run_notation(action: NotationAction) -> ExitCode {
     }
 }
 
+/// The `N111` cross-file code-uniqueness pass for `validate`. Builds its
+/// own filter because the lint engine takes ownership of the primary one.
+fn code_uniqueness_pass(
+    dir: &std::path::Path,
+    no_default_excludes: bool,
+) -> std::io::Result<Vec<rules::Violation>> {
+    let filter: Box<dyn rules::FileFilter> = if no_default_excludes {
+        Box::new(rules::DefaultFileFilter::without_default_excludes())
+    } else {
+        Box::new(rules::DefaultFileFilter::default())
+    };
+    rules::code_uniqueness_violations(dir, filter.as_ref())
+}
+
 async fn run_validate(
     dir: &std::path::Path,
     markdown_only: bool,
@@ -1541,13 +1612,25 @@ async fn run_validate(
             .with_filter(filter);
         engine.lint_directory(dir)
     };
-    let report = match report {
+    let mut report = match report {
         Ok(r) => r,
         Err(e) => {
             eprintln!("navigator: {e}");
             return ExitCode::from(2);
         }
     };
+    // Cross-file `N111`: notation template `code` must be unique across
+    // the tree. Only meaningful for the classified (notation) rule set,
+    // not the markdown-only prose pass.
+    if !markdown_only {
+        match code_uniqueness_pass(dir, no_default_excludes) {
+            Ok(mut v) => report.violations.append(&mut v),
+            Err(e) => {
+                eprintln!("navigator: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    }
     for v in &report.violations {
         print_violation(&v.path.display().to_string(), v.line, v.code, &v.message);
     }
@@ -1564,6 +1647,135 @@ async fn run_validate(
     } else {
         ExitCode::from(1)
     }
+}
+
+/// Parse a `--answer code=value` argument into its halves. The value
+/// may itself contain `=`; only the first `=` splits.
+fn parse_answer(raw: &str) -> Result<(String, String), String> {
+    let (code, value) = raw
+        .split_once('=')
+        .ok_or_else(|| format!("expected `code=value`, got `{raw}`"))?;
+    if code.is_empty() {
+        return Err(format!("empty answer code in `{raw}`"));
+    }
+    Ok((code.to_string(), value.to_string()))
+}
+
+/// Render one notation template to a PDF. Validates the file against the
+/// notation rule set, resolves the output format (CLI override →
+/// `output:` frontmatter → plain), fills any `{{code}}` placeholders
+/// from `answers`, and writes the compiled PDF to `out`.
+fn run_render(
+    file: &std::path::Path,
+    out: &std::path::Path,
+    format_override: Option<&str>,
+    answers: &[(String, String)],
+) -> ExitCode {
+    let contents = match std::fs::read_to_string(file) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("navigator: read {}: {e}", file.display());
+            return ExitCode::from(2);
+        }
+    };
+
+    // Gate on validation: only a clean notation template renders. Use
+    // the same DB-free classified rule set as `validate`.
+    let source = rules::SourceFile {
+        path: file.to_path_buf(),
+        contents: contents.clone(),
+    };
+    let violations: Vec<rules::Violation> =
+        rules::navigator_classified_rules_with_codes(&source, &[])
+            .iter()
+            .flat_map(|r| r.lint(&source))
+            .collect();
+    if !violations.is_empty() {
+        for v in &violations {
+            print_violation(&v.path.display().to_string(), v.line, v.code, &v.message);
+        }
+        eprintln!(
+            "navigator: {} validation violation(s); not rendering",
+            violations.len()
+        );
+        return ExitCode::from(1);
+    }
+
+    // Resolve the output format: explicit flag wins, else the
+    // template's `output:` field, else plain.
+    let declared = rules::frontmatter::extract(&contents)
+        .and_then(|fm| rules::frontmatter::field(fm, "output"))
+        .filter(|s| !s.is_empty());
+    let format_name = format_override.map(str::to_string).or(declared);
+    let format = match format_name.as_deref().map(pdf::OutputFormat::parse) {
+        // No format declared anywhere: render a plain document.
+        None => pdf::OutputFormat::Plain,
+        Some(Some(f)) => f,
+        Some(None) => {
+            let name = format_name.unwrap_or_default();
+            // Derive the accepted list from the format enum so a new
+            // variant shows up in the hint without a manual edit here.
+            // `plain` is the implicit default and absent from
+            // `FRONTMATTER_VALUES`, so prepend it.
+            let known = std::iter::once("plain")
+                .chain(pdf::OutputFormat::FRONTMATTER_VALUES.iter().copied())
+                .collect::<Vec<_>>()
+                .join(", ");
+            eprintln!("navigator: unknown --format `{name}` (expected one of: {known})");
+            return ExitCode::from(2);
+        }
+    };
+
+    // Body is everything after the frontmatter block; fill placeholders.
+    let mut body = strip_frontmatter(&contents).to_string();
+    for (code, value) in answers {
+        body = body.replace(&format!("{{{{{code}}}}}"), value);
+    }
+
+    // Source the letterhead from the canonical firm brand so the
+    // rendered address honors the same `NAVIGATOR_*` overrides as the
+    // website footer.
+    let brand = &views::brand::FIRM_BRAND;
+    let letterhead = pdf::Letterhead {
+        name: brand.site_name.to_string(),
+        contact: "neonlaw.com".to_string(),
+        address: brand.postal_address.to_string(),
+    };
+    let bytes = match pdf::render_document(&body, format, &letterhead) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("navigator: render {}: {e}", file.display());
+            return ExitCode::from(2);
+        }
+    };
+    if let Err(e) = std::fs::write(out, &bytes) {
+        eprintln!("navigator: write {}: {e}", out.display());
+        return ExitCode::from(2);
+    }
+    println!(
+        "{}",
+        palette::dim(format!(
+            "Rendered {} ({format:?}, {} bytes) → {}",
+            file.display(),
+            bytes.len(),
+            out.display()
+        ))
+    );
+    ExitCode::SUCCESS
+}
+
+/// Return the body of a notation file — everything after the leading
+/// YAML frontmatter block. When there is no recognized frontmatter, the
+/// whole string is the body.
+fn strip_frontmatter(contents: &str) -> &str {
+    let Some(after_open) = contents.strip_prefix("---\n") else {
+        return contents;
+    };
+    if let Some(end) = after_open.find("\n---\n") {
+        return after_open[end + "\n---\n".len()..].trim_start_matches('\n');
+    }
+    // Closer at EOF with no body, or no closer at all.
+    after_open.strip_suffix("\n---").map_or(contents, |_| "")
 }
 
 struct FixReport {

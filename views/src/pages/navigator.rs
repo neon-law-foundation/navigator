@@ -7,7 +7,7 @@
 //! [`rewrite_link`] so they also resolve on the web:
 //!
 //! - a top-level `docs/<name>.md` → the published `/docs/<name>` route;
-//! - a `templates/<cat>/<name>.md` → the raw `/api/templates/<cat>/<name>`
+//! - a `notation_templates/**/*.md` link → the raw `/api/templates/**`
 //!   endpoint (`web::template_api`);
 //! - every other repo-relative path (nested docs, `LICENSE-*`) → the
 //!   GitHub source, so no link dead-ends;
@@ -70,17 +70,19 @@ pub(crate) fn rewrite_link(dest: &str) -> String {
         .and_then(|rest| rest.strip_suffix(".md"))
     {
         if !stem.contains('/') {
-            return with_anchor(&format!("/docs/{stem}"), anchor);
+            // URLs are kebab-case; the file stem keeps its underscores.
+            return with_anchor(&format!("/docs/{}", crate::slug::to_url(stem)), anchor);
         }
     }
-    // A `templates/<cat>/<name>.md` maps to the raw template API.
+    // A `notation_templates/**/*.md` link maps to the raw template API.
     if let Some(stem) = path
-        .strip_prefix("templates/")
+        .strip_prefix("notation_templates/")
         .and_then(|rest| rest.strip_suffix(".md"))
     {
-        if stem.matches('/').count() == 1 {
-            return with_anchor(&format!("/api/templates/{stem}"), anchor);
-        }
+        return with_anchor(
+            &format!("/api/templates/{}", crate::slug::to_url(stem)),
+            anchor,
+        );
     }
     // Everything else repo-relative resolves against the GitHub source.
     with_anchor(&format!("{REPO_BLOB_BASE}{path}"), anchor)
@@ -134,13 +136,29 @@ mod tests {
             "/docs/notation#templates"
         );
         assert_eq!(rewrite_link("docs/glossary.md"), "/docs/glossary");
+        // An underscore doc filename is rewritten to its kebab-case URL.
+        assert_eq!(
+            rewrite_link("docs/retainer_intake.md"),
+            "/docs/retainer-intake"
+        );
     }
 
     #[test]
     fn template_links_map_to_the_raw_api() {
         assert_eq!(
-            rewrite_link("templates/nest/nevada.md"),
-            "/api/templates/nest/nevada"
+            rewrite_link("notation_templates/united_states/nevada/state/business_associations/entity_formation.md"),
+            "/api/templates/united-states/nevada/state/business-associations/entity-formation"
+        );
+        // Underscores in either segment become hyphens in the URL.
+        assert_eq!(
+            rewrite_link(
+                "notation_templates/united_states/federal/irs/taxation/form990_annual_report.md"
+            ),
+            "/api/templates/united-states/federal/irs/taxation/form990-annual-report"
+        );
+        assert_eq!(
+            rewrite_link("notation_templates/united_states/nevada/state/business_associations/annual_report.md"),
+            "/api/templates/united-states/nevada/state/business-associations/annual-report"
         );
     }
 
@@ -176,7 +194,9 @@ mod tests {
             "glossary link should resolve to the site route"
         );
         assert!(
-            html.contains("href=\"/api/templates/nest/nevada\""),
+            html.contains(
+                "href=\"/api/templates/united-states/nevada/state/business-associations/entity-formation\""
+            ),
             "template link should resolve to the raw API"
         );
         assert!(

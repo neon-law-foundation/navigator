@@ -32,10 +32,10 @@ use opentelemetry::trace::TracerProvider as _;
 use opentelemetry::KeyValue;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::logs::LoggerProvider;
+use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace::TracerProvider;
+use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -66,9 +66,9 @@ pub mod outcome {
 /// batched spans/metrics/logs before the process exits.
 #[must_use = "dropping the guard immediately flushes and tears down telemetry"]
 pub struct TelemetryGuard {
-    tracer: Option<TracerProvider>,
+    tracer: Option<SdkTracerProvider>,
     meter: Option<SdkMeterProvider>,
-    logger: Option<LoggerProvider>,
+    logger: Option<SdkLoggerProvider>,
 }
 
 impl TelemetryGuard {
@@ -97,9 +97,9 @@ impl Drop for TelemetryGuard {
 /// the same way — the tests exercise this without touching the process-global
 /// subscriber, which can only be installed once.
 struct ExportProviders {
-    tracer: TracerProvider,
+    tracer: SdkTracerProvider,
     meter: SdkMeterProvider,
-    logger: LoggerProvider,
+    logger: SdkLoggerProvider,
 }
 
 /// Normalize the raw `OTEL_EXPORTER_OTLP_ENDPOINT` value: an unset, empty, or
@@ -115,11 +115,21 @@ fn normalize_endpoint(raw: Option<String>) -> Option<String> {
 /// resources that can drift). Building an exporter does **not** open a
 /// connection — tonic connects lazily on first export — so this is safe to call
 /// offline (and the unit tests do exactly that).
-fn build_export_providers(endpoint: &str, service_name: &str) -> ExportProviders {
-    let resource = Resource::new(vec![KeyValue::new(
-        "service.name",
-        service_name.to_string(),
-    )]);
+fn build_export_providers(
+    endpoint: &str,
+    service_name: &str,
+    release: Option<&str>,
+) -> ExportProviders {
+    // Tag every signal with the deployed release (`YY.MM.DD`) under the OTel
+    // `service.version` convention, so a span/metric/log in Cloud Trace or
+    // BigQuery says which release emitted it. This is the headless
+    // counterpart to `web`'s `GET /version`: the worker and the trigger
+    // CronJobs have no HTTP surface, but they self-report their release here.
+    let mut builder = Resource::builder().with_service_name(service_name.to_string());
+    if let Some(release) = release {
+        builder = builder.with_attribute(KeyValue::new("service.version", release.to_string()));
+    }
+    let resource = builder.build();
 
     // Traces — one batch span exporter.
     let span_exporter = opentelemetry_otlp::SpanExporter::builder()
@@ -127,8 +137,8 @@ fn build_export_providers(endpoint: &str, service_name: &str) -> ExportProviders
         .with_endpoint(endpoint)
         .build()
         .expect("build OTLP span exporter");
-    let tracer = TracerProvider::builder()
-        .with_batch_exporter(span_exporter, opentelemetry_sdk::runtime::Tokio)
+    let tracer = SdkTracerProvider::builder()
+        .with_batch_exporter(span_exporter)
         .with_resource(resource.clone())
         .build();
 
@@ -138,11 +148,7 @@ fn build_export_providers(endpoint: &str, service_name: &str) -> ExportProviders
         .with_endpoint(endpoint)
         .build()
         .expect("build OTLP metric exporter");
-    let reader = opentelemetry_sdk::metrics::PeriodicReader::builder(
-        metric_exporter,
-        opentelemetry_sdk::runtime::Tokio,
-    )
-    .build();
+    let reader = opentelemetry_sdk::metrics::PeriodicReader::builder(metric_exporter).build();
     let meter = SdkMeterProvider::builder()
         .with_reader(reader)
         .with_resource(resource.clone())
@@ -155,8 +161,8 @@ fn build_export_providers(endpoint: &str, service_name: &str) -> ExportProviders
         .with_endpoint(endpoint)
         .build()
         .expect("build OTLP log exporter");
-    let logger = LoggerProvider::builder()
-        .with_batch_exporter(log_exporter, opentelemetry_sdk::runtime::Tokio)
+    let logger = SdkLoggerProvider::builder()
+        .with_batch_exporter(log_exporter)
         .with_resource(resource)
         .build();
 
@@ -180,6 +186,13 @@ pub fn init(default_service_name: &str) -> TelemetryGuard {
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| default_service_name.to_string());
 
+    // The deployed release (`YY.MM.DD`), baked into every image as
+    // `NAVIGATOR_RELEASE_TAG`. `None` on a local build (unset, or the honest
+    // `unknown`), so dev telemetry carries no bogus version.
+    let release = std::env::var("NAVIGATOR_RELEASE_TAG")
+        .ok()
+        .filter(|s| !s.trim().is_empty() && s != "unknown");
+
     // JSON to stdout when exporting (prod) so Cloud Logging -> BigQuery parses
     // each field; human-readable otherwise. Boxed so both arms share one type.
     let fmt_layer = if endpoint.is_some() {
@@ -196,6 +209,11 @@ pub fn init(default_service_name: &str) -> TelemetryGuard {
             .with(env_filter)
             .with(fmt_layer)
             .init();
+        tracing::info!(
+            service = %service_name,
+            release = %release.as_deref().unwrap_or("unknown"),
+            "telemetry initialized (stdout only)"
+        );
         return TelemetryGuard {
             tracer: None,
             meter: None,
@@ -209,9 +227,10 @@ pub fn init(default_service_name: &str) -> TelemetryGuard {
         tracer,
         meter,
         logger,
-    } = build_export_providers(&endpoint, &service_name);
+    } = build_export_providers(&endpoint, &service_name, release.as_deref());
 
-    let otel_trace_layer = tracing_opentelemetry::layer().with_tracer(tracer.tracer(service_name));
+    let otel_trace_layer =
+        tracing_opentelemetry::layer().with_tracer(tracer.tracer(service_name.clone()));
 
     // Register the meter provider globally so `record_trigger_fired` (and any
     // future instrument) reaches it.
@@ -228,6 +247,12 @@ pub fn init(default_service_name: &str) -> TelemetryGuard {
         .with(otel_trace_layer)
         .with(otel_log_layer)
         .init();
+
+    tracing::info!(
+        service = %service_name,
+        release = %release.as_deref().unwrap_or("unknown"),
+        "telemetry initialized (stdout + OTLP)"
+    );
 
     TelemetryGuard {
         tracer: Some(tracer),
@@ -390,7 +415,9 @@ pub fn parent_context_from(
 /// (fresh root) when no `traceparent` is present.
 pub fn set_span_parent(span: &tracing::Span, traceparent: Option<&str>, tracestate: Option<&str>) {
     use tracing_opentelemetry::OpenTelemetrySpanExt;
-    span.set_parent(parent_context_from(traceparent, tracestate));
+    // `set_parent` returns a `Result` as of tracing-opentelemetry 0.33; parenting
+    // is best-effort telemetry, so a failure to attach is intentionally ignored.
+    let _ = span.set_parent(parent_context_from(traceparent, tracestate));
 }
 
 #[cfg(test)]
@@ -428,7 +455,8 @@ mod tests {
     /// the flush task make progress while shutdown blocks.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn export_providers_build_all_three_signals_offline() {
-        let providers = build_export_providers("http://127.0.0.1:4317", "telemetry-test");
+        let providers =
+            build_export_providers("http://127.0.0.1:4317", "telemetry-test", Some("26.06.23"));
         // All three signals are present; shutting down flushes (no-op here,
         // nothing batched) without panicking or requiring a live collector.
         let _ = providers.tracer.shutdown();

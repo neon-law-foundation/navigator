@@ -151,9 +151,9 @@ themselves do not live in a bucket.
 - Each repo ships a `.gitattributes` routing binary types to LFS: `*.pdf`, `*.docx`, `*.png`, `*.jpg`, `*.jpeg` →
   `filter=lfs diff=lfs merge=lfs -text`.
 - `web` implements the **LFS batch API** (`POST .../info/lfs/objects/batch`) plus object upload/download actions. An
-  upload action `put`s the object to `StorageService` under an env-driven bucket (`feedback_skills_no_hardcoded_values`,
-  no CDN); a download action issues a `signed_url`. The LFS *pointer* (committed in the pack) and the `StorageService`
-  object reconcile by the pointer's `oid` (sha256) → storage key.
+  upload action `put`s the object to `StorageService` under an env-driven bucket, with no CDN; a download action issues
+  a `signed_url`. The LFS *pointer* (committed in the pack) and the `StorageService` object reconcile by the pointer's
+  `oid` (sha256) → storage key.
 - The same OPA fetch/push checks gate the LFS batch endpoints — read for download actions, write for upload actions.
 
 ## 6. Data model + migration
@@ -224,8 +224,7 @@ obstruction, so the design ships a governed deletion path from day one.
 The same Rust code path runs in both, per CLAUDE.md: transport and LFS are identical; only the volume class and the
 `StorageService` backend differ by env. KIND uses a `hostPath`/PVC volume and the Fs `StorageService` backend, wired by
 the `navigator` CLI (`kind-local-dev`). Prod uses an Autopilot RWO PVC and the GCS backend
-(`project_gcp_production_stack`). Every per-deploy value (bucket names, volume class, repo root) is env-driven
-(`feedback_skills_no_hardcoded_values`).
+(`project_gcp_production_stack`). Every per-deploy value (bucket names, volume class, repo root) is env-driven.
 
 ## Implementation sequence
 

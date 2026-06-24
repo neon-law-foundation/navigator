@@ -1,8 +1,8 @@
 //! `aida_spawn_legal_council` MCP tool.
 //!
 //! Returns the Legal Council brief — the twelve-lawyer review pattern
-//! the workspace skill `legal-council` codifies — packaged as a prompt
-//! the calling LLM can run against a draft. The bench is a *council*
+//! documented in `docs/agent-decision-councils.md` — packaged as a
+//! prompt the calling LLM can run against a draft. The bench is a *council*
 //! (c-o-u-n-c-i-l — a group) of the firm's *counsels* (c-o-u-n-s-e-l —
 //! the attorneys): a council of counsels. AIDA is the agent that
 //! carries the tool, not the name of the council. The server does not
@@ -38,7 +38,7 @@ struct Voice {
 
 /// The canonical twelve voices, ordered with Capricorn first
 /// (leader of the bench), then Scorpio (the default sharpener),
-/// then Aries → Pisces. The MCP brief and the workspace skill
+/// then Aries → Pisces. The MCP brief and `docs/agent-decision-councils.md`
 /// agree on this cast — if you reorder one, reorder the other.
 const VOICES: &[Voice] = &[
     Voice {

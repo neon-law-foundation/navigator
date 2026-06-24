@@ -1,8 +1,8 @@
 # Retainer intake walkthrough
 
 The retainer-intake flow is a pair of durable state machines per [Notation](notation.md#notation), declared in the
-frontmatter of [`templates/onboarding/retainer.md`](../templates/onboarding/retainer.md) and walked by the
-[`web::retainer_walk`](../web/src/retainer_walk.rs) module:
+frontmatter of [`notation_templates/engagements/retainer.md`](../notation_templates/engagements/retainer.md) and walked
+by the [`web::retainer_walk`](../web/src/retainer_walk.rs) module:
 
 1. **Questionnaire walker** — one question per request, one [Answer](notation.md#answer) per advance, one
    [Notation Event](glossary.md#notation-event) per transition. Walks the state chain `BEGIN` → `client_name` →

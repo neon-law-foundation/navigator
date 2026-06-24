@@ -69,8 +69,7 @@ pub enum StepKind {
     /// through the configured `EmailService` (SendGrid in prod,
     /// CapturingEmail in dev). No human in the loop; the worker
     /// advances out as soon as SendGrid 2xx's. Slug after the prefix
-    /// (`email_send__welcome`) names the template under
-    /// `templates/onboarding/welcome.md` and friends — keeps the
+    /// (`email_send__welcome`) names a bundled email renderer — keeps the
     /// step kind generic so future flows (engagement signed,
     /// certified-mail mailed, etc.) reuse one state machine.
     EmailSend,

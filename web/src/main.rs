@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::Context;
 
@@ -47,6 +48,18 @@ async fn main() -> anyhow::Result<()> {
         .context("configuring object storage")?;
     tracing::info!("object storage configured");
 
+    // The canonical seed writes template bodies as blobs to object storage.
+    // In KIND the web pod can start before fake-gcs-server is reachable, so
+    // wait for the store to answer a probe before seeding — otherwise the
+    // first seed fails on a connection error and the pod crash-loops (with a
+    // growing backoff) until the dependency is up. That crash-loop window is
+    // the root of the KIND e2e flake. The `fs` backend answers instantly, so
+    // this is a no-op for local/`fs` dev.
+    cloud::wait_until_ready(&storage, Duration::from_mins(1))
+        .await
+        .context("waiting for object storage to become ready")?;
+    tracing::info!("object storage ready");
+
     let seed_report = store::seed::seed_canonical(&db, &storage)
         .await
         .context("seeding canonical fixtures")?;
@@ -92,6 +105,11 @@ async fn main() -> anyhow::Result<()> {
         .map_or_else(|_| PathBuf::from(web::DEFAULT_BLOG_DIR), PathBuf::from);
     let blog = web::blog::load_dir(&blog_dir).context("loading blog posts")?;
     tracing::info!(count = blog.posts().len(), ?blog_dir, "loaded blog posts");
+
+    let events_dir = std::env::var("NAVIGATOR_EVENTS_DIR")
+        .map_or_else(|_| PathBuf::from(web::DEFAULT_EVENTS_DIR), PathBuf::from);
+    let events = web::events::load_dir(&events_dir).context("loading events")?;
+    tracing::info!(count = events.events().len(), ?events_dir, "loaded events");
 
     let auth = web::AuthConfig::from_env().await;
     tracing::info!(enforced = auth.is_enforced(), "auth configured");
@@ -238,6 +256,7 @@ async fn main() -> anyhow::Result<()> {
         docs: web::docs::loader::bundled(),
         marketing,
         blog,
+        events,
         auth,
         google_oauth,
         rate_limit: web::rate_limit::RateLimit::from_env(),

@@ -152,8 +152,9 @@ data:
     }
 
     # Anyone authenticated can hit the JSON API (read paths). Covers
-    # /api/people, /api/entities, /api/jurisdictions, /api/entity-types,
-    # and the bundled Swagger UI shell at /api/docs.
+    # /api/people, /api/entities, /api/jurisdictions, /api/entity-types.
+    # The bundled Swagger UI shell at /api/docs is public — see the
+    # documentation exemption below.
     allow if {
         input.path[0] == "api"
         input.method == "GET"
@@ -173,6 +174,16 @@ data:
     # describes, not to the description itself.
     allow if {
         input.path[0] == "openapi.json"
+    }
+
+    # The human-readable API documentation — the bundled Swagger UI
+    # shell at /api/docs — is public for the same reason /openapi.json
+    # is: a description of the API is not the API. The documentation
+    # renders the public /openapi.json and calls no protected data
+    # endpoint itself, so a session adds nothing to read it. The OIDC
+    # gate still governs every data path the docs describe.
+    allow if {
+        input.path == ["api", "docs"]
     }
 ---
 apiVersion: apps/v1

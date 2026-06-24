@@ -36,16 +36,17 @@ publish = false
 
 [workspace.dependencies]
 anyhow = "1"
-arrow = { version = "58", default-features = false }
+arrow = { version = "59", default-features = false }
 assert_cmd = "2"
 async-trait = "0.1"
-# axum: held at 0.7 — 0.8 changes extractor trait signatures + Host extractor (own session).
-axum = "0.7"
+axum = "0.8"
+# axum-extra: the `Host` extractor lives here in axum 0.8 (moved out of `axum::extract`).
+axum-extra = "0.10"
 bytes = "1"
 # gzip codec — git smart-HTTP clients gzip the upload-pack RPC request body
 # (`Content-Encoding: gzip`); the transport in `web` decompresses it.
 flate2 = "1"
-# Compile-time directory embed — `web` bakes the workspace `templates/`
+# Compile-time directory embed — `web` bakes the workspace `notation_templates/`
 # tree into the binary to serve raw non-confidential templates at
 # `/api/templates/...` without the dir leaving the workspace root.
 include_dir = "0.7"
@@ -53,7 +54,7 @@ include_dir = "0.7"
 # populate fillable government forms (AcroForm `/Fields`). Distinct from
 # the Typst `render` path, which only emits fresh PDFs.
 lopdf = "0.36"
-parquet = { version = "58", default-features = false, features = ["arrow", "snap"] }
+parquet = { version = "59", default-features = false, features = ["arrow", "snap"] }
 # Google Cloud SDKs. `google-cloud-storage` is consumed only by the
 # `cloud` crate (which wraps it in the provider-agnostic
 # `StorageService` trait). `google-cloud-auth` + `google-cloud-token`
@@ -76,7 +77,7 @@ http-body-util = "0.1"
 # pixel slice. Lean — default features off, JPEG codec only on `image`.
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 webp = "0.3"
-ravif = { version = "0.11", default-features = false }
+ravif = { version = "0.13", default-features = false }
 rgb = "0.8"
 base64 = "0.22"
 hmac = "0.13"
@@ -92,10 +93,9 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "rus
 scraper = "0.24"
 encoding_rs = "0.8"
 sha2 = "0.11"
-toml = "0.8"
-# tower-cookies + maud: held at 0.10 / 0.26 — both newer versions require axum 0.8 (own session).
-tower-cookies = "0.10"
-maud = { version = "0.26", features = ["axum"] }
+toml = "1.1"
+tower-cookies = "0.11"
+maud = { version = "0.27", features = ["axum"] }
 predicates = "3"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 serde = { version = "1", features = ["derive"] }
@@ -142,17 +142,16 @@ url = "2"
 # working tree) into a plain ZIP — never a git packfile or bundle.
 # default-features off keeps the heavy codecs (aes, bzip2, zstd) out; we
 # only need deflate.
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 fantoccini = "0.22"
-# opentelemetry suite: held at 0.27 — 0.32 reorganizes TracerProvider/Resource builders (own session).
-opentelemetry = "0.27"
-opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
-opentelemetry-otlp = { version = "0.27", default-features = false, features = ["grpc-tonic", "trace", "metrics", "logs"] }
+opentelemetry = "0.32"
+opentelemetry_sdk = { version = "0.32", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["grpc-tonic", "trace", "metrics", "logs"] }
 # Bridges `tracing` log records to the OTLP LoggerProvider. Lockstep-versioned with
-# opentelemetry 0.27 — bump together, never alone.
-opentelemetry-appender-tracing = "0.27"
-tracing-opentelemetry = "0.28"
+# opentelemetry 0.32 — bump together, never alone.
+opentelemetry-appender-tracing = "0.32"
+tracing-opentelemetry = "0.33"
 telemetry = { path = "telemetry" }
 views = { path = "views" }
 walkdir = "2.5"

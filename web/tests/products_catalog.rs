@@ -133,7 +133,7 @@ async fn catalog_lists_every_active_product_at_the_db_price() {
     assert!(body.contains("/month"), "recurring products show /month");
     // Each card links to the product's service page.
     assert!(body.contains("href=\"/services/nautilus\""));
-    assert!(body.contains("href=\"/services/fractional-gc\""));
+    assert!(body.contains("href=\"/services/nexus\""));
     assert!(body.contains("href=\"/services/node\""));
     assert!(body.contains("href=\"/services/newleaf\""));
     assert!(body.contains("href=\"/services/namesake\""));
@@ -155,6 +155,13 @@ async fn catalog_lists_every_active_product_at_the_db_price() {
     assert!(
         body.contains("class=\"libra-scales me-2\""),
         "the litigation card wears the inline scales-of-justice SVG"
+    );
+
+    assert!(
+        body.contains("Flat fee per phase")
+            && body.contains("quoted after case assessment")
+            && !body.contains("$1,337/hour"),
+        "litigation card should advertise quoted phase pricing instead of hourly billing"
     );
 
     // The catalog is a curated lineup, not alphabetical or by-price: the
@@ -206,12 +213,17 @@ async fn catalog_lists_every_active_product_at_the_db_price() {
 async fn new_service_detail_pages_render_with_their_marketing_copy() {
     // Each new product has its own `/services/<slug>` detail page, rendered
     // from `web/content/marketing/<slug>.md`. Drive each English page and
-    // confirm it returns 200 with its headline + DB-priced figure.
-    for (path, needle, price) in [
+    // confirm it returns 200 with its headline + representative fee marker.
+    for (path, needle, fee_marker) in [
         ("/services/node", "recorded on-chain", "$44"),
         ("/services/newleaf", "uncontested divorce", "$555"),
         ("/services/namesake", "filed with the USPTO", "$777"),
         ("/services/nucleus", "Nevada fund", "$8,888"),
+        (
+            "/services/litigation",
+            "Flat fee per phase",
+            "pro-rata refund",
+        ),
         ("/services/nerd", "put a nerd on the stand", "$1,337"),
         ("/services/pro-bono", "Statement of Legal Aid", "Free"),
     ] {
@@ -224,7 +236,10 @@ async fn new_service_detail_pages_render_with_their_marketing_copy() {
         assert_eq!(resp.status(), StatusCode::OK, "{path} should render");
         let body = body_string(resp).await;
         assert!(body.contains(needle), "{path} missing copy {needle:?}");
-        assert!(body.contains(price), "{path} missing price {price}");
+        assert!(
+            body.contains(fee_marker),
+            "{path} missing fee marker {fee_marker}"
+        );
     }
 }
 

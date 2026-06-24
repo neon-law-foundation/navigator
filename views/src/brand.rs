@@ -122,7 +122,7 @@ impl NavLink {
 }
 
 const FIRM_NAV: &[NavLink] = &[
-    NavLink::leaf("The Foundation", "/foundation"),
+    NavLink::leaf("Foundation", "/foundation"),
     // One flat "Services" link — no dropdown. `/services` is the DB-backed
     // catalog: every product and its list price on one page, the price a
     // prospect sees being the same row Xero invoices. Each card links out
@@ -131,15 +131,16 @@ const FIRM_NAV: &[NavLink] = &[
 ];
 
 const FOUNDATION_NAV: &[NavLink] = &[
-    NavLink::leaf("The Firm", "/"),
-    NavLink::leaf("Mission", "/foundation/mission"),
-    // The Foundation publishes one thing — the open-source Navigator — and
-    // teaches lawyers to wield it. So the whole nav is just those two verbs:
+    NavLink::leaf("Firm", "/"),
+    // The Foundation publishes the open-source Navigator, Notations,
+    // and training for lawyers who want to wield both:
     // "Navigator" (the software: the LSP, CLI, MCP, and web app, each its
-    // own package page under the `/foundation/navigator` hub) and
-    // "Workshops" (the hands-on training). No "Learn" catch-all dropdown,
-    // no separate Presentations surface — a talk is just another workshop.
+    // own package page under the `/foundation/navigator` hub), "Notations"
+    // (the legal blueprints), and "Workshops" (hands-on training). No
+    // "Learn" catch-all dropdown, no separate Presentations surface — a
+    // talk is just another workshop.
     NavLink::leaf("Navigator", "/foundation/navigator"),
+    NavLink::leaf("Notations", "/foundation/notations"),
     NavLink::leaf("Workshops", "/foundation/workshops/navigator"),
 ];
 
@@ -217,20 +218,12 @@ pub fn foundation_email() -> &'static str {
     *FOUNDATION_EMAIL
 }
 
-/// Foundation GitHub URL — the open-source Navigator repository. Defaults
-/// to NeonLaw Foundation's real repo; set `NAVIGATOR_FOUNDATION_GITHUB_URL`
-/// to a fork's repo, or to `""` to suppress the GitHub call-to-action
-/// entirely. Single source for both the `/foundation` hero and the
-/// `/foundation/contact` card. Resolved once per process.
+/// Foundation GitHub URL — the open-source Navigator repository.
+/// Canonical across deploys so public chrome always points at the
+/// Foundation-owned source.
 #[must_use]
-pub fn foundation_github_url() -> Option<&'static str> {
-    static URL: LazyLock<Option<&'static str>> =
-        LazyLock::new(|| match env::var("NAVIGATOR_FOUNDATION_GITHUB_URL") {
-            Ok(v) if v.is_empty() => None,
-            Ok(v) => Some(&*Box::leak(v.into_boxed_str())),
-            Err(_) => Some("https://github.com/neon-law-foundation/Navigator"),
-        });
-    *URL
+pub const fn foundation_github_url() -> &'static str {
+    "https://github.com/neon-law-foundation/Navigator"
 }
 
 /// The firm's legal-advice disclaimer, shown in the footer of every
@@ -253,6 +246,25 @@ pub fn firm_disclaimer() -> &'static str {
         )
     });
     *DISCLAIMER
+}
+
+/// The deployed release — the `YY.MM.DD` ghcr tag this image was
+/// published under, baked into the web image by `deploy.yml` as
+/// `NAVIGATOR_RELEASE_TAG` (the same value `GET /version` reports as
+/// `release`). Rendered in the footer so a push is visible end-to-end:
+/// the moment a new image is live on the site, the footer's version
+/// changes. `None` on a local `cargo run` (the env var is unset, or the
+/// build honestly reports `unknown`), so dev never shows a bogus
+/// version. Resolved once per process.
+#[must_use]
+pub fn deployed_release() -> Option<&'static str> {
+    static RELEASE: LazyLock<Option<&'static str>> =
+        LazyLock::new(|| match env::var("NAVIGATOR_RELEASE_TAG") {
+            Ok(v) if v.is_empty() || v == "unknown" => None,
+            Ok(v) => Some(&*Box::leak(v.into_boxed_str())),
+            Err(_) => None,
+        });
+    *RELEASE
 }
 
 /// Law-firm brand. Name overridable via `NAVIGATOR_BRAND_FIRM`. The
@@ -382,16 +394,16 @@ mod tests {
     #[test]
     fn firm_top_nav_starts_with_foundation_cross_link() {
         let labels: Vec<&str> = FIRM_BRAND.nav.iter().map(|n| n.label).collect();
-        assert_eq!(labels, ["The Foundation", "Services"]);
+        assert_eq!(labels, ["Foundation", "Services"]);
         assert_eq!(FIRM_BRAND.nav[0].href, "/foundation");
     }
 
     #[test]
     fn foundation_top_nav_is_four_flat_leaves() {
         let labels: Vec<&str> = FOUNDATION_BRAND.nav.iter().map(|n| n.label).collect();
-        // The Foundation nav starts with the firm cross-link, then the
-        // software, training, and why surfaces.
-        assert_eq!(labels, ["The Firm", "Mission", "Navigator", "Workshops"]);
+        // The Foundation nav stays terse: firm cross-link, software,
+        // Notations, and training.
+        assert_eq!(labels, ["Firm", "Navigator", "Notations", "Workshops"]);
         assert_eq!(FOUNDATION_BRAND.nav[0].href, "/");
         assert!(
             FOUNDATION_BRAND.nav.iter().all(|n| !n.is_dropdown()),
@@ -410,6 +422,17 @@ mod tests {
             .expect("Navigator leaf present");
         assert!(!navigator.is_dropdown());
         assert_eq!(navigator.href, "/foundation/navigator");
+    }
+
+    #[test]
+    fn foundation_nav_notations_points_at_the_readme_page() {
+        let templates = FOUNDATION_BRAND
+            .nav
+            .iter()
+            .find(|n| n.label == "Notations")
+            .expect("Notations leaf present");
+        assert!(!templates.is_dropdown());
+        assert_eq!(templates.href, "/foundation/notations");
     }
 
     #[test]
@@ -433,14 +456,6 @@ mod tests {
                 .any(|n| n.label == "Learn" || n.label == "Presentations"),
             "Learn / Presentations must not appear in the Foundation nav"
         );
-    }
-
-    #[test]
-    fn foundation_nav_surfaces_mission_page() {
-        assert!(FOUNDATION_BRAND
-            .nav
-            .iter()
-            .any(|n| n.label == "Mission" && n.href == "/foundation/mission"));
     }
 
     #[test]

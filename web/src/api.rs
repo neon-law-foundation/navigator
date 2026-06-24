@@ -22,9 +22,9 @@ use store::Db;
 pub fn routes() -> Router<Db> {
     Router::new()
         .route("/api/people", axum::routing::get(list_people))
-        .route("/api/people/:id", axum::routing::get(get_person))
+        .route("/api/people/{id}", axum::routing::get(get_person))
         .route("/api/entities", axum::routing::get(list_entities))
-        .route("/api/entities/:id", axum::routing::get(get_entity))
+        .route("/api/entities/{id}", axum::routing::get(get_entity))
         .route("/api/jurisdictions", axum::routing::get(list_jurisdictions))
         .route("/api/entity-types", axum::routing::get(list_entity_types))
         .route(
@@ -56,12 +56,15 @@ pub fn documented_api_paths() -> Vec<&'static str> {
 
 /// Static Swagger UI shell. Loads the vendored `swagger-ui-dist`
 /// assets from `/public/swagger-ui/` and points the renderer at
-/// `/openapi.json`. Sits behind the same OIDC + OPA gate as every
-/// other `/api/*` route — `/openapi.json` itself stays public via the
-/// OPA exemption so the schema is discoverable without a session. The
-/// per-response `Content-Security-Policy` header keeps script
-/// execution on the same origin — the whole point of vendoring rather
-/// than CDN-loading the dist is so this header can stay strict.
+/// `/openapi.json`. Public via its own OPA exemption, alongside
+/// `/openapi.json` — the documentation describes the API but is not
+/// the API, so the OIDC gate guards the data endpoints it documents,
+/// not the docs themselves. The shell renders the public
+/// `/openapi.json` and calls no protected route, so a session would
+/// add nothing. The per-response `Content-Security-Policy` header
+/// keeps script execution on the same origin — the whole point of
+/// vendoring rather than CDN-loading the dist is so this header can
+/// stay strict.
 async fn api_docs() -> impl IntoResponse {
     const HTML: &str = include_str!("../public/swagger-ui/index.html");
     (

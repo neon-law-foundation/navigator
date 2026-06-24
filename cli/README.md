@@ -25,18 +25,19 @@ navigator --help
 
 Subcommands split by whether they need a database:
 
-| Subcommand          | Needs DB? | Notes                                                |
-| ------------------- | --------- | ---------------------------------------------------- |
-| `validate`          | no        | N104 runs in structural mode only.                   |
-| `format`            | no        | Whitespace + bullet cleanup on one `.md`.            |
-| `glossary`          | no        | Looks up workspace vocabulary by term.               |
-| `scaffold`          | no        | Drops template + workflow + feature stubs.           |
-| `assets build`      | no        | Transcodes source photos into AVIF/WebP/JPEG.        |
-| `assets upload`     | no        | Pushes built variants to the public assets bucket.   |
-| `import`            | **yes**   | Writes into `--database-url` Postgres.               |
-| `list`              | **yes**   | Auto-runs migrate + seed before printing.            |
-| `erd`               | **yes**   | Introspects `pg_catalog` + `information_schema`.     |
-| `project create`    | **yes**   | `--skip-migrate-and-seed` for prod runs.             |
+| Subcommand       | Needs DB? | Notes                                                                      |
+| ---------------- | --------- | -------------------------------------------------------------------------- |
+| `validate`       | no        | N104 runs in structural mode only.                                         |
+| `render`         | no        | Validation-gated template → PDF; `--format letter`.                        |
+| `format`         | no        | Whitespace + bullet cleanup on one `.md`.                                  |
+| `glossary`       | no        | Looks up workspace vocabulary by term.                                     |
+| `scaffold`       | no        | Drops template + workflow + feature stubs.                                 |
+| `assets build`   | no        | Transcodes source photos into AVIF/WebP/JPEG.                              |
+| `assets upload`  | no        | Pushes built variants to the public assets bucket.                         |
+| `import`         | **yes**   | Writes into `--database-url` Postgres.                                     |
+| `list`           | **yes**   | Auto-runs migrate + seed before printing.                                  |
+| `erd`            | **yes**   | Introspects `pg_catalog` + `information_schema`.                           |
+| `project create` | **yes**   | Needs `--client-email` (a client DRI); `--skip-migrate-and-seed` for prod. |
 
 The live-site commands need no local database — they are an authenticated HTTP client against a deployed `web`:
 

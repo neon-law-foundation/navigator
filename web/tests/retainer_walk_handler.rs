@@ -57,10 +57,13 @@ async fn build_app_and_notation() -> (axum::Router, store::Db, uuid::Uuid, Arc<I
     .await
     .unwrap();
 
+    let __dri = store::test_support::dri_person(&db).await;
     let proj = entity::project::ActiveModel {
         name: ActiveValue::Set("Libra retainer".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&db)
@@ -437,10 +440,13 @@ async fn close_matter_post_starts_a_closing_walk_for_an_existing_matter() {
     .insert(&db)
     .await
     .unwrap();
+    let __dri = store::test_support::dri_person(&db).await;
     let project = entity::project::ActiveModel {
         name: ActiveValue::Set("Libra estate (to close)".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&db)
@@ -529,10 +535,13 @@ async fn close_walk_renders_firm_signed_letter_and_closes_the_matter() {
     .insert(&db)
     .await
     .unwrap();
+    let __dri = store::test_support::dri_person(&db).await;
     let project = entity::project::ActiveModel {
         name: ActiveValue::Set("Libra estate (closing)".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&db)

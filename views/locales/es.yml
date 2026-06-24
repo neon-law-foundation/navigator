@@ -11,10 +11,11 @@
 # stays English-source until an attorney reviews the Spanish (Tier B).
 nav:
   home: Inicio
-  foundation: La Fundación
-  firm: El bufete
+  foundation: Fundación
+  firm: Firma
   services: Servicios
   mission: Misión
+  notations: Notaciones
   workshops: Talleres
 auth:
   portal: Portal
@@ -23,7 +24,7 @@ auth:
 switcher:
   aria: Ver esta página en inglés
 footer:
-  github_star: Destacar The Neon Law Navigator
+  github_star: Destacar Neon Law Navigator
   legal_in_english: "El texto legal vinculante de este sitio se proporciona en inglés."
 cta:
   email: "Escríbenos a %{email}"
@@ -46,7 +47,9 @@ products:
   desc_northstar: Su testamento, fideicomiso y directivas de salud y finanzas, preparados y firmados en una conversación grabada.
   desc_nautilus: Un abogado con licencia como su representante para el correo y las llamadas de cobranza, conforme a sus derechos.
   desc_nook: Un cierre inmobiliario de tarifa fija para una venta que ya acordaron, sin corredor de ninguna de las partes.
-  desc_litigation: Litigio tecnológico de alto riesgo, facturado por hora y con casos selectos tomados por contingencia.
+  litigation_phase_price: Tarifa fija por fase
+  litigation_phase_suffix: " — cotizada después de evaluar el caso"
+  desc_litigation: Litigio tecnológico de alto riesgo, cotizado como tarifa fija por fase después de evaluar el caso.
   desc_nerd: Un perito independiente en disputas de software y acceso a datos, facturado por hora, nunca por contingencia.
   desc_node: La certificación de un hecho por un abogado, como la condición de inversionista acreditado, registrada en cadena en Solana.
   desc_newleaf: Un divorcio de mutuo acuerdo de tarifa fija para una pareja que ya acordó separarse.

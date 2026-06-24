@@ -16,9 +16,9 @@ this index says how it is built.
   `@approve` command is the attorney-approval gate — reuse it, never reinvent it.
 - **One worker.** Every workflow binds onto the existing `workflows-service` Restate endpoint — one worker, never a
   per-workflow pod. This is idiomatic Restate: many handlers, one deployment.
-- **Recipe.** Follow the `create-legal-workflow` skill — (1) `.feature` first, (2) template + questionnaire, (3) seeded
-  questions, (4) workflow YAML from the shared step library, (5) Restate handlers. Use only Person / Entity / role nouns
-  from [`glossary.md`](glossary.md).
+- **Recipe.** Follow [`agent-workflows.md`](agent-workflows.md) — (1) `.feature` first, (2) template + questionnaire,
+  (3) seeded questions, (4) workflow YAML from the shared step library, (5) Restate handlers. Use only Person / Entity /
+  role nouns from [`glossary.md`](glossary.md).
 - **Matter lifecycle.** A Nautilus engagement is a `projects` matter opened by `onboarding__` and closed by
   `closing__letter` when the representation ends.
 
@@ -54,8 +54,9 @@ invariant, so an auto-send path fails the test rather than reaching a client.
 ## The shared template library
 
 All five letters carry role-scoped signature anchors so the **attorney** signs, and each rides the step chain above.
-Each lands under `templates/nautilus/` with a paired `workflows/specs/<code>.yaml` registered in
-`workflows::specs::BUNDLED_SPEC_YAML` and pinned by `workflows/tests/spec_coherence.rs`:
+Each lands under `notation_templates/united_states/federal/internal/debt_relief/` with a paired
+`workflows/specs/<code>.yaml` registered in `workflows::specs::BUNDLED_SPEC_YAML` and pinned by
+`workflows/tests/spec_coherence.rs`:
 
 - `notice_of_representation` — FDCPA 15 U.S.C. §1692c(a)(2) — built in workflow 01.
 - `debt_validation` — FDCPA 15 U.S.C. §1692g — built in workflow 03.

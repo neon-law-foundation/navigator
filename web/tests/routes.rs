@@ -78,6 +78,7 @@ async fn state_with_workshops(materials: Vec<WorkshopMaterial>) -> AppState {
         docs: web::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),
         blog: web::BlogIndex::empty(),
+        events: web::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: web::google_oauth::GoogleOauthConfig::passthrough(),
         rate_limit: web::rate_limit::RateLimit::disabled(),
@@ -116,8 +117,27 @@ async fn body_string(resp: axum::http::Response<Body>) -> String {
 
 #[tokio::test]
 async fn foundation_mission_renders_the_letter_under_the_foundation_brand() {
-    // The mission page is the letter alone; the pro-bono referral list
-    // moved to its own /foundation/pro-bono page.
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("<title>Neon Law Foundation | Mission</title>"));
+    assert!(body.contains("class=\"mission-letter\""));
+}
+
+#[tokio::test]
+async fn old_foundation_mission_url_redirects_to_foundation_home() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -131,10 +151,8 @@ async fn foundation_mission_renders_the_letter_under_the_foundation_brand() {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Mission</title>"));
-    assert!(body.contains("class=\"mission-letter\""));
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(resp.headers().get("location").unwrap(), "/foundation");
 }
 
 #[tokio::test]
@@ -143,7 +161,7 @@ async fn foundation_mission_links_training_to_the_workshop_not_the_repo() {
         state_with_bundled_marketing().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
-    for uri in ["/foundation/mission", "/es/foundation/mission"] {
+    for uri in ["/foundation", "/es/foundation"] {
         let resp = app
             .clone()
             .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
@@ -211,14 +229,12 @@ async fn root_returns_home_page_html() {
     let body = body_string(resp).await;
     assert!(body.starts_with("<!DOCTYPE html>"));
     assert!(body.contains("<title>Neon Law | Home</title>"));
-    // The minimal landing names both organizations as equal peers.
     assert!(body.contains(
-        "An American law firm offering flat-fee legal services with a licensed attorney in the loop."
+        "A licensed attorney scopes the work, quotes a fixed fee when the matter can be priced that way"
     ));
-    assert!(body.contains(
-        "An American non-profit pursuing access to justice through open-source tools and legal-aid education."
-    ));
-    // It is the minimal card — no marketing hero strip.
+    assert!(body.contains("LSC Justice Gap Report, 2022"));
+    assert!(body.contains("href=\"/foundation/notations\""));
+    // It is firm-branded prose and cards — no old marketing hero strip.
     assert!(
         !body.contains("lake-tahoe"),
         "home must not render the marketing hero"
@@ -331,7 +347,7 @@ async fn spanish_service_page_translates_chrome_and_falls_back_to_english_body()
     // English doc present; NO es twin for this slug → graceful fallback to
     // the English body under a Spanish shell.
     state.marketing = MarketingIndex::new(vec![marketing_doc(
-        "estate",
+        "northstar",
         "Estate",
         "<p>English estate body</p>",
     )]);
@@ -339,7 +355,7 @@ async fn spanish_service_page_translates_chrome_and_falls_back_to_english_body()
     let body = body_string(
         app.oneshot(
             Request::builder()
-                .uri("/es/services/estate")
+                .uri("/es/services/northstar")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -354,7 +370,7 @@ async fn spanish_service_page_translates_chrome_and_falls_back_to_english_body()
         "fallback to en body: {body}"
     );
     // The switcher points back to English at the twin path.
-    assert!(body.contains("href=\"/services/estate\"") && body.contains(">English</a>"));
+    assert!(body.contains("href=\"/services/northstar\"") && body.contains(">English</a>"));
 }
 
 #[tokio::test]
@@ -433,6 +449,7 @@ async fn health_returns_503_when_db_is_down() {
         docs: web::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),
         blog: web::BlogIndex::empty(),
+        events: web::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: web::google_oauth::GoogleOauthConfig::passthrough(),
         rate_limit: web::rate_limit::RateLimit::disabled(),
@@ -477,7 +494,7 @@ async fn health_returns_503_when_db_is_down() {
 }
 
 #[tokio::test]
-async fn foundation_returns_foundation_landing_under_foundation_brand() {
+async fn foundation_home_is_the_mission_statement() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -493,8 +510,12 @@ async fn foundation_returns_foundation_landing_under_foundation_brand() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Foundation</title>"));
-    assert!(body.contains("mailto:support@neonlaw.org"));
+    assert!(body.contains("<title>Neon Law Foundation | Mission</title>"));
+    assert!(body.contains("class=\"mission-letter\""));
+    assert!(
+        !body.contains("Open the Navigator workshop"),
+        "old Foundation landing hero should not render on /foundation: {body}"
+    );
 }
 
 #[tokio::test]
@@ -519,12 +540,38 @@ async fn navigator_serves_the_readme_under_foundation_brand() {
     assert!(body.contains(">Neon Law Navigator</h1>"));
     assert!(body.contains("cargo run -p cli -- start-dev-server"));
     // README links are retargeted onto site routes.
-    assert!(body.contains("href=\"/api/templates/nest/nevada\""));
+    assert!(body.contains(
+        "href=\"/api/templates/united-states/nevada/state/business-associations/entity-formation\""
+    ));
     assert!(body.contains("href=\"/docs/glossary#project\""));
     // The hub fans out to the per-package pages.
     assert!(body.contains("href=\"/foundation/navigator/cli\""));
     assert!(body.contains("href=\"/foundation/navigator/mcp\""));
     assert!(body.contains("href=\"/foundation/navigator/web\""));
+}
+
+#[tokio::test]
+async fn notations_serves_the_tree_readme_under_foundation_brand() {
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/notations")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("<title>Neon Law Foundation | Notations</title>"));
+    assert!(body.contains(">Notation</h1>"));
+    assert!(body.contains("Every file is markdown with a YAML frontmatter block"));
+    assert!(body.contains("href=\"/docs/notation\""));
+    assert!(body.contains("href=\"/foundation/navigator#trademarks\""));
 }
 
 #[tokio::test]
@@ -602,7 +649,7 @@ async fn api_template_raw_serves_non_confidential_markdown_inline() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/api/templates/nest/nevada")
+                .uri("/api/templates/united-states/nevada/state/business-associations/entity-formation")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -622,7 +669,7 @@ async fn api_template_raw_serves_non_confidential_markdown_inline() {
     let confidential = app
         .oneshot(
             Request::builder()
-                .uri("/api/templates/onboarding/retainer")
+                .uri("/api/templates/engagements/retainer")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -722,9 +769,9 @@ async fn old_presentation_urls_permanently_redirect_to_workshops() {
 }
 
 #[tokio::test]
-async fn services_estate_uses_marketing_doc_when_present() {
+async fn services_northstar_uses_marketing_doc_when_present() {
     let docs = vec![web::MarketingDoc {
-        slug: "estate".into(),
+        slug: "northstar".into(),
         title: "Estate planning".into(),
         description: "wills and trusts".into(),
         body_html: "<h2>Drafted</h2><p>Trusts.</p>".into(),
@@ -737,7 +784,7 @@ async fn services_estate_uses_marketing_doc_when_present() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/services/estate")
+                .uri("/services/northstar")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -753,14 +800,14 @@ async fn services_estate_uses_marketing_doc_when_present() {
 }
 
 #[tokio::test]
-async fn services_estate_renders_a_split_hero_from_the_hero_image_metadata() {
+async fn services_northstar_renders_a_split_hero_from_the_hero_image_metadata() {
     // The `hero_image:` frontmatter key turns a product page into a split
     // hero: the "Neon Law …" brand title becomes the page <h1> beside the
     // curated photo, and the body's own leading <h1> is lifted up into the
     // hero lead (so it isn't repeated). This drives the full web→view seam
     // — the metadata read in `service_page` plus the view's hero render.
     let docs = vec![web::MarketingDoc {
-        slug: "estate".into(),
+        slug: "northstar".into(),
         title: "Neon Law Northstar".into(),
         description: "your estate plan in one sitting".into(),
         body_html: "<h1>Your estate plan, in one sitting</h1><p>One recorded sitting.</p>".into(),
@@ -776,7 +823,7 @@ async fn services_estate_renders_a_split_hero_from_the_hero_image_metadata() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/services/estate")
+                .uri("/services/northstar")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -871,7 +918,7 @@ async fn services_nautilus_uses_marketing_doc_when_present() {
 }
 
 #[tokio::test]
-async fn services_corporate_falls_back_to_default_when_no_doc() {
+async fn services_nest_falls_back_to_default_when_no_doc() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -879,7 +926,7 @@ async fn services_corporate_falls_back_to_default_when_no_doc() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/services/corporate")
+                .uri("/services/nest")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -894,9 +941,9 @@ async fn services_corporate_falls_back_to_default_when_no_doc() {
 }
 
 #[tokio::test]
-async fn services_fractional_gc_uses_marketing_doc_when_present() {
+async fn services_nexus_uses_marketing_doc_when_present() {
     let docs = vec![web::MarketingDoc {
-        slug: "fractional-gc".into(),
+        slug: "nexus".into(),
         title: "Fractional GC".into(),
         description: "Fractional general counsel for software startups.".into(),
         body_html: "<p>lead</p><p>[[pricing]]</p><h2>Everything but litigation</h2><p>Two-business-day response.</p>"
@@ -920,7 +967,7 @@ async fn services_fractional_gc_uses_marketing_doc_when_present() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/services/fractional-gc")
+                .uri("/services/nexus")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -936,6 +983,64 @@ async fn services_fractional_gc_uses_marketing_doc_when_present() {
     assert!(body.contains("2 of 10 filled"));
     assert!(body.contains("$5,000"));
     assert!(body.contains("Two-business-day response on everything you send us"));
+}
+
+#[tokio::test]
+async fn service_pages_live_at_their_product_codename_slug() {
+    // Every service detail page is reached at `/services/<product-code>`:
+    // the three pages that used a descriptive slug (estate, corporate,
+    // fractional-gc) now match their product code (northstar, nest, nexus),
+    // in lockstep with `product_service_path`. Drive the bundled content so
+    // each page renders its real copy in both locales.
+    let app = web::build_router(
+        state_with_bundled_marketing().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    for path in [
+        "/services/northstar",
+        "/services/nest",
+        "/services/nexus",
+        "/es/services/northstar",
+        "/es/services/nest",
+        "/es/services/nexus",
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "{path} should render");
+    }
+}
+
+#[tokio::test]
+async fn old_descriptive_service_slugs_are_gone_with_no_redirect() {
+    // The rename keeps NO back-compat for the old descriptive URLs — the
+    // user asked not to preserve them. The former paths must 404 (not 301),
+    // so this pins that we didn't silently leave a redirect behind.
+    let app = web::build_router(
+        state_with_bundled_marketing().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    for path in [
+        "/services/estate",
+        "/services/corporate",
+        "/services/fractional-gc",
+        "/es/services/estate",
+        "/es/services/corporate",
+        "/es/services/fractional-gc",
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "{path} should be gone with no redirect"
+        );
+    }
 }
 
 // The `/services` index is now the DB-backed product catalog (it replaced
@@ -975,34 +1080,6 @@ async fn foundation_nimbus_renders_the_install_product_under_foundation_brand() 
     assert!(body.contains("Legal aid centers"));
     // English-only: no Spanish switcher pointing at a non-existent /es twin.
     assert!(!body.contains("href=\"/es/foundation/nimbus\""));
-}
-
-#[tokio::test]
-async fn foundation_uses_marketing_doc_when_present() {
-    let docs = vec![web::MarketingDoc {
-        slug: "foundation".into(),
-        title: "Mission".into(),
-        description: "Foundation tagline.".into(),
-        body_html: "<h2>Programs</h2><p>Navigator + CLEs.</p>".into(),
-        metadata: std::collections::HashMap::new(),
-        pricing: Vec::new(),
-    }];
-    let mut state = empty_state().await;
-    state.marketing = MarketingIndex::new(docs);
-    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("<h2>Programs</h2>"));
-    assert!(body.contains("Navigator + CLEs."));
 }
 
 #[tokio::test]
@@ -2146,6 +2223,89 @@ async fn admin_people_delete_returns_empty_body_for_htmx_request() {
     );
 }
 
+#[tokio::test]
+async fn deleting_a_matter_with_linked_records_shows_a_red_toast_and_keeps_the_row() {
+    // A matter with dependent rows (a participation here) is FK-blocked by
+    // the database. Instead of the old silent `let _ = …` — which made the
+    // row vanish in the UI until a refresh brought it back — the handler
+    // returns a red toast retargeted to the body and leaves the row in place.
+    use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait, PaginatorTrait};
+    let state = empty_state().await;
+    store::migrate(&state.db).await.unwrap();
+    let entity_id = store::test_support::seed_entity(&state.db).await;
+    let person = store::entity::person::ActiveModel {
+        name: ActiveValue::Set("Libra".into()),
+        email: ActiveValue::Set("libra@example.com".into()),
+        ..Default::default()
+    }
+    .insert(&state.db)
+    .await
+    .unwrap();
+    let project = store::entity::project::ActiveModel {
+        name: ActiveValue::Set("Has a participant".into()),
+        status: ActiveValue::Set("open".into()),
+        entity_id: ActiveValue::Set(entity_id),
+        ..Default::default()
+    }
+    .insert(&state.db)
+    .await
+    .unwrap();
+    // A participation row references the project — this blocks the delete.
+    store::entity::person_project_role::ActiveModel {
+        person_id: ActiveValue::Set(person.id),
+        project_id: ActiveValue::Set(project.id),
+        participation: ActiveValue::Set("client".into()),
+        ..Default::default()
+    }
+    .insert(&state.db)
+    .await
+    .unwrap();
+
+    let db = state.db.clone();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/portal/projects/{}/delete", project.id))
+                .header("HX-Request", "true")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // 200 + retarget to body/beforeend so the toast lands without swapping
+    // (and removing) the row.
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get("HX-Retarget")
+            .and_then(|v| v.to_str().ok()),
+        Some("body"),
+    );
+    let body = body_string(resp).await;
+    assert!(
+        body.contains("text-bg-danger"),
+        "expected a red toast: {body}"
+    );
+    assert!(
+        body.contains("Couldn&#39;t delete this matter")
+            || body.contains("Couldn't delete this matter"),
+        "toast names the action: {body}",
+    );
+    assert!(
+        body.contains("still referenced by other records"),
+        "toast surfaces the real DB reason: {body}",
+    );
+    // The matter survives a blocked delete — it is NOT optimistically removed.
+    let remaining = store::entity::project::Entity::find()
+        .count(&db)
+        .await
+        .unwrap();
+    assert_eq!(remaining, 1, "the matter must survive a blocked delete");
+}
+
 /// Seed three people in alphabetical chaos so any sort applied by
 /// the handler is observable in the rendered HTML row order.
 async fn seed_three_people(db: &Db) {
@@ -2646,6 +2806,13 @@ async fn openapi_json_is_served() {
 
 #[tokio::test]
 async fn api_docs_serves_swagger_ui_shell_with_csp() {
+    // No session cookie / bearer token on this request: the Swagger UI
+    // documentation shell is public, alongside `/openapi.json`. The OPA
+    // exemption that enforces this at the gate is pinned by the
+    // `anonymous → /api/docs` decision in `cli::devx::e2e::opa_cases`;
+    // here the router runs with a passthrough policy, so this asserts
+    // the handler wiring and that an anonymous caller is never bounced
+    // to `/auth/login`.
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -2659,7 +2826,11 @@ async fn api_docs_serves_swagger_ui_shell_with_csp() {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "the API documentation must render for an anonymous caller, not redirect to auth"
+    );
     let csp = resp
         .headers()
         .get("content-security-policy")
@@ -3509,11 +3680,14 @@ async fn project_documents_upload_writes_blob_and_document_with_description() {
 
     // Seed one project to upload into.
     let project_id = Uuid::now_v7();
+    let __dri = store::test_support::dri_person(&state.db).await;
     project::ActiveModel {
         id: ActiveValue::Set(project_id),
         name: ActiveValue::Set("Upload Test".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&state.db)
@@ -3599,11 +3773,14 @@ async fn project_detail_page_renders_documents_and_upload_form() {
     store::migrate(&state.db).await.unwrap();
 
     let project_id = Uuid::now_v7();
+    let __dri = store::test_support::dri_person(&state.db).await;
     project::ActiveModel {
         id: ActiveValue::Set(project_id),
         name: ActiveValue::Set("Acme Formation".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&state.db)
@@ -3667,11 +3844,14 @@ async fn project_document_detail_page_shows_provenance_and_download_link() {
     store::migrate(&state.db).await.unwrap();
 
     let project_id = Uuid::now_v7();
+    let __dri = store::test_support::dri_person(&state.db).await;
     project::ActiveModel {
         id: ActiveValue::Set(project_id),
         name: ActiveValue::Set("Acme Formation".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&state.db)
@@ -3734,11 +3914,14 @@ async fn project_document_download_streams_bytes_on_fs_backend() {
     store::migrate(&state.db).await.unwrap();
 
     let project_id = Uuid::now_v7();
+    let __dri = store::test_support::dri_person(&state.db).await;
     project::ActiveModel {
         id: ActiveValue::Set(project_id),
         name: ActiveValue::Set("Acme Formation".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&state.db)
@@ -3806,11 +3989,14 @@ async fn project_document_download_404s_when_doc_belongs_to_a_different_project(
     let project_a = Uuid::now_v7();
     let project_b = Uuid::now_v7();
     for (id, name) in [(project_a, "A"), (project_b, "B")] {
+        let __dri = store::test_support::dri_person(&state.db).await;
         project::ActiveModel {
             id: ActiveValue::Set(id),
             name: ActiveValue::Set(name.into()),
             status: ActiveValue::Set("open".into()),
             entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+            staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+            client_dri_person_id: ActiveValue::Set(Some(__dri)),
             ..Default::default()
         }
         .insert(&state.db)
@@ -3858,11 +4044,14 @@ async fn project_detail_page_renders_empty_state_when_project_has_no_documents()
     store::migrate(&state.db).await.unwrap();
 
     let project_id = Uuid::now_v7();
+    let __dri = store::test_support::dri_person(&state.db).await;
     project::ActiveModel {
         id: ActiveValue::Set(project_id),
         name: ActiveValue::Set("Empty Matter".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&state.db)
@@ -4425,6 +4614,9 @@ async fn every_published_doc_is_200() {
     // No allowlist: every doc under the manifest is public.
     let docs = web::docs::loader::bundled();
     for doc in docs.docs() {
+        if doc.slug == "index" {
+            continue;
+        }
         let app = web::build_router(
             state_with_docs().await,
             std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -4439,6 +4631,17 @@ async fn every_published_doc_is_200() {
         docs.find("gke-prod").is_some(),
         "gke-prod doc must be published"
     );
+}
+
+#[tokio::test]
+async fn docs_index_slug_redirects_to_canonical_docs_root() {
+    let app = web::build_router(
+        state_with_docs().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = get(app, "/docs/index").await;
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(resp.headers().get("location").unwrap(), "/docs");
 }
 
 #[tokio::test]
@@ -4641,11 +4844,36 @@ async fn statutes_unknown_chapter_returns_404() {
 
 fn blog_state_with_one_post() -> web::BlogIndex {
     web::BlogIndex::new(vec![web::BlogPost {
-        slug: "thanks_apple".into(),
+        slug: "thanks-apple".into(),
         date: chrono::NaiveDate::from_ymd_opt(2026, 6, 19).unwrap(),
         title: "Thanks, Apple".into(),
         description: "A short note of thanks.".into(),
         body_html: "<p>We want to say thank you.</p>".into(),
+    }])
+}
+
+fn event_state_with_one_event() -> web::EventIndex {
+    web::EventIndex::new(vec![web::Event {
+        slug: "seattle-agentic-workflows-for-lawyers".into(),
+        date: chrono::NaiveDate::from_ymd_opt(2026, 7, 2).unwrap(),
+        title: "Agentic Workflows for Lawyers".into(),
+        description: "A practical AI workflow gathering.".into(),
+        body_html: "<p>Trade real stories and workflows.</p>".into(),
+        starts_at: chrono::NaiveDate::from_ymd_opt(2026, 7, 2)
+            .unwrap()
+            .and_hms_opt(11, 0, 0)
+            .unwrap(),
+        ends_at: chrono::NaiveDate::from_ymd_opt(2026, 7, 2)
+            .unwrap()
+            .and_hms_opt(15, 0, 0)
+            .unwrap(),
+        timezone: "America/Los_Angeles".into(),
+        location_name: "Private lounge".into(),
+        location_address: "1920 4th Ave, downtown Seattle".into(),
+        external_event_provider: "luma".into(),
+        external_event_url: "https://luma.com/k26256ut".into(),
+        video_url: None,
+        recap_url: None,
     }])
 }
 
@@ -4661,7 +4889,7 @@ async fn blog_index_lists_posts() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("Thanks, Apple"));
-    assert!(body.contains("href=\"/blog/thanks_apple\""));
+    assert!(body.contains("href=\"/blog/thanks-apple\""));
     assert!(body.contains("June 19, 2026"));
 }
 
@@ -4673,7 +4901,7 @@ async fn blog_post_renders_body() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/blog/thanks_apple")
+                .uri("/blog/thanks-apple")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4690,7 +4918,7 @@ async fn real_thanks_apple_post_is_capped_and_renders_the_photo_collage() {
     // End-to-end over the SHIPPED post file: the loader parses
     // `content/blog/20260619_thanks_apple.md`, the router renders it, and
     // we assert the two things this change wired up — the 65ch reading
-    // measure (matching `/foundation/mission`) and the photo collage,
+    // measure (matching `/foundation`) and the photo collage,
     // authored as a markdown bullet list of images that resolves through
     // the asset seam to `/public/img/thanks-apple/collage-N.jpg`.
     let mut state = empty_state().await;
@@ -4699,7 +4927,7 @@ async fn real_thanks_apple_post_is_capped_and_renders_the_photo_collage() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/blog/thanks_apple")
+                .uri("/blog/thanks-apple")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4748,18 +4976,18 @@ async fn blog_unknown_slug_returns_404() {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
-/// The hyphenated form of a slug permanently redirects to the canonical
-/// underscore form — `thanks-apple` becomes `thanks_apple` — so links
-/// written either way resolve to the same post.
+/// The legacy underscore form of a slug permanently redirects to the
+/// canonical kebab-case form — `thanks_apple` becomes `thanks-apple` —
+/// so links written either way resolve to the same post.
 #[tokio::test]
-async fn blog_hyphenated_slug_redirects_to_underscore() {
+async fn blog_underscore_slug_redirects_to_kebab() {
     let mut state = empty_state().await;
     state.blog = blog_state_with_one_post();
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/blog/thanks-apple")
+                .uri("/blog/thanks_apple")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4770,17 +4998,17 @@ async fn blog_hyphenated_slug_redirects_to_underscore() {
         resp.headers()
             .get(axum::http::header::LOCATION)
             .and_then(|v| v.to_str().ok()),
-        Some("/blog/thanks_apple"),
+        Some("/blog/thanks-apple"),
     );
 }
 
-/// Every hyphen in a multi-word slug is rewritten, and the redirect
+/// Every underscore in a multi-word slug is rewritten, and the redirect
 /// target then resolves to the real post.
 #[tokio::test]
-async fn blog_redirect_rewrites_all_hyphens_and_target_resolves() {
+async fn blog_redirect_rewrites_all_underscores_and_target_resolves() {
     let mut state = empty_state().await;
     state.blog = web::BlogIndex::new(vec![web::BlogPost {
-        slug: "a_long_post_title".into(),
+        slug: "a-long-post-title".into(),
         date: chrono::NaiveDate::from_ymd_opt(2026, 6, 19).unwrap(),
         title: "A Long Post Title".into(),
         description: "Multi-word slug.".into(),
@@ -4788,12 +5016,12 @@ async fn blog_redirect_rewrites_all_hyphens_and_target_resolves() {
     }]);
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
 
-    // Hyphenated request → 308 to the all-underscore form.
+    // Underscore request → 308 to the all-hyphen form.
     let resp = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/blog/a-long-post-title")
+                .uri("/blog/a_long_post_title")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4806,7 +5034,7 @@ async fn blog_redirect_rewrites_all_hyphens_and_target_resolves() {
         .and_then(|v| v.to_str().ok())
         .unwrap()
         .to_string();
-    assert_eq!(location, "/blog/a_long_post_title");
+    assert_eq!(location, "/blog/a-long-post-title");
 
     // Following the redirect lands on the real post.
     let resp = app
@@ -4823,20 +5051,89 @@ async fn blog_redirect_rewrites_all_hyphens_and_target_resolves() {
     assert!(body.contains("Body here."));
 }
 
-/// A slug with no hyphen is served directly — no redirect bounce.
+/// A kebab-case slug is served directly — no redirect bounce.
 #[tokio::test]
-async fn blog_underscore_slug_is_served_without_redirect() {
+async fn blog_kebab_slug_is_served_without_redirect() {
     let mut state = empty_state().await;
     state.blog = blog_state_with_one_post();
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/blog/thanks_apple")
+                .uri("/blog/thanks-apple")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn events_index_lists_events() {
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/events")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("Agentic Workflows for Lawyers"));
+    assert!(body.contains("href=\"/events/seattle-agentic-workflows-for-lawyers\""));
+    assert!(body.contains("July 2, 2026"));
+}
+
+#[tokio::test]
+async fn event_page_renders_rsvp_and_calendar_links() {
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/events/seattle-agentic-workflows-for-lawyers")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("Trade real stories and workflows."));
+    assert!(body.contains("href=\"https://luma.com/k26256ut\""));
+    assert!(body.contains("href=\"/events/seattle-agentic-workflows-for-lawyers/calendar.ics\""));
+}
+
+#[tokio::test]
+async fn event_ics_uses_pacific_timezone() {
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/events/seattle-agentic-workflows-for-lawyers/calendar.ics")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok()),
+        Some("text/calendar; charset=utf-8"),
+    );
+    let body = body_string(resp).await;
+    assert!(body.contains("DTSTART;TZID=America/Los_Angeles:20260702T110000"));
+    assert!(body.contains("DTEND;TZID=America/Los_Angeles:20260702T150000"));
+    assert!(body.contains("URL:https://luma.com/k26256ut"));
 }

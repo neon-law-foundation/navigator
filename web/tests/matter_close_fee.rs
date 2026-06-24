@@ -120,10 +120,13 @@ async fn seed_closed_estate(db: &store::Db) -> (Uuid, Uuid) {
     .insert(db)
     .await
     .unwrap();
+    let __dri = store::test_support::dri_person(db).await;
     let proj = project::ActiveModel {
         name: ActiveValue::Set("estate matter".into()),
         status: ActiveValue::Set("closed".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(db)
@@ -192,10 +195,13 @@ async fn matter_with_no_flat_fee_is_a_noop() {
     .insert(&db)
     .await
     .unwrap();
+    let __dri = store::test_support::dri_person(&db).await;
     let proj = project::ActiveModel {
         name: ActiveValue::Set("debt matter".into()),
         status: ActiveValue::Set("closed".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&db)

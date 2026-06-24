@@ -14,10 +14,12 @@ their [Matter](docs/glossary.md#matter). Every project contains a git repository
 templates](docs/notation.md#templates) which frequently use terms from our [glossary](docs/glossary.md). Notation
 templates are markdown documents that define the intake questions and workflows required that solve legal problems.
 
-For example, the [Nevada trust](templates/nest/nevada.md) notation template defines the questions required for filling
-out an estate, the workflows like notarization that are required, and where that data is used in the notation template
-body. When you work with your client, you create a [notation](docs/notation.md#notations) from a notation template. For
-coders, a notation is a workflow executed with a durable execution engine.
+For example, the [Nevada
+entity-formation](notation_templates/united_states/nevada/state/business_associations/entity_formation.md) notation
+template defines the questions required for filling out an entity formation, the workflows that are required, and where
+that data is used in the notation template body. When you work with your client, you create a
+[notation](docs/notation.md#notations) from a notation template. For coders, a notation is a workflow executed with a
+durable execution engine.
 
 We encourage writing notation templates with [Zed](https://zed.dev) and our [LSP](docs/lsp/README.md). It's different
 from Word, but once you get used to it, you may find it as productive as we do. Treating legal text like code opens a
@@ -34,14 +36,17 @@ cargo run -p cli -- start-dev-server
 
 If you want to deploy Navigator to the cloud, we recommend [Google Cloud](https://cloud.google.com) with
 [Doppler](https://doppler.com), [Restate](https://restate.dev), [Twilio](https://twilio.com),
-[DNSimple](https://dnsimple.com), and [Mercury](https://mercury.com). If those are set up, you can then run the
-following, then visit what you put in Doppler as the value of `NAVIGATOR_BASE_URL`.
+[DNSimple](https://dnsimple.com), and [Mercury](https://mercury.com). GitHub Actions builds and publishes the dated
+container images to [ghcr.io](https://ghcr.io); you then roll a published image onto your GKE cluster with one command
+and visit your `NAVIGATOR_PRIMARY_DOMAIN`:
 
 ```bash
-doppler run -- cargo run -p cli -- deploy
+doppler run -- cargo run --release -p cli -- power-push --tag YY.MM.DD
 ```
 
-For each command, the error messages will tell you what you need. Loop that back to your LLM of choice, like Claude.
+The full edit → merge → release → deploy lifecycle is documented in [GitOps](docs/gitops.md). Cluster setup lives in
+[GKE production](docs/gke-prod.md); a from-scratch fork install is in [OSS install](docs/oss-install.md). For each
+command, the error messages will tell you what you need. Loop that back to your LLM of choice, like Claude.
 
 ## License
 

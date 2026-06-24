@@ -2,7 +2,7 @@
 //! from the single-source-of-truth `docs/` tree (see
 //! [`web::docs`](../../../web/src/docs/mod.rs)).
 //!
-//! Rendered under the Foundation brand, beside `/foundation/mission` —
+//! Rendered under the Foundation brand, beside `/foundation` —
 //! these are workspace/reference docs, not an offer of representation.
 //! The firm-footer disclaimer renders site-wide, as on every page.
 

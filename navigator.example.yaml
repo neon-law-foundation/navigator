@@ -45,9 +45,6 @@ brand:
   terms_url: "https://acme.example/terms"
   privacy_url: "https://acme.example/privacy"
 
-  # Open-source CTA on the Foundation pages. Empty string hides it.
-  github_url: ""
-
 # White-label app-only deploy: mount only the portal + app surface and
 # 303 `/` to /portal. Your own marketing site (WordPress, etc.) owns the
 # public pages. Requires `terms_url` to be set (see `brand verify`).

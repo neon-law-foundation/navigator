@@ -93,6 +93,12 @@ impl SeedReport {
 // Bundled at compile time so the installed `navigator` binary is
 // self-contained — no runtime lookup of `store/seeds/`.
 
+/// The canonical jurisdiction reference data, embedded at compile time.
+/// Exposed so cross-crate reconciliation tests (e.g. `cli`) can assert the
+/// path vocabulary in `rules::f110` stays in sync with the seeded rows
+/// without reaching into `store`'s private modules.
+pub const JURISDICTION_SEED_YAML: &str = canonical::JURISDICTION;
+
 mod canonical {
     pub const JURISDICTION: &str = include_str!("../seeds/Jurisdiction.yaml");
     pub const ENTITY_TYPE: &str = include_str!("../seeds/EntityType.yaml");
@@ -121,77 +127,97 @@ mod canonical {
     /// it without a separate `navigator import` step. The full
     /// shipped catalog is bundled so a fresh cluster carries every
     /// template without an import pass.
-    pub const TEMPLATE_RETAINER: &str = include_str!("../../templates/onboarding/retainer.md");
-    pub const TEMPLATE_CLOSING_LETTER: &str = include_str!("../../templates/closing/letter.md");
+    pub const TEMPLATE_RETAINER: &str =
+        include_str!("../../notation_templates/engagements/retainer.md");
+    pub const TEMPLATE_CLOSING_LETTER: &str =
+        include_str!("../../notation_templates/correspondence/closing_letter.md");
     pub const TEMPLATE_ANNUAL_REPORT_NV: &str =
-        include_str!("../../templates/annual_report/nevada.md");
-    pub const TEMPLATE_DISSOLUTION_NV: &str = include_str!("../../templates/dissolution/nevada.md");
-    pub const TEMPLATE_LLC_CA: &str = include_str!("../../templates/llc/california.md");
-    pub const TEMPLATE_FORM990: &str =
-        include_str!("../../templates/nonprofit/form990_annual_report.md");
+        include_str!("../../notation_templates/united_states/nevada/state/business_associations/annual_report.md");
+    pub const TEMPLATE_DISSOLUTION_NV: &str = include_str!(
+        "../../notation_templates/united_states/nevada/state/business_associations/dissolution.md"
+    );
+    pub const TEMPLATE_LLC_CA: &str = include_str!(
+        "../../notation_templates/united_states/california/state/business_associations/llc.md"
+    );
+    pub const TEMPLATE_FORM990: &str = include_str!(
+        "../../notation_templates/united_states/federal/irs/taxation/form990_annual_report.md"
+    );
     pub const TEMPLATE_NONPROFIT_501C3_NV: &str =
-        include_str!("../../templates/nonprofit/nevada_501c3_formation.md");
-    pub const TEMPLATE_CHARITABLE_SOLICITATION_NV: &str =
-        include_str!("../../templates/nonprofit/nevada_charitable_solicitation_registration.md");
-    pub const TEMPLATE_NV_MBT: &str =
-        include_str!("../../templates/nv_state_tax_filing/modified_business_tax.md");
-    pub const TEMPLATE_TRUST_NV: &str = include_str!("../../templates/trust/nevada.md");
-    pub const TEMPLATE_WILL_SIMPLE: &str = include_str!("../../templates/will/simple.md");
-    pub const TEMPLATE_ESTATE: &str = include_str!("../../templates/onboarding/estate.md");
+        include_str!("../../notation_templates/united_states/nevada/state/business_associations/nonprofit_501c3_formation.md");
+    pub const TEMPLATE_CHARITABLE_SOLICITATION_NV: &str = include_str!(
+        "../../notation_templates/united_states/nevada/state/business_associations/charitable_solicitation_registration.md"
+    );
+    pub const TEMPLATE_NV_MBT: &str = include_str!(
+        "../../notation_templates/united_states/nevada/state/taxation/modified_business_tax.md"
+    );
+    pub const TEMPLATE_TRUST_NV: &str = include_str!(
+        "../../notation_templates/united_states/nevada/internal/trusts_and_estates/trust.md"
+    );
+    pub const TEMPLATE_WILL_SIMPLE: &str = include_str!(
+        "../../notation_templates/united_states/nevada/internal/trusts_and_estates/will.md"
+    );
+    pub const TEMPLATE_ESTATE: &str =
+        include_str!("../../notation_templates/engagements/estate.md");
     // Northstar estate instrument stubs — the will, trust, and the two
     // directives the `document_drafts__estate` step renders from the
     // sitting's answers into one `review_documents` row each.
-    pub const TEMPLATE_NORTHSTAR_WILL: &str = include_str!("../../templates/northstar/will.md");
-    pub const TEMPLATE_NORTHSTAR_TRUST: &str = include_str!("../../templates/northstar/trust.md");
+    pub const TEMPLATE_NORTHSTAR_WILL: &str =
+        include_str!("../../notation_templates/united_states/nevada/internal/trusts_and_estates/northstar_will.md");
+    pub const TEMPLATE_NORTHSTAR_TRUST: &str =
+        include_str!("../../notation_templates/united_states/nevada/internal/trusts_and_estates/northstar_trust.md");
     pub const TEMPLATE_NORTHSTAR_DIRECTIVE_HEALTH: &str =
-        include_str!("../../templates/northstar/directive_health.md");
+        include_str!("../../notation_templates/united_states/nevada/internal/trusts_and_estates/directive_health.md");
     pub const TEMPLATE_NORTHSTAR_DIRECTIVE_FINANCIAL: &str =
-        include_str!("../../templates/northstar/directive_financial.md");
-    pub const TEMPLATE_NEST_NV: &str = include_str!("../../templates/nest/nevada.md");
+        include_str!("../../notation_templates/united_states/nevada/internal/trusts_and_estates/directive_financial.md");
+    pub const TEMPLATE_NEST_NV: &str = include_str!("../../notation_templates/united_states/nevada/state/business_associations/entity_formation.md");
     pub const TEMPLATE_NEST_CORP_NV: &str =
-        include_str!("../../templates/nest/nevada_profit_corp.md");
+        include_str!("../../notation_templates/united_states/nevada/state/business_associations/profit_corp_formation.md");
     pub const TEMPLATE_NEST_BUSINESS_TRUST_NV: &str =
-        include_str!("../../templates/nest/nevada_business_trust.md");
-    pub const TEMPLATE_NEXUS: &str = include_str!("../../templates/nexus/fractional_gc.md");
+        include_str!("../../notation_templates/united_states/nevada/state/business_associations/business_trust_formation.md");
+    pub const TEMPLATE_NEXUS: &str =
+        include_str!("../../notation_templates/united_states/nevada/internal/business_associations/fractional_gc.md");
     pub const TEMPLATE_CONTRACT_REVIEW: &str =
-        include_str!("../../templates/services/contract_review.md");
+        include_str!("../../notation_templates/services/contract_review.md");
     pub const TEMPLATE_NAUTILUS_CEASE: &str =
-        include_str!("../../templates/nautilus/cease_communication.md");
-    pub const TEMPLATE_NAUTILUS_DEBT_VALIDATION: &str =
-        include_str!("../../templates/nautilus/debt_validation.md");
-    pub const TEMPLATE_NAUTILUS_FCRA: &str =
-        include_str!("../../templates/nautilus/fcra_dispute.md");
+        include_str!("../../notation_templates/united_states/federal/internal/debt_relief/cease_communication.md");
+    pub const TEMPLATE_NAUTILUS_DEBT_VALIDATION: &str = include_str!(
+        "../../notation_templates/united_states/federal/internal/debt_relief/debt_validation.md"
+    );
+    pub const TEMPLATE_NAUTILUS_FCRA: &str = include_str!(
+        "../../notation_templates/united_states/federal/internal/debt_relief/fcra_dispute.md"
+    );
     pub const TEMPLATE_NAUTILUS_NOTICE: &str =
-        include_str!("../../templates/nautilus/notice_of_representation.md");
-    pub const TEMPLATE_NAUTILUS_SETTLEMENT: &str =
-        include_str!("../../templates/nautilus/settlement_letter.md");
+        include_str!("../../notation_templates/united_states/federal/internal/debt_relief/notice_of_representation.md");
+    pub const TEMPLATE_NAUTILUS_SETTLEMENT: &str = include_str!(
+        "../../notation_templates/united_states/federal/internal/debt_relief/settlement_letter.md"
+    );
     // Service-specific retainers — one engagement agreement per product.
     // Each carries the shared JAMS arbitration + `support@` clauses
     // (byte-identical across all six, guarded by a body test) and a
     // practice-area-specific ethics reading naming the RPC(s) that bite
     // for that service.
     pub const TEMPLATE_RETAINER_NEST: &str =
-        include_str!("../../templates/onboarding/retainer_nest.md");
+        include_str!("../../notation_templates/neon_law/engagements/retainer_nest.md");
     pub const TEMPLATE_RETAINER_NEXUS: &str =
-        include_str!("../../templates/onboarding/retainer_nexus.md");
+        include_str!("../../notation_templates/neon_law/engagements/retainer_nexus.md");
     pub const TEMPLATE_RETAINER_NORTHSTAR: &str =
-        include_str!("../../templates/onboarding/retainer_northstar.md");
+        include_str!("../../notation_templates/neon_law/engagements/retainer_northstar.md");
     pub const TEMPLATE_RETAINER_NAUTILUS: &str =
-        include_str!("../../templates/onboarding/retainer_nautilus.md");
+        include_str!("../../notation_templates/neon_law/engagements/retainer_nautilus.md");
     pub const TEMPLATE_RETAINER_NOOK: &str =
-        include_str!("../../templates/onboarding/retainer_nook.md");
+        include_str!("../../notation_templates/neon_law/engagements/retainer_nook.md");
     pub const TEMPLATE_RETAINER_LITIGATION: &str =
-        include_str!("../../templates/onboarding/retainer_litigation.md");
+        include_str!("../../notation_templates/neon_law/engagements/retainer_litigation.md");
     pub const TEMPLATE_RETAINER_NERD: &str =
-        include_str!("../../templates/onboarding/retainer_nerd.md");
+        include_str!("../../notation_templates/neon_law/engagements/retainer_nerd.md");
     pub const TEMPLATE_RETAINER_NODE: &str =
-        include_str!("../../templates/onboarding/retainer_node.md");
+        include_str!("../../notation_templates/neon_law/engagements/retainer_node.md");
     pub const TEMPLATE_RETAINER_NEWLEAF: &str =
-        include_str!("../../templates/onboarding/retainer_newleaf.md");
+        include_str!("../../notation_templates/neon_law/engagements/retainer_newleaf.md");
     pub const TEMPLATE_RETAINER_NAMESAKE: &str =
-        include_str!("../../templates/onboarding/retainer_namesake.md");
+        include_str!("../../notation_templates/neon_law/engagements/retainer_namesake.md");
     pub const TEMPLATE_RETAINER_NUCLEUS: &str =
-        include_str!("../../templates/onboarding/retainer_nucleus.md");
+        include_str!("../../notation_templates/neon_law/engagements/retainer_nucleus.md");
 }
 
 /// Wrap a list of records under the YAML's `records:` key. Every seed
@@ -278,119 +304,119 @@ async fn seed_templates(
     report: &mut SeedReport,
 ) -> anyhow::Result<()> {
     for (label, md) in [
-        ("onboarding/retainer.md", canonical::TEMPLATE_RETAINER),
-        ("closing/letter.md", canonical::TEMPLATE_CLOSING_LETTER),
+        ("engagements/retainer.md", canonical::TEMPLATE_RETAINER),
+        ("correspondence/closing_letter.md", canonical::TEMPLATE_CLOSING_LETTER),
         (
-            "annual_report/nevada.md",
+            "united_states/nevada/state/business_associations/annual_report.md",
             canonical::TEMPLATE_ANNUAL_REPORT_NV,
         ),
-        ("dissolution/nevada.md", canonical::TEMPLATE_DISSOLUTION_NV),
-        ("llc/california.md", canonical::TEMPLATE_LLC_CA),
+        ("united_states/nevada/state/business_associations/dissolution.md", canonical::TEMPLATE_DISSOLUTION_NV),
+        ("united_states/california/state/business_associations/llc.md", canonical::TEMPLATE_LLC_CA),
         (
-            "nonprofit/form990_annual_report.md",
+            "united_states/federal/irs/taxation/form990_annual_report.md",
             canonical::TEMPLATE_FORM990,
         ),
         (
-            "nonprofit/nevada_501c3_formation.md",
+            "united_states/nevada/state/business_associations/nonprofit_501c3_formation.md",
             canonical::TEMPLATE_NONPROFIT_501C3_NV,
         ),
         (
-            "nonprofit/nevada_charitable_solicitation_registration.md",
+            "united_states/nevada/state/business_associations/charitable_solicitation_registration.md",
             canonical::TEMPLATE_CHARITABLE_SOLICITATION_NV,
         ),
         (
-            "nv_state_tax_filing/modified_business_tax.md",
+            "united_states/nevada/state/taxation/modified_business_tax.md",
             canonical::TEMPLATE_NV_MBT,
         ),
-        ("trust/nevada.md", canonical::TEMPLATE_TRUST_NV),
-        ("will/simple.md", canonical::TEMPLATE_WILL_SIMPLE),
-        ("onboarding/estate.md", canonical::TEMPLATE_ESTATE),
-        ("northstar/will.md", canonical::TEMPLATE_NORTHSTAR_WILL),
-        ("northstar/trust.md", canonical::TEMPLATE_NORTHSTAR_TRUST),
+        ("united_states/nevada/internal/trusts_and_estates/trust.md", canonical::TEMPLATE_TRUST_NV),
+        ("united_states/nevada/internal/trusts_and_estates/will.md", canonical::TEMPLATE_WILL_SIMPLE),
+        ("engagements/estate.md", canonical::TEMPLATE_ESTATE),
+        ("united_states/nevada/internal/trusts_and_estates/northstar_will.md", canonical::TEMPLATE_NORTHSTAR_WILL),
+        ("united_states/nevada/internal/trusts_and_estates/northstar_trust.md", canonical::TEMPLATE_NORTHSTAR_TRUST),
         (
-            "northstar/directive_health.md",
+            "united_states/nevada/internal/trusts_and_estates/directive_health.md",
             canonical::TEMPLATE_NORTHSTAR_DIRECTIVE_HEALTH,
         ),
         (
-            "northstar/directive_financial.md",
+            "united_states/nevada/internal/trusts_and_estates/directive_financial.md",
             canonical::TEMPLATE_NORTHSTAR_DIRECTIVE_FINANCIAL,
         ),
-        ("nest/nevada.md", canonical::TEMPLATE_NEST_NV),
+        ("united_states/nevada/state/business_associations/entity_formation.md", canonical::TEMPLATE_NEST_NV),
         (
-            "nest/nevada_profit_corp.md",
+            "united_states/nevada/state/business_associations/profit_corp_formation.md",
             canonical::TEMPLATE_NEST_CORP_NV,
         ),
         (
-            "nest/nevada_business_trust.md",
+            "united_states/nevada/state/business_associations/business_trust_formation.md",
             canonical::TEMPLATE_NEST_BUSINESS_TRUST_NV,
         ),
-        ("nexus/fractional_gc.md", canonical::TEMPLATE_NEXUS),
+        ("united_states/nevada/internal/business_associations/fractional_gc.md", canonical::TEMPLATE_NEXUS),
         (
             "services/contract_review.md",
             canonical::TEMPLATE_CONTRACT_REVIEW,
         ),
         (
-            "nautilus/cease_communication.md",
+            "united_states/federal/internal/debt_relief/cease_communication.md",
             canonical::TEMPLATE_NAUTILUS_CEASE,
         ),
         (
-            "nautilus/debt_validation.md",
+            "united_states/federal/internal/debt_relief/debt_validation.md",
             canonical::TEMPLATE_NAUTILUS_DEBT_VALIDATION,
         ),
         (
-            "nautilus/fcra_dispute.md",
+            "united_states/federal/internal/debt_relief/fcra_dispute.md",
             canonical::TEMPLATE_NAUTILUS_FCRA,
         ),
         (
-            "nautilus/notice_of_representation.md",
+            "united_states/federal/internal/debt_relief/notice_of_representation.md",
             canonical::TEMPLATE_NAUTILUS_NOTICE,
         ),
         (
-            "nautilus/settlement_letter.md",
+            "united_states/federal/internal/debt_relief/settlement_letter.md",
             canonical::TEMPLATE_NAUTILUS_SETTLEMENT,
         ),
         (
-            "onboarding/retainer_nest.md",
+            "neon_law/engagements/retainer_nest.md",
             canonical::TEMPLATE_RETAINER_NEST,
         ),
         (
-            "onboarding/retainer_nexus.md",
+            "neon_law/engagements/retainer_nexus.md",
             canonical::TEMPLATE_RETAINER_NEXUS,
         ),
         (
-            "onboarding/retainer_northstar.md",
+            "neon_law/engagements/retainer_northstar.md",
             canonical::TEMPLATE_RETAINER_NORTHSTAR,
         ),
         (
-            "onboarding/retainer_nautilus.md",
+            "neon_law/engagements/retainer_nautilus.md",
             canonical::TEMPLATE_RETAINER_NAUTILUS,
         ),
         (
-            "onboarding/retainer_nook.md",
+            "neon_law/engagements/retainer_nook.md",
             canonical::TEMPLATE_RETAINER_NOOK,
         ),
         (
-            "onboarding/retainer_litigation.md",
+            "neon_law/engagements/retainer_litigation.md",
             canonical::TEMPLATE_RETAINER_LITIGATION,
         ),
         (
-            "onboarding/retainer_nerd.md",
+            "neon_law/engagements/retainer_nerd.md",
             canonical::TEMPLATE_RETAINER_NERD,
         ),
         (
-            "onboarding/retainer_node.md",
+            "neon_law/engagements/retainer_node.md",
             canonical::TEMPLATE_RETAINER_NODE,
         ),
         (
-            "onboarding/retainer_newleaf.md",
+            "neon_law/engagements/retainer_newleaf.md",
             canonical::TEMPLATE_RETAINER_NEWLEAF,
         ),
         (
-            "onboarding/retainer_namesake.md",
+            "neon_law/engagements/retainer_namesake.md",
             canonical::TEMPLATE_RETAINER_NAMESAKE,
         ),
         (
-            "onboarding/retainer_nucleus.md",
+            "neon_law/engagements/retainer_nucleus.md",
             canonical::TEMPLATE_RETAINER_NUCLEUS,
         ),
     ] {
@@ -574,6 +600,7 @@ async fn seed_products(db: &DatabaseConnection, report: &mut SeedReport) -> anyh
 struct JurisdictionRec {
     name: String,
     code: String,
+    jurisdiction_type: String,
 }
 
 async fn seed_jurisdictions(
@@ -592,6 +619,7 @@ async fn seed_jurisdictions(
         jurisdiction::ActiveModel {
             name: ActiveValue::Set(rec.name),
             code: ActiveValue::Set(rec.code),
+            jurisdiction_type: ActiveValue::Set(rec.jurisdiction_type),
             ..Default::default()
         }
         .insert(db)
@@ -742,7 +770,7 @@ struct PersonEmailRef {
 /// lowercase requirement is exact-match — the seed is the canonical
 /// source of truth and mixed-case ("Nick@NeonLaw.com") breaks the
 /// email-as-foreign-key pattern used throughout the workspace.
-/// See `.claude/skills/authorization-model/SKILL.md`.
+/// See `docs/access-model.md`.
 fn require_firm_domain(email: &str, role: person::Role) -> anyhow::Result<()> {
     use person::Role;
     if !matches!(role, Role::Staff | Role::Admin) {
@@ -751,14 +779,14 @@ fn require_firm_domain(email: &str, role: person::Role) -> anyhow::Result<()> {
     if email != email.to_ascii_lowercase() {
         anyhow::bail!(
             "User.yaml: {role:?} seed for {email:?} must be lowercase \
-             (see .claude/skills/authorization-model/SKILL.md)",
+             (see docs/access-model.md)",
         );
     }
     if !email.ends_with("@neonlaw.com") {
         anyhow::bail!(
             "User.yaml: {role:?} seed for {email:?} violates the firm-domain \
              convention — staff/admin records must use an @neonlaw.com email \
-             (see .claude/skills/authorization-model/SKILL.md)",
+             (see docs/access-model.md)",
         );
     }
     Ok(())
@@ -814,21 +842,24 @@ struct ProjectRec {
 }
 
 async fn seed_projects(db: &DatabaseConnection, report: &mut SeedReport) -> anyhow::Result<()> {
-    // Every project is opened against a pre-existing entity and carries a
-    // designated DRI (see docs/glossary.md). The example project tracks the
-    // firm's own entity and names Nick as the staff-side Directly
-    // Responsible Individual.
+    // Every project is opened against a pre-existing entity and carries
+    // two required DRIs (see docs/glossary.md). The firm's own examples
+    // matter tracks the firm's entity and names Nick on both sides — it is
+    // the firm's internal demo, so the firm is its own client. The DRI
+    // columns are authoritative; we do not mirror them into the
+    // `person_project_roles` participation ledger.
     let entity_id = entities::Entity::find()
         .filter(entities::Column::Name.eq("Shook Law PLLC"))
         .one(db)
         .await?
         .map(|e| e.id)
         .ok_or_else(|| anyhow::anyhow!("seed: entity `Shook Law PLLC` must be seeded first"))?;
-    let dri_person_id = person::Entity::find()
+    let nick_id = person::Entity::find()
         .filter(person::Column::Email.eq("nick@neonlaw.com"))
         .one(db)
         .await?
-        .map(|p| p.id);
+        .map(|p| p.id)
+        .ok_or_else(|| anyhow::anyhow!("seed: person `nick@neonlaw.com` must be seeded first"))?;
 
     for rec in parse::<ProjectRec>(canonical::PROJECT, "Project.yaml")? {
         if project::Entity::find()
@@ -839,30 +870,17 @@ async fn seed_projects(db: &DatabaseConnection, report: &mut SeedReport) -> anyh
         {
             continue;
         }
-        let project_id = project::ActiveModel {
+        project::ActiveModel {
             name: ActiveValue::Set(rec.codename),
             status: ActiveValue::Set("open".into()),
             entity_id: ActiveValue::Set(entity_id),
+            staff_dri_person_id: ActiveValue::Set(Some(nick_id)),
+            client_dri_person_id: ActiveValue::Set(Some(nick_id)),
             ..Default::default()
         }
         .insert(db)
-        .await?
-        .id;
+        .await?;
         report.projects_inserted += 1;
-
-        // Designate the DRI as a participation role on the project.
-        if let Some(pid) = dri_person_id {
-            person_project_role::ActiveModel {
-                person_id: ActiveValue::Set(pid),
-                project_id: ActiveValue::Set(project_id),
-                participation: ActiveValue::Set(
-                    person_project_role::PARTICIPATION_STAFF_DRI.to_string(),
-                ),
-                ..Default::default()
-            }
-            .insert(db)
-            .await?;
-        }
     }
     Ok(())
 }
@@ -1546,12 +1564,18 @@ mod tests {
             .await
             .expect("seed");
         let js = jurisdiction::Entity::find().all(&db).await.unwrap();
-        // 50 states + DC + Germany = 52 rows.
-        assert_eq!(js.len(), 52);
+        // 50 states + DC + United States + Germany = 53 rows.
+        assert_eq!(js.len(), 53);
         let codes: Vec<&str> = js.iter().map(|j| j.code.as_str()).collect();
-        for code in ["NV", "CA", "NY", "TX", "WY", "DC", "GMBH"] {
+        for code in ["NV", "CA", "NY", "TX", "WY", "DC", "US", "GMBH"] {
             assert!(codes.contains(&code), "expected `{code}` in jurisdictions");
         }
+        // `jurisdiction_type` is reconciled with the seed: states are
+        // `state`, the federal sovereigns are `country`.
+        let by_code = |c: &str| js.iter().find(|j| j.code == c).unwrap();
+        assert_eq!(by_code("NV").jurisdiction_type, "state");
+        assert_eq!(by_code("US").jurisdiction_type, "country");
+        assert_eq!(by_code("GMBH").jurisdiction_type, "country");
     }
 
     #[tokio::test]

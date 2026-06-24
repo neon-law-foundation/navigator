@@ -126,7 +126,7 @@ async fn staff_walks_the_full_retainer_questionnaire_end_to_end() {
     //
     // Preconditions (beyond the module's chromedriver + KIND
     // requirements): the `onboarding__retainer` template must
-    // have been imported via `navigator import templates/`
+    // have been imported via `navigator import notation_templates/`
     // (RUNBOOK step 4), and `store/seeds/Question.yaml` must
     // have been seeded so the four walker question codes are
     // looked up successfully.
@@ -176,10 +176,14 @@ async fn staff_walks_the_full_retainer_questionnaire_end_to_end() {
     )
     .await
     .unwrap();
+    // `retainer_template_code` renders as a <select> dropdown (the
+    // onboarding-template picker), not a text input — target the element
+    // that actually exists, or `querySelector` returns null and the
+    // `.value =` assignment throws.
     c.execute(
         set_input_script,
         vec![
-            serde_json::Value::String("input[name='retainer_template_code']".into()),
+            serde_json::Value::String("select[name='retainer_template_code']".into()),
             serde_json::Value::String("onboarding__retainer".into()),
         ],
     )
@@ -424,8 +428,14 @@ async fn staff_opens_an_estate_matter_and_sees_the_transcript_form() {
     .unwrap();
 
     // The estate flow lands on the matter page with the transcript form —
-    // never the questionnaire walker.
-    wait_for_text(&c, "File the sitting transcript", Duration::from_secs(10)).await;
+    // never the questionnaire walker. The matter page is project-scoped:
+    // the staffer who opened it must be disclosed to it (a
+    // `person_project_roles` staff-DRI row) or `can_see_project` 404s them.
+    // `start_post` writes that row as part of creation, so the opener lands
+    // on the transcript form rather than a "Not found" page. The estate
+    // create also starts the workflow machine through Restate in-request, so
+    // allow a generous budget for that cross-pod round-trip.
+    wait_for_text(&c, "File the sitting transcript", Duration::from_secs(15)).await;
     let url = c.current_url().await.unwrap();
     assert!(
         url.path().starts_with("/portal/projects/"),

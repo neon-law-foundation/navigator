@@ -76,7 +76,6 @@ struct Brand {
     consultation_url: Option<String>,
     terms_url: Option<String>,
     privacy_url: Option<String>,
-    github_url: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -133,11 +132,6 @@ fn env_block(m: &Manifest) -> String {
     push("NAVIGATOR_CONSULTATION_URL", &b.consultation_url);
     push("NAVIGATOR_TERMS_URL", &b.terms_url);
     push("NAVIGATOR_PRIVACY_URL", &b.privacy_url);
-    // github_url is intentionally emitted even when empty: an empty value
-    // hides the Foundation GitHub CTA (see brand::foundation_github_url).
-    if let Some(v) = &b.github_url {
-        lines.push(format!("NAVIGATOR_FOUNDATION_GITHUB_URL={v}"));
-    }
     if m.portal_only {
         lines.push("NAVIGATOR_PORTAL_ONLY=true".to_string());
     }
@@ -278,12 +272,6 @@ mod tests {
         assert!(block.contains("NAVIGATOR_PORTAL_ONLY=true"));
         // Unset fields are omitted, not emitted empty.
         assert!(!block.contains("NAVIGATOR_BRAND_FOUNDATION="));
-    }
-
-    #[test]
-    fn empty_github_url_is_emitted_to_hide_the_cta() {
-        let m = manifest_from("brand:\n  github_url: \"\"\n");
-        assert!(env_block(&m).contains("NAVIGATOR_FOUNDATION_GITHUB_URL=\n"));
     }
 
     #[test]

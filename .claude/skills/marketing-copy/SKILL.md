@@ -126,7 +126,7 @@ hide.
 Source-of-truth order:
 
 1. **The seed data and templates** — `store/seeds/Address.yaml` (firm and Foundation addresses, suites, jurisdictions),
-   `templates/nonprofit/` (the Foundation is a **Nevada** 501(c)(3)), and the bar-admission strip in
+   `notation_templates/nonprofit/` (the Foundation is a **Nevada** 501(c)(3)), and the bar-admission strip in
    `views/src/layout.rs` (CA No. 337252, NV No. 13400, WA).
 2. **The user** — for anything not pinned in the repo, or any value that looks even slightly off. Ask; don't assume.
 
@@ -160,9 +160,9 @@ way the Legal Council surfaces a go/no-go it cannot answer. Do not invent the an
   - ❌ "Government fees are pass-through at cost — we publish what the Secretary of State charges and collect it with
     the engagement fee, never with a markup."
   - ✅ "Government fees pass through at cost — what the Secretary of State charges, we collect with no markup."
-- **Government fees are labelled and pass-through.** Every fee table on `corporate.md`, `estate.md`, and
-  `fractional-gc.md` has a "Government fees" column making clear what's included (legal fee only) vs. what's
-  pass-through at cost (state filing fees, court filing fees, recorder fees). Never mark up government fees.
+- **Government fees are labelled and pass-through.** Every fee table on `nest.md`, `northstar.md`, and `nexus.md`
+  has a "Government fees" column making clear what's included (legal fee only) vs. what's pass-through at cost (state
+  filing fees, court filing fees, recorder fees). Never mark up government fees.
 - **Engagement letter governs.** Every page with a fee table closes with an "Engagement letter governs" section stating
   that scope, final fee, out-of-scope rate, and disengagement terms are confirmed in a written engagement letter signed
   before work begins. The published fees are a starting point, not a binding offer.
@@ -225,6 +225,6 @@ validated.
 
 > *Rewrite:* "Fractional general counsel for software and AI startups. A licensed attorney admitted in California,
 > Nevada, and Washington reviews your contracts and prepares your environment for SOC 2 and HIPAA audits. Every retainer
-> fee, SLA, and overage rate is published — see the [Fractional GC](/services/fractional-gc) page."
+> fee, SLA, and overage rate is published — see the [Nexus](/services/nexus) page."
 
 Every claim in the rewrite is a fact, a credential, or a published commitment. That's the bar.

@@ -9,8 +9,16 @@ name: deploy
 #   2. publish     — only if integration is green, push all images (the two
 #      service images + the five CronJob trigger images) to ghcr.io tagged
 #      with the release date + `latest`.
-#   3. notify      — email a deploy report to nick@neonlaw.com via SendGrid
-#      (from support@neonlaw.com — `workflows::DEFAULT_FROM_EMAIL`).
+#   3. notify      — post a "ready to deploy" hand-off to the engineering Slack
+#      channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from
+#      Doppler), tagging Nick with the exact `power-push` command to roll the new
+#      images to prod. The prod roll is a deliberate manual step (docs/gitops.md),
+#      so the green-deploy message is an actionable hand-off, not a silent FYI.
+#
+# Plus one out-of-band guard: `notify-failure` posts to the engineering Slack
+# channel (tagging Nick) whenever ANY of the three stages fails, so a broken
+# nightly deploy is seen immediately. It carries only the tag + run URL — the
+# "identifiers and counts, never content" rule binds here too.
 #
 # The image tag is the release tag itself (`github.ref_name`, e.g. 26.06.18).
 
@@ -18,26 +26,104 @@ on:
   push:
     tags:
       - "[0-9][0-9].[0-9][0-9].[0-9][0-9]"
+    # CI-iteration seam. Pushing a branch named `kind-ci/**` runs ONLY the
+    # KIND integration job below — publish/notify/notify-failure are all
+    # gated on a tag ref, so a branch run pushes no images, sends no email,
+    # and posts no Slack. This lets a change to *this workflow* (or the KIND
+    # wiring it exercises) be proven green on a branch before it's tagged into
+    # the nightly deploy, without cutting a throwaway `YY.MM.DD` tag. Not a
+    # fourth workflow — same deploy.yml, just an extra trigger on the one job
+    # that needs pre-tag iteration.
+    branches:
+      - "kind-ci/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
 
 jobs:
+  # ---------- Stage 0: build both service images in parallel ----------
+  # Each image cold-compiles the whole Rust workspace (~15 min apiece).
+  # Building them as a parallel matrix here — instead of two sequential
+  # `docker build` steps inside `integration` — overlaps those compiles so
+  # the wall-clock is ~one build, not two. It also stops `integration` from
+  # burning ~31 of its ~44 minutes building before it can even start the
+  # e2e suite (which is itself only ~6 min), keeping the whole run well
+  # under the 60-min cap even on a cold cache.
+  #
+  # Each image is pushed to ghcr.io under an ephemeral, per-run tag that
+  # `integration` pulls and loads into KIND. Auth is the automatic
+  # GITHUB_TOKEN (+ `permissions: packages: write`); the navigator-web and
+  # navigator-workflows-service packages must grant this repo Write access
+  # under their "Manage Actions access" settings, exactly as the
+  # auto-created trigger-image packages already have.
+  build:
+    name: build ${{ matrix.image }}
+    if: github.repository == 'neon-law-foundation/Navigator'
+    runs-on: ubuntu-latest
+    # Cold workspace compile; cap so a stuck build can't hang the run.
+    timeout-minutes: 45
+    strategy:
+      # One red build means the e2e can't run — stop the sibling too.
+      fail-fast: true
+      matrix:
+        include:
+          - image: navigator-web
+            dockerfile: images/Dockerfile.web
+          - image: navigator-workflows-service
+            dockerfile: images/Dockerfile.workflows-service
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: log in to ghcr.io
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: derive ephemeral image ref
+        id: ref
+        # Lowercase the owner (ghcr rejects uppercase) and tag by commit SHA
+        # so the tag is stable across re-runs: a `--failed` re-run of only
+        # `integration` (where `build` does NOT re-run) still finds the image
+        # `build` already pushed for this commit.
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}:ci-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+      - name: build and push (ephemeral CI tag)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.ref.outputs.ref }}
+          # Same gha cache scope the publish job reads, so a tag run's
+          # publish rebuild stays a near-no-op.
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
   # ---------- Stage 1: KIND end-to-end integration ----------
   integration:
     name: KIND integration (tag ${{ github.ref_name }})
+    needs: build
     if: github.repository == 'neon-law-foundation/Navigator'
     runs-on: ubuntu-latest
+    # Fail fast instead of hanging for hours. With the image builds moved
+    # to the parallel `build` job, a healthy run here is just the KIND
+    # stand-up + e2e/browser/accessibility suite (~15 min); a wedged
+    # dependency (e.g. Restate not provisioning) used to leave the `e2e`
+    # waits and smoke checks spinning until someone cancelled it by hand —
+    # one such run burned 2h15m. 60 min leaves wide headroom while capping
+    # a wedge at a bounded, log-bearing failure.
+    timeout-minutes: 60
     steps:
-      # The standard ubuntu-latest runner ships ~21-28 GB free on `/` — not
-      # enough for this job, which cold-builds BOTH images, loads them into
-      # KIND, and runs the full e2e/browser suite. Without this it dies with
-      # "No space left on device" mid build. Reclaim the ~30 GB of
+      # The standard ubuntu-latest runner ships ~21-28 GB free on `/`. This
+      # job pulls both service images, loads them into KIND, and compiles +
+      # runs the full e2e/browser suite on the runner — enough to risk "No
+      # space left on device" without a sweep. Reclaim the ~30 GB of
       # pre-installed tooling we never use (Android SDK, .NET, Haskell, the
       # tool cache), mirroring the `rust` job in `ci.yml`. `large-packages:
       # false` skips the slow apt purge — the quick removals free enough. We
-      # keep `docker-images: false` because this job's own image builds and
+      # keep `docker-images: false` because the pulled service images and the
       # KIND node image live in the Docker store.
       - name: free disk space
         uses: jlumbroso/free-disk-space@main
@@ -55,29 +141,13 @@ jobs:
       # directory '/opt/hostedtoolcache' does not exist". Recreate it, runner-owned.
       - name: restore tool-cache dir
         run: sudo mkdir -p /opt/hostedtoolcache && sudo chown "$USER":"$USER" /opt/hostedtoolcache
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-
-      - name: build navigator-web
-        uses: docker/build-push-action@v6
+      - uses: actions/checkout@v7
+      - name: log in to ghcr.io
+        uses: docker/login-action@v4
         with:
-          context: .
-          file: images/Dockerfile.web
-          push: false
-          load: true
-          tags: navigator-web:dev
-          cache-from: type=gha,scope=navigator-web
-          cache-to: type=gha,mode=max,scope=navigator-web
-      - name: build navigator-workflows-service
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: images/Dockerfile.workflows-service
-          push: false
-          load: true
-          tags: navigator-workflows-service:dev
-          cache-from: type=gha,scope=navigator-workflows-service
-          cache-to: type=gha,mode=max,scope=navigator-workflows-service
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: install kind
         uses: helm/kind-action@v1
@@ -85,10 +155,36 @@ jobs:
           cluster_name: navigator
           config: k8s/kind-config.yaml
           wait: 60s
-      - name: load images into kind
+          # Pin the kind BINARY in lockstep with the node image below. v0.32.0's
+          # `kind load` understands the containerd config v4 that the v1.36.1
+          # node writes, and it is the release that publishes this exact node
+          # digest — so binary and node land together on the latest. Bump this
+          # and node_image together.
+          version: v0.32.0
+          # Pin the node image to the exact digest we validate locally so CI
+          # can't silently drift onto a different Kubernetes/kindnet build —
+          # the classic "passes on my machine, hangs in CI" gap. This is the
+          # image the full stack (incl. Restate provisioning under enforcing
+          # kindnet v20260528) was verified Ready on; bump it deliberately,
+          # in lockstep with the local KIND node image.
+          node_image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
+      - name: pull service images and load into kind
+        # The parallel `build` job pushed both images under the per-run
+        # ephemeral tag; pull them, retag to the `:dev` names the KIND
+        # manifests reference (imagePullPolicy: IfNotPresent), and load them
+        # into the node. `set -euo pipefail` so a failed pull fails the step.
         run: |
-          kind load docker-image navigator-web:dev               --name navigator
-          kind load docker-image navigator-workflows-service:dev --name navigator
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          tag="ci-${{ github.sha }}"
+          for img in navigator-web navigator-workflows-service; do
+              ref="ghcr.io/${owner}/${img}:${tag}"
+              echo "::group::load ${img}"
+              docker pull "$ref"
+              docker tag "$ref" "${img}:dev"
+              kind load docker-image "${img}:dev" --name navigator
+              echo "::endgroup::"
+          done
       - name: install nginx-ingress
         run: |
           kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/kind/deploy.yaml
@@ -113,7 +209,7 @@ jobs:
       - name: install rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.95.0
+          toolchain: 1.96.0
       - name: cache cargo
         uses: Swatinem/rust-cache@v2
       - name: wait for rollouts and run smoke checks
@@ -198,12 +294,21 @@ jobs:
           cat /tmp/pg-port-forward.log
           exit 1
 
+      # NAV_REQUIRE_HARNESS=1 turns the browser tests' "harness unreachable"
+      # self-skip into a hard panic (non-zero exit) — in CI the harness is
+      # always expected up, so a skip here is a real failure, not a green
+      # pass. `set -o pipefail` makes the pipe through `tee` surface cargo's
+      # exit code rather than tee's (it is GitHub's default, set explicitly
+      # so the guarantee can't drift). The downstream "did not self-skip"
+      # grep stays as a second line of defense.
       - name: browser e2e — full suite
         env:
           NAV_BASE_URL: http://localhost:8080
           WEBDRIVER_URL: http://localhost:9515
           DATABASE_URL: postgres://navigator:navigator@localhost:15432/navigator
+          NAV_REQUIRE_HARNESS: "1"
         run: |
+          set -o pipefail
           cargo test -p web --test browser_e2e -- \
               --test-threads=1 --nocapture 2>&1 | tee /tmp/browser_e2e.log
 
@@ -211,7 +316,9 @@ jobs:
         env:
           NAV_BASE_URL: http://localhost:8080
           WEBDRIVER_URL: http://localhost:9515
+          NAV_REQUIRE_HARNESS: "1"
         run: |
+          set -o pipefail
           cargo test -p web --test accessibility_e2e -- \
               --test-threads=1 --nocapture 2>&1 | tee /tmp/accessibility_e2e.log
 
@@ -235,11 +342,45 @@ jobs:
       - name: dump diagnostics on failure
         if: failure()
         run: |
-          kubectl --namespace navigator get all -o wide
-          kubectl --namespace navigator describe pods
-          for pod in $(kubectl --namespace navigator get pods -o name); do
-              echo "=== logs: $pod ==="
-              kubectl --namespace navigator logs --all-containers "$pod" --tail=200 || true
+          set +e
+          # The timeout-minutes on this job makes a wedge fail (not hang till a
+          # human cancels it), so this block finally runs on the failures that
+          # matter. Cast wide: the app namespace AND the Restate namespaces,
+          # because the historical wedge was the operator failing to provision
+          # restate-0 — which lives in `restate`/`restate-operator`, never in
+          # `navigator`, so the old navigator-only dump showed nothing useful.
+          echo "##[group]nodes + disk pressure"
+          kubectl get nodes -o wide
+          kubectl describe nodes | grep -A6 -iE "Conditions:|DiskPressure|MemoryPressure|PIDPressure" || true
+          df -h / /var/lib/docker 2>/dev/null || df -h
+          echo "##[endgroup]"
+          echo "##[group]all pods, all namespaces"
+          kubectl get pods -A -o wide
+          echo "##[endgroup]"
+          echo "##[group]recent events (all namespaces, by time)"
+          kubectl get events -A --sort-by=.lastTimestamp | tail -80
+          echo "##[endgroup]"
+          # Restate CRs carry the provisioning status in their conditions —
+          # the single most useful signal when restate-0 sits at 0/1.
+          for ns in restate restate-operator navigator; do
+              echo "##[group]namespace: $ns"
+              kubectl --namespace "$ns" get all -o wide
+              kubectl --namespace "$ns" describe pods
+              echo "##[endgroup]"
+          done
+          echo "##[group]Restate CRs (provisioning status conditions)"
+          kubectl get restatecluster,restatedeployment -A -o wide
+          kubectl describe restatecluster -A
+          kubectl describe restatedeployment -A
+          echo "##[endgroup]"
+          for ns in restate restate-operator navigator; do
+              for pod in $(kubectl --namespace "$ns" get pods -o name); do
+                  echo "##[group]logs: $ns/$pod"
+                  kubectl --namespace "$ns" logs --all-containers "$pod" --tail=200
+                  echo "--- previous (if crash-looped) ---"
+                  kubectl --namespace "$ns" logs --all-containers --previous "$pod" --tail=80 2>/dev/null || true
+                  echo "##[endgroup]"
+              done
           done
 
   # ---------- Stage 2: publish every image to ghcr.io ----------
@@ -254,7 +395,13 @@ jobs:
   publish:
     name: publish ${{ matrix.image }} to ghcr.io
     needs: integration
+    # Tag-only. A `kind-ci/**` branch run stops after integration — it must
+    # never push branch-tagged images to ghcr.io.
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    # Cold image build + ghcr push; cap it so a stuck registry/build can't
+    # hang the release indefinitely.
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -293,10 +440,10 @@ jobs:
               CRATE=billing-workflows
               BIN=billing-digest-trigger
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
       - name: log in to ghcr.io
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -306,68 +453,139 @@ jobs:
         run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
       - name: image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ steps.img.outputs.name }}
           tags: |
             type=raw,value=latest
             type=raw,value=${{ github.ref_name }}
+      # Stamp the release into every image. RELEASE_TAG is the `YY.MM.DD` ghcr
+      # tag (github.ref_name); `telemetry::init` reads it as `service.version`
+      # so the worker and the trigger CronJobs self-report their release in
+      # logs/traces — the headless counterpart to web's `GET /version`. The web
+      # image additionally gets GIT_SHA/BUILD_TIME for the `/version` commit
+      # fields (only its Dockerfile declares those ARGs).
+      - name: compose build-args
+        id: ba
+        run: |
+          {
+            printf 'args<<__BUILD_ARGS_EOF__\n'
+            printf '%s\n' "${{ matrix.build-args }}"
+            printf 'RELEASE_TAG=%s\n' "${{ github.ref_name }}"
+            if [ "${{ matrix.image }}" = "navigator-web" ]; then
+              printf 'GIT_SHA=%s\n' "${{ github.sha }}"
+              printf 'BUILD_TIME=%s\n' "$(git show -s --format=%cI HEAD)"
+            fi
+            printf '__BUILD_ARGS_EOF__\n'
+          } >> "$GITHUB_OUTPUT"
       - name: build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          build-args: ${{ matrix.build-args }}
+          build-args: ${{ steps.ba.outputs.args }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
-  # ---------- Stage 3: email the deploy report ----------
-  # Sent only after both images are published. From support@neonlaw.com
-  # (workflows::DEFAULT_FROM_EMAIL) to nick@neonlaw.com via the SendGrid v3
-  # API. The one rule still binds: identifiers and counts, never content —
-  # the body carries the tag and the run URL, nothing client-bearing.
+  # ---------- Stage 3: post the "ready to deploy" hand-off to Slack ----------
+  # Sent only after both images are published. Posts to the engineering channel
+  # via the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from Doppler) —
+  # the same channel and webhook the failure guard below uses. Unlike a silent
+  # FYI, this tags Nick and carries the exact `power-push` command, because the
+  # prod roll is a deliberate manual step (docs/gitops.md): the images are on the
+  # shelf, and a human rolls them. The one rule still binds: identifiers and
+  # counts, never content — the body carries the tag, the run URL, and the roll
+  # command, nothing client-bearing.
   notify:
-    name: email deploy report
+    name: slack ready-to-deploy hand-off
     needs: publish
+    # Tag-only (publish is already tag-gated; stated here too so a branch run
+    # never posts a deploy report).
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    # A single webhook POST — should be seconds; cap it so a hung HTTP
+    # request can't keep the workflow open.
+    timeout-minutes: 10
     steps:
-      - name: send deploy email via SendGrid
+      - name: post ready-to-deploy hand-off to engineering Slack
         env:
-          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          # Who to @-mention on the hand-off (the on-call). A Doppler-managed,
+          # GitHub-synced secret rather than a hard-coded user id, so a fork tags
+          # its own on-call (or none). See SLACK_OPS_MENTION in .env.example.
+          SLACK_OPS_MENTION: ${{ secrets.SLACK_OPS_MENTION }}
           TAG: ${{ github.ref_name }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ -z "${SENDGRID_API_KEY}" ]; then
-              echo "::error::SENDGRID_API_KEY is unset — cannot send the deploy report"
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the ready-to-deploy message"
               exit 1
           fi
-          BODY="Navigator ${TAG} shipped: KIND integration passed and all images (navigator-web, navigator-workflows-service, and the five navigator-*-trigger images) were pushed to ghcr.io tagged ${TAG} and latest.
-
+          # Concise hand-off: tag the on-call, state the build is ready, and hand
+          # over the exact roll command (escaped backticks → literal Slack code
+          # span). The prod roll is a deliberate manual step — see docs/gitops.md.
+          TEXT=":rocket: Navigator ${TAG} is built and published to ghcr — ready to deploy. ${SLACK_OPS_MENTION}
+          Roll it to prod:
+          \`doppler run --project navigator --config prd -- cargo run --release -p cli -- power-push --tag ${TAG}\`
           Run: ${RUN_URL}"
-          PAYLOAD=$(jq -n \
-              --arg to "nick@neonlaw.com" \
-              --arg from "support@neonlaw.com" \
-              --arg subject "Navigator deploy ${TAG} succeeded" \
-              --arg body "${BODY}" \
-              '{
-                personalizations: [ { to: [ { email: $to } ] } ],
-                from: { email: $from },
-                subject: $subject,
-                content: [ { type: "text/plain", value: $body } ]
-              }')
-          code=$(curl -sS -o /tmp/sendgrid.out -w '%{http_code}' \
-              -X POST https://api.sendgrid.com/v3/mail/send \
-              -H "Authorization: Bearer ${SENDGRID_API_KEY}" \
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
+              -X POST "${SLACK_WEBHOOK_URL}" \
               -H "Content-Type: application/json" \
               -d "${PAYLOAD}")
-          echo "SendGrid responded ${code}"
-          # SendGrid returns 202 Accepted on success.
-          if [ "${code}" != "202" ]; then
-              echo "::error::SendGrid send failed (${code})"
-              cat /tmp/sendgrid.out || true
+          echo "Slack responded ${code}"
+          # Slack incoming webhooks return 200 with body "ok" on success.
+          if [ "${code}" != "200" ]; then
+              echo "::error::Slack post failed (${code})"
+              cat /tmp/slack.out || true
               exit 1
           fi
-          echo "Deploy report emailed to nick@neonlaw.com"
+          echo "Deploy report posted to engineering Slack"
+
+  # ---------- Failure guard: alert the engineering Slack channel ----------
+  # Fires whenever ANY of integration/publish/notify fails (failure() is true
+  # if any needed job — or its upstream — failed, even when later jobs were
+  # skipped as a result). Posts to the engineering channel via the prod ops
+  # incoming webhook (SLACK_WEBHOOK_URL, synced from Doppler) and tags Nick —
+  # the @-mention is what separates this paging alert from the un-tagged
+  # success report above. Like that report: tag + run URL only, never client
+  # content.
+  notify-failure:
+    name: slack — alert engineering on failure
+    needs: [build, integration, publish, notify]
+    # Tag-only: a failed `kind-ci/**` branch iteration is expected churn and
+    # must not page engineering — only a failed nightly deploy does.
+    if: failure() && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    # A single webhook POST — cap it so a hung request can't keep the run open.
+    timeout-minutes: 10
+    steps:
+      - name: post failure alert to engineering Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_OPS_MENTION: ${{ secrets.SLACK_OPS_MENTION }}
+          TAG: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the failure alert"
+              exit 1
+          fi
+          TEXT=":x: Navigator deploy ${TAG} failed — ${SLACK_OPS_MENTION} please investigate.
+          Run: ${RUN_URL}"
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
+              -X POST "${SLACK_WEBHOOK_URL}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}")
+          echo "Slack responded ${code}"
+          # Slack incoming webhooks return 200 with body "ok" on success.
+          if [ "${code}" != "200" ]; then
+              echo "::error::Slack post failed (${code})"
+              cat /tmp/slack.out || true
+              exit 1
+          fi
+          echo "Failure alert posted to engineering Slack"

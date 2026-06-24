@@ -165,16 +165,74 @@ pub async fn harness_ready() -> bool {
 /// skip cleanly rather than panic — the suite stays green everywhere and
 /// the same test runs for real under `navigator e2e`.
 pub async fn new_client_or_skip() -> Option<Client> {
-    if !harness_ready().await {
-        eprintln!(
-            "skipping browser test: chromedriver ({}) + web server ({}) not both reachable \
-             — bring up the harness with `navigator e2e`",
+    match harness_decision(harness_ready().await, require_harness()) {
+        HarnessDecision::Connect => Some(new_client().await),
+        // In CI the harness is always expected up, so an unreachable harness
+        // is a real failure, not a green pass — panic for a non-zero exit.
+        HarnessDecision::Fail => panic!(
+            "NAV_REQUIRE_HARNESS=1 but the browser harness is unreachable: \
+             chromedriver ({}) + web server ({}) not both reachable \
+             — refusing to pass without asserting",
             webdriver_url(),
             base_url(),
-        );
-        return None;
+        ),
+        // Locally (NAV_REQUIRE_HARNESS unset) a missing harness skips cleanly
+        // so a bare `cargo test` stays green without standing one up.
+        HarnessDecision::Skip => {
+            eprintln!(
+                "skipping browser test: chromedriver ({}) + web server ({}) not both reachable \
+                 — bring up the harness with `navigator e2e`",
+                webdriver_url(),
+                base_url(),
+            );
+            None
+        }
     }
-    Some(new_client().await)
+}
+
+/// What [`new_client_or_skip`] should do, given whether the harness is
+/// reachable and whether CI requires it. Pulled out as a pure function so
+/// the gating policy — the thing that decides whether a missing harness is
+/// a clean skip or a hard failure — is exhaustively unit-testable without a
+/// live browser or any environment mutation.
+#[derive(Debug, PartialEq, Eq)]
+enum HarnessDecision {
+    /// Harness is up — connect and run the scenario for real.
+    Connect,
+    /// Harness is down and CI required it — fail loudly (non-zero exit).
+    Fail,
+    /// Harness is down and it's optional — skip cleanly, stay green.
+    Skip,
+}
+
+/// The pure gating rule. A reachable harness always connects; an
+/// unreachable one fails when required (CI) and skips otherwise (local).
+fn harness_decision(ready: bool, require: bool) -> HarnessDecision {
+    match (ready, require) {
+        (true, _) => HarnessDecision::Connect,
+        (false, true) => HarnessDecision::Fail,
+        (false, false) => HarnessDecision::Skip,
+    }
+}
+
+/// Whether a missing harness must fail (not skip) the test. CI sets
+/// `NAV_REQUIRE_HARNESS=1` so a self-skip can't pass green; locally the
+/// var is unset and the harness-probe skip stays in effect. Accepts `1`
+/// or `true` (case-insensitive); anything else (incl. unset) is `false`.
+#[must_use]
+pub fn require_harness() -> bool {
+    std::env::var("NAV_REQUIRE_HARNESS")
+        .ok()
+        .is_some_and(|v| harness_required_from(&v))
+}
+
+/// Pure parse of the `NAV_REQUIRE_HARNESS` value: `1` or `true`
+/// (case-insensitive) enable the require-harness gate; anything else is
+/// off. Split out so the policy is unit-testable without mutating the
+/// process environment.
+fn harness_required_from(value: &str) -> bool {
+    let v = value.trim();
+    v == "1" || v.eq_ignore_ascii_case("true")
 }
 
 /// Best-effort TCP reachability probe for an `http(s)://host:port` URL,
@@ -192,4 +250,33 @@ async fn port_open(url_str: &str) -> bool {
         tokio::time::timeout(Duration::from_secs(2), TcpStream::connect((host, port))).await,
         Ok(Ok(_))
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{harness_decision, harness_required_from, HarnessDecision};
+
+    #[test]
+    fn harness_required_only_for_truthy_values() {
+        assert!(harness_required_from("1"));
+        assert!(harness_required_from("true"));
+        assert!(harness_required_from("TRUE"));
+        assert!(harness_required_from("  1 "));
+        assert!(!harness_required_from("0"));
+        assert!(!harness_required_from("false"));
+        assert!(!harness_required_from(""));
+        assert!(!harness_required_from("yes"));
+    }
+
+    #[test]
+    fn harness_decision_covers_every_case() {
+        // A reachable harness always runs the scenario for real, regardless
+        // of the require flag.
+        assert_eq!(harness_decision(true, true), HarnessDecision::Connect);
+        assert_eq!(harness_decision(true, false), HarnessDecision::Connect);
+        // An unreachable harness fails when CI required it (no false green)…
+        assert_eq!(harness_decision(false, true), HarnessDecision::Fail);
+        // …and skips cleanly when it's optional (local convenience).
+        assert_eq!(harness_decision(false, false), HarnessDecision::Skip);
+    }
 }

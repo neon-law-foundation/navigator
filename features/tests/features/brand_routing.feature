@@ -16,11 +16,11 @@ Feature: Public site brand routing
     And the page is not branded "Neon Law Foundation"
 
     Examples:
-      | path                |
-      | /                   |
-      | /contact            |
-      | /services/estate    |
-      | /services/corporate |
+      | path                 |
+      | /                    |
+      | /contact             |
+      | /services/northstar  |
+      | /services/nest       |
 
   Scenario Outline: Foundation-branded pages carry the Foundation brand
     When a visitor opens <path>
@@ -30,11 +30,15 @@ Feature: Public site brand routing
     Examples:
       | path                              |
       | /foundation                       |
-      | /foundation/mission               |
       | /foundation/contact               |
       | /privacy                          |
       | /terms                            |
       | /foundation/workshops/navigator   |
+
+  Scenario: The old /foundation/mission URL permanently redirects to the Foundation home
+    When a visitor opens /foundation/mission
+    Then the response status is 308
+    And the response redirects to "/foundation"
 
   Scenario: The bare /navigator permanently redirects to the Foundation hub
     When a visitor opens /navigator

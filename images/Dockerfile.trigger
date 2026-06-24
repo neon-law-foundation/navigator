@@ -13,7 +13,7 @@
 # dynamic loader. The whole workspace is copied (the build context is the
 # repo root) so the same Dockerfile builds any crate's `trigger` bin.
 
-FROM rust:1.95-bookworm AS builder
+FROM rust:1.96-bookworm AS builder
 
 # Which crate's `trigger` binary to build. Required — no sensible default.
 ARG CRATE
@@ -49,7 +49,7 @@ COPY mcp               mcp
 COPY features          features
 COPY lsp               lsp
 COPY pdf               pdf
-COPY templates         templates
+COPY notation_templates notation_templates
 COPY archives          archives
 COPY import            import
 COPY statutes          statutes
@@ -68,6 +68,13 @@ WORKDIR /app
 COPY --from=builder /trigger-bin /app/trigger
 
 ENV RUST_LOG=info
+
+# Identify the release. The daily `deploy.yml` passes `--build-arg
+# RELEASE_TAG=$YY.MM.DD`; `telemetry::init` reads `NAVIGATOR_RELEASE_TAG`
+# and tags every span/metric/log with `service.version`, so each trigger
+# run self-reports which release fired it. A local build reports `unknown`.
+ARG RELEASE_TAG=unknown
+ENV NAVIGATOR_RELEASE_TAG=$RELEASE_TAG
 
 USER nonroot:nonroot
 

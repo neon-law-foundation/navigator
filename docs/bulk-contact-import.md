@@ -107,5 +107,4 @@ history is queryable there rather than in a provenance column.
 
 ## Generating a payload with an LLM
 
-The reusable instructions for turning a raw contact list into a valid payload live in the
-[`bulk-contact-upload`](../.claude/skills/bulk-contact-upload/SKILL.md) skill.
+The reusable instructions for turning a raw contact list into a valid payload live in the bulk-contact upload workflow.

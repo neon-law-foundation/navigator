@@ -332,8 +332,8 @@ mod tests {
     #[test]
     fn parse_reads_nested_pricing_block_into_typed_cards() {
         let raw = "---\n\
-                   title: \"Fractional GC\"\n\
-                   slug: fractional-gc\n\
+                   title: \"Neon Law Nexus\"\n\
+                   slug: nexus\n\
                    pricing:\n\
                    \x20 - title: Seed\n\
                    \x20   price: \"$3,500\"\n\
@@ -560,7 +560,7 @@ mod tests {
         // (`web/content/marketing/mission.md` + its `es/` twin), loaded
         // from disk like any other doc — no special-case bake. Both
         // locales must surface the `mission` slug and the letter's
-        // opening line so `/foundation/mission` renders the real prose.
+        // opening line so `/foundation` renders the real prose.
         let en = std::path::Path::new(crate::DEFAULT_MARKETING_DIR);
         let mission = load_dir(en)
             .expect("English marketing dir loads")

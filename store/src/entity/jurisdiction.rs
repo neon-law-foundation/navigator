@@ -14,6 +14,10 @@ pub struct Model {
     /// Short code (e.g., `NV`, `CA`, `US`).
     #[sea_orm(unique)]
     pub code: String,
+    /// Kind of jurisdiction — `state` (US state or DC) or `country`
+    /// (federal sovereign, e.g. `United States`, `Germany`). Mirrors the
+    /// `jurisdiction_type` field in `store/seeds/Jurisdiction.yaml`.
+    pub jurisdiction_type: String,
     pub inserted_at: String,
     pub updated_at: String,
 }

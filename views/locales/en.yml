@@ -9,15 +9,13 @@
 # falls back to this file. Keys are dotted namespaces; the layout looks
 # them up with `views::i18n::t(locale, "nav.home")`.
 #
-# The English values are the literal strings the layout has always
-# rendered — keep them byte-for-byte so the default-locale output never
-# changes.
 nav:
   home: Home
-  foundation: The Foundation
-  firm: The Firm
+  foundation: Foundation
+  firm: Firm
   services: Services
   mission: Mission
+  notations: Notations
   workshops: Workshops
 auth:
   portal: Portal
@@ -29,7 +27,7 @@ switcher:
   # name (its endonym), supplied by `Locale::endonym`.
   aria: View this page in Spanish
 footer:
-  github_star: Star The Neon Law Navigator
+  github_star: Star Neon Law Navigator
   # Shown ONLY on localized (non-English) pages, heading the footer's
   # legal strip — bar admissions and the legal-advice disclaimer stay
   # English by policy, because the binding artifact a client signs is
@@ -63,8 +61,10 @@ products:
   desc_northstar: Your will, trust, and health and financial directives, prepared and signed in one recorded conversation.
   desc_nautilus: A licensed attorney as your representative for debt-collection mail and calls, answered under your rights.
   desc_nook: A flat-fee real-estate closing for a sale you have already agreed on, with no broker on either side.
-  desc_litigation: High-stakes technology litigation, billed hourly with select cases taken on contingency.
-  desc_nerd: An independent expert witness on software and data-access disputes, billed hourly — never on contingency.
+  litigation_phase_price: Flat fee per phase
+  litigation_phase_suffix: " — quoted after case assessment"
+  desc_litigation: High-stakes technology litigation, quoted as a flat fee per phase after case assessment.
+  desc_nerd: An independent expert witness on software and data-access disputes, billed hourly.
   desc_node: An attorney attestation of a fact, like accredited-investor status, recorded on-chain on Solana.
   desc_newleaf: A flat-fee uncontested divorce for a couple who have already agreed to part ways.
   desc_namesake: A flat-fee U.S. trademark filing for one class, prepared and filed by a licensed attorney.

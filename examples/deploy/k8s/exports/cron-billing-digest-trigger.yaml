@@ -43,7 +43,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: billing-digest-trigger
-              image: us-west4-docker.pkg.dev/YOUR_PROJECT_ID/navigator/navigator-billing-digest-trigger:latest
+              image: ghcr.io/neon-law-foundation/navigator-billing-digest-trigger:YY.MM.DD
               imagePullPolicy: Always
               env:
                 # Restate Cloud ingress endpoint for the navigator-prod

@@ -1,7 +1,7 @@
 //! The curated, public template gallery served at `/templates`.
 //!
 //! A visitor browses a small, **client-safe** subset of the workspace
-//! `templates/` tree and downloads the raw `.md` — the same bytes a git
+//! `notation_templates/` tree and downloads the raw `.md` — the same bytes a git
 //! reader sees, so the markdown notation format speaks for itself. This
 //! reuses the [`crate::docs`] "bake the file in, serve it verbatim"
 //! shape; it does not invent a second file streamer.
@@ -19,6 +19,8 @@
 //! manifest by mistake fails the build, not production.
 
 use std::sync::LazyLock;
+
+use crate::template_paths::{kebab_path_eq, slug_path};
 
 /// Jurisdiction a template is written for. Rendered as a loud badge so a
 /// visitor never mistakes a Nevada filing for their own state's.
@@ -55,28 +57,24 @@ impl Jurisdiction {
 /// — they are parsed from the file's own frontmatter at load so the page
 /// can never drift from the template source.
 struct ManifestEntry {
-    category: &'static str,
-    name: &'static str,
+    path: &'static str,
     blurb: &'static str,
     jurisdiction: Jurisdiction,
     raw: &'static str,
 }
 
-/// `include_str!` a template by `category/name`, resolved from the
-/// `web` crate manifest dir (the `templates/` tree is one level up).
+/// `include_str!` a template by tree path, resolved from the
+/// `web` crate manifest dir (the `notation_templates/` tree is one level up).
 macro_rules! template {
-    ($category:literal, $name:literal, $jurisdiction:expr, $blurb:literal) => {
+    ($path:literal, $jurisdiction:expr, $blurb:literal) => {
         ManifestEntry {
-            category: $category,
-            name: $name,
+            path: $path,
             blurb: $blurb,
             jurisdiction: $jurisdiction,
             raw: include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../templates/",
-                $category,
-                "/",
-                $name,
+                "/../notation_templates/",
+                $path,
                 ".md"
             )),
         }
@@ -88,8 +86,7 @@ macro_rules! template {
 /// then the two Nevada-specific nonprofit filings, each loudly labeled.
 const MANIFEST: &[ManifestEntry] = &[
     template!(
-        "nonprofit",
-        "form990_annual_report",
+        "united_states/federal/irs/taxation/form990_annual_report",
         Jurisdiction::Federal,
         "The annual information return every tax-exempt organization files \
          with the IRS (IRC §6033) — the year's revenue, governance, and \
@@ -97,16 +94,14 @@ const MANIFEST: &[ManifestEntry] = &[
          incorporated."
     ),
     template!(
-        "nonprofit",
-        "nevada_501c3_formation",
+        "united_states/nevada/state/business_associations/nonprofit_501c3_formation",
         Jurisdiction::Nevada,
         "Articles of incorporation that form a Nevada nonprofit and set it up \
          to seek 501(c)(3) status — mission, founding board, and registered \
          agent. Written for Nevada filings."
     ),
     template!(
-        "nonprofit",
-        "nevada_charitable_solicitation_registration",
+        "united_states/nevada/state/business_associations/charitable_solicitation_registration",
         Jurisdiction::Nevada,
         "The registration a charity files with the Nevada Secretary of State \
          before soliciting donations in the state. Written for Nevada; other \
@@ -118,9 +113,9 @@ const MANIFEST: &[ManifestEntry] = &[
 /// `title` and `confidential` flag parsed from the template's
 /// frontmatter at load.
 pub struct GalleryTemplate {
-    /// Category folder (`nonprofit`).
-    pub category: &'static str,
-    /// File stem (`form990_annual_report`).
+    /// Template path under `notation_templates/`, without `.md`.
+    pub path: &'static str,
+    /// File stem (`form990_annual_report`), shown in the download name.
     pub name: &'static str,
     /// Human title, parsed from the template's frontmatter `title`.
     pub title: String,
@@ -139,6 +134,18 @@ impl GalleryTemplate {
     #[must_use]
     pub fn download_filename(&self) -> String {
         format!("{}.md", self.name)
+    }
+
+    /// Public detail URL for this template.
+    #[must_use]
+    pub fn detail_path(&self) -> String {
+        format!("/templates/{}", slug_path(self.path))
+    }
+
+    /// Public raw-download URL for this template.
+    #[must_use]
+    pub fn download_path(&self) -> String {
+        format!("{}/download", self.detail_path())
     }
 
     /// The inner YAML of the leading `---` frontmatter block (no fences),
@@ -193,9 +200,13 @@ static GALLERY: LazyLock<Vec<GalleryTemplate>> = LazyLock::new(|| {
         .iter()
         .map(|entry| {
             let fm = parse_frontmatter(entry.raw);
+            let name = entry
+                .path
+                .rsplit_once('/')
+                .map_or(entry.path, |(_, stem)| stem);
             GalleryTemplate {
-                category: entry.category,
-                name: entry.name,
+                path: entry.path,
+                name,
                 title: fm.title,
                 blurb: entry.blurb,
                 jurisdiction: entry.jurisdiction,
@@ -212,18 +223,48 @@ pub fn gallery() -> &'static [GalleryTemplate] {
     &GALLERY
 }
 
+/// Canonical destination for old public gallery URLs, without the
+/// leading `/templates/`.
+#[must_use]
+pub fn legacy_alias(path: &str) -> Option<&'static str> {
+    [
+        (
+            "nonprofit/form990_annual_report",
+            "united_states/federal/irs/taxation/form990_annual_report",
+        ),
+        (
+            "nonprofit/nevada_501c3_formation",
+            "united_states/nevada/state/business_associations/nonprofit_501c3_formation",
+        ),
+        (
+            "nonprofit/nevada_charitable_solicitation_registration",
+            "united_states/nevada/state/business_associations/charitable_solicitation_registration",
+        ),
+    ]
+    .into_iter()
+    .find_map(|(old, new)| kebab_path_eq(path, old).then_some(new))
+}
+
 /// Look up one allow-listed template. `None` — and therefore a 404 at
 /// the route — for anything not on the curated list.
+///
+/// Matching is kebab-insensitive: the route serves kebab-case URLs while
+/// the manifest carries the on-disk underscore names.
+#[must_use]
+pub fn find_path(path: &str) -> Option<&'static GalleryTemplate> {
+    let path = legacy_alias(path).unwrap_or(path);
+    GALLERY.iter().find(|t| kebab_path_eq(t.path, path))
+}
+
+/// Compatibility wrapper for old two-segment tests/callers.
 #[must_use]
 pub fn find(category: &str, name: &str) -> Option<&'static GalleryTemplate> {
-    GALLERY
-        .iter()
-        .find(|t| t.category == category && t.name == name)
+    find_path(&format!("{category}/{name}"))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{find, frontmatter_block, gallery, Jurisdiction};
+    use super::{find, find_path, frontmatter_block, gallery, legacy_alias, Jurisdiction};
 
     #[test]
     fn every_listed_template_is_non_confidential() {
@@ -233,9 +274,8 @@ mod tests {
         for t in gallery() {
             assert!(
                 !t.is_confidential(),
-                "{}/{} is confidential: true and must not be publicly downloadable",
-                t.category,
-                t.name
+                "{} is confidential: true and must not be publicly downloadable",
+                t.path
             );
         }
     }
@@ -249,18 +289,38 @@ mod tests {
 
     #[test]
     fn title_is_parsed_from_each_template_frontmatter() {
-        let t = find("nonprofit", "form990_annual_report").expect("listed");
+        let t =
+            find_path("united_states/federal/irs/taxation/form990_annual_report").expect("listed");
         assert!(t.title.contains("Form 990"), "got title {:?}", t.title);
+    }
+
+    #[test]
+    fn find_resolves_the_kebab_url_form_to_the_underscore_stem() {
+        let kebab = find_path("united-states/federal/irs/taxation/form990-annual-report")
+            .expect("kebab form resolves");
+        let underscore = find_path("united_states/federal/irs/taxation/form990_annual_report")
+            .expect("stem form resolves");
+        assert_eq!(kebab.name, "form990_annual_report");
+        assert_eq!(kebab.name, underscore.name);
+    }
+
+    #[test]
+    fn legacy_gallery_paths_resolve_to_the_deep_tree() {
+        assert_eq!(
+            legacy_alias("nonprofit/form990-annual-report"),
+            Some("united_states/federal/irs/taxation/form990_annual_report")
+        );
+        assert!(find("nonprofit", "form990_annual_report").is_some());
     }
 
     #[test]
     fn confidential_templates_are_not_reachable() {
         // Retainer + Closing Letter are `confidential: true`; they must
         // never be on the list and so must 404 by being absent.
-        assert!(find("onboarding", "Retainer").is_none());
-        assert!(find("closing", "Letter").is_none());
+        assert!(find_path("engagements/retainer").is_none());
+        assert!(find_path("correspondence/closing_letter").is_none());
         // A guessed/typo'd path is also absent.
-        assert!(find("nonprofit", "DoesNotExist").is_none());
+        assert!(find_path("nonprofit/DoesNotExist").is_none());
     }
 
     #[test]
@@ -273,7 +333,7 @@ mod tests {
 
     #[test]
     fn served_frontmatter_excludes_the_template_body() {
-        let t = find("nonprofit", "form990_annual_report").unwrap();
+        let t = find_path("united_states/federal/irs/taxation/form990_annual_report").unwrap();
         let fm = t.frontmatter();
         assert!(fm.contains("code: form_990__annual_report"));
         assert!(!fm.contains("# IRS Form 990"));

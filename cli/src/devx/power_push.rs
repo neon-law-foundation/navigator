@@ -1,65 +1,57 @@
-//! `devx power-push` — one-shot "ship to prod" orchestration.
+//! `devx power-push` — one-shot "roll prod onto today's image".
 //!
-//! This is the deterministic, in-binary form of the `power-push` skill
-//! (`.claude/skills/power-push/SKILL.md`). The skill remains the prose
-//! rationale ("why each step, in this order"); this module is the
-//! executable that runs the steps so an operator types one command
-//! instead of pasting eight shell blocks.
+//! This is the deterministic, in-binary form of the production rollout
+//! path documented in `docs/cloud-operations.md`. That public doc keeps
+//! the prose rationale ("why each step, in this order"); this module is
+//! the executable that runs the steps so an operator types one command
+//! instead of pasting several shell blocks.
 //!
-//! Two flows, matching the skill:
+//! **CI builds and publishes; power-push only rolls.** The daily
+//! `deploy.yml` tag flow builds both images and publishes them to
+//! public `ghcr.io` tagged `YY.MM.DD`; this module never builds or
+//! pushes an image — it pins the running cluster to an
+//! already-published tag.
 //!
-//! - **Full build** (default): verify → build BOTH images → push BOTH
-//!   to Artifact Registry → archive a git bundle to the GCS source
-//!   bucket → confirm the prod Secret satisfies the new binary's boot
-//!   invariants → roll out BOTH deployments at HEAD's short SHA →
-//!   re-register the worker with Restate → reclaim the local images.
+//! Two flows, matching the documented rollout path:
+//!
+//! - **Roll** (default): resolve the `YY.MM.DD` ghcr tag to deploy (the
+//!   latest published, or `--tag`) → confirm the prod Secret satisfies
+//!   the new binary's boot invariants → roll out BOTH deployments at
+//!   that tag → re-register the worker with Restate. Both deployments
+//!   are pinned to the **same** tag — never a version skew.
 //! - **No-rebuild restart** (`--restart-only`): after a Secret value
 //!   was rotated, `kubectl rollout restart` BOTH deployments that
 //!   `envFrom` the Secret so the pods re-read it (pods cache `envFrom`
 //!   at start and never reload).
 //!
 //! Everything that varies per deployment flows through `.env` — there
-//! is no literal project ID, region, domain, registry path, or bucket
-//! name in this file (same contract as the skill). See
-//! [`PowerPushConfig::from_env`].
+//! is no literal project ID, region, domain, or ghcr owner in this file
+//! (same contract as `docs/env-driven-devx.md`). See [`PowerPushConfig::from_env`].
 //!
 //! ## What this does NOT do
 //!
-//! - It never commits. It reads `git rev-parse --short HEAD`; the
-//!   operator commits first so the image tag is a real commit SHA.
-//! - It never auto-patches a prod Secret. The invariant check (7b)
-//!   *aborts* with the exact `kubectl patch` to run when a required
-//!   key is missing — generating and writing a prod secret silently is
-//!   a judgment call left to the operator.
+//! - It never builds or pushes images. CI owns that; power-push rolls a
+//!   tag CI already published. The public GitHub `YY.MM.DD` tag is the
+//!   source restore point, so there is no git-bundle archive step.
+//! - It never auto-patches a prod Secret. The invariant check *aborts*
+//!   with the exact `kubectl patch` to run when a required key is
+//!   missing — generating and writing a prod secret silently is a
+//!   judgment call left to the operator.
 //!
 //! ## Testing
 //!
-//! The shell-out orchestration needs a real Docker daemon + cluster,
-//! so it isn't unit-tested. The pure pieces — env-driven config, the
-//! derived-name formulas, the required-key parser, and the missing-key
-//! diff — are covered by the `tests` module below.
+//! The shell-out orchestration needs a real cluster, so it isn't
+//! unit-tested. The pure pieces — env-driven config, the ghcr image-URL
+//! formulas, the latest-tag selector, the required-key parser, and the
+//! missing-key diff — are covered by the `tests` module below.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::Path;
 use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 
-use super::{
-    build_image_at_platform, env_string, git_commit_time, git_full_head, git_short_head,
-    require_auth, require_tools, run, workspace_root,
-};
-
-/// Prod runs on GKE Autopilot, which is amd64. Pin every pushed image to
-/// `linux/amd64` so a ship from an arm64 (Apple-Silicon) laptop produces
-/// an amd64 image — the Dockerfiles otherwise build for the host arch.
-const PROD_PLATFORM: &str = "linux/amd64";
-
-/// Local image tags `devx image` / `devx image-workflows-service`
-/// produce. Reused from `main.rs` so there is one source of truth for
-/// the `:dev` names this module retags and reclaims.
-use super::{WEB_IMAGE, WORKFLOWS_SERVICE_IMAGE};
+use super::{env_string, require_auth, require_tools, run, workspace_root};
 
 /// In-cluster Deployment + container names. These are workspace
 /// conventions (the GKE overlay names them); they are not per-deploy
@@ -69,20 +61,32 @@ const WEB_CONTAINER: &str = "web";
 const WORKFLOWS_DEPLOYMENT: &str = "workflows-service";
 const WORKFLOWS_CONTAINER: &str = "worker";
 
+/// The canonical ghcr owner. The default when `NAVIGATOR_GHCR_OWNER` is
+/// unset — a fork overrides it via that env var rather than editing this
+/// constant, keeping the white-label seam intact.
+const DEFAULT_GHCR_OWNER: &str = "neon-law-foundation";
+
 /// Every per-deployment value `power-push` reads, resolved once from
 /// the environment. Required values bail when unset (fail fast — never
 /// substitute a project-internal default). Optional values fall back
 /// to a documented workspace default or to `None`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PowerPushConfig {
-    /// Target GCP project ID (`NAVIGATOR_GCP_PROJECT_ID`).
+    /// Target GCP project ID (`NAVIGATOR_GCP_PROJECT_ID`). Used to
+    /// derive the `kubectl` context.
     pub project_id: String,
-    /// Region for Artifact Registry + bucket + cluster
-    /// (`NAVIGATOR_GCP_LOCATION`).
+    /// Region the cluster lives in (`NAVIGATOR_GCP_LOCATION`). Used to
+    /// derive the `kubectl` context.
     pub location: String,
-    /// Cluster name — also the Artifact Registry repo name
-    /// (`NAVIGATOR_GKE_CLUSTER_NAME`).
+    /// Cluster name (`NAVIGATOR_GKE_CLUSTER_NAME`). Used to derive the
+    /// `kubectl` context.
     pub cluster: String,
+    /// ghcr owner (org/user) the images live under, lowercased
+    /// (`NAVIGATOR_GHCR_OWNER`) — the `<owner>` in
+    /// `ghcr.io/<owner>/navigator-web`. Defaults to `neon-law-foundation`
+    /// (the canonical org); a fork overrides it to ship to its own org's
+    /// ghcr, so the value stays env-driven rather than hard-coded.
+    pub ghcr_owner: String,
     /// K8s namespace for the Deployments (`NAVIGATOR_K8S_NAMESPACE`,
     /// default `navigator`).
     pub namespace: String,
@@ -113,6 +117,12 @@ impl PowerPushConfig {
         let project_id = required_env("NAVIGATOR_GCP_PROJECT_ID")?;
         let location = required_env("NAVIGATOR_GCP_LOCATION")?;
         let cluster = required_env("NAVIGATOR_GKE_CLUSTER_NAME")?;
+        // ghcr image names are lowercase; lowercase the owner so a
+        // mixed-case org (e.g. `Neon-Law-Foundation`) still resolves.
+        // Defaults to the canonical org; a fork overrides via env.
+        let ghcr_owner = optional_env("NAVIGATOR_GHCR_OWNER")
+            .unwrap_or_else(|| DEFAULT_GHCR_OWNER.to_string())
+            .to_ascii_lowercase();
         let primary_domain = required_env("NAVIGATOR_PRIMARY_DOMAIN")?;
         let namespace = env_string("NAVIGATOR_K8S_NAMESPACE", "navigator");
         let secret_name = env_string("NAVIGATOR_WEB_SECRET_NAME", "navigator-web-secrets");
@@ -124,6 +134,7 @@ impl PowerPushConfig {
             project_id,
             location,
             cluster,
+            ghcr_owner,
             namespace,
             primary_domain,
             overlay_dir,
@@ -133,38 +144,24 @@ impl PowerPushConfig {
         })
     }
 
-    /// Artifact Registry repo path — `<region>-docker.pkg.dev/<project>/<cluster>`.
-    /// Matches the workspace convention in `docs/oss-install.md`.
+    /// ghcr registry prefix — `ghcr.io/<owner>`. CI publishes every
+    /// image under this owner; power-push rolls the cluster onto them.
     #[must_use]
     pub fn registry(&self) -> String {
-        format!(
-            "{}-docker.pkg.dev/{}/{}",
-            self.location, self.project_id, self.cluster
-        )
+        format!("ghcr.io/{}", self.ghcr_owner)
     }
 
-    /// Pushed `navigator-web` image URL at `sha`.
+    /// Published `navigator-web` image URL at the `YY.MM.DD` `tag`.
     #[must_use]
-    pub fn web_image(&self, sha: &str) -> String {
-        format!("{}/navigator-web:{sha}", self.registry())
+    pub fn web_image(&self, tag: &str) -> String {
+        format!("{}/navigator-web:{tag}", self.registry())
     }
 
-    /// Pushed `navigator-workflows-service` image URL at `sha`.
+    /// Published `navigator-workflows-service` image URL at the
+    /// `YY.MM.DD` `tag`.
     #[must_use]
-    pub fn workflows_image(&self, sha: &str) -> String {
-        format!("{}/navigator-workflows-service:{sha}", self.registry())
-    }
-
-    /// The GCS source bucket — `gs://<project>-source`.
-    #[must_use]
-    pub fn source_bucket(&self) -> String {
-        format!("gs://{}-source", self.project_id)
-    }
-
-    /// The bundle object URL for `sha` inside the source bucket.
-    #[must_use]
-    pub fn bundle_object(&self, sha: &str) -> String {
-        format!("{}/navigator-{sha}.bundle", self.source_bucket())
+    pub fn workflows_image(&self, tag: &str) -> String {
+        format!("{}/navigator-workflows-service:{tag}", self.registry())
     }
 
     /// The public worker URL the 7d re-register targets, resolved the
@@ -307,25 +304,25 @@ pub fn missing_keys(required: &[String], satisfied: &BTreeSet<String>) -> Vec<St
 // ---------- orchestration (shell-out; not unit-tested) ----------
 
 /// Options parsed from the `devx power-push` flags.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Default)]
 pub struct PowerPushOpts {
     /// Print every command instead of running it.
     pub dry_run: bool,
     /// No-rebuild path: just `kubectl rollout restart` both
     /// deployments (Secret-value rotation), then exit.
     pub restart_only: bool,
-    /// Skip fmt/clippy/test/markdown-lint (only when shipping a SHA
-    /// already verified in this session).
-    pub skip_verify: bool,
+    /// The `YY.MM.DD` ghcr tag to roll onto. `None` resolves the latest
+    /// published tag from ghcr.
+    pub tag: Option<String>,
 }
 
 /// Entry point for `Cmd::PowerPush`.
-pub fn run_power_push(opts: PowerPushOpts) -> Result<()> {
+pub fn run_power_push(opts: &PowerPushOpts) -> Result<()> {
     let cfg = PowerPushConfig::from_env()?;
     if opts.restart_only {
         return restart_only(&cfg, opts.dry_run);
     }
-    full_build(&cfg, opts)
+    roll(&cfg, opts)
 }
 
 /// The no-rebuild push: restart both deployments so the pods re-read a
@@ -352,75 +349,63 @@ fn restart_only(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
     Ok(())
 }
 
-/// The full build → push → bundle → deploy → re-register ship.
-fn full_build(cfg: &PowerPushConfig, opts: PowerPushOpts) -> Result<()> {
-    require_tools(&["git", "docker", "kubectl", "gcloud"])?;
-    // Authenticated, not just installed: docker (build), gcloud (registry
-    // push), doppler (the config this runs under), restate (the re-register
-    // step). A logged-out CLI here would otherwise fail mid-ship, after
-    // images are already pushed.
-    require_auth(&["docker", "gcloud", "doppler", "restate"])?;
+/// Roll the cluster onto an already-published `YY.MM.DD` ghcr tag.
+/// CI built and published the images; this only updates the cluster:
+/// resolve the tag → confirm the Secret satisfies the new binary's boot
+/// invariants → pin BOTH deployments AND every trigger `CronJob` to that
+/// tag → wait → re-register the worker with Restate → smoke-check. No
+/// build, no push, no skew — every navigator image in sync at one tag.
+fn roll(cfg: &PowerPushConfig, opts: &PowerPushOpts) -> Result<()> {
+    require_tools(&["kubectl"])?;
+    // Authenticated, not just installed: gcloud carries the GKE
+    // credentials the pinned kubectl context resolves against. Restate
+    // re-register downgrades to a warning when its CLI / admin API is
+    // absent, so it is not required here.
+    require_auth(&["gcloud"])?;
     let dry_run = opts.dry_run;
 
-    // 1. Pre-flight — confirm context resolves and warn on a dirty tree
-    //    (uncommitted work won't ship: the image tag is HEAD's SHA).
+    // 1. Pre-flight — confirm the prod context resolves before any call.
     verify_context(cfg, dry_run)?;
-    warn_if_dirty()?;
-    let sha = git_short_head()?;
+
+    // 2. Resolve the YY.MM.DD tag to roll: explicit `--tag`, else the
+    //    latest published tag on ghcr. Both deployments get the SAME tag.
+    let tag = match &opts.tag {
+        Some(t) => {
+            validate_release_tag(t)?;
+            t.clone()
+        }
+        None => resolve_latest_tag(cfg, dry_run)?,
+    };
+    let web_remote = cfg.web_image(&tag);
+    let workflows_remote = cfg.workflows_image(&tag);
     eprintln!(
-        "==> shipping HEAD {sha} to {} ({})",
+        "==> rolling {} ({}) onto {tag}\n      {web_remote}\n      {workflows_remote}",
         cfg.project_id, cfg.context
     );
 
-    // 3. Verify before building the image (fmt, clippy, test, md-lint).
-    if opts.skip_verify {
-        eprintln!("==> skipping verify (--skip-verify): only safe at an already-verified SHA");
-    } else {
-        verify(dry_run)?;
+    // 2b. Fail fast if the two service images aren't actually published at
+    //     this tag — pinning a deployment to a missing tag wedges it in
+    //     ImagePullBackOff. Verify on every live run, regardless of how the
+    //     tag was chosen: the auto-resolve path picks the latest tag from
+    //     navigator-web alone, so without this the workflows-service image is
+    //     never checked, and a partial CI publish (web tag lands, the
+    //     workflows-service publish leg fails — they run as a fail-fast:false
+    //     matrix) would still roll workflows-service onto a missing tag.
+    //     Skipped only in dry-run, where `resolve_latest_tag` returns a
+    //     placeholder with nothing to verify against.
+    if !dry_run {
+        ensure_tag_published(&cfg.ghcr_owner, "navigator-web", &tag)?;
+        ensure_tag_published(&cfg.ghcr_owner, "navigator-workflows-service", &tag)?;
     }
 
-    // 4. Build BOTH images. The web image is stamped with the full SHA +
-    //    commit time as build-args so the running binary can report the
-    //    deployed commit at `GET /version` (it can't drift from the image
-    //    bytes this way). See `images/Dockerfile.web` + `web::version`.
-    let root = workspace_root()?;
-    let full_sha = git_full_head()?;
-    let commit_time = git_commit_time()?;
-    build(
-        dry_run,
-        WEB_IMAGE,
-        "images/Dockerfile.web",
-        &root,
-        &[
-            ("GIT_SHA", full_sha.as_str()),
-            ("BUILD_TIME", commit_time.as_str()),
-        ],
-    )?;
-    build(
-        dry_run,
-        WORKFLOWS_SERVICE_IMAGE,
-        "images/Dockerfile.workflows-service",
-        &root,
-        &[],
-    )?;
-
-    // 5. Push BOTH to Artifact Registry.
-    let web_remote = cfg.web_image(&sha);
-    let workflows_remote = cfg.workflows_image(&sha);
-    tag_and_push(dry_run, WEB_IMAGE, &web_remote)?;
-    tag_and_push(dry_run, WORKFLOWS_SERVICE_IMAGE, &workflows_remote)?;
-
-    // 6. Archive a git bundle to the GCS source bucket.
-    bundle_to_gcs(cfg, &sha, dry_run)?;
-
-    // 7a. Sync the manifest (only when an overlay is configured).
+    // 3. Sync the manifest (only when an overlay is configured).
     sync_overlay(cfg, dry_run)?;
 
-    // 7b. Confirm the prod Secret satisfies the new binary's invariants.
+    // 4. Confirm the prod Secret satisfies the new binary's invariants.
     ensure_secret_invariants(cfg, dry_run)?;
 
-    // 7c. Bump BOTH images, then wait on both rollouts.
-    eprintln!("==> rolling out both deployments at {sha}");
+    // 5. Pin BOTH deployment images to the same tag, then wait on both
+    //    rollouts.
     exec(
         dry_run,
         kubectl(cfg)
@@ -439,117 +424,214 @@ fn full_build(cfg: &PowerPushConfig, opts: PowerPushOpts) -> Result<()> {
     )?;
     wait_rollouts(cfg, dry_run, "300s")?;
 
-    // 7d. Re-register the worker with Restate (best-effort).
+    // 5b. Pin every trigger CronJob to the same tag so a roll is atomic
+    //     across ALL navigator images, not just the two services. CronJobs
+    //     don't "roll" — the new image takes effect on the next scheduled
+    //     run — so there is nothing to wait on.
+    pin_cronjob_images(cfg, &tag, dry_run)?;
+
+    // 6. Re-register the worker with Restate (best-effort).
     reregister(cfg, dry_run);
 
-    // 8. Smoke-check the public surface (best-effort) and reclaim disk.
+    // 7. Smoke-check the public surface (best-effort).
     smoke_check(cfg, dry_run);
-    reclaim(dry_run);
 
-    eprintln!("==> power-push complete: {sha} live in {}", cfg.project_id);
+    eprintln!("==> power-push complete: {tag} live in {}", cfg.project_id);
     Ok(())
 }
 
-/// Run the four workspace-wide gates the skill mandates before a ship.
-fn verify(dry_run: bool) -> Result<()> {
-    eprintln!("==> verify: fmt, clippy, test, markdown-lint (workspace-wide)");
-    exec(
-        dry_run,
-        Command::new("cargo").args(["fmt", "--all", "--", "--check"]),
-    )?;
-    exec(
-        dry_run,
-        Command::new("cargo").args([
-            "clippy",
-            "--workspace",
-            "--all-targets",
-            "--",
-            "-D",
-            "warnings",
-        ]),
-    )?;
-    exec(dry_run, Command::new("cargo").args(["test", "--workspace"]))?;
-    exec(
-        dry_run,
-        Command::new("cargo").args([
-            "run",
-            "-p",
-            "cli",
-            "--quiet",
-            "--",
-            "validate",
-            "--markdown-only",
-            "--no-default-excludes",
-            ".",
-        ]),
-    )
+/// Re-pin every navigator trigger `CronJob` to `tag`. Discovers the
+/// `CronJobs` from the live cluster and re-points any container whose image
+/// is one of ours (`ghcr.io/<owner>/navigator-*`) — no hard-coded list,
+/// so a newly added trigger is covered automatically. Each image is
+/// re-pinned only after confirming `tag` is actually published for it;
+/// a trigger whose image hasn't published `tag` yet is skipped with a
+/// warning rather than wedged in `ImagePullBackOff`.
+fn pin_cronjob_images(cfg: &PowerPushConfig, tag: &str, dry_run: bool) -> Result<()> {
+    let prefix = format!("{}/", cfg.registry());
+    if dry_run {
+        eprintln!("DRY-RUN: would re-pin every {prefix}navigator-* CronJob image to {tag}");
+        return Ok(());
+    }
+    let list = kubectl_list_json(cfg, "cronjobs")?;
+    let Some(items) = list.get("items").and_then(serde_json::Value::as_array) else {
+        eprintln!("==> no CronJobs found; nothing to pin");
+        return Ok(());
+    };
+    let mut pinned = 0u32;
+    for item in items {
+        let Some(name) = item
+            .pointer("/metadata/name")
+            .and_then(serde_json::Value::as_str)
+        else {
+            continue;
+        };
+        let containers = item
+            .pointer("/spec/jobTemplate/spec/template/spec/containers")
+            .and_then(serde_json::Value::as_array);
+        let Some(containers) = containers else {
+            continue;
+        };
+        for c in containers {
+            let (Some(cname), Some(image)) = (
+                c.get("name").and_then(serde_json::Value::as_str),
+                c.get("image").and_then(serde_json::Value::as_str),
+            ) else {
+                continue;
+            };
+            // Ours only: `ghcr.io/<owner>/navigator-<something>:<tag>`.
+            if !image.starts_with(&prefix) {
+                continue;
+            }
+            let base = image.rsplit_once(':').map_or(image, |(b, _)| b);
+            let short = base.strip_prefix(&prefix).unwrap_or(base);
+            if ghcr_tag_exists(&cfg.ghcr_owner, short, tag) {
+                let target = format!("{base}:{tag}");
+                exec(
+                    false,
+                    kubectl(cfg)
+                        .arg("set")
+                        .arg("image")
+                        .arg(format!("cronjob/{name}"))
+                        .arg(format!("{cname}={target}")),
+                )?;
+                pinned += 1;
+            } else {
+                eprintln!(
+                    "WARN: {short} has no {tag} tag on ghcr — leaving CronJob/{name} on {image}"
+                );
+            }
+        }
+    }
+    eprintln!("==> pinned {pinned} trigger CronJob image(s) to {tag}");
+    Ok(())
 }
 
-/// Build one image, honoring `--dry-run`. Delegates to the same
-/// `build_image_at_with_args` `devx image` uses so behavior is identical.
-fn build(
-    dry_run: bool,
-    tag: &str,
-    dockerfile: &str,
-    root: &Path,
-    build_args: &[(&str, &str)],
-) -> Result<()> {
-    if dry_run {
-        use std::fmt::Write as _;
-        let mut args = String::new();
-        for (k, v) in build_args {
-            let _ = write!(args, " --build-arg {k}={v}");
-        }
-        eprintln!(
-            "DRY-RUN $ docker build --platform {PROD_PLATFORM} -t {tag} -f {}{args} {}",
-            root.join(dockerfile).display(),
-            root.display()
-        );
+/// True when `tag` is the `YY.MM.DD` release shape — three dot-separated
+/// two-digit groups (e.g. `26.06.23`).
+#[must_use]
+pub fn is_release_tag(tag: &str) -> bool {
+    let parts: Vec<&str> = tag.split('.').collect();
+    parts.len() == 3
+        && parts
+            .iter()
+            .all(|p| p.len() == 2 && p.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// Reject a `--tag` that is not a `YY.MM.DD` release tag — rolling a
+/// `latest` or a `ci-<sha>` tag onto a workload is exactly the
+/// un-auditable deploy we forbid.
+fn validate_release_tag(tag: &str) -> Result<()> {
+    if is_release_tag(tag) {
         Ok(())
     } else {
-        build_image_at_platform(tag, dockerfile, root, build_args, Some(PROD_PLATFORM))
+        bail!("--tag must be a YY.MM.DD release tag (e.g. 26.06.23), got `{tag}`");
     }
 }
 
-/// `docker tag` the local `:dev` image to the GAR URL and `docker push`.
-fn tag_and_push(dry_run: bool, local: &str, remote: &str) -> Result<()> {
-    exec(
-        dry_run,
-        Command::new("docker").arg("tag").arg(local).arg(remote),
-    )?;
-    exec(dry_run, Command::new("docker").arg("push").arg(remote))
+/// The newest `YY.MM.DD` tag in `tags`. Zero-padded `YY.MM.DD` sorts
+/// lexicographically the same as chronologically, so `max` is the
+/// latest. Non-release tags (`latest`, `ci-<sha>`) are ignored.
+#[must_use]
+pub fn pick_latest_release_tag(tags: &[String]) -> Option<String> {
+    tags.iter().filter(|t| is_release_tag(t)).max().cloned()
 }
 
-/// `git bundle create … --all` then `gcloud storage cp` to the source
-/// bucket, then remove the local bundle. `--all` makes the object a
-/// full restore point (`git clone <bundle>` works anywhere).
-fn bundle_to_gcs(cfg: &PowerPushConfig, sha: &str, dry_run: bool) -> Result<()> {
-    let bundle = std::env::temp_dir().join(format!("navigator-{sha}.bundle"));
-    let bundle = bundle.to_string_lossy().into_owned();
-    let object = cfg.bundle_object(sha);
-    eprintln!("==> archiving git bundle → {object}");
-    exec(
-        dry_run,
-        Command::new("git")
-            .arg("bundle")
-            .arg("create")
-            .arg(&bundle)
-            .arg("--all"),
-    )?;
-    exec(
-        dry_run,
-        Command::new("gcloud")
-            .arg("storage")
-            .arg("cp")
-            .arg(&bundle)
-            .arg(&object)
-            .arg(format!("--project={}", cfg.project_id)),
-    )?;
-    // Best-effort cleanup of the local bundle; never fail the ship on it.
-    if !dry_run {
-        let _ = fs::remove_file(&bundle);
+/// Resolve the latest published `YY.MM.DD` tag from ghcr. In `--dry-run`
+/// we don't touch the network — print a placeholder so the planned
+/// `set image` commands still render.
+fn resolve_latest_tag(cfg: &PowerPushConfig, dry_run: bool) -> Result<String> {
+    if dry_run {
+        eprintln!(
+            "DRY-RUN: would resolve the latest YY.MM.DD tag from ghcr.io/{}/navigator-web",
+            cfg.ghcr_owner
+        );
+        return Ok("<latest-ghcr-tag>".to_string());
     }
-    Ok(())
+    let tags = fetch_ghcr_tags(&cfg.ghcr_owner, "navigator-web")?;
+    pick_latest_release_tag(&tags).ok_or_else(|| {
+        anyhow::anyhow!(
+            "no YY.MM.DD release tag on ghcr.io/{}/navigator-web — has the daily deploy published one yet?",
+            cfg.ghcr_owner
+        )
+    })
+}
+
+/// List a public ghcr package's tags anonymously: mint a pull-scoped
+/// token, then GET `/v2/<owner>/<image>/tags/list`. Public packages need
+/// no credential — the same path GKE's anonymous pulls take. Builds a
+/// private current-thread runtime so the rest of `power-push` stays sync.
+fn fetch_ghcr_tags(owner: &str, image: &str) -> Result<Vec<String>> {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("build tokio runtime for ghcr tag resolution")?;
+    let repo = format!("{owner}/{image}");
+    runtime.block_on(async move {
+        let client = reqwest::Client::new();
+        let token_url = format!("https://ghcr.io/token?scope=repository:{repo}:pull");
+        let token_body: serde_json::Value = client
+            .get(&token_url)
+            .send()
+            .await
+            .context("request ghcr pull token")?
+            .json()
+            .await
+            .context("parse ghcr token response")?;
+        let token = token_body
+            .get("token")
+            .and_then(serde_json::Value::as_str)
+            .context("ghcr token missing from response")?;
+        let list_url = format!("https://ghcr.io/v2/{repo}/tags/list");
+        let resp = client
+            .get(&list_url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .context("request ghcr tags/list")?;
+        if !resp.status().is_success() {
+            bail!(
+                "ghcr tags/list for {repo} returned {} — is the package public?",
+                resp.status()
+            );
+        }
+        let body: serde_json::Value = resp.json().await.context("parse ghcr tags/list")?;
+        let tags = body
+            .get("tags")
+            .and_then(serde_json::Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+        Ok(tags)
+    })
+}
+
+/// Whether `tag` is published for `ghcr.io/<owner>/<image>`. Conservative
+/// on error: a failed lookup returns `false` (treat as "can't confirm →
+/// don't pin"), so it never green-lights a tag it couldn't verify.
+fn ghcr_tag_exists(owner: &str, image: &str, tag: &str) -> bool {
+    fetch_ghcr_tags(owner, image).is_ok_and(|tags| tags.iter().any(|t| t == tag))
+}
+
+/// Bail unless `tag` is published for `ghcr.io/<owner>/<image>`. Used to
+/// fail a roll fast — before any `kubectl set image` — when a service
+/// image is missing the requested tag (which would otherwise wedge the
+/// deployment in `ImagePullBackOff`). Distinguishes a lookup error (network)
+/// from an honestly-absent tag.
+fn ensure_tag_published(owner: &str, image: &str, tag: &str) -> Result<()> {
+    let tags = fetch_ghcr_tags(owner, image)
+        .with_context(|| format!("check ghcr.io/{owner}/{image}:{tag} is published"))?;
+    if tags.iter().any(|t| t == tag) {
+        Ok(())
+    } else {
+        bail!(
+            "ghcr.io/{owner}/{image}:{tag} is not published — power-push only rolls published \
+             tags. Publish it via the daily deploy (or pick a tag that exists) first."
+        );
+    }
 }
 
 /// 7a — `kubectl diff` (surface drift) then `kubectl apply` the
@@ -722,20 +804,6 @@ fn smoke_check(cfg: &PowerPushConfig, dry_run: bool) {
     );
 }
 
-/// Reclaim the local `:dev` images — they live in GAR + the cluster
-/// now. `docker rmi` ignores errors (the images may already be gone).
-fn reclaim(dry_run: bool) {
-    if dry_run {
-        eprintln!("DRY-RUN: would docker rmi {WEB_IMAGE} {WORKFLOWS_SERVICE_IMAGE}");
-        return;
-    }
-    let _ = Command::new("docker")
-        .arg("rmi")
-        .arg(WEB_IMAGE)
-        .arg(WORKFLOWS_SERVICE_IMAGE)
-        .status();
-}
-
 // ---------- small shared helpers ----------
 
 /// A `kubectl` invocation pinned to the prod context and namespace.
@@ -771,6 +839,26 @@ fn kubectl_json(cfg: &PowerPushConfig, kind: &str, name: &str) -> Result<serde_j
     }
     serde_json::from_slice(&out.stdout)
         .with_context(|| format!("parse `kubectl get {kind} {name} -o json`"))
+}
+
+/// `kubectl get <kind> -o json` for a whole collection (no name), parsed.
+/// The result is a `List` whose `items` array the caller walks.
+fn kubectl_list_json(cfg: &PowerPushConfig, kind: &str) -> Result<serde_json::Value> {
+    let out = kubectl(cfg)
+        .arg("get")
+        .arg(kind)
+        .arg("-o")
+        .arg("json")
+        .output()
+        .with_context(|| format!("run kubectl get {kind}"))?;
+    if !out.status.success() {
+        bail!(
+            "kubectl get {kind} failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
+    serde_json::from_slice(&out.stdout)
+        .with_context(|| format!("parse `kubectl get {kind} -o json`"))
 }
 
 /// Wait on both Deployments' rollouts at the given timeout.
@@ -819,22 +907,6 @@ fn verify_context(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
     Ok(())
 }
 
-/// Warn (don't fail) when the working tree is dirty: uncommitted work
-/// won't ship because the image tag is HEAD's SHA.
-fn warn_if_dirty() -> Result<()> {
-    let out = Command::new("git")
-        .args(["status", "--porcelain"])
-        .output()
-        .context("git status --porcelain")?;
-    if out.status.success() && !out.stdout.is_empty() {
-        eprintln!(
-            "WARN: working tree is dirty — uncommitted changes will NOT ship \
-             (image tag = HEAD's SHA). Commit first if they should go out."
-        );
-    }
-    Ok(())
-}
-
 /// True when `tool` is on PATH (same probe as `require_tools`, but
 /// boolean — for best-effort steps that downgrade to a warning).
 fn tool_present(tool: &str) -> bool {
@@ -876,6 +948,7 @@ mod tests {
             project_id: "my-org-prod".into(),
             location: "us-west4".into(),
             cluster: "navigator".into(),
+            ghcr_owner: "neon-law-foundation".into(),
             namespace: "navigator".into(),
             primary_domain: "example.com".into(),
             overlay_dir: None,
@@ -886,24 +959,43 @@ mod tests {
     }
 
     #[test]
-    fn derived_names_follow_the_workspace_convention() {
+    fn derived_names_target_ghcr_at_the_owner() {
         let cfg = sample_config();
+        assert_eq!(cfg.registry(), "ghcr.io/neon-law-foundation");
         assert_eq!(
-            cfg.registry(),
-            "us-west4-docker.pkg.dev/my-org-prod/navigator"
+            cfg.web_image("26.06.23"),
+            "ghcr.io/neon-law-foundation/navigator-web:26.06.23"
         );
         assert_eq!(
-            cfg.web_image("abc1234"),
-            "us-west4-docker.pkg.dev/my-org-prod/navigator/navigator-web:abc1234"
+            cfg.workflows_image("26.06.23"),
+            "ghcr.io/neon-law-foundation/navigator-workflows-service:26.06.23"
         );
+    }
+
+    #[test]
+    fn is_release_tag_matches_only_yy_mm_dd() {
+        assert!(is_release_tag("26.06.23"));
+        assert!(is_release_tag("00.01.09"));
+        assert!(!is_release_tag("latest"));
+        assert!(!is_release_tag("ci-6a5f96a"));
+        assert!(!is_release_tag("2026.06.23")); // four-digit year
+        assert!(!is_release_tag("26.6.23")); // unpadded month
+        assert!(!is_release_tag("26.06")); // too few groups
+    }
+
+    #[test]
+    fn pick_latest_release_tag_takes_the_newest_and_ignores_non_releases() {
+        let tags = vec![
+            "latest".to_string(),
+            "26.06.10".to_string(),
+            "ci-deadbeef".to_string(),
+            "26.06.23".to_string(),
+            "26.05.31".to_string(),
+        ];
+        assert_eq!(pick_latest_release_tag(&tags), Some("26.06.23".to_string()));
         assert_eq!(
-            cfg.workflows_image("abc1234"),
-            "us-west4-docker.pkg.dev/my-org-prod/navigator/navigator-workflows-service:abc1234"
-        );
-        assert_eq!(cfg.source_bucket(), "gs://my-org-prod-source");
-        assert_eq!(
-            cfg.bundle_object("abc1234"),
-            "gs://my-org-prod-source/navigator-abc1234.bundle"
+            pick_latest_release_tag(&["latest".to_string(), "ci-x".to_string()]),
+            None
         );
     }
 

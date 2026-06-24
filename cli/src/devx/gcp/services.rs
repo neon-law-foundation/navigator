@@ -35,8 +35,7 @@ pub async fn enable_services(client: &GcpClient, project_id: &str) -> SetupResul
 
 /// Enable an arbitrary list of GCP APIs on `project_id` via
 /// `serviceusage.batchEnable`. Used by focused subcommands that want
-/// only one API turned on (e.g. `devx gcp artifact-registry`) rather
-/// than the full `REQUIRED_SERVICES` set.
+/// only one API turned on rather than the full `REQUIRED_SERVICES` set.
 pub async fn enable(client: &GcpClient, project_id: &str, service_ids: &[&str]) -> SetupResult<()> {
     let body = json!({ "serviceIds": service_ids });
     let resp = client

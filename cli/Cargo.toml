@@ -25,6 +25,7 @@ image.workspace = true
 import.workspace = true
 live-inquiry.workspace = true
 owo-colors.workspace = true
+pdf.workspace = true
 rand.workspace = true
 ravif.workspace = true
 reqwest.workspace = true
@@ -43,16 +44,15 @@ url.workspace = true
 uuid.workspace = true
 views.workspace = true
 walkdir.workspace = true
+web.workspace = true
 webp.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
 axum.workspace = true
-pdf.workspace = true
 predicates.workspace = true
 store = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
-web.workspace = true
 wiremock.workspace = true
 workflows.workspace = true
 

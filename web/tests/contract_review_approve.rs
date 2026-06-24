@@ -81,10 +81,13 @@ async fn harness() -> Harness {
 
 async fn seed_review_at_staff_review(h: &Harness) -> (Uuid, Uuid) {
     let entity_id = store::test_support::seed_entity(&h.db).await;
+    let __dri = store::test_support::dri_person(&h.db).await;
     let project_id = project::ActiveModel {
         name: ActiveValue::Set("Nexus engagement".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(entity_id),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&h.db)

@@ -67,7 +67,7 @@ pub fn render_foundation(auth: AuthState) -> Markup {
          to the Navigator open-source codebase, or partnership ideas \
          with bar associations and legal-aid organizations."
         .to_string();
-    let github: Option<(&str, &str)> = foundation_github_url().map(|url| ("GitHub", url));
+    let github = Some(("GitHub", foundation_github_url()));
     render(
         "Contact the Foundation",
         &description,

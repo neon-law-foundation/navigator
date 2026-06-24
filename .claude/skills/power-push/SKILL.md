@@ -49,14 +49,18 @@ Also: the **no-rebuild push** for secret rotation — see the last section. Both
 ## The fast path: `navigator power-push`
 
 This workflow is a subcommand of the `navigator` CLI —
-[`cli/src/devx/power_push.rs`](../../../cli/src/devx/power_push.rs).
+[`cli/src/devx/power_push.rs`](../../../cli/src/devx/power_push.rs). It is **roll-only**: it resolves the latest
+published `YY.MM.DD` tag from ghcr.io (or takes `--tag YY.MM.DD`), confirms the Secret invariants, pins **both**
+deployments to that one tag and rolls them out together, then re-registers the worker with Restate. It builds **no**
+images locally, pushes nothing to a registry, and archives no git bundle — the daily tag flow (`deploy.yml`) is the only
+thing that builds and publishes images. Run it under `doppler run --project navigator --config prd --` (it reads
+`NAVIGATOR_GHCR_OWNER` and the cluster/domain config from the environment); the manual `kubectl` recipe below mirrors
+what the subcommand does, step for step, so use it to understand or debug a roll.
 
-> **Implementation drift to fix.** The CLI subcommand still reflects the **old** model (build images locally → push to
-> Artifact Registry → archive a git bundle). Under the GitHub-publish model documented here it should instead resolve
-> the latest published `YY.MM.DD` tag from ghcr.io and roll the cluster — no local build, no GAR push, no bundle. Until
-> `power_push.rs` is updated to match, **drive the manual `kubectl` recipe below** (it is the source of truth for the
-> current behavior) and treat the subcommand as not-yet-migrated. Do not claim the CLI pulls from ghcr until the code
-> does.
+After a roll, confirm the cluster is on the tag you intended: `GET /version` reports the running build, with the
+headline `release` field carrying the `YY.MM.DD` ghcr tag (`web` reads it from `NAVIGATOR_RELEASE_TAG`, set on the
+deployment). An operator, CI, AIDA, or a browser can hit `https://www.${NAVIGATOR_PRIMARY_DOMAIN}/version` and read the
+`release` field to verify which dated image is live.
 
 **Run every cluster command under the Doppler `prd` config.** This is a production roll, and `prd` carries the
 production values the deploy reads — `NAVIGATOR_PRIMARY_DOMAIN` (the smoke-check host), the production Restate wiring,
@@ -137,10 +141,12 @@ Sync, Argo CD, Flux) can leave it unset — their controller reconciles the over
 The image **name** is lowercase per ghcr's `${GITHUB_REPOSITORY_OWNER,,}` convention (see `deploy.yml`'s
 `derive lowercase image name` step) — so `NAVIGATOR_GHCR_OWNER` must be the lowercased owner.
 
-**The cluster needs pull access to ghcr.io.** If the packages are public, nodes pull anonymously and nothing more is
-needed. If they're private, the namespace needs a `kubernetes.io/dockerconfigjson` imagePullSecret for ghcr.io
-referenced from both deployments' `imagePullSecrets` — a one-time setup, not a per-ship step. A new pod stuck in
-`ImagePullBackOff` with `401 Unauthorized` against `ghcr.io` is the symptom that this is missing.
+**The cluster pulls from ghcr.io anonymously.** The `navigator-*` packages under `ghcr.io/${NAVIGATOR_GHCR_OWNER}` are
+**public**, so GKE nodes pull them without credentials — there is no imagePullSecret, no in-cluster registry credential,
+and nothing to rotate. A fork that chooses to publish its packages privately would need a
+`kubernetes.io/dockerconfigjson` imagePullSecret for ghcr.io referenced from both deployments' `imagePullSecrets` (a
+one-time setup, not a per-ship step); a pod stuck in `ImagePullBackOff` with `401 Unauthorized` against `ghcr.io` is the
+symptom of a private package without that Secret.
 
 ## The roll-the-cluster recipe
 

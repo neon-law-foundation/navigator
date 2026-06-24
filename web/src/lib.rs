@@ -41,6 +41,7 @@ pub mod email_threads;
 pub mod esign_view;
 pub mod esignature_webhook;
 pub mod estate;
+pub mod events;
 pub mod expunge;
 pub mod expunge_request_route;
 pub mod expunge_route;
@@ -75,6 +76,7 @@ pub mod signature_render;
 pub mod statutes;
 pub mod template_api;
 pub mod template_gallery;
+mod template_paths;
 /// Shared test scaffolding (the canonical `AppState` builder). Always
 /// compiled so both the integration tests and the `features` crate can
 /// use it; see the module docs.
@@ -94,6 +96,7 @@ pub use auth::{AuthClaims, AuthConfig};
 pub use blog::{BlogIndex, BlogPost};
 pub use config::{AppConfig, ConfigError};
 pub use docs::{Doc, DocsIndex};
+pub use events::{Event, EventIndex};
 pub use marketing::{MarketingDoc, MarketingIndex, PricingCard};
 // The A2A confirmation gate looks the *approver* up in `persons`, so a
 // test that drives the gate must inject the same `Principal` the auth
@@ -213,19 +216,26 @@ pub const DEFAULT_MARKETING_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/co
 /// `NAVIGATOR_BLOG_DIR`.
 pub const DEFAULT_BLOG_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/content/blog");
 
+/// Root for the bundled event pages served at `/events`. Override with
+/// `NAVIGATOR_EVENTS_DIR`.
+pub const DEFAULT_EVENTS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/content/events");
+
 /// Shared router state. `Clone`-cheap — every field is `Arc`-backed
 /// or wraps one.
 #[derive(Clone)]
 pub struct AppState {
     pub db: Db,
     pub workshops: WorkshopIndex,
-    /// Workspace docs published at `/docs/:slug`, baked from the
+    /// Workspace docs published at `/docs/{slug}`, baked from the
     /// `docs/` tree at compile time. See [`docs`].
     pub docs: DocsIndex,
     pub marketing: MarketingIndex,
     /// Firm blog posts served at `/blog`, loaded at boot from a
     /// directory of dated `.md` files. See [`blog`].
     pub blog: BlogIndex,
+    /// Public events served at `/events`, loaded from dated markdown
+    /// files. See [`events`].
+    pub events: EventIndex,
     pub auth: AuthConfig,
     /// Google OAuth access-token validator for `/mcp`. Pass-through
     /// when `GOOGLE_OAUTH_CLIENT_IDS` is unset (KIND / local dev).
@@ -274,7 +284,7 @@ pub struct AppState {
     /// flat-fee invoice through this seam.
     pub billing_provider: Arc<dyn billing::BillingProvider>,
     /// Coarse path secret the e-signature provider must include in its
-    /// completion-webhook URL (`/webhook/esignature/:secret`). Same
+    /// completion-webhook URL (`/webhook/esignature/{secret}`). Same
     /// `None`-accepts-any-token dev posture as `inbound_email_secret`;
     /// loaded from `DOCUSIGN_WEBHOOK_SECRET`. Defense-in-depth — the
     /// real gate is `esignature_hmac_key`. See [`esignature_webhook`].
@@ -295,7 +305,7 @@ pub struct AppState {
     /// `enforce_prod_invariants`. Loaded from `SENDGRID_INBOUND_SECRET`.
     pub inbound_email_secret: Option<String>,
     /// Shared secret SendGrid's Event Webhook must include in the
-    /// delivery-event URL path (`/api/email-events/:secret`). Same
+    /// delivery-event URL path (`/api/email-events/{secret}`). Same
     /// `None`-accepts-any-token dev posture as `inbound_email_secret`;
     /// loaded from `SENDGRID_EVENTS_SECRET`. See [`email_events`].
     pub email_events_secret: Option<String>,
@@ -366,6 +376,12 @@ impl FromRef<AppState> for BlogIndex {
     }
 }
 
+impl FromRef<AppState> for EventIndex {
+    fn from_ref(s: &AppState) -> Self {
+        s.events.clone()
+    }
+}
+
 impl FromRef<AppState> for SessionStore {
     fn from_ref(s: &AppState) -> Self {
         s.sessions.clone()
@@ -399,7 +415,6 @@ impl FromRef<AppState> for Arc<dyn cloud::StorageService> {
 /// swap in the layout.
 pub struct MaybeAuth(pub views::AuthState);
 
-#[async_trait::async_trait]
 impl<S> axum::extract::FromRequestParts<S> for MaybeAuth
 where
     S: Send + Sync,
@@ -639,15 +654,15 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
         .route("/version", get(version))
         .route("/github-stars", get(github_stars::handler))
         .route(
-            "/webhook/sendgrid/inbound/:secret",
+            "/webhook/sendgrid/inbound/{secret}",
             axum::routing::post(inbound_email::webhook),
         )
         .route(
-            "/api/email-events/:secret",
+            "/api/email-events/{secret}",
             axum::routing::post(email_events::webhook),
         )
         .route(
-            "/webhook/esignature/:secret",
+            "/webhook/esignature/{secret}",
             axum::routing::post(esignature_webhook::webhook),
         )
         .route("/docusign/consent-callback", get(docusign_consent_callback));
@@ -664,10 +679,16 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
         router = router
             .route("/", get(home))
             .route("/blog", get(blog_index))
-            .route("/blog/:slug", get(blog_post))
+            .route("/blog/{slug}", get(blog_post))
+            .route("/events", get(events_index))
+            .route("/events/{slug}", get(event_page))
+            .route("/events/{slug}/calendar.ics", get(event_ics))
             .route("/contact", get(contact))
-            .route("/foundation", get(foundation))
-            .route("/foundation/mission", get(foundation_mission))
+            .route("/foundation", get(foundation_mission))
+            .route(
+                "/foundation/mission",
+                get(|| async { axum::response::Redirect::permanent("/foundation") }),
+            )
             .route("/foundation/contact", get(foundation_contact))
             .route("/foundation/nimbus", get(foundation_nimbus))
             // The Navigator hub and its per-package pages. `/navigator`
@@ -678,6 +699,11 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/foundation/navigator/cli", get(navigator_cli))
             .route("/foundation/navigator/mcp", get(navigator_mcp))
             .route("/foundation/navigator/web", get(navigator_web))
+            .route("/foundation/notations", get(notation_templates))
+            .route(
+                "/foundation/notation-templates",
+                get(|| async { axum::response::Redirect::permanent("/foundation/notations") }),
+            )
             .route(
                 "/navigator",
                 get(|| async { axum::response::Redirect::permanent("/foundation/navigator") }),
@@ -688,9 +714,9 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             // `/services` page replaces the old Services dropdown; each
             // card links out to a `/services/<slug>` detail.
             .route("/services", get(service_index))
-            .route("/services/fractional-gc", get(service_fractional_gc))
-            .route("/services/estate", get(service_estate))
-            .route("/services/corporate", get(service_corporate))
+            .route("/services/nexus", get(service_nexus))
+            .route("/services/northstar", get(service_northstar))
+            .route("/services/nest", get(service_nest))
             .route("/services/nautilus", get(service_nautilus))
             .route("/services/nook", get(service_nook))
             .route("/services/litigation", get(service_litigation))
@@ -704,11 +730,15 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             // page mirrors its English twin and renders Spanish chrome +
             // transcreated prose; see docs/i18n.md.
             .route("/es", get(home_es))
-            .route("/es/foundation/mission", get(foundation_mission_es))
+            .route("/es/foundation", get(foundation_mission_es))
+            .route(
+                "/es/foundation/mission",
+                get(|| async { axum::response::Redirect::permanent("/es/foundation") }),
+            )
             .route("/es/services", get(service_index_es))
-            .route("/es/services/fractional-gc", get(service_fractional_gc_es))
-            .route("/es/services/estate", get(service_estate_es))
-            .route("/es/services/corporate", get(service_corporate_es))
+            .route("/es/services/nexus", get(service_nexus_es))
+            .route("/es/services/northstar", get(service_northstar_es))
+            .route("/es/services/nest", get(service_nest_es))
             .route("/es/services/nautilus", get(service_nautilus_es))
             .route("/es/services/nook", get(service_nook_es))
             .route("/es/services/litigation", get(service_litigation_es))
@@ -720,33 +750,30 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/es/services/pro-bono", get(service_pro_bono_es))
             .route("/foundation/workshops/navigator", get(workshops_index))
             .route(
-                "/foundation/workshops/navigator/:slug",
+                "/foundation/workshops/navigator/{slug}",
                 get(workshops_material),
             )
             .route(
-                "/foundation/workshops/navigator/:slug/step/:step",
+                "/foundation/workshops/navigator/{slug}/step/{step}",
                 get(workshops_material_step),
             )
-            .route("/docs/:slug", get(docs_page))
+            .route("/docs", get(docs_index_page))
+            .route("/docs/{slug}", get(docs_page))
             // Public, no-login template gallery + the LSP showcase — the
             // "our legal documents are plain markdown" demo surfaces.
             .route("/templates", get(templates_index))
-            .route("/templates/:category/:name", get(template_detail))
-            .route(
-                "/templates/:category/:name/download",
-                get(template_download),
-            )
+            .route("/templates/{*path}", get(template_entry))
             // Raw template markdown as an API — the bytes the README's
-            // `templates/<cat>/<name>.md` links point at on the website.
-            .route("/api/templates/:category/:name", get(api_template_raw))
+            // `notation_templates/**/*.md` links point at on the website.
+            .route("/api/templates/{*path}", get(api_template_raw))
             .route(
                 "/lsp",
                 get(|| async { axum::response::Redirect::permanent("/foundation/navigator/lsp") }),
             )
             .route("/design", get(design_page))
             .route("/statutes", get(statutes::index))
-            .route("/statutes/nrs/:chapter", get(statutes::chapter))
-            .route("/statutes/nrs/:chapter/:section", get(statutes::section))
+            .route("/statutes/nrs/{chapter}", get(statutes::chapter))
+            .route("/statutes/nrs/{chapter}/{section}", get(statutes::section))
             // Presentations folded into Workshops — a talk is just another
             // hands-on workshop now. Redirect the old surface so deep
             // links to a talk land on its workshop twin.
@@ -757,7 +784,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
                 }),
             )
             .route(
-                "/foundation/presentations/:slug",
+                "/foundation/presentations/{slug}",
                 get(|AxumPath(slug): AxumPath<String>| async move {
                     axum::response::Redirect::permanent(&format!(
                         "/foundation/workshops/navigator/{slug}"
@@ -765,7 +792,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
                 }),
             )
             .route(
-                "/foundation/presentations/:slug/step/:step",
+                "/foundation/presentations/{slug}/step/{step}",
                 get(
                     |AxumPath((slug, step)): AxumPath<(String, u32)>| async move {
                         axum::response::Redirect::permanent(&format!(
@@ -857,6 +884,14 @@ fn format_blog_date(date: chrono::NaiveDate) -> String {
     date.format("%B %-d, %Y").to_string()
 }
 
+fn format_event_datetime_range(start: chrono::NaiveDateTime, end: chrono::NaiveDateTime) -> String {
+    format!(
+        "{}-{} Pacific",
+        start.format("%B %-d, %Y, %-I:%M %p"),
+        end.format("%-I:%M %p")
+    )
+}
+
 /// `GET /blog` — the firm blog index, newest post first.
 async fn blog_index(State(blog): State<BlogIndex>, MaybeAuth(auth): MaybeAuth) -> Markup {
     let dates: Vec<String> = blog
@@ -878,19 +913,117 @@ async fn blog_index(State(blog): State<BlogIndex>, MaybeAuth(auth): MaybeAuth) -
     views::pages::blog::render_index(&summaries, auth)
 }
 
-/// `GET /blog/:slug` — one post, or a 404 page when the slug is unknown.
+/// `GET /events` — public event index, soonest first.
+async fn events_index(State(events): State<EventIndex>, MaybeAuth(auth): MaybeAuth) -> Markup {
+    let times: Vec<String> = events
+        .events()
+        .iter()
+        .map(|event| format_event_datetime_range(event.starts_at, event.ends_at))
+        .collect();
+    let summaries: Vec<views::pages::events::EventSummary<'_>> = events
+        .events()
+        .iter()
+        .zip(&times)
+        .map(|(event, time)| views::pages::events::EventSummary {
+            slug: &event.slug,
+            title: &event.title,
+            description: &event.description,
+            time,
+            place: &event.location_name,
+        })
+        .collect();
+    views::pages::events::render_index(&summaries, auth)
+}
+
+/// Build the kebab-case redirect target for a file-backed asset route
+/// when any path segment is in the legacy underscore form, or `None`
+/// when every segment is already canonical.
 ///
-/// Slugs are canonically underscore-delimited (`thanks_apple`). A request
-/// for the hyphenated form (`thanks-apple`) is permanently redirected to
-/// the underscore form so external links written either way resolve.
+/// Borrowing the JSON:API member-name convention, every public asset URL
+/// uses hyphens (see [`views::slug`]); this powers the permanent
+/// redirect that lands a `…_…` link on its canonical `…-…` home, shared
+/// by the blog, template, and docs routes so the rule can't drift apart.
+fn kebab_redirect_path(segments: &[&str]) -> Option<String> {
+    if segments.iter().any(|s| views::slug::needs_redirect(s)) {
+        let path = segments
+            .iter()
+            .map(|s| views::slug::to_url(s))
+            .collect::<Vec<_>>()
+            .join("/");
+        Some(format!("/{path}"))
+    } else {
+        None
+    }
+}
+
+async fn event_page(
+    State(events): State<EventIndex>,
+    MaybeAuth(auth): MaybeAuth,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    if let Some(to) = kebab_redirect_path(&["events", &slug]) {
+        return axum::response::Redirect::permanent(&to).into_response();
+    }
+    match events.get(&slug) {
+        Some(event) => {
+            let time = format_event_datetime_range(event.starts_at, event.ends_at);
+            let place = format!("{}, {}", event.location_name, event.location_address);
+            let ics_url = format!("/events/{}/calendar.ics", event.slug);
+            (
+                StatusCode::OK,
+                views::pages::events::render_event(
+                    &views::pages::events::EventContent {
+                        slug: &event.slug,
+                        title: &event.title,
+                        description: &event.description,
+                        time: &time,
+                        place: &place,
+                        external_event_provider: &event.external_event_provider,
+                        external_event_url: &event.external_event_url,
+                        ics_url: &ics_url,
+                        body_html: &event.body_html,
+                        video_url: event.video_url.as_deref(),
+                        recap_url: event.recap_url.as_deref(),
+                    },
+                    auth,
+                ),
+            )
+                .into_response()
+        }
+        None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
+    }
+}
+
+async fn event_ics(
+    State(events): State<EventIndex>,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    if let Some(to) = kebab_redirect_path(&["events", &slug]) {
+        return axum::response::Redirect::permanent(&format!("{to}/calendar.ics")).into_response();
+    }
+    match events.get(&slug) {
+        Some(event) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "text/calendar; charset=utf-8")],
+            event.ics(),
+        )
+            .into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// `GET /blog/{slug}` — one post, or a 404 page when the slug is unknown.
+///
+/// Slugs are canonically kebab-case (`thanks-apple`). A request for the
+/// legacy underscore form (`thanks_apple`) is permanently redirected to
+/// the hyphenated form so external links written either way resolve.
 async fn blog_post(
     State(blog): State<BlogIndex>,
     MaybeAuth(auth): MaybeAuth,
     AxumPath(slug): AxumPath<String>,
 ) -> impl IntoResponse {
-    if slug.contains('-') {
-        let canonical = slug.replace('-', "_");
-        return axum::response::Redirect::permanent(&format!("/blog/{canonical}")).into_response();
+    if let Some(to) = kebab_redirect_path(&["blog", &slug]) {
+        return axum::response::Redirect::permanent(&to).into_response();
     }
     match blog.get(&slug) {
         Some(post) => {
@@ -978,16 +1111,10 @@ async fn navigator_web(MaybeAuth(auth): MaybeAuth) -> Markup {
     )
 }
 
-async fn foundation(State(marketing): State<MarketingIndex>, MaybeAuth(auth): MaybeAuth) -> Markup {
-    let doc = marketing.find("foundation");
-    let content = doc.map_or_else(views::pages::foundation::FoundationContent::default, |d| {
-        views::pages::foundation::FoundationContent {
-            title: &d.title,
-            description: &d.description,
-            body_html: &d.body_html,
-        }
-    });
-    views::pages::foundation::render(&content, auth)
+/// `GET /foundation/notations` — the notation template tree README,
+/// rendered under the Foundation brand.
+async fn notation_templates(MaybeAuth(auth): MaybeAuth) -> Markup {
+    views::pages::notation_templates::render(auth)
 }
 
 async fn foundation_mission(
@@ -997,7 +1124,7 @@ async fn foundation_mission(
     foundation_mission_in(&marketing, auth, views::Locale::En)
 }
 
-/// Spanish mission letter (`/es/foundation/mission`).
+/// Spanish mission letter (`/es/foundation`).
 async fn foundation_mission_es(
     State(marketing): State<MarketingIndex>,
     MaybeAuth(auth): MaybeAuth,
@@ -1033,7 +1160,15 @@ fn foundation_mission_in(
     views::pages::mission::render_in(&content, auth, locale)
 }
 
-/// `GET /docs/:slug` — a workspace doc rendered from the baked `docs/`
+/// `GET /docs` — the workspace documentation index.
+async fn docs_index_page(
+    State(docs): State<DocsIndex>,
+    MaybeAuth(auth): MaybeAuth,
+) -> impl IntoResponse {
+    render_doc_page(&docs, "index", auth)
+}
+
+/// `GET /docs/{slug}` — a workspace doc rendered from the baked `docs/`
 /// tree. Public even in private mode (reference vocabulary, like
 /// `/privacy`). Unknown slugs 404.
 async fn docs_page(
@@ -1041,7 +1176,21 @@ async fn docs_page(
     MaybeAuth(auth): MaybeAuth,
     AxumPath(slug): AxumPath<String>,
 ) -> impl IntoResponse {
-    match docs.find(&slug) {
+    if let Some(to) = kebab_redirect_path(&["docs", &slug]) {
+        return axum::response::Redirect::permanent(&to).into_response();
+    }
+    if slug == "index" {
+        return axum::response::Redirect::permanent("/docs").into_response();
+    }
+    render_doc_page(&docs, &slug, auth)
+}
+
+fn render_doc_page(
+    docs: &DocsIndex,
+    slug: &str,
+    auth: views::AuthState,
+) -> axum::response::Response {
+    match docs.find(slug) {
         Some(doc) => (
             StatusCode::OK,
             views::pages::docs::render(
@@ -1062,7 +1211,7 @@ fn template_card(
     t: &'static template_gallery::GalleryTemplate,
 ) -> views::pages::templates::TemplateCard<'static> {
     views::pages::templates::TemplateCard {
-        category: t.category,
+        href: t.detail_path(),
         name: t.name,
         title: &t.title,
         blurb: t.blurb,
@@ -1072,7 +1221,7 @@ fn template_card(
 }
 
 /// `GET /templates` — the public, no-login gallery index. Lists the
-/// curated, client-safe subset of `templates/`.
+/// curated, client-safe subset of `notation_templates/`.
 async fn templates_index(MaybeAuth(auth): MaybeAuth) -> Markup {
     let cards: Vec<_> = template_gallery::gallery()
         .iter()
@@ -1081,16 +1230,43 @@ async fn templates_index(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::templates::index(&cards, auth)
 }
 
-/// `GET /templates/:category/:name` — one template's detail page: the
+/// `GET /templates/*path` — one template's detail page: the
 /// notation frontmatter, a download link, and a start-a-matter CTA. A
 /// template not on the curated allow-list 404s (never leaks).
-async fn template_detail(
+async fn template_entry(
     MaybeAuth(auth): MaybeAuth,
-    AxumPath((category, name)): AxumPath<(String, String)>,
+    AxumPath(path): AxumPath<String>,
 ) -> impl IntoResponse {
-    match template_gallery::find(&category, &name) {
+    let (path, is_download) = path
+        .strip_suffix("/download")
+        .map_or((path.as_str(), false), |base| (base, true));
+    let path = template_gallery::legacy_alias(path).unwrap_or(path);
+    let redirect_segments = if is_download {
+        ["templates", path, "download"].join("/")
+    } else {
+        ["templates", path].join("/")
+    };
+    let redirect_parts: Vec<&str> = redirect_segments.split('/').collect();
+    if let Some(to) = kebab_redirect_path(&redirect_parts) {
+        return axum::response::Redirect::permanent(&to).into_response();
+    }
+    match template_gallery::find_path(path) {
         Some(t) => {
-            let download_href = format!("/templates/{}/{}/download", t.category, t.name);
+            if is_download {
+                let mut headers = axum::http::HeaderMap::new();
+                headers.insert(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("text/markdown; charset=utf-8"),
+                );
+                if let Ok(disposition) = HeaderValue::try_from(format!(
+                    "attachment; filename=\"{}\"",
+                    t.download_filename()
+                )) {
+                    headers.insert(header::CONTENT_DISPOSITION, disposition);
+                }
+                return (StatusCode::OK, headers, t.raw).into_response();
+            }
+            let download_href = t.download_path();
             let detail = views::pages::templates::TemplateDetail {
                 card: template_card(t),
                 frontmatter: t.frontmatter(),
@@ -1108,41 +1284,20 @@ async fn template_detail(
     }
 }
 
-/// `GET /templates/:category/:name/download` — the raw `.md`, served
-/// verbatim (same bytes a git reader sees) as a `text/markdown`
-/// attachment. Off-list paths 404 rather than guessing a file.
-async fn template_download(
-    AxumPath((category, name)): AxumPath<(String, String)>,
-) -> impl IntoResponse {
-    match template_gallery::find(&category, &name) {
-        Some(t) => {
-            let mut headers = axum::http::HeaderMap::new();
-            headers.insert(
-                header::CONTENT_TYPE,
-                HeaderValue::from_static("text/markdown; charset=utf-8"),
-            );
-            if let Ok(disposition) = HeaderValue::try_from(format!(
-                "attachment; filename=\"{}\"",
-                t.download_filename()
-            )) {
-                headers.insert(header::CONTENT_DISPOSITION, disposition);
-            }
-            (StatusCode::OK, headers, t.raw).into_response()
-        }
-        None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
-    }
-}
-
-/// `GET /api/templates/:category/:name` — the raw template markdown,
+/// `GET /api/templates/*path` — the raw template markdown,
 /// served inline as `text/markdown`. Unlike `/templates/.../download`
 /// (the curated gallery, attachment-dispositioned), this serves any
-/// `confidential: false` template under `templates/` so the README's
-/// `templates/<cat>/<name>.md` links resolve on the site. Confidential
+/// `confidential: false` template under `notation_templates/` so the README's
+/// `notation_templates/**/*.md` links resolve on the site. Confidential
 /// templates and unknown paths 404.
-async fn api_template_raw(
-    AxumPath((category, name)): AxumPath<(String, String)>,
-) -> impl IntoResponse {
-    match template_api::find_raw(&category, &name) {
+async fn api_template_raw(AxumPath(path): AxumPath<String>) -> impl IntoResponse {
+    let path = template_api::legacy_alias(&path).unwrap_or(&path);
+    let redirect_segments = ["api", "templates", path].join("/");
+    let redirect_parts: Vec<&str> = redirect_segments.split('/').collect();
+    if let Some(to) = kebab_redirect_path(&redirect_parts) {
+        return axum::response::Redirect::permanent(&to).into_response();
+    }
+    match template_api::find_raw_path(path) {
         Some(raw) => (
             StatusCode::OK,
             [(
@@ -1190,23 +1345,23 @@ struct ServicePage {
     icon: Option<&'static str>,
 }
 
-const SERVICE_ESTATE: ServicePage = ServicePage {
-    slug: "estate",
-    canonical_path: "/services/estate",
+const SERVICE_NORTHSTAR: ServicePage = ServicePage {
+    slug: "northstar",
+    canonical_path: "/services/northstar",
     fallback_title: "Estate planning",
     surface: Surface::Firm,
     icon: Some("star-fill"),
 };
-const SERVICE_CORPORATE: ServicePage = ServicePage {
-    slug: "corporate",
-    canonical_path: "/services/corporate",
+const SERVICE_NEST: ServicePage = ServicePage {
+    slug: "nest",
+    canonical_path: "/services/nest",
     fallback_title: "Corporate services",
     surface: Surface::Firm,
     icon: Some("building-fill"),
 };
-const SERVICE_FRACTIONAL_GC: ServicePage = ServicePage {
-    slug: "fractional-gc",
-    canonical_path: "/services/fractional-gc",
+const SERVICE_NEXUS: ServicePage = ServicePage {
+    slug: "nexus",
+    canonical_path: "/services/nexus",
     fallback_title: "Fractional GC",
     surface: Surface::Firm,
     icon: Some("diagram-3-fill"),
@@ -1291,14 +1446,14 @@ const SERVICE_NIMBUS: ServicePage = ServicePage {
     icon: Some("cloud-fill"),
 };
 
-async fn service_estate(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_ESTATE, a.0, views::Locale::En)
+async fn service_northstar(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NORTHSTAR, a.0, views::Locale::En)
 }
-async fn service_corporate(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_CORPORATE, a.0, views::Locale::En)
+async fn service_nest(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NEST, a.0, views::Locale::En)
 }
-async fn service_fractional_gc(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_FRACTIONAL_GC, a.0, views::Locale::En)
+async fn service_nexus(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NEXUS, a.0, views::Locale::En)
 }
 async fn service_nautilus(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NAUTILUS, a.0, views::Locale::En)
@@ -1337,14 +1492,14 @@ async fn foundation_nimbus(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NIMBUS, a.0, views::Locale::En)
 }
 
-async fn service_estate_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_ESTATE, a.0, views::Locale::Es)
+async fn service_northstar_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NORTHSTAR, a.0, views::Locale::Es)
 }
-async fn service_corporate_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_CORPORATE, a.0, views::Locale::Es)
+async fn service_nest_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NEST, a.0, views::Locale::Es)
 }
-async fn service_fractional_gc_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_FRACTIONAL_GC, a.0, views::Locale::Es)
+async fn service_nexus_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
+    render_service(&s.0, &SERVICE_NEXUS, a.0, views::Locale::Es)
 }
 async fn service_nautilus_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NAUTILUS, a.0, views::Locale::Es)
@@ -1486,14 +1641,15 @@ fn render_service(
 }
 
 /// Map a product `code` to the `/services/<slug>` marketing page that
-/// describes it. The product key and the page slug diverge (Northstar's
-/// page is `/services/estate`), so the mapping is explicit; an unknown
-/// code falls back to the services index.
+/// describes it. Each page slug now matches its product code, so the
+/// mapping is a straight `/services/<code>`; it stays explicit (rather
+/// than formatting the code in) to keep the route table auditable and to
+/// fall back to the services index for an unknown code.
 fn product_service_path(code: &str) -> &'static str {
     match code {
-        "northstar" => "/services/estate",
-        "nest" => "/services/corporate",
-        "nexus" => "/services/fractional-gc",
+        "northstar" => "/services/northstar",
+        "nest" => "/services/nest",
+        "nexus" => "/services/nexus",
         "nautilus" => "/services/nautilus",
         "nook" => "/services/nook",
         "litigation" => "/services/litigation",
@@ -1551,12 +1707,12 @@ fn product_description_key(code: &str) -> &'static str {
 /// is a deliberate lineup — the firm's flat-fee products in ascending
 /// "repdigit" order by leading digit (Nest $1,111 → Nexus $2,222 →
 /// Northstar $3,333 → Node $44 → Newleaf $555 → Nautilus $66 → Namesake
-/// $777 → Nucleus $8,888 → Nook $9,999), with the two $1,337/hour tech
-/// siblings last — Neon Law Nerd (expert witness) then 1337 Lawyers
-/// (litigation) — not an alphabetical or strictly by-price list. A `code`
-/// not listed here sorts after the curated set, keeping its `list_active`
-/// display-name position. This is a presentation choice, so it lives in the
-/// render layer rather than on the product row.
+/// $777 → Nucleus $8,888 → Nook $9,999), followed by Neon Law Nerd
+/// (expert witness) and 1337 Lawyers (litigation) — not an alphabetical
+/// or strictly by-price list. A `code` not listed here sorts after the
+/// curated set, keeping its `list_active` display-name position. This is
+/// a presentation choice, so it lives in the render layer rather than on
+/// the product row.
 const CATALOG_ORDER: [&str; 11] = [
     "nest",
     "nexus",
@@ -1579,11 +1735,11 @@ fn catalog_rank(code: &str) -> usize {
         .unwrap_or(CATALOG_ORDER.len())
 }
 
-/// Render the `/services` catalog from the `products` table. The price on
-/// each card is formatted from `list_price_cents` — never hard-coded — so
-/// the page can't show a number Xero wouldn't bill. A DB error degrades
-/// to an empty catalog rather than a 500 (the page is public chrome, not
-/// a transaction).
+/// Render the `/services` catalog from the `products` table. Numeric card
+/// prices are formatted from `list_price_cents`, except litigation: it no
+/// longer publishes a dollar figure, so the card advertises quoted
+/// phase-based pricing. A DB error degrades to an empty catalog rather
+/// than a 500 (the page is public chrome, not a transaction).
 async fn render_products(db: &Db, auth: views::AuthState, locale: views::Locale) -> Markup {
     // Owned display fields outlive the borrowed `ProductCard` slice below.
     struct Owned {
@@ -1601,13 +1757,26 @@ async fn render_products(db: &Db, auth: views::AuthState, locale: views::Locale)
     products.sort_by_key(|p| catalog_rank(&p.code));
     let mut owned: Vec<Owned> = products
         .into_iter()
-        .map(|p| Owned {
-            display_name: p.display_name,
-            price: store::products::format_price(p.list_price_cents),
-            cadence_suffix: store::products::cadence_suffix(&p.cadence).to_string(),
-            description: views::i18n::t(locale, product_description_key(&p.code)),
-            learn_href: views::i18n::localize_href(product_service_path(&p.code), locale),
-            icon: product_icon_for(&p.code),
+        .map(|p| {
+            let (price, cadence_suffix) = if p.code == "litigation" {
+                (
+                    views::i18n::t(locale, "products.litigation_phase_price"),
+                    views::i18n::t(locale, "products.litigation_phase_suffix"),
+                )
+            } else {
+                (
+                    store::products::format_price(p.list_price_cents),
+                    store::products::cadence_suffix(&p.cadence).to_string(),
+                )
+            };
+            Owned {
+                display_name: p.display_name,
+                price,
+                cadence_suffix,
+                description: views::i18n::t(locale, product_description_key(&p.code)),
+                learn_href: views::i18n::localize_href(product_service_path(&p.code), locale),
+                icon: product_icon_for(&p.code),
+            }
         })
         .collect();
     // Pro bono closes the catalog: free legal help for people who can't
@@ -1799,7 +1968,7 @@ async fn workshops_material(
     MaybeAuth(auth): MaybeAuth,
     AxumPath(slug): AxumPath<String>,
 ) -> impl IntoResponse {
-    // `…/:slug.md` is the raw-Markdown twin of `…/:slug`. matchit
+    // `…/{slug}.md` is the raw-Markdown twin of `…/{slug}`. matchit
     // captures the whole `readme.md` segment into `slug`, so we branch
     // on the suffix here rather than registering a second route.
     if let Some(stem) = slug.strip_suffix(".md") {
@@ -1867,19 +2036,25 @@ async fn workshops_material_step(
         .into_response()
 }
 
-/// `GET /version` — report the git commit of the build that is actually
-/// running, so an operator/CI/AIDA/browser can confirm which commit prod
+/// `GET /version` — report the release of the build that is actually
+/// running, so an operator/CI/AIDA/browser can confirm which release prod
 /// is on without shelling into a (shell-less) distroless pod.
 ///
-/// The SHA is baked into the image at build time: `images/Dockerfile.web`
-/// turns the `GIT_SHA` build-arg into `NAVIGATOR_GIT_SHA`, which `navigator
-/// power-push` sets to `git rev-parse HEAD`. This ties the reported SHA
-/// to the image bytes — it cannot drift from what was deployed. A local
-/// `cargo run` honestly reports `"unknown"` (no env var, no build-arg).
+/// The headline field is `release`: the `YY.MM.DD` ghcr tag the daily
+/// `deploy.yml` published, baked into the image as `NAVIGATOR_RELEASE_TAG`.
+/// Under the ghcr model an image is pulled by that dated tag, so `release`
+/// is what a `power-push` rolls onto and what an operator pins — it is the
+/// deploy's identity. The git fields stay alongside it for traceability:
+/// `images/Dockerfile.web` turns the `GIT_SHA`/`BUILD_TIME` build-args
+/// (set by CI to the released commit) into `NAVIGATOR_GIT_SHA` /
+/// `NAVIGATOR_BUILD_TIME`. All three are baked into the image bytes, so
+/// they cannot drift from what was deployed. A local `cargo run` honestly
+/// reports `"unknown"` (no env var, no build-arg).
 ///
 /// Public, unauthenticated, exempt from the private-mode gate — it is an
 /// ops/health-class endpoint like `/health` and `/readyz`.
 async fn version() -> impl IntoResponse {
+    let release = std::env::var("NAVIGATOR_RELEASE_TAG").unwrap_or_else(|_| "unknown".into());
     let commit_full = std::env::var("NAVIGATOR_GIT_SHA").unwrap_or_else(|_| "unknown".into());
     // The short SHA is the load-bearing field. Derive it from the full
     // one (first 7 chars) so the two can never disagree.
@@ -1890,6 +2065,7 @@ async fn version() -> impl IntoResponse {
     };
     let built = std::env::var("NAVIGATOR_BUILD_TIME").unwrap_or_else(|_| "unknown".into());
     axum::Json(serde_json::json!({
+        "release": release,
         "commit": commit,
         "commit_full": commit_full,
         "built": built,
@@ -1974,11 +2150,12 @@ mod version_tests {
     use tower::ServiceExt;
 
     /// `GET /version` answers 200 with a JSON body, reflects the baked
-    /// `NAVIGATOR_GIT_SHA` when present (short = first 7 of the full SHA),
-    /// and falls back to `"unknown"` when it is unset. The handler needs
-    /// no `State`, so a one-route router exercises the real route wiring
-    /// without standing up a DB. Both cases run in one test, sequentially,
-    /// because the env var is process-global.
+    /// `NAVIGATOR_RELEASE_TAG` + `NAVIGATOR_GIT_SHA` when present (short =
+    /// first 7 of the full SHA), and falls back to `"unknown"` when they
+    /// are unset. The handler needs no `State`, so a one-route router
+    /// exercises the real route wiring without standing up a DB. Both
+    /// cases run in one test, sequentially, because the env var is
+    /// process-global.
     #[tokio::test]
     async fn version_reports_baked_sha_or_unknown() {
         async fn get_version_json() -> serde_json::Value {
@@ -1999,20 +2176,24 @@ mod version_tests {
 
         // SAFETY: single-threaded within this test; no other code reads
         // NAVIGATOR_GIT_SHA, so there is no concurrent reader to race.
+        std::env::set_var("NAVIGATOR_RELEASE_TAG", "26.06.23");
         std::env::set_var(
             "NAVIGATOR_GIT_SHA",
             "ef143cba1fdd299c0f57f99eddb7806df5464b68",
         );
         std::env::set_var("NAVIGATOR_BUILD_TIME", "2026-06-11T17:01:25-07:00");
         let v = get_version_json().await;
+        assert_eq!(v["release"], "26.06.23");
         assert_eq!(v["commit"], "ef143cb");
         assert_eq!(v["commit_full"], "ef143cba1fdd299c0f57f99eddb7806df5464b68");
         assert_eq!(v["built"], "2026-06-11T17:01:25-07:00");
         assert!(v["crate_version"].is_string());
 
+        std::env::remove_var("NAVIGATOR_RELEASE_TAG");
         std::env::remove_var("NAVIGATOR_GIT_SHA");
         std::env::remove_var("NAVIGATOR_BUILD_TIME");
         let v = get_version_json().await;
+        assert_eq!(v["release"], "unknown");
         assert_eq!(v["commit"], "unknown");
         assert_eq!(v["commit_full"], "unknown");
         assert_eq!(v["built"], "unknown");

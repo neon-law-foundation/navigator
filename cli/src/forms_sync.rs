@@ -1,7 +1,7 @@
 //! `navigator forms sync` — push the vendored government-form blanks
 //! to the public assets bucket.
 //!
-//! The repo's `templates/forms/` tree (bundled into the `forms`
+//! The repo's `notation_templates/forms/` tree (bundled into the `forms`
 //! registry) is the canonical copy; the bucket carries a serving copy
 //! at each ledger `object_path` so the website and external readers
 //! can fetch blanks without the binary. Idempotent: a key whose bytes

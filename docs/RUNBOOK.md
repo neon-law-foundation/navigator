@@ -9,7 +9,7 @@ marked with `🔧 you run`; everything else has been mechanically validated.
 
 ```bash
 docker --version    # any modern Docker / colima / OrbStack works
-kind --version      # >= 0.20
+kind --version      # >= 0.32 — `kind load` needs it for the v1.36.1 node's containerd config v4
 kubectl version --client
 helm version        # OCI Helm chart installs the Restate Operator
 restate --version   # Restate CLI — workflows-service registration

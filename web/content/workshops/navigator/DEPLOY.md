@@ -218,24 +218,41 @@ everything it in turn connects to.
 
 ## Ship and verify
 
-Provisioning gives you an empty cluster; now ship `web` onto it. Build the image, push it to your [Artifact
-Registry](https://cloud.google.com/artifact-registry/docs) repository, and reconcile the parameterized overlay shipped
-in `examples/deploy/k8s/gke` with your project's values supplied as a Kubernetes Secret and the runtime `.env`:
+Provisioning gives you an empty cluster; now ship `web` onto it. You do not build or push an image by hand: GitHub
+Actions builds every image on the daily tag and publishes it to **public [GitHub Container
+Registry](https://docs.github.com/packages)** at `ghcr.io/<your-org>/navigator-web:YY.MM.DD` (the publish job derives
+the owner from your own fork's repository, automatically). Because the packages are public, the cluster pulls them
+**anonymously** — there is no in-cluster registry credential to create and no Artifact Registry to provision.
+
+One prerequisite the apply step depends on: **make your `navigator-*` packages public, once.** A package published by
+Actions defaults to private even when the repo is public, and a private package the cluster can't read fails as an
+opaque `ImagePullBackOff`. Flip each at GitHub → your org → **Packages** → the package → **Package settings** → **Change
+visibility** → Public. "Public" means **pull-only to the world** — anyone can read the image bytes, but only your org
+can publish them, and it does **not** make your client data public: the private documents bucket from the last step
+stays private. Then pin the dated `YY.MM.DD` tag in the overlay — **never `:latest` on a workload**, because a moved
+`latest` is a deploy you can't audit — and reconcile the parameterized overlay shipped in `examples/deploy/k8s/gke` with
+your project's values supplied as a Kubernetes Secret and the runtime `.env`:
 
 ```bash
 kubectl apply -k examples/deploy/k8s/gke
 ```
 
-Then confirm the service is live. `web` exposes a readiness endpoint that returns `200 OK` only once it has a database
-connection and its dependencies in hand:
+Then confirm the service is live — and you can do it **from the page itself**. The site footer renders the deployed
+release as "Navigator YY.MM.DD", so the moment your new image is serving traffic the footer changes: that is your
+end-to-end "it worked." For a scripted check, `web` exposes a readiness endpoint that returns `200 OK` only once it has
+a database connection and its dependencies in hand, and a `/version` endpoint whose `release` field is the very same
+`YY.MM.DD` the footer shows:
 
 ```bash
 curl -fsS https://www.your-domain.example/readyz
+curl -fsS https://www.your-domain.example/version   # {"release":"YY.MM.DD","commit":"…",…}
 ```
 
-A `200` means the same stack our firm runs is now answering on your own cloud. (NeonLaw's own ship step is wrapped in a
-one-shot `power-push` helper that builds, pushes, archives, and rolls out in a single command — handy, but
-NeonLaw-specific; the generic `kubectl apply` above is all the deploy actually requires.)
+A `200` on `/readyz` means the same stack our firm runs is now answering on your own cloud, and the `release` field —
+identical to the footer line — tells you which dated image landed, so every push is verifiable without shelling into a
+pod. (NeonLaw's own ship step is wrapped in a one-shot `power-push` helper that resolves the latest published tag and
+rolls both deployments onto it in a single command — handy, but NeonLaw-specific; the generic `kubectl apply` above is
+all the deploy actually requires.)
 
 ## Drive it from the CLI
 

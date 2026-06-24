@@ -39,8 +39,11 @@ macro_rules! doc {
 /// files; the completeness test enforces it.
 const MANIFEST: &[(&str, &str)] = &[
     doc!("access-model", "docs/access-model.md"),
+    doc!("agent-decision-councils", "docs/agent-decision-councils.md"),
+    doc!("agent-workflows", "docs/agent-workflows.md"),
     doc!("aida-a2a-interaction", "docs/aida-a2a-interaction.md"),
     doc!("bulk-contact-import", "docs/bulk-contact-import.md"),
+    doc!("cloud-operations", "docs/cloud-operations.md"),
     doc!("cronjobs", "docs/cronjobs.md"),
     doc!("docusign-esignature", "docs/docusign-esignature.md"),
     doc!("durable-workflows", "docs/durable-workflows.md"),
@@ -56,6 +59,7 @@ const MANIFEST: &[(&str, &str)] = &[
     doc!("gov-forms", "docs/gov-forms.md"),
     doc!("iceberg-archive", "docs/iceberg-archive.md"),
     doc!("i18n", "docs/i18n.md"),
+    doc!("index", "docs/index.md"),
     doc!("live-inquiry-coverage", "docs/live-inquiry-coverage.md"),
     doc!("multi-cloud", "docs/multi-cloud.md"),
     doc!("nautilus-design", "docs/nautilus-design.md"),
@@ -69,6 +73,7 @@ const MANIFEST: &[(&str, &str)] = &[
     doc!("recurring-billing", "docs/recurring-billing.md"),
     doc!("retainer_intake", "docs/retainer_intake.md"),
     doc!("RUNBOOK", "docs/RUNBOOK.md"),
+    doc!("rust-programming", "docs/rust-programming.md"),
     doc!("secrets-doppler", "docs/secrets-doppler.md"),
     doc!("solana-attestation", "docs/solana-attestation.md"),
     doc!("test-database", "docs/test-database.md"),
@@ -86,7 +91,10 @@ pub fn bundled() -> DocsIndex {
     let mut docs: Vec<Doc> = MANIFEST
         .iter()
         .map(|(slug, raw)| Doc {
-            slug: (*slug).to_string(),
+            // The manifest keys are the on-disk file stems (so the
+            // completeness test can diff them against `docs/*.md`); the
+            // route slug is their kebab-case URL form.
+            slug: views::slug::to_url(slug),
             title: title_from_markdown(raw, slug),
             body_html: render_markdown(raw),
         })
@@ -140,6 +148,10 @@ pub fn rewrite_link(dest: &str) -> String {
     if stem.is_empty() {
         return dest.to_string();
     }
+    // URLs are kebab-case; the file stem keeps its underscores. The
+    // `#anchor` is a heading slug (which may legitimately hold
+    // underscores), so it is passed through untouched.
+    let stem = views::slug::to_url(stem);
     match anchor {
         Some(a) => format!("/docs/{stem}#{a}"),
         None => format!("/docs/{stem}"),
@@ -250,7 +262,14 @@ mod tests {
         assert_eq!(rewrite_link("notation.md#x"), "/docs/notation#x");
         assert_eq!(rewrite_link("glossary.md"), "/docs/glossary");
         assert_eq!(rewrite_link("access-model.md"), "/docs/access-model");
-        assert_eq!(rewrite_link("retainer_intake.md"), "/docs/retainer_intake");
+        // An underscore filename is rewritten to its kebab-case URL,
+        // while a heading anchor (which may carry underscores) is left as
+        // authored.
+        assert_eq!(rewrite_link("retainer_intake.md"), "/docs/retainer-intake");
+        assert_eq!(
+            rewrite_link("retainer_intake.md#step_one"),
+            "/docs/retainer-intake#step_one"
+        );
     }
 
     #[test]
@@ -321,6 +340,39 @@ mod tests {
     }
 
     #[test]
+    fn doc_route_slugs_are_unique_after_kebab() {
+        // `_`→`-` is lossy, so two manifest stems differing only by `_`
+        // vs `-` would publish at one `/docs` URL and `DocsIndex::find`
+        // would silently return the first. Fail the build if that ever
+        // happens instead of shadowing a doc in production.
+        use std::collections::HashSet;
+        let mut seen = HashSet::new();
+        for doc in bundled().docs() {
+            assert!(
+                seen.insert(doc.slug.clone()),
+                "two docs map to the kebab route slug `{}` — rename one",
+                doc.slug
+            );
+        }
+    }
+
+    #[test]
+    fn underscore_doc_publishes_at_its_kebab_slug() {
+        // `docs/retainer_intake.md` is the only underscore doc; its route
+        // slug is the kebab-case form, even though the manifest key (and
+        // the file on disk) keep the underscore.
+        let ix = bundled();
+        assert!(
+            ix.find("retainer-intake").is_some(),
+            "retainer_intake.md should publish at /docs/retainer-intake"
+        );
+        assert!(
+            ix.find("retainer_intake").is_none(),
+            "the underscore slug is not a valid route — the handler redirects it"
+        );
+    }
+
+    #[test]
     fn bundled_renders_glossary_and_notation_with_anchors() {
         let ix = bundled();
         let glossary = ix.find("glossary").expect("glossary published");
@@ -350,6 +402,30 @@ mod tests {
         assert!(
             notation.body_html.contains("href=\"/docs/glossary#blob\""),
             "notation's glossary anchor link should be rewritten"
+        );
+    }
+
+    #[test]
+    fn docs_index_correlates_core_terms_to_glossary_anchors() {
+        let ix = bundled();
+        let index = ix.find("index").expect("docs index published at /docs");
+        let body = &index.body_html;
+        for anchor in [
+            "/docs/glossary#aida",
+            "/docs/glossary#council",
+            "/docs/glossary#ctxrun",
+            "/docs/glossary#participation",
+            "/docs/glossary#project",
+            "/docs/glossary#workflow-runtime",
+        ] {
+            assert!(
+                body.contains(&format!("href=\"{anchor}\"")),
+                "docs index should link to glossary anchor {anchor}"
+            );
+        }
+        assert!(
+            body.contains("href=\"/docs/access-model\""),
+            "docs index should correlate glossary terms with the access-model doc"
         );
     }
 

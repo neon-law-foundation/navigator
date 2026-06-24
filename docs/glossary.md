@@ -7,6 +7,9 @@ can jump straight from term to schema.
 This glossary is a single alphabetical list. The notation-system vocabulary (Template, Notation, Questionnaire,
 Question, Answer, Rule) lives in its own teaching-ordered doc, [`notation.md`](notation.md).
 
+For task-oriented navigation, start at [`index.md`](index.md). Its glossary quick links map the most common terms to the
+docs that explain how those terms behave in code, operations, and workflows.
+
 ---
 
 ## Actor Class
@@ -33,7 +36,7 @@ The workspace's **domain agent persona**. AIDA exposes the same tool catalog thr
 - **A2A** (Agent2Agent) — public agent card at [`/api/aida.json`](https://www.your-domain.example/api/aida.json),
   JSON-RPC at `/api/aida/rpc`. Used by Gemini Enterprise and any other A2A-compatible orchestrator. A free-form
   `message/send` is interpreted by a pluggable [`AgentRouter`](../web/src/agent_router.rs) (Vertex AI Gemini Flash in
-  prod) that maps the user's text to one of the declared skills.
+  prod) that maps the user's text to one of the declared tools.
 - **MCP** — JSON-RPC at `/mcp`. Used by Claude.ai Connectors, Claude Code, LibreChat, Cursor, and other Anthropic-stack
   clients. The MCP-side LLM (e.g. Claude) does its own tool routing client-side; our server just dispatches the named
   tool.
@@ -66,17 +69,19 @@ Which of the two surfaces (`NEON_LAW` or `NEON_LAW_FOUNDATION`) a given route se
 ## Council
 
 A **group of experts** the workspace convenes for a structured, twelve-voice review — spelled c-o-u-n-c-i-l. Navigator
-runs two, the same shape with a different bench:
+runs three, the same shape with a different bench:
 
 - The **Engineering Council** (the "Council of Twelve") — twelve practitioner-engineer voices for architecture
-  decisions, design planning, and cross-cutting refactors. Invoked via the `/council` skill
-  ([`.claude/skills/council/`](../.claude/skills/council/)).
+  decisions, design planning, and cross-cutting refactors.
 - The **Legal Council** — twelve lawyer voices for legal-drafting copy review, before copy becomes a
-  [Notation](notation.md#notation). Invoked via the `legal-council` skill and exposed to external agents as the
-  `aida_spawn_legal_council` MCP tool.
+  [Notation](notation.md#notation). Exposed to external agents as the `aida_spawn_legal_council` MCP tool.
+- The **Client Council** — twelve client-side voices for intake, portal UX, pricing, onboarding, and other decisions
+  where the question is whether a real person walks in and stays.
 
 The Legal Council is **a council of [counsels](#counsel)** — a council (the group) whose members are counsels (the
 attorneys). Both spellings are load-bearing; see [Counsel](#counsel).
+
+See [`agent-decision-councils.md`](agent-decision-councils.md) for the shared protocol.
 
 ## Counsel
 
@@ -142,8 +147,8 @@ Pacific to start one invocation; the workflow runs the snapshot (and, when confi
 written as the `gcp_cost` table) as durable steps, then emails a diagnostic summary (snapshot outcomes, cost summary,
 BigQuery query template, Restate invocation link) to `ARCHIVES_NOTIFY_EMAIL`.
 
-Disambiguates from the `power-push` skill's **source export** — that ships git bundles of HEAD to
-`gs://YOUR_PROJECT_ID-source/` for repo distribution. Two buckets, two flavors of "export," one shared word.
+Disambiguates from the deploy **source export** — that ships git bundles of HEAD to `gs://YOUR_PROJECT_ID-source/` for
+repo distribution. Two buckets, two flavors of "export," one shared word.
 
 - Crate: [`archives/`](../archives/)
 - Bucket: `gs://YOUR_PROJECT_ID-exports/iceberg/<table>/`
@@ -402,16 +407,24 @@ A Person's participation on a Project. The `participation` column holds the matt
 The natural [Person](#person) accountable for a [Matter](#matter) — the one name to ask "where does this stand?". Every
 matter carries **two** DRIs, designated at matter-open:
 
-- **Staff DRI** — the attorney/paralegal accountable for the matter inside the firm (`participation = "staff_dri"`).
-- **Client DRI** — the one person on the client's side accountable for the matter (`participation = "client_dri"`); it
-  is the same [Person](#person) linked as the matter's `client` participant.
+- **Staff DRI** — the attorney/admin accountable for the matter inside the firm. The opening staffer by default (else
+  the firm principal, resolved by role).
+- **Client DRI** — the one **client-side** person accountable for the matter. Must be a real, pre-existing
+  [Person](#person) with `role = client` (never a firm attorney — a matter's client of record is a client). The client
+  field exists before the project; the matter is opened *for* that client.
 
-Both are modelled as [Person–Project Roles](#person–project-role) (not bare columns), so they reuse the same
-project-scoping the access model already enforces. A matter is opened against a pre-existing [Entity](#entity) **and**
-names both DRIs; the matter-open service validates the entity and links the roles.
+Both are **first-class, `NOT NULL` foreign-key columns** on the project row (`projects.staff_dri_person_id`,
+`projects.client_dri_person_id`) — a required, exactly-one-per-side attribute. This is **distinct from** the
+[Person–Project Role](#person–project-role) participation ledger, which records broader, many-per-matter
+involvement/access (e.g. the client also gets a `client` participation for portal visibility). The DRI columns are the
+source of truth for "who owns this?"; participation answers "who's involved and what can they see?".
 
-- Schema: [`store::entity::person_project_role`](../store/src/entity/person_project_role.rs) (the `staff_dri` /
-  `client_dri` participations)
+A matter is opened against a pre-existing [Entity](#entity), **for** a pre-existing client, **and** always on a
+[retainer](#engagement--retainer) — a project is not official until a retainer exists. The matter-open service
+validates the entity and the client role before any row is created.
+
+- Schema: [`store::entity::project`](../store/src/entity/project.rs) (the `staff_dri_person_id` / `client_dri_person_id`
+  columns)
 
 ## Project
 
@@ -582,7 +595,7 @@ layers share the name:
 
 - **The declared workflow** — what a lawyer writes in the template's `workflow:` block. Plain YAML: a set of named
   States, transitions keyed by event, a `BEGIN` and an `END`. Lives next to the questionnaire under
-  [`templates/`](../templates/).
+  [`notation_templates/`](../notation_templates/).
 - **The executed workflow** — how the declared workflow actually runs. The [`workflows`](../workflows/) crate owns this
   layer: the [Workflow Spec](#workflow-spec) parser, the [Workflow Runtime](#workflow-runtime) trait, and the
   [Restate](#restate) adapter that drives it durably in production.

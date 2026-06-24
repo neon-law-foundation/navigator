@@ -1,0 +1,159 @@
+name: cleanup
+
+# The scheduled-maintenance workflow — deliberately SEPARATE from the three
+# CI/CD workflows (ci / release-tag / deploy; see docs/gitops.md). It is not
+# part of the branch → PR → tag → deploy gate: it knows nothing about tags,
+# touches no source, and only does periodic housekeeping. Keeping it on its
+# own file means a retention change never lands in a CI/CD diff and a cleanup
+# run never shares state with a release.
+#
+# Today it carries one task: prune ghcr. Every day at 07:00 PST it deletes
+# every `navigator-*` container version older than 14 days, then posts a Slack
+# summary (tagging Nick on failure). `latest` and the recent dated tags are
+# re-pushed daily by deploy.yml's publish job, so their versions stay under the
+# cutoff and only genuinely stale images are swept. A 14-day window keeps two
+# weeks of dated `YY.MM.DD` releases pullable for rollback before they age out.
+
+on:
+  schedule:
+    # Cron is UTC-only and has no DST, so this is pinned to PST (UTC-8):
+    # 07:00 PST = 15:00 UTC. During PDT (summer) it lands at 08:00 local —
+    # fine for unattended housekeeping. Sits two hours after release-tag.yml's
+    # 05:00 tag cut so the day's fresh images already exist before the sweep.
+    - cron: "0 15 * * *" # 07:00 PST
+  workflow_dispatch:
+
+# The prune authenticates with RELEASE_PAT (a secret), so the workflow's own
+# GITHUB_TOKEN needs nothing beyond read.
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: prune ghcr versions older than 14 days
+    # Never run from a fork — only the canonical repo owns these packages.
+    # Deliberately NOT continue-on-error: a real failure should fail the job so
+    # `cleanup-failed` can page Nick — this is alerted housekeeping, not silent
+    # best-effort.
+    if: github.repository == 'neon-law-foundation/Navigator'
+    runs-on: ubuntu-latest
+    # A handful of ghcr API calls — cap it so a hung request can't keep the run
+    # open until the job-level default times out.
+    timeout-minutes: 15
+    steps:
+      - name: prune container versions older than 14 days
+        env:
+          # RELEASE_PAT (Doppler navigator-gitops/prd, synced to repo secrets).
+          # A PAT — not the temporal GITHUB_TOKEN — is what carries the package
+          # scope to list and delete org-owned package versions.
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GH_ORG: ${{ github.repository_owner }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+              echo "::error::RELEASE_PAT is unset — cannot prune ghcr packages"
+              exit 1
+          fi
+
+          cutoff_epoch="$(date -u -d '14 days ago' +%s)"
+          deleted=0
+          workdir="$(mktemp -d)"
+          trap 'rm -rf "${workdir}"' EXIT
+
+          gh api --paginate \
+              "/orgs/${GH_ORG}/packages?package_type=container&per_page=100" \
+              --jq '.[] | select(.name | startswith("navigator-")) | .name' \
+              > "${workdir}/packages"
+
+          while IFS= read -r package; do
+              [ -n "${package}" ] || continue
+              echo "Inspecting ${package}"
+
+              gh api --paginate \
+                  "/orgs/${GH_ORG}/packages/container/${package}/versions?per_page=100" \
+                  --jq '.[] | [.id, .updated_at, (.metadata.container.tags // [] | join(","))] | @tsv' \
+                  > "${workdir}/${package}.versions"
+
+              while IFS=$'\t' read -r version_id updated_at tags; do
+                  [ -n "${version_id}" ] || continue
+                  updated_epoch="$(date -u -d "${updated_at}" +%s)"
+
+                  if [ "${updated_epoch}" -ge "${cutoff_epoch}" ]; then
+                      continue
+                  fi
+
+                  echo "Deleting ${package} version ${version_id} (${updated_at}; tags: ${tags:-<untagged>})"
+                  gh api \
+                      --method DELETE \
+                      "/orgs/${GH_ORG}/packages/container/${package}/versions/${version_id}"
+                  deleted=$((deleted + 1))
+              done < "${workdir}/${package}.versions"
+          done < "${workdir}/packages"
+
+          echo "Deleted ${deleted} stale ghcr package version(s)"
+
+  notify-cleanup:
+    name: slack — ghcr cleanup ran
+    needs: cleanup
+    if: github.repository == 'neon-law-foundation/Navigator' && needs.cleanup.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: post cleanup summary to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the cleanup notice"
+              exit 1
+          fi
+          TEXT=":broom: Navigator ghcr cleanup ran — pruned navigator-* image versions older than 14 days.
+          Run: ${RUN_URL}"
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
+              -X POST "${SLACK_WEBHOOK_URL}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}")
+          echo "Slack responded ${code}"
+          # Slack incoming webhooks return 200 with body "ok" on success.
+          if [ "${code}" != "200" ]; then
+              echo "::error::Slack post failed (${code})"
+              cat /tmp/slack.out || true
+              exit 1
+          fi
+          echo "Cleanup notice posted to Slack"
+
+  cleanup-failed:
+    name: slack — alert Nick on cleanup failure
+    needs: cleanup
+    # Same pattern as deploy.yml's notify-failure: post to the engineering
+    # channel via the prod ops webhook (SLACK_WEBHOOK_URL, synced from Doppler)
+    # and tag Nick.
+    if: failure() && github.repository == 'neon-law-foundation/Navigator'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: post cleanup failure alert to Slack
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_OPS_MENTION: ${{ secrets.SLACK_OPS_MENTION }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the failure alert"
+              exit 1
+          fi
+          TEXT=":x: Navigator ghcr cleanup failed — ${SLACK_OPS_MENTION} please investigate.
+          Run: ${RUN_URL}"
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
+              -X POST "${SLACK_WEBHOOK_URL}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}")
+          echo "Slack responded ${code}"
+          if [ "${code}" != "200" ]; then
+              echo "::error::Slack post failed (${code})"
+              cat /tmp/slack.out || true
+              exit 1
+          fi
+          echo "Cleanup failure alert posted to Slack"

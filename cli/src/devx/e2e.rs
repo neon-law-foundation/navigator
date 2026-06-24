@@ -8,25 +8,31 @@
 //! per `CLAUDE.md`).
 //!
 //! Behavior is faithful to the scripts they replace: `run_e2e` waits
-//! for every rollout, hits `/health` through the ingress, asserts a
-//! fixed table of OPA policy decisions, and confirms the seed data
-//! landed; `grant_staff` pre-seeds the Staff demo user so the browser
-//! e2e can reach `/admin`. The one deliberate change: `grant_staff`
-//! writes the singular `persons.role` column (the schema collapsed
-//! `roles` JSON → `role` in migration `m20260619_…`), fixing drift the
-//! old `ci-grant-staff.sh` carried.
+//! for every rollout, hits `/health` through the ingress, and confirms
+//! the seed data landed; `grant_staff` pre-seeds the Staff demo user so
+//! the browser e2e can reach `/admin`. The one deliberate change:
+//! `grant_staff` writes the singular `persons.role` column (the schema
+//! collapsed `roles` JSON → `role` in migration `m20260619_…`), fixing
+//! drift the old `ci-grant-staff.sh` carried.
+//!
+//! The OPA policy itself is *not* probed here. Asserting a live,
+//! port-forwarded OPA from this step proved chronically flaky in CI: a
+//! `kubectl port-forward` that accepts the local connection then stalls
+//! on its first dial to a freshly-Ready pod hung the job until the
+//! 60-minute timeout — twice, surviving two rounds of "bound the probe."
+//! The policy is a pure function, so its decisions are pinned by
+//! `opa test` against the real Rego instead (see
+//! `k8s/base/opa/navigator_test.rego`, run from `ci.yml`), which is
+//! faster, deterministic, and cluster-free.
 //!
 //! ## Testing
 //!
 //! The orchestration shells out to `kubectl`/`curl` against a live
 //! cluster, so it isn't unit-tested. The decision logic that *can*
-//! drift — the OPA case table, the expected-response shape, the seed
-//! thresholds, the counts parser, and the grant SQL — is pure and
-//! covered by the `tests` module below.
+//! drift — the seed thresholds, the counts parser, and the grant SQL —
+//! is pure and covered by the `tests` module below.
 
-use std::io::Read;
-use std::net::TcpStream;
-use std::process::{Child, Command, Stdio};
+use std::process::Command;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
@@ -34,128 +40,11 @@ use anyhow::{bail, Context, Result};
 
 use super::{require_tools, run, use_kind_context, wait_for_condition, wait_rollout, KindConfig};
 
-/// Local host port the OPA port-forward binds for the policy probe.
-/// Distinct from the standard 8181 a `devx up` may already forward, so
-/// the two don't collide when e2e runs against a live dev loop.
-const OPA_PROBE_PORT: u16 = 28181;
-
 /// Minimum seed-row counts the deployed stack must show. Matches the
 /// canonical seed in `store/seeds/`; a smaller count means seeding
 /// silently failed.
 const MIN_QUESTIONS: i64 = 8;
 const MIN_JURISDICTIONS: i64 = 6;
-
-/// One OPA authorization decision the smoke test pins. `input` is the
-/// JSON body sent to `/v1/data/navigator/authz/allow`; `expected` is
-/// the boolean the policy must return. A drift here (a dropped rule, a
-/// stale `ConfigMap`) fails the gate before prod.
-struct OpaCase {
-    desc: &'static str,
-    expected: bool,
-    input: String,
-}
-
-/// The fixed table of policy decisions, one input per allow-rule plus
-/// the deny cases. Sessions carry the singular `role` field OPA
-/// evaluates against (post `roles[] → role` collapse).
-fn opa_cases() -> Vec<OpaCase> {
-    let admin = session("a@neonlaw.com", "admin");
-    let staff = session("s@neonlaw.com", "staff");
-    let client = session("c@example.com", "client");
-    vec![
-        OpaCase {
-            desc: "admin → /portal",
-            expected: true,
-            input: req(&["portal"], "GET", &admin),
-        },
-        OpaCase {
-            desc: "client → /portal",
-            expected: true,
-            input: req(&["portal"], "GET", &client),
-        },
-        OpaCase {
-            desc: "anonymous → /portal",
-            expected: false,
-            input: req_anon(&["portal"], "GET"),
-        },
-        OpaCase {
-            desc: "client → /portal/projects",
-            expected: true,
-            input: req(&["portal", "projects"], "GET", &client),
-        },
-        OpaCase {
-            desc: "staff → /portal/admin/people",
-            expected: true,
-            input: req(&["portal", "admin", "people"], "GET", &staff),
-        },
-        OpaCase {
-            desc: "client → /portal/admin/people",
-            expected: false,
-            input: req(&["portal", "admin", "people"], "GET", &client),
-        },
-        OpaCase {
-            desc: "staff → /mcp",
-            expected: true,
-            input: req(&["mcp"], "POST", &staff),
-        },
-        OpaCase {
-            desc: "client → /mcp",
-            expected: false,
-            input: req(&["mcp"], "POST", &client),
-        },
-        OpaCase {
-            desc: "staff → /api/aida/rpc",
-            expected: true,
-            input: req(&["api", "aida", "rpc"], "POST", &staff),
-        },
-        OpaCase {
-            desc: "client → /api/aida/rpc",
-            expected: false,
-            input: req(&["api", "aida", "rpc"], "POST", &client),
-        },
-        OpaCase {
-            desc: "anonymous → /openapi.json",
-            expected: true,
-            input: req_anon(&["openapi.json"], "GET"),
-        },
-    ]
-}
-
-/// A session object literal with the given email + role.
-fn session(email: &str, role: &str) -> String {
-    format!(r#"{{"sub":"x","email":"{email}","exp":9999999999,"role":"{role}","csrf_token":""}}"#)
-}
-
-/// An OPA query body for `path`/`method` carrying `session`.
-fn req(path: &[&str], method: &str, session: &str) -> String {
-    format!(
-        r#"{{"input":{{"path":{},"method":"{method}","session":{session}}}}}"#,
-        json_string_array(path)
-    )
-}
-
-/// An OPA query body with a null (anonymous) session.
-fn req_anon(path: &[&str], method: &str) -> String {
-    format!(
-        r#"{{"input":{{"path":{},"method":"{method}","session":null}}}}"#,
-        json_string_array(path)
-    )
-}
-
-/// Render `["a","b"]` from a path slice.
-fn json_string_array(parts: &[&str]) -> String {
-    let inner = parts
-        .iter()
-        .map(|p| format!("\"{p}\""))
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("[{inner}]")
-}
-
-/// The exact response body OPA returns for a boolean decision.
-fn opa_expected_body(expected: bool) -> String {
-    format!("{{\"result\":{expected}}}")
-}
 
 /// Parse the `q|j` line `psql -At` prints for the seed-count query.
 fn parse_seed_counts(out: &str) -> Result<(i64, i64)> {
@@ -201,15 +90,13 @@ pub fn run_e2e(cfg: &KindConfig) -> Result<()> {
 
     eprintln!("=== checking dependent services ===");
     for dep in ["postgres", "fake-gcs-server", "keycloak", "opa"] {
+        eprintln!("    waiting for deployment/{dep} rollout");
         wait_rollout("deployment", dep, cfg)?;
     }
     wait_for_restate(cfg)?;
 
     eprintln!("=== hitting the ingress ===");
     check_health()?;
-
-    eprintln!("=== probing OPA policy decisions ===");
-    check_opa(cfg)?;
 
     eprintln!("=== confirming seed data populated ===");
     check_seed(cfg)?;
@@ -257,12 +144,17 @@ fn wait_for_restate(cfg: &KindConfig) -> Result<()> {
         // `Ready` condition, the same contract `deploy`'s
         // wait_for_dep_rollouts uses.
         let (ns, resource, condition) = restate_ready_target();
+        eprintln!("    waiting for {resource} {condition} in namespace {ns}");
         wait_for_condition(ns, resource, condition)?;
     }
     // workflows-service is a RestateDeployment CR (Operator-managed), not a
     // plain Deployment — `deployment/workflows-service` returns NotFound. It
     // lives in cfg.namespace (unlike the cluster). Wait on the CR's `Ready`
     // condition, the same contract `deploy`'s wait_for_dep_rollouts uses.
+    eprintln!(
+        "    waiting for {WORKFLOWS_SERVICE_READY_RESOURCE} Ready in namespace {}",
+        cfg.namespace
+    );
     wait_for_condition(&cfg.namespace, WORKFLOWS_SERVICE_READY_RESOURCE, "Ready")
 }
 
@@ -282,59 +174,49 @@ fn restate_ready_target() -> (&'static str, &'static str, &'static str) {
 }
 
 /// Hit `/health` through the KIND ingress and require HTTP 200.
+///
+/// Two guards make this loud-but-bounded instead of an indefinite hang.
+/// `--max-time` caps each individual request, so a wedged ingress that
+/// accepts the connection but never answers can't block the whole `e2e`
+/// step (that un-capped curl was a load-bearing reason a stuck deploy ran
+/// for hours). The retry loop tolerates the few seconds the ingress can
+/// lag behind a freshly-Ready pod, and every attempt logs its status so a
+/// failure says *what* the ingress returned, not just "not 200".
 fn check_health() -> Result<()> {
     let host = std::env::var("INGRESS_HOST").unwrap_or_else(|_| "localhost:8080".to_string());
-    let out = Command::new("curl")
-        .args(["-sS", "-o", "/dev/null", "-w", "%{http_code}"])
-        .arg("--resolve")
-        .arg("localhost:8080:127.0.0.1")
-        .arg(format!("http://{host}/health"))
-        .output()
-        .context("curl /health")?;
-    let status = String::from_utf8_lossy(&out.stdout);
-    let status = status.trim();
-    if status != "200" {
-        bail!("expected HTTP 200 from /health, got {status}");
-    }
-    eprintln!("health OK ({status})");
-    Ok(())
-}
-
-/// Port-forward OPA, wait for it to accept connections, then assert
-/// every decision in [`opa_cases`].
-fn check_opa(cfg: &KindConfig) -> Result<()> {
-    let _pf = PortForward::spawn(cfg, "svc/opa", OPA_PROBE_PORT, 8181)?;
-    wait_for_port(OPA_PROBE_PORT, Duration::from_secs(10))?;
-    for case in opa_cases() {
+    let url = format!("http://{host}/health");
+    let deadline = Instant::now() + Duration::from_mins(1);
+    let mut attempt = 0;
+    loop {
+        attempt += 1;
         let out = Command::new("curl")
-            .args(["-fsS", "-X", "POST"])
-            .arg(format!(
-                "http://127.0.0.1:{OPA_PROBE_PORT}/v1/data/navigator/authz/allow"
-            ))
-            .args(["-H", "content-type: application/json", "--data"])
-            .arg(&case.input)
+            .args([
+                "-sS",
+                "--max-time",
+                "10",
+                "-o",
+                "/dev/null",
+                "-w",
+                "%{http_code}",
+            ])
+            .arg("--resolve")
+            .arg("localhost:8080:127.0.0.1")
+            .arg(&url)
             .output()
-            .with_context(|| format!("curl OPA decision: {}", case.desc))?;
-        if !out.status.success() {
+            .context("curl /health")?;
+        let status = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if status == "200" {
+            eprintln!("    health OK ({status}) after {attempt} attempt(s)");
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
             bail!(
-                "OPA query failed for {}: {}",
-                case.desc,
-                String::from_utf8_lossy(&out.stderr)
+                "expected HTTP 200 from {url} within 60s; last status {status:?} after {attempt} attempt(s)"
             );
         }
-        let got = String::from_utf8_lossy(&out.stdout);
-        let got = got.trim();
-        let want = opa_expected_body(case.expected);
-        if got != want {
-            bail!(
-                "OPA decision drift: {} expected {want}, got {got}",
-                case.desc
-            );
-        }
-        eprintln!("    {} → {}", case.desc, case.expected);
+        eprintln!("    /health not ready (status {status:?}); retrying in 2s [attempt {attempt}]");
+        sleep(Duration::from_secs(2));
     }
-    eprintln!("OPA policy OK");
-    Ok(())
 }
 
 /// Confirm the seed data populated past the minimum row counts.
@@ -397,110 +279,9 @@ fn psql_capture(cfg: &KindConfig, sql: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
-/// A `kubectl port-forward` child that is killed when dropped.
-struct PortForward {
-    child: Child,
-}
-
-impl PortForward {
-    fn spawn(cfg: &KindConfig, target: &str, host_port: u16, svc_port: u16) -> Result<Self> {
-        let child = Command::new("kubectl")
-            .arg("--namespace")
-            .arg(&cfg.namespace)
-            .arg("port-forward")
-            .arg(target)
-            .arg(format!("{host_port}:{svc_port}"))
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .with_context(|| format!("spawn kubectl port-forward {target}"))?;
-        Ok(Self { child })
-    }
-}
-
-impl Drop for PortForward {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-/// Block until `127.0.0.1:port` accepts a connection, or time out.
-fn wait_for_port(port: u16, timeout: Duration) -> Result<()> {
-    let addr = format!("127.0.0.1:{port}");
-    let deadline = Instant::now() + timeout;
-    loop {
-        if let Ok(mut stream) = TcpStream::connect_timeout(
-            &addr.parse().expect("valid loopback addr"),
-            Duration::from_millis(500),
-        ) {
-            // Drain nothing — just confirm the listener is live.
-            let _ = stream.read(&mut [0u8; 0]);
-            return Ok(());
-        }
-        if Instant::now() >= deadline {
-            bail!("timed out waiting for OPA port-forward on {addr}");
-        }
-        sleep(Duration::from_millis(500));
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn opa_cases_cover_every_documented_decision() {
-        let cases = opa_cases();
-        // One row per assertion the old e2e.sh made.
-        assert_eq!(cases.len(), 11);
-        // The deny cases are present and false; the allow cases true.
-        let denied: Vec<_> = cases
-            .iter()
-            .filter(|c| !c.expected)
-            .map(|c| c.desc)
-            .collect();
-        assert!(denied.contains(&"anonymous → /portal"));
-        assert!(denied.contains(&"client → /mcp"));
-        assert!(denied.contains(&"client → /api/aida/rpc"));
-        assert!(denied.contains(&"client → /portal/admin/people"));
-    }
-
-    #[test]
-    fn opa_case_inputs_are_well_formed_json() {
-        for case in opa_cases() {
-            let parsed: serde_json::Value = serde_json::from_str(&case.input)
-                .unwrap_or_else(|e| panic!("case {:?} input is not JSON: {e}", case.desc));
-            // Every body has an `input.path` array and a `method`.
-            assert!(parsed["input"]["path"].is_array(), "{}", case.desc);
-            assert!(parsed["input"]["method"].is_string(), "{}", case.desc);
-        }
-    }
-
-    #[test]
-    fn opa_sessions_use_the_singular_role_field() {
-        // Guards against regressing to the collapsed `roles[]` shape.
-        let staff = session("s@neonlaw.com", "staff");
-        let parsed: serde_json::Value = serde_json::from_str(&staff).unwrap();
-        assert_eq!(parsed["role"], "staff");
-        assert!(parsed.get("roles").is_none());
-    }
-
-    #[test]
-    fn opa_expected_body_is_compact_json() {
-        assert_eq!(opa_expected_body(true), r#"{"result":true}"#);
-        assert_eq!(opa_expected_body(false), r#"{"result":false}"#);
-    }
-
-    #[test]
-    fn json_string_array_renders_a_path() {
-        assert_eq!(
-            json_string_array(&["portal", "projects"]),
-            r#"["portal","projects"]"#
-        );
-        assert_eq!(json_string_array(&["portal"]), r#"["portal"]"#);
-    }
 
     #[test]
     fn parse_seed_counts_reads_the_psql_line() {

@@ -144,10 +144,13 @@ mod tests {
         .await
         .unwrap()
         .id;
+        let __dri = crate::test_support::dri_person(db).await;
         let proj = project::ActiveModel {
             name: ActiveValue::Set("Matter".into()),
             status: ActiveValue::Set("open".into()),
             entity_id: ActiveValue::Set(crate::test_support::seed_entity(db).await),
+            staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+            client_dri_person_id: ActiveValue::Set(Some(__dri)),
             ..Default::default()
         }
         .insert(db)

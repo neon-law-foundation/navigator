@@ -4,8 +4,8 @@
 //! third-party CSS/JS/font we serve (Bootstrap, HTMX, Alpine, Bootstrap
 //! Icons). This test recomputes the SHA-256 of each `served_path` and asserts
 //! it equals the recorded `sha256`. If someone hand-edits a vendored blob, or
-//! the `update-web-assets` skill writes new bytes without updating the
-//! manifest, this fails — so the manifest can never silently drift from disk.
+//! new bytes land without updating the manifest, this fails — so the manifest
+//! can never silently drift from disk.
 //!
 //! Same shape as `store/tests/timestamp_convention.rs`: a convention enforced
 //! by a test, not by discipline.
@@ -61,8 +61,8 @@ fn vendored_assets_match_manifest() {
             actual, asset.sha256,
             "{} ({}): on-disk SHA-256 does not match VENDOR.toml.\n  \
              expected {}\n  actual   {}\n\
-             Refresh via the update-web-assets skill, or update the manifest if \
-             this change is intentional.",
+             Refresh the vendored asset and manifest together, or update the \
+             manifest if this change is intentional.",
             asset.name, asset.served_path, asset.sha256, actual
         );
     }

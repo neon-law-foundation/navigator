@@ -275,6 +275,82 @@ impl Default for ClassifiedRuleEngine {
     }
 }
 
+/// Cross-file check (`N111`): every notation template's frontmatter
+/// `code` — the questionnaire/workflow key that uniquely identifies a
+/// template — must be unique across `dir`. A duplicate `code` means two
+/// templates claim the same identity, which breaks import and the
+/// per-Project archive key, so it is reported as a violation on the
+/// second (and later) file in sorted-path order. This is a directory
+/// pass, not a per-file [`Rule`], because uniqueness is only visible
+/// across the whole tree.
+pub fn code_uniqueness_violations(
+    dir: &Path,
+    filter: &dyn FileFilter,
+) -> io::Result<Vec<Violation>> {
+    use std::collections::HashMap;
+
+    // Collect (path, code) for every classified NotationTemplate, then
+    // sort by path so "first declaration" is deterministic regardless of
+    // filesystem walk order.
+    let mut entries: Vec<(PathBuf, String, String)> = Vec::new();
+    for entry in WalkDir::new(dir)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.file_type().is_dir() && e.depth() > 0 {
+                filter.include_dir(e.path())
+            } else {
+                true
+            }
+        })
+    {
+        let entry = entry.map_err(io::Error::other)?;
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        if !filter.include_file(path) {
+            continue;
+        }
+        let contents = fs::read_to_string(path)?;
+        let file = SourceFile {
+            path: PathBuf::from(path),
+            contents,
+        };
+        if classify_source(&file) != DocumentKind::NotationTemplate {
+            continue;
+        }
+        let Some(fm) = crate::frontmatter::extract(&file.contents) else {
+            continue;
+        };
+        match crate::frontmatter::field(fm, "code") {
+            Some(code) if !code.is_empty() => entries.push((file.path, code, file.contents)),
+            _ => {}
+        }
+    }
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let mut first_seen: HashMap<String, PathBuf> = HashMap::new();
+    let mut violations = Vec::new();
+    for (path, code, contents) in entries {
+        if let Some(prev) = first_seen.get(&code) {
+            violations.push(Violation {
+                code: "N111",
+                path: path.clone(),
+                line: 1,
+                range: crate::line_byte_range(&contents, 1),
+                message: format!(
+                    "Duplicate template `code` `{code}`; already declared in `{}`",
+                    prev.display()
+                ),
+            });
+        } else {
+            first_seen.insert(code, path);
+        }
+    }
+    Ok(violations)
+}
+
 /// The canonical Navigator rule set, in the stable presentation
 /// order. `N104` is included with no recognized codes by default —
 /// callers that want strict flow-code validation should construct a
@@ -285,19 +361,19 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
     use crate::{
         F101FrontmatterTitle, F102RespondentType, F103SnakeCaseFilename, F104FlowQuestionCodes,
         F105ConfidentialRequired, F106StaffReviewRequired, F107SignaturePlaceholders,
-        F108TemplateCodeRequired, M001HeadingIncrement, M003HeadingStyle, M004ULStyle,
-        M005ListIndent, M007ULIndent, M009NoTrailingSpaces, M010NoHardTabs, M011NoReversedLinks,
-        M012NoMultipleBlanks, M018NoMissingSpaceATX, M019NoMultipleSpaceATX,
-        M020NoMissingSpaceClosedATX, M021NoMultipleSpaceClosedATX, M022BlanksAroundHeadings,
-        M023HeadingStartLeft, M024NoDuplicateHeading, M026NoTrailingPunctuation,
-        M027NoMultipleSpaceBlockquote, M028NoBlanksBlockquote, M029OLPrefix, M030ListMarkerSpace,
-        M031BlanksAroundFences, M032BlanksAroundLists, M034NoBareUrls, M035HRStyle,
-        M037NoSpaceInEmphasis, M038NoSpaceInCode, M039NoSpaceInLinks, M040FencedCodeLanguage,
-        M042NoEmptyLinks, M045NoAltText, M046CodeBlockStyle, M047SingleTrailingNewline,
-        M048CodeFenceStyle, M049EmphasisStyle, M050StrongStyle, M051LinkFragments,
-        M052ReferenceLinksImages, M053LinkImageReferenceDefinitions, M054LinkImageStyle,
-        M055TablePipeStyle, M056TableColumnCount, M058BlanksAroundTables, M059DescriptiveLinkText,
-        M060TableColumnStyle, S101LineLength,
+        F108TemplateCodeRequired, F109OutputFormat, F110JurisdictionPath, M001HeadingIncrement,
+        M003HeadingStyle, M004ULStyle, M005ListIndent, M007ULIndent, M009NoTrailingSpaces,
+        M010NoHardTabs, M011NoReversedLinks, M012NoMultipleBlanks, M018NoMissingSpaceATX,
+        M019NoMultipleSpaceATX, M020NoMissingSpaceClosedATX, M021NoMultipleSpaceClosedATX,
+        M022BlanksAroundHeadings, M023HeadingStartLeft, M024NoDuplicateHeading,
+        M026NoTrailingPunctuation, M027NoMultipleSpaceBlockquote, M028NoBlanksBlockquote,
+        M029OLPrefix, M030ListMarkerSpace, M031BlanksAroundFences, M032BlanksAroundLists,
+        M034NoBareUrls, M035HRStyle, M037NoSpaceInEmphasis, M038NoSpaceInCode, M039NoSpaceInLinks,
+        M040FencedCodeLanguage, M042NoEmptyLinks, M045NoAltText, M046CodeBlockStyle,
+        M047SingleTrailingNewline, M048CodeFenceStyle, M049EmphasisStyle, M050StrongStyle,
+        M051LinkFragments, M052ReferenceLinksImages, M053LinkImageReferenceDefinitions,
+        M054LinkImageStyle, M055TablePipeStyle, M056TableColumnCount, M058BlanksAroundTables,
+        M059DescriptiveLinkText, M060TableColumnStyle, S101LineLength,
     };
     vec![
         Box::new(S101LineLength::default()),
@@ -309,6 +385,8 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
         Box::new(F106StaffReviewRequired),
         Box::new(F107SignaturePlaceholders),
         Box::new(F108TemplateCodeRequired),
+        Box::new(F109OutputFormat),
+        Box::new(F110JurisdictionPath),
         Box::new(M001HeadingIncrement),
         Box::new(M003HeadingStyle),
         Box::new(M004ULStyle),
@@ -404,7 +482,7 @@ pub fn navigator_markdown_only_rules() -> Vec<Box<dyn Rule>> {
 /// `code:` alone is deliberately not enough to make a file a notation
 /// template: content systems can also use stable codes. The notation
 /// markers are the machine declarations (`questionnaire:`/`workflow:`),
-/// plus the canonical `templates/` tree from the glossary.
+/// plus the canonical `notation_templates/` tree from the glossary.
 #[must_use]
 pub fn classify_source(file: &SourceFile) -> DocumentKind {
     if path_is_notation_template(&file.path) || frontmatter_has_notation_machine(&file.contents) {
@@ -451,7 +529,7 @@ fn path_is_notation_template(path: &Path) -> bool {
     path.components().any(|component| {
         matches!(
             component,
-            std::path::Component::Normal(seg) if seg == "templates"
+            std::path::Component::Normal(seg) if seg == "notation_templates"
         )
     })
 }
@@ -588,11 +666,12 @@ mod tests {
     /// literally so this test fails loudly if a future change
     /// silently reorders or drops a rule.
     const EXPECTED_DEFAULT_RULE_CODES: &[&str] = &[
-        "S101", "N101", "N102", "N103", "N104", "N105", "N106", "N107", "N108", "M001", "M003",
-        "M004", "M005", "M007", "M009", "M010", "M011", "M012", "M018", "M019", "M020", "M021",
-        "M022", "M023", "M024", "M026", "M027", "M028", "M029", "M030", "M031", "M032", "M034",
-        "M035", "M037", "M038", "M039", "M040", "M042", "M045", "M046", "M047", "M048", "M049",
-        "M050", "M051", "M052", "M053", "M054", "M055", "M056", "M058", "M059", "M060",
+        "S101", "N101", "N102", "N103", "N104", "N105", "N106", "N107", "N108", "N109", "N110",
+        "M001", "M003", "M004", "M005", "M007", "M009", "M010", "M011", "M012", "M018", "M019",
+        "M020", "M021", "M022", "M023", "M024", "M026", "M027", "M028", "M029", "M030", "M031",
+        "M032", "M034", "M035", "M037", "M038", "M039", "M040", "M042", "M045", "M046", "M047",
+        "M048", "M049", "M050", "M051", "M052", "M053", "M054", "M055", "M056", "M058", "M059",
+        "M060",
     ];
 
     #[test]
@@ -652,7 +731,7 @@ mod tests {
 
     #[test]
     fn classifier_treats_templates_tree_as_notation_template() {
-        let file = source("templates/trust/draft.md", "Plain body.\n");
+        let file = source("notation_templates/trust/draft.md", "Plain body.\n");
         assert_eq!(classify_source(&file), DocumentKind::NotationTemplate);
     }
 
@@ -714,7 +793,7 @@ Body.
         );
         write(
             dir.path(),
-            "templates/trust/nevada.md",
+            "notation_templates/united_states/nevada/internal/trusts_and_estates/trust.md",
             r"---
 title: Nevada Trust
 respondent_type: entity
@@ -740,6 +819,45 @@ Body.
             .unwrap();
         assert_eq!(report.files_scanned, 2);
         assert!(report.is_clean(), "{:?}", report.violations);
+    }
+
+    #[test]
+    fn code_uniqueness_flags_duplicate_codes() {
+        use super::code_uniqueness_violations;
+        let dir = TempDir::new().unwrap();
+        let tmpl = |code: &str| {
+            format!(
+                "---\ntitle: T\nquestionnaire:\n  BEGIN:\n    _: END\ncode: {code}\n---\nBody.\n"
+            )
+        };
+        // Two templates share `trusts__nevada`; one is unique.
+        write(
+            dir.path(),
+            "notation_templates/a/x.md",
+            &tmpl("trusts__nevada"),
+        );
+        write(
+            dir.path(),
+            "notation_templates/b/y.md",
+            &tmpl("trusts__nevada"),
+        );
+        write(
+            dir.path(),
+            "notation_templates/c/z.md",
+            &tmpl("wills__simple"),
+        );
+        let v =
+            code_uniqueness_violations(dir.path(), &DefaultFileFilter::without_default_excludes())
+                .unwrap();
+        assert_eq!(v.len(), 1, "{v:?}");
+        assert_eq!(v[0].code, "N111");
+        // The second file in sorted order (b/y.md) is the one flagged.
+        assert!(
+            v[0].path.ends_with("notation_templates/b/y.md"),
+            "{:?}",
+            v[0].path
+        );
+        assert!(v[0].message.contains("trusts__nevada"));
     }
 
     #[test]

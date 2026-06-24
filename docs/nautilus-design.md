@@ -155,4 +155,4 @@ engine and `@approve` gate. Build order, each as one PR:
 5. **05 — Settlement & referral** (`settlement_letter`, client-directed, no cut; lawsuit/summons → litigation referral).
 
 See [`docs/glossary.md`](glossary.md) for the Person / Entity / role vocabulary these workflows use, and the
-`create-legal-workflow` skill for the feature-first recipe each PR follows.
+[`agent-workflows.md`](agent-workflows.md) for the feature-first recipe each PR follows.

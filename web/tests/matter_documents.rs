@@ -32,10 +32,13 @@ async fn record_document_persists_commits_and_captures_to_lake() {
         .unwrap(),
     );
 
+    let __dri = store::test_support::dri_person(&db).await;
     let proj = project::ActiveModel {
         name: ActiveValue::Set("Estate of Aries".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&db)

@@ -5,9 +5,9 @@
 # Compile the `web` binary statically against musl so the runtime
 # image can be `gcr.io/distroless/static`. SeaORM's sqlx-postgres /
 # sqlx-sqlite backends pull in `ring` (rustls) which musl-targets
-# fine. We pin to the project's Rust 1.95.0 toolchain.
+# fine. We pin to the project's Rust 1.96.0 toolchain.
 
-FROM rust:1.95-bookworm AS builder
+FROM rust:1.96-bookworm AS builder
 
 # Toolchain prep: musl target + musl gcc for any C deps. The musl target
 # is chosen from BuildKit's automatic TARGETARCH so the SAME Dockerfile
@@ -56,7 +56,7 @@ COPY features          features
 COPY lsp               lsp
 COPY live-inquiry      live-inquiry
 COPY pdf               pdf
-COPY templates         templates
+COPY notation_templates notation_templates
 COPY archives          archives
 COPY statutes          statutes
 COPY billing           billing
@@ -84,18 +84,21 @@ WORKDIR /app
 COPY --from=builder /usr/local/bin/web /app/web
 COPY --from=builder /src/web/public  /app/public
 COPY --from=builder /src/web/content /app/content
-COPY --from=builder /src/templates             /app/templates
+COPY --from=builder /src/notation_templates    /app/notation_templates
 
-# Identify the build. `navigator power-push` passes `--build-arg GIT_SHA=$(git
-# rev-parse HEAD)` (and the commit time) so the running binary can answer
-# `GET /version` with the exact commit it was built from — distroless has
-# no shell, so a runtime endpoint is the only way to read this. Baking it
-# here ties the reported SHA to the image bytes: it cannot drift from what
-# was deployed. A local `cargo run` (no build-arg) honestly reports
-# `unknown`.
+# Identify the build. The daily `deploy.yml` publish job passes
+# `--build-arg RELEASE_TAG=$YY.MM.DD` (the ghcr tag it publishes under) plus
+# `GIT_SHA`/`BUILD_TIME` for the released commit, so the running binary can
+# answer `GET /version` with the exact release + commit it was built from —
+# distroless has no shell, so a runtime endpoint is the only way to read
+# this. Baking it here ties the reported release to the image bytes: it
+# cannot drift from what was deployed. A local `cargo run` (no build-arg)
+# honestly reports `unknown`.
+ARG RELEASE_TAG=unknown
 ARG GIT_SHA=unknown
 ARG BUILD_TIME=unknown
-ENV NAVIGATOR_GIT_SHA=$GIT_SHA \
+ENV NAVIGATOR_RELEASE_TAG=$RELEASE_TAG \
+    NAVIGATOR_GIT_SHA=$GIT_SHA \
     NAVIGATOR_BUILD_TIME=$BUILD_TIME
 
 # Tell the binary where to find its assets. Override at deploy time

@@ -5,13 +5,13 @@ description: >
   diagnose why one didn't fire, and not break them. Covers the submit-vs-run split (workflows lib / workflows-service
   bin), the service inventory, the six-hourly Heartbeat liveness canary, the three start modes, and — front and center —
   the ranked failure modes with their one-line detectors and fixes (missing trigger image / Forbid wedge / registration
-  drift / stale auth token / wrong email backend). Trigger when touching workflows-service, a *-trigger CronJob, the
-  image Dockerfiles, when re-registering with Restate, when a scheduled or manual workflow "didn't run", or when adding
-  a workspace crate (it must enter the Dockerfile COPY lists). This engine executes BINDING legal artifacts (retainer
-  dispatch, signatures, filings, the matter-close invoice), so an outage is a diligence concern, not a backlog item.
-  Debugging surfaces carry invocation ids and service names, NEVER client content (see the observability skill). To
-  *add* a new workflow use create-legal-workflow; this skill keeps the existing ones alive. Deep architecture lives in
-  docs/durable-workflows.md.
+  drift / stale auth token / wrong email backend / ops notifier not Slack). Trigger when touching workflows-service, a
+  *-trigger CronJob, the image Dockerfiles, when re-registering with Restate, when a scheduled or manual workflow
+  "didn't run", or when adding a workspace crate (it must enter the Dockerfile COPY lists). This engine executes BINDING
+  legal artifacts (retainer dispatch, signatures, filings, the matter-close invoice), so an outage is a diligence
+  concern, not a backlog item. Debugging surfaces carry invocation ids and service names, NEVER client content (see the
+  observability skill). To *add* a new workflow use create-legal-workflow; this skill keeps the existing ones alive.
+  Deep architecture lives in docs/durable-workflows.md.
 ---
 
 # durable-execution
@@ -40,10 +40,11 @@ One worker pod hosts every service; new workflows bind onto the same endpoint, n
 `workflows_service::registry` (guarded by tests). Today: the `notation` virtual object plus the durable workflows
 `Archives`, `Statutes`, `Heartbeat`, `BillingCanary`, `MatterCloseInvoice`, `RecurringBilling`, `ReconcileInvoices`.
 
-**Heartbeat** is the liveness canary: a two-step (beat → notify), zero-dependency workflow that emails firm ops **every
-6 hours** with the Restate + GCP links and the kubectl chain to debug a missing beat. A six-hour gap with no heartbeat
-email is the alarm. After any worker deploy, the heartbeat's first email is also the proof that re-registration
-happened.
+**Heartbeat** is the liveness canary: a two-step (beat → notify), zero-dependency workflow that posts firm ops a Slack
+notice **every 6 hours** with the Restate + GCP links and the kubectl chain to debug a missing beat. A six-hour gap with
+no heartbeat notice in Slack is the alarm. After any worker deploy, the heartbeat's first notice is also the proof that
+re-registration happened. (Ops notices go to Slack only — the duplicate ops email was dropped once Slack proved
+reliable; client-facing email still goes out over SendGrid.)
 
 ## Three ways a workflow starts
 
@@ -58,22 +59,29 @@ failure that emits nothing. Match the key to the cadence.
 
 ## Ranked failure modes (what actually breaks, with the detector)
 
-1. **Trigger image missing from Artifact Registry.** A fresh `*-trigger` build also fails if any workspace crate is
-   absent from the Dockerfile COPY lists (the `forms` crate did exactly this and took every trigger image down).
-   *Detect:* `navigator doctor` flags `ImagePullBackOff`; `gcloud artifacts docker images describe <image>:<tag>`.
-   *Fix:* rebuild + push the trigger image (`docker build -f images/Dockerfile.trigger --build-arg CRATE=<crate>
-   [--build-arg BIN=<bin>] -t <reg>/navigator-<name>:<sha> .` then push), repoint the CronJob image.
+1. **Trigger image missing from ghcr.io.** A fresh `*-trigger` build also fails if any workspace crate is absent from
+   the Dockerfile COPY lists (the `forms` crate did exactly this and took every trigger image down). Trigger images are
+   published to `ghcr.io/<owner>/navigator-<name>-trigger` and pulled anonymously (the packages are public). *Detect:*
+   `navigator doctor` flags `ImagePullBackOff`; `docker manifest inspect ghcr.io/<owner>/navigator-<name>-trigger:<tag>`
+   confirms whether the tag was published. *Fix:* publish the trigger image through `deploy.yml` (the daily tag flow
+   owns image builds — never a local `docker build` + push side channel), then repoint the CronJob image to that
+   `ghcr.io/...:YY.MM.DD` tag.
 2. **Forbid wedge.** A failed trigger Job stays `Active`, and `concurrencyPolicy: Forbid` skips every subsequent run — a
    silent multi-day outage. *Detect:* `navigator doctor`. *Fix:* `kubectl -n navigator delete job <name>`; the
    `activeDeadlineSeconds: 120` backstop now self-terminates a stuck job going forward.
 3. **Registration drift (404).** Rolling a new worker image does NOT re-register it; a service added since the last
-   registration 404s at the ingress (this hid `Heartbeat` and `RecurringBilling`). *Detect:* the heartbeat email never
-   arrives after a deploy; `curl :8080/.../run/send` → 404. *Fix:* re-register (below).
+   registration 404s at the ingress (this hid `Heartbeat` and `RecurringBilling`). *Detect:* the heartbeat Slack notice
+   never arrives after a deploy; `curl :8080/.../run/send` → 404. *Fix:* re-register (below).
 4. **Stale `RESTATE_AUTH_TOKEN` (401).** A wrong/expired ingress key. *Detect:* the trigger logs a rejected event with
    `status=401`, or the metric `navigator.workflow.trigger.fired` shows `outcome=rejected`. *Fix:* the `key_…` ingress
    key in `navigator-web-secrets`, sourced from Doppler `prd` (never the SSO JWT).
-5. **Email backend not SendGrid.** The worker logs `backend=SendGrid` at boot; anything else silently captures (logs
-   "sent" without sending). *Detect:* worker boot log. *Fix:* `NAVIGATOR_EMAIL_BACKEND=sendgrid` + `SENDGRID_API_KEY`.
+5. **Email backend not SendGrid** (client-facing email only — Notation, RecurringBilling invoices). The worker logs
+   `backend=SendGrid` at boot; anything else silently captures (logs "sent" without sending). *Detect:* worker boot log.
+   *Fix:* `NAVIGATOR_EMAIL_BACKEND=sendgrid` + `SENDGRID_API_KEY`.
+6. **Ops notifier not Slack.** Ops notices (Heartbeat et al.) go to Slack only, so a missing/empty `SLACK_WEBHOOK_URL`
+   silently captures in-memory — the heartbeat appears green in the journal but no notice reaches anyone. The worker
+   logs `ops-notification backend=Slack` at boot; `Capturing` means the signal is going nowhere. *Detect:* worker boot
+   log, or the absence of the six-hourly notice in the engineering channel. *Fix:* set `SLACK_WEBHOOK_URL` (Doppler).
 
 ## Re-register (the one most-forgotten step)
 

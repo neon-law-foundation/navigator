@@ -41,12 +41,13 @@ const DEFAULT_NAMESPACE: &str = "navigator";
 const INGRESS_MANIFEST: &str = "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/kind/deploy.yaml";
 
 // Restate Operator — same chart drives KIND and GKE. Release notes:
-// https://github.com/restatedev/restate-operator/releases. Keep this
-// aligned with the server image in `k8s/overlays/kind/deps/restate.yaml`
-// and `RESTATE_CLI_VERSION` below: 2.6.x is the operator generation
-// built for the 1.7 server line. The older 2.5.1 operator could not
-// provision a 1.7.0 node (its `ProvisionCluster` gRPC call failed with
-// a `transport error`, wedging the node at `0/1` "awaiting provisioning").
+// https://github.com/restatedev/restate-operator/releases. Kept aligned
+// with the server image in `k8s/overlays/kind/deps/restate.yaml` and
+// `RESTATE_CLI_VERSION` below (2.6.1 / 1.7.0). NOTE: the local "restate
+// won't provision" wedge was NOT a version skew — it was the operator's
+// own `deny-all` NetworkPolicy being enforced by recent kindnet, which
+// blocked the operator→node `:5122` provisioning dial. The fix lives in
+// `restate.yaml` (`security.disableNetworkPolicies: true`), not here.
 const RESTATE_OPERATOR_VERSION: &str = "2.6.1";
 
 // Restate CLI — pinned so operator-laptop and CI-runner versions
@@ -263,32 +264,6 @@ pub enum GcpCmd {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Ensure the Artifact Registry docker repo (`navigator` in
-    /// `us-west4`) with a native cleanup policy that deletes images
-    /// older than 3 days. Enables `artifactregistry.googleapis.com`
-    /// first. Idempotent: existing repo → no-op.
-    ArtifactRegistry {
-        /// Google Cloud project ID (e.g. `your-project-id`).
-        #[arg(long)]
-        project_id: String,
-        /// Preview the GCP API calls that would be made, without
-        /// sending any traffic.
-        #[arg(long)]
-        dry_run: bool,
-    },
-    /// Tag the local `navigator-web:dev` image and push it to the
-    /// Navigator Artifact Registry repo. Assumes
-    /// `gcloud auth configure-docker us-west4-docker.pkg.dev` has
-    /// already been run on this host. Pairs with `artifact-registry`
-    /// (which provisions the destination) but does not invoke it.
-    PushImage {
-        /// Google Cloud project ID (e.g. `your-project-id`).
-        #[arg(long)]
-        project_id: String,
-        /// Tag to push as. Defaults to `git rev-parse --short HEAD`.
-        #[arg(long)]
-        tag: Option<String>,
-    },
     /// Identity-Aware Proxy operations for the `navigator-web`
     /// backend. Run after the GKE Ingress has provisioned the LB.
     /// See `docs/gemini-enterprise-mcp.md`.
@@ -428,13 +403,6 @@ pub fn dispatch(command: crate::Command) -> Result<()> {
             }
             gcp_setup(project_id, dry_run, config)
         }
-        crate::Command::Gcp(GcpCmd::ArtifactRegistry {
-            project_id,
-            dry_run,
-        }) => gcp_artifact_registry(project_id, dry_run),
-        crate::Command::Gcp(GcpCmd::PushImage { project_id, tag }) => {
-            gcp_push_image(&project_id, tag.as_deref())
-        }
         crate::Command::Gcp(GcpCmd::Iap(IapCmd::Audience {
             project_id,
             service,
@@ -448,11 +416,11 @@ pub fn dispatch(command: crate::Command) -> Result<()> {
         crate::Command::PowerPush {
             dry_run,
             restart_only,
-            skip_verify,
-        } => power_push::run_power_push(power_push::PowerPushOpts {
+            tag,
+        } => power_push::run_power_push(&power_push::PowerPushOpts {
             dry_run,
             restart_only,
-            skip_verify,
+            tag,
         }),
         crate::Command::Dns(DnsCmd::Setup {
             domain,
@@ -799,106 +767,6 @@ fn check_restate_cli_version() {
             banner.trim()
         );
     }
-}
-
-/// `devx gcp push-image --project-id <ID> [--tag <tag>]`: tag and
-/// push `navigator-web:dev` to GAR. Sync — we just shell out to the
-/// docker CLI, which carries its own auth via the credential helper
-/// that `gcloud auth configure-docker` installed.
-fn gcp_push_image(project_id: &str, tag: Option<&str>) -> Result<()> {
-    require_tools(&["docker", "git"])?;
-    let tag = match tag {
-        Some(t) => t.to_string(),
-        None => git_short_head()?,
-    };
-    let target = gcp::push_image::run(project_id, &tag)?;
-    eprintln!("==> pushed {target}");
-    Ok(())
-}
-
-/// `git rev-parse --short HEAD` as a string. Trimmed.
-fn git_short_head() -> Result<String> {
-    git_output(&["rev-parse", "--short", "HEAD"])
-}
-
-/// `git rev-parse HEAD` — the full 40-char SHA. Baked into the web image
-/// (`--build-arg GIT_SHA`) so the running binary can report it at
-/// `GET /version`.
-fn git_full_head() -> Result<String> {
-    git_output(&["rev-parse", "HEAD"])
-}
-
-/// HEAD's committer date in strict ISO-8601 (`%cI`, e.g.
-/// `2026-06-11T17:01:25-07:00`) — baked into the web image as the
-/// `built` field of `GET /version`. Uses the commit time rather than a
-/// wall-clock `now()` so it is deterministic for a given commit (and
-/// `devx` carries no date/time dependency).
-fn git_commit_time() -> Result<String> {
-    git_output(&["show", "-s", "--format=%cI", "HEAD"])
-}
-
-/// Run `git <args>`, returning trimmed stdout or bailing on failure.
-fn git_output(args: &[&str]) -> Result<String> {
-    let out = Command::new("git")
-        .args(args)
-        .output()
-        .with_context(|| format!("run `git {}`", args.join(" ")))?;
-    if !out.status.success() {
-        bail!(
-            "git {} failed: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&out.stderr)
-        );
-    }
-    Ok(String::from_utf8(out.stdout)
-        .with_context(|| format!("git {} emitted non-UTF-8", args.join(" ")))?
-        .trim()
-        .to_string())
-}
-
-/// `devx gcp artifact-registry --project-id <ID> [--dry-run]`: enable
-/// `artifactregistry.googleapis.com` and create the `navigator`
-/// docker repo with a 3-day cleanup policy. Does not run the full
-/// setup pipeline. Builds a private Tokio runtime — the gcp module
-/// is async — and shares the dry-run plumbing with `gcp_setup`.
-fn gcp_artifact_registry(project_id: String, dry_run: bool) -> Result<()> {
-    use std::sync::Arc;
-
-    use gcp::client::{GcpClient, StaticToken, TokenProvider};
-
-    tracing_subscriber::fmt::try_init().ok();
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .context("build tokio runtime")?;
-    runtime.block_on(async move {
-        let token: Arc<dyn TokenProvider> = if dry_run {
-            Arc::new(StaticToken("dry-run".into()))
-        } else {
-            gcp::auth::adc_token_provider().await?
-        };
-        let mut client = GcpClient::new(token);
-        if dry_run {
-            client = client.with_dry_run();
-        }
-        gcp::services::enable(&client, &project_id, &["artifactregistry.googleapis.com"]).await?;
-        gcp::artifact_registry::ensure_repo(&client, &project_id).await?;
-        if dry_run {
-            eprintln!(
-                "--- dry run: {} call(s) would be made ---",
-                client.recorded_calls().len()
-            );
-            for call in client.recorded_calls() {
-                eprintln!("{} {}", call.method, call.url);
-                if let Some(body) = call.body {
-                    eprintln!("  {body}");
-                }
-            }
-        } else {
-            tracing::info!(project = %project_id, "artifact-registry ready");
-        }
-        Ok::<(), anyhow::Error>(())
-    })
 }
 
 /// `devx gcp setup --project-id <ID> [--dry-run]`: provision the GCP

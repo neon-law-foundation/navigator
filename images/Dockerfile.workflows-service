@@ -6,10 +6,10 @@
 # which needs `cc`-flavored distroless rather than `static`).
 #
 # Image conventions match Dockerfile (the `web` image): same Rust
-# toolchain pin (rust-toolchain.toml → 1.95.0), same musl target,
+# toolchain pin (rust-toolchain.toml → 1.96.0), same musl target,
 # same distroless base family.
 
-FROM rust:1.95-bookworm AS builder
+FROM rust:1.96-bookworm AS builder
 
 # The musl target is chosen from BuildKit's automatic TARGETARCH so the
 # SAME Dockerfile builds a native aarch64 image on an Apple-Silicon dev
@@ -56,7 +56,7 @@ COPY features          features
 COPY lsp               lsp
 COPY live-inquiry      live-inquiry
 COPY pdf               pdf
-COPY templates         templates
+COPY notation_templates notation_templates
 COPY archives          archives
 COPY statutes          statutes
 COPY billing           billing
@@ -83,6 +83,14 @@ COPY --from=builder \
 # env. Defaults match the in-cluster Service names; override in the
 # RestateDeployment CR.
 ENV WORKFLOWS_SERVICE_LISTEN=0.0.0.0:9080
+
+# Identify the release. The daily `deploy.yml` passes `--build-arg
+# RELEASE_TAG=$YY.MM.DD`; `telemetry::init` reads `NAVIGATOR_RELEASE_TAG`
+# and tags every span/metric/log with `service.version`, so the headless
+# worker self-reports which release it is — the counterpart to `web`'s
+# `GET /version`. A local build (no build-arg) reports `unknown`.
+ARG RELEASE_TAG=unknown
+ENV NAVIGATOR_RELEASE_TAG=$RELEASE_TAG
 
 EXPOSE 9080
 

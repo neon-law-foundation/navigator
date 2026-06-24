@@ -167,12 +167,28 @@ pub async fn start_post(
         }
     };
 
+    // Both DRI columns are NOT NULL. A self-serve intake has no staffer in
+    // the room, so the staff DRI falls back to the seeded firm principal
+    // (`nick@neonlaw.com`) — a real person, no sentinel. The client side is
+    // refined to the self-serve client below, once `link_retainer_rows`
+    // creates them; until then the firm principal holds both sides.
+    let staff_dri_id = if let Some(id) = session.as_deref().and_then(|s| s.person_id) {
+        id
+    } else if let Ok(Some(id)) = store::persons::default_firm_dri(&txn).await {
+        id
+    } else {
+        tracing::error!("start_post: no staff DRI resolvable (unseeded db?)");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
+    };
+
     // The matter the walk opens is brand-new, so the project name is a
     // placeholder until the `project_name` question lands.
     let project_id = match (project::ActiveModel {
         name: ActiveValue::Set(format!("(pending) {client_email}")),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(entity_id),
+        staff_dri_person_id: ActiveValue::Set(Some(staff_dri_id)),
+        client_dri_person_id: ActiveValue::Set(Some(staff_dri_id)),
         ..Default::default()
     })
     .insert(&txn)
@@ -195,7 +211,7 @@ pub async fn start_post(
     // the client name later in the questionnaire and the client signs
     // *embedded* (the historical default), so name is `None` and delivery
     // is `embedded`.
-    let notation_id = match link_retainer_rows(
+    let rows = match link_retainer_rows(
         &txn,
         template_row.id,
         project_id,
@@ -205,9 +221,54 @@ pub async fn start_post(
     )
     .await
     {
-        Ok(rows) => rows.notation_id,
+        Ok(rows) => rows,
         Err(resp) => return resp,
     };
+    let notation_id = rows.notation_id;
+
+    // Refine the authoritative client-DRI column to the self-serve client
+    // `link_retainer_rows` just created. The column is the source of truth;
+    // the `client` participation row it also wrote stays for the ledger.
+    let mut client_dri_update = project::ActiveModel {
+        id: ActiveValue::Unchanged(project_id),
+        ..Default::default()
+    };
+    client_dri_update.client_dri_person_id = ActiveValue::Set(Some(rows.person_id));
+    if let Err(e) = client_dri_update.update(&txn).await {
+        tracing::error!(error = %e, "start_post: client DRI column update failed");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
+    }
+
+    // Disclose the staffer who opened this matter as its staff DRI — a
+    // `person_project_roles` row — so the project-scoped matter page is
+    // visible to them. The estate flow lands staff on that page directly
+    // (below), and `can_see_project` 404s a staff member who isn't on the
+    // matter; without this the opener can't see the matter they just
+    // created. Mirrors the matter-open form
+    // (`admin::projects_create_staff_only`). A session with no linked
+    // Person (the dev bypass) opens the matter without a staff DRI.
+    if let Some(staff_dri) = session.as_deref().and_then(|s| s.person_id) {
+        match (person_project_role::ActiveModel {
+            person_id: ActiveValue::Set(staff_dri),
+            project_id: ActiveValue::Set(project_id),
+            participation: ActiveValue::Set(
+                person_project_role::PARTICIPATION_STAFF_DRI.to_string(),
+            ),
+            ..Default::default()
+        })
+        .insert(&txn)
+        .await
+        {
+            Ok(_) => {}
+            Err(e) if store::is_unique_violation(&e) => {
+                tracing::warn!(error = %e, "start_post: staff DRI already disclosed");
+            }
+            Err(e) => {
+                tracing::error!(error = %e, "start_post: staff DRI disclosure failed");
+                return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
+            }
+        }
+    }
 
     if let Err(e) = txn.commit().await {
         tracing::error!(error = %e, "start_post: txn commit failed");
@@ -1307,6 +1368,10 @@ async fn acroform_payload(
         .ok_or_else(|| form_err("no field map vendored for this form".into()))?;
     let fields = forms::resolve(&map, ctx).map_err(|e| form_err(e.to_string()))?;
 
+    // `templates/` here is the documents-bucket key namespace, NOT a repo
+    // path — it is deliberately independent of the `notation_templates/`
+    // source folder. Renaming it would orphan blanks already uploaded to
+    // production object storage; leave it as-is.
     let blank_form_key = format!("templates/{}", form.meta.object_path);
     if !state.storage.exists(&blank_form_key).await? {
         state

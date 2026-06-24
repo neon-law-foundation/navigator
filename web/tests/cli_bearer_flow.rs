@@ -91,20 +91,38 @@ fn enc(s: &str) -> String {
     s.replace(' ', "%20").replace('@', "%40")
 }
 
+/// Seed a pre-existing `Role::Client` person — the matter-open form now
+/// opens a matter *for* an existing client (required `client_dri_person_id`
+/// picker), so the client must exist before the POST.
+async fn seed_client(db: &store::Db, name: &str, email: &str) -> uuid::Uuid {
+    use sea_orm::{ActiveModelTrait, ActiveValue};
+    entity::person::ActiveModel {
+        name: ActiveValue::Set(name.into()),
+        email: ActiveValue::Set(email.into()),
+        role: ActiveValue::Set(entity::person::Role::Client),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap()
+    .id
+}
+
 #[tokio::test]
 #[allow(clippy::too_many_lines)]
 async fn cli_bearer_opens_matter_then_approve_parks_and_send_dispatches_once() {
     let (app, db, stub) = build_app("happy").await;
     let bearer = format!("Bearer {}", admin_bearer());
     let entity_id = store::test_support::seed_entity(&db).await;
+    // The client is selected from existing clients — seed them first.
+    let client_id = seed_client(&db, "Nick Shook", "nick@shook.family").await;
 
     let body = format!(
-        "name={}&status=open&entity_id={entity_id}&send_retainer=true\
+        "name={}&status=open&entity_id={entity_id}\
+         &client_dri_person_id={client_id}\
          &retainer_template_code=onboarding__retainer\
-         &client_name={}&client_email={}&scope_of_services={}",
+         &scope_of_services={}",
         enc("Shook estate"),
-        enc("Nick Shook"),
-        enc("nick@shook.family"),
         enc("Flat-fee estate planning"),
     );
     let resp = app
@@ -143,14 +161,23 @@ async fn cli_bearer_opens_matter_then_approve_parks_and_send_dispatches_once() {
     assert_eq!(notation.delivery, "emailed");
     assert!(stub.calls().is_empty());
 
-    // The provenance is attributable: the client person is linked.
+    // The provenance is attributable: the pre-existing client person is the
+    // matter's client-side DRI (now a first-class column on the project, not
+    // a `client_dri` participation row).
     let person = entity::person::Entity::find()
         .filter(entity::person::Column::Email.eq("nick@shook.family"))
         .one(&db)
         .await
         .unwrap()
-        .expect("client person inserted");
+        .expect("client person exists");
+    assert_eq!(person.id, client_id);
     assert_eq!(person.name, "Nick Shook");
+    let project = entity::project::Entity::find_by_id(notation.project_id)
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("project row inserted");
+    assert_eq!(project.client_dri_person_id, Some(person.id));
 
     // A small closure for the repeated bearer POST / GET shapes.
     let get_status = {

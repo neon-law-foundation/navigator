@@ -79,6 +79,9 @@ struct WorkshopWorld {
     db: Option<Db>,
     storage: Option<Arc<dyn cloud::StorageService>>,
     attorney_email: Option<String>,
+    /// The workshop's client of record (Virgo) — the matter is opened
+    /// *for* this person, so its id is the required `client_dri_person_id`.
+    client_person_id: Option<Uuid>,
     project_id: Option<Uuid>,
     notation_id: Option<Uuid>,
     /// JSON-RPC `id` counter so each call gets a fresh request id.
@@ -164,6 +167,19 @@ async fn build_app_with_deed_template(world: &mut WorkshopWorld) {
     .await
     .expect("insert deed template");
 
+    // A matter's staff-side DRI resolves to the firm principal (an
+    // admin/staff person). Seed one so `aida_create_notation` has a firm
+    // principal to assign as the staff DRI — without it the tool refuses.
+    person::ActiveModel {
+        name: ActiveValue::Set("Firm Principal".into()),
+        email: ActiveValue::Set("principal@example.com".into()),
+        role: ActiveValue::Set(store::entity::person::Role::Admin),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .expect("insert firm principal");
+
     let runtime = Arc::new(InMemoryRuntime::new());
     let state = app_state(
         db.clone(),
@@ -181,7 +197,7 @@ async fn build_app_with_deed_template(world: &mut WorkshopWorld) {
 
 #[given(regex = r#"^the workshop attorney "([^"]+)" is registered with email "([^"]+)"$"#)]
 async fn seed_attorney(world: &mut WorkshopWorld, name: String, email: String) {
-    person::ActiveModel {
+    let inserted = person::ActiveModel {
         name: ActiveValue::Set(name),
         email: ActiveValue::Set(email.clone()),
         role: ActiveValue::Set(store::entity::person::Role::Client),
@@ -190,6 +206,7 @@ async fn seed_attorney(world: &mut WorkshopWorld, name: String, email: String) {
     .insert(world.db())
     .await
     .expect("insert person");
+    world.client_person_id = Some(inserted.id);
     world.attorney_email = Some(email);
 }
 
@@ -221,10 +238,19 @@ async fn schema_has_table(world: &mut WorkshopWorld, table: String) {
 #[when(regex = r#"^the attorney creates a Project named "([^"]+)"$"#)]
 async fn attorney_creates_project(world: &mut WorkshopWorld, name: String) {
     let entity_id = store::test_support::seed_entity(world.db()).await;
+    // The matter opens *for* the workshop's client of record (Virgo, the
+    // registered `Role::Client` person) — required `client_dri_person_id`.
+    let client_dri = world
+        .client_person_id
+        .expect("workshop client (Virgo) registered in Background");
     let result = world
         .call_tool(
             "aida_create_project",
-            json!({ "name": name, "entity_id": entity_id }),
+            json!({
+                "name": name,
+                "entity_id": entity_id,
+                "client_dri_person_id": client_dri,
+            }),
         )
         .await;
     assert_ne!(

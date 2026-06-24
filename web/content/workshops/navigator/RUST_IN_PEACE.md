@@ -128,7 +128,7 @@ The template is one markdown file. Its frontmatter is the machine-readable half 
 graph (what we ask) and a workflow graph (what we do). Here is the questionnaire from the Nest template — seven answers,
 in order, no branching needed for a simple formation.
 
-From `templates/nest/nevada.md`:
+From `notation_templates/united_states/nevada/state/business_associations/entity_formation.md`:
 
 ```yaml
 questionnaire:
@@ -154,7 +154,7 @@ questionnaire:
 And here is the workflow — the LLC formation dissected into small, named, modular steps. Each state is a noun in our
 glossary; each transition is a signal some handler fires. This graph *is* the product.
 
-From `templates/nest/nevada.md`:
+From `notation_templates/united_states/nevada/state/business_associations/entity_formation.md`:
 
 ```yaml
 workflow:

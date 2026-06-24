@@ -26,10 +26,9 @@
 //! ~200 lines of cluster JSON). Tests stand up wiremock and override
 //! base URLs per service for the REST steps, and use the dry-run
 //! recorder for the shell-out step — no traffic ever leaves the host,
-//! no GCP credentials needed. See the `cloud-rest-endpoints` skill
-//! for the layered CI strategy.
+//! no GCP credentials needed. See `docs/cloud-operations.md` for the
+//! layered CI strategy.
 
-pub mod artifact_registry;
 pub mod auth;
 pub mod buckets;
 pub mod client;
@@ -38,7 +37,6 @@ pub mod gke;
 pub mod iap;
 pub mod lro;
 pub mod network;
-pub mod push_image;
 pub mod services;
 pub mod sql;
 

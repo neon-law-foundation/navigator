@@ -33,7 +33,7 @@ internet
        (path: examples/deploy/k8s/gke)
 ```
 
-**Decisions:** see [[project-gcp-production-stack]] in memory and the workspace `CLAUDE.md`.
+Deployment decisions are summarized here and in [`cloud-operations.md`](cloud-operations.md).
 
 ## What lives where
 
@@ -81,18 +81,22 @@ PR merged to main
   └─→ .github/workflows/ci.yml runs fmt + clippy + cargo test --workspace
       (no images built — the PR flow is lean by design)
 
-Daily 02:00 PST (10:00 UTC)
+Daily 05:00 PST (13:00 UTC)
   └─→ .github/workflows/release-tag.yml cuts tag YY.MM.DD (e.g. 26.06.18)
       and pushes it with secrets.RELEASE_PAT
             └─→ the tag push triggers .github/workflows/deploy.yml
                   ├─ KIND integration suite (e2e + interop + browser)
                   ├─ build + push both images to ghcr.io tagged YY.MM.DD + latest
-                  └─ email a deploy report to nick@neonlaw.com via SendGrid
+                  └─ post a "ready to deploy" hand-off to the engineering Slack channel
                         Images are on the shelf, tagged by date.
 ```
 
 The images are published, not rolled out — promoting a dated image to the GKE cluster (the Config Sync reconcile, or an
 operator-driven `power-push`) is a separate, deliberate step, not part of the nightly tag flow.
+
+The published packages are **public** on ghcr.io, so the GKE nodes pull them anonymously — there is no imagePullSecret
+and no registry credential to rotate. Old dated tags are pruned after **14 days** by the maintenance workflow
+(`cleanup.yml`); a fork that defers a roll past two weeks should pin and roll a tag while it is still on the shelf.
 
 Friday-Sunday is deliberately skipped — see the comment in `deploy.yml`.
 
