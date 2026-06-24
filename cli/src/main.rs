@@ -15,6 +15,7 @@ mod glossary;
 mod import;
 mod intake;
 mod list;
+mod live_transcription;
 mod login;
 mod lsp_publish;
 mod palette;
@@ -260,6 +261,11 @@ enum Command {
         /// `snake_case` for the template `code`), e.g. `Nevada`.
         #[arg(long)]
         jurisdiction: String,
+    },
+    /// Local live-transcript experiments for Inquiry Coverage.
+    LiveTranscription {
+        #[command(subcommand)]
+        action: LiveTranscriptionAction,
     },
 
     // ── Local-development + deploy orchestration ──────────────────────
@@ -916,6 +922,44 @@ enum ListSubject {
     Letters,
 }
 
+#[derive(Subcommand)]
+enum LiveTranscriptionAction {
+    /// Transcribe an audio file or replay a transcript file, then emit
+    /// Inquiry Coverage JSON for a notation template questionnaire.
+    Cover {
+        /// Template markdown file whose `questionnaire:` becomes the
+        /// Inquiry Set.
+        #[arg(long, default_value = "templates/onboarding/estate.md")]
+        template: PathBuf,
+        /// Plain-text transcript to replay without calling `OpenAI`.
+        #[arg(long, conflicts_with = "audio")]
+        transcript: Option<PathBuf>,
+        /// Audio file to send to `OpenAI` speech-to-text.
+        #[arg(long, conflicts_with = "transcript")]
+        audio: Option<PathBuf>,
+        /// `OpenAI` transcription model.
+        #[arg(
+            long,
+            env = "OPENAI_TRANSCRIBE_MODEL",
+            default_value = "gpt-4o-transcribe"
+        )]
+        model: String,
+        /// `OpenAI` API base URL.
+        #[arg(
+            long,
+            env = "OPENAI_BASE_URL",
+            default_value = "https://api.openai.com/v1"
+        )]
+        api_base: String,
+        /// `OpenAI` API key. Required only with `--audio`.
+        #[arg(long, env = "OPENAI_API_KEY")]
+        api_key: Option<String>,
+        /// Pretty-print the JSON output.
+        #[arg(long)]
+        pretty: bool,
+    },
+}
+
 fn main() -> ExitCode {
     // `.env` is picked up before `clap` reads its `env = "..."`
     // defaults. No-op when no file is present, so CI/cluster deploys
@@ -991,6 +1035,7 @@ fn main() -> ExitCode {
             &category,
             &jurisdiction,
         ),
+        Command::LiveTranscription { action } => runtime().block_on(run_live_transcription(action)),
         // Local-development + deploy orchestration (collapsed in from the
         // former `devx` binary). The whole group routes through one handler.
         c @ (Command::StartDevServer
@@ -1034,6 +1079,38 @@ fn devx_result(result: anyhow::Result<()>) -> ExitCode {
         Err(err) => {
             eprintln!("Error: {err:?}");
             ExitCode::FAILURE
+        }
+    }
+}
+
+async fn run_live_transcription(action: LiveTranscriptionAction) -> ExitCode {
+    let result = match action {
+        LiveTranscriptionAction::Cover {
+            template,
+            transcript,
+            audio,
+            model,
+            api_base,
+            api_key,
+            pretty,
+        } => {
+            live_transcription::cover(live_transcription::CoverArgs {
+                template,
+                transcript,
+                audio,
+                model,
+                api_base,
+                api_key,
+                pretty,
+            })
+            .await
+        }
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("navigator: live-transcription: {e:?}");
+            ExitCode::from(2)
         }
     }
 }

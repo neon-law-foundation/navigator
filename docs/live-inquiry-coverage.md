@@ -117,6 +117,27 @@ For Northstar v1, every reachable `questionnaire:` Question becomes one `Inquiry
 `InquirySource::TemplateQuestion`. The live system then tracks coverage against those Inquiries while the existing
 Notation workflow remains the authority for document generation, staff review, client review, and signing.
 
+## Local CLI probe
+
+The first executable slice is deliberately local and staff/developer-facing:
+
+```bash
+cargo run -p cli -- live-transcription cover \
+  --transcript /tmp/northstar-sitting.txt \
+  --pretty
+```
+
+That command reads a Template markdown file (defaulting to `templates/onboarding/estate.md`), normalizes its
+`questionnaire:` into an Inquiry Set, segments the transcript text, and emits JSON Coverage Findings with
+`evidence_segment_ids` and follow-up prompts. Passing `--audio <file>` calls OpenAI's speech-to-text endpoint using
+`OPENAI_API_KEY` and the `OPENAI_TRANSCRIBE_MODEL` override (default `gpt-4o-transcribe`) before running the same
+coverage pass.
+
+This probe is not the portal implementation and does not persist Project data. It is the local test harness for the
+contract above: prove audio/transcript input can become a transcript, prove Template Questions can become Inquiries, and
+prove the output shape is useful before the feature-gated `web`/`cloud` implementation adds live sessions, storage,
+authorization, and the durable post-session handoff.
+
 ## Entity relationship sketch
 
 This is a proposed table shape, not a migration in this doc PR.
