@@ -107,8 +107,8 @@ cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path
 editor and CI can never disagree. Supported editors ship copy-paste configs under [`lsp/`](../lsp) docs: VS Code,
 Neovim, Helix, Emacs, Zed. The authoring loop for a non-engineer legal author:
 
-1. **Type.** Open `notation_templates/will/simple.md` in your editor. Write legal prose and frontmatter — no
-   proprietary tool, no markup beyond markdown.
+1. **Type.** Open `notation_templates/united_states/nevada/internal/trusts_and_estates/will.md` in your editor. Write
+   legal prose and frontmatter — no proprietary tool, no markup beyond markdown.
 2. **Live diagnostics.** On every keystroke the LSP lints the buffer and shows squiggles: N101 if `title:` is missing,
    N104 if the questionnaire/workflow shape is broken, S101 past 120 chars, M-rules on shape. The CLI can add DB-backed
    question-code checks when invoked with `--database-url`. Hover any squiggle for a plain-English explanation of the

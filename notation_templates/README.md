@@ -115,30 +115,15 @@ scope, forum, and practice area already name instead of inventing one.
 
 ## Migration status
 
-This tree is mid-migration. The operational branch and the brand quarantine exist, and the jurisdiction grammar is
-enforced for any file placed under `united_states/`. The legacy flat folders (`trust/`, `will/`, `llc/`, `nest/`,
-`nonprofit/`, `onboarding/`, `nautilus/`, …) are **grandfathered**: they are still valid notation templates and still
-lint under the N-family, but they predate the jurisdiction grammar and are relocated in a follow-up. The substantive
-work products are **de-branded** into the jurisdiction tree; only templates that name a Neon Law product (the
-brand-named retainers) go to `neon_law/`. The intended destinations:
+The legacy flat folders have been retired. Substantive templates now live in the jurisdiction tree, operational
+templates live in the operational branch, and brand-named Neon Law retainers live under `neon_law/engagements/`.
+Template `code` values stayed stable during the move so existing Notations, workflow specs, and seed rows still refer to
+the same legal blueprint.
 
-| Legacy path | Destination |
-| --- | --- |
-| `trust/nevada.md`, `will/simple.md`, `northstar/*.md` | `united_states/nevada/internal/trusts_and_estates/` |
-| `nest/*.md`, `annual_report/nevada.md` | `united_states/nevada/state/business_associations/` |
-| `dissolution/nevada.md`, `nonprofit/nevada_*.md` | `united_states/nevada/state/business_associations/` |
-| `llc/california.md` | `united_states/california/state/business_associations/` |
-| `nautilus/*.md` (FDCPA/FCRA letters) | `united_states/federal/internal/debt_relief/` |
-| `nexus/fractional_gc.md` (work product) | `united_states/nevada/internal/business_associations/` |
-| `nonprofit/form990_annual_report.md` | `united_states/federal/irs/taxation/` |
-| `nv_state_tax_filing/modified_business_tax.md` | `united_states/nevada/state/taxation/` |
-| `closing/letter.md` | `correspondence/` |
-| `onboarding/estate.md`, `onboarding/retainer.md` (generic) | `engagements/` |
-| `services/contract_review.md` | `services/` |
-| `onboarding/retainer_*.md` (brand-named) | `neon_law/engagements/` |
-
-The public template gallery serves a curated subset over the `/api/templates/...` route; relocating the gallery's
-nonprofit entries to deep paths is part of that same follow-up, since it changes the route shape.
+The public template routes also understand the deep tree. For example,
+`/api/templates/united-states/nevada/state/business-associations/entity-formation` serves the raw Nevada entity
+formation template when it is public. A few old public two-segment links redirect to their canonical deep paths so
+published references do not dead-end, but new links should use the tree path.
 
 ## Adding a new template
 

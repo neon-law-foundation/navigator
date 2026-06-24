@@ -6,9 +6,9 @@ from scratch, start with [agent workflows](agent-workflows.md) and [notation aut
 is about evolving what is already shipped.
 
 The guiding idea, proven by the end-to-end journey suite in [`features/`](../features/): **the questionnaire and the
-workflow are the tested contract; the template body is replaceable.** A stub template (see
-[`notation_templates/nest/nevada.md`](../notation_templates/nest/nevada.md)) ships a real, tested flow with placeholder
-prose, and the prose is filled in later without touching the flow.
+workflow are the tested contract; the template body is replaceable.** A stub template (see the [Nevada entity-formation
+template](../notation_templates/united_states/nevada/state/business_associations/entity_formation.md)) ships a real,
+tested flow with placeholder prose, and the prose is filled in later without touching the flow.
 
 ## The four artifacts of one workflow
 

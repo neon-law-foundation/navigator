@@ -2,7 +2,7 @@
 //!
 //! The Spanish-language journey: a Spanish-speaking client walks the same
 //! entity-formation funnel an English speaker does — `/es`, `/es/services`,
-//! `/es/services/nest` (Neon Law Nest), `/es/foundation/mission` —
+//! `/es/services/nest` (Neon Law Nest), `/es/foundation` —
 //! entirely under the `/es` locale. It proves the transcreated copy
 //! carries the same flow (`project_i18n_spanish_phase1`). The
 //! questionnaire-in-Spanish tail is already covered by `intake_language`;

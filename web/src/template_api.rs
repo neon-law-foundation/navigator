@@ -1,8 +1,9 @@
-//! `GET /api/templates/:category/:name` — raw template markdown, served
+//! `GET /api/templates/*path` — raw template markdown, served
 //! inline so a reader on neonlaw.com sees the same bytes a git reader
 //! sees. This backs the repository README's template links (e.g.
-//! `notation_templates/nest/nevada.md`) without the `notation_templates/` tree leaving the
-//! workspace root: it is still `include_str!`-d by `store::seed` and
+//! `notation_templates/united_states/nevada/state/business_associations/entity_formation.md`)
+//! without the `notation_templates/` tree leaving the workspace root:
+//! it is still `include_str!`-d by `store::seed` and
 //! scanned by `cli validate`. Here `web` embeds the whole tree a second
 //! time, read-only, purely to serve it over HTTP.
 //!
@@ -20,40 +21,95 @@ use include_dir::{include_dir, Dir};
 /// at the workspace root.
 static TEMPLATES: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../notation_templates");
 
+const LEGACY_ALIASES: &[(&str, &str)] = &[
+    (
+        "annual_report/nevada",
+        "united_states/nevada/state/business_associations/annual_report",
+    ),
+    (
+        "nest/nevada",
+        "united_states/nevada/state/business_associations/entity_formation",
+    ),
+    (
+        "nonprofit/form990_annual_report",
+        "united_states/federal/irs/taxation/form990_annual_report",
+    ),
+    (
+        "nonprofit/nevada_501c3_formation",
+        "united_states/nevada/state/business_associations/nonprofit_501c3_formation",
+    ),
+    (
+        "nonprofit/nevada_charitable_solicitation_registration",
+        "united_states/nevada/state/business_associations/charitable_solicitation_registration",
+    ),
+    ("onboarding/retainer", "engagements/retainer"),
+];
+
+/// Canonical destination for old public links. Values are repository
+/// template paths without `.md`.
+#[must_use]
+pub fn legacy_alias(path: &str) -> Option<&'static str> {
+    LEGACY_ALIASES
+        .iter()
+        .find_map(|(old, new)| kebab_path_eq(path, old).then_some(*new))
+}
+
 /// Raw markdown for a non-confidential template, or `None` when the path
-/// is unknown, the template is confidential, or the segments could be a
+/// is unknown, the template is confidential, or the path could be a
 /// traversal attempt.
 #[must_use]
-pub fn find_raw(category: &str, name: &str) -> Option<&'static str> {
-    // A real category/name is a single path segment each. Reject empties
-    // and anything carrying a separator or a dot (`.`/`..`) so the lookup
-    // can never escape the embedded tree.
-    if [category, name]
-        .iter()
-        .any(|s| s.is_empty() || s.contains(['/', '\\', '.']))
-    {
+pub fn find_raw_path(path: &str) -> Option<&'static str> {
+    let path = legacy_alias(path).unwrap_or(path);
+    let parts: Vec<&str> = path.split('/').collect();
+    if !safe_parts(&parts) {
         return None;
     }
-    // URLs are kebab-case (the route redirects an underscore request to
-    // its hyphenated home first); the embedded tree keeps the on-disk
+
+    // URLs are kebab-case; the embedded tree keeps the on-disk
     // underscore names. Match by comparing the canonical kebab form of
-    // both sides — `_`→`-` is not invertible, so we resolve forward from
-    // the real names rather than guess a filename from the slug.
-    let (want_category, want_name) = (views::slug::to_url(category), views::slug::to_url(name));
-    let dir = TEMPLATES.dirs().find(|d| {
-        d.path()
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|n| views::slug::to_url(n) == want_category)
-    })?;
+    // each real path segment rather than guessing an underscore filename
+    // from the URL.
+    let (stem, dirs) = parts.split_last()?;
+    let mut dir = &TEMPLATES;
+    for want in dirs {
+        dir = dir.dirs().find(|d| {
+            d.path()
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| views::slug::to_url(n) == views::slug::to_url(want))
+        })?;
+    }
     let file = dir.files().find(|f| {
         f.path()
             .file_stem()
             .and_then(|s| s.to_str())
-            .is_some_and(|s| views::slug::to_url(s) == want_name)
+            .is_some_and(|s| views::slug::to_url(s) == views::slug::to_url(stem))
     })?;
     let raw = file.contents_utf8()?;
     is_public(raw).then_some(raw)
+}
+
+/// Compatibility wrapper for older two-segment callers.
+#[must_use]
+pub fn find_raw(category: &str, name: &str) -> Option<&'static str> {
+    find_raw_path(&format!("{category}/{name}"))
+}
+
+fn safe_parts(parts: &[&str]) -> bool {
+    !parts.is_empty()
+        && parts
+            .iter()
+            .all(|s| !s.is_empty() && !s.contains(['\\', '.']))
+}
+
+fn kebab_path_eq(a: &str, b: &str) -> bool {
+    let a_parts: Vec<&str> = a.split('/').collect();
+    let b_parts: Vec<&str> = b.split('/').collect();
+    a_parts.len() == b_parts.len()
+        && a_parts
+            .iter()
+            .zip(b_parts)
+            .all(|(left, right)| views::slug::to_url(left) == views::slug::to_url(right))
 }
 
 /// Just the `confidential` flag of a template's frontmatter.
@@ -88,13 +144,13 @@ fn frontmatter_block(raw: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::{find_raw, is_public};
+    use super::{find_raw, find_raw_path, is_public, legacy_alias};
 
     #[test]
     fn serves_a_non_confidential_template_verbatim() {
-        // nest/nevada is `confidential: false`, and the README links to
-        // it — the raw bytes must come back so the link resolves.
-        let raw = find_raw("nest", "nevada").expect("nest/nevada is public");
+        let raw =
+            find_raw_path("united-states/nevada/state/business-associations/entity-formation")
+                .expect("Nevada entity formation is public");
         assert!(raw.starts_with("---\n"), "served the raw markdown file");
         assert!(
             raw.contains("Nevada"),
@@ -107,18 +163,12 @@ mod tests {
         // The route serves kebab-case URLs; the embedded tree keeps the
         // on-disk underscore names. A kebab `name` segment must resolve to
         // its underscore file…
-        let by_kebab = find_raw("nonprofit", "form990-annual-report")
+        let by_kebab = find_raw_path("united-states/federal/irs/taxation/form990-annual-report")
             .expect("kebab name resolves to form990_annual_report.md");
         assert!(by_kebab.contains("Form 990"));
-        // …and so must a kebab `category` segment (`annual_report` →
-        // `annual-report`).
         assert!(
-            find_raw("annual-report", "nevada").is_some(),
-            "kebab category resolves to the annual_report/ folder"
+            find_raw_path("united_states/federal/irs/taxation/form990_annual_report").is_some()
         );
-        // The legacy underscore spellings still resolve (the route only
-        // redirects the browser; direct callers and tests keep working).
-        assert!(find_raw("nonprofit", "form990_annual_report").is_some());
     }
 
     #[test]
@@ -126,7 +176,7 @@ mod tests {
         // The retainer is `confidential: true` and must never be served
         // over the public API even though the path is valid.
         assert!(
-            find_raw("onboarding", "retainer").is_none(),
+            find_raw_path("engagements/retainer").is_none(),
             "confidential templates must 404"
         );
     }
@@ -138,10 +188,19 @@ mod tests {
 
     #[test]
     fn rejects_path_traversal_segments() {
-        assert!(find_raw("..", "nevada").is_none());
-        assert!(find_raw("nest", "../onboarding/retainer").is_none());
-        assert!(find_raw("nest/..", "nevada").is_none());
-        assert!(find_raw("", "nevada").is_none());
+        assert!(find_raw_path("../nevada").is_none());
+        assert!(find_raw_path("nest/../onboarding/retainer").is_none());
+        assert!(find_raw_path("nest/..").is_none());
+        assert!(find_raw_path("").is_none());
+    }
+
+    #[test]
+    fn legacy_two_segment_links_resolve_to_canonical_paths() {
+        assert_eq!(
+            legacy_alias("nest/nevada"),
+            Some("united_states/nevada/state/business_associations/entity_formation")
+        );
+        assert!(find_raw("nest", "nevada").is_some());
     }
 
     #[test]

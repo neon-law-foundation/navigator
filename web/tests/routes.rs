@@ -538,7 +538,9 @@ async fn navigator_serves_the_readme_under_foundation_brand() {
     assert!(body.contains(">Neon Law Navigator</h1>"));
     assert!(body.contains("cargo run -p cli -- start-dev-server"));
     // README links are retargeted onto site routes.
-    assert!(body.contains("href=\"/api/templates/nest/nevada\""));
+    assert!(body.contains(
+        "href=\"/api/templates/united-states/nevada/state/business-associations/entity-formation\""
+    ));
     assert!(body.contains("href=\"/docs/glossary#project\""));
     // The hub fans out to the per-package pages.
     assert!(body.contains("href=\"/foundation/navigator/cli\""));
@@ -645,7 +647,7 @@ async fn api_template_raw_serves_non_confidential_markdown_inline() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/api/templates/nest/nevada")
+                .uri("/api/templates/united-states/nevada/state/business-associations/entity-formation")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -665,7 +667,7 @@ async fn api_template_raw_serves_non_confidential_markdown_inline() {
     let confidential = app
         .oneshot(
             Request::builder()
-                .uri("/api/templates/onboarding/retainer")
+                .uri("/api/templates/engagements/retainer")
                 .body(Body::empty())
                 .unwrap(),
         )
