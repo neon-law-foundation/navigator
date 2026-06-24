@@ -132,34 +132,18 @@ gifski --fps 1.5 --quality 90 --width 1100 \
 `gifski` ships via `brew install gifski` (pair with `ffmpeg` if you'd rather record video and convert). Keep it short —
 3–6 beats — and let each frame land on a distinct state, so the reviewer reads the interaction, not filler.
 
-### 6. Publish a capture to the PR (the `pr-assets` branch)
+### 6. Share the capture
 
-GitHub only renders images it hosts, and `CLAUDE.md` forbids scratch in `main`'s tree — so captures ride a dedicated
-**non-merging** `pr-assets` orphan branch and the PR body embeds the raw URL. The branch shares no history with `main`
-and never merges, so `main` stays binary-free; on a public repo the raw URL renders (and animates) inline on the PR.
+The capture lives in `/tmp` (e.g. `/tmp/navigator-screenshots/footer.gif`). Surface it for review — `Read` the PNG/GIF
+so it renders inline in the agent session — and describe what it shows in the PR body's **Screenshots** section.
 
-```bash
-publish_capture() {           # publish_capture <local-file>  → echoes the raw URL to embed
-  local file="$1" branch slug owner_repo wt rc
-  branch=$(git branch --show-current)
-  slug="$branch/$(basename "$file")"
-  owner_repo=$(git remote get-url origin | sed -E 's#^.*[:/]([^/]+/[^/]+)$#\1#; s#\.git$##')  # fork-agnostic (BSD sed)
-  wt=$(mktemp -d)
-  if git ls-remote --exit-code --heads origin pr-assets >/dev/null 2>&1; then
-    git fetch -q origin pr-assets && git worktree add -q "$wt" -B pr-assets origin/pr-assets
-  else
-    git worktree add -q --detach "$wt"
-    ( cd "$wt" && git checkout -q --orphan pr-assets && git reset -q --hard && git clean -fdxq )
-  fi
-  mkdir -p "$wt/$(dirname "$slug")" && cp "$file" "$wt/$slug"
-  ( cd "$wt" && git add "$slug" && git commit -q -m "assets: $slug" && git push -q origin pr-assets ); rc=$?
-  git worktree remove --force "$wt" 2>/dev/null   # always clean up (success or push failure); portable, no trap
-  [ "$rc" -eq 0 ] || { echo "pr-assets push failed" >&2; return 1; }
-  echo "https://raw.githubusercontent.com/$owner_repo/pr-assets/$slug"
-}
-
-publish_capture /tmp/navigator-screenshots/footer.gif
-```
+**Do NOT commit captures to the repo, and do NOT create an image-hosting branch.** For an image to *render* on the
+github.com PR page it must be hosted by GitHub, and the only clean way is GitHub's native **user-attachments** —
+drag-and-drop the file into the PR description or a comment box in the web UI. That hosts it at a
+`user-attachments`/`user-images` URL with zero repo pollution. There is **no CLI/API** for that upload, so it is a
+manual step: capture and review programmatically, then drag-drop if you want the image to persist on the PR page. Avoid
+the tempting `pr-assets` orphan-branch trick — it works, but leaves a stray binary-accumulating branch on the remote
+that someone has to remember to delete.
 
 A bare push to `pr-assets` opens no PR, so `ci.yml` (which triggers only on `pull_request` to `main`) never runs on it.
 Embed the echoed URL as `![footer](<raw-url>)` — GitHub renders (and animates) it inline on a public repo.
@@ -183,5 +167,6 @@ cargo run --release -p cli -- down
 - Sourcing `.devx/env` and running `web` without `doppler run` — crash-loops on missing invariant secrets.
 - Trusting `--dump-dom` to confirm client JS ran — it doesn't execute load-event scripts.
 - Writing screenshots into the repo — they belong in `/tmp/navigator-screenshots/`.
-- Committing a capture onto `main` to embed it in a PR — push it to the non-merging `pr-assets` branch instead (§6).
+- Committing a capture into the repo (or an orphan `pr-assets` branch) to embed it in a PR — keep captures in `/tmp`;
+  drag-drop into the PR for GitHub-hosted rendering instead (§6).
 - Gating `cargo test` on KIND — tests get Postgres from testcontainers; the cluster is for *running* the app.

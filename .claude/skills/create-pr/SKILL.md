@@ -4,9 +4,8 @@ description: >
   One command — `/create-pr` — that turns a pile of uncommitted working-tree changes into a clean, reviewable pull
   request against `main`. It reads every change (staged, unstaged, and untracked), groups the files into logical units
   by blast radius (one concern per commit), writes a Conventional Commit for each group, then branches (if still on
-  `main`), captures a screenshot or interaction GIF of any user-visible change (published to the non-merging
-  `pr-assets` branch and embedded in the PR body), pushes, opens the PR with `gh pr create`, and enables auto-merge.
-  Trigger when the user says "/create-pr",
+  `main`), captures a screenshot or interaction GIF of any user-visible change (to `/tmp`, surfaced for review — never
+  committed), pushes, opens the PR with `gh pr create`, and enables auto-merge. Trigger when the user says "/create-pr",
   "create a PR", "open a pull request", "commit and PR these changes", "group these into commits and ship them", or has
   a dirty working tree they want landed. This is the COMMIT-GROUPING + PR front door; the build-and-deploy-to-prod flow
   is the separate [[power-push]] skill (run /create-pr first, let it merge, then power-push from `main`). Honors the
@@ -175,25 +174,25 @@ output land in `/tmp/navigator-screenshots/`, never the repo.
 
 ```bash
 # 1. Bring up deps + host web (web-preview §1–2), then capture (web-preview §3 screenshot or §5 GIF).
-# 2. Look at it yourself first — open the PNG/GIF and confirm it actually shows the change.
-# 3. Publish to the non-merging pr-assets branch and capture the raw URL (web-preview §6):
-URL=$(publish_capture /tmp/navigator-screenshots/footer.gif)   # → https://raw.githubusercontent.com/.../footer.gif
+# 2. Look at it yourself first — `Read` the PNG/GIF so it renders inline, and confirm it shows the change.
 ```
 
-The image rides the `pr-assets` orphan branch (binary-free `main`); on this public repo the raw URL renders and
-animates inline on the PR. Mechanics — the WebDriver+`gifski` recipe and `publish_capture` — live in [[web-preview]]
-(§5–6); this step just makes the visual **mandatory** and threads its URL into the PR body below.
+Surfacing it for review (step 2) is the load-bearing part — a human (or the next agent) sees the change before it
+merges. Keep the capture in `/tmp`; **do not commit it or create an image-hosting branch.** If you want the image to
+render on the github.com PR page, drag-drop the `/tmp` file into the PR description or a comment in the web UI — GitHub
+hosts it as a user-attachment with zero repo pollution (there is no CLI for that upload, so it is a manual step). See
+[[web-preview]] §5–6 for the WebDriver+`gifski` recipe and the sharing rules.
 
 ## Step 7 — Push and open the PR against `main`
 
 ```bash
 git push -u origin <branch>
-gh pr create --base main --title "<headline>" --body "$(cat <<EOF
+gh pr create --base main --title "<headline>" --body "$(cat <<'EOF'
 ## Summary
 - <one bullet per logical commit / concern>
 
 ## Screenshots
-![<caption>]($URL)
+- <describe what the capture shows; drag-drop the /tmp image here in the web UI if you want it to render>
 
 ## Test plan
 - <how it was verified: cargo test --workspace, KIND run, browser, etc.>
@@ -204,12 +203,10 @@ EOF
 ```
 
 The PR title is the headline for the whole change (often the dominant commit's subject). The body's Summary should read
-as one bullet per commit so a reviewer sees the grouping at a glance. The **Screenshots** section embeds the visual from
-Step 6 (drop the section only for a genuinely invisible change, and note why in the Test plan). The Test plan states
-what you actually ran — if you didn't run something, say so (the "no assumptions" rule from `CLAUDE.md`).
-
-> Heredoc note: this body uses an **unquoted** `EOF` so `$URL` expands. Keep the Summary/Test-plan text free of stray
-> backticks or `$` (or quote `EOF` and paste the URL in literally) so the shell doesn't try to expand them.
+as one bullet per commit so a reviewer sees the grouping at a glance. The **Screenshots** section describes the visual
+from Step 6 (drop it only for a genuinely invisible change, and note why in the Test plan); drag-drop the actual image
+into the PR afterward if you want it rendered. The Test plan states what you actually ran — if you didn't run something,
+say so (the "no assumptions" rule from `CLAUDE.md`).
 
 ## Step 8 — Enable auto-merge and report
 
