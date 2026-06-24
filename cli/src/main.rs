@@ -926,34 +926,30 @@ enum ListSubject {
 enum LiveTranscriptionAction {
     /// Transcribe an audio file or replay a transcript file, then emit
     /// Inquiry Coverage JSON for a notation template questionnaire.
-    Cover {
+    #[command(alias = "cover")]
+    Demo {
         /// Template markdown file whose `questionnaire:` becomes the
         /// Inquiry Set.
         #[arg(long, default_value = "templates/onboarding/estate.md")]
         template: PathBuf,
-        /// Plain-text transcript to replay without calling `OpenAI`.
+        /// Plain-text transcript to replay without calling speech-to-text.
         #[arg(long, conflicts_with = "audio")]
         transcript: Option<PathBuf>,
-        /// Audio file to send to `OpenAI` speech-to-text.
+        /// Audio file to send to Google Speech-to-Text.
         #[arg(long, conflicts_with = "transcript")]
         audio: Option<PathBuf>,
-        /// `OpenAI` transcription model.
-        #[arg(
-            long,
-            env = "OPENAI_TRANSCRIBE_MODEL",
-            default_value = "gpt-4o-transcribe"
-        )]
-        model: String,
-        /// `OpenAI` API base URL.
-        #[arg(
-            long,
-            env = "OPENAI_BASE_URL",
-            default_value = "https://api.openai.com/v1"
-        )]
-        api_base: String,
-        /// `OpenAI` API key. Required only with `--audio`.
-        #[arg(long, env = "OPENAI_API_KEY")]
-        api_key: Option<String>,
+        /// Google Cloud project for Speech-to-Text.
+        #[arg(long, env = "GOOGLE_CLOUD_PROJECT")]
+        google_project: Option<String>,
+        /// Google Speech-to-Text v2 location.
+        #[arg(long, default_value = "global")]
+        google_location: String,
+        /// BCP-47 language code for the audio.
+        #[arg(long, default_value = "en-US")]
+        google_language: String,
+        /// Google Speech-to-Text recognition model.
+        #[arg(long, default_value = "latest_long")]
+        google_model: String,
         /// Pretty-print the JSON output.
         #[arg(long)]
         pretty: bool,
@@ -1085,22 +1081,24 @@ fn devx_result(result: anyhow::Result<()>) -> ExitCode {
 
 async fn run_live_transcription(action: LiveTranscriptionAction) -> ExitCode {
     let result = match action {
-        LiveTranscriptionAction::Cover {
+        LiveTranscriptionAction::Demo {
             template,
             transcript,
             audio,
-            model,
-            api_base,
-            api_key,
+            google_project,
+            google_location,
+            google_language,
+            google_model,
             pretty,
         } => {
             live_transcription::cover(live_transcription::CoverArgs {
                 template,
                 transcript,
                 audio,
-                model,
-                api_base,
-                api_key,
+                google_project,
+                google_location,
+                google_language,
+                google_model,
                 pretty,
             })
             .await

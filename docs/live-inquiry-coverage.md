@@ -122,16 +122,16 @@ Notation workflow remains the authority for document generation, staff review, c
 The first executable slice is deliberately local and staff/developer-facing:
 
 ```bash
-cargo run -p cli -- live-transcription cover \
+cargo run -p cli -- live-transcription demo \
   --transcript /tmp/northstar-sitting.txt \
   --pretty
 ```
 
-That command reads a Template markdown file (defaulting to `templates/onboarding/estate.md`), normalizes its
-`questionnaire:` into an Inquiry Set, segments the transcript text, and emits JSON Coverage Findings with
-`evidence_segment_ids` and follow-up prompts. Passing `--audio <file>` calls OpenAI's speech-to-text endpoint using
-`OPENAI_API_KEY` and the `OPENAI_TRANSCRIBE_MODEL` override (default `gpt-4o-transcribe`) before running the same
-coverage pass.
+That command is a thin shell over the shared `live-inquiry` crate: it reads a Template markdown file (defaulting to
+`templates/onboarding/estate.md`), normalizes its `questionnaire:` into an Inquiry Set, segments the transcript text,
+and emits JSON Coverage Findings with `evidence_segment_ids` and follow-up prompts. Passing `--audio <file>` calls the
+Google Speech-to-Text v2 provider in `cloud` using Application Default Credentials and `GOOGLE_CLOUD_PROJECT` /
+`GCLOUD_PROJECT` (or `--google-project`) before running the same coverage pass.
 
 This probe is not the portal implementation and does not persist Project data. It is the local test harness for the
 contract above: prove audio/transcript input can become a transcript, prove Template Questions can become Inquiries, and
