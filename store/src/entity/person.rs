@@ -89,6 +89,9 @@ pub struct Model {
     /// existing/seeded person keeps the English experience. See
     /// `m20260623_add_intake_language`.
     pub preferred_language: String,
+    /// Optional public profile image URL. Used only on consented public
+    /// attribution surfaces such as testimonials.
+    pub profile_image_url: Option<String>,
     pub inserted_at: String,
     pub updated_at: String,
 }

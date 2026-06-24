@@ -13,7 +13,9 @@ use maud::{html, Markup, PreEscaped};
 
 use crate::assets::{self, Priority};
 use crate::brand::SiteBrand;
-use crate::components::{pricing_section, ExternalLink, PricingCard};
+use crate::components::{
+    pricing_section, testimonial_section, ExternalLink, PricingCard, TestimonialCard,
+};
 use crate::{i18n, AuthState, Locale, PageLayout};
 
 /// Where the pricing cards are spliced into the prose. Content authors
@@ -95,6 +97,9 @@ pub struct ServiceContent<'a> {
     /// dropdown; with the dropdown gone, each page keeps its own mark.
     /// `None` renders no icon (the Foundation product pages).
     pub icon: Option<&'a str>,
+    /// Public testimonials selected by the web layer for this service's
+    /// product code. Empty keeps the page on the no-proof path.
+    pub testimonials: &'a [TestimonialCard<'a>],
 }
 
 /// Render a service page in English (no declared twin).
@@ -169,6 +174,11 @@ pub fn render_in(
             }
             // 4. The short outline.
             (PreEscaped(&prose))
+            (testimonial_section(
+                "Client proof",
+                "Matter-linked testimonials approved for this service.",
+                content.testimonials,
+            ))
             // 5. The call to action — the firm's booking calendar (a
             //    mailto inbox on a Foundation product page).
             footer."text-center"."mt-4"."mt-lg-5" {
@@ -208,6 +218,7 @@ mod tests {
             brand: *FIRM_BRAND,
             cta_email: firm_email(),
             icon: None,
+            testimonials: &[],
         }
     }
 
