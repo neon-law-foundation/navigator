@@ -374,6 +374,7 @@ impl<'a> PageLayout<'a> {
                             a.link-secondary href="/api/docs" { "API" } " · "
                             a.link-secondary href="/contact" { "Contact" } " · "
                             a.link-secondary href="/blog" { "Blog" } " · "
+                            a.link-secondary href="/events" { "Events" } " · "
                             // The mission statement and the Foundation's free
                             // Nevada Revised Statutes reference ride the same link
                             // row as every other policy link — uniform short

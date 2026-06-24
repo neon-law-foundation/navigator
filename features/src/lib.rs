@@ -89,6 +89,7 @@ pub fn app_state_with_email(
         docs: web::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),
         blog: web::BlogIndex::empty(),
+        events: web::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: web::google_oauth::GoogleOauthConfig::passthrough(),
         rate_limit: web::rate_limit::RateLimit::disabled(),

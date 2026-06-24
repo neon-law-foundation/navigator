@@ -8,6 +8,7 @@ mod credentials;
 mod devx;
 mod drive;
 mod erd;
+mod events;
 mod format;
 mod forms_sync;
 mod git;
@@ -73,6 +74,17 @@ enum Command {
         /// environment variable.
         #[arg(long, env = "DATABASE_URL")]
         database_url: Option<String>,
+    },
+    /// Validate reviewable event markdown under `<dir>`.
+    ///
+    /// Event files mirror the blog convention (`YYYYMMDD_slug.md`) and
+    /// require structured front matter for title, description, local
+    /// Pacific start/end times, place, current external event provider,
+    /// and optional post-event video/recap links.
+    ValidateEvents {
+        /// Directory to walk.
+        #[arg(default_value = "web/content/events")]
+        dir: PathBuf,
     },
     /// Render a single notation template to a PDF, framed by an output
     /// format (a plain document, or a firm `letter` on Neon Law
@@ -968,6 +980,7 @@ fn main() -> ExitCode {
             fix,
             database_url.as_deref(),
         )),
+        Command::ValidateEvents { dir } => events::run_validate(&dir),
         Command::Render {
             file,
             out,

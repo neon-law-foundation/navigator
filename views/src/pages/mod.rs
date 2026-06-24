@@ -10,6 +10,7 @@ pub mod blog;
 pub mod contact;
 pub mod design;
 pub mod docs;
+pub mod events;
 pub mod home;
 pub mod lsp;
 pub mod mission;

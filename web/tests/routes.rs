@@ -78,6 +78,7 @@ async fn state_with_workshops(materials: Vec<WorkshopMaterial>) -> AppState {
         docs: web::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),
         blog: web::BlogIndex::empty(),
+        events: web::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: web::google_oauth::GoogleOauthConfig::passthrough(),
         rate_limit: web::rate_limit::RateLimit::disabled(),
@@ -448,6 +449,7 @@ async fn health_returns_503_when_db_is_down() {
         docs: web::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),
         blog: web::BlogIndex::empty(),
+        events: web::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: web::google_oauth::GoogleOauthConfig::passthrough(),
         rate_limit: web::rate_limit::RateLimit::disabled(),
@@ -4747,6 +4749,31 @@ fn blog_state_with_one_post() -> web::BlogIndex {
     }])
 }
 
+fn event_state_with_one_event() -> web::EventIndex {
+    web::EventIndex::new(vec![web::Event {
+        slug: "seattle-agentic-workflows-for-lawyers".into(),
+        date: chrono::NaiveDate::from_ymd_opt(2026, 7, 2).unwrap(),
+        title: "Agentic Workflows for Lawyers".into(),
+        description: "A practical AI workflow gathering.".into(),
+        body_html: "<p>Trade real stories and workflows.</p>".into(),
+        starts_at: chrono::NaiveDate::from_ymd_opt(2026, 7, 2)
+            .unwrap()
+            .and_hms_opt(11, 0, 0)
+            .unwrap(),
+        ends_at: chrono::NaiveDate::from_ymd_opt(2026, 7, 2)
+            .unwrap()
+            .and_hms_opt(15, 0, 0)
+            .unwrap(),
+        timezone: "America/Los_Angeles".into(),
+        location_name: "Private lounge".into(),
+        location_address: "1920 4th Ave, downtown Seattle".into(),
+        external_event_provider: "luma".into(),
+        external_event_url: "https://luma.com/k26256ut".into(),
+        video_url: None,
+        recap_url: None,
+    }])
+}
+
 #[tokio::test]
 async fn blog_index_lists_posts() {
     let mut state = empty_state().await;
@@ -4937,4 +4964,73 @@ async fn blog_kebab_slug_is_served_without_redirect() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn events_index_lists_events() {
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/events")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("Agentic Workflows for Lawyers"));
+    assert!(body.contains("href=\"/events/seattle-agentic-workflows-for-lawyers\""));
+    assert!(body.contains("July 2, 2026"));
+}
+
+#[tokio::test]
+async fn event_page_renders_rsvp_and_calendar_links() {
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/events/seattle-agentic-workflows-for-lawyers")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("Trade real stories and workflows."));
+    assert!(body.contains("href=\"https://luma.com/k26256ut\""));
+    assert!(body.contains("href=\"/events/seattle-agentic-workflows-for-lawyers/calendar.ics\""));
+}
+
+#[tokio::test]
+async fn event_ics_uses_pacific_timezone() {
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/events/seattle-agentic-workflows-for-lawyers/calendar.ics")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok()),
+        Some("text/calendar; charset=utf-8"),
+    );
+    let body = body_string(resp).await;
+    assert!(body.contains("DTSTART;TZID=America/Los_Angeles:20260702T110000"));
+    assert!(body.contains("DTEND;TZID=America/Los_Angeles:20260702T150000"));
+    assert!(body.contains("URL:https://luma.com/k26256ut"));
 }

@@ -43,6 +43,7 @@ url.workspace = true
 uuid.workspace = true
 views.workspace = true
 walkdir.workspace = true
+web.workspace = true
 webp.workspace = true
 
 [dev-dependencies]
@@ -51,7 +52,6 @@ axum.workspace = true
 predicates.workspace = true
 store = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
-web.workspace = true
 wiremock.workspace = true
 workflows.workspace = true
 
