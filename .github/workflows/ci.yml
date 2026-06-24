@@ -142,6 +142,7 @@ jobs:
           fail_ci_if_error: false
       - name: show sccache stats
         if: always()
+        continue-on-error: true
         run: |
           "${SCCACHE_PATH:-sccache}" --show-stats
 
