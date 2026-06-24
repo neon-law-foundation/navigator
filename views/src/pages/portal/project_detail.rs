@@ -245,7 +245,7 @@ mod tests {
     /// legitimately name GitHub and are identical on every page.
     fn main_body(html: &str) -> &str {
         let start = html.find("<main").expect("main present");
-        let end = html.find("</main>").expect("main close present");
+        let end = html.find("</main>").expect("main close present") + "</main>".len();
         &html[start..end]
     }
 
