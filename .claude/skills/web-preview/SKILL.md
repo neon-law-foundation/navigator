@@ -89,6 +89,62 @@ NAV_BASE_URL=http://localhost:3001 WEBDRIVER_URL=http://localhost:9515 \
   cargo test -p web --test browser_e2e -- --test-threads=1
 ```
 
+### 5. Record a GIF of real interaction
+
+A static screenshot proves a layout; a GIF proves *behavior* — a hover, a language switch, a count populating. Drive
+chromedriver over its HTTP wire protocol with `curl` (no committed non-Rust code — it's an ephemeral `/tmp` capture),
+snap a PNG frame after each action, then assemble with `gifski`. Frames and the GIF live under `/tmp`, never the repo.
+
+```bash
+mkdir -p /tmp/navigator-screenshots/frames && rm -f /tmp/navigator-screenshots/frames/*.png
+pgrep -x chromedriver >/dev/null || chromedriver --port=9515 &   # reuse if already up
+
+CD=http://localhost:9515
+SID=$(curl -s -X POST "$CD/session" -H 'Content-Type: application/json' -d '{"capabilities":{"alwaysMatch":\
+{"browserName":"chrome","goog:chromeOptions":{"args":["--headless=new","--hide-scrollbars",\
+"--window-size=1366,900","--force-device-scale-factor=1"]}}}}' | jq -r .value.sessionId)
+
+nav() { curl -s -X POST "$CD/session/$SID/url"          -d "{\"url\":\"$1\"}" >/dev/null; }
+js()  { curl -s -X POST "$CD/session/$SID/execute/sync" -d "{\"script\":\"$1\",\"args\":[]}" >/dev/null; }
+url() { curl -s "$CD/session/$SID/url" | jq -r .value; }
+# A real in-page click ($1 = selector), then wait for navigation to land ($2 =
+# substring the URL should reach). Dispatch via JS rather than the native
+# element-click endpoint: in practice the native click did not reliably fire
+# navigation on footer links, and JS .click() needs no `{}` POST body to forget.
+click(){ js "document.querySelector('$1').click()"
+  local i=0; until echo "$(url)" | grep -q "$2" || [ $i -ge 12 ]; do sleep 0.3; i=$((i+1)); done; }
+# Force instant scroll (CSS scroll-behavior:smooth otherwise races the shot)
+# and settle briefly before each frame so the footer is framed, not mid-scroll.
+foot(){ js "document.documentElement.style.scrollBehavior='auto';window.scrollTo(0,document.body.scrollHeight);"; }
+cap() { sleep 0.5; curl -s "$CD/session/$SID/screenshot" | jq -r .value | base64 --decode \
+  > "/tmp/navigator-screenshots/frames/$(printf '%03d' "$1").png"; }
+
+# One frame per beat — narrate the change the PR makes.
+nav "http://localhost:3001/";      cap 0   # top of page
+foot;                              cap 1   # scrolled to the English footer
+click ".language-switcher" "/es";  foot; cap 2   # one real click → Spanish footer + English-legal note
+curl -s -X DELETE "$CD/session/$SID" >/dev/null
+
+gifski --fps 1.5 --quality 90 --width 1100 \
+  -o /tmp/navigator-screenshots/footer.gif /tmp/navigator-screenshots/frames/*.png
+```
+
+`gifski` ships via `brew install gifski` (pair with `ffmpeg` if you'd rather record video and convert). Keep it short —
+3–6 beats — and let each frame land on a distinct state, so the reviewer reads the interaction, not filler.
+
+### 6. Share the capture
+
+The capture lives in `/tmp` (e.g. `/tmp/navigator-screenshots/footer.gif`). Surface it for review — `Read` the PNG/GIF
+so it renders inline in the agent session — and describe what it shows in the PR body's **Screenshots** section.
+
+**Do NOT commit captures to the repo, and do NOT create an image-hosting branch.** For an image to *render* on the
+github.com PR page it must be hosted by GitHub, and the only clean way is GitHub's native **user-attachments** —
+drag-and-drop the file into the PR description or a comment box in the web UI. That hosts it at a
+`user-attachments`/`user-images` URL with zero repo pollution. There is **no CLI/API** for that upload, so it is a
+manual step: capture and review programmatically, then drag-drop if you want the image to persist on the PR page. Avoid
+the tempting `pr-assets` orphan-branch trick — it works, but leaves a stray binary-accumulating branch on the remote
+that someone has to remember to delete.
+
 ## CSP gotcha (front-end JS)
 
 `web/src/api.rs` sets `Content-Security-Policy: … script-src 'self'` (no `'unsafe-inline'`). An inline
@@ -108,4 +164,6 @@ cargo run --release -p cli -- down
 - Sourcing `.devx/env` and running `web` without `doppler run` — crash-loops on missing invariant secrets.
 - Trusting `--dump-dom` to confirm client JS ran — it doesn't execute load-event scripts.
 - Writing screenshots into the repo — they belong in `/tmp/navigator-screenshots/`.
+- Committing a capture into the repo (or an orphan `pr-assets` branch) to embed it in a PR — keep captures in `/tmp`;
+  drag-drop into the PR for GitHub-hosted rendering instead (§6).
 - Gating `cargo test` on KIND — tests get Postgres from testcontainers; the cluster is for *running* the app.

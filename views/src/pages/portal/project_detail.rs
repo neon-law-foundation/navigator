@@ -239,6 +239,16 @@ mod tests {
     use super::{render, Detail};
     use uuid::Uuid;
 
+    /// The `<main>` body of a rendered page, excluding the shared chrome
+    /// (head + footer). The no-git-jargon guard scans only this — the head's
+    /// star-count script asset and the footer's open-source repo-star CTA
+    /// legitimately name GitHub and are identical on every page.
+    fn main_body(html: &str) -> &str {
+        let start = html.find("<main").expect("main present");
+        let end = html.find("</main>").expect("main close present") + "</main>".len();
+        &html[start..end]
+    }
+
     #[test]
     fn detail_renders_name_status_and_back_link() {
         let id = Uuid::now_v7();
@@ -327,7 +337,10 @@ mod tests {
         assert!(html.contains("Download all my documents"));
         assert!(html.contains(&format!("href=\"/portal/projects/{id}/documents.zip\"")));
         // The client never sees that documents are backed by a git repo.
-        let lower = html.to_lowercase();
+        // Scope the scan to the <main> body — the shared chrome legitimately
+        // names GitHub (the head's star-count script asset and the footer's
+        // open-source repo-star CTA) and is identical on every page.
+        let lower = main_body(&html).to_lowercase();
         for jargon in ["git", "clone", "branch", "packfile", "commit", "repository"] {
             assert!(
                 !lower.contains(jargon),
@@ -374,8 +387,9 @@ mod tests {
         )));
         assert!(html.contains("Delete this document"));
         assert!(html.contains("name=\"_csrf\" value=\"tok\""));
-        // Still no git jargon anywhere on the client surface.
-        let lower = html.to_lowercase();
+        // Still no git jargon on the client surface — scoped to the <main>
+        // body; the shared chrome legitimately names GitHub.
+        let lower = main_body(&html).to_lowercase();
         for jargon in [
             "git",
             "clone",

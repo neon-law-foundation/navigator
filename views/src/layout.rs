@@ -220,14 +220,11 @@ impl<'a> PageLayout<'a> {
                     // square grid crop never hides anyone. Inert unless a
                     // `.blog-collage` is present on the page.
                     script defer src="/public/js/collage-lightbox.js" {}
-                    @if self.auth == AuthState::Anonymous {
-                        // First-party: fills the footer GitHub CTA's star
-                        // count from the same-origin `/github-stars`
-                        // endpoint. Authenticated portal pages do not
-                        // render the public OSS CTA or its GitHub-named
-                        // asset, preserving their no-Git-jargon invariant.
-                        script defer src="/public/js/github-stars.js" {}
-                    }
+                    // First-party: fills the footer's repo-star CTA count
+                    // from the same-origin `/github-stars` endpoint. The
+                    // footer is one block on every page, signed-in or not,
+                    // so the script loads unconditionally.
+                    script defer src="/public/js/github-stars.js" {}
                 }
                 body {
                     header {
@@ -309,18 +306,30 @@ impl<'a> PageLayout<'a> {
                             }
                         }
                         // ONE terse footer, byte-identical on every page —
-                        // firm- and Foundation-branded alike. It is anchored on
-                        // `FIRM_BRAND`/`FOUNDATION_BRAND` constants, never
-                        // `self.brand`, so it never varies by page. Five lines:
-                        // (1) the registered "Neon Law" mark + Shook Law PLLC +
-                        // bar admissions, (2) both organizations, each linked
-                        // and with its own postal address, (3) the joint
-                        // copyright (firm AND Foundation) + policy links,
-                        // (4) the legal-advice disclaimer, (5) the mission line,
-                        // linking the shared mission statement at the very
-                        // bottom of every page. Gated on the canonical
-                        // registered mark so an OSS fork (no trademark URL)
-                        // shows only its own name.
+                        // firm- and Foundation-branded alike, signed-in or
+                        // anonymous. Anchored on the `FIRM_BRAND`/
+                        // `FOUNDATION_BRAND` constants, never `self.brand` or
+                        // `self.auth`, so it never varies by viewer. Order,
+                        // top to bottom:
+                        // (1) both organizations, each linked and with its own
+                        //     registered postal address;
+                        // (2) the registered "Neon Law" mark + Shook Law PLLC +
+                        //     bar admissions (the legal-services attribution);
+                        // (3) the legal-advice disclaimer;
+                        // (4) the joint copyright (firm AND Foundation) + the
+                        //     policy/mission/statutes link row;
+                        // (5) the deployed release stamp and the repo-star CTA,
+                        //     together on one line at the very bottom.
+                        // The mark is gated on the canonical registered
+                        // trademark so an OSS fork (no trademark URL) shows only
+                        // its own name.
+                        p.small."text-body-secondary"."mb-2" {
+                            a.link-secondary href="/" { (FIRM_BRAND.site_name) }
+                            " — " (FIRM_BRAND.postal_address)
+                            br;
+                            a.link-secondary href="/foundation" { (FOUNDATION_BRAND.site_name) }
+                            ", a 501(c)(3) — " (FOUNDATION_BRAND.postal_address)
+                        }
                         p.small."text-body-secondary"."mb-2" {
                             @if let Some(url) = FIRM_BRAND.trademark_registration_url {
                                 (ExternalLink::new(url)
@@ -353,14 +362,8 @@ impl<'a> PageLayout<'a> {
                             ))
                             "."
                         }
-                        // Both organizations, each linked, each with its own
-                        // registered postal address.
-                        p.small."text-body-secondary"."mb-2" {
-                            a.link-secondary href="/" { (FIRM_BRAND.site_name) }
-                            " — " (FIRM_BRAND.postal_address)
-                            br;
-                            a.link-secondary href="/foundation" { (FOUNDATION_BRAND.site_name) }
-                            ", a 501(c)(3) — " (FOUNDATION_BRAND.postal_address)
+                        p.firm-disclaimer.small."text-body-secondary"."mb-2" {
+                            (firm_disclaimer())
                         }
                         p.small."text-body-secondary"."mb-2" {
                             // Joint copyright: the codebase and the words on it
@@ -399,35 +402,33 @@ impl<'a> PageLayout<'a> {
                                 }
                             }
                         }
-                        p.firm-disclaimer.small."text-body-secondary"."mb-0" {
-                            (firm_disclaimer())
-                        }
-                        // Deployed-release stamp — the `YY.MM.DD` ghcr tag this
-                        // image was published under (same value as `/version`'s
-                        // `release`). Makes a push verifiable from the page
-                        // itself: ship a new image and this line changes. Links
-                        // to the matching GitHub release tag when the repo URL is
-                        // known. Hidden on local dev, where the tag is unset.
-                        @if let Some(release) = deployed_release() {
-                            p.small."text-body-secondary"."mt-2"."mb-0" {
+                        // Bottom line: the Navigator version and the repo-star
+                        // CTA share one row, and a version ALWAYS shows. In a
+                        // deployed image it is the `YY.MM.DD` ghcr tag this
+                        // build shipped under (same value as `/version`'s
+                        // `release`), linked to the matching GitHub release so
+                        // a push is verifiable from the page itself. On a local
+                        // `cargo run` the tag is unset, so it falls back to the
+                        // crate's semantic version (unlinked — there is no
+                        // release tag to point at) so the footer never renders
+                        // version-less. The star CTA always shows too — same
+                        // footer on every page.
+                        div."mt-3"."d-flex"."flex-wrap"."align-items-center"."gap-3" {
+                            @if let Some(release) = deployed_release() {
                                 (external_link_with_class(
                                     &format!("{}/releases/tag/{release}", foundation_github_url()),
-                                    "link-secondary text-decoration-none",
+                                    "link-secondary text-decoration-none small",
                                     html! { "Navigator " (release) },
                                 ))
+                            } @else {
+                                span."small"."text-body-secondary" {
+                                    "Navigator " (env!("CARGO_PKG_VERSION"))
+                                }
                             }
-                        }
-                        // Public visitors can star the OSS project; signed-in
-                        // portal pages stay free of Git/GitHub jargon. Keep it
-                        // at the very bottom so the legal/footer links read
-                        // first and the repo CTA closes the page.
-                        @if self.auth == AuthState::Anonymous {
-                            div."mt-3" {
-                                (github_star_button(
-                                    foundation_github_url(),
-                                    &i18n::t(self.locale, "footer.github_star"),
-                                ))
-                            }
+                            (github_star_button(
+                                foundation_github_url(),
+                                &i18n::t(self.locale, "footer.github_star"),
+                            ))
                         }
                     }
                 }
@@ -879,50 +880,156 @@ mod tests {
         );
     }
 
-    #[test]
-    fn footer_carries_copyright_and_links_policies() {
-        let out = render("Home", &html! { p { "x" } });
-        // Joint copyright: the line names BOTH the firm and the
-        // Foundation as owners, not the firm alone.
-        let expected = format!(
-            "© 2026 {} &amp; {}",
-            FIRM_BRAND.site_name, FOUNDATION_BRAND.site_name
-        );
-        assert!(out.contains(&expected), "got: {out}");
-        assert!(out.contains("href=\"/privacy\""));
-        assert!(out.contains("href=\"/terms\""));
+    /// The `<footer>…</footer>` slice of a rendered page — every footer
+    /// test scopes its assertions here so page chrome above never leaks in.
+    fn footer_of(html: &str) -> &str {
+        let start = html.find("<footer").expect("footer present");
+        let end = html.find("</footer>").expect("footer close present") + "</footer>".len();
+        &html[start..end]
+    }
+
+    /// The footer of a default firm-branded page (anonymous, English).
+    fn firm_footer() -> String {
+        footer_of(&render("Home", &html! { p { "x" } })).to_owned()
+    }
+
+    /// The footer of a Foundation-branded page — the footer is one shared
+    /// block, so this differs from `firm_footer()` only where the brand
+    /// constants legitimately differ (title, nav), never in footer content.
+    fn foundation_footer() -> String {
+        let out = PageLayout::new("Mission")
+            .with_brand(*FOUNDATION_BRAND)
+            .render(&html! { p { "x" } })
+            .into_string();
+        footer_of(&out).to_owned()
     }
 
     #[test]
-    fn footer_links_the_blog() {
-        let out = render("Home", &html! { p { "x" } });
-        assert!(out.contains("href=\"/blog\""), "got: {out}");
-        assert!(out.contains(">Blog</a>"), "got: {out}");
+    fn footer_carries_required_links_and_text_on_both_brands() {
+        // One shared footer: every required link, address, line, and the
+        // repo-star CTA render identically whether the page is firm- or
+        // Foundation-branded. The ®/Shook attribution is fork-gated and
+        // lives in its own test below.
+        for (brand, footer) in [("firm", firm_footer()), ("foundation", foundation_footer())] {
+            // Brand-independent structure: policy/nav link row, bar-admission
+            // strip with each state linked, disclaimer, repo-star CTA.
+            for needle in [
+                "href=\"/\"",
+                "href=\"/privacy\"",
+                "href=\"/terms\"",
+                "href=\"/docs\"",
+                "href=\"/api/docs\"",
+                "href=\"/contact\"",
+                "href=\"/blog\"",
+                "href=\"/events\"",
+                "href=\"/foundation\"",
+                "href=\"/statutes\"",
+                ">Blog</a>",
+                ">Mission</a>",
+                ">Statutes</a>",
+                "Admitted in",
+                "apps.calbar.ca.gov/attorney/Licensee/Detail/337252",
+                "mywsba.org/PersonifyEbusiness/LegalDirectory/LegalProfile.aspx?Usr_ID=000000063446",
+                "nvbar.org/find-a-lawyer/?usearch=13400",
+                "Nothing on this site is legal advice",
+                "signed retainer",
+                "bi-star-fill",
+                "data-github-star-count",
+                "rel=\"noopener noreferrer\"",
+            ] {
+                assert!(footer.contains(needle), "{brand} footer missing {needle:?}: {footer}");
+            }
+            // Brand-derived: both organizations named, both registered postal
+            // addresses, the joint copyright, the configured repo URL. Uses
+            // the constants so a rebranded fork stays green.
+            for needle in [
+                FIRM_BRAND.site_name,
+                FOUNDATION_BRAND.site_name,
+                FIRM_BRAND.postal_address,
+                FOUNDATION_BRAND.postal_address,
+            ] {
+                assert!(
+                    footer.contains(needle),
+                    "{brand} footer missing {needle:?}: {footer}"
+                );
+            }
+            let copyright = format!(
+                "© 2026 {} &amp; {}",
+                FIRM_BRAND.site_name, FOUNDATION_BRAND.site_name
+            );
+            assert!(
+                footer.contains(&copyright),
+                "{brand} footer missing copyright {copyright:?}: {footer}"
+            );
+            assert!(
+                footer.contains(&format!("href=\"{}\"", foundation_github_url())),
+                "{brand} footer should link the configured repo: {footer}"
+            );
+        }
     }
 
     #[test]
-    fn footer_renders_github_star_cta_when_repo_is_configured() {
-        let repo_url = foundation_github_url();
-        let out = render("Home", &html! { p { "x" } });
-        let footer_idx = out.find("<footer").expect("footer present");
-        let footer = &out[footer_idx..];
+    fn footer_marks_the_neon_law_wordmark_and_attributes_to_shook_law() {
+        // The registered "NEON LAW" wordmark carries ®, links to the USPTO
+        // record, and attributes the legal services to Shook Law PLLC — on
+        // both firm- and Foundation-branded pages (one shared footer). Skip
+        // on a rebranded fork: with no trademark URL the `@else` branch shows
+        // a bare name and neither the ® nor the attribution renders.
+        if std::env::var("NAVIGATOR_BRAND_FIRM").is_ok() {
+            return;
+        }
+        for (brand, footer) in [("firm", firm_footer()), ("foundation", foundation_footer())] {
+            for needle in [
+                "<sup>®</sup>",
+                "tmsearch.uspto.gov/search/search-results/90039224",
+                "legal services rendered by Shook Law PLLC",
+            ] {
+                assert!(
+                    footer.contains(needle),
+                    "{brand} footer missing {needle:?}: {footer}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn footer_sections_render_top_to_bottom_in_order() {
+        // The reorder this footer now ships: postal addresses → legal-
+        // services attribution → legal-advice disclaimer → joint copyright →
+        // release/star CTA. Each marker is unique within the footer.
+        let footer = firm_footer();
+        let pos = |needle: &str| {
+            footer
+                .find(needle)
+                .unwrap_or_else(|| panic!("missing {needle:?}: {footer}"))
+        };
+        let addresses = pos(FIRM_BRAND.postal_address);
+        let attribution = pos("Admitted in");
+        let disclaimer = pos("Nothing on this site is legal advice");
+        let copyright = pos("© 2026");
+        let star_cta = pos("bi-star-fill");
         assert!(
-            footer.contains(&format!("href=\"{repo_url}\"")),
-            "footer should link the configured GitHub repo: {footer}"
+            addresses < attribution
+                && attribution < disclaimer
+                && disclaimer < copyright
+                && copyright < star_cta,
+            "footer order should be addresses < attribution < disclaimer < copyright < star, \
+             got addresses={addresses} attribution={attribution} disclaimer={disclaimer} \
+             copyright={copyright} star={star_cta}: {footer}"
         );
-        assert!(footer.contains("bi-star-fill"), "{footer}");
+    }
+
+    #[test]
+    fn footer_always_shows_a_navigator_version() {
+        // A version renders in EVERY environment so the footer is never
+        // version-less (and shows in screenshots/previews): the deployed
+        // YY.MM.DD release tag in prod, or the crate's semantic version on a
+        // local `cargo run` where the tag is unset.
+        let footer = firm_footer();
+        let version = crate::brand::deployed_release().unwrap_or(env!("CARGO_PKG_VERSION"));
         assert!(
-            footer.contains(">Star Neon Law Navigator</span>"),
-            "{footer}"
-        );
-        assert!(footer.contains("data-github-star-count"), "{footer}");
-        assert!(footer.contains("rel=\"noopener noreferrer\""), "{footer}");
-        assert!(
-            footer.find("firm-disclaimer").expect("disclaimer present")
-                < footer
-                    .find("data-github-star-label")
-                    .expect("github CTA present"),
-            "GitHub CTA should sit at the bottom of the footer: {footer}"
+            footer.contains(&format!("Navigator {version}")),
+            "footer should always carry a Navigator version line: {footer}"
         );
     }
 
@@ -940,7 +1047,9 @@ mod tests {
     }
 
     #[test]
-    fn authenticated_footer_omits_github_star_cta() {
+    fn authenticated_footer_carries_the_same_github_star_cta() {
+        // One footer everywhere: signed-in pages carry the identical
+        // repo-star CTA (and its count script) as anonymous pages.
         let out = PageLayout::new("Portal")
             .with_auth(super::AuthState::Authenticated)
             .render(&html! { p { "x" } })
@@ -948,305 +1057,32 @@ mod tests {
         let footer_idx = out.find("<footer").expect("footer present");
         let footer = &out[footer_idx..];
         assert!(
-            !footer.contains("GitHub") && !footer.contains("bi-star-fill"),
-            "authenticated footer should avoid public GitHub CTA: {footer}"
+            footer.contains("bi-star-fill") && footer.contains("data-github-star-count"),
+            "authenticated footer should carry the repo-star CTA: {footer}"
         );
         assert!(
-            !out.contains("/public/js/github-stars.js"),
-            "authenticated pages should not load the public GitHub CTA script: {out}"
-        );
-    }
-
-    #[test]
-    fn footer_links_the_mission_at_the_bottom_on_every_brand() {
-        // "Add the Mission to the bottom": every page — firm- and
-        // Foundation-branded alike — closes with the mission line,
-        // linking the shared statement at /foundation.
-        for (name, out) in [
-            ("firm", render("Home", &html! { p { "x" } })),
-            (
-                "foundation",
-                PageLayout::new("Mission")
-                    .with_brand(*FOUNDATION_BRAND)
-                    .render(&html! { p { "x" } })
-                    .into_string(),
-            ),
-        ] {
-            assert!(
-                out.contains("href=\"/foundation\""),
-                "{name} footer should link the mission statement, got: {out}"
-            );
-            assert!(
-                out.contains(">Mission</a>"),
-                "{name} footer should label the mission link, got: {out}"
-            );
-        }
-    }
-
-    #[test]
-    fn footer_links_the_public_statutes_reference_on_every_brand() {
-        // The Foundation's free NRS reference is reachable from the footer
-        // (text-only, labelled as reference) on firm- and Foundation-branded
-        // pages alike — its only discoverability surface site-wide.
-        for (name, out) in [
-            ("firm", render("Home", &html! { p { "x" } })),
-            (
-                "foundation",
-                PageLayout::new("Mission")
-                    .with_brand(*FOUNDATION_BRAND)
-                    .render(&html! { p { "x" } })
-                    .into_string(),
-            ),
-        ] {
-            assert!(
-                out.contains("href=\"/statutes\""),
-                "{name} footer should link the public statutes reference, got: {out}"
-            );
-            assert!(
-                out.contains(">Statutes</a>"),
-                "{name} footer should label the statutes link, got: {out}"
-            );
-        }
-    }
-
-    #[test]
-    fn footer_carries_both_firm_and_foundation_postal_addresses() {
-        // The unified footer prints BOTH registered mailing addresses on
-        // every page — the firm's (suite 405-9002) and the Foundation's
-        // (suite 405-9999) — regardless of which brand the page is.
-        for (name, out) in [
-            ("firm", render("Home", &html! { p { "x" } })),
-            (
-                "foundation",
-                PageLayout::new("Mission")
-                    .with_brand(*FOUNDATION_BRAND)
-                    .render(&html! { p { "x" } })
-                    .into_string(),
-            ),
-        ] {
-            assert!(
-                out.contains(FIRM_BRAND.postal_address),
-                "{name} footer should print the firm postal address, got: {out}"
-            );
-            assert!(
-                out.contains(FOUNDATION_BRAND.postal_address),
-                "{name} footer should print the Foundation postal address, got: {out}"
-            );
-        }
-    }
-
-    #[test]
-    fn firm_footer_links_to_contact_and_foundation_brand() {
-        let out = render("Home", &html! { p { "x" } });
-        assert!(
-            out.contains("href=\"/contact\""),
-            "firm footer needs Contact link"
-        );
-        assert!(
-            out.contains("href=\"/foundation\""),
-            "firm footer needs Foundation brand-switch"
-        );
-    }
-
-    #[test]
-    fn firm_footer_marks_brand_name_with_linked_registered_trademark() {
-        // Skip when a fork has rebranded the firm — the linked ® only
-        // attaches to NeonLaw's registered "NEON LAW" wordmark.
-        if std::env::var("NAVIGATOR_BRAND_FIRM").is_ok() {
-            return;
-        }
-        let out = render("Home", &html! { p { "x" } });
-        let footer_idx = out.find("<footer").expect("footer present");
-        let footer = &out[footer_idx..];
-        assert!(
-            footer.contains("tmsearch.uspto.gov/search/search-results/90039224"),
-            "firm footer should link the ® to the USPTO record: {footer}"
-        );
-        assert!(
-            footer.contains("<sup>®</sup>"),
-            "firm footer should render the registered-trademark symbol: {footer}"
+            out.contains("/public/js/github-stars.js"),
+            "authenticated pages should load the star-count script: {out}"
         );
     }
 
     #[test]
     fn foundation_footer_omits_registered_trademark_on_its_own_name() {
         // "Neon Law Foundation" is not the registered mark — only the
-        // firm's "NEON LAW" wordmark is — so the Foundation's own
-        // brand name (carried in the "© 2026 …" line) must not pick up
-        // the ® / USPTO link. The "Neon Law® — legal services rendered
-        // by Shook Law PLLC" attribution is a separate, intentional line
-        // (see `footer_attributes_neon_law_mark_to_shook_law_pllc`).
-        let out = PageLayout::new("Mission")
-            .with_brand(*FOUNDATION_BRAND)
-            .render(&html! { p { "x" } })
-            .into_string();
-        let footer_idx = out.find("<footer").expect("footer present");
-        let footer = &out[footer_idx..];
-        // The Foundation's name appears first as the copyright owner on
-        // the top brand line; the text up to the address separator must
-        // carry no registered-trademark mark.
-        let owner = FOUNDATION_BRAND.site_name;
-        let after_owner =
-            &footer[footer.find(owner).expect("foundation owner in footer") + owner.len()..];
-        let brand_line = &after_owner[..after_owner.find(" · ").unwrap_or(after_owner.len())];
+        // firm's "NEON LAW" wordmark is — so the Foundation's own brand
+        // name must never pick up the ® / USPTO link. The "Neon Law® —
+        // legal services rendered by Shook Law PLLC" attribution is a
+        // separate, intentional line (see
+        // `footer_marks_the_neon_law_wordmark_and_attributes_to_shook_law`).
+        let footer = foundation_footer();
         assert!(
-            !brand_line.contains("uspto.gov") && !brand_line.contains("®"),
-            "Foundation brand name must not carry a ® mark: {brand_line}"
+            !footer.contains(&format!("{}<sup>®</sup>", FOUNDATION_BRAND.site_name)),
+            "Foundation brand name must not carry a ® mark: {footer}"
         );
-    }
-
-    #[test]
-    fn footer_attributes_neon_law_mark_to_shook_law_pllc() {
-        // Every footer — firm- or Foundation-branded — leads with the
-        // "Neon Law" mark attributed to the firm that renders the legal
-        // services behind it (address on the line beneath). Skip when a
-        // fork has rebranded the firm (the attribution rides on NeonLaw's
-        // registered mark).
-        if std::env::var("NAVIGATOR_BRAND_FIRM").is_ok() {
-            return;
-        }
-        for (name, out) in [
-            ("firm", render("Home", &html! { p { "x" } })),
-            (
-                "foundation",
-                PageLayout::new("Mission")
-                    .with_brand(*FOUNDATION_BRAND)
-                    .render(&html! { p { "x" } })
-                    .into_string(),
-            ),
-        ] {
-            let footer_idx = out.find("<footer").expect("footer present");
-            let footer = &out[footer_idx..];
-            assert!(
-                footer.contains("legal services rendered by Shook Law PLLC"),
-                "{name} footer should attribute legal services to Shook Law PLLC: {footer}"
-            );
-            assert!(
-                footer.contains("<sup>®</sup>"),
-                "{name} footer attribution should carry the registered-trademark symbol: {footer}"
-            );
-        }
-    }
-
-    #[test]
-    fn firm_footer_carries_bar_admission_strip_with_each_state_linked() {
-        let out = render("Home", &html! { p { "x" } });
-        let footer_idx = out.find("<footer").expect("footer present");
-        let footer = &out[footer_idx..];
         assert!(
-            footer.contains("Admitted in"),
-            "firm footer needs bar-admissions strip: {footer}"
+            !footer.contains(&format!(">{}<sup>", FOUNDATION_BRAND.site_name)),
+            "Foundation brand name must not be ®-marked: {footer}"
         );
-        // California → confirmed Cal Bar profile (#337252, Nicholas R. Shook).
-        assert!(
-            footer.contains("apps.calbar.ca.gov/attorney/Licensee/Detail/337252"),
-            "California admission should link to the Cal Bar profile"
-        );
-        // Washington → WSBA Legal Directory profile (Nicholas R. Shook).
-        assert!(
-            footer.contains(
-                "mywsba.org/PersonifyEbusiness/LegalDirectory/LegalProfile.aspx?Usr_ID=000000063446"
-            ),
-            "Washington admission should link to the WSBA attorney profile"
-        );
-        // Nevada → State Bar of Nevada profile (Bar No. 13400, Nicholas R. Shook).
-        assert!(
-            footer.contains("nvbar.org/find-a-lawyer/?usearch=13400"),
-            "Nevada admission should link to the State Bar of Nevada profile for bar #13400"
-        );
-    }
-
-    #[test]
-    fn footer_is_unified_and_carries_bar_strip_on_foundation_pages() {
-        // The footer is now one shared block: every page — including
-        // Foundation-branded ones — carries the firm's bar-admission strip.
-        let out = PageLayout::new("Mission")
-            .with_brand(*FOUNDATION_BRAND)
-            .render(&html! { p { "x" } })
-            .into_string();
-        let footer_idx = out.find("<footer").expect("footer present");
-        let footer = &out[footer_idx..];
-        assert!(
-            footer.contains("Admitted in"),
-            "unified footer should carry the bar-admission strip on every page: {footer}"
-        );
-    }
-
-    #[test]
-    fn footer_names_both_neon_law_and_the_foundation_with_links() {
-        // "Talk about Neon Law and Neon Law Foundation on all the pages":
-        // every footer links both the firm root and the Foundation, and
-        // carries exactly one Contact link.
-        for (name, out) in [
-            ("firm", render("Home", &html! { p { "x" } })),
-            (
-                "foundation",
-                PageLayout::new("Mission")
-                    .with_brand(*FOUNDATION_BRAND)
-                    .render(&html! { p { "x" } })
-                    .into_string(),
-            ),
-        ] {
-            let footer_idx = out.find("<footer").expect("footer present");
-            let footer = &out[footer_idx..];
-            assert!(
-                footer.contains("href=\"/\""),
-                "{name} footer should link the firm root"
-            );
-            assert!(
-                footer.contains("href=\"/foundation\""),
-                "{name} footer should link the Foundation"
-            );
-            assert!(
-                footer.contains("href=\"/contact\""),
-                "{name} footer should carry one Contact link"
-            );
-            assert!(
-                footer.contains(FOUNDATION_BRAND.site_name),
-                "{name} footer should name the Foundation"
-            );
-        }
-    }
-
-    #[test]
-    fn both_brand_footers_link_to_docs() {
-        let firm = render("Home", &html! { p { "x" } });
-        let foundation = PageLayout::new("Mission")
-            .with_brand(*FOUNDATION_BRAND)
-            .render(&html! { p { "x" } })
-            .into_string();
-        for (name, out) in [("firm", &firm), ("foundation", &foundation)] {
-            let footer_idx = out.find("<footer").expect("footer present");
-            let footer = &out[footer_idx..];
-            assert!(
-                footer.contains("href=\"/docs\""),
-                "{name} footer missing documentation index link"
-            );
-            assert!(
-                footer.contains("href=\"/api/docs\""),
-                "{name} footer missing API documentation link"
-            );
-        }
-    }
-
-    #[test]
-    fn legal_advice_disclaimer_renders_on_every_page() {
-        // Unified footer: the legal-advice disclaimer now shows on
-        // Foundation-branded pages too, not just firm pages.
-        let firm = PageLayout::new("Home")
-            .render(&html! { p { "x" } })
-            .into_string();
-        let foundation = PageLayout::new("Mission")
-            .with_brand(*FOUNDATION_BRAND)
-            .render(&html! { p { "x" } })
-            .into_string();
-        for (name, out) in [("firm", &firm), ("foundation", &foundation)] {
-            assert!(
-                out.contains("Nothing on this site is legal advice"),
-                "{name} footer missing legal-advice disclaimer: {out}"
-            );
-            assert!(out.contains("signed retainer"), "{name} footer: {out}");
-        }
     }
 
     #[test]
