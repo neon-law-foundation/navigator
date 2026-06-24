@@ -30,11 +30,8 @@ mod tests {
 
     #[test]
     fn github_star_button_links_to_repo_safely() {
-        let html = github_star_button(
-            "https://github.com/example/repo",
-            "Star The Neon Law Navigator",
-        )
-        .into_string();
+        let html = github_star_button("https://github.com/example/repo", "Star Neon Law Navigator")
+            .into_string();
         assert!(
             html.contains("href=\"https://github.com/example/repo\""),
             "{html}"
@@ -45,17 +42,11 @@ mod tests {
 
     #[test]
     fn github_star_button_renders_star_and_label() {
-        let html = github_star_button(
-            "https://github.com/example/repo",
-            "Star The Neon Law Navigator",
-        )
-        .into_string();
+        let html = github_star_button("https://github.com/example/repo", "Star Neon Law Navigator")
+            .into_string();
         assert!(html.contains("bi-star-fill"), "{html}");
         assert!(html.contains("aria-hidden=\"true\""), "{html}");
-        assert!(
-            html.contains(">Star The Neon Law Navigator</span>"),
-            "{html}"
-        );
+        assert!(html.contains(">Star Neon Law Navigator</span>"), "{html}");
         assert!(html.contains("data-github-star-count"), "{html}");
         assert!(html.contains("hidden"), "{html}");
     }

@@ -292,18 +292,6 @@ impl<'a> PageLayout<'a> {
                     }
                     main.container."py-4" { (body) }
                     footer.container."py-4"."border-top"."mt-4" {
-                        // Public visitors can star the OSS project; signed-in
-                        // portal pages stay free of Git/GitHub jargon.
-                        @if self.auth == AuthState::Anonymous {
-                            @if let Some(repo_url) = foundation_github_url() {
-                            div."mb-3" {
-                                (github_star_button(
-                                    repo_url,
-                                    &i18n::t(self.locale, "footer.github_star"),
-                                ))
-                            }
-                            }
-                        }
                         // On a localized page the legal strip below — bar
                         // admissions and the legal-advice disclaimer — stays
                         // English by policy: the binding artifact a client
@@ -390,7 +378,7 @@ impl<'a> PageLayout<'a> {
                             // Nevada Revised Statutes reference ride the same link
                             // row as every other policy link — uniform short
                             // labels, no separate trailing line.
-                            a.link-secondary href="/foundation/mission" { "Mission" } " · "
+                            a.link-secondary href="/foundation" { "Mission" } " · "
                             a.link-secondary href="/statutes" { "Statutes" }
                             // One-tap language switcher — only on pages with a
                             // translated twin. Rides the same policy-link row as
@@ -421,15 +409,23 @@ impl<'a> PageLayout<'a> {
                         // known. Hidden on local dev, where the tag is unset.
                         @if let Some(release) = deployed_release() {
                             p.small."text-body-secondary"."mt-2"."mb-0" {
-                                @if let Some(repo) = foundation_github_url() {
-                                    (external_link_with_class(
-                                        &format!("{repo}/releases/tag/{release}"),
-                                        "link-secondary text-decoration-none",
-                                        html! { "Navigator " (release) },
-                                    ))
-                                } @else {
-                                    "Navigator " (release)
-                                }
+                                (external_link_with_class(
+                                    &format!("{}/releases/tag/{release}", foundation_github_url()),
+                                    "link-secondary text-decoration-none",
+                                    html! { "Navigator " (release) },
+                                ))
+                            }
+                        }
+                        // Public visitors can star the OSS project; signed-in
+                        // portal pages stay free of Git/GitHub jargon. Keep it
+                        // at the very bottom so the legal/footer links read
+                        // first and the repo CTA closes the page.
+                        @if self.auth == AuthState::Anonymous {
+                            div."mt-3" {
+                                (github_star_button(
+                                    foundation_github_url(),
+                                    &i18n::t(self.locale, "footer.github_star"),
+                                ))
                             }
                         }
                     }
@@ -499,8 +495,8 @@ mod tests {
         );
         // Navbar chrome is translated; auth link too.
         assert!(
-            out.contains(">La Fundación</a>"),
-            "nav 'The Foundation' should be 'La Fundación': {out}"
+            out.contains(">Fundación</a>"),
+            "nav 'Foundation' should be 'Fundación': {out}"
         );
         assert!(
             out.contains(">Servicios</a>"),
@@ -765,7 +761,7 @@ mod tests {
         assert!(
             nav.starts_with(
                 "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/foundation\">\
-                 The Foundation</a></li>"
+                 Foundation</a></li>"
             ),
             "firm navbar should start with the Foundation cross-link, got: {nav}"
         );
@@ -787,7 +783,7 @@ mod tests {
             .1;
         assert!(
             nav.starts_with(
-                "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/\">The Firm</a></li>"
+                "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/\">Firm</a></li>"
             ),
             "Foundation navbar should start with the firm cross-link, got: {nav}"
         );
@@ -905,9 +901,7 @@ mod tests {
 
     #[test]
     fn footer_renders_github_star_cta_when_repo_is_configured() {
-        let Some(repo_url) = foundation_github_url() else {
-            return;
-        };
+        let repo_url = foundation_github_url();
         let out = render("Home", &html! { p { "x" } });
         let footer_idx = out.find("<footer").expect("footer present");
         let footer = &out[footer_idx..];
@@ -917,25 +911,29 @@ mod tests {
         );
         assert!(footer.contains("bi-star-fill"), "{footer}");
         assert!(
-            footer.contains(">Star The Neon Law Navigator</span>"),
+            footer.contains(">Star Neon Law Navigator</span>"),
             "{footer}"
         );
         assert!(footer.contains("data-github-star-count"), "{footer}");
         assert!(footer.contains("rel=\"noopener noreferrer\""), "{footer}");
+        assert!(
+            footer.find("firm-disclaimer").expect("disclaimer present")
+                < footer
+                    .find("data-github-star-label")
+                    .expect("github CTA present"),
+            "GitHub CTA should sit at the bottom of the footer: {footer}"
+        );
     }
 
     #[test]
     fn spanish_footer_localizes_github_star_cta() {
-        if foundation_github_url().is_none() {
-            return;
-        }
         let out = PageLayout::new("Inicio")
             .with_locale(crate::i18n::Locale::Es)
             .with_canonical_path("/")
             .render(&html! { p { "x" } })
             .into_string();
         assert!(
-            out.contains(">Destacar The Neon Law Navigator</span>"),
+            out.contains(">Destacar Neon Law Navigator</span>"),
             "Spanish footer should localize the GitHub CTA: {out}"
         );
     }
@@ -962,7 +960,7 @@ mod tests {
     fn footer_links_the_mission_at_the_bottom_on_every_brand() {
         // "Add the Mission to the bottom": every page — firm- and
         // Foundation-branded alike — closes with the mission line,
-        // linking the shared statement at /foundation/mission.
+        // linking the shared statement at /foundation.
         for (name, out) in [
             ("firm", render("Home", &html! { p { "x" } })),
             (
@@ -974,7 +972,7 @@ mod tests {
             ),
         ] {
             assert!(
-                out.contains("href=\"/foundation/mission\""),
+                out.contains("href=\"/foundation\""),
                 "{name} footer should link the mission statement, got: {out}"
             );
             assert!(

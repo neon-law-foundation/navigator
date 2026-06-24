@@ -665,8 +665,11 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/blog", get(blog_index))
             .route("/blog/{slug}", get(blog_post))
             .route("/contact", get(contact))
-            .route("/foundation", get(foundation))
-            .route("/foundation/mission", get(foundation_mission))
+            .route("/foundation", get(foundation_mission))
+            .route(
+                "/foundation/mission",
+                get(|| async { axum::response::Redirect::permanent("/foundation") }),
+            )
             .route("/foundation/contact", get(foundation_contact))
             .route("/foundation/nimbus", get(foundation_nimbus))
             // The Navigator hub and its per-package pages. `/navigator`
@@ -677,6 +680,11 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/foundation/navigator/cli", get(navigator_cli))
             .route("/foundation/navigator/mcp", get(navigator_mcp))
             .route("/foundation/navigator/web", get(navigator_web))
+            .route("/foundation/notations", get(notation_templates))
+            .route(
+                "/foundation/notation-templates",
+                get(|| async { axum::response::Redirect::permanent("/foundation/notations") }),
+            )
             .route(
                 "/navigator",
                 get(|| async { axum::response::Redirect::permanent("/foundation/navigator") }),
@@ -703,7 +711,11 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             // page mirrors its English twin and renders Spanish chrome +
             // transcreated prose; see docs/i18n.md.
             .route("/es", get(home_es))
-            .route("/es/foundation/mission", get(foundation_mission_es))
+            .route("/es/foundation", get(foundation_mission_es))
+            .route(
+                "/es/foundation/mission",
+                get(|| async { axum::response::Redirect::permanent("/es/foundation") }),
+            )
             .route("/es/services", get(service_index_es))
             .route("/es/services/nexus", get(service_nexus_es))
             .route("/es/services/northstar", get(service_northstar_es))
@@ -997,16 +1009,10 @@ async fn navigator_web(MaybeAuth(auth): MaybeAuth) -> Markup {
     )
 }
 
-async fn foundation(State(marketing): State<MarketingIndex>, MaybeAuth(auth): MaybeAuth) -> Markup {
-    let doc = marketing.find("foundation");
-    let content = doc.map_or_else(views::pages::foundation::FoundationContent::default, |d| {
-        views::pages::foundation::FoundationContent {
-            title: &d.title,
-            description: &d.description,
-            body_html: &d.body_html,
-        }
-    });
-    views::pages::foundation::render(&content, auth)
+/// `GET /foundation/notations` — the notation template tree README,
+/// rendered under the Foundation brand.
+async fn notation_templates(MaybeAuth(auth): MaybeAuth) -> Markup {
+    views::pages::notation_templates::render(auth)
 }
 
 async fn foundation_mission(
@@ -1016,7 +1022,7 @@ async fn foundation_mission(
     foundation_mission_in(&marketing, auth, views::Locale::En)
 }
 
-/// Spanish mission letter (`/es/foundation/mission`).
+/// Spanish mission letter (`/es/foundation`).
 async fn foundation_mission_es(
     State(marketing): State<MarketingIndex>,
     MaybeAuth(auth): MaybeAuth,

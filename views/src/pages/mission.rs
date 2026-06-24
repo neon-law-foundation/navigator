@@ -1,4 +1,4 @@
-//! `/foundation/mission` — the project's mission statement.
+//! `/foundation` — the project's mission statement.
 //!
 //! The mission body is loaded from `web/content/marketing/mission.md`
 //! alongside the other marketing fragments and injected into
@@ -62,7 +62,7 @@ pub fn render(content: &MissionContent<'_>, auth: AuthState) -> Markup {
 /// Render the mission letter in `locale`. The letter body itself comes
 /// from `content` (English `marketing/mission.md` or the transcreated
 /// `marketing/es/mission.md`); this view localizes the chrome and
-/// declares `/foundation/mission` as the canonical twin. English output
+/// declares `/foundation` as the canonical twin. English output
 /// is byte-identical to the pre-i18n page.
 #[must_use]
 pub fn render_in(content: &MissionContent<'_>, auth: AuthState, locale: Locale) -> Markup {
@@ -84,7 +84,7 @@ pub fn render_in(content: &MissionContent<'_>, auth: AuthState, locale: Locale) 
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
         .with_locale(locale)
-        .with_canonical_path("/foundation/mission")
+        .with_canonical_path("/foundation")
         .render(&body)
 }
 

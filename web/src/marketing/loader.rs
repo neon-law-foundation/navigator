@@ -560,7 +560,7 @@ mod tests {
         // (`web/content/marketing/mission.md` + its `es/` twin), loaded
         // from disk like any other doc — no special-case bake. Both
         // locales must surface the `mission` slug and the letter's
-        // opening line so `/foundation/mission` renders the real prose.
+        // opening line so `/foundation` renders the real prose.
         let en = std::path::Path::new(crate::DEFAULT_MARKETING_DIR);
         let mission = load_dir(en)
             .expect("English marketing dir loads")

@@ -62,7 +62,7 @@ pub fn render_index(posts: &[PostSummary<'_>], auth: AuthState) -> Markup {
 
 #[must_use]
 pub fn render_post(post: &PostContent<'_>, auth: AuthState) -> Markup {
-    // A post reads as a letter, like `/foundation/mission`, so we cap its
+    // A post reads as a letter, like `/foundation`, so we cap its
     // measure at the same ~65 characters and center it: comfortable prose
     // measure is 45–75 characters per line, and 65ch keeps the column
     // readable on a phone without sprawling across a wide desktop. `ch`
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn post_is_capped_at_the_same_readable_measure_as_the_mission_letter() {
         // A post is constrained to a ~65-character measure and centered so
-        // it reads as a letter, matching `/foundation/mission`.
+        // it reads as a letter, matching `/foundation`.
         let post = PostContent {
             date: "June 19, 2026",
             title: "Thanks, Apple",

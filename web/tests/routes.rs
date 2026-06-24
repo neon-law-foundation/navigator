@@ -116,8 +116,27 @@ async fn body_string(resp: axum::http::Response<Body>) -> String {
 
 #[tokio::test]
 async fn foundation_mission_renders_the_letter_under_the_foundation_brand() {
-    // The mission page is the letter alone; the pro-bono referral list
-    // moved to its own /foundation/pro-bono page.
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("<title>Neon Law Foundation | Mission</title>"));
+    assert!(body.contains("class=\"mission-letter\""));
+}
+
+#[tokio::test]
+async fn old_foundation_mission_url_redirects_to_foundation_home() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -131,10 +150,8 @@ async fn foundation_mission_renders_the_letter_under_the_foundation_brand() {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Mission</title>"));
-    assert!(body.contains("class=\"mission-letter\""));
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(resp.headers().get("location").unwrap(), "/foundation");
 }
 
 #[tokio::test]
@@ -143,7 +160,7 @@ async fn foundation_mission_links_training_to_the_workshop_not_the_repo() {
         state_with_bundled_marketing().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
-    for uri in ["/foundation/mission", "/es/foundation/mission"] {
+    for uri in ["/foundation", "/es/foundation"] {
         let resp = app
             .clone()
             .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
@@ -211,14 +228,12 @@ async fn root_returns_home_page_html() {
     let body = body_string(resp).await;
     assert!(body.starts_with("<!DOCTYPE html>"));
     assert!(body.contains("<title>Neon Law | Home</title>"));
-    // The minimal landing names both organizations as equal peers.
     assert!(body.contains(
-        "An American law firm offering flat-fee legal services with a licensed attorney in the loop."
+        "A licensed attorney scopes the work, quotes a fixed fee when the matter can be priced that way"
     ));
-    assert!(body.contains(
-        "An American non-profit pursuing access to justice through open-source tools and legal-aid education."
-    ));
-    // It is the minimal card — no marketing hero strip.
+    assert!(body.contains("LSC Justice Gap Report, 2022"));
+    assert!(body.contains("href=\"/foundation/notations\""));
+    // It is firm-branded prose and cards — no old marketing hero strip.
     assert!(
         !body.contains("lake-tahoe"),
         "home must not render the marketing hero"
@@ -477,7 +492,7 @@ async fn health_returns_503_when_db_is_down() {
 }
 
 #[tokio::test]
-async fn foundation_returns_foundation_landing_under_foundation_brand() {
+async fn foundation_home_is_the_mission_statement() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -493,8 +508,12 @@ async fn foundation_returns_foundation_landing_under_foundation_brand() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Foundation</title>"));
-    assert!(body.contains("mailto:support@neonlaw.org"));
+    assert!(body.contains("<title>Neon Law Foundation | Mission</title>"));
+    assert!(body.contains("class=\"mission-letter\""));
+    assert!(
+        !body.contains("Open the Navigator workshop"),
+        "old Foundation landing hero should not render on /foundation: {body}"
+    );
 }
 
 #[tokio::test]
@@ -525,6 +544,30 @@ async fn navigator_serves_the_readme_under_foundation_brand() {
     assert!(body.contains("href=\"/foundation/navigator/cli\""));
     assert!(body.contains("href=\"/foundation/navigator/mcp\""));
     assert!(body.contains("href=\"/foundation/navigator/web\""));
+}
+
+#[tokio::test]
+async fn notations_serves_the_tree_readme_under_foundation_brand() {
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/notations")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("<title>Neon Law Foundation | Notations</title>"));
+    assert!(body.contains(">notation_templates</h1>"));
+    assert!(body.contains("Every file is markdown with a YAML frontmatter block"));
+    assert!(body.contains("href=\"/docs/notation\""));
+    assert!(body.contains("href=\"/foundation/navigator#trademarks\""));
 }
 
 #[tokio::test]
@@ -1033,34 +1076,6 @@ async fn foundation_nimbus_renders_the_install_product_under_foundation_brand() 
     assert!(body.contains("Legal aid centers"));
     // English-only: no Spanish switcher pointing at a non-existent /es twin.
     assert!(!body.contains("href=\"/es/foundation/nimbus\""));
-}
-
-#[tokio::test]
-async fn foundation_uses_marketing_doc_when_present() {
-    let docs = vec![web::MarketingDoc {
-        slug: "foundation".into(),
-        title: "Mission".into(),
-        description: "Foundation tagline.".into(),
-        body_html: "<h2>Programs</h2><p>Navigator + CLEs.</p>".into(),
-        metadata: std::collections::HashMap::new(),
-        pricing: Vec::new(),
-    }];
-    let mut state = empty_state().await;
-    state.marketing = MarketingIndex::new(docs);
-    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("<h2>Programs</h2>"));
-    assert!(body.contains("Navigator + CLEs."));
 }
 
 #[tokio::test]
@@ -4759,7 +4774,7 @@ async fn real_thanks_apple_post_is_capped_and_renders_the_photo_collage() {
     // End-to-end over the SHIPPED post file: the loader parses
     // `content/blog/20260619_thanks_apple.md`, the router renders it, and
     // we assert the two things this change wired up — the 65ch reading
-    // measure (matching `/foundation/mission`) and the photo collage,
+    // measure (matching `/foundation`) and the photo collage,
     // authored as a markdown bullet list of images that resolves through
     // the asset seam to `/public/img/thanks-apple/collage-N.jpg`.
     let mut state = empty_state().await;
