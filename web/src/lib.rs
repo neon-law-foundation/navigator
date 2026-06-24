@@ -1078,6 +1078,9 @@ async fn docs_page(
     if let Some(to) = kebab_redirect_path(&["docs", &slug]) {
         return axum::response::Redirect::permanent(&to).into_response();
     }
+    if slug == "index" {
+        return axum::response::Redirect::permanent("/docs").into_response();
+    }
     render_doc_page(&docs, &slug, auth)
 }
 

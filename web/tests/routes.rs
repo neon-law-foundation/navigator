@@ -4509,6 +4509,9 @@ async fn every_published_doc_is_200() {
     // No allowlist: every doc under the manifest is public.
     let docs = web::docs::loader::bundled();
     for doc in docs.docs() {
+        if doc.slug == "index" {
+            continue;
+        }
         let app = web::build_router(
             state_with_docs().await,
             std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -4523,6 +4526,17 @@ async fn every_published_doc_is_200() {
         docs.find("gke-prod").is_some(),
         "gke-prod doc must be published"
     );
+}
+
+#[tokio::test]
+async fn docs_index_slug_redirects_to_canonical_docs_root() {
+    let app = web::build_router(
+        state_with_docs().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = get(app, "/docs/index").await;
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(resp.headers().get("location").unwrap(), "/docs");
 }
 
 #[tokio::test]
