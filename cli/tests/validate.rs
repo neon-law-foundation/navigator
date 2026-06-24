@@ -170,6 +170,34 @@ fn every_template_notation_passes_markdown_only_validation() {
 }
 
 #[test]
+fn validate_events_accepts_bundled_event_markdown() {
+    let events = workspace_root().join("web/content/events");
+    navigator()
+        .arg("validate-events")
+        .arg(&events)
+        .assert()
+        .success()
+        .stdout(str::contains("Validated 1 event markdown file(s)"));
+}
+
+#[test]
+fn validate_events_rejects_missing_required_frontmatter() {
+    let dir = TempDir::new().unwrap();
+    write(
+        dir.path(),
+        "20260702_bad.md",
+        "---\ntitle: Bad Event\n---\n\nBody.\n",
+    );
+    navigator()
+        .arg("validate-events")
+        .arg(dir.path())
+        .assert()
+        .failure()
+        .code(1)
+        .stderr(str::contains("invalid event front matter"));
+}
+
+#[test]
 fn missing_subcommand_prints_usage_and_fails() {
     navigator()
         .assert()
