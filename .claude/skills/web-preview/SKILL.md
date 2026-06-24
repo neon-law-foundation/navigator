@@ -140,12 +140,11 @@ and never merges, so `main` stays binary-free; on a public repo the raw URL rend
 
 ```bash
 publish_capture() {           # publish_capture <local-file>  → echoes the raw URL to embed
-  local file="$1" branch slug owner_repo wt
+  local file="$1" branch slug owner_repo wt rc
   branch=$(git branch --show-current)
   slug="$branch/$(basename "$file")"
   owner_repo=$(git remote get-url origin | sed -E 's#^.*[:/]([^/]+/[^/]+)$#\1#; s#\.git$##')  # fork-agnostic (BSD sed)
   wt=$(mktemp -d)
-  trap "git worktree remove --force '$wt' 2>/dev/null" RETURN   # clean up even if a push below fails
   if git ls-remote --exit-code --heads origin pr-assets >/dev/null 2>&1; then
     git fetch -q origin pr-assets && git worktree add -q "$wt" -B pr-assets origin/pr-assets
   else
@@ -153,8 +152,10 @@ publish_capture() {           # publish_capture <local-file>  → echoes the raw
     ( cd "$wt" && git checkout -q --orphan pr-assets && git reset -q --hard && git clean -fdxq )
   fi
   mkdir -p "$wt/$(dirname "$slug")" && cp "$file" "$wt/$slug"
-  ( cd "$wt" && git add "$slug" && git commit -q -m "assets: $slug" && git push -q origin pr-assets )
-  echo "https://raw.githubusercontent.com/$owner_repo/pr-assets/$slug"   # worktree removed by the RETURN trap
+  ( cd "$wt" && git add "$slug" && git commit -q -m "assets: $slug" && git push -q origin pr-assets ); rc=$?
+  git worktree remove --force "$wt" 2>/dev/null   # always clean up (success or push failure); portable, no trap
+  [ "$rc" -eq 0 ] || { echo "pr-assets push failed" >&2; return 1; }
+  echo "https://raw.githubusercontent.com/$owner_repo/pr-assets/$slug"
 }
 
 publish_capture /tmp/navigator-screenshots/footer.gif
