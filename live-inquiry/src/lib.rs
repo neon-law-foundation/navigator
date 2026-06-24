@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context};
 use async_trait::async_trait;
@@ -8,6 +8,76 @@ use serde::{Deserialize, Serialize};
 #[async_trait]
 pub trait TranscriptProvider: Send + Sync {
     async fn transcribe_file(&self, audio: &Path) -> anyhow::Result<Vec<TranscriptSegment>>;
+}
+
+/// A [`TranscriptProvider`] that produces a deterministic transcript without
+/// calling any cloud speech API.
+///
+/// This is the **default** backend for local dev and tests; real Google
+/// Speech-to-Text is opt-in (`NAVIGATOR_SPEECH_BACKEND=google`). Keeping the
+/// fake here in `live-inquiry` — which has no cloud-provider dependency — means
+/// the default `--audio` path compiles and runs with no GCP SDK, credentials,
+/// or network access.
+///
+/// `transcribe_file` resolves its text in this order:
+/// 1. a fixed transcript supplied via [`FakeTranscriptProvider::with_transcript`];
+/// 2. a sidecar text file next to the audio (`<audio path>.txt`), so a developer
+///    can script a realistic offline transcript for a given clip;
+/// 3. a deterministic placeholder derived from the file name, so output that
+///    slips through unconfigured is visibly synthetic rather than plausible.
+#[derive(Debug, Default, Clone)]
+pub struct FakeTranscriptProvider {
+    fixed: Option<String>,
+}
+
+impl FakeTranscriptProvider {
+    /// A fake that reads a sidecar `<audio>.txt` when present, else emits a
+    /// labelled placeholder.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A fake that always returns `transcript`, ignoring the audio path. Useful
+    /// for scripted unit tests of the coverage engine.
+    #[must_use]
+    pub fn with_transcript(transcript: impl Into<String>) -> Self {
+        Self {
+            fixed: Some(transcript.into()),
+        }
+    }
+
+    fn resolve(&self, audio: &Path) -> String {
+        if let Some(text) = &self.fixed {
+            return text.clone();
+        }
+        let sidecar = sidecar_transcript_path(audio);
+        if let Ok(text) = std::fs::read_to_string(&sidecar) {
+            if !text.trim().is_empty() {
+                return text;
+            }
+        }
+        let name = audio
+            .file_name()
+            .map_or_else(|| "audio".to_string(), |n| n.to_string_lossy().into_owned());
+        format!("fake transcript for {name}")
+    }
+}
+
+#[async_trait]
+impl TranscriptProvider for FakeTranscriptProvider {
+    async fn transcribe_file(&self, audio: &Path) -> anyhow::Result<Vec<TranscriptSegment>> {
+        Ok(segment_transcript(&self.resolve(audio)))
+    }
+}
+
+/// The sidecar transcript path the fake reads for a given audio file: the audio
+/// path with `.txt` appended (e.g. `clip.flac` -> `clip.flac.txt`).
+#[must_use]
+pub fn sidecar_transcript_path(audio: &Path) -> PathBuf {
+    let mut raw = audio.as_os_str().to_owned();
+    raw.push(".txt");
+    PathBuf::from(raw)
 }
 
 #[derive(Debug, Deserialize)]
@@ -391,6 +461,40 @@ fn evidence_segments(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fake_provider_uses_fixed_transcript_when_provided() {
+        let provider = FakeTranscriptProvider::with_transcript("yes I consent. my name is Ada.");
+        // The audio path is ignored when a fixed transcript is set.
+        let text = provider.resolve(Path::new("/does/not/exist.flac"));
+        assert_eq!(text, "yes I consent. my name is Ada.");
+        let segments = segment_transcript(&text);
+        assert_eq!(segments.len(), 2, "two sentences -> two segments");
+    }
+
+    #[test]
+    fn fake_provider_reads_sidecar_transcript_when_present() {
+        let dir = std::env::temp_dir().join(format!("live-inquiry-fake-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let audio = dir.join("clip.flac");
+        std::fs::write(
+            sidecar_transcript_path(&audio),
+            "the river is wide and old\n",
+        )
+        .unwrap();
+
+        let text = FakeTranscriptProvider::new().resolve(&audio);
+        assert_eq!(text.trim(), "the river is wide and old");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn fake_provider_falls_back_to_labelled_placeholder() {
+        // No fixed text, no sidecar file next to this path.
+        let text = FakeTranscriptProvider::new().resolve(Path::new("/tmp/missing-clip.flac"));
+        assert_eq!(text, "fake transcript for missing-clip.flac");
+    }
 
     #[test]
     fn normalizes_estate_questionnaire_into_inquiries() {

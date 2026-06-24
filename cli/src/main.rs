@@ -935,9 +935,16 @@ enum LiveTranscriptionAction {
         /// Plain-text transcript to replay without calling speech-to-text.
         #[arg(long, conflicts_with = "audio")]
         transcript: Option<PathBuf>,
-        /// Audio file to send to Google Speech-to-Text.
+        /// Audio file to transcribe. By default this uses the `fake`
+        /// backend (no cloud call); pass `--speech-backend google` to
+        /// transcribe with real Google Speech-to-Text.
         #[arg(long, conflicts_with = "transcript")]
         audio: Option<PathBuf>,
+        /// Speech backend for `--audio`: `fake` (default, deterministic,
+        /// no cloud call) or `google` (real Speech-to-Text — needs a
+        /// project and credentials). Real cloud is opt-in.
+        #[arg(long, env = "NAVIGATOR_SPEECH_BACKEND", default_value = "fake")]
+        speech_backend: String,
         /// Google Cloud project for Speech-to-Text.
         #[arg(long, env = "GOOGLE_CLOUD_PROJECT")]
         google_project: Option<String>,
@@ -1085,6 +1092,7 @@ async fn run_live_transcription(action: LiveTranscriptionAction) -> ExitCode {
             template,
             transcript,
             audio,
+            speech_backend,
             google_project,
             google_location,
             google_language,
@@ -1095,6 +1103,7 @@ async fn run_live_transcription(action: LiveTranscriptionAction) -> ExitCode {
                 template,
                 transcript,
                 audio,
+                speech_backend,
                 google_project,
                 google_location,
                 google_language,

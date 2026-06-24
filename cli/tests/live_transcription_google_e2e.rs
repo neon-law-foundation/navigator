@@ -96,6 +96,8 @@ questionnaire:
             audio_path.to_str().expect("audio path utf8"),
             "--template",
             template_path.to_str().expect("template path utf8"),
+            "--speech-backend",
+            "google",
             "--google-project",
             &project_id,
             "--pretty",
