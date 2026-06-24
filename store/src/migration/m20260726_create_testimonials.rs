@@ -147,6 +147,7 @@ impl MigrationTrait for Migration {
                 Index::create()
                     .name("idx_testimonials_public_product")
                     .table(Testimonials::Table)
+                    .col(Testimonials::ConsentedAt)
                     .col(Testimonials::ProductCode)
                     .col(Testimonials::PublishedAt)
                     .col(Testimonials::DisplayOrder)

@@ -1714,11 +1714,42 @@ fn testimonial_cards(
 fn product_label(code: &str) -> Option<&'static str> {
     match code {
         "litigation" => Some("Litigation"),
-        "nexus" => Some("Nexus"),
+        "namesake" => Some("Namesake"),
         "nautilus" => Some("Nautilus"),
         "nest" => Some("Nest"),
+        "nerd" => Some("Nerd"),
+        "newleaf" => Some("Newleaf"),
+        "nexus" => Some("Nexus"),
+        "node" => Some("Node"),
+        "nook" => Some("Nook"),
         "northstar" => Some("Northstar"),
+        "nucleus" => Some("Nucleus"),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod testimonial_label_tests {
+    use super::product_label;
+
+    #[test]
+    fn product_label_covers_the_seeded_catalog() {
+        for code in [
+            "litigation",
+            "namesake",
+            "nautilus",
+            "nest",
+            "nerd",
+            "newleaf",
+            "nexus",
+            "node",
+            "nook",
+            "northstar",
+            "nucleus",
+        ] {
+            assert!(product_label(code).is_some(), "{code} should have a label");
+        }
+        assert_eq!(product_label("unknown"), None);
     }
 }
 
