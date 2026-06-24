@@ -46,6 +46,12 @@ in `AGENTS.md` and the baked local Postgres.
 
 Scratch artifacts go under `/tmp`, never the repo. Screenshots normally go under `/tmp/navigator-screenshots/`.
 
+Agent-run local stacks are task resources, not ambient workstation state. Keep KIND, standalone dependency containers,
+browser drivers, port-forwards, and rebuilt dev images up only while they are needed for the current PR. Before handing
+off a created or updated PR, stop the stack (`cargo run --release -p cli -- down` for the standard KIND loop), remove
+task-created standalone containers/images, and prune task-created Docker build cache. Do not prune Docker volumes unless
+the user approves the data loss.
+
 ## GCP setup
 
 `navigator gcp setup` provisions GCP by calling REST APIs directly from `cli/src/devx/gcp/` with `reqwest`. There is no
