@@ -1,9 +1,10 @@
-# notation_templates
+# Notation
 
-These are the blueprints the firm uses to produce your legal documents. Each file here is a **Notation Template**: a
-static markdown document that, once assigned to a person or entity, produces a **Notation** — the filled-in instance an
-attorney reviews, signs, and files. The vocabulary (Template, Notation, Questionnaire, Question, Answer) is taught in
-[`docs/notation.md`](../docs/notation.md); this README is about how the tree is **organized** and **named**.
+This tree holds Navigator's markdown notation templates: static legal blueprints whose frontmatter declares a
+questionnaire and workflow, and whose body supplies the legal prose. When a Template is bound to a respondent and
+Project, it becomes a **Notation** — the running instance whose questions are answered and whose workflow advances to
+review, signature, filing, or closeout. The vocabulary (Template, Notation, Questionnaire, Question, Answer) is taught
+in [`docs/notation.md`](../docs/notation.md); this README is about how the tree is **organized** and **named**.
 
 Every file is markdown with a YAML frontmatter block carrying `title`, `code`, `respondent_type`, `confidential`, and
 the `questionnaire:` / `workflow:` state machines. The body is the legal prose with `{{question_code}}` placeholders.
@@ -112,33 +113,6 @@ cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes notat
 There is no pre-committed empty skeleton. A folder is created the moment a template needs it — the closed lists above
 (scopes, forums, practice areas) plus this README are the map, so a new template drops into the path its jurisdiction,
 scope, forum, and practice area already name instead of inventing one.
-
-## Migration status
-
-This tree is mid-migration. The operational branch and the brand quarantine exist, and the jurisdiction grammar is
-enforced for any file placed under `united_states/`. The legacy flat folders (`trust/`, `will/`, `llc/`, `nest/`,
-`nonprofit/`, `onboarding/`, `nautilus/`, …) are **grandfathered**: they are still valid notation templates and still
-lint under the N-family, but they predate the jurisdiction grammar and are relocated in a follow-up. The substantive
-work products are **de-branded** into the jurisdiction tree; only templates that name a Neon Law product (the
-brand-named retainers) go to `neon_law/`. The intended destinations:
-
-| Legacy path | Destination |
-| --- | --- |
-| `trust/nevada.md`, `will/simple.md`, `northstar/*.md` | `united_states/nevada/internal/trusts_and_estates/` |
-| `nest/*.md`, `annual_report/nevada.md` | `united_states/nevada/state/business_associations/` |
-| `dissolution/nevada.md`, `nonprofit/nevada_*.md` | `united_states/nevada/state/business_associations/` |
-| `llc/california.md` | `united_states/california/state/business_associations/` |
-| `nautilus/*.md` (FDCPA/FCRA letters) | `united_states/federal/internal/debt_relief/` |
-| `nexus/fractional_gc.md` (work product) | `united_states/nevada/internal/business_associations/` |
-| `nonprofit/form990_annual_report.md` | `united_states/federal/irs/taxation/` |
-| `nv_state_tax_filing/modified_business_tax.md` | `united_states/nevada/state/taxation/` |
-| `closing/letter.md` | `correspondence/` |
-| `onboarding/estate.md`, `onboarding/retainer.md` (generic) | `engagements/` |
-| `services/contract_review.md` | `services/` |
-| `onboarding/retainer_*.md` (brand-named) | `neon_law/engagements/` |
-
-The public template gallery serves a curated subset over the `/api/templates/...` route; relocating the gallery's
-nonprofit entries to deep paths is part of that same follow-up, since it changes the route shape.
 
 ## Adding a new template
 
