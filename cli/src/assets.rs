@@ -314,12 +314,14 @@ async fn download(storage: &dyn StorageService, out: &Path) -> anyhow::Result<us
         .list("img/")
         .await
         .context("list the bucket's `img/` prefix")?;
+    let mut listed_under_img = 0usize;
     let mut pulled = 0usize;
     for listing in listings {
         let key = listing.key;
         let Some(rel) = key.strip_prefix("img/").filter(|r| !r.is_empty()) else {
             continue;
         };
+        listed_under_img += 1;
         let ext = Path::new(rel)
             .extension()
             .and_then(|e| e.to_str())
@@ -352,8 +354,14 @@ async fn download(storage: &dyn StorageService, out: &Path) -> anyhow::Result<us
     }
     anyhow::ensure!(
         pulled > 0,
-        "no image variants under `img/` in the bucket — populate it first with \
-         `cli assets build` + `cli assets upload`"
+        "{}",
+        if listed_under_img == 0 {
+            "no objects under `img/` in the bucket — populate it first with \
+             `cli assets build` + `cli assets upload`"
+        } else {
+            "objects exist under `img/`, but none are supported image variants \
+             (.avif, .webp, .jpg, .jpeg)"
+        }
     );
     Ok(pulled)
 }
@@ -361,9 +369,60 @@ async fn download(storage: &dyn StorageService, out: &Path) -> anyhow::Result<us
 #[cfg(test)]
 mod tests {
     use super::{content_type_for, download, upload, ASSET_CACHE_CONTROL};
-    use cloud::{FsStorage, StorageService};
+    use cloud::{FsStorage, ObjectListing, StorageError, StorageService, StoredObject};
     use std::fs;
+    use std::time::Duration;
     use tempfile::TempDir;
+
+    struct ListingOnlyStorage {
+        keys: Vec<String>,
+    }
+
+    #[async_trait::async_trait]
+    impl StorageService for ListingOnlyStorage {
+        async fn put(
+            &self,
+            _key: &str,
+            _bytes: &[u8],
+            _content_type: &str,
+        ) -> Result<(), StorageError> {
+            Err(StorageError::Unsupported("ListingOnlyStorage put"))
+        }
+
+        async fn get(&self, key: &str) -> Result<StoredObject, StorageError> {
+            Ok(StoredObject {
+                key: key.to_string(),
+                bytes: b"bytes".to_vec(),
+                content_type: "image/avif".to_string(),
+            })
+        }
+
+        async fn delete(&self, _key: &str) -> Result<(), StorageError> {
+            Err(StorageError::Unsupported("ListingOnlyStorage delete"))
+        }
+
+        async fn list(&self, prefix: &str) -> Result<Vec<ObjectListing>, StorageError> {
+            Ok(self
+                .keys
+                .iter()
+                .filter(|key| key.starts_with(prefix))
+                .map(|key| ObjectListing {
+                    key: key.clone(),
+                    size_bytes: 1,
+                })
+                .collect())
+        }
+
+        async fn signed_url(
+            &self,
+            _key: &str,
+            _expires_in: Duration,
+        ) -> Result<String, StorageError> {
+            Err(StorageError::Unsupported(
+                "ListingOnlyStorage has no signed URL",
+            ))
+        }
+    }
 
     #[test]
     fn content_type_covers_the_three_built_formats_and_skips_others() {
@@ -486,8 +545,44 @@ mod tests {
         let out = TempDir::new().unwrap();
         let err = download(&storage, out.path()).await.unwrap_err();
         assert!(
-            err.to_string().contains("no image variants"),
+            err.to_string().contains("no objects under `img/`"),
             "empty bucket should guide the user, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn download_rejects_unsafe_object_keys() {
+        let storage = ListingOnlyStorage {
+            keys: vec!["img/../../../etc/passwd.avif".to_string()],
+        };
+        let out = TempDir::new().unwrap();
+        let err = download(&storage, out.path()).await.unwrap_err();
+        assert!(
+            err.to_string().contains("refusing unsafe object key"),
+            "unsafe object key should fail before writing outside out, got: {err}"
+        );
+        assert!(
+            !out.path().join("etc/passwd.avif").exists(),
+            "unsafe key must not be written under the output directory"
+        );
+    }
+
+    #[tokio::test]
+    async fn download_distinguishes_non_image_objects_from_empty_bucket() {
+        let store_dir = TempDir::new().unwrap();
+        let storage = FsStorage::new(store_dir.path().to_path_buf())
+            .await
+            .unwrap();
+        storage
+            .put("img/lake-tahoe/notes.txt", b"junk", "text/plain")
+            .await
+            .unwrap();
+        let out = TempDir::new().unwrap();
+        let err = download(&storage, out.path()).await.unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("none are supported image variants"),
+            "non-image objects should get a precise diagnostic, got: {err}"
         );
     }
 
