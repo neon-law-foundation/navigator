@@ -106,16 +106,23 @@ SID=$(curl -s -X POST "$CD/session" -H 'Content-Type: application/json' -d '{"ca
 
 nav() { curl -s -X POST "$CD/session/$SID/url"          -d "{\"url\":\"$1\"}" >/dev/null; }
 js()  { curl -s -X POST "$CD/session/$SID/execute/sync" -d "{\"script\":\"$1\",\"args\":[]}" >/dev/null; }
-click(){ local e; e=$(curl -s -X POST "$CD/session/$SID/element" -d "{\"using\":\"css selector\",\"value\":\"$1\"}" \
-  | jq -r '.value[keys[0]]'); curl -s -X POST "$CD/session/$SID/element/$e/click" >/dev/null; }
-cap() { curl -s "$CD/session/$SID/screenshot" | jq -r .value | base64 --decode \
+url() { curl -s "$CD/session/$SID/url" | jq -r .value; }
+# A real in-page click ($1 = selector), then wait for navigation to land ($2 =
+# substring the URL should reach). Dispatch via JS rather than the native
+# element-click endpoint: in practice the native click did not reliably fire
+# navigation on footer links, and JS .click() needs no `{}` POST body to forget.
+click(){ js "document.querySelector('$1').click()"
+  local i=0; until echo "$(url)" | grep -q "$2" || [ $i -ge 12 ]; do sleep 0.3; i=$((i+1)); done; }
+# Force instant scroll (CSS scroll-behavior:smooth otherwise races the shot)
+# and settle briefly before each frame so the footer is framed, not mid-scroll.
+foot(){ js "document.documentElement.style.scrollBehavior='auto';window.scrollTo(0,document.body.scrollHeight);"; }
+cap() { sleep 0.5; curl -s "$CD/session/$SID/screenshot" | jq -r .value | base64 --decode \
   > "/tmp/navigator-screenshots/frames/$(printf '%03d' "$1").png"; }
 
 # One frame per beat — narrate the change the PR makes.
-nav "http://localhost:3001/";                            cap 0   # top of page
-js  "window.scrollTo(0, document.body.scrollHeight);";   cap 1   # scrolled to the footer
-click ".language-switcher";                              cap 2   # one real click → Spanish
-js  "window.scrollTo(0, document.body.scrollHeight);";   cap 3   # Spanish footer + English-legal note
+nav "http://localhost:3001/";      cap 0   # top of page
+foot;                              cap 1   # scrolled to the English footer
+click ".language-switcher" "/es";  foot; cap 2   # one real click → Spanish footer + English-legal note
 curl -s -X DELETE "$CD/session/$SID" >/dev/null
 
 gifski --fps 1.5 --quality 90 --width 1100 \
@@ -138,6 +145,7 @@ publish_capture() {           # publish_capture <local-file>  → echoes the raw
   slug="$branch/$(basename "$file")"
   owner_repo=$(git remote get-url origin | sed -E 's#^.*[:/]([^/]+/[^/]+)$#\1#; s#\.git$##')  # fork-agnostic (BSD sed)
   wt=$(mktemp -d)
+  trap "git worktree remove --force '$wt' 2>/dev/null" RETURN   # clean up even if a push below fails
   if git ls-remote --exit-code --heads origin pr-assets >/dev/null 2>&1; then
     git fetch -q origin pr-assets && git worktree add -q "$wt" -B pr-assets origin/pr-assets
   else
@@ -146,8 +154,7 @@ publish_capture() {           # publish_capture <local-file>  → echoes the raw
   fi
   mkdir -p "$wt/$(dirname "$slug")" && cp "$file" "$wt/$slug"
   ( cd "$wt" && git add "$slug" && git commit -q -m "assets: $slug" && git push -q origin pr-assets )
-  git worktree remove --force "$wt"
-  echo "https://raw.githubusercontent.com/$owner_repo/pr-assets/$slug"
+  echo "https://raw.githubusercontent.com/$owner_repo/pr-assets/$slug"   # worktree removed by the RETURN trap
 }
 
 publish_capture /tmp/navigator-screenshots/footer.gif
