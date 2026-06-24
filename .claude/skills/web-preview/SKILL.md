@@ -145,9 +145,6 @@ manual step: capture and review programmatically, then drag-drop if you want the
 the tempting `pr-assets` orphan-branch trick — it works, but leaves a stray binary-accumulating branch on the remote
 that someone has to remember to delete.
 
-A bare push to `pr-assets` opens no PR, so `ci.yml` (which triggers only on `pull_request` to `main`) never runs on it.
-Embed the echoed URL as `![footer](<raw-url>)` — GitHub renders (and animates) it inline on a public repo.
-
 ## CSP gotcha (front-end JS)
 
 `web/src/api.rs` sets `Content-Security-Policy: … script-src 'self'` (no `'unsafe-inline'`). An inline
