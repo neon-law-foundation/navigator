@@ -4,7 +4,9 @@ description: >
   One command — `/create-pr` — that turns a pile of uncommitted working-tree changes into a clean, reviewable pull
   request against `main`. It reads every change (staged, unstaged, and untracked), groups the files into logical units
   by blast radius (one concern per commit), writes a Conventional Commit for each group, then branches (if still on
-  `main`), pushes, opens the PR with `gh pr create`, and enables auto-merge. Trigger when the user says "/create-pr",
+  `main`), captures a screenshot or interaction GIF of any user-visible change (published to the non-merging
+  `pr-assets` branch and embedded in the PR body), pushes, opens the PR with `gh pr create`, and enables auto-merge.
+  Trigger when the user says "/create-pr",
   "create a PR", "open a pull request", "commit and PR these changes", "group these into commits and ship them", or has
   a dirty working tree they want landed. This is the COMMIT-GROUPING + PR front door; the build-and-deploy-to-prod flow
   is the separate [[power-push]] skill (run /create-pr first, let it merge, then power-push from `main`). Honors the
@@ -29,8 +31,9 @@ merges the PR the moment `ci.yml` goes green.
 3. **Gate** the workspace once (`fmt` + `clippy` + `test`, markdown lint if any `.md` changed).
 4. **Branch** off `main` (or carry existing work onto a topic branch).
 5. **Commit** each group as a Conventional Commit, staging only that group's paths.
-6. **Push** the branch and **open the PR** against `main`.
-7. **Enable auto-merge** (`--squash`) and report the PR URL.
+6. **Capture a visual** for any user-visible change — a screenshot or interaction GIF (see Step 6).
+7. **Push** the branch and **open the PR** against `main`, embedding the visual.
+8. **Enable auto-merge** (`--squash`) and report the PR URL.
 
 Each step assumes the prior one. Do them in this order.
 
@@ -158,13 +161,39 @@ End every commit message with the workspace trailer:
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 ```
 
-## Step 6 — Push and open the PR against `main`
+## Step 6 — Capture a visual for any user-visible change
+
+**Every PR that changes something a person can see ships with a picture of it.** A page, a component, a layout, an
+email, a CLI's rendered output, a copy edit on a live surface — if a human would notice the difference in a browser,
+capture it. Skip only when the change is genuinely invisible (a pure refactor, an internal type, a test-only edit,
+a workflow/CI tweak) — and say so in the Test plan rather than silently omitting the visual.
+
+Capture against the **running app with your working-tree changes** — the host `web`, not the stale in-cluster image —
+following the [[web-preview]] loop. Prefer a GIF of **real interaction** when the change has behavior to show (a hover,
+a toggle, a count populating, a multi-step flow); a single screenshot is enough for a static layout change. Frames and
+output land in `/tmp/navigator-screenshots/`, never the repo.
+
+```bash
+# 1. Bring up deps + host web (web-preview §1–2), then capture (web-preview §3 screenshot or §5 GIF).
+# 2. Look at it yourself first — open the PNG/GIF and confirm it actually shows the change.
+# 3. Publish to the non-merging pr-assets branch and capture the raw URL (web-preview §6):
+URL=$(publish_capture /tmp/navigator-screenshots/footer.gif)   # → https://raw.githubusercontent.com/.../footer.gif
+```
+
+The image rides the `pr-assets` orphan branch (binary-free `main`); on this public repo the raw URL renders and
+animates inline on the PR. Mechanics — the WebDriver+`gifski` recipe and `publish_capture` — live in [[web-preview]]
+(§5–6); this step just makes the visual **mandatory** and threads its URL into the PR body below.
+
+## Step 7 — Push and open the PR against `main`
 
 ```bash
 git push -u origin <branch>
-gh pr create --base main --title "<headline>" --body "$(cat <<'EOF'
+gh pr create --base main --title "<headline>" --body "$(cat <<EOF
 ## Summary
 - <one bullet per logical commit / concern>
+
+## Screenshots
+![<caption>]($URL)
 
 ## Test plan
 - <how it was verified: cargo test --workspace, KIND run, browser, etc.>
@@ -175,10 +204,14 @@ EOF
 ```
 
 The PR title is the headline for the whole change (often the dominant commit's subject). The body's Summary should read
-as one bullet per commit so a reviewer sees the grouping at a glance. The Test plan states what you actually ran — if
-you didn't run something, say so (the "no assumptions" rule from `CLAUDE.md`).
+as one bullet per commit so a reviewer sees the grouping at a glance. The **Screenshots** section embeds the visual from
+Step 6 (drop the section only for a genuinely invisible change, and note why in the Test plan). The Test plan states
+what you actually ran — if you didn't run something, say so (the "no assumptions" rule from `CLAUDE.md`).
 
-## Step 7 — Enable auto-merge and report
+> Heredoc note: this body uses an **unquoted** `EOF` so `$URL` expands. Keep the Summary/Test-plan text free of stray
+> backticks or `$` (or quote `EOF` and paste the URL in literally) so the shell doesn't try to expand them.
+
+## Step 8 — Enable auto-merge and report
 
 ```bash
 gh pr merge --auto --squash

@@ -89,6 +89,73 @@ NAV_BASE_URL=http://localhost:3001 WEBDRIVER_URL=http://localhost:9515 \
   cargo test -p web --test browser_e2e -- --test-threads=1
 ```
 
+### 5. Record a GIF of real interaction
+
+A static screenshot proves a layout; a GIF proves *behavior* — a hover, a language switch, a count populating. Drive
+chromedriver over its HTTP wire protocol with `curl` (no committed non-Rust code — it's an ephemeral `/tmp` capture),
+snap a PNG frame after each action, then assemble with `gifski`. Frames and the GIF live under `/tmp`, never the repo.
+
+```bash
+mkdir -p /tmp/navigator-screenshots/frames && rm -f /tmp/navigator-screenshots/frames/*.png
+pgrep -x chromedriver >/dev/null || chromedriver --port=9515 &   # reuse if already up
+
+CD=http://localhost:9515
+SID=$(curl -s -X POST "$CD/session" -H 'Content-Type: application/json' -d '{"capabilities":{"alwaysMatch":\
+{"browserName":"chrome","goog:chromeOptions":{"args":["--headless=new","--hide-scrollbars",\
+"--window-size=1366,900","--force-device-scale-factor=1"]}}}}' | jq -r .value.sessionId)
+
+nav() { curl -s -X POST "$CD/session/$SID/url"          -d "{\"url\":\"$1\"}" >/dev/null; }
+js()  { curl -s -X POST "$CD/session/$SID/execute/sync" -d "{\"script\":\"$1\",\"args\":[]}" >/dev/null; }
+click(){ local e; e=$(curl -s -X POST "$CD/session/$SID/element" -d "{\"using\":\"css selector\",\"value\":\"$1\"}" \
+  | jq -r '.value[keys[0]]'); curl -s -X POST "$CD/session/$SID/element/$e/click" >/dev/null; }
+cap() { curl -s "$CD/session/$SID/screenshot" | jq -r .value | base64 --decode \
+  > "/tmp/navigator-screenshots/frames/$(printf '%03d' "$1").png"; }
+
+# One frame per beat — narrate the change the PR makes.
+nav "http://localhost:3001/";                            cap 0   # top of page
+js  "window.scrollTo(0, document.body.scrollHeight);";   cap 1   # scrolled to the footer
+click ".language-switcher";                              cap 2   # one real click → Spanish
+js  "window.scrollTo(0, document.body.scrollHeight);";   cap 3   # Spanish footer + English-legal note
+curl -s -X DELETE "$CD/session/$SID" >/dev/null
+
+gifski --fps 1.5 --quality 90 --width 1100 \
+  -o /tmp/navigator-screenshots/footer.gif /tmp/navigator-screenshots/frames/*.png
+```
+
+`gifski` ships via `brew install gifski` (pair with `ffmpeg` if you'd rather record video and convert). Keep it short —
+3–6 beats — and let each frame land on a distinct state, so the reviewer reads the interaction, not filler.
+
+### 6. Publish a capture to the PR (the `pr-assets` branch)
+
+GitHub only renders images it hosts, and `CLAUDE.md` forbids scratch in `main`'s tree — so captures ride a dedicated
+**non-merging** `pr-assets` orphan branch and the PR body embeds the raw URL. The branch shares no history with `main`
+and never merges, so `main` stays binary-free; on a public repo the raw URL renders (and animates) inline on the PR.
+
+```bash
+publish_capture() {           # publish_capture <local-file>  → echoes the raw URL to embed
+  local file="$1" branch slug owner_repo wt
+  branch=$(git branch --show-current)
+  slug="$branch/$(basename "$file")"
+  owner_repo=$(git remote get-url origin | sed -E 's#^.*[:/]([^/]+/[^/]+)$#\1#; s#\.git$##')  # fork-agnostic (BSD sed)
+  wt=$(mktemp -d)
+  if git ls-remote --exit-code --heads origin pr-assets >/dev/null 2>&1; then
+    git fetch -q origin pr-assets && git worktree add -q "$wt" -B pr-assets origin/pr-assets
+  else
+    git worktree add -q --detach "$wt"
+    ( cd "$wt" && git checkout -q --orphan pr-assets && git reset -q --hard && git clean -fdxq )
+  fi
+  mkdir -p "$wt/$(dirname "$slug")" && cp "$file" "$wt/$slug"
+  ( cd "$wt" && git add "$slug" && git commit -q -m "assets: $slug" && git push -q origin pr-assets )
+  git worktree remove --force "$wt"
+  echo "https://raw.githubusercontent.com/$owner_repo/pr-assets/$slug"
+}
+
+publish_capture /tmp/navigator-screenshots/footer.gif
+```
+
+A bare push to `pr-assets` opens no PR, so `ci.yml` (which triggers only on `pull_request` to `main`) never runs on it.
+Embed the echoed URL as `![footer](<raw-url>)` — GitHub renders (and animates) it inline on a public repo.
+
 ## CSP gotcha (front-end JS)
 
 `web/src/api.rs` sets `Content-Security-Policy: … script-src 'self'` (no `'unsafe-inline'`). An inline
@@ -108,4 +175,5 @@ cargo run --release -p cli -- down
 - Sourcing `.devx/env` and running `web` without `doppler run` — crash-loops on missing invariant secrets.
 - Trusting `--dump-dom` to confirm client JS ran — it doesn't execute load-event scripts.
 - Writing screenshots into the repo — they belong in `/tmp/navigator-screenshots/`.
+- Committing a capture onto `main` to embed it in a PR — push it to the non-merging `pr-assets` branch instead (§6).
 - Gating `cargo test` on KIND — tests get Postgres from testcontainers; the cluster is for *running* the app.
