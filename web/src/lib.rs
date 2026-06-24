@@ -76,6 +76,7 @@ pub mod signature_render;
 pub mod statutes;
 pub mod template_api;
 pub mod template_gallery;
+mod template_paths;
 /// Shared test scaffolding (the canonical `AppState` builder). Always
 /// compiled so both the integration tests and the `features` crate can
 /// use it; see the module docs.
@@ -761,14 +762,10 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             // Public, no-login template gallery + the LSP showcase — the
             // "our legal documents are plain markdown" demo surfaces.
             .route("/templates", get(templates_index))
-            .route("/templates/{category}/{name}", get(template_detail))
-            .route(
-                "/templates/{category}/{name}/download",
-                get(template_download),
-            )
+            .route("/templates/{*path}", get(template_entry))
             // Raw template markdown as an API — the bytes the README's
-            // `notation_templates/<cat>/<name>.md` links point at on the website.
-            .route("/api/templates/{category}/{name}", get(api_template_raw))
+            // `notation_templates/**/*.md` links point at on the website.
+            .route("/api/templates/{*path}", get(api_template_raw))
             .route(
                 "/lsp",
                 get(|| async { axum::response::Redirect::permanent("/foundation/navigator/lsp") }),
@@ -1214,7 +1211,7 @@ fn template_card(
     t: &'static template_gallery::GalleryTemplate,
 ) -> views::pages::templates::TemplateCard<'static> {
     views::pages::templates::TemplateCard {
-        category: t.category,
+        href: t.detail_path(),
         name: t.name,
         title: &t.title,
         blurb: t.blurb,
@@ -1233,23 +1230,43 @@ async fn templates_index(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::templates::index(&cards, auth)
 }
 
-/// `GET /templates/{category}/{name}` — one template's detail page: the
+/// `GET /templates/*path` — one template's detail page: the
 /// notation frontmatter, a download link, and a start-a-matter CTA. A
 /// template not on the curated allow-list 404s (never leaks).
-async fn template_detail(
+async fn template_entry(
     MaybeAuth(auth): MaybeAuth,
-    AxumPath((category, name)): AxumPath<(String, String)>,
+    AxumPath(path): AxumPath<String>,
 ) -> impl IntoResponse {
-    if let Some(to) = kebab_redirect_path(&["templates", &category, &name]) {
+    let (path, is_download) = path
+        .strip_suffix("/download")
+        .map_or((path.as_str(), false), |base| (base, true));
+    let path = template_gallery::legacy_alias(path).unwrap_or(path);
+    let redirect_segments = if is_download {
+        ["templates", path, "download"].join("/")
+    } else {
+        ["templates", path].join("/")
+    };
+    let redirect_parts: Vec<&str> = redirect_segments.split('/').collect();
+    if let Some(to) = kebab_redirect_path(&redirect_parts) {
         return axum::response::Redirect::permanent(&to).into_response();
     }
-    match template_gallery::find(&category, &name) {
+    match template_gallery::find_path(path) {
         Some(t) => {
-            let download_href = format!(
-                "/templates/{}/{}/download",
-                views::slug::to_url(t.category),
-                views::slug::to_url(t.name)
-            );
+            if is_download {
+                let mut headers = axum::http::HeaderMap::new();
+                headers.insert(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("text/markdown; charset=utf-8"),
+                );
+                if let Ok(disposition) = HeaderValue::try_from(format!(
+                    "attachment; filename=\"{}\"",
+                    t.download_filename()
+                )) {
+                    headers.insert(header::CONTENT_DISPOSITION, disposition);
+                }
+                return (StatusCode::OK, headers, t.raw).into_response();
+            }
+            let download_href = t.download_path();
             let detail = views::pages::templates::TemplateDetail {
                 card: template_card(t),
                 frontmatter: t.frontmatter(),
@@ -1267,47 +1284,20 @@ async fn template_detail(
     }
 }
 
-/// `GET /templates/{category}/{name}/download` — the raw `.md`, served
-/// verbatim (same bytes a git reader sees) as a `text/markdown`
-/// attachment. Off-list paths 404 rather than guessing a file.
-async fn template_download(
-    AxumPath((category, name)): AxumPath<(String, String)>,
-) -> impl IntoResponse {
-    if let Some(to) = kebab_redirect_path(&["templates", &category, &name, "download"]) {
-        return axum::response::Redirect::permanent(&to).into_response();
-    }
-    match template_gallery::find(&category, &name) {
-        Some(t) => {
-            let mut headers = axum::http::HeaderMap::new();
-            headers.insert(
-                header::CONTENT_TYPE,
-                HeaderValue::from_static("text/markdown; charset=utf-8"),
-            );
-            if let Ok(disposition) = HeaderValue::try_from(format!(
-                "attachment; filename=\"{}\"",
-                t.download_filename()
-            )) {
-                headers.insert(header::CONTENT_DISPOSITION, disposition);
-            }
-            (StatusCode::OK, headers, t.raw).into_response()
-        }
-        None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
-    }
-}
-
-/// `GET /api/templates/{category}/{name}` — the raw template markdown,
+/// `GET /api/templates/*path` — the raw template markdown,
 /// served inline as `text/markdown`. Unlike `/templates/.../download`
 /// (the curated gallery, attachment-dispositioned), this serves any
 /// `confidential: false` template under `notation_templates/` so the README's
-/// `notation_templates/<cat>/<name>.md` links resolve on the site. Confidential
+/// `notation_templates/**/*.md` links resolve on the site. Confidential
 /// templates and unknown paths 404.
-async fn api_template_raw(
-    AxumPath((category, name)): AxumPath<(String, String)>,
-) -> impl IntoResponse {
-    if let Some(to) = kebab_redirect_path(&["api", "templates", &category, &name]) {
+async fn api_template_raw(AxumPath(path): AxumPath<String>) -> impl IntoResponse {
+    let path = template_api::legacy_alias(&path).unwrap_or(&path);
+    let redirect_segments = ["api", "templates", path].join("/");
+    let redirect_parts: Vec<&str> = redirect_segments.split('/').collect();
+    if let Some(to) = kebab_redirect_path(&redirect_parts) {
         return axum::response::Redirect::permanent(&to).into_response();
     }
-    match template_api::find_raw(&category, &name) {
+    match template_api::find_raw_path(path) {
         Some(raw) => (
             StatusCode::OK,
             [(

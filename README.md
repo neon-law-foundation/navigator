@@ -14,11 +14,12 @@ their [Matter](docs/glossary.md#matter). Every project contains a git repository
 templates](docs/notation.md#templates) which frequently use terms from our [glossary](docs/glossary.md). Notation
 templates are markdown documents that define the intake questions and workflows required that solve legal problems.
 
-For example, the [Nevada trust](notation_templates/nest/nevada.md) notation template defines the questions
-required for filling out an estate, the workflows like notarization that are required, and where that data is
-used in the notation template
-body. When you work with your client, you create a [notation](docs/notation.md#notations) from a notation template. For
-coders, a notation is a workflow executed with a durable execution engine.
+For example, the [Nevada
+entity-formation](notation_templates/united_states/nevada/state/business_associations/entity_formation.md) notation
+template defines the questions required for filling out an entity formation, the workflows that are required, and where
+that data is used in the notation template body. When you work with your client, you create a
+[notation](docs/notation.md#notations) from a notation template. For coders, a notation is a workflow executed with a
+durable execution engine.
 
 We encourage writing notation templates with [Zed](https://zed.dev) and our [LSP](docs/lsp/README.md). It's different
 from Word, but once you get used to it, you may find it as productive as we do. Treating legal text like code opens a

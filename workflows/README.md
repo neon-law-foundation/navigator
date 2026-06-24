@@ -22,8 +22,9 @@ in production the binary wires the Restate adapter and points it at the broker U
 
 ## What's next
 
-Workflow specs live in the YAML frontmatter of notation templates under `notation_templates/<category>/<name>.md` — see
-`notation_templates/onboarding/retainer.md`. The crate extracts the `workflow:` block, typechecks the transitions,
-and produces a `WorkflowSpec` that either runtime can execute. Adding a workflow is: one notation template (markdown
-+ frontmatter),
-one `specs.rs` constant, and the handlers that signal it from `web`.
+Workflow specs live in the YAML frontmatter of notation templates under `notation_templates/` — see
+`notation_templates/engagements/retainer.md`. The crate extracts the `workflow:` block, typechecks the transitions, and
+produces a `WorkflowSpec` that either runtime can execute.
+
+Adding a workflow is: one notation template (markdown + frontmatter), one `specs.rs` constant, and the handlers that
+signal it from `web`.

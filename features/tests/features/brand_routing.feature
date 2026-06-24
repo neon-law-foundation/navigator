@@ -30,11 +30,15 @@ Feature: Public site brand routing
     Examples:
       | path                              |
       | /foundation                       |
-      | /foundation/mission               |
       | /foundation/contact               |
       | /privacy                          |
       | /terms                            |
       | /foundation/workshops/navigator   |
+
+  Scenario: The old /foundation/mission URL permanently redirects to the Foundation home
+    When a visitor opens /foundation/mission
+    Then the response status is 308
+    And the response redirects to "/foundation"
 
   Scenario: The bare /navigator permanently redirects to the Foundation hub
     When a visitor opens /navigator

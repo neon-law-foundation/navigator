@@ -63,7 +63,7 @@ async fn gallery_index_renders_for_an_anonymous_visitor() {
 async fn template_detail_has_frontmatter_disclaimer_and_start_a_matter_cta() {
     let resp = get(
         empty_state().await,
-        "/templates/nonprofit/form990-annual-report",
+        "/templates/united-states/federal/irs/taxation/form990-annual-report",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -76,7 +76,8 @@ async fn template_detail_has_frontmatter_disclaimer_and_start_a_matter_cta() {
     assert!(body.contains("Start a matter"));
     assert!(body.contains("href=\"/contact\""));
     // And the raw-download link — kebab-cased, like every asset URL.
-    assert!(body.contains("/templates/nonprofit/form990-annual-report/download"));
+    assert!(body
+        .contains("/templates/united-states/federal/irs/taxation/form990-annual-report/download"));
 }
 
 #[tokio::test]
@@ -86,7 +87,7 @@ async fn template_underscore_url_redirects_to_kebab() {
     // hyphenated home.
     let resp = get(
         empty_state().await,
-        "/templates/nonprofit/form990_annual_report",
+        "/templates/united_states/federal/irs/taxation/form990_annual_report",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
@@ -94,13 +95,13 @@ async fn template_underscore_url_redirects_to_kebab() {
         resp.headers()
             .get(axum::http::header::LOCATION)
             .and_then(|v| v.to_str().ok()),
-        Some("/templates/nonprofit/form990-annual-report"),
+        Some("/templates/united-states/federal/irs/taxation/form990-annual-report"),
     );
 
     // The download route redirects too, preserving the trailing segment.
     let resp = get(
         empty_state().await,
-        "/templates/nonprofit/form990_annual_report/download",
+        "/templates/united_states/federal/irs/taxation/form990_annual_report/download",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
@@ -108,7 +109,23 @@ async fn template_underscore_url_redirects_to_kebab() {
         resp.headers()
             .get(axum::http::header::LOCATION)
             .and_then(|v| v.to_str().ok()),
-        Some("/templates/nonprofit/form990-annual-report/download"),
+        Some("/templates/united-states/federal/irs/taxation/form990-annual-report/download"),
+    );
+}
+
+#[tokio::test]
+async fn legacy_gallery_url_redirects_to_deep_taxonomy_path() {
+    let resp = get(
+        empty_state().await,
+        "/templates/nonprofit/form990-annual-report",
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        resp.headers()
+            .get(axum::http::header::LOCATION)
+            .and_then(|v| v.to_str().ok()),
+        Some("/templates/united-states/federal/irs/taxation/form990-annual-report"),
     );
 }
 
@@ -116,7 +133,7 @@ async fn template_underscore_url_redirects_to_kebab() {
 async fn template_downloads_verbatim_markdown_as_an_attachment() {
     let resp = get(
         empty_state().await,
-        "/templates/nonprofit/form990-annual-report/download",
+        "/templates/united-states/federal/irs/taxation/form990-annual-report/download",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -137,7 +154,9 @@ async fn template_downloads_verbatim_markdown_as_an_attachment() {
     let body = body_string(resp).await;
     // Verbatim bytes: the same source the git reader sees, frontmatter
     // fence and all.
-    let source = include_str!("../../notation_templates/nonprofit/form990_annual_report.md");
+    let source = include_str!(
+        "../../notation_templates/united_states/federal/irs/taxation/form990_annual_report.md"
+    );
     assert_eq!(body, source);
 }
 
@@ -145,12 +164,12 @@ async fn template_downloads_verbatim_markdown_as_an_attachment() {
 async fn confidential_template_404s_rather_than_leaking() {
     // Retainer is `confidential: true` and not on the allow-list. The
     // route must 404 — never serve it by guessing the path.
-    let resp = get(empty_state().await, "/templates/onboarding/retainer").await;
+    let resp = get(empty_state().await, "/templates/engagements/retainer").await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
     let resp = get(
         empty_state().await,
-        "/templates/onboarding/retainer/download",
+        "/templates/engagements/retainer/download",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);

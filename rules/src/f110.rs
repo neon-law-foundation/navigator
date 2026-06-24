@@ -31,8 +31,7 @@
 //!
 //! Files that are **not** under a known jurisdiction root are skipped:
 //! the operational branch (`engagements/`, `correspondence/`, `filings/`,
-//! `services/`), the brand quarantine (`neon_law/`), and the
-//! grandfathered legacy flat folders predate this grammar and carry no
+//! `services/`) and the brand quarantine (`neon_law/`) carry no
 //! jurisdiction segment, so `N110` says nothing about them. Snake-case of
 //! the filename itself is `N103`'s job; this rule owns the directory
 //! grammar.
@@ -297,8 +296,8 @@ mod tests {
     }
 
     #[test]
-    fn skips_grandfathered_legacy_flat_folders() {
-        let v = F110JurisdictionPath.lint(&at("notation_templates/trust/nevada.md"));
+    fn skips_unknown_non_jurisdiction_roots() {
+        let v = F110JurisdictionPath.lint(&at("notation_templates/archive/trust.md"));
         assert!(v.is_empty(), "{v:?}");
     }
 

@@ -169,8 +169,9 @@ fn every_bundled_template_has_a_coherent_workflow_and_questionnaire() {
         // that have no `workflow:` block because they are rendered as
         // part of *another* matter's workflow rather than driving one of
         // their own (the Northstar estate instrument stubs under
-        // `notation_templates/northstar/`, rendered by `document_drafts__estate`
-        // into `review_documents`). A fragment is defined by the absence
+        // `notation_templates/united_states/nevada/internal/trusts_and_estates/`,
+        // rendered by `document_drafts__estate` into `review_documents`).
+        // A fragment is defined by the absence
         // of a `workflow:` block — the same way `questionnaire:` is
         // already optional below.
         if !markdown.contains("workflow:") {
