@@ -4,10 +4,9 @@ Vendored government forms — the bundled registry behind `notation_templates/fo
 
 Every official form Navigator fills and files is vendored from its canonical source (the issuing authority's own domain,
 e.g. `nvsos.gov`) and pinned in [`notation_templates/forms/FORMS.toml`](../notation_templates/forms/FORMS.toml) by
-printed revision and SHA-256. This crate bundles the ledger and the PDF bytes into the binary so every consumer —
-the workflow walker
-building an AcroForm document payload, the web download routes, the `cli forms sync` uploader — reads the same bytes the
-repo committed, with no network or bucket dependency.
+printed revision and SHA-256. This crate bundles the ledger and the PDF bytes into the binary so every consumer — the
+workflow walker building an AcroForm document payload, the web download routes, the `cli forms sync` uploader — reads
+the same bytes the repo committed, with no network or bucket dependency.
 
 The acquisition discipline (canonical source only, no Wayback or mirrors, canonical example on disk before any field
 map, one commit per refresh) lives in the `vendor-gov-forms` skill. The guard test (`tests/vendored_forms.rs`)

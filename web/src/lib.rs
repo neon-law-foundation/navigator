@@ -748,7 +748,14 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/es/services/namesake", get(service_namesake_es))
             .route("/es/services/nucleus", get(service_nucleus_es))
             .route("/es/services/pro-bono", get(service_pro_bono_es))
-            .route("/foundation/workshops/navigator", get(workshops_index))
+            // The top-level overview lists every workshop, you-voiced.
+            .route("/foundation/workshops", get(workshops_landing))
+            // The old per-track index folded into the overview; redirect so
+            // bookmarks and the nav's prior target land on the new front door.
+            .route(
+                "/foundation/workshops/navigator",
+                get(|| async { axum::response::Redirect::permanent("/foundation/workshops") }),
+            )
             .route(
                 "/foundation/workshops/navigator/{slug}",
                 get(workshops_material),
@@ -779,9 +786,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             // links to a talk land on its workshop twin.
             .route(
                 "/foundation/presentations",
-                get(|| async {
-                    axum::response::Redirect::permanent("/foundation/workshops/navigator")
-                }),
+                get(|| async { axum::response::Redirect::permanent("/foundation/workshops") }),
             )
             .route(
                 "/foundation/presentations/{slug}",
@@ -1859,20 +1864,29 @@ async fn docusign_consent_callback() -> Markup {
 /// Route prefix for the Navigator workshop's overview and steps.
 const WORKSHOP_BASE: &str = "/foundation/workshops/navigator";
 
-async fn workshops_index(
+async fn workshops_landing(
     State(workshops): State<WorkshopIndex>,
     MaybeAuth(auth): MaybeAuth,
 ) -> Markup {
-    let summaries: Vec<workshop_views::MaterialSummary<'_>> = workshops
+    // Each card links to the workshop's overview one level down. The
+    // hrefs are owned, so hold them alive while the borrowing cards build.
+    let hrefs: Vec<String> = workshops
         .materials()
         .iter()
-        .map(|m| workshop_views::MaterialSummary {
-            slug: &m.slug,
+        .map(|m| format!("{WORKSHOP_BASE}/{}", m.slug))
+        .collect();
+    let cards: Vec<workshop_views::WorkshopCard<'_>> = workshops
+        .materials()
+        .iter()
+        .zip(&hrefs)
+        .map(|(m, href)| workshop_views::WorkshopCard {
+            href,
             title: &m.title,
-            description: &m.description,
+            audience: &m.audience,
+            benefit: &m.benefit,
         })
         .collect();
-    workshop_views::index(&summaries, auth)
+    workshop_views::landing(&cards, auth)
 }
 
 /// Build the table of contents shared by the overview and every step.
