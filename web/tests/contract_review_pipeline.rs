@@ -46,10 +46,13 @@ async fn admin_state(db: store::Db) -> web::admin::AdminState {
 /// returning `(project_id, person_id, entity_id)`.
 async fn seed_matter(db: &store::Db) -> (Uuid, Uuid, Uuid) {
     let entity_id = store::test_support::seed_entity(db).await;
+    let __dri = store::test_support::dri_person(db).await;
     let project_id = project::ActiveModel {
         name: ActiveValue::Set("Nexus engagement".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(entity_id),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(db)

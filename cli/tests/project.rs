@@ -1,15 +1,35 @@
 //! End-to-end tests for `cli project create`. The subcommand runs
 //! migrate + seed against the target Postgres so the canonical
-//! `shook.family` entity is in place by the time we look it up.
+//! `shook.family` entity is in place by the time we look it up. The
+//! canonical seed only seeds Nick as ADMIN, so each test that needs a
+//! client DRI seeds a `role = client` person explicitly first — the
+//! row survives the (idempotent) seed the subcommand runs.
 
 use std::process::Command;
 
 use assert_cmd::cargo::cargo_bin;
-use store::test_support::schema;
+use sea_orm::{ActiveModelTrait, ActiveValue};
+use store::entity::person;
+use store::test_support::{schema, Schema};
+
+/// Insert a `role = client` person with `email` into the per-test
+/// schema so `project create --client-email <email>` can resolve it.
+async fn seed_client(s: &Schema, name: &str, email: &str) {
+    person::ActiveModel {
+        name: ActiveValue::Set(name.to_string()),
+        email: ActiveValue::Set(email.to_string()),
+        role: ActiveValue::Set(person::Role::Client),
+        ..Default::default()
+    }
+    .insert(&s.db)
+    .await
+    .expect("seed client person");
+}
 
 #[tokio::test]
 async fn create_project_inserts_row_linked_to_seeded_entity() {
     let s = schema().await;
+    seed_client(&s, "Estate Client", "estate.client@example.com").await;
     let out = Command::new(cargo_bin("navigator"))
         .args([
             "project",
@@ -18,6 +38,8 @@ async fn create_project_inserts_row_linked_to_seeded_entity() {
             "Shook Estate",
             "--entity-name",
             "shook.family",
+            "--client-email",
+            "estate.client@example.com",
             "--database-url",
         ])
         .arg(&s.url)
@@ -52,14 +74,19 @@ async fn create_project_inserts_row_linked_to_seeded_entity() {
 #[tokio::test]
 async fn create_project_without_entity_link_is_rejected() {
     // A matter always opens against a pre-existing entity, so `project
-    // create` requires `--entity-name`.
+    // create` requires `--entity-name`. The entity is resolved before
+    // the client, so this fails on the missing entity even though a
+    // valid `--client-email` is supplied.
     let s = schema().await;
+    seed_client(&s, "Orphan Client", "orphan.client@example.com").await;
     let out = Command::new(cargo_bin("navigator"))
         .args([
             "project",
             "create",
             "--name",
             "Orphan Matter",
+            "--client-email",
+            "orphan.client@example.com",
             "--database-url",
         ])
         .arg(&s.url)
@@ -80,6 +107,7 @@ async fn create_project_without_entity_link_is_rejected() {
 async fn create_project_with_skip_migrate_and_seed_uses_existing_schema() {
     // First pass: prime the schema with migrate+seed via the default mode.
     let s = schema().await;
+    seed_client(&s, "Prime Client", "prime.client@example.com").await;
     let prime = Command::new(cargo_bin("navigator"))
         .args([
             "project",
@@ -88,6 +116,8 @@ async fn create_project_with_skip_migrate_and_seed_uses_existing_schema() {
             "Prime Project",
             "--entity-name",
             "shook.family",
+            "--client-email",
+            "prime.client@example.com",
             "--database-url",
         ])
         .arg(&s.url)
@@ -100,8 +130,9 @@ async fn create_project_with_skip_migrate_and_seed_uses_existing_schema() {
     );
 
     // Second pass: --skip-migrate-and-seed against the same schema.
-    // No migrate, no seed — must still succeed because the schema
-    // and `shook.family` row already exist from the first pass.
+    // No migrate, no seed — must still succeed because the schema,
+    // the `shook.family` row, and the seeded client already exist
+    // from the first pass.
     let out = Command::new(cargo_bin("navigator"))
         .args([
             "project",
@@ -110,6 +141,8 @@ async fn create_project_with_skip_migrate_and_seed_uses_existing_schema() {
             "Shook Estate Production",
             "--entity-name",
             "shook.family",
+            "--client-email",
+            "prime.client@example.com",
             "--skip-migrate-and-seed",
             "--database-url",
         ])
@@ -127,7 +160,10 @@ async fn create_project_with_skip_migrate_and_seed_uses_existing_schema() {
 
 #[tokio::test]
 async fn create_project_rejects_unknown_entity_name() {
+    // The entity is resolved before the client, so an unknown
+    // `--entity-name` fails even with a valid `--client-email`.
     let s = schema().await;
+    seed_client(&s, "Bad Link Client", "badlink.client@example.com").await;
     let out = Command::new(cargo_bin("navigator"))
         .args([
             "project",
@@ -136,6 +172,8 @@ async fn create_project_rejects_unknown_entity_name() {
             "Bad Link",
             "--entity-name",
             "definitely.not.a.real.entity",
+            "--client-email",
+            "badlink.client@example.com",
             "--database-url",
         ])
         .arg(&s.url)

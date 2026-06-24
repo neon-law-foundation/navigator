@@ -27,6 +27,23 @@ pub struct Model {
     /// opening. Enforced `NOT NULL` by
     /// `m20260712_projects_entity_id_not_null`.
     pub entity_id: Uuid,
+    /// The firm-side Directly Responsible Individual — the single
+    /// attorney/admin accountable for this matter. A first-class project
+    /// attribute, distinct from the `person_project_roles` participation
+    /// ledger (which records broader, many-per-matter involvement/access).
+    ///
+    /// The column is **nullable**: legacy matters opened before
+    /// `m20260725_add_project_dri_columns` have `None`. Every *new* matter
+    /// gets a real, role-checked DRI — that invariant is enforced at the
+    /// create paths (web matter-open, the MCP tools, the CLI), not by a DB
+    /// `NOT NULL`, so the column can be added to a populated table without a
+    /// backfill.
+    pub staff_dri_person_id: Option<Uuid>,
+    /// The client-side Directly Responsible Individual — the single client
+    /// contact accountable for this matter. The mirror of
+    /// [`Self::staff_dri_person_id`]: nullable for legacy rows, required and
+    /// role-checked (`Role::Client`) by every create path for new matters.
+    pub client_dri_person_id: Option<Uuid>,
     /// The matter's scope narrative — "this project's story." Captured at
     /// matter-open and seeded as the retainer's position-0 custom clause
     /// (System provenance, an attorney-editable draft). `None` for a plain
@@ -54,6 +71,18 @@ pub enum Relation {
         to = "super::entity::Column::Id"
     )]
     Entity,
+    #[sea_orm(
+        belongs_to = "super::person::Entity",
+        from = "Column::StaffDriPersonId",
+        to = "super::person::Column::Id"
+    )]
+    StaffDriPerson,
+    #[sea_orm(
+        belongs_to = "super::person::Entity",
+        from = "Column::ClientDriPersonId",
+        to = "super::person::Column::Id"
+    )]
+    ClientDriPerson,
 }
 
 crate::uuid_active_model_behavior!();

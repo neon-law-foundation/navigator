@@ -106,6 +106,11 @@ async fn main() -> anyhow::Result<()> {
     let blog = web::blog::load_dir(&blog_dir).context("loading blog posts")?;
     tracing::info!(count = blog.posts().len(), ?blog_dir, "loaded blog posts");
 
+    let events_dir = std::env::var("NAVIGATOR_EVENTS_DIR")
+        .map_or_else(|_| PathBuf::from(web::DEFAULT_EVENTS_DIR), PathBuf::from);
+    let events = web::events::load_dir(&events_dir).context("loading events")?;
+    tracing::info!(count = events.events().len(), ?events_dir, "loaded events");
+
     let auth = web::AuthConfig::from_env().await;
     tracing::info!(enforced = auth.is_enforced(), "auth configured");
 
@@ -251,6 +256,7 @@ async fn main() -> anyhow::Result<()> {
         docs: web::docs::loader::bundled(),
         marketing,
         blog,
+        events,
         auth,
         google_oauth,
         rate_limit: web::rate_limit::RateLimit::from_env(),

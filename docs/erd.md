@@ -389,6 +389,8 @@ erDiagram
         CHARACTER VARYING git_initialized_at
         CHARACTER VARYING closed_at
         TEXT description
+        UUID staff_dri_person_id FK
+        UUID client_dri_person_id FK
     }
     question_translations {
         UUID id PK
@@ -572,6 +574,8 @@ erDiagram
     projects ||--o{ person_project_roles : "project_id"
     entities ||--o{ playbooks : "entity_id"
     entities ||--o{ projects : "entity_id"
+    persons ||--o{ projects : "staff_dri_person_id"
+    persons ||--o{ projects : "client_dri_person_id"
     questions ||--o{ question_translations : "question_id"
     persons ||--o{ relationship_logs : "actor_person_id"
     notations ||--o{ review_documents : "notation_id"

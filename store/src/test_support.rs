@@ -306,6 +306,37 @@ pub async fn seed_entity(db: &Db) -> Uuid {
     .id
 }
 
+/// Find-or-create a single throwaway person to satisfy a project's
+/// required `staff_dri_person_id` / `client_dri_person_id` foreign keys
+/// in tests. Both columns are `NOT NULL`, so every test that inserts a
+/// `project::ActiveModel` needs a real `persons.id` for each side; tests
+/// that don't exercise DRI semantics just point both columns at this one
+/// fixture row. Idempotent (keyed on a fixed email) so repeated calls in
+/// one test return the same id without a unique-violation.
+pub async fn dri_person(db: &Db) -> Uuid {
+    use crate::entity::person;
+    use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
+
+    const EMAIL: &str = "dri-fixture@test.invalid";
+    if let Some(existing) = person::Entity::find()
+        .filter(person::Column::Email.eq(EMAIL))
+        .one(db)
+        .await
+        .expect("dri_person lookup")
+    {
+        return existing.id;
+    }
+    person::ActiveModel {
+        name: ActiveValue::Set("DRI Fixture".into()),
+        email: ActiveValue::Set(EMAIL.into()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("seed dri fixture person")
+    .id
+}
+
 /// Seed one notation (with its template, person, and project) and
 /// return the notation id. Shared by the helper-module tests that need
 /// a matter to hang rows off (`review_documents`, `document_comments`).
@@ -332,10 +363,13 @@ pub async fn seed_notation(db: &Db) -> Uuid {
     .insert(db)
     .await
     .expect("seed person");
+    let dri = dri_person(db).await;
     let proj = project::ActiveModel {
         name: ActiveValue::Set("Libra estate plan".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(entity_id),
+        staff_dri_person_id: ActiveValue::Set(Some(dri)),
+        client_dri_person_id: ActiveValue::Set(Some(dri)),
         ..Default::default()
     }
     .insert(db)

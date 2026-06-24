@@ -115,10 +115,13 @@ async fn seed_project_with_participant(
     participant_email: String,
 ) {
     let entity_id = store::test_support::seed_entity(world.db()).await;
+    let __dri = store::test_support::dri_person(world.db()).await;
     let inserted = project::ActiveModel {
         name: ActiveValue::Set(project_name.clone()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(entity_id),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(world.db())

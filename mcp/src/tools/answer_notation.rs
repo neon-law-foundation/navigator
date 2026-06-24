@@ -214,6 +214,17 @@ mod tests {
         .insert(db)
         .await
         .unwrap();
+        // The engagement opens a project, whose staff-side DRI is resolved
+        // by `default_firm_dri` — seed a firm principal so it resolves.
+        person::ActiveModel {
+            name: ActiveValue::Set("Firm Principal".into()),
+            email: ActiveValue::Set("principal@example.com".into()),
+            role: ActiveValue::Set(store::entity::person::Role::Admin),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
     }
 
     /// Helper: start a retainer via the create tool and return

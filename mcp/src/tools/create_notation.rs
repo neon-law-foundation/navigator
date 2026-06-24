@@ -201,10 +201,34 @@ async fn open_project_for_engagement(
     template_code: &str,
     entity_id: Uuid,
 ) -> Result<Uuid, ToolError> {
+    // Both DRI columns are NOT NULL. The engagement's respondent (resolved
+    // by email) is the client-side DRI and must be a real `Role::Client`
+    // person — the client of record is a client, never a firm attorney. The
+    // staff side defaults to the firm principal (resolved by role).
+    let client = person::Entity::find()
+        .filter(Expr::expr(Func::lower(Expr::col(person::Column::Email))).eq(email.to_lowercase()))
+        .order_by_asc(person::Column::Id)
+        .one(db)
+        .await?
+        .ok_or_else(|| ToolError::NotFound(format!("person with email `{email}`")))?;
+    if client.role != store::entity::person::Role::Client {
+        return Err(ToolError::InvalidArguments(format!(
+            "the matter's client `{email}` must be a client person, not {}",
+            client.role.as_str()
+        )));
+    }
+    let client_dri = client.id;
+    let staff_dri = store::persons::default_firm_dri(db).await?.ok_or_else(|| {
+        ToolError::InvalidArguments(
+            "no firm principal to assign as staff DRI — seed a staff/admin person first".into(),
+        )
+    })?;
     let row = project::ActiveModel {
         name: ActiveValue::Set(format!("{template_code} for {email}")),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(entity_id),
+        staff_dri_person_id: ActiveValue::Set(Some(staff_dri)),
+        client_dri_person_id: ActiveValue::Set(Some(client_dri)),
         ..Default::default()
     }
     .insert(db)
@@ -292,6 +316,21 @@ mod tests {
             .await
             .unwrap();
         }
+        seed_firm_principal(db).await;
+    }
+
+    /// Seed a `Role::Admin` person so `default_firm_dri` can resolve a
+    /// staff-side DRI when the engagement opens its project.
+    async fn seed_firm_principal(db: &store::Db) {
+        person::ActiveModel {
+            name: ActiveValue::Set("Firm Principal".into()),
+            email: ActiveValue::Set("principal@example.com".into()),
+            role: ActiveValue::Set(store::entity::person::Role::Admin),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
     }
 
     async fn seed_person(db: &store::Db, email: &str) {
@@ -448,6 +487,7 @@ mod tests {
     async fn unknown_template_is_not_found() {
         let db = db().await;
         seed_person(&db, "libra@example.com").await;
+        seed_firm_principal(&db).await;
         let eid = store::test_support::seed_entity(&db).await;
         let runtime = InMemoryRuntime::new();
         let err = call(

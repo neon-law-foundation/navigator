@@ -8,6 +8,7 @@ mod credentials;
 mod devx;
 mod drive;
 mod erd;
+mod events;
 mod format;
 mod forms_sync;
 mod git;
@@ -73,6 +74,17 @@ enum Command {
         /// environment variable.
         #[arg(long, env = "DATABASE_URL")]
         database_url: Option<String>,
+    },
+    /// Validate reviewable event markdown under `<dir>`.
+    ///
+    /// Event files mirror the blog convention (`YYYYMMDD_slug.md`) and
+    /// require structured front matter for title, description, local
+    /// Pacific start/end times, place, current external event provider,
+    /// and optional post-event video/recap links.
+    ValidateEvents {
+        /// Directory to walk.
+        #[arg(default_value = "web/content/events")]
+        dir: PathBuf,
     },
     /// Render a single notation template to a PDF, framed by an output
     /// format (a plain document, or a firm `letter` on Neon Law
@@ -842,6 +854,13 @@ enum ProjectAction {
         /// Entity.
         #[arg(long)]
         entity_name: Option<String>,
+        /// Email of the pre-existing **client** Person this matter is
+        /// opened for — its client-side DRI. Required: every matter has a
+        /// client of record, and it must be a `role = client` person
+        /// (create the client first). The staff-side DRI defaults to the
+        /// firm principal.
+        #[arg(long)]
+        client_email: String,
         /// Lifecycle status. `open`, `closed`, or `archived`.
         #[arg(long, default_value = "open")]
         status: String,
@@ -968,6 +987,7 @@ fn main() -> ExitCode {
             fix,
             database_url.as_deref(),
         )),
+        Command::ValidateEvents { dir } => events::run_validate(&dir),
         Command::Render {
             file,
             out,
@@ -1179,6 +1199,7 @@ async fn run_project(action: ProjectAction) -> ExitCode {
         ProjectAction::Create {
             name,
             entity_name,
+            client_email,
             status,
             database_url,
             skip_migrate_and_seed,
@@ -1186,6 +1207,7 @@ async fn run_project(action: ProjectAction) -> ExitCode {
             run_project_create(
                 &name,
                 entity_name.as_deref(),
+                &client_email,
                 &status,
                 &database_url,
                 skip_migrate_and_seed,
@@ -1220,6 +1242,7 @@ async fn run_project(action: ProjectAction) -> ExitCode {
 async fn run_project_create(
     name: &str,
     entity_name: Option<&str>,
+    client_email: &str,
     status: &str,
     database_url: &str,
     skip_migrate_and_seed: bool,
@@ -1245,7 +1268,7 @@ async fn run_project_create(
             return ExitCode::from(2);
         }
     }
-    match project::create(&db, name, entity_name, status).await {
+    match project::create(&db, name, entity_name, client_email, status).await {
         Ok(p) => {
             println!(
                 "{} {} (status={}, entity_id={})",
