@@ -38,7 +38,7 @@ inherit this.
 ### TDD and the pre-commit gate
 
 - Tests land in the **same commit** as the implementation they cover.
-- Always run before committing:
+- When a PR changes Rust files or build/runtime configuration, run before committing:
 
   ```bash
   cargo fmt
@@ -46,8 +46,16 @@ inherit this.
   cargo test --workspace
   ```
 
-  Plus the markdown lint (`cargo run -p cli -- validate --markdown-only --no-default-excludes <path>`) if you touched
-  any `.md` file.
+- When a PR changes only Markdown or other prose files and no Rust files changed, the full Rust suite is not required.
+  Run the Markdown gate for the touched docs instead:
+
+  ```bash
+  cargo run -p cli -- validate --markdown-only --no-default-excludes <path>
+  ```
+
+- After the PR is created or updated, clean task-owned build and e2e resources. `cargo clean` the task worktree when
+  Rust commands created local build artifacts, stop the KIND/dev stack you started, and prune task-created Docker build
+  cache or images. Do not prune Docker volumes without explicit approval.
 
 ## CI/CD — three workflows, plus maintenance
 
