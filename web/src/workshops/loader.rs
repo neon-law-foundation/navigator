@@ -19,6 +19,12 @@ struct ManifestEntry {
     slug: &'static str,
     title: &'static str,
     description: &'static str,
+    /// Who the workshop is for, shown as the audience tag on the
+    /// `/foundation/workshops` overview so a reader self-selects fast.
+    audience: &'static str,
+    /// The you-voiced takeaway shown as the overview card body —
+    /// what the reader walks out with, never a guaranteed outcome.
+    benefit: &'static str,
     filename: &'static str,
 }
 
@@ -34,6 +40,12 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
                       with a notarization step using Gemini's Add AIDA connector — no command \
                       line, no software install. Walk out with a three-minute demo of a \
                       contract your lawyer-self would sign on Monday.",
+        audience: "For lawyers",
+        benefit: "You walk out with a deed-of-sale notation you built yourself and a \
+                  three-minute demo you can run at your firm — the checks you already know to \
+                  run, like choice of law, privilege, and confidentiality, applied before you \
+                  sign. It runs inside the Gemini workspace you already use: no install, no \
+                  command line.",
         filename: "README.md",
     },
     ManifestEntry {
@@ -43,6 +55,12 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
                       grounded steps walk `navigator gcp setup` — APIs, VPC, Cloud SQL, three buckets, \
                       and a GKE Autopilot cluster — with a dry-run that shows every API call \
                       before a packet leaves your laptop.",
+        audience: "For operators",
+        benefit: "You walk out running the same stack a working law firm runs, on your own \
+                  Google Cloud project, for your own community. One command does most of the \
+                  work, and a dry-run shows you every step before a packet leaves your laptop. \
+                  It provisions billable cloud resources, so you set a budget alert first — we \
+                  give you the command.",
         filename: "DEPLOY.md",
     },
     // A conference talk is a hands-on workshop too — it folded in here when
@@ -58,6 +76,11 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
              justice: deterministic workflows from law — statute to Cucumber feature to template \
              to notation — dissected one modular, attorney-gated step at a time, with every code \
              slide an exact copy of the shipped repository kept honest by a grounding test.",
+        audience: "For the curious",
+        benefit: "You walk out able to argue, from the real code, why a reviewed and repeatable \
+                  workflow beats prompting an LLM. Every slide is an exact copy of the shipped \
+                  repository — a build test fails if one drifts — so you react to the real \
+                  thing, not a diagram.",
         filename: "RUST_IN_PEACE.md",
     },
 ];
@@ -84,6 +107,8 @@ pub fn load_navigator(content_root: &Path) -> Result<Vec<WorkshopMaterial>, Cont
             entry.slug,
             entry.title,
             entry.description,
+            entry.audience,
+            entry.benefit,
             &raw,
         ));
     }
@@ -95,12 +120,14 @@ pub fn load_navigator(content_root: &Path) -> Result<Vec<WorkshopMaterial>, Cont
 /// the raw markdown for the copy-to-clipboard button.
 ///
 /// Fed by the workshop loader with manifest-declared files from disk.
-/// The title and description come from the caller, not the markdown, so
-/// the surface controls its own chrome.
+/// The title, description, audience, and benefit come from the caller,
+/// not the markdown, so the surface controls its own chrome.
 pub(crate) fn material_from_markdown(
     slug: &str,
     title: &str,
     description: &str,
+    audience: &str,
+    benefit: &str,
     raw: &str,
 ) -> WorkshopMaterial {
     let (intro_md, section_specs) = split_sections(raw);
@@ -115,6 +142,8 @@ pub(crate) fn material_from_markdown(
         slug: slug.to_string(),
         title: title.to_string(),
         description: description.to_string(),
+        audience: audience.to_string(),
+        benefit: benefit.to_string(),
         // The page chrome owns the sole `<h1>`; strip the leading
         // `#` title so the rendered body doesn't repeat it.
         body_html: render_markdown(&strip_leading_h1(raw)),
@@ -312,6 +341,14 @@ mod tests {
         assert_eq!(
             materials[0].title,
             "Using the Navigator to Rapidly Solve Legal Outcomes",
+        );
+        // The audience tag and you-voiced benefit ride the manifest, not
+        // the markdown — the overview card is fed from these.
+        assert_eq!(materials[0].audience, "For lawyers");
+        assert!(
+            materials[0].benefit.starts_with("You walk out"),
+            "benefit is second-person and leads with the takeaway, got: {}",
+            materials[0].benefit
         );
     }
 

@@ -78,10 +78,12 @@ Markdown validation pass through the `navigator` CLI, a clippy pass with warning
 suite — nothing else. The Markdown pass builds `navigator` once and runs `./target/debug/navigator validate
 --no-default-excludes .`, so ordinary docs get the prose Markdown rules and notation templates get the stricter
 questionnaire/workflow/template rule set. The job keeps target artifacts out of the cache, disables CI debug info, and
-runs `cargo clean` between clippy and test so the standard hosted runner has enough disk. One shared
-`postgres:17-alpine` container backs the whole job via `TEST_DATABASE_URL` (so `store::test_support` makes a per-test
-schema in that single container instead of spawning a testcontainer per binary). Integration/KIND/docker/browser work
-does **not** run here.
+runs `cargo clean` between clippy and test so the standard hosted runner has enough disk. It still uses two
+Rust-specific caches: `Swatinem/rust-cache` restores Cargo's registry, git, and tool caches, while `sccache` stores
+reusable rustc outputs in GitHub Actions cache. That gives successive PRs a compiler cache without restoring the full
+`target/` tree that previously exhausted runner disk. One shared `postgres:17-alpine` container backs the whole job via
+`TEST_DATABASE_URL` (so `store::test_support` makes a per-test schema in that single container instead of spawning a
+testcontainer per binary). Integration/KIND/docker/browser work does **not** run here.
 
 ### Cron flow — `release-tag.yml`
 
