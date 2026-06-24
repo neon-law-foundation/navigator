@@ -158,8 +158,9 @@ async fn catalog_lists_every_active_product_at_the_db_price() {
     );
 
     assert!(
-        body.contains("Flat fee per phase")
-            && body.contains("quoted after case assessment")
+        body.contains("Flat fee")
+            && body.contains("quoted per phase")
+            && !body.contains("quoted after case assessment")
             && !body.contains("$1,337/hour"),
         "litigation card should advertise quoted phase pricing instead of hourly billing"
     );
