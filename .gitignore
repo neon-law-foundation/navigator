@@ -1,4 +1,5 @@
 /target
+/.worktrees/
 # The bundled editor extensions are standalone packages (each carries
 # its own `[workspace]`), so they build into their OWN nested target/
 # dir rather than the repo-root one above. Keep those build artifacts

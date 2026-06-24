@@ -92,7 +92,7 @@ first edit, push, then open a PR and enable auto-merge so GitHub lands it once C
 
 ```bash
 git worktree add -b <kebab-topic> .worktrees/<kebab-topic> origin/main
-git push -u origin <branch>
+git push -u origin <kebab-topic>
 gh pr create
 gh pr merge --auto --squash
 ```
