@@ -40,13 +40,9 @@ on:
   workflow_dispatch:
     inputs:
       release_binaries_only:
-        description: "Temporary PR smoke: build CLI/LSP archives as workflow artifacts only."
+        description: "Temporary PR smoke: build CLI/LSP binaries on native OS runners only."
         type: boolean
         default: false
-      release_binary_tag:
-        description: "Version label to bake into temporary branch smoke archive names."
-        type: string
-        default: "26.06.24-pr92"
 
 permissions:
   contents: read
@@ -572,11 +568,11 @@ jobs:
           path: dist/*${{ matrix.archive }}
           if-no-files-found: error
 
-  # Temporary PR-only smoke for #92. It exercises the exact native runner
-  # matrix and package commands above without cutting a throwaway tag or
-  # attaching anything to a public GitHub Release.
+  # Temporary PR-only smoke for #92. It proves the CLI and LSP executables
+  # build on native Linux, macOS, and Windows runners without cutting a
+  # throwaway tag, publishing a release, or uploading artifacts.
   release-binaries-branch-smoke:
-    name: smoke release binaries (${{ matrix.platform }})
+    name: smoke build binaries (${{ matrix.platform }})
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_binaries_only }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
@@ -587,15 +583,12 @@ jobs:
           - platform: linux
             os: ubuntu-latest
             exe: ""
-            archive: tar.gz
           - platform: macos
             os: macos-latest
             exe: ""
-            archive: tar.gz
           - platform: windows
             os: windows-latest
             exe: ".exe"
-            archive: zip
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -607,37 +600,19 @@ jobs:
           key: branch-release-binaries-${{ matrix.platform }}
       - name: build navigator and navigator-lsp
         run: cargo build --release -p cli -p lsp
-      - name: package unix binaries
+      - name: show unix binaries
         if: runner.os != 'Windows'
-        env:
-          TAG: ${{ inputs.release_binary_tag }}
-          PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          mkdir -p dist/pkg-navigator dist/pkg-navigator-lsp
-          cp target/release/navigator dist/pkg-navigator/navigator
-          cp target/release/navigator-lsp dist/pkg-navigator-lsp/navigator-lsp
-          chmod +x dist/pkg-navigator/navigator dist/pkg-navigator-lsp/navigator-lsp
-          tar -C dist/pkg-navigator -czf "dist/navigator-${TAG}-${PLATFORM}.tar.gz" navigator
-          tar -C dist/pkg-navigator-lsp -czf "dist/navigator-lsp-${TAG}-${PLATFORM}.tar.gz" navigator-lsp
-      - name: package windows binaries
+          test -x target/release/navigator
+          test -x target/release/navigator-lsp
+          ls -lh target/release/navigator target/release/navigator-lsp
+      - name: show windows binaries
         if: runner.os == 'Windows'
         shell: pwsh
-        env:
-          TAG: ${{ inputs.release_binary_tag }}
-          PLATFORM: ${{ matrix.platform }}
         run: |
-          New-Item -ItemType Directory -Force dist/pkg-navigator, dist/pkg-navigator-lsp | Out-Null
-          Copy-Item "target/release/navigator.exe" "dist/pkg-navigator/navigator.exe"
-          Copy-Item "target/release/navigator-lsp.exe" "dist/pkg-navigator-lsp/navigator-lsp.exe"
-          Compress-Archive -Path "dist/pkg-navigator/navigator.exe" -DestinationPath "dist/navigator-$env:TAG-$env:PLATFORM.zip" -Force
-          Compress-Archive -Path "dist/pkg-navigator-lsp/navigator-lsp.exe" -DestinationPath "dist/navigator-lsp-$env:TAG-$env:PLATFORM.zip" -Force
-      - name: upload packaged binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: branch-release-binaries-${{ matrix.platform }}
-          path: dist/*${{ matrix.archive }}
-          if-no-files-found: error
+          Get-Item target/release/navigator.exe, target/release/navigator-lsp.exe |
+            Format-Table Name, Length, FullName
 
   release-binaries-publish:
     name: publish GitHub Release binaries
