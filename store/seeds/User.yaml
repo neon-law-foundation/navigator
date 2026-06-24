@@ -1,5 +1,4 @@
-# Role assignments for seeded persons. See `docs/access-model.md` and
-# `.claude/skills/authorization-model/SKILL.md` for the model.
+# Role assignments for seeded persons. See `docs/access-model.md` for the model.
 #
 # Convention enforced by `store::seed::require_firm_domain`:
 # - The single `admin` is `nick@neonlaw.com` (lowercase, exact) — the

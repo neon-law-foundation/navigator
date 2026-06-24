@@ -7,20 +7,18 @@ enforces, what runs after a client finishes intake, and what is still on the roa
 
 ## What a notation is, in one paragraph
 
-A **Template** is a static blueprint: one markdown file with YAML frontmatter, checked into `notation_templates/`.
-A **Notation** is that Template come to life — one running instance bound to a [Person](glossary.md#person) (the
-respondent), exactly
-one [Project](glossary.md#project), and optionally an [Entity](glossary.md#entity) — advancing through two state
-machines the Template declares. In client English a Notation-in-a-Project is the **Engagement** (or **Retainer**). The
-Template *declares*; Restate *runs*. Everything below is about writing good Templates and growing what their workflows
-can do.
+A **Template** is a static blueprint: one markdown file with YAML frontmatter, checked into `notation_templates/`. A
+**Notation** is that Template come to life — one running instance bound to a [Person](glossary.md#person) (the
+respondent), exactly one [Project](glossary.md#project), and optionally an [Entity](glossary.md#entity) — advancing
+through two state machines the Template declares. In client English a Notation-in-a-Project is the **Engagement** (or
+**Retainer**). The Template *declares*; Restate *runs*. Everything below is about writing good Templates and growing
+what their workflows can do.
 
 ## Anatomy of a template file
 
-Every template lives at `notation_templates/<category>/<snake_case_name>.md` and has two parts: YAML frontmatter
-(the contract) and a markdown body (the document, with `{{question_code}}` placeholders). Here is the shipped
-retainer's frontmatter
-(the real file wraps this block in `---` fences, then the prose body follows):
+Every template lives at `notation_templates/<category>/<snake_case_name>.md` and has two parts: YAML frontmatter (the
+contract) and a markdown body (the document, with `{{question_code}}` placeholders). Here is the shipped retainer's
+frontmatter (the real file wraps this block in `---` fences, then the prose body follows):
 
 ```yaml
 title: Retainer Agreement
@@ -64,8 +62,8 @@ full history of a matter is replayable for audit.
 
 ## How to create one — the five-step recipe
 
-New legal matters follow a fixed order (see the `create-legal-workflow` skill for the long form). Feature-first, so the
-behavior is specified before the prose exists:
+New legal matters follow a fixed order (see [`agent-workflows.md`](agent-workflows.md) for the long form).
+Feature-first, so the behavior is specified before the prose exists:
 
 1. **Write the `.feature` first.** Describe the matter as a BDD scenario in `features/` using only Person / Entity
    role nouns from [`glossary.md`](glossary.md). The feature is the spec; the template satisfies it.

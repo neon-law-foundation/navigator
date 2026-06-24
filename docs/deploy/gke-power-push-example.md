@@ -5,9 +5,9 @@ longer built on a laptop and there is no Artifact Registry: CI (`.github/workflo
 publishes it to the **public** `ghcr.io/neon-law-foundation/navigator-*` packages, tagged `YY.MM.DD` (the release date)
 plus `latest`. `power-push` only **rolls the cluster** onto an already-published image.
 
-The canonical, maintained walk-through is the **[`power-push`](../../.claude/skills/power-push/SKILL.md)** skill — read
-it for the full recipe (resolving the tag, the Secret-invariant check, the concurrent rollout, the Restate
-re-registration, and the secret-rotation "no-rebuild push"). This page is only the short orientation.
+The canonical, maintained walk-through is [`cloud-operations.md`](../cloud-operations.md). Read it for the full recipe
+(resolving the tag, the Secret-invariant check, the concurrent rollout, the Restate re-registration, and the
+secret-rotation "no-rebuild push"). This page is only the short orientation.
 
 ## The new model in one breath
 
@@ -45,5 +45,5 @@ doppler run --project navigator --config prd -- cargo run --release -p cli -- po
 Configuration is read from the environment — `NAVIGATOR_GHCR_OWNER` (the lowercase GitHub owner that owns the published
 packages; defaults to `neon-law-foundation`, overridable by a fork), the GCP project / region / cluster for the kubectl
 context, and `NAVIGATOR_PRIMARY_DOMAIN` for the smoke check. Nothing is hard-coded. See
-[`.env.example`](../../.env.example) and the [`power-push`](../../.claude/skills/power-push/SKILL.md) skill for the full
-list and the manual `kubectl` fallback.
+[`.env.example`](../../.env.example) and [`cloud-operations.md`](../cloud-operations.md) for the full list and the
+manual `kubectl` fallback.

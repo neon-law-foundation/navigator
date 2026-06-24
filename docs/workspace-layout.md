@@ -28,5 +28,5 @@ billing-workflows lib — worker-side billing workflows (nightly Xero canary), h
 
 ## Adding a new crate
 
-A new workspace crate must be added to the `images/Dockerfile.*` `COPY` lists so the prod images still build — see the
-[`durable-execution`](../.claude/skills/durable-execution/SKILL.md) skill.
+A new workspace crate must be added to the `images/Dockerfile.*` `COPY` lists so the prod images still build — see
+[`durable-workflows.md`](durable-workflows.md) and [`rust-programming.md`](rust-programming.md).

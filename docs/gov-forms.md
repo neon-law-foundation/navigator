@@ -9,7 +9,7 @@ corporation under NRS 78, business trust under NRS 88A); the same pipeline is bu
 
 ```text
 nvsos.gov (canonical source)
-   │  browser download — the vendor-gov-forms skill
+   │  browser download — the provenance workflow
    ▼
 notation_templates/forms/<authority>/<form_code>-<revision>.pdf   ← canonical example, committed
 notation_templates/forms/FORMS.toml                               ← provenance ledger (sha256, revision, source_url)
@@ -32,13 +32,12 @@ filing__nv_sos                                           ← staff files (Silver
 ## Vendoring: canonical source, on disk, no guessing
 
 Every form's exact bytes are committed under `notation_templates/forms/` and pinned in
-[`notation_templates/forms/FORMS.toml`](../notation_templates/forms/FORMS.toml) by authority, printed revision
-date, canonical source URL, retrieval date, and SHA-256. The acquisition discipline — issuing authority's own
-domain only, never a mirror or the
-Wayback Machine; one commit per acquisition or refresh so `git log` is the verifiable timestamp ledger — lives in the
-`vendor-gov-forms` skill. Field maps and templates are authored only from a dump of the on-disk bytes: real government
-field names include `undefined`, `City_5`, and `Name of Registered Agenl` (a typo printed in the official form), so
-nothing is guessed.
+[`notation_templates/forms/FORMS.toml`](../notation_templates/forms/FORMS.toml) by authority, printed revision date,
+canonical source URL, retrieval date, and SHA-256. The acquisition discipline — issuing authority's own domain only,
+never a mirror or the Wayback Machine; one commit per acquisition or refresh so `git log` is the verifiable timestamp
+ledger — lives here. Field maps and templates are authored only from a dump of the on-disk bytes: real government field
+names include `undefined`, `City_5`, and `Name of Registered Agenl` (a typo printed in the official form), so nothing is
+guessed.
 
 Guards: `forms/tests/vendored_forms.rs` recomputes every sha256 from the bundled bytes and the working-tree file;
 `forms/tests/fill_real_packets.rs` fills the real packets end-to-end in CI.
@@ -116,7 +115,7 @@ makes, now through the CLI surface. See [`cli/README.md`](../cli/README.md) for 
 
 ## Adding the next form
 
-1. Vendor it with the `vendor-gov-forms` skill (canonical source, ledger entry, own commit).
+1. Vendor it with the provenance workflow here (canonical source, ledger entry, own commit).
 2. Dump its fields from the on-disk bytes; author `<form_code>.fields.toml` (and new question seeds only if no
    existing code fits — reuse first).
 3. Add the `include_bytes!`/`include_str!` rows to the `forms` crate; the guard tests pick the form up automatically.

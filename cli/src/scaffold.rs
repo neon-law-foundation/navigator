@@ -21,8 +21,8 @@
 //! The Cucumber **runner** (the `.rs` file that pairs with the
 //! feature) is intentionally not generated — picking the right
 //! shape-lock or end-to-end runner depends on the workflow's actual
-//! shape, and the recipe in `.claude/skills/create-legal-workflow/`
-//! covers the manual step.
+//! shape. `docs/agent-workflows.md` and `docs/notation-authoring.md`
+//! cover the manual step.
 //!
 //! Files that already exist are left untouched — scaffold is idem-
 //! potent.

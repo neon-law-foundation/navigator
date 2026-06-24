@@ -738,6 +738,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
                 "/foundation/workshops/navigator/{slug}/step/{step}",
                 get(workshops_material_step),
             )
+            .route("/docs", get(docs_index_page))
             .route("/docs/{slug}", get(docs_page))
             // Public, no-login template gallery + the LSP showcase — the
             // "our legal documents are plain markdown" demo surfaces.
@@ -1058,6 +1059,14 @@ fn foundation_mission_in(
     views::pages::mission::render_in(&content, auth, locale)
 }
 
+/// `GET /docs` — the workspace documentation index.
+async fn docs_index_page(
+    State(docs): State<DocsIndex>,
+    MaybeAuth(auth): MaybeAuth,
+) -> impl IntoResponse {
+    render_doc_page(&docs, "index", auth)
+}
+
 /// `GET /docs/{slug}` — a workspace doc rendered from the baked `docs/`
 /// tree. Public even in private mode (reference vocabulary, like
 /// `/privacy`). Unknown slugs 404.
@@ -1069,7 +1078,18 @@ async fn docs_page(
     if let Some(to) = kebab_redirect_path(&["docs", &slug]) {
         return axum::response::Redirect::permanent(&to).into_response();
     }
-    match docs.find(&slug) {
+    if slug == "index" {
+        return axum::response::Redirect::permanent("/docs").into_response();
+    }
+    render_doc_page(&docs, &slug, auth)
+}
+
+fn render_doc_page(
+    docs: &DocsIndex,
+    slug: &str,
+    auth: views::AuthState,
+) -> axum::response::Response {
+    match docs.find(slug) {
         Some(doc) => (
             StatusCode::OK,
             views::pages::docs::render(

@@ -91,7 +91,7 @@ as the code they cover, per workspace TDD discipline.
 
 ## Related
 
-- `.claude/skills/kind-local-dev/SKILL.md` — the dev loop this extends.
-- `.claude/skills/power-push/SKILL.md` + `.env.example` — the existing env-driven prod surface this stays consistent
-  with.
-- `.claude/skills/cloud-rest-endpoints/SKILL.md` — `navigator gcp setup` env conventions.
+- [`RUNBOOK.md`](RUNBOOK.md) — the dev loop this extends.
+- [`cloud-operations.md`](cloud-operations.md) + [`.env.example`](../.env.example) — the env-driven prod surface this
+  stays consistent with.
+- [`oss-install.md`](oss-install.md) — `navigator gcp setup` env conventions.

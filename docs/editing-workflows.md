@@ -2,13 +2,13 @@
 
 This is the practical guide to **changing a workflow that already exists** — asking another question, rewriting a
 template body, adding a staff-review or signature or filing step, or wiring a fee. For authoring a brand-new matter type
-from scratch, start with the `create-legal-workflow` skill and [`notation-authoring.md`](notation-authoring.md); this
-doc is about evolving what is already shipped.
+from scratch, start with [agent workflows](agent-workflows.md) and [notation authoring](notation-authoring.md); this doc
+is about evolving what is already shipped.
 
 The guiding idea, proven by the end-to-end journey suite in [`features/`](../features/): **the questionnaire and the
 workflow are the tested contract; the template body is replaceable.** A stub template (see
-[`notation_templates/nest/nevada.md`](../notation_templates/nest/nevada.md)) ships a real, tested flow with
-placeholder prose, and the prose is filled in later without touching the flow.
+[`notation_templates/nest/nevada.md`](../notation_templates/nest/nevada.md)) ships a real, tested flow with placeholder
+prose, and the prose is filled in later without touching the flow.
 
 ## The four artifacts of one workflow
 

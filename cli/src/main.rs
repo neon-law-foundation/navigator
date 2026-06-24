@@ -416,9 +416,9 @@ enum Command {
         #[arg(long)]
         namespace: Option<String>,
     },
-    /// One-shot "ship to prod" — the executable form of the
-    /// `power-push` skill. CI (`deploy.yml`) builds and publishes the
-    /// images to ghcr.io tagged `YY.MM.DD`; power-push only rolls the
+    /// One-shot "ship to prod" — the executable path documented in
+    /// `docs/cloud-operations.md`. CI (`deploy.yml`) builds and publishes
+    /// the images to ghcr.io tagged `YY.MM.DD`; power-push only rolls the
     /// cluster. Default flow: resolve the `YY.MM.DD` ghcr tag (latest
     /// published, or `--tag`) → confirm the prod Secret satisfies the new
     /// binary's boot invariants → roll out BOTH deployments at that tag →

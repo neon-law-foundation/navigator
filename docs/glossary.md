@@ -7,6 +7,9 @@ can jump straight from term to schema.
 This glossary is a single alphabetical list. The notation-system vocabulary (Template, Notation, Questionnaire,
 Question, Answer, Rule) lives in its own teaching-ordered doc, [`notation.md`](notation.md).
 
+For task-oriented navigation, start at [`index.md`](index.md). Its glossary quick links map the most common terms to the
+docs that explain how those terms behave in code, operations, and workflows.
+
 ---
 
 ## Actor Class
@@ -33,7 +36,7 @@ The workspace's **domain agent persona**. AIDA exposes the same tool catalog thr
 - **A2A** (Agent2Agent) — public agent card at [`/api/aida.json`](https://www.your-domain.example/api/aida.json),
   JSON-RPC at `/api/aida/rpc`. Used by Gemini Enterprise and any other A2A-compatible orchestrator. A free-form
   `message/send` is interpreted by a pluggable [`AgentRouter`](../web/src/agent_router.rs) (Vertex AI Gemini Flash in
-  prod) that maps the user's text to one of the declared skills.
+  prod) that maps the user's text to one of the declared tools.
 - **MCP** — JSON-RPC at `/mcp`. Used by Claude.ai Connectors, Claude Code, LibreChat, Cursor, and other Anthropic-stack
   clients. The MCP-side LLM (e.g. Claude) does its own tool routing client-side; our server just dispatches the named
   tool.
@@ -66,17 +69,19 @@ Which of the two surfaces (`NEON_LAW` or `NEON_LAW_FOUNDATION`) a given route se
 ## Council
 
 A **group of experts** the workspace convenes for a structured, twelve-voice review — spelled c-o-u-n-c-i-l. Navigator
-runs two, the same shape with a different bench:
+runs three, the same shape with a different bench:
 
 - The **Engineering Council** (the "Council of Twelve") — twelve practitioner-engineer voices for architecture
-  decisions, design planning, and cross-cutting refactors. Invoked via the `/council` skill
-  ([`.claude/skills/council/`](../.claude/skills/council/)).
+  decisions, design planning, and cross-cutting refactors.
 - The **Legal Council** — twelve lawyer voices for legal-drafting copy review, before copy becomes a
-  [Notation](notation.md#notation). Invoked via the `legal-council` skill and exposed to external agents as the
-  `aida_spawn_legal_council` MCP tool.
+  [Notation](notation.md#notation). Exposed to external agents as the `aida_spawn_legal_council` MCP tool.
+- The **Client Council** — twelve client-side voices for intake, portal UX, pricing, onboarding, and other decisions
+  where the question is whether a real person walks in and stays.
 
 The Legal Council is **a council of [counsels](#counsel)** — a council (the group) whose members are counsels (the
 attorneys). Both spellings are load-bearing; see [Counsel](#counsel).
+
+See [`agent-decision-councils.md`](agent-decision-councils.md) for the shared protocol.
 
 ## Counsel
 
@@ -134,8 +139,8 @@ Pacific to start one invocation; the workflow runs the snapshot (and, when confi
 written as the `gcp_cost` table) as durable steps, then emails a diagnostic summary (snapshot outcomes, cost summary,
 BigQuery query template, Restate invocation link) to `ARCHIVES_NOTIFY_EMAIL`.
 
-Disambiguates from the `power-push` skill's **source export** — that ships git bundles of HEAD to
-`gs://YOUR_PROJECT_ID-source/` for repo distribution. Two buckets, two flavors of "export," one shared word.
+Disambiguates from the deploy **source export** — that ships git bundles of HEAD to `gs://YOUR_PROJECT_ID-source/` for
+repo distribution. Two buckets, two flavors of "export," one shared word.
 
 - Crate: [`archives/`](../archives/)
 - Bucket: `gs://YOUR_PROJECT_ID-exports/iceberg/<table>/`

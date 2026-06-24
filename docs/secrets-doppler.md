@@ -48,12 +48,12 @@ Local config arrives in three layers, first writer wins under `dotenvy`:
 its in-process stub. Only the gated sandbox smoke tests read live creds (`DOCUSIGN_SANDBOX_*`, `XERO_SANDBOX_*`) and
 self-skip when absent; run them with `doppler run -- cargo test …`.
 
-The machine-bound deploy is no different: prefix the [`power-push`](../.claude/skills/power-push/SKILL.md) commands with
-`doppler run --` instead of sourcing `.env`, and the deploy-targeting vars (`NAVIGATOR_GCP_PROJECT_ID`,
+The machine-bound deploy is no different: prefix the deploy commands in [`cloud-operations.md`](cloud-operations.md)
+with `doppler run --` instead of sourcing `.env`, and the deploy-targeting vars (`NAVIGATOR_GCP_PROJECT_ID`,
 `NAVIGATOR_GCP_LOCATION`, `NAVIGATOR_GKE_CLUSTER_NAME`, `NAVIGATOR_PRIMARY_DOMAIN`) are injected from the `dev` config —
 e.g. `doppler run -- bash -c 'cargo run --release -p cli -- image'`. With Doppler configured, `.env` is optional and
-fully derivable (`doppler secrets download …` above); the skill keeps its `source .env` path for OSS forks that don't
-use Doppler.
+fully derivable (`doppler secrets download …` above); the OSS docs keep a `source .env` path for forks that don't use
+Doppler.
 
 ## Production (GCP)
 
@@ -102,8 +102,8 @@ done
 ```
 
 Then `kubectl rollout restart` the `navigator-web` + `workflows-service` Deployments so they re-read the Secret — see
-the [`power-push`](../.claude/skills/power-push/SKILL.md) no-rebuild restart path. (A `navigator secrets render-prod`
-subcommand could replace this shell loop later; the loop is the source of truth until then.)
+the [`cloud-operations.md`](cloud-operations.md) no-rebuild restart path. (A `navigator secrets render-prod` subcommand
+could replace this shell loop later; the loop is the source of truth until then.)
 
 ## Adding a new secret
 

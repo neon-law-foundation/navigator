@@ -60,9 +60,8 @@ pub struct ExpungeOutcome {
 }
 
 /// Env var naming the POSIX directory that holds every Project's bare
-/// repo. Per `feedback_skills_no_hardcoded_values` the volume path is
-/// deploy-specific (an RWO PVC mount in prod, a tmp/hostPath dir in
-/// KIND) and never hard-coded.
+/// repo. The volume path is deploy-specific (an RWO PVC mount in prod,
+/// a tmp/hostPath dir in KIND) and never hard-coded.
 pub const REPO_ROOT_ENV: &str = "NAVIGATOR_GIT_REPO_ROOT";
 
 /// The append-only `pre-receive` hook. Rejects any pushed ref that is

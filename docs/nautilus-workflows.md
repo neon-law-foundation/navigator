@@ -16,9 +16,9 @@ this index says how it is built.
   `@approve` command is the attorney-approval gate — reuse it, never reinvent it.
 - **One worker.** Every workflow binds onto the existing `workflows-service` Restate endpoint — one worker, never a
   per-workflow pod. This is idiomatic Restate: many handlers, one deployment.
-- **Recipe.** Follow the `create-legal-workflow` skill — (1) `.feature` first, (2) template + questionnaire, (3) seeded
-  questions, (4) workflow YAML from the shared step library, (5) Restate handlers. Use only Person / Entity / role nouns
-  from [`glossary.md`](glossary.md).
+- **Recipe.** Follow [`agent-workflows.md`](agent-workflows.md) — (1) `.feature` first, (2) template + questionnaire,
+  (3) seeded questions, (4) workflow YAML from the shared step library, (5) Restate handlers. Use only Person / Entity /
+  role nouns from [`glossary.md`](glossary.md).
 - **Matter lifecycle.** A Nautilus engagement is a `projects` matter opened by `onboarding__` and closed by
   `closing__letter` when the representation ends.
 

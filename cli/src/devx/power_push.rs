@@ -1,9 +1,9 @@
 //! `devx power-push` — one-shot "roll prod onto today's image".
 //!
-//! This is the deterministic, in-binary form of the `power-push` skill
-//! (`.claude/skills/power-push/SKILL.md`). The skill remains the prose
-//! rationale ("why each step, in this order"); this module is the
-//! executable that runs the steps so an operator types one command
+//! This is the deterministic, in-binary form of the production rollout
+//! path documented in `docs/cloud-operations.md`. That public doc keeps
+//! the prose rationale ("why each step, in this order"); this module is
+//! the executable that runs the steps so an operator types one command
 //! instead of pasting several shell blocks.
 //!
 //! **CI builds and publishes; power-push only rolls.** The daily
@@ -12,7 +12,7 @@
 //! pushes an image — it pins the running cluster to an
 //! already-published tag.
 //!
-//! Two flows, matching the skill:
+//! Two flows, matching the documented rollout path:
 //!
 //! - **Roll** (default): resolve the `YY.MM.DD` ghcr tag to deploy (the
 //!   latest published, or `--tag`) → confirm the prod Secret satisfies
@@ -26,7 +26,7 @@
 //!
 //! Everything that varies per deployment flows through `.env` — there
 //! is no literal project ID, region, domain, or ghcr owner in this file
-//! (same contract as the skill). See [`PowerPushConfig::from_env`].
+//! (same contract as `docs/env-driven-devx.md`). See [`PowerPushConfig::from_env`].
 //!
 //! ## What this does NOT do
 //!

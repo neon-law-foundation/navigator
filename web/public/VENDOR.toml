@@ -5,9 +5,9 @@
 # they are and where they came from. `web/tests/vendor_assets.rs` recomputes
 # each `sha256` from `served_path` and fails on drift, so this file cannot lie.
 #
-# To refresh an asset, use the `update-web-assets` skill — never hand-edit a
-# minified blob. Minor/patch bumps are routine; a MAJOR bump (e.g. Bootstrap
-# 5 -> 6) restyles every page and must go through `/council` first.
+# To refresh an asset, update the vendored bytes and this manifest together;
+# never hand-edit a minified blob. Minor/patch bumps are routine; a MAJOR bump
+# (e.g. Bootstrap 5 -> 6) restyles every page and must go through council review.
 #
 # Fields:
 #   name         human label

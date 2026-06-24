@@ -27,8 +27,8 @@
 //! Project).
 //!
 //! The repo root is `NAVIGATOR_GIT_REPO_ROOT` (deploy config, never
-//! hard-coded — `feedback_skills_no_hardcoded_values`); a Project's bare
-//! repo is created lazily on first authorized access.
+//! hard-coded); a Project's bare repo is created lazily on first
+//! authorized access.
 
 // The transport's internal helpers return `Result<_, Response>` so a
 // failed auth/authz short-circuits with a ready-made HTTP response. An

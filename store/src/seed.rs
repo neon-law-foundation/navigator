@@ -757,7 +757,7 @@ struct PersonEmailRef {
 /// lowercase requirement is exact-match — the seed is the canonical
 /// source of truth and mixed-case ("Nick@NeonLaw.com") breaks the
 /// email-as-foreign-key pattern used throughout the workspace.
-/// See `.claude/skills/authorization-model/SKILL.md`.
+/// See `docs/access-model.md`.
 fn require_firm_domain(email: &str, role: person::Role) -> anyhow::Result<()> {
     use person::Role;
     if !matches!(role, Role::Staff | Role::Admin) {
@@ -766,14 +766,14 @@ fn require_firm_domain(email: &str, role: person::Role) -> anyhow::Result<()> {
     if email != email.to_ascii_lowercase() {
         anyhow::bail!(
             "User.yaml: {role:?} seed for {email:?} must be lowercase \
-             (see .claude/skills/authorization-model/SKILL.md)",
+             (see docs/access-model.md)",
         );
     }
     if !email.ends_with("@neonlaw.com") {
         anyhow::bail!(
             "User.yaml: {role:?} seed for {email:?} violates the firm-domain \
              convention — staff/admin records must use an @neonlaw.com email \
-             (see .claude/skills/authorization-model/SKILL.md)",
+             (see docs/access-model.md)",
         );
     }
     Ok(())

@@ -22,8 +22,8 @@ The future matter-close contact + invoice workflow lands here too, reusing the s
 
 - `src/lib.rs` — the library hosted inside `workflows-service`.
 - `src/bin/trigger.rs` — the thin `trigger` binary the `billing-canary-trigger` `CronJob` runs to start one invocation.
-  Shipped as the `navigator-billing-canary-trigger` image (see the [`power-push`](../.claude/skills/power-push/SKILL.md)
-  skill's trigger-image note).
+  Shipped as the `navigator-billing-canary-trigger` image (see the [`power-push`](../docs/cloud-operations.md)
+  trigger-image note).
 
 ## Getting started
 

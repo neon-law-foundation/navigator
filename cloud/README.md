@@ -152,7 +152,7 @@ pipeline order.
   `YOUR_PROJECT_ID-assets` — Standard, **public** marketing photography only (the sole bucket with an `allUsers`
   binding). - `YOUR_PROJECT_ID-documents` — Standard, **private** client documents (the content-addressed `blobs/<sha>`
   objects `web` writes); web GSA gets `roles/storage.objectUser`, **no** public binding. - `YOUR_PROJECT_ID-logs` —
-  Nearline. - `YOUR_PROJECT_ID-source` — git bundles (`power-push` skill), created manually via `gsutil mb`. -
+  Nearline. - `YOUR_PROJECT_ID-source` — git bundles for production rollout, created manually via `gsutil mb`. -
   `YOUR_PROJECT_ID-exports` — Standard, archives data snapshots (Parquet today, Iceberg metadata in the Commit 3
   follow-up). Layout is a contract — see "Archives bucket layout" below. `navigator gcp setup` provisions the assets,
   documents, and logs buckets; `-source` and `-exports` are created manually via `gsutil mb`. All five buckets carry a
@@ -194,7 +194,7 @@ image for the nightly CronJob.
 
 ```bash
 # 1. Roll workflows-service onto the latest published image (it now hosts the
-#    Archives workflow). Use the power-push skill; ensure the storage env
+#    Archives workflow). Use the power-push runbook; ensure the storage env
 #    (NAVIGATOR_STORAGE_BUCKET=YOUR_PROJECT_ID-exports) is on the Deployment so
 #    the snapshot phase can write Parquet. Re-register with Restate after the roll.
 
@@ -532,9 +532,8 @@ for the history and the rationale.
   > IAM change is required, and we deliberately do *not* grant `roles/cloudsql.editor` to any service account** — that
   > role re-adds a whole-instance exfiltration primitive on a database holding confidential client data, which is
   > exactly the risk this Google change reduces. The only legitimate future use of the managed export is an ad-hoc DR
-  > dump a *human* runs; after 2026-08-01 that human needs `roles/cloudsql.editor` (grant it ephemerally and revoke it,
-  > the way [`prod-db-connect`](../.claude/skills/prod-db-connect/SKILL.md) already grants impersonation), never a
-  > standing binding.
+  > dump a *human* runs; after 2026-08-01 that human needs `roles/cloudsql.editor` (grant it ephemerally and revoke it;
+  > see [`docs/cloud-operations.md`](../docs/cloud-operations.md)), never a standing binding.
 - **OAuth 2.0 client (Google Sign-in)**: `YOUR_PROJECT_NUMBER-…apps.googleusercontent.com`, used by the browser SSO flow
   into `/portal`.
 - **K8s Secret `navigator-web-secrets`** — holds `DATABASE_URL`, `SESSION_SECRET`, `OAUTH_CLIENT_SECRET`,
