@@ -31,14 +31,16 @@ The collapse rule is simple: durable policy, invariants, architecture, and opera
 The standard local loop is KIND through the `navigator` CLI:
 
 ```bash
-cargo run --release -p cli -- start-dev-server
+cargo run --release -p cli -- start-dev-server   # once; reuses an existing cluster on re-run
 set -a; source .devx/env; set +a
-cargo run -p web
-cargo run --release -p cli -- down
+cargo run -p web                                  # Ctrl-C and re-run to iterate
+cargo run --release -p cli -- down                # full teardown — only for a clean rebuild, not routine cleanup
 ```
 
 `start-dev-server` brings up Postgres, Keycloak, fake-gcs-server, OPA, Restate, `workflows-service`, and Grafana LGTM in
-KIND, then writes `.devx/env` for the host-side `web` process.
+KIND, then writes `.devx/env` for the host-side `web` process. The cluster is a **persistent dev fixture**: leave it up
+between sessions and re-run `start-dev-server` to restore port-forwards after a sleep or reboot (it reuses the existing
+cluster). See [`RUNBOOK.md`](RUNBOOK.md#keep-the-deps-up-across-sessions-the-persistent-fixture).
 
 Cursor Cloud is the exception documented in [`../AGENTS.md`](../AGENTS.md): KIND does not work there because the VM
 cannot initialize the KIND node's cgroup stack under `fuse-overlayfs`. On that VM, use the standalone-container recipe
@@ -46,11 +48,13 @@ in `AGENTS.md` and the baked local Postgres.
 
 Scratch artifacts go under `/tmp`, never the repo. Screenshots normally go under `/tmp/navigator-screenshots/`.
 
-Agent-run local stacks are task resources, not ambient workstation state. Keep KIND, standalone dependency containers,
-browser drivers, port-forwards, and rebuilt dev images up only while they are needed for the current PR. Before handing
-off a created or updated PR, stop the stack (`cargo run --release -p cli -- down` for the standard KIND loop), remove
-task-created standalone containers/images, and prune task-created Docker build cache. Do not prune Docker volumes unless
-the user approves the data loss.
+The KIND **dependency tier** is the exception to "local stacks are task resources": it is a reusable dev fixture, so
+leave the cluster up between sessions. Everything else an agent spins up — rebuilt dev images, browser drivers, the
+host-side `web` process — is a per-task resource to stop at handoff. So before handing off a created or updated PR,
+stop `web` and task-created browser drivers, remove task-created standalone containers/images, and prune
+task-created Docker build cache — but do **not** `down`/`kind delete` the dependency cluster as routine cleanup, and
+do not prune Docker
+volumes unless the user approves the data loss. Full teardown is for a deliberate clean rebuild only.
 
 ## GCP setup
 

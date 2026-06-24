@@ -323,7 +323,36 @@ cargo run -p web
 No kubectl, no docker, no kind interaction needed — only the web binary recompiles. The cluster keeps its state across
 restarts.
 
+### Keep the deps up across sessions (the persistent fixture)
+
+The dependency tier — the KIND cluster with Postgres, Keycloak, OPA, fake-gcs-server, and Restate — is a reusable
+dev fixture, not a per-task resource. Stand it up once and **leave it running between sessions**; at handoff clean
+up only the host-side `web` process, your task's `target/` artifacts, and rebuilt dev images. Creating the cluster
+is the slow step, so reuse beats rebuild. Reach for full teardown (below) only when you intend to rebuild from
+scratch.
+
+- **Re-arm after a sleep or reboot.** The host-side `kubectl port-forward` processes (PIDs in `.devx/pids`) die when the
+  laptop sleeps or the shell closes, even though the cluster keeps running — so `web` suddenly can't reach Postgres or
+  OPA. Just re-run `start-dev-server`: it detects the existing cluster (`KIND cluster 'navigator' already exists,
+  reusing`), re-applies the manifests (a no-op for unchanged pods, so **Postgres data is preserved**), kills any stale
+  port-forwards, and respawns them. No cluster recreate, so it returns in seconds and rewrites `.devx/env`.
+- **Bounce one wedged dependency** without touching the others:
+
+  ```bash
+  kubectl --namespace navigator rollout restart deployment/keycloak   # or opa, fake-gcs-server, postgres
+  ```
+
+  Keycloak re-imports its realm from the ConfigMap and OPA re-reads its policy bundle, so those come back clean. But
+  Postgres and fake-gcs-server use `emptyDir`, so restarting **their** pod wipes the database and the bucket — after a
+  `postgres` bounce, re-run the migrations and seed (see §7c). Restate has a PVC and survives a pod restart.
+- **Reclaim disk without losing the fixture.** Prune images, build cache, and any leaked `postgres:17-alpine`
+  testcontainers (`docker image prune -a`, `docker builder prune`); never `docker volume prune`, `down`, or `kind
+  delete` for routine cleanup — those destroy the cluster and force a full rebuild. See the Resource cleanup section
+  of [`agent-workflows.md`](agent-workflows.md#resource-cleanup).
+
 ### Tear down
+
+Full teardown — only when you want a clean rebuild or to reclaim the cluster's disk, not as routine session cleanup:
 
 ```bash
 cargo run --release -p cli -- down   # kills port-forwards, then `kind delete cluster`

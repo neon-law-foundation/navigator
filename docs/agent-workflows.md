@@ -55,8 +55,14 @@ When a dirty tree is ready to land:
 
 5. Stage explicit paths for each group, not `git add -A`.
 6. Use Conventional Commit subjects; use the PR title as the squash-merge commit title.
-7. Push, `gh pr create --base main`, then `gh pr merge --auto --squash`.
-8. Clean up task-owned local resources before ending the session. See [Resource cleanup](#resource-cleanup).
+7. For any change to public or portal UI, **always** capture a live screenshot from the running app — boot `web`
+   against the persistent KIND deps (the fixture is usually already up; see
+   [`RUNBOOK.md`](RUNBOOK.md#7b-fast-loop--web-on-the-host-deps-in-kind)) and capture with headless Chrome. Save it
+   under `/tmp/navigator-screenshots/` and embed it in the PR **description** with `<img src="/tmp/...">`. Do not
+   self-host the artifact on a remote branch; the PR tooling resolves the local path. Rendering tests are not a
+   substitute for seeing the page served.
+8. Push, `gh pr create --base main`, then `gh pr merge --auto --squash`.
+9. Clean up task-owned local resources before ending the session. See [Resource cleanup](#resource-cleanup).
 
 If the work should become multiple PRs, decide that before committing. Use the Engineering Council for real sequencing
 questions.
@@ -161,8 +167,12 @@ For Cargo builds:
 
 For Docker, KIND, and browser e2e:
 
-- Stop task-owned services when the PR is created or updated. For the standard KIND loop, prefer
-  `cargo run --release -p cli -- down`.
+- The KIND **dependency tier** (Postgres, Keycloak, OPA, fake-gcs-server, Restate) is a reusable dev fixture, not a
+  per-task resource — leave it running across sessions. At handoff stop only the host-side `web` process and any
+  task-owned browser drivers; do **not** run `cargo run --release -p cli -- down` as routine cleanup, since that deletes
+  the cluster and forces a slow rebuild next time. Full teardown is for a deliberate clean rebuild only. If a
+  port-forward died, re-running `start-dev-server` reuses the existing cluster. See
+  [`RUNBOOK.md`](RUNBOOK.md#keep-the-deps-up-across-sessions-the-persistent-fixture).
 - Remove task-created standalone containers and images when they are no longer needed.
 - Reclaim Docker build cache after image-heavy or e2e work with `docker builder prune --force --filter until=24h`, or
   the narrowest equivalent that matches the resources you created.
