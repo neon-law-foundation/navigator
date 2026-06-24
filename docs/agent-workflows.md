@@ -37,20 +37,19 @@ When a dirty tree is ready to land:
 
 1. Survey every change: `git status --porcelain`, `git diff`, `git diff --staged`, and untracked files.
 2. Group paths by concern. One commit should have one blast radius.
-3. Run the gate that matches the changed files before committing. If the PR changes Rust files or build/runtime
-   configuration, run the full Rust gate:
+3. Run the gate that matches the changed files before committing. If any Markdown files changed, run the Markdown gate
+   across the workspace so CI-only wrap issues are caught locally:
+
+   ```bash
+   cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes .
+   ```
+
+4. If the PR changes Rust files or build/runtime configuration, run the full Rust gate:
 
    ```bash
    cargo fmt
    cargo clippy --workspace --all-targets -- -D warnings
    cargo test --workspace
-   ```
-
-4. If the PR changes only Markdown or other prose files and no Rust files changed, the full Rust suite is not required.
-   Run the Markdown gate for the touched docs instead:
-
-   ```bash
-   cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path>
    ```
 
 5. Stage explicit paths for each group, not `git add -A`.
@@ -77,7 +76,11 @@ A PR review is not complete until every reviewer comment has been adjudicated ag
 3. Collect every outstanding human and bot comment.
 4. For each comment, either fix it and reply, or explain why it is not a bug and reply.
 5. Resolve threads only after the reply exists.
-6. Re-run the relevant gate and report anything skipped.
+6. Re-run the relevant gate and report anything skipped. If any Markdown changed while updating the PR, run:
+
+   ```bash
+   cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes .
+   ```
 
 If the PR needs more commits, treat that as the update half of this same action: make the smallest change on the PR
 branch, run the relevant gate, push, reply to the comment that motivated it, and leave auto-merge or reviewer state

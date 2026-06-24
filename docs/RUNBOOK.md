@@ -325,11 +325,10 @@ restarts.
 
 ### Keep the deps up across sessions (the persistent fixture)
 
-The dependency tier — the KIND cluster with Postgres, Keycloak, OPA, fake-gcs-server, and Restate — is a reusable
-dev fixture, not a per-task resource. Stand it up once and **leave it running between sessions**; at handoff clean
-up only the host-side `web` process, your task's `target/` artifacts, and rebuilt dev images. Creating the cluster
-is the slow step, so reuse beats rebuild. Reach for full teardown (below) only when you intend to rebuild from
-scratch.
+The dependency tier — the KIND cluster with Postgres, Keycloak, OPA, fake-gcs-server, and Restate — is a reusable dev
+fixture, not a per-task resource. Stand it up once and **leave it running between sessions**; at handoff clean up only
+the host-side `web` process, your task's `target/` artifacts, and rebuilt dev images. Creating the cluster is the slow
+step, so reuse beats rebuild. Reach for full teardown (below) only when you intend to rebuild from scratch.
 
 - **Re-arm after a sleep or reboot.** The host-side `kubectl port-forward` processes (PIDs in `.devx/pids`) die when the
   laptop sleeps or the shell closes, even though the cluster keeps running — so `web` suddenly can't reach Postgres or
@@ -344,11 +343,12 @@ scratch.
 
   Keycloak re-imports its realm from the ConfigMap and OPA re-reads its policy bundle, so those come back clean. But
   Postgres and fake-gcs-server use `emptyDir`, so restarting **their** pod wipes the database and the bucket — after a
-  `postgres` bounce, re-run the migrations and seed (see §7c). Restate has a PVC and survives a pod restart.
+  `postgres` bounce, restart `web` so its boot path re-runs migrations and the canonical seed. Re-run `start-dev-server`
+  first if the port-forwards also need re-arming. Restate has a PVC and survives a pod restart.
 - **Reclaim disk without losing the fixture.** Prune images, build cache, and any leaked `postgres:17-alpine`
-  testcontainers (`docker image prune -a`, `docker builder prune`); never `docker volume prune`, `down`, or `kind
-  delete` for routine cleanup — those destroy the cluster and force a full rebuild. See the Resource cleanup section
-  of [`agent-workflows.md`](agent-workflows.md#resource-cleanup).
+  testcontainers (`docker image prune -a`, `docker builder prune`). Never prune Docker volumes or run `down`/`kind
+  delete` for routine cleanup — those destroy the cluster and force a full rebuild. See the Resource cleanup section of
+  [`agent-workflows.md`](agent-workflows.md#resource-cleanup).
 
 ### Tear down
 

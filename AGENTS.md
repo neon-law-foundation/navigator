@@ -176,21 +176,21 @@ cargo test --workspace   # TEST_DATABASE_URL already targets the baked local Pos
 
 When a change affects public UI or portal UI, **always** capture a **live** walkthrough from the running app and put it
 in the PR body, not only in the final agent reply. Rendering tests are not a substitute — boot `web` against the
-persistent KIND deps (usually already up; if a port-forward died, re-run `start-dev-server`) and capture the real
-served page. The artifacts do not have to come from Cursor Cloud: the agent's local headless browser, Playwright, or a
-screen recorder all work. Prefer one short demo video or GIF plus the clearest screenshots that prove the changed
-states. Save them under `/tmp/navigator-screenshots/` and reference them with artifact HTML tags the PR tool
-understands, for example:
+persistent KIND deps (usually already up; if a port-forward died, re-run `start-dev-server`) and capture the real served
+page. The artifacts do not have to come from Cursor Cloud: the agent's local headless browser, Playwright, or a screen
+recorder all work. Prefer one short demo video or GIF plus the clearest screenshots that prove the changed states. Save
+them under `/tmp/navigator-screenshots/` and reference them with artifact HTML tags the PR tool understands, for
+example:
 
 ```html
 <video src="/opt/cursor/artifacts/example_demo.mp4"></video>
-<img alt="Litigation walkthrough GIF" src="/tmp/navigator-artifacts/litigation_walkthrough.gif" />
+<img alt="Litigation walkthrough GIF" src="/tmp/navigator-screenshots/litigation_walkthrough.gif" />
 <img alt="Homepage without header" src="/opt/cursor/artifacts/homepage_no_header.webp" />
 ```
 
-The PR tool resolves these local paths into hosted links — that is the supported path, so reference `/tmp` directly
-and **never** self-host the binary on a remote git branch or commit it to the tree. If the artifact genuinely cannot
-be embedded, include the generated path and briefly explain why, but still produce the live walkthrough when practical.
+The PR tool resolves these local paths into hosted links — that is the supported path, so reference `/tmp` directly and
+**never** self-host the binary on a remote git branch or commit it to the tree. If the artifact genuinely cannot be
+embedded, include the generated path and briefly explain why, but still produce the live walkthrough when practical.
 
 ### Running the full `web` app end-to-end (extra setup)
 

@@ -50,10 +50,9 @@ Scratch artifacts go under `/tmp`, never the repo. Screenshots normally go under
 
 The KIND **dependency tier** is the exception to "local stacks are task resources": it is a reusable dev fixture, so
 leave the cluster up between sessions. Everything else an agent spins up — rebuilt dev images, browser drivers, the
-host-side `web` process — is a per-task resource to stop at handoff. So before handing off a created or updated PR,
-stop `web` and task-created browser drivers, remove task-created standalone containers/images, and prune
-task-created Docker build cache — but do **not** `down`/`kind delete` the dependency cluster as routine cleanup, and
-do not prune Docker
+host-side `web` process — is a per-task resource to stop at handoff. So before handing off a created or updated PR, stop
+`web` and task-created browser drivers, remove task-created standalone containers/images, and prune task-created Docker
+build cache — but do **not** `down`/`kind delete` the dependency cluster as routine cleanup, and do not prune Docker
 volumes unless the user approves the data loss. Full teardown is for a deliberate clean rebuild only.
 
 ## GCP setup
