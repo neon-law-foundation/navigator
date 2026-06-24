@@ -21,16 +21,19 @@ use crate::assets::{self, Priority};
 use crate::brand::FOUNDATION_BRAND;
 use crate::{AuthState, PageLayout};
 
-/// Route prefix for the workshop *index* and the material links it
-/// renders. The overview and step views take their own `base` field
-/// instead, so the same stepped-content chrome backs every workshop —
-/// including talks like "Rust in Peace" that fold in as workshops.
-const WORKSHOP_BASE: &str = "/foundation/workshops/navigator";
-
-pub struct MaterialSummary<'a> {
-    pub slug: &'a str,
+/// One workshop on the top-level `/foundation/workshops` overview.
+/// The copy is you-voiced: `audience` lets the reader self-select, and
+/// `benefit` leads with what they walk out with — never a guaranteed
+/// outcome (this surface is public attorney advertising).
+pub struct WorkshopCard<'a> {
+    /// Absolute path to the workshop's overview page, e.g.
+    /// `/foundation/workshops/navigator/readme`.
+    pub href: &'a str,
     pub title: &'a str,
-    pub description: &'a str,
+    /// Who it's for, e.g. "For lawyers".
+    pub audience: &'a str,
+    /// The you-voiced takeaway shown as the card body.
+    pub benefit: &'a str,
 }
 
 /// One entry in a workshop's table of contents / progress dropdown.
@@ -80,52 +83,60 @@ pub struct WorkshopStep<'a> {
     pub steps: &'a [StepSummary<'a>],
 }
 
-const PAGE_TITLE: &str = "Using the Navigator to Rapidly Solve Legal Outcomes";
-const PAGE_LEDE: &str =
-    "A single hands-on workshop for attorneys. By the end you will have built one \
-     deed-of-sale notation for a sample real-estate-purchase matter — \
-     `{{client_name}}` placeholder, notarization step, three-minute demo — using \
-     Gemini's \"Add AIDA\" connector. No command-line install, no software to \
-     manage; the connector lives inside the Gemini workspace your firm already \
-     uses.";
+// The top-level overview speaks to the reader, not about the firm:
+// every line is what *you* get. The cards themselves are data-driven
+// from the workshop manifest, so a new workshop (or a show-and-tell)
+// appears here by adding a manifest entry, not by editing this view.
+const LANDING_TITLE: &str = "Workshops";
+const LANDING_LEDE: &str =
+    "Pick the one that meets you where you sit. Each walks you, hands-on, from where you \
+     are now to something you can use the same day — and you keep what you build.";
+const LANDING_MORE: &str = "More workshops — and our show-and-tells — land here as we run them.";
 
+/// The top-level workshops overview (`/foundation/workshops`): a
+/// you-voiced lede and one card per workshop, each tagged with who it's
+/// for and what the reader walks out with. The per-workshop overview,
+/// step flow, and Markdown twin live one level down under
+/// `/foundation/workshops/navigator/{slug}`.
 #[must_use]
-pub fn index(materials: &[MaterialSummary<'_>], auth: AuthState) -> Markup {
+pub fn landing(cards: &[WorkshopCard<'_>], auth: AuthState) -> Markup {
     let body = html! {
         section.workshops {
             div.container {
-                h1 { (PAGE_TITLE) }
-                p.lede { (PAGE_LEDE) }
+                h1 { (LANDING_TITLE) }
+                p.lede { (LANDING_LEDE) }
                 div."my-4" {
                     (assets::picture("lantana", "100vw", Priority::Lazy))
                 }
-                @if materials.is_empty() {
+                @if cards.is_empty() {
                     p.empty {
-                        "Workshop materials are still loading. Email "
+                        "Workshops are still loading. Email "
                         a href={ "mailto:" (crate::brand::foundation_email()) } {
                             (crate::brand::foundation_email())
                         }
                         " for the runbook in the meantime."
                     }
                 } @else {
-                    ul.workshop-materials {
-                        @for m in materials {
-                            li.workshop-material {
-                                h2 {
-                                    a href={ (WORKSHOP_BASE) "/" (m.slug) } {
-                                        (m.title)
-                                    }
+                    ul.workshop-materials."list-unstyled" {
+                        @for c in cards {
+                            li.workshop-material."mb-4" {
+                                p.workshop-audience."text-uppercase"."small"."fw-semibold"."text-body-secondary"."mb-1" {
+                                    (c.audience)
                                 }
-                                p { (m.description) }
+                                h2 {
+                                    a href=(c.href) { (c.title) }
+                                }
+                                p { (c.benefit) }
                             }
                         }
                     }
+                    p.workshops-more."fst-italic"."text-body-secondary" { (LANDING_MORE) }
                 }
             }
         }
     };
-    PageLayout::new("Workshops")
-        .with_description(PAGE_LEDE)
+    PageLayout::new(LANDING_TITLE)
+        .with_description(LANDING_LEDE)
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
         .render(&body)
@@ -313,10 +324,27 @@ fn copy_markdown_button(md_href: &str) -> Markup {
 #[cfg(test)]
 mod tests {
     use super::{
-        index, overview, step, MaterialOverview, MaterialSummary, StepSummary, WorkshopStep,
-        PAGE_TITLE,
+        landing, overview, step, MaterialOverview, StepSummary, WorkshopCard, WorkshopStep,
+        LANDING_TITLE,
     };
     use crate::brand::{foundation_email, FOUNDATION_BRAND};
+
+    fn sample_cards() -> Vec<WorkshopCard<'static>> {
+        vec![
+            WorkshopCard {
+                href: "/foundation/workshops/navigator/readme",
+                title: "Using the Navigator",
+                audience: "For lawyers",
+                benefit: "You walk out with a deed-of-sale notation you built yourself.",
+            },
+            WorkshopCard {
+                href: "/foundation/workshops/navigator/deploy",
+                title: "Deploy the Navigator",
+                audience: "For operators",
+                benefit: "You walk out running the same stack a working law firm runs.",
+            },
+        ]
+    }
 
     fn sample_steps() -> Vec<StepSummary<'static>> {
         vec![
@@ -336,24 +364,23 @@ mod tests {
     }
 
     #[test]
-    fn index_titles_the_page_after_the_canonical_workshop() {
-        let html = index(&[], crate::AuthState::Anonymous).into_string();
+    fn landing_titles_the_page_workshops() {
+        let html = landing(&[], crate::AuthState::Anonymous).into_string();
         assert!(html.contains(&format!(
             "<title>{} | Workshops</title>",
             FOUNDATION_BRAND.site_name
         )));
-        assert!(
-            html.contains(PAGE_TITLE),
-            "expected page h1 to carry the workshop title"
-        );
+        // The sole <h1> is the overview title, not a single workshop's.
+        assert_eq!(html.matches("<h1>").count(), 1, "exactly one <h1>: {html}");
+        assert!(html.contains(&format!(">{LANDING_TITLE}</h1>")));
     }
 
     #[test]
-    fn index_shows_an_inviting_lazy_banner() {
-        let html = index(&[], crate::AuthState::Anonymous).into_string();
+    fn landing_shows_an_inviting_lazy_banner() {
+        let html = landing(&[], crate::AuthState::Anonymous).into_string();
         assert!(
             html.contains("lantana"),
-            "workshop index should carry the banner photo"
+            "workshops overview should carry the banner photo"
         );
         assert!(
             html.contains("loading=\"lazy\""),
@@ -362,22 +389,27 @@ mod tests {
     }
 
     #[test]
-    fn index_empty_falls_back_to_real_foundation_email() {
-        let html = index(&[], crate::AuthState::Anonymous).into_string();
+    fn landing_empty_falls_back_to_real_foundation_email() {
+        let html = landing(&[], crate::AuthState::Anonymous).into_string();
         let email = foundation_email();
         assert!(html.contains(&format!("mailto:{email}")));
     }
 
     #[test]
-    fn index_lists_each_material_at_canonical_url() {
-        let mats = [MaterialSummary {
-            slug: "readme",
-            title: "Runbook",
-            description: "How to participate.",
-        }];
-        let html = index(&mats, crate::AuthState::Anonymous).into_string();
+    fn landing_lists_each_workshop_with_audience_and_benefit() {
+        let cards = sample_cards();
+        let html = landing(&cards, crate::AuthState::Anonymous).into_string();
+        // Each card links to its overview at the canonical per-workshop URL,
+        // titled by its short name and tagged with who it's for.
         assert!(html.contains("href=\"/foundation/workshops/navigator/readme\""));
-        assert!(html.contains(">Runbook</a>"));
+        assert!(html.contains(">Using the Navigator</a>"));
+        assert!(html.contains("For lawyers"));
+        assert!(html.contains("href=\"/foundation/workshops/navigator/deploy\""));
+        assert!(html.contains("For operators"));
+        // You-voiced benefit copy renders, and the "more coming" footer
+        // signals the surface grows.
+        assert!(html.contains("You walk out"));
+        assert!(html.contains("land here as we run them"));
     }
 
     #[test]
