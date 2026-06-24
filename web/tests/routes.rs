@@ -2221,6 +2221,89 @@ async fn admin_people_delete_returns_empty_body_for_htmx_request() {
     );
 }
 
+#[tokio::test]
+async fn deleting_a_matter_with_linked_records_shows_a_red_toast_and_keeps_the_row() {
+    // A matter with dependent rows (a participation here) is FK-blocked by
+    // the database. Instead of the old silent `let _ = …` — which made the
+    // row vanish in the UI until a refresh brought it back — the handler
+    // returns a red toast retargeted to the body and leaves the row in place.
+    use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait, PaginatorTrait};
+    let state = empty_state().await;
+    store::migrate(&state.db).await.unwrap();
+    let entity_id = store::test_support::seed_entity(&state.db).await;
+    let person = store::entity::person::ActiveModel {
+        name: ActiveValue::Set("Libra".into()),
+        email: ActiveValue::Set("libra@example.com".into()),
+        ..Default::default()
+    }
+    .insert(&state.db)
+    .await
+    .unwrap();
+    let project = store::entity::project::ActiveModel {
+        name: ActiveValue::Set("Has a participant".into()),
+        status: ActiveValue::Set("open".into()),
+        entity_id: ActiveValue::Set(entity_id),
+        ..Default::default()
+    }
+    .insert(&state.db)
+    .await
+    .unwrap();
+    // A participation row references the project — this blocks the delete.
+    store::entity::person_project_role::ActiveModel {
+        person_id: ActiveValue::Set(person.id),
+        project_id: ActiveValue::Set(project.id),
+        participation: ActiveValue::Set("client".into()),
+        ..Default::default()
+    }
+    .insert(&state.db)
+    .await
+    .unwrap();
+
+    let db = state.db.clone();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/portal/projects/{}/delete", project.id))
+                .header("HX-Request", "true")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // 200 + retarget to body/beforeend so the toast lands without swapping
+    // (and removing) the row.
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(
+        resp.headers()
+            .get("HX-Retarget")
+            .and_then(|v| v.to_str().ok()),
+        Some("body"),
+    );
+    let body = body_string(resp).await;
+    assert!(
+        body.contains("text-bg-danger"),
+        "expected a red toast: {body}"
+    );
+    assert!(
+        body.contains("Couldn&#39;t delete this matter")
+            || body.contains("Couldn't delete this matter"),
+        "toast names the action: {body}",
+    );
+    assert!(
+        body.contains("still referenced by other records"),
+        "toast surfaces the real DB reason: {body}",
+    );
+    // The matter survives a blocked delete — it is NOT optimistically removed.
+    let remaining = store::entity::project::Entity::find()
+        .count(&db)
+        .await
+        .unwrap();
+    assert_eq!(remaining, 1, "the matter must survive a blocked delete");
+}
+
 /// Seed three people in alphabetical chaos so any sort applied by
 /// the handler is observable in the rendered HTML row order.
 async fn seed_three_people(db: &Db) {
@@ -3595,11 +3678,14 @@ async fn project_documents_upload_writes_blob_and_document_with_description() {
 
     // Seed one project to upload into.
     let project_id = Uuid::now_v7();
+    let __dri = store::test_support::dri_person(&state.db).await;
     project::ActiveModel {
         id: ActiveValue::Set(project_id),
         name: ActiveValue::Set("Upload Test".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&state.db)
@@ -3685,11 +3771,14 @@ async fn project_detail_page_renders_documents_and_upload_form() {
     store::migrate(&state.db).await.unwrap();
 
     let project_id = Uuid::now_v7();
+    let __dri = store::test_support::dri_person(&state.db).await;
     project::ActiveModel {
         id: ActiveValue::Set(project_id),
         name: ActiveValue::Set("Acme Formation".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&state.db)
@@ -3753,11 +3842,14 @@ async fn project_document_detail_page_shows_provenance_and_download_link() {
     store::migrate(&state.db).await.unwrap();
 
     let project_id = Uuid::now_v7();
+    let __dri = store::test_support::dri_person(&state.db).await;
     project::ActiveModel {
         id: ActiveValue::Set(project_id),
         name: ActiveValue::Set("Acme Formation".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&state.db)
@@ -3820,11 +3912,14 @@ async fn project_document_download_streams_bytes_on_fs_backend() {
     store::migrate(&state.db).await.unwrap();
 
     let project_id = Uuid::now_v7();
+    let __dri = store::test_support::dri_person(&state.db).await;
     project::ActiveModel {
         id: ActiveValue::Set(project_id),
         name: ActiveValue::Set("Acme Formation".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&state.db)
@@ -3892,11 +3987,14 @@ async fn project_document_download_404s_when_doc_belongs_to_a_different_project(
     let project_a = Uuid::now_v7();
     let project_b = Uuid::now_v7();
     for (id, name) in [(project_a, "A"), (project_b, "B")] {
+        let __dri = store::test_support::dri_person(&state.db).await;
         project::ActiveModel {
             id: ActiveValue::Set(id),
             name: ActiveValue::Set(name.into()),
             status: ActiveValue::Set("open".into()),
             entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+            staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+            client_dri_person_id: ActiveValue::Set(Some(__dri)),
             ..Default::default()
         }
         .insert(&state.db)
@@ -3944,11 +4042,14 @@ async fn project_detail_page_renders_empty_state_when_project_has_no_documents()
     store::migrate(&state.db).await.unwrap();
 
     let project_id = Uuid::now_v7();
+    let __dri = store::test_support::dri_person(&state.db).await;
     project::ActiveModel {
         id: ActiveValue::Set(project_id),
         name: ActiveValue::Set("Empty Matter".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&state.db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&state.db)

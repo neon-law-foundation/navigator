@@ -36,6 +36,18 @@ async fn build_app() -> (axum::Router, store::Db, Arc<dyn StateMachineRuntime>) 
     use store::entity::template;
 
     let db = store::test_support::pg().await;
+    // Every matter now carries a NOT NULL staff DRI; the self-serve walk
+    // resolves it to the firm principal (by role) when no staffer is in the
+    // room. Seed one so the walk can open the matter.
+    store::entity::person::ActiveModel {
+        name: ActiveValue::Set("Firm Principal".into()),
+        email: ActiveValue::Set("principal@example.com".into()),
+        role: ActiveValue::Set(store::entity::person::Role::Admin),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .expect("seed firm principal");
     template::ActiveModel {
         code: ActiveValue::Set("onboarding__estate".into()),
         title: ActiveValue::Set("Northstar Estate Plan".into()),

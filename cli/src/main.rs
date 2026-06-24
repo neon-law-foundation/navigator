@@ -854,6 +854,13 @@ enum ProjectAction {
         /// Entity.
         #[arg(long)]
         entity_name: Option<String>,
+        /// Email of the pre-existing **client** Person this matter is
+        /// opened for — its client-side DRI. Required: every matter has a
+        /// client of record, and it must be a `role = client` person
+        /// (create the client first). The staff-side DRI defaults to the
+        /// firm principal.
+        #[arg(long)]
+        client_email: String,
         /// Lifecycle status. `open`, `closed`, or `archived`.
         #[arg(long, default_value = "open")]
         status: String,
@@ -1192,6 +1199,7 @@ async fn run_project(action: ProjectAction) -> ExitCode {
         ProjectAction::Create {
             name,
             entity_name,
+            client_email,
             status,
             database_url,
             skip_migrate_and_seed,
@@ -1199,6 +1207,7 @@ async fn run_project(action: ProjectAction) -> ExitCode {
             run_project_create(
                 &name,
                 entity_name.as_deref(),
+                &client_email,
                 &status,
                 &database_url,
                 skip_migrate_and_seed,
@@ -1233,6 +1242,7 @@ async fn run_project(action: ProjectAction) -> ExitCode {
 async fn run_project_create(
     name: &str,
     entity_name: Option<&str>,
+    client_email: &str,
     status: &str,
     database_url: &str,
     skip_migrate_and_seed: bool,
@@ -1258,7 +1268,7 @@ async fn run_project_create(
             return ExitCode::from(2);
         }
     }
-    match project::create(&db, name, entity_name, status).await {
+    match project::create(&db, name, entity_name, client_email, status).await {
         Ok(p) => {
             println!(
                 "{} {} (status={}, entity_id={})",

@@ -13,11 +13,15 @@ Feature: /portal/projects writes — staff/admin only, clients get 404
   Background:
     Given the Navigator app is running
 
-  Scenario: An admin creates a project via POST /portal/projects
+  Scenario: An admin opens a matter via POST /portal/projects
+    # The create form always opens a matter on a retainer, for an existing
+    # client (the runner seeds the client + entity + retainer template and
+    # appends `client_dri_person_id` / `entity_id` / `retainer_template_code`).
+    # On success it redirects to the new retainer notation's review screen.
     Given a seeded person "nick@neonlaw.com" with role "admin"
     When "nick@neonlaw.com" submits "name=Atlas%20LLC&status=open" to /portal/projects
     Then the response status is 303
-    And the response location contains "/portal/projects"
+    And the response location contains "/portal/admin/notations/"
 
   Scenario: An admin sees the edit form at /portal/projects/:id/edit
     Given a seeded person "nick@neonlaw.com" with role "admin"

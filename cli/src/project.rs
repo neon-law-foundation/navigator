@@ -9,7 +9,7 @@
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
-use store::entity::{entity as entities, project};
+use store::entity::{entity as entities, person, project};
 use uuid::Uuid;
 
 /// Outcome of a `project create` run, returned so tests can assert
@@ -29,6 +29,7 @@ pub async fn create(
     db: &DatabaseConnection,
     name: &str,
     entity_name: Option<&str>,
+    client_email: &str,
     status: &str,
 ) -> anyhow::Result<CreatedProject> {
     // A matter always opens against a pre-existing entity
@@ -47,10 +48,36 @@ pub async fn create(
                 "no entity named `{needle}` — run `cli list entities` to see what's seeded"
             )
         })?;
+    // Both DRI columns are NOT NULL. The client side is the pre-existing
+    // client this matter is opened for, resolved by `--client-email` and
+    // required to be a `role = client` person (the client of record is a
+    // client, never a firm attorney). The staff side defaults to the firm
+    // principal (resolved by role).
+    let client = person::Entity::find()
+        .filter(person::Column::Email.eq(client_email))
+        .one(db)
+        .await?
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "no person with email `{client_email}` — create the client first \
+                 (`cli person create` / bulk import)"
+            )
+        })?;
+    if client.role != person::Role::Client {
+        anyhow::bail!(
+            "the client DRI `{client_email}` must be a client person, not {}",
+            client.role.as_str()
+        );
+    }
+    let staff_dri = store::persons::default_firm_dri(db).await?.ok_or_else(|| {
+        anyhow::anyhow!("no firm principal for the staff DRI — seed a staff/admin person first")
+    })?;
     let inserted = project::ActiveModel {
         name: ActiveValue::Set(name.to_string()),
         status: ActiveValue::Set(status.to_string()),
         entity_id: ActiveValue::Set(entity_id),
+        staff_dri_person_id: ActiveValue::Set(Some(staff_dri)),
+        client_dri_person_id: ActiveValue::Set(Some(client.id)),
         ..Default::default()
     }
     .insert(db)

@@ -1,21 +1,22 @@
 #![allow(clippy::doc_markdown)]
-//! Dev e2e for "open a matter and send the retainer in one action."
+//! Dev e2e for "open a matter for an existing client and send the retainer
+//! in one action."
 //!
-//! Drives the real HTTP path (`POST /portal/projects` with the retainer
-//! box ticked) against `StubSignatureProvider`, so nothing reaches
-//! DocuSign and the test is CI-safe. Covers:
+//! Drives the real HTTP path (`POST /portal/projects`, selecting an existing
+//! `Role::Client` as the client DRI) against `StubSignatureProvider`, so
+//! nothing reaches DocuSign and the test is CI-safe. Every matter opens on a
+//! retainer (there is no plain-project path). Covers:
 //!
-//!   1. Happy path — the project, client Person + `client` role, and the
-//!      retainer Notation land; the workflow parks at `staff_review`
-//!      (the gate is not bypassed); the staff **approve** step fires
-//!      exactly one `send_for_signature` whose manifest carries the
-//!      form's signer email/name, the `{{client.signature}}` anchor, and
-//!      — because a matter-open client is emailed — a *non-captive*
-//!      client recipient.
-//!   2. Negative — box ticked but the signer email is missing → `4xx`
-//!      and **no** matter created (no half-open matter).
-//!   3. Unchecked — a plain project create still works and records **no**
-//!      signature call.
+//!   1. Happy path — the project (with its `client_dri_person_id` column set
+//!      to the selected client), the client's `client` participation, and the
+//!      retainer Notation land; the workflow parks at `staff_review` (the gate
+//!      is not bypassed); the staff **approve** + **send** fires exactly one
+//!      `send_for_signature` whose manifest carries the selected client's
+//!      email/name, the `{{client.signature}}` anchor, and — because a
+//!      matter-open client is emailed — a *non-captive* client recipient.
+//!   2. Negative — no client selected → `422` and **no** matter created.
+//!   3. Negative — a non-client person chosen as the client DRI → `422`.
+//!   4. Negative — no entity → `422` and nothing opened.
 
 use std::sync::Arc;
 
@@ -76,6 +77,23 @@ fn enc(s: &str) -> String {
     s.replace(' ', "%20").replace('@', "%40")
 }
 
+/// Seed a pre-existing `Role::Client` person — the matter-open form now
+/// opens a matter *for* an existing client (required `client_dri_person_id`
+/// picker), so the client must exist before the POST.
+async fn seed_client(db: &store::Db, name: &str, email: &str) -> uuid::Uuid {
+    use sea_orm::{ActiveModelTrait, ActiveValue};
+    entity::person::ActiveModel {
+        name: ActiveValue::Set(name.into()),
+        email: ActiveValue::Set(email.into()),
+        role: ActiveValue::Set(entity::person::Role::Client),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap()
+    .id
+}
+
 async fn post_projects(app: &axum::Router, body: String) -> axum::http::Response<Body> {
     app.clone()
         .oneshot(
@@ -96,14 +114,15 @@ async fn post_projects(app: &axum::Router, body: String) -> axum::http::Response
 async fn matter_open_with_retainer_parks_at_staff_review_then_approve_sends_once() {
     let (app, db, stub) = build_app("happy").await;
     let entity_id = store::test_support::seed_entity(&db).await;
+    // The client is selected from existing clients — seed them first.
+    let client_id = seed_client(&db, "Libra Client", "libra@example.com").await;
 
     let body = format!(
-        "name={}&status=open&entity_id={entity_id}&send_retainer=true\
+        "name={}&status=open&entity_id={entity_id}\
+         &client_dri_person_id={client_id}\
          &retainer_template_code=onboarding__retainer\
-         &client_name={}&client_email={}&scope_of_services={}",
+         &scope_of_services={}",
         enc("Libra estate"),
-        enc("Libra Client"),
-        enc("libra@example.com"),
         enc("Flat-fee estate planning"),
     );
     let resp = post_projects(&app, body).await;
@@ -133,13 +152,16 @@ async fn matter_open_with_retainer_parks_at_staff_review_then_approve_sends_once
         .expect("project row inserted");
     assert_eq!(project.status, "open");
 
-    // (b) a client Person + `client` participation role is linked.
+    // (b) the pre-existing client is linked via a `client` participation
+    // (portal visibility) and is the matter's client-side DRI — now a
+    // first-class column on the project, not a participation row.
     let person = entity::person::Entity::find()
         .filter(entity::person::Column::Email.eq("libra@example.com"))
         .one(&db)
         .await
         .unwrap()
-        .expect("client person inserted");
+        .expect("client person exists");
+    assert_eq!(person.id, client_id);
     assert_eq!(person.name, "Libra Client");
     let roles = entity::person_project_role::Entity::find()
         .filter(entity::person_project_role::Column::PersonId.eq(person.id))
@@ -149,11 +171,8 @@ async fn matter_open_with_retainer_parks_at_staff_review_then_approve_sends_once
         .unwrap();
     let participations: Vec<&str> = roles.iter().map(|r| r.participation.as_str()).collect();
     assert!(participations.contains(&"client"), "{participations:?}");
-    // The client is also the matter's client-side DRI.
-    assert!(
-        participations.contains(&"client_dri"),
-        "client should be designated the client DRI: {participations:?}",
-    );
+    // The client is the matter's client-side DRI (the authoritative column).
+    assert_eq!(project.client_dri_person_id, Some(person.id));
 
     // The matter opened against the pre-existing entity.
     assert_eq!(project.entity_id, entity_id);
@@ -275,17 +294,17 @@ async fn matter_open_with_description_seeds_a_system_scope_clause() {
     };
 
     let entity_id = store::test_support::seed_entity(&db).await;
+    let client_id = seed_client(&db, "Capricorn Client", "capricorn@example.com").await;
     let description =
         "This engagement covers the Capricorn family revocable trust and a pour-over \
                        will, recorded in one sitting.";
     let body = format!(
-        "name={}&status=open&entity_id={entity_id}&description={}&send_retainer=true\
+        "name={}&status=open&entity_id={entity_id}&description={}\
+         &client_dri_person_id={client_id}\
          &retainer_template_code=onboarding__retainer\
-         &client_name={}&client_email={}&scope_of_services={}",
+         &scope_of_services={}",
         enc("Capricorn estate"),
         enc(description),
-        enc("Capricorn Client"),
-        enc("capricorn@example.com"),
         enc("Flat-fee estate planning"),
     );
     let resp = post_projects(&app, body).await;
@@ -346,23 +365,23 @@ async fn matter_open_with_description_seeds_a_system_scope_clause() {
 }
 
 #[tokio::test]
-async fn retainer_box_ticked_without_signer_email_is_rejected_with_no_matter() {
-    let (app, db, stub) = build_app("negative").await;
+async fn matter_open_without_a_client_is_rejected_with_no_matter() {
+    let (app, db, stub) = build_app("no-client").await;
+    let entity_id = store::test_support::seed_entity(&db).await;
 
-    // Box ticked, template + name present, but the signer email is blank.
+    // Entity + template present, but no client selected. Every matter opens
+    // *for* a real client, so this is refused (422) and opens nothing.
     let body = format!(
-        "name={}&status=open&send_retainer=true&retainer_template_code=onboarding__retainer\
-         &client_name={}&client_email=",
+        "name={}&status=open&entity_id={entity_id}\
+         &retainer_template_code=onboarding__retainer",
         enc("Aries debt shield"),
-        enc("Aries Client"),
     );
     let resp = post_projects(&app, body).await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let html = body_string(resp).await;
-    assert!(html.contains("client email"), "html: {html}");
+    assert!(html.to_lowercase().contains("client"), "html: {html}");
 
-    // No half-open matter: neither the project, the person, nor a notation
-    // was created.
+    // No half-open matter.
     assert!(
         entity::project::Entity::find()
             .filter(entity::project::Column::Name.eq("Aries debt shield"))
@@ -370,14 +389,36 @@ async fn retainer_box_ticked_without_signer_email_is_rejected_with_no_matter() {
             .await
             .unwrap()
             .is_none(),
-        "no project should be created on a rejected retainer",
+        "no project should be created without a client",
     );
-    assert!(entity::person::Entity::find()
-        .filter(entity::person::Column::Email.eq("aries@example.com"))
+    assert!(stub.calls().is_empty());
+}
+
+#[tokio::test]
+async fn matter_open_with_a_non_client_person_as_client_is_rejected() {
+    let (app, db, stub) = build_app("non-client").await;
+    let entity_id = store::test_support::seed_entity(&db).await;
+
+    // `nick@neonlaw.com` is the seeded admin — not a client. Selecting a
+    // non-client as the client DRI is refused: the client of record is a
+    // client, never a firm attorney.
+    let admin = entity::person::Entity::find()
+        .filter(entity::person::Column::Email.eq("nick@neonlaw.com"))
         .one(&db)
         .await
         .unwrap()
-        .is_none(),);
+        .expect("seeded admin");
+    let body = format!(
+        "name={}&status=open&entity_id={entity_id}\
+         &client_dri_person_id={}\
+         &retainer_template_code=onboarding__retainer",
+        enc("Aries debt shield"),
+        admin.id,
+    );
+    let resp = post_projects(&app, body).await;
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let html = body_string(resp).await;
+    assert!(html.to_lowercase().contains("client"), "html: {html}");
     assert!(stub.calls().is_empty());
 }
 
@@ -386,12 +427,11 @@ async fn matter_open_without_an_entity_is_rejected() {
     // Commit 4: a matter always opens against a pre-existing entity. A
     // create with no `entity_id` is refused (422) and opens nothing.
     let (app, db, _stub) = build_app("no-entity").await;
+    let client_id = seed_client(&db, "Pisces Client", "pisces@example.com").await;
     let body = format!(
-        "name={}&status=open&send_retainer=true&retainer_template_code=onboarding__retainer\
-         &client_name={}&client_email={}",
+        "name={}&status=open&client_dri_person_id={client_id}\
+         &retainer_template_code=onboarding__retainer",
         enc("Entityless matter"),
-        enc("Pisces Client"),
-        enc("pisces@example.com"),
     );
     let resp = post_projects(&app, body).await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
@@ -408,39 +448,6 @@ async fn matter_open_without_an_entity_is_rejected() {
     );
 }
 
-#[tokio::test]
-async fn plain_project_create_without_retainer_records_no_signature_call() {
-    let (app, db, stub) = build_app("unchecked").await;
-    let entity_id = store::test_support::seed_entity(&db).await;
-
-    // No `send_retainer` field at all — a plain project create (still
-    // opened against a pre-existing entity).
-    let body = format!(
-        "name={}&status=open&entity_id={entity_id}",
-        enc("Plain matter")
-    );
-    let resp = post_projects(&app, body).await;
-    assert_eq!(resp.status(), StatusCode::SEE_OTHER);
-    assert_eq!(
-        resp.headers().get("location").and_then(|v| v.to_str().ok()),
-        Some("/portal/projects"),
-    );
-
-    let project = entity::project::Entity::find()
-        .filter(entity::project::Column::Name.eq("Plain matter"))
-        .one(&db)
-        .await
-        .unwrap()
-        .expect("plain project created");
-    // No retainer notation hangs off it.
-    let notations = entity::notation::Entity::find()
-        .filter(entity::notation::Column::ProjectId.eq(project.id))
-        .all(&db)
-        .await
-        .unwrap();
-    assert!(
-        notations.is_empty(),
-        "plain create must not open a retainer"
-    );
-    assert!(stub.calls().is_empty());
-}
+// (The former `plain_project_create_without_retainer_records_no_signature_call`
+// test was removed: there is no plain-project path any more — every matter
+// opens on a retainer, so a create without one is not a valid scenario.)

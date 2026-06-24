@@ -155,10 +155,13 @@ mod tests {
         .insert(db)
         .await
         .unwrap();
+        let __dri = store::test_support::dri_person(db).await;
         let proj = project::ActiveModel {
             name: ActiveValue::Set("Sison".into()),
             status: ActiveValue::Set("open".into()),
             entity_id: ActiveValue::Set(store::test_support::seed_entity(db).await),
+            staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+            client_dri_person_id: ActiveValue::Set(Some(__dri)),
             ..Default::default()
         }
         .insert(db)

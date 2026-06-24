@@ -97,10 +97,13 @@ async fn build_app() -> (axum::Router, store::Db) {
 }
 
 async fn project(db: &store::Db, name: &str, status: &str) -> Uuid {
+    let __dri = store::test_support::dri_person(db).await;
     entity::project::ActiveModel {
         name: ActiveValue::Set(name.into()),
         status: ActiveValue::Set(status.into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(db)

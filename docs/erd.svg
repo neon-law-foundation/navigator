@@ -57,7 +57,9 @@
 <path class="e" d="M1190,2099 L30,2435" marker-end="url(#arrow)"/>
 <path class="e" d="M1190,2121 L990,2435" marker-end="url(#arrow)"/>
 <path class="e" d="M510,2483 L646,1043" marker-end="url(#arrow)"/>
-<path class="e" d="M1230,2527 L646,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M1246,2527 L646,1043" marker-end="url(#arrow)"/>
+<path class="e" d="M1246,2659 L30,2435" marker-end="url(#arrow)"/>
+<path class="e" d="M1246,2681 L30,2435" marker-end="url(#arrow)"/>
 <path class="e" d="M222,2845 L326,2797" marker-end="url(#arrow)"/>
 <path class="e" d="M862,2845 L30,2435" marker-end="url(#arrow)"/>
 <path class="e" d="M1174,2845 L326,2051" marker-end="url(#arrow)"/>
@@ -862,27 +864,31 @@
 <text class="ct" x="292" y="331" text-anchor="end">varchar</text>
 </g>
 <g transform="translate(990,2420)">
-<rect class="t" width="240" height="228"/>
-<rect class="tt" width="240" height="30"/>
-<text class="tn" x="120" y="20" text-anchor="middle">projects</text>
+<rect class="t" width="256" height="272"/>
+<rect class="tt" width="256" height="30"/>
+<text class="tn" x="128" y="20" text-anchor="middle">projects</text>
 <text class="cn" x="12" y="45">id</text>
-<text class="cpk" x="228" y="45" text-anchor="end">uuid PK</text>
+<text class="cpk" x="244" y="45" text-anchor="end">uuid PK</text>
 <text class="cn" x="12" y="67">name</text>
-<text class="ct" x="228" y="67" text-anchor="end">varchar</text>
+<text class="ct" x="244" y="67" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="89">status</text>
-<text class="ct" x="228" y="89" text-anchor="end">varchar</text>
+<text class="ct" x="244" y="89" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="111">entity_id</text>
-<text class="cfk" x="228" y="111" text-anchor="end">uuid FK</text>
+<text class="cfk" x="244" y="111" text-anchor="end">uuid FK</text>
 <text class="cn" x="12" y="133">inserted_at</text>
-<text class="ct" x="228" y="133" text-anchor="end">text</text>
+<text class="ct" x="244" y="133" text-anchor="end">text</text>
 <text class="cn" x="12" y="155">updated_at</text>
-<text class="ct" x="228" y="155" text-anchor="end">text</text>
+<text class="ct" x="244" y="155" text-anchor="end">text</text>
 <text class="cn" x="12" y="177">git_initialized_at</text>
-<text class="ct" x="228" y="177" text-anchor="end">varchar</text>
+<text class="ct" x="244" y="177" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="199">closed_at</text>
-<text class="ct" x="228" y="199" text-anchor="end">varchar</text>
+<text class="ct" x="244" y="199" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="221">description</text>
-<text class="ct" x="228" y="221" text-anchor="end">text</text>
+<text class="ct" x="244" y="221" text-anchor="end">text</text>
+<text class="cn" x="12" y="243">staff_dri_person_id</text>
+<text class="cfk" x="244" y="243" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="265">client_dri_person_id</text>
+<text class="cfk" x="244" y="265" text-anchor="end">uuid FK</text>
 </g>
 <g transform="translate(30,2782)">
 <rect class="t" width="192" height="184"/>

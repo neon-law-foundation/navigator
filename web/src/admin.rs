@@ -42,6 +42,37 @@ fn delete_response(headers: &axum::http::HeaderMap, redirect_to: &'static str) -
         Redirect::to(redirect_to).into_response()
     }
 }
+
+/// HTMX-aware response for a delete that **failed** (most often a
+/// foreign-key block — the row still has dependent records). The delete
+/// button swaps `closest tr` with the response on success; here we instead
+/// retarget the swap to `body` / `beforeend` so a **red toast** is appended
+/// and the row is **not** removed — the opposite of the old silent
+/// `let _ = …` which made a failed delete look like it worked until a
+/// refresh. Non-HTMX callers get a plain redirect back to the listing (where
+/// the row is still present).
+fn delete_error_toast(
+    headers: &axum::http::HeaderMap,
+    message: &str,
+    redirect_to: &'static str,
+) -> Response {
+    let is_htmx = headers
+        .get("HX-Request")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.eq_ignore_ascii_case("true"));
+    if is_htmx {
+        let toast =
+            views::components::toast_overlay(&views::components::Toast::danger(message).render());
+        (
+            axum::http::StatusCode::OK,
+            [("HX-Retarget", "body"), ("HX-Reswap", "beforeend")],
+            toast,
+        )
+            .into_response()
+    } else {
+        Redirect::to(redirect_to).into_response()
+    }
+}
 use maud::Markup;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
@@ -835,12 +866,15 @@ async fn people_delete(
             .into_response();
     }
     if let Err(e) = person::Entity::delete_by_id(id).exec(&s.db).await {
-        tracing::error!(error = %e, "admin: delete person failed");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            views::internal_error_page(),
-        )
-            .into_response();
+        tracing::warn!(error = %e, person_id = %id, "people_delete: delete failed");
+        return delete_error_toast(
+            &headers,
+            &format!(
+                "Couldn't delete this person — {}.",
+                store::db_error::describe_write_failure(&e)
+            ),
+            "/portal/admin/people",
+        );
     }
     delete_response(&headers, "/portal/admin/people")
 }
@@ -1211,8 +1245,20 @@ async fn entities_delete(
     Path(id): Path<Uuid>,
     headers: axum::http::HeaderMap,
 ) -> Response {
-    let _ = entity::Entity::delete_by_id(id).exec(&db).await;
-    delete_response(&headers, "/portal/admin/entities")
+    match entity::Entity::delete_by_id(id).exec(&db).await {
+        Ok(_) => delete_response(&headers, "/portal/admin/entities"),
+        Err(e) => {
+            tracing::warn!(error = %e, entity_id = %id, "entities_delete: delete failed");
+            delete_error_toast(
+                &headers,
+                &format!(
+                    "Couldn't delete this entity — {}.",
+                    store::db_error::describe_write_failure(&e)
+                ),
+                "/portal/admin/entities",
+            )
+        }
+    }
 }
 
 async fn load_entity_choices(db: &Db) -> (Vec<entity_type::Model>, Vec<jurisdiction::Model>) {
@@ -1529,10 +1575,21 @@ async fn projects_new_staff_only(
             name: &e.name,
         })
         .collect();
-    // The onboarding-template picker for the optional retainer block.
+    // The onboarding-template picker for the optional retainer block, plus
+    // the required client picker (existing clients only).
     let retainer_templates = crate::retainer_walk::onboarding_templates(&state.db).await;
+    let clients = client_people(&state.db).await;
+    let client_choices: Vec<_> = clients
+        .iter()
+        .map(|p| admin_views::projects::PersonChoice {
+            id: p.id,
+            name: &p.name,
+            email: &p.email,
+        })
+        .collect();
     admin_views::projects::new_form(
         &admin_views::projects::Form {
+            client_dri_choices: &client_choices,
             retainer_templates: &retainer_templates,
             ..Default::default()
         },
@@ -1552,32 +1609,88 @@ struct ProjectInput {
     /// action, seeded as the notation's position-0 custom clause.
     #[serde(default)]
     description: String,
-    /// Retainer block (the create form's optional "Send retainer for
-    /// signature" section). An unchecked checkbox is not posted at all, so
-    /// `send_retainer` is `None`; a ticked one posts `"true"`. The signer
-    /// fields are required only when the box is ticked (validated below).
+    /// The required client-side DRI: which existing `Role::Client` person
+    /// this matter is opened for. The client must pre-exist (the picker
+    /// lists existing clients); validated below.
     #[serde(default)]
-    send_retainer: Option<String>,
+    client_dri_person_id: Option<Uuid>,
+    /// The onboarding template for the matter's retainer. **Required** —
+    /// every matter opens on a retainer (a project is not official until
+    /// one exists), so there is no "plain project" path. Validated below.
     #[serde(default)]
     retainer_template_code: String,
     #[serde(default)]
-    client_name: String,
-    #[serde(default)]
-    client_email: String,
-    #[serde(default)]
     scope_of_services: String,
-}
-
-impl ProjectInput {
-    /// Whether the "Send retainer for signature" box was ticked.
-    fn wants_retainer(&self) -> bool {
-        self.send_retainer.as_deref() == Some("true")
-    }
 }
 
 fn nonblank(s: &str) -> Option<String> {
     let trimmed = s.trim();
     (!trimmed.is_empty()).then(|| trimmed.to_string())
+}
+
+/// Resolve the firm-side person who is the matter's staff DRI: the opening
+/// staffer when their session is linked to a Person, else the firm's
+/// default principal (resolved by role) so a matter still opens with a
+/// real, NOT-NULL DRI under the dev auth-bypass. `None` only when neither
+/// exists — an unseeded DB with an unlinked session, which the caller
+/// rejects.
+async fn resolve_staff_dri(db: &Db, session: Option<&SessionData>) -> Option<Uuid> {
+    if let Some(id) = session.and_then(|s| s.person_id) {
+        return Some(id);
+    }
+    store::persons::default_firm_dri(db).await.ok().flatten()
+}
+
+/// The existing `Role::Client` persons offered in the create form's
+/// required client-DRI picker. A matter's client must pre-exist (the
+/// client field exists before the project), so the form selects one rather
+/// than conjuring a client mid-open.
+async fn client_people(db: &Db) -> Vec<person::Model> {
+    person::Entity::find()
+        .filter(person::Column::Role.eq(person::Role::Client))
+        .order_by_asc(person::Column::Name)
+        .all(db)
+        .await
+        .unwrap_or_default()
+}
+
+/// Validate the create form's selected client DRI: it must be present,
+/// exist, and carry `Role::Client`. Returns the client's `person::Model`
+/// (so the caller has its email/name for the retainer) or a re-rendered
+/// `422` form error. The client-side DRI is a real client of record, never
+/// a firm attorney — both the engineering and legal councils flagged the
+/// firm-as-its-own-client default as a conflict/loyalty problem.
+async fn selected_client_dri(
+    state: &AdminState,
+    input: &ProjectInput,
+) -> Result<person::Model, Response> {
+    let Some(id) = input.client_dri_person_id else {
+        return Err(retainer_form_error(state, input, "Pick the client this matter is for.").await);
+    };
+    let row = match person::Entity::find_by_id(id).one(&state.db).await {
+        Ok(Some(p)) => p,
+        Ok(None) => {
+            return Err(retainer_form_error(
+                state,
+                input,
+                "That client was not found — pick an existing client (create them first if needed).",
+            )
+            .await);
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "projects_create: client DRI lookup failed");
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response());
+        }
+    };
+    if row.role != person::Role::Client {
+        return Err(retainer_form_error(
+            state,
+            input,
+            "The client DRI must be an existing client person.",
+        )
+        .await);
+    }
+    Ok(row)
 }
 
 /// Re-render the project create form with a retainer-validation error and
@@ -1597,16 +1710,24 @@ async fn retainer_form_error(state: &AdminState, input: &ProjectInput, msg: &str
         })
         .collect();
     let retainer_templates = crate::retainer_walk::onboarding_templates(&state.db).await;
+    let clients = client_people(&state.db).await;
+    let client_choices: Vec<_> = clients
+        .iter()
+        .map(|p| admin_views::projects::PersonChoice {
+            id: p.id,
+            name: &p.name,
+            email: &p.email,
+        })
+        .collect();
     let form = admin_views::projects::Form {
         name: &input.name,
         status: &input.status,
         entity_id: input.entity_id,
+        client_dri_person_id: input.client_dri_person_id,
+        client_dri_choices: &client_choices,
         description: &input.description,
         error: Some(msg),
-        send_retainer: input.wants_retainer(),
         retainer_template_code: &input.retainer_template_code,
-        client_name: &input.client_name,
-        client_email: &input.client_email,
         scope_of_services: &input.scope_of_services,
         retainer_templates: &retainer_templates,
     };
@@ -1636,39 +1757,26 @@ async fn projects_create_staff_only(
         return Redirect::to("/portal/projects/new").into_response();
     }
 
-    let wants_retainer = input.wants_retainer();
+    // The client-side DRI is required on **every** create and must be a
+    // real, pre-existing `Role::Client` person — never a firm attorney
+    // (both the engineering and legal councils flagged the
+    // firm-as-its-own-client default as a conflict/loyalty problem). The
+    // client field exists before the project: validate it before any row.
+    let client = match selected_client_dri(&state, &input).await {
+        Ok(c) => c,
+        Err(resp) => return resp,
+    };
 
-    // Validate the retainer block up front — before any row is created —
-    // so a bad signer can never leave a half-open matter behind. A
-    // retainer cannot send without a template and a named client signer.
-    if wants_retainer {
-        let template_ok = !input.retainer_template_code.trim().is_empty();
-        let name_ok = !input.client_name.trim().is_empty();
-        let email_ok = input.client_email.contains('@');
-        if !template_ok {
-            return retainer_form_error(
-                &state,
-                &input,
-                "Pick an onboarding template to send a retainer.",
-            )
-            .await;
-        }
-        if !name_ok {
-            return retainer_form_error(
-                &state,
-                &input,
-                "Enter the client's name to send a retainer.",
-            )
-            .await;
-        }
-        if !email_ok {
-            return retainer_form_error(
-                &state,
-                &input,
-                "Enter a valid client email (must contain @) to send a retainer.",
-            )
-            .await;
-        }
+    // Every matter opens on a retainer — a project is not official until
+    // one exists — so the onboarding template is required, always. There is
+    // no plain-project path. The retainer is sent to the client above.
+    if input.retainer_template_code.trim().is_empty() {
+        return retainer_form_error(
+            &state,
+            &input,
+            "Pick an onboarding template — every matter opens on a retainer.",
+        )
+        .await;
     }
 
     // A matter always opens against a **pre-existing** entity
@@ -1698,6 +1806,20 @@ async fn projects_create_staff_only(
         }
     }
 
+    // Resolve the matter's **staff-side** DRI — a required, NOT NULL column
+    // (every matter names exactly one accountable attorney/admin). The
+    // opening staffer is it; a session not linked to a firm Person (the dev
+    // bypass) falls back to the seeded firm principal so a matter never
+    // opens without a real responsible person, with no sentinel row.
+    let Some(staff_dri_id) = resolve_staff_dri(&state.db, session.as_deref()).await else {
+        return retainer_form_error(
+            &state,
+            &input,
+            "Your session isn't linked to a firm person — cannot open a matter.",
+        )
+        .await;
+    };
+
     // One transaction: the project, its DRI role, and — when the box is
     // ticked — the client, role, retainer Notation, and seeded answers, so
     // a failure rolls back as a unit.
@@ -1709,10 +1831,15 @@ async fn projects_create_staff_only(
         }
     };
 
+    // Both DRI columns are NOT NULL and set to real persons at insert: the
+    // staff side to the opener/firm principal, the client side to the
+    // pre-existing client just validated. No sentinel, no placeholder.
     let project_id = match (project::ActiveModel {
         name: ActiveValue::Set(input.name.clone()),
         status: ActiveValue::Set(input.status.clone()),
         entity_id: ActiveValue::Set(entity_id),
+        staff_dri_person_id: ActiveValue::Set(Some(staff_dri_id)),
+        client_dri_person_id: ActiveValue::Set(Some(client.id)),
         description: ActiveValue::Set(nonblank(&input.description)),
         ..Default::default()
     })
@@ -1748,17 +1875,6 @@ async fn projects_create_staff_only(
         }
     }
 
-    // Plain create: commit the project and return to the list. (The
-    // client-side DRI is designated in the retainer path below — a plain
-    // project with no client has no client DRI yet.)
-    if !wants_retainer {
-        if let Err(e) = txn.commit().await {
-            tracing::error!(error = %e, "projects_create: commit failed");
-            return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
-        }
-        return Redirect::to("/portal/projects").into_response();
-    }
-
     // Resolve the chosen onboarding template inside the txn.
     let code = input.retainer_template_code.trim();
     let template_row = match template::Entity::find()
@@ -1777,16 +1893,18 @@ async fn projects_create_staff_only(
         }
     };
 
-    // Find-or-create the client + role + retainer Notation. The matter-open
-    // client is *emailed* a signing link — they are not in the room and
-    // have no portal session yet.
-    let client_email = input.client_email.trim();
+    // Attach the retainer Notation to the matter, sent to the selected
+    // client (the same person already on the project's client_dri column).
+    // `link_retainer_rows` resolves them by email — they pre-exist, so this
+    // links rather than creates — and attaches the `client` participation
+    // row for portal visibility. The matter-open client is *emailed* a
+    // signing link; they are not in the room and have no portal session yet.
     let rows = match crate::retainer_walk::link_retainer_rows(
         &txn,
         template_row.id,
         project_id,
-        client_email,
-        Some(input.client_name.trim()),
+        &client.email,
+        Some(&client.name),
         store::entity::notation::DELIVERY_EMAILED,
     )
     .await
@@ -1794,25 +1912,6 @@ async fn projects_create_staff_only(
         Ok(r) => r,
         Err(resp) => return resp,
     };
-
-    // Designate the client as the matter's **client-side** DRI — the one
-    // natural person on the client's side accountable for it. This is the
-    // same Person `link_retainer_rows` just created/linked as the `client`
-    // participant, now also marked as the responsible individual.
-    if let Err(e) = (person_project_role::ActiveModel {
-        person_id: ActiveValue::Set(rows.person_id),
-        project_id: ActiveValue::Set(project_id),
-        participation: ActiveValue::Set(
-            store::entity::person_project_role::PARTICIPATION_CLIENT_DRI.to_string(),
-        ),
-        ..Default::default()
-    })
-    .insert(&txn)
-    .await
-    {
-        tracing::error!(error = %e, "projects_create: client DRI role insert failed");
-        return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
-    }
 
     // Seed the matter's scope narrative as the retainer's position-0
     // custom clause ("the firm's standing terms plus this project's
@@ -1846,8 +1945,8 @@ async fn projects_create_staff_only(
         rows.person_id,
         staffer,
         &[
-            ("client_name", input.client_name.trim()),
-            ("client_email", client_email),
+            ("client_name", client.name.trim()),
+            ("client_email", client.email.trim()),
             ("project_name", input.name.trim()),
             ("product_description", input.scope_of_services.trim()),
         ],
@@ -1979,19 +2078,10 @@ async fn projects_detail_role_aware(
         .map(|e| e.name);
 
     // Resolve the two Directly Responsible Individuals (staff + client) for
-    // display — each is a participation role on the project.
-    let staff_dri = dri_name(
-        &db,
-        id,
-        store::entity::person_project_role::PARTICIPATION_STAFF_DRI,
-    )
-    .await;
-    let client_dri = dri_name(
-        &db,
-        id,
-        store::entity::person_project_role::PARTICIPATION_CLIENT_DRI,
-    )
-    .await;
+    // display from the authoritative project columns — a first-class matter
+    // attribute, distinct from the participation ledger.
+    let staff_dri = person_name(&db, existing.staff_dri_person_id).await;
+    let client_dri = person_name(&db, existing.client_dri_person_id).await;
 
     // Documents — list view is just filename + download link. Blob
     // content type / size / SHA live on the per-document detail page,
@@ -2053,18 +2143,11 @@ async fn projects_detail_role_aware(
     .into_response()
 }
 
-/// Resolve the display name of the Person holding `participation` on
-/// `project_id` (used for the staff / client DRI). `None` when no such
-/// role is set or the Person row is missing.
-async fn dri_name(db: &Db, project_id: Uuid, participation: &str) -> Option<String> {
-    let role = person_project_role::Entity::find()
-        .filter(person_project_role::Column::ProjectId.eq(project_id))
-        .filter(person_project_role::Column::Participation.eq(participation))
-        .one(db)
-        .await
-        .ok()
-        .flatten()?;
-    person::Entity::find_by_id(role.person_id)
+/// Resolve a person's display name from a nullable DRI column, for display.
+/// `None` when the matter has no DRI of that side yet (a legacy row) or the
+/// row is missing.
+async fn person_name(db: &Db, person_id: Option<Uuid>) -> Option<String> {
+    person::Entity::find_by_id(person_id?)
         .one(db)
         .await
         .ok()
@@ -2115,8 +2198,20 @@ async fn projects_delete_staff_only(
     if !is_staff_tier(session.as_deref()) {
         return not_found_response();
     }
-    let _ = project::Entity::delete_by_id(id).exec(&db).await;
-    delete_response(&headers, "/portal/projects")
+    match project::Entity::delete_by_id(id).exec(&db).await {
+        Ok(_) => delete_response(&headers, "/portal/projects"),
+        Err(e) => {
+            tracing::warn!(error = %e, project_id = %id, "projects_delete: delete failed");
+            delete_error_toast(
+                &headers,
+                &format!(
+                    "Couldn't delete this matter — {}.",
+                    store::db_error::describe_write_failure(&e)
+                ),
+                "/portal/projects",
+            )
+        }
+    }
 }
 
 // ---- Read-only listings (one handler per remaining domain table) ----
