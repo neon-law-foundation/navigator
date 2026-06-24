@@ -141,7 +141,7 @@ const FOUNDATION_NAV: &[NavLink] = &[
     // talk is just another workshop.
     NavLink::leaf("Navigator", "/foundation/navigator"),
     NavLink::leaf("Notations", "/foundation/notations"),
-    NavLink::leaf("Workshops", "/foundation/workshops/navigator"),
+    NavLink::leaf("Workshops", "/foundation/workshops"),
 ];
 
 /// Read an env var or fall back to the default. The returned slice
@@ -436,14 +436,14 @@ mod tests {
     }
 
     #[test]
-    fn foundation_nav_workshops_points_at_single_canonical_workshop() {
+    fn foundation_nav_workshops_points_at_the_top_level_overview() {
         let workshops = FOUNDATION_BRAND
             .nav
             .iter()
             .find(|n| n.label == "Workshops")
             .expect("Workshops leaf present");
         assert!(!workshops.is_dropdown());
-        assert_eq!(workshops.href, "/foundation/workshops/navigator");
+        assert_eq!(workshops.href, "/foundation/workshops");
     }
 
     #[test]

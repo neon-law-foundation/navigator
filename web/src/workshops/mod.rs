@@ -26,6 +26,15 @@ pub struct WorkshopMaterial {
     pub slug: String,
     pub title: String,
     pub description: String,
+    /// Who this workshop is for, shown as the audience tag on the
+    /// top-level `/foundation/workshops` overview, e.g. "For lawyers".
+    /// The reader self-selects in two seconds (Client Council, Pisces).
+    pub audience: String,
+    /// The you-voiced takeaway — what the reader walks out with —
+    /// rendered as the card body on the overview. Describes what the
+    /// reader *does*, never a guaranteed outcome (Legal Council,
+    /// Scorpio: this is public attorney advertising across CA/NV/WA).
+    pub benefit: String,
     pub raw_markdown: String,
     /// Full rendered body with the leading `#` title stripped — the
     /// page chrome supplies the sole `<h1>`, so the markdown must not

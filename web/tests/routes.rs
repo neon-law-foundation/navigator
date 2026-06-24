@@ -737,10 +737,7 @@ async fn old_presentation_urls_permanently_redirect_to_workshops() {
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
     for (from, to) in [
-        (
-            "/foundation/presentations",
-            "/foundation/workshops/navigator",
-        ),
+        ("/foundation/presentations", "/foundation/workshops"),
         (
             "/foundation/presentations/rust-in-peace",
             "/foundation/workshops/navigator/rust-in-peace",
@@ -1234,6 +1231,8 @@ fn sample_workshop() -> WorkshopMaterial {
         slug: "readme".into(),
         title: "Runbook".into(),
         description: "How.".into(),
+        audience: "For lawyers".into(),
+        benefit: "You walk out with a notation you built yourself.".into(),
         raw_markdown: "# Runbook\n\nIntro.\n\n## Install\n\nDo it.\n\n## Notarize\n\nFinish.\n"
             .into(),
         body_html: "<p>Intro.</p><h2>Install</h2><p>Do it.</p><h2>Notarize</h2>".into(),
@@ -1252,9 +1251,37 @@ fn sample_workshop() -> WorkshopMaterial {
 }
 
 #[tokio::test]
-async fn workshops_index_lists_materials() {
+async fn workshops_landing_lists_each_workshop_you_voiced() {
     let app = web::build_router(
         state_with_workshops(vec![sample_workshop()]).await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/workshops")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("<title>Neon Law Foundation | Workshops</title>"));
+    // Each workshop links to its overview one level down, tagged with its
+    // audience and led by its you-voiced benefit.
+    assert!(body.contains("href=\"/foundation/workshops/navigator/readme\""));
+    assert!(body.contains(">Runbook</a>"));
+    assert!(body.contains("For lawyers"));
+    assert!(body.contains("You walk out with a notation you built yourself."));
+}
+
+#[tokio::test]
+async fn old_navigator_workshop_index_redirects_to_the_overview() {
+    // The per-track index folded into the top-level overview; the old URL
+    // (and the nav's prior target) 308-redirect so bookmarks survive.
+    let app = web::build_router(
+        empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
     let resp = app
@@ -1266,10 +1293,11 @@ async fn workshops_index_lists_materials() {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("href=\"/foundation/workshops/navigator/readme\""));
-    assert!(body.contains(">Runbook</a>"));
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        resp.headers().get("location").unwrap(),
+        "/foundation/workshops"
+    );
 }
 
 #[tokio::test]
