@@ -26,6 +26,7 @@ pub const REQUIRED_SERVICES: &[&str] = &[
     "logging.googleapis.com",
     "secretmanager.googleapis.com",
     "certificatemanager.googleapis.com",
+    "speech.googleapis.com",
 ];
 
 pub async fn enable_services(client: &GcpClient, project_id: &str) -> SetupResult<()> {
