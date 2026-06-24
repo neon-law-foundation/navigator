@@ -402,14 +402,17 @@ impl<'a> PageLayout<'a> {
                                 }
                             }
                         }
-                        // Bottom line: the deployed release stamp and the
-                        // repo-star CTA share one row. The stamp is the
-                        // `YY.MM.DD` ghcr tag this image shipped under (same
-                        // value as `/version`'s `release`), so a push is
-                        // verifiable from the page itself; it links to the
-                        // matching GitHub release tag and is hidden on local
-                        // dev, where the tag is unset. The star CTA always
-                        // shows — same footer on every page.
+                        // Bottom line: the Navigator version and the repo-star
+                        // CTA share one row, and a version ALWAYS shows. In a
+                        // deployed image it is the `YY.MM.DD` ghcr tag this
+                        // build shipped under (same value as `/version`'s
+                        // `release`), linked to the matching GitHub release so
+                        // a push is verifiable from the page itself. On a local
+                        // `cargo run` the tag is unset, so it falls back to the
+                        // crate's semantic version (unlinked — there is no
+                        // release tag to point at) so the footer never renders
+                        // version-less. The star CTA always shows too — same
+                        // footer on every page.
                         div."mt-3"."d-flex"."flex-wrap"."align-items-center"."gap-3" {
                             @if let Some(release) = deployed_release() {
                                 (external_link_with_class(
@@ -417,6 +420,10 @@ impl<'a> PageLayout<'a> {
                                     "link-secondary text-decoration-none small",
                                     html! { "Navigator " (release) },
                                 ))
+                            } @else {
+                                span."small"."text-body-secondary" {
+                                    "Navigator " (env!("CARGO_PKG_VERSION"))
+                                }
                             }
                             (github_star_button(
                                 foundation_github_url(),
@@ -1009,6 +1016,20 @@ mod tests {
             "footer order should be addresses < attribution < disclaimer < copyright < star, \
              got addresses={addresses} attribution={attribution} disclaimer={disclaimer} \
              copyright={copyright} star={star_cta}: {footer}"
+        );
+    }
+
+    #[test]
+    fn footer_always_shows_a_navigator_version() {
+        // A version renders in EVERY environment so the footer is never
+        // version-less (and shows in screenshots/previews): the deployed
+        // YY.MM.DD release tag in prod, or the crate's semantic version on a
+        // local `cargo run` where the tag is unset.
+        let footer = firm_footer();
+        let version = crate::brand::deployed_release().unwrap_or(env!("CARGO_PKG_VERSION"));
+        assert!(
+            footer.contains(&format!("Navigator {version}")),
+            "footer should always carry a Navigator version line: {footer}"
         );
     }
 
