@@ -11,10 +11,11 @@
 # stays English-source until an attorney reviews the Spanish (Tier B).
 nav:
   home: Inicio
-  foundation: La Fundación
-  firm: El bufete
+  foundation: Fundación
+  firm: Firma
   services: Servicios
   mission: Misión
+  notations: Notaciones
   workshops: Talleres
 auth:
   portal: Portal
@@ -23,7 +24,7 @@ auth:
 switcher:
   aria: Ver esta página en inglés
 footer:
-  github_star: Destacar The Neon Law Navigator
+  github_star: Destacar Neon Law Navigator
   legal_in_english: "El texto legal vinculante de este sitio se proporciona en inglés."
 cta:
   email: "Escríbenos a %{email}"

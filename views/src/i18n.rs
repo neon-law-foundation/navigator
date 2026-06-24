@@ -172,10 +172,11 @@ pub fn t_args(locale: Locale, key: &str, args: &[(&str, &str)]) -> String {
 pub fn nav_label(label: &str, locale: Locale) -> String {
     let key = match label {
         "Home" => "nav.home",
-        "The Foundation" => "nav.foundation",
-        "The Firm" => "nav.firm",
+        "Foundation" => "nav.foundation",
+        "Firm" => "nav.firm",
         "Services" => "nav.services",
         "Mission" => "nav.mission",
+        "Notations" => "nav.notations",
         "Workshops" => "nav.workshops",
         // Product names and anything else are proper nouns — verbatim.
         _ => return label.to_string(),
@@ -195,6 +196,7 @@ pub fn nav_label(label: &str, locale: Locale) -> String {
 /// `web/tests/routes.rs` enforces the agreement.
 pub const ES_ENABLED_PATHS: &[&str] = &[
     "/",
+    "/foundation",
     "/services",
     "/services/nexus",
     "/services/nest",
@@ -207,7 +209,6 @@ pub const ES_ENABLED_PATHS: &[&str] = &[
     "/services/namesake",
     "/services/nucleus",
     "/services/pro-bono",
-    "/foundation/mission",
 ];
 
 /// Localize an internal href for `locale`. In English (or for a path
@@ -254,11 +255,11 @@ mod tests {
 
     #[test]
     fn english_values_are_the_literal_source_strings() {
-        // English output must be byte-identical to the legacy literals.
         assert_eq!(t(Locale::En, "nav.home"), "Home");
-        assert_eq!(t(Locale::En, "nav.foundation"), "The Foundation");
-        assert_eq!(t(Locale::En, "nav.firm"), "The Firm");
+        assert_eq!(t(Locale::En, "nav.foundation"), "Foundation");
+        assert_eq!(t(Locale::En, "nav.firm"), "Firm");
         assert_eq!(t(Locale::En, "nav.services"), "Services");
+        assert_eq!(t(Locale::En, "nav.notations"), "Notations");
         assert_eq!(t(Locale::En, "auth.sign_in"), "Sign in");
         assert_eq!(t(Locale::En, "auth.sign_out"), "Sign out");
     }
@@ -266,9 +267,10 @@ mod tests {
     #[test]
     fn spanish_values_resolve_from_the_es_catalog() {
         assert_eq!(t(Locale::Es, "nav.home"), "Inicio");
-        assert_eq!(t(Locale::Es, "nav.foundation"), "La Fundación");
-        assert_eq!(t(Locale::Es, "nav.firm"), "El bufete");
+        assert_eq!(t(Locale::Es, "nav.foundation"), "Fundación");
+        assert_eq!(t(Locale::Es, "nav.firm"), "Firma");
         assert_eq!(t(Locale::Es, "nav.services"), "Servicios");
+        assert_eq!(t(Locale::Es, "nav.notations"), "Notaciones");
         assert_eq!(t(Locale::Es, "auth.sign_in"), "Iniciar sesión");
     }
 
@@ -305,12 +307,14 @@ mod tests {
     #[test]
     fn nav_label_translates_chrome_but_passes_product_nouns_through() {
         assert_eq!(nav_label("Home", Locale::Es), "Inicio");
-        assert_eq!(nav_label("The Foundation", Locale::Es), "La Fundación");
-        assert_eq!(nav_label("The Firm", Locale::Es), "El bufete");
+        assert_eq!(nav_label("Foundation", Locale::Es), "Fundación");
+        assert_eq!(nav_label("Firm", Locale::Es), "Firma");
+        assert_eq!(nav_label("Notations", Locale::Es), "Notaciones");
         // English is unchanged.
         assert_eq!(nav_label("Home", Locale::En), "Home");
-        assert_eq!(nav_label("The Foundation", Locale::En), "The Foundation");
-        assert_eq!(nav_label("The Firm", Locale::En), "The Firm");
+        assert_eq!(nav_label("Foundation", Locale::En), "Foundation");
+        assert_eq!(nav_label("Firm", Locale::En), "Firm");
+        assert_eq!(nav_label("Notations", Locale::En), "Notations");
         // Product proper nouns are never translated.
         assert_eq!(nav_label("Nexus", Locale::Es), "Nexus");
         assert_eq!(nav_label("Northstar", Locale::Es), "Northstar");
@@ -358,10 +362,7 @@ mod tests {
             localize_href("/services/northstar", Locale::Es),
             "/es/services/northstar"
         );
-        assert_eq!(
-            localize_href("/foundation/mission", Locale::Es),
-            "/es/foundation/mission"
-        );
+        assert_eq!(localize_href("/foundation", Locale::Es), "/es/foundation");
         // English never rewrites.
         assert_eq!(
             localize_href("/services/northstar", Locale::En),

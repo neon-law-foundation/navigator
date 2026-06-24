@@ -1,21 +1,33 @@
-//! `/` — a deliberately minimal landing card.
+//! `/` — the firm landing page.
 //!
-//! The root names both organizations as equal peers: the firm's
-//! registered brand mark over its flat-fee tagline, then the
-//! Foundation's name — rendered at the same `display-5` size so neither
-//! reads as subordinate — over its own non-profit tagline. Both
-//! taglines state the mission plainly (mirroring `/foundation/mission`),
-//! never a guarantee of results or a comparison. The standard layout
-//! supplies the surrounding chrome and the firm brand.
-//!
-//! This is the simpler landing that previously shipped as the
-//! private-mode root (`render_closed`); it is now the public home page.
+//! The root is firm-branded: it leads with Neon Law's flat-fee legal
+//! work, then explains how the firm uses Navigator and supports the
+//! Foundation's access-to-justice mission. The Foundation's full mission
+//! letter now lives at `/foundation`.
 
 use maud::{html, Markup};
 
 use crate::brand::{FIRM_BRAND, FOUNDATION_BRAND};
 use crate::components::ExternalLink;
 use crate::{i18n, AuthState, Locale, PageLayout};
+
+const JUSTICE_GAP_STATS: &[(&str, &str, &str)] = &[
+    (
+        "92%",
+        "of low-income Americans' civil legal problems get inadequate or no legal help",
+        "LSC Justice Gap Report, 2022",
+    ),
+    (
+        "5.1B",
+        "people worldwide lack meaningful access to justice",
+        "World Justice Project, 2023",
+    ),
+    (
+        "$0",
+        "to self-host Navigator's rule engine, CLI, MCP server, and web app",
+        "Apache-2.0 / MIT",
+    ),
+];
 
 /// Render `/` in English. The layout supplies the surrounding chrome and
 /// the firm brand by default.
@@ -24,14 +36,17 @@ pub fn render(auth: AuthState) -> Markup {
     render_in(auth, Locale::En)
 }
 
-/// Render `/` in `locale`. The minimal card body is English (the binding
-/// brand marks and the two mission taglines); `locale` localizes only
-/// the surrounding chrome, and `/` stays the canonical twin of `/es`.
+/// Render `/` in `locale`. The page body is English; `locale`
+/// localizes only the surrounding chrome, and `/` stays the canonical
+/// twin of `/es`.
 #[must_use]
 pub fn render_in(auth: AuthState, locale: Locale) -> Markup {
     let body = html! {
-        section."text-center"."py-5" {
-            h1."display-5"."mb-3" {
+        section."py-5" {
+            p."text-uppercase"."fw-semibold"."text-body-secondary"."small"."mb-2" {
+                "Flat-fee legal services"
+            }
+            h1."display-4"."fw-bold"."mb-3" {
                 @if let Some(url) = FIRM_BRAND.trademark_registration_url {
                     (ExternalLink::new(url)
                         .with_class("link-body-emphasis text-decoration-none")
@@ -44,12 +59,58 @@ pub fn render_in(auth: AuthState, locale: Locale) -> Markup {
                     (FIRM_BRAND.site_name)
                 }
             }
-            p."lead"."mb-5" {
-                "An American law firm offering flat-fee legal services with a licensed attorney in the loop."
+            p."lead"."col-lg-8"."mb-4" {
+                "A licensed attorney scopes the work, quotes a fixed fee when the matter can be priced that way, \
+                 and uses Navigator to keep intake, drafting, review, and delivery moving in one auditable system."
             }
-            h1."display-5"."mb-3" { (FOUNDATION_BRAND.site_name) }
-            p."lead"."mb-0" {
-                "An American non-profit pursuing access to justice through open-source tools and legal-aid education."
+            div."d-flex"."flex-wrap"."gap-2" {
+                a."btn"."btn-primary"."btn-lg" href="/services" { "View Services" }
+                a."btn"."btn-outline-secondary"."btn-lg" href="/foundation" { "Read the Mission" }
+            }
+        }
+
+        section."mb-5" {
+            div."row"."row-cols-1"."row-cols-md-3"."g-4" {
+                @for (figure, claim, source) in JUSTICE_GAP_STATS {
+                    div."col" {
+                        div."card"."h-100"."border-0"."shadow-sm" {
+                            div."card-body" {
+                                p."display-6"."fw-bold"."text-primary"."mb-2" { (figure) }
+                                p."card-text"."mb-0" { (claim) }
+                            }
+                            div."card-footer"."bg-transparent"."border-0"."small"."text-body-secondary" {
+                                (source)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        section."mb-5" {
+            div."row"."g-4"."align-items-start" {
+                div."col-lg-6" {
+                    h2."h3" { "Legal work in an auditable workflow" }
+                    p {
+                        "Navigator turns intake questions, legal templates, and workflow states into plain-text \
+                         Notations. The firm uses that system in its own matters so each engagement has a clear path \
+                         from first answer to attorney review."
+                    }
+                    p."mb-0" {
+                        a href="/foundation/notations" { "Read about Notations" }
+                    }
+                }
+                div."col-lg-6" {
+                    h2."h3" { "The Foundation carries the public mission" }
+                    p {
+                        (FOUNDATION_BRAND.site_name) " publishes Navigator as open-source software and trains lawyers \
+                         to adapt it for legal-aid and public-interest work. The firm and the Foundation share a \
+                         mission, but the Foundation's work is public-interest work, not legal representation."
+                    }
+                    p."mb-0" {
+                        a href="/foundation" { "Read the Foundation mission" }
+                    }
+                }
             }
         }
     };
@@ -57,9 +118,8 @@ pub fn render_in(auth: AuthState, locale: Locale) -> Markup {
     let title = i18n::nav_label("Home", locale);
     PageLayout::new(&title)
         .with_description(
-            "Neon Law is an American law firm offering flat-fee legal services with a licensed \
-             attorney in the loop; the Neon Law Foundation pursues access to justice through \
-             open-source tools and legal-aid education.",
+            "Neon Law offers flat-fee legal services with a licensed attorney in the loop, \
+             using Navigator to keep intake, drafting, review, and delivery auditable.",
         )
         .with_auth(auth)
         .with_locale(locale)
@@ -85,7 +145,7 @@ mod tests {
     }
 
     #[test]
-    fn home_names_both_orgs_as_equal_peers() {
+    fn home_leads_with_the_firm_and_names_the_foundation_mission() {
         let html = render(crate::AuthState::Anonymous).into_string();
         // Firm brand mark with the registered-trademark symbol.
         assert!(html.contains(FIRM_BRAND.site_name));
@@ -93,37 +153,40 @@ mod tests {
             html.contains("<sup>®</sup>"),
             "brand should carry the ® mark: {html}"
         );
-        // Each org's mission tagline, stated plainly: the firm leads with its
-        // flat-fee value, the Foundation owns the access-to-justice mission via
-        // its open-source + legal-aid-education work.
         assert!(html.contains(
-            "An American law firm offering flat-fee legal services with a licensed attorney in the loop."
+            "A licensed attorney scopes the work, quotes a fixed fee when the matter can be priced that way"
         ));
-        assert!(html.contains(
-            "An American non-profit pursuing access to justice through open-source tools and legal-aid education."
-        ));
-        // The Foundation is named at the same display-5 size as the firm —
-        // both headings carry the same class, so neither reads subordinate.
         assert!(
             html.contains(FOUNDATION_BRAND.site_name),
             "home should name the Foundation: {html}"
         );
-        assert_eq!(
-            html.matches("h1 class=\"display-5 mb-3\"").count(),
-            2,
-            "firm and Foundation names must share the display-5 heading size: {html}"
+        assert!(html.contains("Read the Foundation mission"));
+        assert!(html.contains("href=\"/foundation/notations\""));
+    }
+
+    #[test]
+    fn home_carries_the_justice_gap_stats_from_the_foundation_landing() {
+        let html = render(crate::AuthState::Anonymous).into_string();
+        assert!(html.contains(">92%</p>"));
+        assert!(html.contains("LSC Justice Gap Report, 2022"));
+        assert!(html.contains(">5.1B</p>"));
+        assert!(html.contains("World Justice Project, 2023"));
+        assert!(html.contains(">0</p>") || html.contains(">$0</p>"));
+        assert!(
+            html.contains("to self-host Navigator"),
+            "home should carry the Foundation open-source stat: {html}"
         );
     }
 
     #[test]
-    fn home_is_the_minimal_card_without_a_marketing_hero() {
+    fn home_is_firm_branded_without_the_old_photo_hero() {
         let html = render(crate::AuthState::Anonymous).into_string();
         assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(
             html.contains("<footer class=\"container py-4 border-top mt-4\">"),
             "home should carry the standard footer, got: {html}",
         );
-        // It is the minimal page — no marketing hero strip.
+        // It is firm-branded prose and cards — no old marketing hero strip.
         assert!(
             !html.contains("lake-tahoe"),
             "home must not render the marketing hero: {html}",

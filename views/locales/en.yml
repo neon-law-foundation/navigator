@@ -9,15 +9,13 @@
 # falls back to this file. Keys are dotted namespaces; the layout looks
 # them up with `views::i18n::t(locale, "nav.home")`.
 #
-# The English values are the literal strings the layout has always
-# rendered — keep them byte-for-byte so the default-locale output never
-# changes.
 nav:
   home: Home
-  foundation: The Foundation
-  firm: The Firm
+  foundation: Foundation
+  firm: Firm
   services: Services
   mission: Mission
+  notations: Notations
   workshops: Workshops
 auth:
   portal: Portal
@@ -29,7 +27,7 @@ switcher:
   # name (its endonym), supplied by `Locale::endonym`.
   aria: View this page in Spanish
 footer:
-  github_star: Star The Neon Law Navigator
+  github_star: Star Neon Law Navigator
   # Shown ONLY on localized (non-English) pages, heading the footer's
   # legal strip — bar admissions and the legal-advice disclaimer stay
   # English by policy, because the binding artifact a client signs is
