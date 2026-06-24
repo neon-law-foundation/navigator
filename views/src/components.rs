@@ -24,6 +24,7 @@ pub mod pricing;
 pub mod row_actions;
 pub mod social;
 pub mod sort_spec;
+pub mod testimonial;
 pub mod toast;
 
 pub use card::Card;
@@ -41,6 +42,7 @@ pub use pricing::{pricing_section, PricingCard};
 pub use row_actions::RowActions;
 pub use social::{social_meta, SocialMeta};
 pub use sort_spec::{SortDirection, SortError, SortField, SortSpec};
+pub use testimonial::{testimonial_section, TestimonialCard};
 pub use toast::{toast_overlay, Toast, ToastTone};
 
 /// Render a small inline form-level error as a Bootstrap alert.
