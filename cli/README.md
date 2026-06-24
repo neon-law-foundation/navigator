@@ -34,6 +34,7 @@ Subcommands split by whether they need a database:
 | `scaffold`       | no        | Drops template + workflow + feature stubs.                                 |
 | `assets build`   | no        | Transcodes source photos into AVIF/WebP/JPEG.                              |
 | `assets upload`  | no        | Pushes built variants to the public assets bucket.                         |
+| `assets pull`    | no        | Restores `web/public/img/` from the assets bucket for local dev.           |
 | `import`         | **yes**   | Writes into `--database-url` Postgres.                                     |
 | `list`           | **yes**   | Auto-runs migrate + seed before printing.                                  |
 | `erd`            | **yes**   | Introspects `pg_catalog` + `information_schema`.                           |
@@ -129,19 +130,26 @@ the same per-notation PDF the review surface shows. The whole round-trip is prov
 `assets build` resizes + re-encodes the curated source photos (manifest: `views::assets::GALLERY`) into responsive AVIF,
 WebP, and JPEG width variants under `web/public/img/<slug>/`. `assets upload` then pushes that tree to the public assets
 bucket (`--bucket`, default `NAVIGATOR_ASSETS_BUCKET`) through the `cloud` crate's `StorageService`, stamping a bounded
-`Cache-Control` (~1 week, never `immutable`).
+`Cache-Control` (~1 week, never `immutable`). `assets pull` is the inverse — it downloads the published variants from
+the bucket back into `web/public/img/` so a fresh clone (or any developer without the source JPEGs) can serve the photos
+locally.
 
 ```bash
+# Curate the gallery (needs the source JPEGs):
 cargo run -p cli -- assets build    # /tmp sources → web/public/img
 cargo run -p cli -- assets upload   # web/public/img → gs://<project>-assets/img
+
+# Restore photos on a fresh clone (no source JPEGs needed):
+cargo run -p cli -- assets pull     # gs://<project>-assets/img → web/public/img
 ```
 
 > **First-run note.** `web/public/img/` is gitignored — the variants ship from the bucket in production, never from
-> git or the Docker image. A fresh clone therefore has **empty photo slots** until you run `assets build` locally. This
-> is intentional and matches how workshop/marketing assets are handled; everything else under `web/public` (Bootstrap,
-> brand SVGs) is tracked and renders immediately. With `NAVIGATOR_ASSET_BASE_URL` unset the page markup resolves photos
-> against `/public`, so once `assets build` has populated the directory the KIND dev loop serves them with zero
-> configuration.
+> git or the Docker image. A fresh clone therefore has **empty photo slots** until you populate them. Run
+> `assets pull` to download the already-published variants (no source JPEGs, no re-encode), or `assets build` if you
+> have the sources. This is intentional and matches how workshop/marketing assets are handled; everything else under
+> `web/public` (Bootstrap, brand SVGs) is tracked and renders immediately. With `NAVIGATOR_ASSET_BASE_URL` unset the
+> page markup resolves photos against `/public`, so once the directory is populated the KIND dev loop serves them with
+> zero configuration. Full pipeline: [`docs/assets.md`](../docs/assets.md).
 
 ## What's next
 

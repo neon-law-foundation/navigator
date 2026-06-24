@@ -185,6 +185,63 @@ pub fn run_upload(dir: &Path, bucket: Option<String>) -> ExitCode {
     })
 }
 
+/// Entry point for `cli assets pull` — the inverse of `upload`, for
+/// local development. `web/public/img/` is gitignored (photos live only
+/// in the public assets bucket, never in git, never baked into the
+/// image), so a fresh clone serves empty photo slots. This downloads
+/// every built variant under the bucket's `img/` prefix into `out`
+/// (default `web/public/img`) so the `/public` mount has the photos
+/// again — no source JPEGs or a re-`build` required. Read-only against
+/// the bucket; `bucket` defaults to `NAVIGATOR_ASSETS_BUCKET`.
+pub fn run_pull(out: &Path, bucket: Option<String>) -> ExitCode {
+    let bucket = match bucket.or_else(|| std::env::var("NAVIGATOR_ASSETS_BUCKET").ok()) {
+        Some(b) if !b.trim().is_empty() => b,
+        _ => {
+            eprintln!(
+                "navigator: assets pull: no bucket — pass --bucket or set NAVIGATOR_ASSETS_BUCKET"
+            );
+            return ExitCode::from(2);
+        }
+    };
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("navigator: assets pull: tokio runtime: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    runtime.block_on(async move {
+        // Same endpoint override as `upload` (emulator support), pointed
+        // at the assets bucket; ADC auth otherwise.
+        let cfg = GcsStorageConfig {
+            bucket: bucket.clone(),
+            endpoint: std::env::var("NAVIGATOR_STORAGE_ENDPOINT")
+                .ok()
+                .filter(|s| !s.trim().is_empty()),
+        };
+        let storage = match GcsStorage::new_from_config(cfg).await {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("navigator: assets pull: open bucket `{bucket}`: {e}");
+                return ExitCode::from(2);
+            }
+        };
+        match download(&storage, out).await {
+            Ok(n) => {
+                println!(
+                    "navigator: pulled {n} variant(s) from gs://{bucket}/img into {}",
+                    out.display()
+                );
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("navigator: assets pull: {e:#}");
+                ExitCode::from(2)
+            }
+        }
+    })
+}
+
 /// The content type for a built variant, keyed off its extension. The
 /// three formats `cli assets build` emits are the only ones uploaded;
 /// anything else under `dir` (a stray `.DS_Store`, an editor temp
@@ -245,9 +302,65 @@ async fn upload(storage: &dyn StorageService, dir: &Path) -> anyhow::Result<usiz
     Ok(uploaded)
 }
 
+/// List the bucket's `img/` prefix and write each built variant to
+/// `out/<key-without-"img/">` — the inverse of [`upload`]'s keying, so a
+/// pulled tree is byte-identical to what `build` would produce. Skips
+/// any object that isn't one of the three built formats (defensive: the
+/// bucket's `img/` lane only ever holds variants). Decoupled from
+/// backend construction so tests drive it against the `Fs` backend.
+/// Returns the count of variants written.
+async fn download(storage: &dyn StorageService, out: &Path) -> anyhow::Result<usize> {
+    let listings = storage
+        .list("img/")
+        .await
+        .context("list the bucket's `img/` prefix")?;
+    let mut pulled = 0usize;
+    for listing in listings {
+        let key = listing.key;
+        let Some(rel) = key.strip_prefix("img/").filter(|r| !r.is_empty()) else {
+            continue;
+        };
+        let ext = Path::new(rel)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase)
+            .unwrap_or_default();
+        if content_type_for(&ext).is_none() {
+            continue;
+        }
+        // Rebuild the destination from `/`-separated key segments,
+        // refusing empty/`.`/`..` so a malformed key can't escape `out`.
+        let mut dest = out.to_path_buf();
+        for seg in rel.split('/') {
+            anyhow::ensure!(
+                !seg.is_empty() && seg != "." && seg != "..",
+                "refusing unsafe object key `{key}`"
+            );
+            dest.push(seg);
+        }
+        let obj = storage
+            .get(&key)
+            .await
+            .with_context(|| format!("download `{key}`"))?;
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("create `{}`", parent.display()))?;
+        }
+        std::fs::write(&dest, &obj.bytes).with_context(|| format!("write `{}`", dest.display()))?;
+        println!("  ← {key} → {} ({} bytes)", dest.display(), obj.bytes.len());
+        pulled += 1;
+    }
+    anyhow::ensure!(
+        pulled > 0,
+        "no image variants under `img/` in the bucket — populate it first with \
+         `cli assets build` + `cli assets upload`"
+    );
+    Ok(pulled)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{content_type_for, upload, ASSET_CACHE_CONTROL};
+    use super::{content_type_for, download, upload, ASSET_CACHE_CONTROL};
     use cloud::{FsStorage, StorageService};
     use std::fs;
     use tempfile::TempDir;
@@ -313,5 +426,96 @@ mod tests {
         // bounded — `immutable` would pin a stale photo forever.
         assert!(ASSET_CACHE_CONTROL.contains("max-age=604800"));
         assert!(!ASSET_CACHE_CONTROL.contains("immutable"));
+    }
+
+    #[tokio::test]
+    async fn download_restores_each_variant_under_out_stripping_the_img_prefix() {
+        // Seed the bucket the way `upload` keys it: `img/<slug>/<file>`,
+        // plus a stray non-image key that `download` must skip.
+        let store_dir = TempDir::new().unwrap();
+        let storage = FsStorage::new(store_dir.path().to_path_buf())
+            .await
+            .unwrap();
+        storage
+            .put("img/lake-tahoe/lake-tahoe-400w.avif", b"avif", "image/avif")
+            .await
+            .unwrap();
+        storage
+            .put("img/lake-tahoe/lake-tahoe-400w.webp", b"webp", "image/webp")
+            .await
+            .unwrap();
+        storage
+            .put("img/lake-tahoe/lake-tahoe-400w.jpg", b"jpg", "image/jpeg")
+            .await
+            .unwrap();
+        storage
+            .put("img/lake-tahoe/notes.txt", b"junk", "text/plain")
+            .await
+            .unwrap();
+
+        let out = TempDir::new().unwrap();
+        let n = download(&storage, out.path()).await.unwrap();
+        assert_eq!(
+            n, 3,
+            "the three image variants land, the stray file does not"
+        );
+
+        // The `img/` prefix is stripped; bytes round-trip under `out`.
+        assert_eq!(
+            fs::read(out.path().join("lake-tahoe/lake-tahoe-400w.avif")).unwrap(),
+            b"avif"
+        );
+        assert_eq!(
+            fs::read(out.path().join("lake-tahoe/lake-tahoe-400w.webp")).unwrap(),
+            b"webp"
+        );
+        assert_eq!(
+            fs::read(out.path().join("lake-tahoe/lake-tahoe-400w.jpg")).unwrap(),
+            b"jpg"
+        );
+        // The non-image was never written.
+        assert!(!out.path().join("lake-tahoe/notes.txt").exists());
+    }
+
+    #[tokio::test]
+    async fn download_errors_when_the_bucket_has_no_variants() {
+        let store_dir = TempDir::new().unwrap();
+        let storage = FsStorage::new(store_dir.path().to_path_buf())
+            .await
+            .unwrap();
+        let out = TempDir::new().unwrap();
+        let err = download(&storage, out.path()).await.unwrap_err();
+        assert!(
+            err.to_string().contains("no image variants"),
+            "empty bucket should guide the user, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn upload_then_download_round_trips_the_tree_byte_for_byte() {
+        // Build a slug dir, upload it to an Fs-backed bucket, then pull
+        // it into a fresh dir — the result is identical to the source.
+        let src = TempDir::new().unwrap();
+        let slug = src.path().join("lantana");
+        fs::create_dir_all(&slug).unwrap();
+        fs::write(slug.join("lantana-800w.avif"), b"AVIF-bytes").unwrap();
+        fs::write(slug.join("lantana-800w.jpg"), b"JPEG-bytes").unwrap();
+
+        let store_dir = TempDir::new().unwrap();
+        let storage = FsStorage::new(store_dir.path().to_path_buf())
+            .await
+            .unwrap();
+        assert_eq!(upload(&storage, src.path()).await.unwrap(), 2);
+
+        let out = TempDir::new().unwrap();
+        assert_eq!(download(&storage, out.path()).await.unwrap(), 2);
+        assert_eq!(
+            fs::read(out.path().join("lantana/lantana-800w.avif")).unwrap(),
+            b"AVIF-bytes"
+        );
+        assert_eq!(
+            fs::read(out.path().join("lantana/lantana-800w.jpg")).unwrap(),
+            b"JPEG-bytes"
+        );
     }
 }
