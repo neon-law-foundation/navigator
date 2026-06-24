@@ -63,6 +63,7 @@ mod m20260721_create_contract_review_tables;
 mod m20260722_create_attestations;
 mod m20260723_create_email_tokens;
 mod m20260724_add_jurisdiction_type_to_jurisdictions;
+mod m20260725_add_project_dri_columns;
 
 pub struct Migrator;
 
@@ -129,6 +130,7 @@ impl sea_orm_migration::MigratorTrait for Migrator {
             Box::new(m20260722_create_attestations::Migration),
             Box::new(m20260723_create_email_tokens::Migration),
             Box::new(m20260724_add_jurisdiction_type_to_jurisdictions::Migration),
+            Box::new(m20260725_add_project_dri_columns::Migration),
         ]
     }
 }

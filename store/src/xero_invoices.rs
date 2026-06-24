@@ -142,10 +142,13 @@ mod tests {
 
     async fn seed_project(db: &crate::Db, name: &str) -> uuid::Uuid {
         use sea_orm::ActiveModelTrait;
+        let __dri = crate::test_support::dri_person(db).await;
         project::ActiveModel {
             name: ActiveValue::Set(name.into()),
             status: ActiveValue::Set("closed".into()),
             entity_id: ActiveValue::Set(crate::test_support::seed_entity(db).await),
+            staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+            client_dri_person_id: ActiveValue::Set(Some(__dri)),
             ..Default::default()
         }
         .insert(db)

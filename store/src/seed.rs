@@ -829,21 +829,24 @@ struct ProjectRec {
 }
 
 async fn seed_projects(db: &DatabaseConnection, report: &mut SeedReport) -> anyhow::Result<()> {
-    // Every project is opened against a pre-existing entity and carries a
-    // designated DRI (see docs/glossary.md). The example project tracks the
-    // firm's own entity and names Nick as the staff-side Directly
-    // Responsible Individual.
+    // Every project is opened against a pre-existing entity and carries
+    // two required DRIs (see docs/glossary.md). The firm's own examples
+    // matter tracks the firm's entity and names Nick on both sides — it is
+    // the firm's internal demo, so the firm is its own client. The DRI
+    // columns are authoritative; we do not mirror them into the
+    // `person_project_roles` participation ledger.
     let entity_id = entities::Entity::find()
         .filter(entities::Column::Name.eq("Shook Law PLLC"))
         .one(db)
         .await?
         .map(|e| e.id)
         .ok_or_else(|| anyhow::anyhow!("seed: entity `Shook Law PLLC` must be seeded first"))?;
-    let dri_person_id = person::Entity::find()
+    let nick_id = person::Entity::find()
         .filter(person::Column::Email.eq("nick@neonlaw.com"))
         .one(db)
         .await?
-        .map(|p| p.id);
+        .map(|p| p.id)
+        .ok_or_else(|| anyhow::anyhow!("seed: person `nick@neonlaw.com` must be seeded first"))?;
 
     for rec in parse::<ProjectRec>(canonical::PROJECT, "Project.yaml")? {
         if project::Entity::find()
@@ -854,30 +857,17 @@ async fn seed_projects(db: &DatabaseConnection, report: &mut SeedReport) -> anyh
         {
             continue;
         }
-        let project_id = project::ActiveModel {
+        project::ActiveModel {
             name: ActiveValue::Set(rec.codename),
             status: ActiveValue::Set("open".into()),
             entity_id: ActiveValue::Set(entity_id),
+            staff_dri_person_id: ActiveValue::Set(Some(nick_id)),
+            client_dri_person_id: ActiveValue::Set(Some(nick_id)),
             ..Default::default()
         }
         .insert(db)
-        .await?
-        .id;
+        .await?;
         report.projects_inserted += 1;
-
-        // Designate the DRI as a participation role on the project.
-        if let Some(pid) = dri_person_id {
-            person_project_role::ActiveModel {
-                person_id: ActiveValue::Set(pid),
-                project_id: ActiveValue::Set(project_id),
-                participation: ActiveValue::Set(
-                    person_project_role::PARTICIPATION_STAFF_DRI.to_string(),
-                ),
-                ..Default::default()
-            }
-            .insert(db)
-            .await?;
-        }
     }
     Ok(())
 }

@@ -27,6 +27,7 @@ async fn a_person(db: &Db, name: &str, email: &str, role: Role) -> uuid::Uuid {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[allow(clippy::too_many_lines)]
 async fn governed_expunge_rewrites_deletes_and_records() {
     let repo_root = tempfile::tempdir().unwrap();
     std::env::set_var("NAVIGATOR_GIT_REPO_ROOT", repo_root.path());
@@ -42,10 +43,13 @@ async fn governed_expunge_rewrites_deletes_and_records() {
 
     let admin = a_person(&db, "Nick", "nick@neonlaw.com", Role::Admin).await;
     let client = a_person(&db, "Aries", "aries@example.com", Role::Client).await;
+    let __dri = store::test_support::dri_person(&db).await;
     let proj = project::ActiveModel {
         name: ActiveValue::Set("Matter".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&db)

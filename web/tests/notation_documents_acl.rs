@@ -117,10 +117,13 @@ async fn notation_pdfs_are_gated_by_project_participation_and_listed_on_the_proj
     let spouse = mk_person(&f.db, "spouse@example.com", Role::Client).await;
     let outsider = mk_person(&f.db, "outsider@example.com", Role::Client).await;
 
+    let __dri = store::test_support::dri_person(&f.db).await;
     let project_id = project::ActiveModel {
         name: ActiveValue::Set("Joint estate".into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(store::test_support::seed_entity(&f.db).await),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(&f.db)

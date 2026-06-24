@@ -66,6 +66,11 @@ async fn build_app(world: &mut WritesWorld) {
     let db = in_memory_db().await;
     let runtime = Arc::new(InMemoryRuntime::new());
     let storage = fs_storage("portal-projects-writes").await;
+    // The admin create path always opens a matter on a retainer, so it
+    // needs the canonical retainer template present to bind.
+    store::seed::seed_canonical(&db, &storage)
+        .await
+        .expect("seed canonical");
     let sessions = SessionStore::new("test-session-key-not-for-production");
     let state = app_state(
         db.clone(),
@@ -85,22 +90,60 @@ async fn build_app(world: &mut WritesWorld) {
 
 #[given(regex = r#"^a seeded person "([^"]+)" with role "([^"]+)"$"#)]
 async fn seed_person(world: &mut WritesWorld, email: String, role: String) {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     let role = match role.as_str() {
         "admin" => person::Role::Admin,
         "staff" => person::Role::Staff,
         _ => person::Role::Client,
     };
-    let inserted = person::ActiveModel {
-        name: ActiveValue::Set(email.clone()),
-        email: ActiveValue::Set(email.clone()),
-        oidc_subject: ActiveValue::Set(Some(format!("kc-uuid-{email}"))),
-        role: ActiveValue::Set(role),
+    // `seed_canonical` already plants the firm principal (`nick@neonlaw.com`,
+    // admin). When a scenario re-declares that person, reuse the existing row
+    // (and set its session subject) rather than hitting the unique-email
+    // constraint.
+    let id = if let Some(existing) = person::Entity::find()
+        .filter(person::Column::Email.eq(email.clone()))
+        .one(world.db())
+        .await
+        .expect("lookup person")
+    {
+        let mut active: person::ActiveModel = existing.into();
+        active.oidc_subject = ActiveValue::Set(Some(format!("kc-uuid-{email}")));
+        active.role = ActiveValue::Set(role);
+        active
+            .update(world.db())
+            .await
+            .expect("update existing person")
+            .id
+    } else {
+        person::ActiveModel {
+            name: ActiveValue::Set(email.clone()),
+            email: ActiveValue::Set(email.clone()),
+            oidc_subject: ActiveValue::Set(Some(format!("kc-uuid-{email}"))),
+            role: ActiveValue::Set(role),
+            ..Default::default()
+        }
+        .insert(world.db())
+        .await
+        .expect("insert person")
+        .id
+    };
+    world.persons.insert(email, id);
+}
+
+/// Seed a bare `Role::Client` person — the matter-open form opens a
+/// matter *for* an existing client, so the client of record must exist
+/// before the create POST. Returns the new person id.
+async fn seed_client(db: &Db, email: &str) -> Uuid {
+    person::ActiveModel {
+        name: ActiveValue::Set(email.into()),
+        email: ActiveValue::Set(email.into()),
+        role: ActiveValue::Set(person::Role::Client),
         ..Default::default()
     }
-    .insert(world.db())
+    .insert(db)
     .await
-    .expect("insert person");
-    world.persons.insert(email, inserted.id);
+    .expect("insert client of record")
+    .id
 }
 
 #[given(regex = r#"^a project "([^"]+)" with "([^"]+)" as a participant$"#)]
@@ -135,10 +178,13 @@ async fn ensure_project(world: &mut WritesWorld, project_name: &str) -> Uuid {
         return *id;
     }
     let entity_id = store::test_support::seed_entity(world.db()).await;
+    let __dri = store::test_support::dri_person(world.db()).await;
     let inserted = project::ActiveModel {
         name: ActiveValue::Set(project_name.into()),
         status: ActiveValue::Set("open".into()),
         entity_id: ActiveValue::Set(entity_id),
+        staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+        client_dri_person_id: ActiveValue::Set(Some(__dri)),
         ..Default::default()
     }
     .insert(world.db())
@@ -151,13 +197,25 @@ async fn ensure_project(world: &mut WritesWorld, project_name: &str) -> Uuid {
 #[when(regex = r#"^"([^"]+)" submits "([^"]*)" to (/[^ ]+)$"#)]
 async fn submit_to_path(world: &mut WritesWorld, email: String, body: String, path: String) {
     let cookie = session_cookie_for(world, &email).await;
-    // Opening a matter requires a pre-existing entity. When the scenario
-    // posts the create form without one, seed an entity and append it so
-    // the static feature body stays focused on what it's testing.
+    // The admin create form now always opens a matter on a retainer, *for*
+    // an existing client: it requires `entity_id`, `client_dri_person_id`
+    // (a real `Role::Client` person), and `retainer_template_code`. When the
+    // scenario posts a bare create form, seed those prerequisites and append
+    // them, so the static feature body stays focused on the access contract
+    // it's testing rather than the matter-open plumbing.
     let mut body = body;
-    if path == "/portal/projects" && body.contains("name=") && !body.contains("entity_id=") {
-        let entity_id = store::test_support::seed_entity(world.db()).await;
-        body = format!("{body}&entity_id={entity_id}");
+    if path == "/portal/projects" && body.contains("name=") {
+        if !body.contains("entity_id=") {
+            let entity_id = store::test_support::seed_entity(world.db()).await;
+            body = format!("{body}&entity_id={entity_id}");
+        }
+        if !body.contains("client_dri_person_id=") {
+            let client_id = seed_client(world.db(), "client-of-record@example.com").await;
+            body = format!("{body}&client_dri_person_id={client_id}");
+        }
+        if !body.contains("retainer_template_code=") {
+            body = format!("{body}&retainer_template_code=onboarding__retainer");
+        }
     }
     let body_with_csrf = if body.is_empty() {
         format!("_csrf={CSRF}")

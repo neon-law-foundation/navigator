@@ -29,6 +29,16 @@ pub struct EntityChoice<'a> {
     pub name: &'a str,
 }
 
+/// One option in the required client-DRI picker: an existing `Role::Client`
+/// person. A matter's client-side DRI must be a real, pre-existing client
+/// (the client field exists before the project), so the form selects one
+/// rather than conjuring a client mid-create.
+pub struct PersonChoice<'a> {
+    pub id: Uuid,
+    pub name: &'a str,
+    pub email: &'a str,
+}
+
 /// One row in the project detail page's "Documents" table. The list
 /// view is intentionally lean — just enough to scan ("which file is
 /// which?") and click through. Full provenance lives on the
@@ -108,21 +118,26 @@ pub struct Form<'a> {
     pub name: &'a str,
     pub status: &'a str,
     pub entity_id: Option<Uuid>,
+    /// The required client-side DRI: which existing `Role::Client` person
+    /// this matter is opened for. Echoed back (kept selected) on a
+    /// validation re-render. `None` on the edit form, which hides the
+    /// picker (the DRI is set at open, not re-chosen on edit).
+    pub client_dri_person_id: Option<Uuid>,
+    /// The existing client persons offered in the client-DRI picker. Empty
+    /// on the edit form, which suppresses the picker.
+    pub client_dri_choices: &'a [PersonChoice<'a>],
     /// The matter's scope narrative ("this project's story"). Persisted to
     /// `projects.description`; when a retainer is opened in the same
     /// action it is also seeded as the notation's position-0 custom clause.
     pub description: &'a str,
     pub error: Option<&'a str>,
-    /// "Send retainer for signature" — when ticked, the matter opens
-    /// *and* a retainer notation enters the onboarding workflow in the
-    /// same action. The four fields below echo back on a validation
-    /// re-render. Only the create form renders this block; `edit_form`
-    /// leaves these at their defaults (and `retainer_templates` empty),
-    /// so the block is hidden.
-    pub send_retainer: bool,
+    /// The retainer block. Every matter opens on a retainer (a project is
+    /// not official until one exists), so the create form always requires
+    /// an onboarding template; the retainer is sent to the selected client.
+    /// The fields below echo back on a validation re-render. Only the create
+    /// form renders this block; `edit_form` leaves `retainer_templates`
+    /// empty, so the block is hidden.
     pub retainer_template_code: &'a str,
-    pub client_name: &'a str,
-    pub client_email: &'a str,
     pub scope_of_services: &'a str,
     /// `(code, label)` pairs for the onboarding-template picker. Empty on
     /// the edit form, which suppresses the whole retainer block.
@@ -458,6 +473,7 @@ pub fn edit_form(id: Uuid, f: &Form<'_>, entities: &[EntityChoice<'_>]) -> Marku
     )
 }
 
+#[allow(clippy::too_many_lines)]
 fn form_page(
     title: &str,
     action: &str,
@@ -467,6 +483,14 @@ fn form_page(
 ) -> Markup {
     let entity_ids: Vec<String> = entities.iter().map(|e| e.id.to_string()).collect();
     let selected_entity = f.entity_id.map(|id| id.to_string());
+    // Hoisted so the borrowed strings outlive `fields` (which holds the
+    // `Choice` borrows until the form is rendered at the end).
+    let client_ids: Vec<String> = f
+        .client_dri_choices
+        .iter()
+        .map(|c| c.id.to_string())
+        .collect();
+    let selected_client = f.client_dri_person_id.map(|id| id.to_string());
     let status_opts: Vec<Choice<'_>> = STATUSES.iter().map(|&s| Choice::new(s, s)).collect();
     let mut entity_opts = vec![Choice::new("", "—")];
     entity_opts.extend(
@@ -492,12 +516,40 @@ fn form_page(
         ),
     ];
 
-    // The retainer block: open the matter *and* kick the retainer toward
-    // signature in one action. Rendered only when the caller supplies the
-    // onboarding-template choices (the create form); the edit form leaves
-    // `retainer_templates` empty, hiding the block. The signer fields are
-    // validated server-side (required only when the box is ticked) so an
-    // unchecked submit stays a plain project create.
+    // The required client-side DRI: pick the existing client this matter is
+    // for. Rendered only on the create form (the edit form leaves
+    // `client_dri_choices` empty). The client must already exist — create
+    // the client person first if they don't.
+    if !f.client_dri_choices.is_empty() {
+        let mut client_opts = vec![Choice::new("", "— pick the client —")];
+        client_opts.extend(
+            client_ids
+                .iter()
+                .zip(f.client_dri_choices)
+                .map(|(id, c)| Choice::new(id, c.name)),
+        );
+        fields.push(
+            Field::select(
+                "Client",
+                "client_dri_person_id",
+                client_opts,
+                selected_client.as_deref(),
+            )
+            .required()
+            .help(
+                "The client this matter is for — its client-side Directly \
+                 Responsible Individual. Create the client person first if they \
+                 aren't listed.",
+            ),
+        );
+    }
+
+    // The retainer block: every matter opens on a retainer (a project is
+    // not official until one exists), so opening the matter always creates
+    // the retainer and routes it through attorney review toward e-signature,
+    // sent to the selected client. Rendered only on the create form (the
+    // edit form leaves `retainer_templates` empty, hiding the block); the
+    // onboarding template is required.
     if !f.retainer_templates.is_empty() {
         let mut template_opts = vec![Choice::new("", "— pick an onboarding template —")];
         template_opts.extend(
@@ -508,26 +560,19 @@ fn form_page(
         let selected_template =
             (!f.retainer_template_code.is_empty()).then_some(f.retainer_template_code);
         fields.push(
-            Field::checkbox(
-                "Send retainer for signature",
-                "send_retainer",
-                "true",
-                f.send_retainer,
+            Field::select(
+                "Retainer template",
+                "retainer_template_code",
+                template_opts,
+                selected_template,
             )
+            .required()
             .help(
-                "When ticked, opening the matter also creates the retainer \
-                 and routes it through attorney review toward e-signature. \
-                 The template and client signer below are then required.",
+                "Every matter opens on a retainer. Opening creates it and routes \
+                 it through attorney review toward e-signature, sent to the client \
+                 selected above.",
             ),
         );
-        fields.push(Field::select(
-            "Retainer template",
-            "retainer_template_code",
-            template_opts,
-            selected_template,
-        ));
-        fields.push(Field::text("Client name", "client_name", f.client_name));
-        fields.push(Field::email("Client email", "client_email", f.client_email));
         fields.push(
             Field::textarea(
                 "Scope of services",

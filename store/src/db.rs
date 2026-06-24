@@ -196,10 +196,13 @@ mod tests {
         .await
         .unwrap();
 
+        let __dri = crate::test_support::dri_person(&db).await;
         let proj = project::ActiveModel {
             name: ActiveValue::Set("Libra trust".into()),
             status: ActiveValue::Set("open".into()),
             entity_id: ActiveValue::Set(crate::test_support::seed_entity(&db).await),
+            staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+            client_dri_person_id: ActiveValue::Set(Some(__dri)),
             ..Default::default()
         }
         .insert(&db)
@@ -310,10 +313,13 @@ mod tests {
         .insert(&db)
         .await
         .unwrap();
+        let __dri = crate::test_support::dri_person(&db).await;
         let proj = project::ActiveModel {
             name: ActiveValue::Set("2026 audit".into()),
             status: ActiveValue::Set("open".into()),
             entity_id: ActiveValue::Set(acme.id),
+            staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+            client_dri_person_id: ActiveValue::Set(Some(__dri)),
             ..Default::default()
         }
         .insert(&db)
@@ -392,10 +398,13 @@ mod tests {
         .insert(db)
         .await
         .unwrap();
+        let __dri = crate::test_support::dri_person(db).await;
         let proj = project::ActiveModel {
             name: ActiveValue::Set("Libra retainer".into()),
             status: ActiveValue::Set("open".into()),
             entity_id: ActiveValue::Set(crate::test_support::seed_entity(db).await),
+            staff_dri_person_id: ActiveValue::Set(Some(__dri)),
+            client_dri_person_id: ActiveValue::Set(Some(__dri)),
             ..Default::default()
         }
         .insert(db)
