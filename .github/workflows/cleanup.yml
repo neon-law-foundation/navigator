@@ -7,7 +7,7 @@ name: cleanup
 # own file means a retention change never lands in a CI/CD diff and a cleanup
 # run never shares state with a release.
 #
-# Today it carries one task: prune ghcr. Every day at 04:00 PST it deletes
+# Today it carries one task: prune ghcr. Every day at 07:00 PST it deletes
 # every `navigator-*` container version older than 14 days, then posts a Slack
 # summary (tagging Nick on failure). `latest` and the recent dated tags are
 # re-pushed daily by deploy.yml's publish job, so their versions stay under the
@@ -17,10 +17,10 @@ name: cleanup
 on:
   schedule:
     # Cron is UTC-only and has no DST, so this is pinned to PST (UTC-8):
-    # 04:00 PST = 12:00 UTC. During PDT (summer) it lands at 05:00 local —
+    # 07:00 PST = 15:00 UTC. During PDT (summer) it lands at 08:00 local —
     # fine for unattended housekeeping. Sits two hours after release-tag.yml's
-    # 02:00 tag cut so the day's fresh images already exist before the sweep.
-    - cron: "0 12 * * *" # 04:00 PST
+    # 05:00 tag cut so the day's fresh images already exist before the sweep.
+    - cron: "0 15 * * *" # 07:00 PST
   workflow_dispatch:
 
 # The prune authenticates with RELEASE_PAT (a secret), so the workflow's own
