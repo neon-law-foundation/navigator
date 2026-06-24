@@ -370,7 +370,7 @@ impl<'a> PageLayout<'a> {
                             "© 2026 " (FIRM_BRAND.site_name) " & " (FOUNDATION_BRAND.site_name) " · "
                             a.link-secondary href=(privacy_url()) { "Privacy" } " · "
                             a.link-secondary href=(terms_url()) { "Terms" } " · "
-                            a.link-secondary href="/docs/glossary" { "Glossary" } " · "
+                            a.link-secondary href="/docs" { "Docs" } " · "
                             a.link-secondary href="/api/docs" { "API" } " · "
                             a.link-secondary href="/contact" { "Contact" } " · "
                             a.link-secondary href="/blog" { "Blog" } " · "
@@ -1208,7 +1208,7 @@ mod tests {
     }
 
     #[test]
-    fn both_brand_footers_link_to_api_docs() {
+    fn both_brand_footers_link_to_docs() {
         let firm = render("Home", &html! { p { "x" } });
         let foundation = PageLayout::new("Mission")
             .with_brand(*FOUNDATION_BRAND)
@@ -1217,6 +1217,10 @@ mod tests {
         for (name, out) in [("firm", &firm), ("foundation", &foundation)] {
             let footer_idx = out.find("<footer").expect("footer present");
             let footer = &out[footer_idx..];
+            assert!(
+                footer.contains("href=\"/docs\""),
+                "{name} footer missing documentation index link"
+            );
             assert!(
                 footer.contains("href=\"/api/docs\""),
                 "{name} footer missing API documentation link"

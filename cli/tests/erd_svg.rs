@@ -18,7 +18,7 @@
 //! git add docs/erd.svg
 //! ```
 //!
-//! See the `erd-visualization` skill for the full recipe.
+//! See `docs/agent-workflows.md` for the maintenance workflow context.
 
 use std::process::Command;
 

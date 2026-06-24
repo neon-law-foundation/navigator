@@ -2,7 +2,7 @@
 
 Every Dockerfile the workspace ships, in one place. The build context is always the **repo root**, so each is built with
 `-f images/<file> .` (the `COPY` paths are relative to the root, not this directory). The `navigator` CLI and the
-[`power-push`](../.claude/skills/power-push/SKILL.md) flow do this for you.
+[`power-push`](../docs/cloud-operations.md) rollout path do this for you.
 
 There are **five** Dockerfiles for **seven** images — two long-running servers, three CronJob triggers that share one
 parameterized Dockerfile, and two standalone services.

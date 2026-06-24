@@ -24,8 +24,8 @@ acting on anything below, and keep the doc, not this file, authoritative.
   (Cloud SQL Postgres), OIDC (Google Identity), and the per-Project git archive stay spec-compliant, not SDK-bound. Dev
   uses cloud-agnostic equivalents (`fake-gcs-server`, Keycloak). → [`docs/multi-cloud.md`](docs/multi-cloud.md),
   [`docs/gke-prod.md`](docs/gke-prod.md), [`docs/oss-install.md`](docs/oss-install.md),
-  [`cloud/README.md`](cloud/README.md); per-Project repos in [`docs/git-project-repos.md`](docs/git-project-repos.md)
-  (Google Drive ingest is removed).
+  [`docs/cloud-operations.md`](docs/cloud-operations.md), [`cloud/README.md`](cloud/README.md), and
+  [`docs/git-project-repos.md`](docs/git-project-repos.md) (per-Project repos; Google Drive ingest is removed).
 - **Postgres everywhere.** Cloud SQL in prod, in-cluster in KIND, `testcontainers` in `cargo test`. No SQLite, no
   `APP_ENV`: `store::DbConfig::from_env` reads `DATABASE_URL` and errors when unset. Docker is required everywhere. →
   [`docs/test-database.md`](docs/test-database.md)
@@ -37,6 +37,11 @@ acting on anything below, and keep the doc, not this file, authoritative.
 
 ## How to work
 
+- **Lead with the two GitOps actions.** Every codebase task is either **create a PR** or **review/update an existing
+  PR**. Everything else — prepare, Markdown lint, Restate, legal workflow authoring, Rust conventions, cloud operations,
+  and council review — is supporting context inside one of those actions. Start with
+  [`docs/agent-workflows.md`](docs/agent-workflows.md), then follow [`docs/index.md`](docs/index.md) to the narrowest
+  source.
 - **Begin every session with the KIND loop and leave it up.** `cargo run --release -p cli -- start-dev-server` brings up
   Postgres, Keycloak, fake-gcs, OPA, Restate, and Grafana LGTM in KIND and writes `.devx/env`. Run `web` **under Doppler
   with `.devx/env` sourced after** (the KIND wiring must win) — `web` crash-loops on `.devx/env` alone because
@@ -47,9 +52,9 @@ acting on anything below, and keep the doc, not this file, authoritative.
     bash -c 'set -a; source .devx/env; set +a; cargo run -p web'
   ```
 
-  Never point `web` at ad-hoc local services. Full recipe: the `web-preview` and `kind-local-dev` skills,
-  [`docs/RUNBOOK.md`](docs/RUNBOOK.md). Local telemetry (Tempo/Loki/Prometheus at `localhost:3000`): the `grafana-lgtm`
-  skill; emit-side seam: the `observability` skill and [`docs/observability.md`](docs/observability.md).
+  Never point `web` at ad-hoc local services. Full recipe: [`docs/RUNBOOK.md`](docs/RUNBOOK.md) and
+  [`docs/cloud-operations.md`](docs/cloud-operations.md). Local telemetry (Tempo/Loki/Prometheus at `localhost:3000`):
+  [`docs/observability.md`](docs/observability.md).
 - **Machine-bound commands: run them directly when the environment is local and reversible.** Anything driving the KIND
   cluster, a local browser, the Docker daemon, or the workspace toolchain — `docker`, `kind`, `kubectl`, the `navigator`
   CLI subcommands, the browser e2e suite (including starting `chromedriver` + a Postgres port-forward, and
@@ -63,16 +68,20 @@ acting on anything below, and keep the doc, not this file, authoritative.
   the exception.
 - **No assumptions; always test what you changed.** "It compiles" / "it looks right" is not evidence — read or run the
   real code path and observe the result. Add or run the covering test (TDD, same commit). Report faithfully: if you
-  didn't test it, or a step failed or was skipped, say so with the output. → the `verify` and `run` skills.
+  didn't test it, or a step failed or was skipped, say so with the output.
 - **Markdown lint before committing any `.md`.** Dogfood the CLI; never hand-roll a linter. Must exit `0`:
 
   ```bash
   cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path>
   ```
 
-  → the `markdown-lint` skill.
+  → [`docs/agent-workflows.md`](docs/agent-workflows.md).
+- **Use the three decision councils when the decision earns them.** Engineering Council for architecture and doc
+  clarity, Legal Council for legal copy before it becomes a Notation/template/prompt/email, and Client Council for
+  client-facing product, intake, pricing, onboarding, and portal decisions. Default to the smallest useful bench and
+  read the real source first. → [`docs/agent-decision-councils.md`](docs/agent-decision-councils.md).
 
-## Shipping — branch → PR → auto-merge
+## Shipping — create PR or review/update PR
 
 **Never commit directly to `main`** — it advances merge-only. Branch before the first edit, push, then open a PR and
 enable auto-merge so GitHub lands it once CI is green:
@@ -94,13 +103,14 @@ cargo test --workspace
 
 CI/CD is exactly **three workflows** (`ci` / `release-tag` / `deploy`) — don't fold new gate logic into a fourth.
 Periodic housekeeping is the one carve-out: it lives in a separate **maintenance** workflow (`cleanup.yml`, daily ghcr
-retention) on its own cron, outside the CI/CD gate. The full lifecycle — the flow every committing skill inherits, the
-pre-commit gate, the workflows, and pull-based deploy — is in [`docs/gitops.md`](docs/gitops.md).
+retention) on its own cron, outside the CI/CD gate. The full lifecycle — the branch/PR discipline, pre-commit gate, the
+workflows, and pull-based deploy — is in [`docs/gitops.md`](docs/gitops.md).
 
 **Reviewing a PR means resolving every comment.** A PR is not "reviewed" until each reviewer comment — Greptile,
 CodeRabbit, any bot, any human — has been adjudicated against the real code and answered via the `gh` CLI: fixed and
 replied, or acknowledged-with-rationale and replied, with real review threads marked resolved. Never leave a comment
-hanging. The full recipe (read → assess → collect every comment → ask → fix → reply + resolve) is the `review-pr` skill.
+hanging. The full recipe (read → assess → collect every comment → ask → fix → reply + resolve) is in
+[`docs/agent-workflows.md`](docs/agent-workflows.md).
 
 ## AIDA — the agent
 
@@ -113,17 +123,19 @@ Swapping the router means a new `impl AgentRouter` selected from `web::build_rou
 
 ## Where to find things
 
-- [`docs/`](docs/) — the workspace doc tree, published verbatim at `/docs/:slug`. Start here:
-  [workspace-layout](docs/workspace-layout.md) (crate map), [gitops](docs/gitops.md) (ship + deploy),
-  [glossary](docs/glossary.md) (vocabulary), [oidc](docs/oidc.md) (authz), [RUNBOOK](docs/RUNBOOK.md) (KIND).
+- [`docs/`](docs/) — the workspace doc tree, published verbatim at `/docs/:slug`; [`docs/index.md`](docs/index.md) is
+  the full index. Start with [workspace-layout](docs/workspace-layout.md), [gitops](docs/gitops.md),
+  [glossary](docs/glossary.md), [access-model](docs/access-model.md),
+  [agent-decision-councils](docs/agent-decision-councils.md), [agent-workflows](docs/agent-workflows.md),
+  [cloud-operations](docs/cloud-operations.md), [rust-programming](docs/rust-programming.md), [oidc](docs/oidc.md), and
+  [RUNBOOK](docs/RUNBOOK.md).
 - `web/content/marketing/mission.md` — why this project exists (live at `/foundation/mission`). Every product decision
   should be justifiable against it.
 - `README.md` — workspace overview, install, demo. `cli/README.md` — per-subcommand reference.
-- `.claude/skills/council/` — the Council of Twelve architecture-review pattern (`/council`).
 - `k8s/` — KIND manifests. `notation_templates/` — notation templates. `store/seeds/` — canonical reference-data YAML.
 
 ## Local-only convention: `prompts/`
 
 The gitignored `prompts/` directory holds draft briefs and multi-session kickoff texts, named by topic. **Future
 sessions won't see these** unless the user pastes them back — the hand-off is the prompt text, not repo state. **Do not
-commit prompts.** If a prompt encodes a decision worth keeping, lift it into code, a doc, a skill, or the glossary.
+commit prompts.** If a prompt encodes a decision worth keeping, lift it into code, a doc, or the glossary.

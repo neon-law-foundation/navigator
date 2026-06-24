@@ -39,8 +39,11 @@ macro_rules! doc {
 /// files; the completeness test enforces it.
 const MANIFEST: &[(&str, &str)] = &[
     doc!("access-model", "docs/access-model.md"),
+    doc!("agent-decision-councils", "docs/agent-decision-councils.md"),
+    doc!("agent-workflows", "docs/agent-workflows.md"),
     doc!("aida-a2a-interaction", "docs/aida-a2a-interaction.md"),
     doc!("bulk-contact-import", "docs/bulk-contact-import.md"),
+    doc!("cloud-operations", "docs/cloud-operations.md"),
     doc!("cronjobs", "docs/cronjobs.md"),
     doc!("docusign-esignature", "docs/docusign-esignature.md"),
     doc!("durable-workflows", "docs/durable-workflows.md"),
@@ -56,6 +59,7 @@ const MANIFEST: &[(&str, &str)] = &[
     doc!("gov-forms", "docs/gov-forms.md"),
     doc!("iceberg-archive", "docs/iceberg-archive.md"),
     doc!("i18n", "docs/i18n.md"),
+    doc!("index", "docs/index.md"),
     doc!("multi-cloud", "docs/multi-cloud.md"),
     doc!("nautilus-design", "docs/nautilus-design.md"),
     doc!("nautilus-workflows", "docs/nautilus-workflows.md"),
@@ -68,6 +72,7 @@ const MANIFEST: &[(&str, &str)] = &[
     doc!("recurring-billing", "docs/recurring-billing.md"),
     doc!("retainer_intake", "docs/retainer_intake.md"),
     doc!("RUNBOOK", "docs/RUNBOOK.md"),
+    doc!("rust-programming", "docs/rust-programming.md"),
     doc!("secrets-doppler", "docs/secrets-doppler.md"),
     doc!("solana-attestation", "docs/solana-attestation.md"),
     doc!("test-database", "docs/test-database.md"),
@@ -396,6 +401,30 @@ mod tests {
         assert!(
             notation.body_html.contains("href=\"/docs/glossary#blob\""),
             "notation's glossary anchor link should be rewritten"
+        );
+    }
+
+    #[test]
+    fn docs_index_correlates_core_terms_to_glossary_anchors() {
+        let ix = bundled();
+        let index = ix.find("index").expect("docs index published at /docs");
+        let body = &index.body_html;
+        for anchor in [
+            "/docs/glossary#aida",
+            "/docs/glossary#council",
+            "/docs/glossary#ctxrun",
+            "/docs/glossary#participation",
+            "/docs/glossary#project",
+            "/docs/glossary#workflow-runtime",
+        ] {
+            assert!(
+                body.contains(&format!("href=\"{anchor}\"")),
+                "docs index should link to glossary anchor {anchor}"
+            );
+        }
+        assert!(
+            body.contains("href=\"/docs/access-model\""),
+            "docs index should correlate glossary terms with the access-model doc"
         );
     }
 

@@ -108,4 +108,4 @@ handler span — no other code changes.
 - The [durable-workflows guide](durable-workflows.md) — the durable-execution model and the registration gotcha.
 - The [Iceberg archive guide](iceberg-archive.md) — the nightly Postgres → Parquet → BigQuery table archive.
 - `examples/deploy/k8s/observability/` — the OTel Collector + the Cloud Logging → BigQuery sink.
-- The `observability` skill — the author-facing recipe (leads with the no-content rule).
+- [`cloud-operations.md`](cloud-operations.md) — the author-facing recipe (leads with the no-content rule).

@@ -33,7 +33,7 @@ internet
        (path: examples/deploy/k8s/gke)
 ```
 
-**Decisions:** see [[project-gcp-production-stack]] in memory and the workspace `CLAUDE.md`.
+Deployment decisions are summarized here and in [`cloud-operations.md`](cloud-operations.md).
 
 ## What lives where
 

@@ -137,5 +137,5 @@ end-to-end after deploy.
 ## See also
 
 - [Durable workflows](durable-workflows.md) — flavor A, the Restate execution engine, and the registration gotcha.
-- [GKE production](gke-prod.md) and the `power-push` skill — the cluster + image-shipping mechanics.
+- [GKE production](gke-prod.md) and [cloud operations](cloud-operations.md) — the cluster + image-shipping mechanics.
 - [Secrets in Doppler](secrets-doppler.md) — where `navigator-web-secrets` values come from.

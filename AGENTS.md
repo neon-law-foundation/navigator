@@ -1,7 +1,17 @@
 # AGENTS.md
 
-General workspace rules, architecture invariants, and the "how to work" guide live in [`CLAUDE.md`](CLAUDE.md) and
-[`docs/`](docs/) — read those first. This file adds notes for agent environments and pull request walkthroughs.
+General workspace rules, architecture invariants, and the "how to work" guide live in [`CLAUDE.md`](CLAUDE.md) and the
+public [`docs/`](docs/) tree — read those first. The full documentation index is [`docs/index.md`](docs/index.md). This
+file adds notes for agent environments and pull request walkthroughs.
+
+Every codebase task is one of two GitOps actions: **create a PR** or **review/update an existing PR**. Start in
+[`docs/agent-workflows.md`](docs/agent-workflows.md), then pull the narrowest supporting doc from the index.
+
+Before making product, architecture, legal-copy, or client-flow decisions, use the shared council protocols in
+[`docs/agent-decision-councils.md`](docs/agent-decision-councils.md): Engineering Council for build decisions, Legal
+Council for drafting that will become a Notation/template/prompt/email, and Client Council for client-facing product and
+copy. Cloud/runbook material belongs in [`docs/cloud-operations.md`](docs/cloud-operations.md). Durable instructions
+belong in public, LLM-agnostic docs.
 
 ## Cursor Cloud agent VM
 

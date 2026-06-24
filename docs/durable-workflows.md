@@ -158,8 +158,8 @@ reachable. Two design points:
 1. Author the spec in a notation template's `workflow:` frontmatter (see [notation authoring](notation-authoring.md))
    or, for non-notation flows, bind a new Restate service in `workflows-service`.
 2. Signal it from `web` (event-driven) or add a trigger (scheduled / manual).
-3. Ship the worker — see [GKE production](gke-prod.md) and the `power-push` skill (always both `navigator-web` and
-   `workflows-service` at one SHA).
+3. Ship the worker — see [GKE production](gke-prod.md) and [cloud operations](cloud-operations.md). Always ship both
+   `navigator-web` and `workflows-service` at one SHA.
 4. **Re-register the deployment** (above) — otherwise the new service `404`s at the ingress no matter how clean the
    deploy was. This step is invisible in `kubectl` and easy to forget.
 
@@ -194,7 +194,7 @@ Work down the chain; the break is almost always near the top:
    failing step retries and surfaces there.
 4. **Did the side effect happen?** Email transmits through SendGrid only when `NAVIGATOR_EMAIL_BACKEND=sendgrid` and
    `SENDGRID_API_KEY` are present; otherwise the worker silently uses a capturing backend that logs "sent" without
-   sending. See the `power-push` skill's manifest-drift notes.
+   sending. See [cloud operations](cloud-operations.md) for manifest-drift notes.
 
 ## See also
 

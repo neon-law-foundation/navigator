@@ -11,7 +11,7 @@ One quotable sentence:
 binary** and held the handle in a process-lifetime `static`, so a full run tried to start dozens of `postgres:17-alpine`
 containers at once and then **leaked** them (testcontainers-rs has no Ryuk reaper, so the `Drop` never fired). That
 exhausted the Docker daemon — `WaitContainer(StartupTimeout)`, `bridge docker0 … exchange full` — and filled the disk
-that the `reclaim-disk` / `docker-cleanup` skills exist to clean up.
+that [`agent-workflows.md`](agent-workflows.md) covers under maintenance cleanup.
 
 The schema-per-test isolation was never the problem: within a binary, all tests already shared one container and each
 test got `CREATE SCHEMA test_<id>` + a `search_path` override. The waste was purely that **every binary started its own

@@ -4,6 +4,9 @@ Navigator's entire lifecycle hangs off one branch — `main`. Every change reach
 auto-merges), `main` is what the production cluster pulls, and the daily release rides off `main`'s history. This doc is
 the source of truth for that flow; the workspace `CLAUDE.md` carries only the short rules and links here.
 
+For agents, this collapses to two codebase actions: create a PR, or review/update an existing PR. The branch ceremony,
+test gate, release tag, and deploy hand-off are all supporting steps inside those actions.
+
 ## `main` is sacred and squash-merge-only
 
 - **Never commit directly to `main`.** It advances solely through pull requests — there is no direct push, ever.
@@ -17,8 +20,8 @@ the source of truth for that flow; the workspace `CLAUDE.md` carries only the sh
 
 ## The branch → PR → auto-merge flow
 
-Every task — agent or human — follows the same three steps. No skill invents its own branch ceremony; they all inherit
-this.
+Every task — agent or human — follows the same three steps. No workflow invents its own branch ceremony; they all
+inherit this.
 
 1. **Branch.** Before the first edit, create a topic branch: `git switch -c <kebab-topic>` (e.g.
    `git switch -c daily-cd-pipeline`). If you find yourself on `main` with uncommitted work, branch first and carry the
@@ -117,8 +120,8 @@ doppler run --project navigator --config prd -- \
 the prod Secret satisfies the new binary's boot invariants, pins **both** deployments (`navigator-web` and
 `workflows-service`) plus the trigger CronJobs to that tag, rolls them out together, and re-registers the worker with
 Restate. The full recipe — the pre-roll Secret check, the manifest-drift guard, and the no-rebuild restart path for a
-bare secret rotation — lives in the [`power-push`](../.claude/skills/power-push/SKILL.md) skill. The cluster's
-pull-based, credential-free image delivery is documented in [`gke-prod.md`](gke-prod.md#trust-boundary).
+bare secret rotation — lives in [`cloud-operations.md`](cloud-operations.md). The cluster's pull-based, credential-free
+image delivery is documented in [`gke-prod.md`](gke-prod.md#trust-boundary).
 
 Forks that run a GitOps controller (Config Sync, Argo CD, Flux) can let the controller reconcile the overlay instead of
 running `power-push` by hand; this repo's production roll is the manual `power-push` above.

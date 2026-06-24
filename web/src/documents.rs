@@ -15,7 +15,7 @@
 //!    This is `access::can_see_project` — the same gate the project
 //!    listing uses — so a co-client / spouse on a joint matter can fetch
 //!    the matter's notation PDFs, while the notation *owner* alone is no
-//!    longer the unit of access. See the `authorization-model` skill.
+//!    longer the unit of access. See `docs/access-model.md`.
 //! 3. A non-participant, an unknown notation, and an unknown `doc_id`
 //!    slug all return 404 — no leakage about which exists.
 
