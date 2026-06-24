@@ -1494,6 +1494,169 @@ async fn workshops_step_renders_single_section_with_progress() {
     assert!(body.contains("href=\"/foundation/workshops/navigator/readme/step/2\""));
 }
 
+/// Drive `GET …/{slug}/slides` and return `(cookie_pair, csrf_token)` for a
+/// valid double-submit POST to the certificate route. `cookie_pair` is the
+/// `name=value` to send back in a `Cookie:` header.
+async fn fetch_workshop_csrf(app: &axum::Router, slug: &str) -> (String, String) {
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/foundation/workshops/navigator/{slug}/slides"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let set_cookie = resp
+        .headers()
+        .get_all(axum::http::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find(|c| c.starts_with("navigator_workshop_cert_csrf="))
+        .expect("slides page sets the workshop CSRF cookie")
+        .to_string();
+    let cookie_pair = set_cookie.split(';').next().unwrap().to_string();
+    let body = body_string(resp).await;
+    let marker = "name=\"csrf_token\" value=\"";
+    let start = body.find(marker).expect("csrf hidden field present") + marker.len();
+    let token = body[start..].split('"').next().unwrap().to_string();
+    (cookie_pair, token)
+}
+
+#[tokio::test]
+async fn workshops_slides_renders_grid_and_mints_dedicated_csrf_cookie() {
+    let app = web::build_router(
+        state_with_workshops(vec![sample_workshop()]).await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/workshops/navigator/readme/slides")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    // The light table uses its OWN cookie, never the account-recovery one,
+    // so opening it can't clobber an in-flight password reset.
+    let cookies: Vec<&str> = resp
+        .headers()
+        .get_all(axum::http::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .collect();
+    assert!(
+        cookies
+            .iter()
+            .any(|c| c.starts_with("navigator_workshop_cert_csrf=")),
+        "expected the dedicated workshop CSRF cookie, got {cookies:?}"
+    );
+    assert!(
+        !cookies
+            .iter()
+            .any(|c| c.starts_with("navigator_account_csrf=")),
+        "slides must NOT mint the account-recovery cookie, got {cookies:?}"
+    );
+    let body = body_string(resp).await;
+    assert!(body.contains("data-cert-gate"), "certificate gate present");
+    assert!(
+        body.contains("slide-thumb-link"),
+        "slide thumbnails present"
+    );
+    assert!(body.contains("/public/js/workshop-progress.js"));
+}
+
+#[tokio::test]
+async fn workshops_certificate_rejects_request_without_valid_csrf() {
+    let app = web::build_router(
+        state_with_workshops(vec![sample_workshop()]).await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/foundation/workshops/navigator/readme/certificate")
+                .header(
+                    axum::http::header::CONTENT_TYPE,
+                    "application/x-www-form-urlencoded",
+                )
+                .body(Body::from(
+                    "name=Jane&email=jane%40example.com&csrf_token=bogus",
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn workshops_certificate_accepts_valid_request_and_confirms() {
+    let app = web::build_router(
+        state_with_workshops(vec![sample_workshop()]).await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let (cookie, token) = fetch_workshop_csrf(&app, "readme").await;
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/foundation/workshops/navigator/readme/certificate")
+                .header(
+                    axum::http::header::CONTENT_TYPE,
+                    "application/x-www-form-urlencoded",
+                )
+                .header(axum::http::header::COOKIE, cookie)
+                .body(Body::from(format!(
+                    "name=Jane+Q.+Student&email=jane%40example.com&csrf_token={token}"
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let html = body_string(resp).await;
+    assert!(
+        html.contains("Check your inbox"),
+        "neutral confirmation: {html}"
+    );
+}
+
+#[tokio::test]
+async fn workshops_certificate_rejects_overlong_name() {
+    // Server-side length bound (matches the form maxlength) — a client that
+    // bypasses the HTML constraint can't feed a huge string to the renderer.
+    let app = web::build_router(
+        state_with_workshops(vec![sample_workshop()]).await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let (cookie, token) = fetch_workshop_csrf(&app, "readme").await;
+    let long_name = "a".repeat(200);
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/foundation/workshops/navigator/readme/certificate")
+                .header(
+                    axum::http::header::CONTENT_TYPE,
+                    "application/x-www-form-urlencoded",
+                )
+                .header(axum::http::header::COOKIE, cookie)
+                .body(Body::from(format!(
+                    "name={long_name}&email=jane%40example.com&csrf_token={token}"
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+}
+
 #[tokio::test]
 async fn workshops_step_out_of_range_404s() {
     let app = web::build_router(

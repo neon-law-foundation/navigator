@@ -2069,6 +2069,12 @@ async fn workshops_material_step(
         .into_response()
 }
 
+/// Dedicated double-submit CSRF cookie for the workshop certificate form.
+/// Distinct from `ACCOUNT_CSRF_COOKIE_NAME` (password reset / email-confirm)
+/// so opening a workshop light table never clobbers an in-flight account
+/// recovery in another tab, and vice versa.
+const WORKSHOP_CERT_CSRF_COOKIE_NAME: &str = "navigator_workshop_cert_csrf";
+
 /// Whether cookies should carry the `Secure` flag — true when the OAuth
 /// redirect URI is HTTPS (prod), false in plain-HTTP local dev. Mirrors
 /// how `AuthState::secure_cookies` is derived, for handlers that hold the
@@ -2101,7 +2107,12 @@ async fn workshops_slides(
             body_html: &s.body_html,
         })
         .collect();
-    let csrf = crate::password_reset::mint_csrf_with(&app.sessions, secure_cookies(&app), &cookies);
+    let csrf = crate::password_reset::mint_csrf_with(
+        &app.sessions,
+        secure_cookies(&app),
+        &cookies,
+        WORKSHOP_CERT_CSRF_COOKIE_NAME,
+    );
     (
         StatusCode::OK,
         workshop_views::slides(
@@ -2144,16 +2155,22 @@ async fn workshops_certificate_submit(
     let Some(m) = app.workshops.find(&slug) else {
         return (StatusCode::NOT_FOUND, views::not_found_page()).into_response();
     };
-    if !crate::password_reset::verify_csrf_with(&app.sessions, &cookies, &form.csrf_token) {
+    if !crate::password_reset::verify_csrf_with(
+        &app.sessions,
+        &cookies,
+        &form.csrf_token,
+        WORKSHOP_CERT_CSRF_COOKIE_NAME,
+    ) {
         return (StatusCode::BAD_REQUEST, "invalid or missing CSRF token").into_response();
     }
-    cookies.add(crate::oauth::expired_cookie(
-        crate::password_reset::ACCOUNT_CSRF_COOKIE_NAME,
-    ));
+    cookies.add(crate::oauth::expired_cookie(WORKSHOP_CERT_CSRF_COOKIE_NAME));
 
     let name = form.name.trim();
     let email = form.email.trim();
-    if name.is_empty() || !email.contains('@') {
+    // Server-side bounds mirror the form's maxlength, so a client that
+    // bypasses the HTML constraint can't feed a multi-megabyte name into
+    // the Typst renderer or an oversized address to SendGrid.
+    if name.is_empty() || name.len() > 120 || !email.contains('@') || email.len() > 254 {
         return (
             StatusCode::BAD_REQUEST,
             "Please enter your name and a valid email address.",

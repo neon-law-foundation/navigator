@@ -130,6 +130,10 @@ pub async fn dispatch_state(
     // sends from the Foundation address (support@neonlaw.org) rather than
     // the backend default. Every other slug keeps the previous shape.
     if slug == "certificate" {
+        // `render_for_slug` above already validated `workshop_title` for the
+        // certificate slug and returned `Err` if it was missing, so this can
+        // only be `Some` here. The `?` is defensive (never panics) rather
+        // than a second real validation.
         let workshop = payload
             .workshop_title
             .as_deref()
