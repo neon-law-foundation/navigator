@@ -1,9 +1,10 @@
-# notation_templates
+# Notation
 
-These are the blueprints the firm uses to produce your legal documents. Each file here is a **Notation Template**: a
-static markdown document that, once assigned to a person or entity, produces a **Notation** — the filled-in instance an
-attorney reviews, signs, and files. The vocabulary (Template, Notation, Questionnaire, Question, Answer) is taught in
-[`docs/notation.md`](../docs/notation.md); this README is about how the tree is **organized** and **named**.
+This tree holds Navigator's markdown notation templates: static legal blueprints whose frontmatter declares a
+questionnaire and workflow, and whose body supplies the legal prose. When a Template is bound to a respondent and
+Project, it becomes a **Notation** — the running instance whose questions are answered and whose workflow advances to
+review, signature, filing, or closeout. The vocabulary (Template, Notation, Questionnaire, Question, Answer) is taught
+in [`docs/notation.md`](../docs/notation.md); this README is about how the tree is **organized** and **named**.
 
 Every file is markdown with a YAML frontmatter block carrying `title`, `code`, `respondent_type`, `confidential`, and
 the `questionnaire:` / `workflow:` state machines. The body is the legal prose with `{{question_code}}` placeholders.
@@ -112,18 +113,6 @@ cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes notat
 There is no pre-committed empty skeleton. A folder is created the moment a template needs it — the closed lists above
 (scopes, forums, practice areas) plus this README are the map, so a new template drops into the path its jurisdiction,
 scope, forum, and practice area already name instead of inventing one.
-
-## Migration status
-
-The legacy flat folders have been retired. Substantive templates now live in the jurisdiction tree, operational
-templates live in the operational branch, and brand-named Neon Law retainers live under `neon_law/engagements/`.
-Template `code` values stayed stable during the move so existing Notations, workflow specs, and seed rows still refer to
-the same legal blueprint.
-
-The public template routes also understand the deep tree. For example,
-`/api/templates/united-states/nevada/state/business-associations/entity-formation` serves the raw Nevada entity
-formation template when it is public. A few old public two-segment links redirect to their canonical deep paths so
-published references do not dead-end, but new links should use the tree path.
 
 ## Adding a new template
 
