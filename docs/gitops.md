@@ -57,7 +57,7 @@ CI/CD path, so a retention change never lands in a release diff and a cleanup ru
 
 | Workflow | Trigger | Job |
 | --- | --- | --- |
-| [`ci.yml`](../.github/workflows/ci.yml) | `pull_request` → `main` | lean fmt + clippy + `cargo test --workspace` |
+| [`ci.yml`](../.github/workflows/ci.yml) | `pull_request` → `main` | fmt + Markdown CLI + clippy + tests |
 | [`release-tag.yml`](../.github/workflows/release-tag.yml) | cron 05:00 PST | cut + push the `YY.MM.DD` tag |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | `YY.MM.DD` tag push | integration → push images → Slack hand-off |
 | [`cleanup.yml`](../.github/workflows/cleanup.yml) | cron 07:00 PST | prune ghcr versions > 14 days (maintenance) |
@@ -65,12 +65,15 @@ CI/CD path, so a retention change never lands in a release diff and a cleanup ru
 ### PR flow — `ci.yml`
 
 Runs only on every `pull_request` targeting `main` — **never on `push`**, so `main` itself runs no CI on merge (it
-advances merge-only, and the heavy paths ride the release tag). Lean by design: a format check, a clippy pass with
-warnings as errors, then the workspace test suite — nothing else. The job keeps target artifacts out of the cache,
-disables CI debug info, and runs `cargo clean` between clippy and test so the standard hosted runner has enough disk.
-One shared `postgres:17-alpine` container backs the whole job via `TEST_DATABASE_URL` (so `store::test_support` makes a
-per-test schema in that single container instead of spawning a testcontainer per binary).
-Integration/KIND/docker/browser work does **not** run here.
+advances merge-only, and the heavy paths ride the release tag). Lean by design: a format check, a repository-wide
+Markdown validation pass through the `navigator` CLI, a clippy pass with warnings as errors, then the workspace test
+suite — nothing else. The Markdown pass builds `navigator` once and runs `./target/debug/navigator validate
+--no-default-excludes .`, so ordinary docs get the prose Markdown rules and notation templates get the stricter
+questionnaire/workflow/template rule set. The job keeps target artifacts out of the cache, disables CI debug info, and
+runs `cargo clean` between clippy and test so the standard hosted runner has enough disk. One shared
+`postgres:17-alpine` container backs the whole job via `TEST_DATABASE_URL` (so `store::test_support` makes a per-test
+schema in that single container instead of spawning a testcontainer per binary). Integration/KIND/docker/browser work
+does **not** run here.
 
 ### Cron flow — `release-tag.yml`
 

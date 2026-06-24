@@ -2,11 +2,12 @@ name: ci
 
 # The PR flow — one of exactly three workflows in this repo (see CLAUDE.md
 # "CI/CD — three workflows, no more"). Lean on purpose: fmt + clippy +
-# `cargo test --workspace`, run under `cargo llvm-cov` so the SAME test pass
-# also emits the lcov uploaded to Codecov for per-PR diff coverage (no second
-# test run). Integration (KIND), docker image builds, browser tests, and the
-# deploy email all live in the tag flow (`deploy.yml`), cut nightly by the
-# cron flow (`release-tag.yml`).
+# `cargo test --workspace`, plus a repository-wide Markdown validation pass
+# through the Navigator CLI. The test pass runs under `cargo llvm-cov` so the
+# SAME test pass also emits the lcov uploaded to Codecov for per-PR diff
+# coverage (no second test run). Integration (KIND), docker image builds,
+# browser tests, and the deploy email all live in the tag flow (`deploy.yml`),
+# cut nightly by the cron flow (`release-tag.yml`).
 #
 # Do NOT add audit/deny/cucumber/docker/e2e jobs back here — the Cucumber BDD
 # suite already runs inside `cargo test --workspace`, and the heavy paths
@@ -104,6 +105,15 @@ jobs:
           echo "test-pg never came up" >&2; exit 1
       - name: cargo fmt
         run: cargo fmt --all -- --check
+      # Dogfood the CLI as the Markdown gate: build `navigator` once, then run
+      # that binary over the full visible repository tree (including
+      # README/CLAUDE-style files). Ordinary docs get prose Markdown rules, and
+      # templates get the notation-template superset
+      # (questionnaire/workflow/template rules).
+      - name: build navigator CLI
+        run: cargo build -p cli --quiet
+      - name: validate markdown with navigator
+        run: ./target/debug/navigator validate --no-default-excludes .
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: clear clippy artifacts

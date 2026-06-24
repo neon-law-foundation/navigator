@@ -390,8 +390,8 @@ involvement/access (e.g. the client also gets a `client` participation for porta
 source of truth for "who owns this?"; participation answers "who's involved and what can they see?".
 
 A matter is opened against a pre-existing [Entity](#entity), **for** a pre-existing client, **and** always on a
-[retainer](#engagement--retainer) — a project is not official until a retainer exists. The matter-open service
-validates the entity and the client role before any row is created.
+[retainer](#engagement--retainer) — a project is not official until a retainer exists. The matter-open service validates
+the entity and the client role before any row is created.
 
 - Schema: [`store::entity::project`](../store/src/entity/project.rs) (the `staff_dri_person_id` / `client_dri_person_id`
   columns)

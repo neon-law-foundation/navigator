@@ -101,10 +101,12 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-CI/CD is exactly **three workflows** (`ci` / `release-tag` / `deploy`) — don't fold new gate logic into a fourth.
-Periodic housekeeping is the one carve-out: it lives in a separate **maintenance** workflow (`cleanup.yml`, daily ghcr
-retention) on its own cron, outside the CI/CD gate. The full lifecycle — the branch/PR discipline, pre-commit gate, the
-workflows, and pull-based deploy — is in [`docs/gitops.md`](docs/gitops.md).
+CI/CD is exactly **three workflows** (`ci` / `release-tag` / `deploy`) — don't fold new gate logic into a fourth. The PR
+CI gate includes a repository-wide `navigator validate --no-default-excludes .` Markdown pass, so ordinary docs and
+notation-template questionnaire/workflow rules are checked by the CLI on every PR update. Periodic housekeeping is the
+one carve-out: it lives in a separate **maintenance** workflow (`cleanup.yml`, daily ghcr retention) on its own cron,
+outside the CI/CD gate. The full lifecycle — the branch/PR discipline, pre-commit gate, the workflows, and pull-based
+deploy — is in [`docs/gitops.md`](docs/gitops.md).
 
 **Reviewing a PR means resolving every comment.** A PR is not "reviewed" until each reviewer comment — Greptile,
 CodeRabbit, any bot, any human — has been adjudicated against the real code and answered via the `gh` CLI: fixed and
