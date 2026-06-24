@@ -21,12 +21,14 @@ directly to `main`.
 Before changing files:
 
 1. Rebase or otherwise confirm the branch is current with `origin/main`.
-2. Read [`CLAUDE.md`](../CLAUDE.md), [`AGENTS.md`](../AGENTS.md), and the most specific docs from
+2. Create or switch into a dedicated git worktree for the task, with its own topic branch, before the first edit. Keep
+   new work out of the primary checkout and out of unrelated PR worktrees.
+3. Read [`CLAUDE.md`](../CLAUDE.md), [`AGENTS.md`](../AGENTS.md), and the most specific docs from
    [`index.md`](index.md).
-3. Read [`glossary.md`](glossary.md) before using domain nouns.
-4. Read [`access-model.md`](access-model.md) before touching roles, participation, OPA, sessions, or visibility.
-5. Check the working tree with `git status --short --branch`; never overwrite user changes.
-6. Pick the narrowest docs and code path that actually cover the task.
+4. Read [`glossary.md`](glossary.md) before using domain nouns.
+5. Read [`access-model.md`](access-model.md) before touching roles, participation, OPA, sessions, or visibility.
+6. Check the working tree with `git status --short --branch`; never overwrite user changes.
+7. Pick the narrowest docs and code path that actually cover the task.
 
 If the decision is architectural, legal-copy, or client-facing, use the relevant council in
 [`agent-decision-councils.md`](agent-decision-councils.md) after reading the facts.
@@ -35,7 +37,8 @@ When a dirty tree is ready to land:
 
 1. Survey every change: `git status --porcelain`, `git diff`, `git diff --staged`, and untracked files.
 2. Group paths by concern. One commit should have one blast radius.
-3. Run the gate before committing:
+3. Run the gate that matches the changed files before committing. If the PR changes Rust files or build/runtime
+   configuration, run the full Rust gate:
 
    ```bash
    cargo fmt
@@ -43,7 +46,8 @@ When a dirty tree is ready to land:
    cargo test --workspace
    ```
 
-4. For Markdown changes, also run:
+4. If the PR changes only Markdown or other prose files and no Rust files changed, the full Rust suite is not required.
+   Run the Markdown gate for the touched docs instead:
 
    ```bash
    cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path>
@@ -52,6 +56,7 @@ When a dirty tree is ready to land:
 5. Stage explicit paths for each group, not `git add -A`.
 6. Use Conventional Commit subjects; use the PR title as the squash-merge commit title.
 7. Push, `gh pr create --base main`, then `gh pr merge --auto --squash`.
+8. Clean up task-owned local resources before ending the session. See [Resource cleanup](#resource-cleanup).
 
 If the work should become multiple PRs, decide that before committing. Use the Engineering Council for real sequencing
 questions.
@@ -128,6 +133,35 @@ changing CI, release, deploy, cluster, or production secret behavior.
 
 Always roll `navigator-web` and `workflows-service` together. A version skew between the public web surface and the
 durable worker is a production risk.
+
+### Resource cleanup
+
+Navigator is a large Rust monorepo; agents should assume disk and memory are scarce. Before ending a create-PR or
+review/update-PR session, clean up resources created for that task.
+
+For Cargo builds:
+
+- If a task did not change Rust files and only needed Markdown validation, do not run Cargo build/test commands that
+  create a worktree `target/` directory.
+- If Rust checks or e2e tests created build artifacts in the task worktree, run `cargo clean` in that worktree after
+  pushing the branch or updating the PR.
+- If you set a task-specific `CARGO_TARGET_DIR`, clean that directory before handoff. Do not delete shared `CARGO_HOME`
+  caches or a shared target directory that other worktrees may be using.
+
+For Docker, KIND, and browser e2e:
+
+- Stop task-owned services when the PR is created or updated. For the standard KIND loop, prefer
+  `cargo run --release -p cli -- down`.
+- Remove task-created standalone containers and images when they are no longer needed.
+- Reclaim Docker build cache after image-heavy or e2e work with `docker builder prune --force --filter until=24h`, or
+  the narrowest equivalent that matches the resources you created.
+- Use `docker system df` before broad cleanup. `docker system prune` removes stopped containers, unused networks,
+  dangling images, and unused build cache; add `-a` only when you intentionally want unused images removed too.
+- Do not prune Docker volumes unless the user explicitly approves the data loss. Docker does not remove volumes by
+  default for the same reason.
+
+Measure before and after cleanup when disk pressure is part of the task (`df -h .`, `docker system df`, or both), and
+report anything left running or left on disk.
 
 ### Maintenance support
 
