@@ -16,6 +16,8 @@
 
 use include_dir::{include_dir, Dir};
 
+use crate::template_paths::kebab_path_eq;
+
 /// The repository `notation_templates/` tree, embedded at build time. The path is
 /// resolved against `web`'s manifest dir, so it tracks the dir in place
 /// at the workspace root.
@@ -100,16 +102,6 @@ fn safe_parts(parts: &[&str]) -> bool {
         && parts
             .iter()
             .all(|s| !s.is_empty() && !s.contains(['\\', '.']))
-}
-
-fn kebab_path_eq(a: &str, b: &str) -> bool {
-    let a_parts: Vec<&str> = a.split('/').collect();
-    let b_parts: Vec<&str> = b.split('/').collect();
-    a_parts.len() == b_parts.len()
-        && a_parts
-            .iter()
-            .zip(b_parts)
-            .all(|(left, right)| views::slug::to_url(left) == views::slug::to_url(right))
 }
 
 /// Just the `confidential` flag of a template's frontmatter.

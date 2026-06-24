@@ -85,13 +85,13 @@ mod tests {
         let html = render(AuthState::Anonymous).into_string();
         assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(html.contains("<title>Neon Law Foundation | Notations</title>"));
-        assert!(html.contains(">notation_templates</h1>"));
+        assert!(html.contains(">Notation</h1>"));
         assert!(html.contains("Every file is markdown with a YAML frontmatter block"));
     }
 
     #[test]
     fn notation_templates_page_is_tied_to_the_readme() {
-        assert!(README.starts_with("# notation_templates"));
+        assert!(README.starts_with("# Notation"));
         assert!(README.contains("## Naming convention"));
     }
 

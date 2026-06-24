@@ -20,6 +20,8 @@
 
 use std::sync::LazyLock;
 
+use crate::template_paths::{kebab_path_eq, slug_path};
+
 /// Jurisdiction a template is written for. Rendered as a loud badge so a
 /// visitor never mistakes a Nevada filing for their own state's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -258,23 +260,6 @@ pub fn find_path(path: &str) -> Option<&'static GalleryTemplate> {
 #[must_use]
 pub fn find(category: &str, name: &str) -> Option<&'static GalleryTemplate> {
     find_path(&format!("{category}/{name}"))
-}
-
-fn slug_path(path: &str) -> String {
-    path.split('/')
-        .map(views::slug::to_url)
-        .collect::<Vec<_>>()
-        .join("/")
-}
-
-fn kebab_path_eq(a: &str, b: &str) -> bool {
-    let a_parts: Vec<&str> = a.split('/').collect();
-    let b_parts: Vec<&str> = b.split('/').collect();
-    a_parts.len() == b_parts.len()
-        && a_parts
-            .iter()
-            .zip(b_parts)
-            .all(|(left, right)| views::slug::to_url(left) == views::slug::to_url(right))
 }
 
 #[cfg(test)]

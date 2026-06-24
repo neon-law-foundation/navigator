@@ -76,6 +76,7 @@ pub mod signature_render;
 pub mod statutes;
 pub mod template_api;
 pub mod template_gallery;
+mod template_paths;
 /// Shared test scaffolding (the canonical `AppState` builder). Always
 /// compiled so both the integration tests and the `features` crate can
 /// use it; see the module docs.
