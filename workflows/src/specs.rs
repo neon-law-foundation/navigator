@@ -47,6 +47,20 @@ pub fn welcome_spec() -> WorkflowSpec {
         .expect("welcome spec is bundled; its workflow block must parse")
 }
 
+/// Workshop completion certificate workflow spec. Like the welcome flow
+/// it lives outside [`BUNDLED_SPEC_YAML`] — it's a notification, not a
+/// legal-document notation, so the N-family lint rules don't apply.
+/// `BEGIN --requested--> email_send__certificate --email_sent--> END`.
+pub const WORKSHOP_CERTIFICATE_SPEC_YAML: &str =
+    include_str!("../specs/workshop__certificate.yaml");
+
+/// Parsed workshop-certificate workflow spec.
+#[must_use]
+pub fn workshop_certificate_spec() -> WorkflowSpec {
+    workflow_spec_from_yaml(WORKSHOP_CERTIFICATE_SPEC_YAML)
+        .expect("workshop certificate spec is bundled; its workflow block must parse")
+}
+
 /// Every bundled spec keyed by its template `code`. Wired up so
 /// callers (and `cli scaffold`) can locate the YAML by code without
 /// reaching into the filesystem.
