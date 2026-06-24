@@ -64,18 +64,38 @@ pub fn routes() -> Router<AuthState> {
 /// Mint a fresh CSRF token, drop it as a signed cookie, and return the
 /// plaintext to embed as the form's hidden field (double-submit).
 pub(crate) fn mint_csrf(s: &AuthState, cookies: &Cookies) -> String {
+    mint_csrf_with(&s.sessions, s.secure_cookies, cookies)
+}
+
+/// Like [`mint_csrf`] but taking the signer + secure flag directly, for
+/// callers that hold the full `AppState` rather than an `AuthState` (the
+/// public workshop-certificate form lives on a `Router<AppState>` page).
+pub(crate) fn mint_csrf_with(
+    sessions: &crate::session::SessionStore,
+    secure: bool,
+    cookies: &Cookies,
+) -> String {
     let csrf = random_token_32();
-    let signed = s.sessions.encode_signed_bytes(csrf.as_bytes());
-    cookies.add(account_csrf_cookie(signed, s.secure_cookies));
+    let signed = sessions.encode_signed_bytes(csrf.as_bytes());
+    cookies.add(account_csrf_cookie(signed, secure));
     csrf
 }
 
 /// Verify the double-submit CSRF token: the value in the signed,
 /// HttpOnly cookie must match the hidden form field.
 pub(crate) fn verify_csrf(s: &AuthState, cookies: &Cookies, form_token: &str) -> bool {
+    verify_csrf_with(&s.sessions, cookies, form_token)
+}
+
+/// [`verify_csrf`] taking the signer directly (see [`mint_csrf_with`]).
+pub(crate) fn verify_csrf_with(
+    sessions: &crate::session::SessionStore,
+    cookies: &Cookies,
+    form_token: &str,
+) -> bool {
     cookies
         .get(ACCOUNT_CSRF_COOKIE_NAME)
-        .and_then(|c| s.sessions.decode_signed_bytes(c.value()))
+        .and_then(|c| sessions.decode_signed_bytes(c.value()))
         .map(|b| String::from_utf8_lossy(&b).into_owned())
         .is_some_and(|tok| {
             !tok.is_empty() && constant_time_eq(tok.as_bytes(), form_token.as_bytes())

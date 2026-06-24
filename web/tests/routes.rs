@@ -1241,10 +1241,12 @@ fn sample_workshop() -> WorkshopMaterial {
             WorkshopSection {
                 title: "Install".into(),
                 body_html: "<h2>Install</h2><p>Do it.</p>".into(),
+                notes_html: "<p>Presenter notes for install.</p>".into(),
             },
             WorkshopSection {
                 title: "Notarize".into(),
                 body_html: "<h2>Notarize</h2><p>Finish.</p>".into(),
+                notes_html: "<p>Presenter notes for notarize.</p>".into(),
             },
         ],
     }
