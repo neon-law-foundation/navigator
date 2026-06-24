@@ -38,11 +38,6 @@ on:
     branches:
       - "kind-ci/**"
   workflow_dispatch:
-    inputs:
-      release_binaries_only:
-        description: "Temporary PR smoke: build CLI/LSP binaries on native OS runners only."
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -66,7 +61,7 @@ jobs:
   # auto-created trigger-image packages already have.
   build:
     name: build ${{ matrix.image }}
-    if: ${{ github.repository == 'neon-law-foundation/Navigator' && !(github.event_name == 'workflow_dispatch' && inputs.release_binaries_only) }}
+    if: github.repository == 'neon-law-foundation/Navigator'
     runs-on: ubuntu-latest
     # Cold workspace compile; cap so a stuck build can't hang the run.
     timeout-minutes: 45
@@ -111,7 +106,7 @@ jobs:
   integration:
     name: KIND integration (tag ${{ github.ref_name }})
     needs: build
-    if: ${{ github.repository == 'neon-law-foundation/Navigator' && !(github.event_name == 'workflow_dispatch' && inputs.release_binaries_only) }}
+    if: github.repository == 'neon-law-foundation/Navigator'
     runs-on: ubuntu-latest
     # Fail fast instead of hanging for hours. With the image builds moved
     # to the parallel `build` job, a healthy run here is just the KIND
@@ -567,52 +562,6 @@ jobs:
           name: release-binaries-${{ matrix.platform }}
           path: dist/*${{ matrix.archive }}
           if-no-files-found: error
-
-  # Temporary PR-only smoke for #92. It proves the CLI and LSP executables
-  # build on native Linux, macOS, and Windows runners without cutting a
-  # throwaway tag, publishing a release, or uploading artifacts.
-  release-binaries-branch-smoke:
-    name: smoke build binaries (${{ matrix.platform }})
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_binaries_only }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux
-            os: ubuntu-latest
-            exe: ""
-          - platform: macos
-            os: macos-latest
-            exe: ""
-          - platform: windows
-            os: windows-latest
-            exe: ".exe"
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: 1.96.0
-      - name: cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: branch-release-binaries-${{ matrix.platform }}
-      - name: build navigator and navigator-lsp
-        run: cargo build --release -p cli -p lsp
-      - name: show unix binaries
-        if: runner.os != 'Windows'
-        run: |
-          set -euo pipefail
-          test -x target/release/navigator
-          test -x target/release/navigator-lsp
-          ls -lh target/release/navigator target/release/navigator-lsp
-      - name: show windows binaries
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Get-Item target/release/navigator.exe, target/release/navigator-lsp.exe |
-            Format-Table Name, Length, FullName
 
   release-binaries-publish:
     name: publish GitHub Release binaries
