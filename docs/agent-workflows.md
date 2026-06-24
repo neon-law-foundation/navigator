@@ -90,6 +90,17 @@ cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path
 `--markdown-only` avoids notation-template rules on ordinary docs. `--no-default-excludes` makes root files such as
 `AGENTS.md` and `CLAUDE.md` visible to the checker.
 
+CI runs the repository-wide classified pass on every pull request update:
+
+```bash
+cargo build -p cli --quiet
+./target/debug/navigator validate --no-default-excludes .
+```
+
+That command builds the Navigator CLI, checks every included Markdown file in the visible repository tree, and applies
+the notation-template superset to files under `notation_templates/` or any Markdown file with `questionnaire:` or
+`workflow:` frontmatter.
+
 ### Legal workflow authoring
 
 Use this path when adding a new matter type or extending a template's workflow. Do not solve legal workflows with a
