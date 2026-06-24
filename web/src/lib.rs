@@ -41,6 +41,7 @@ pub mod email_threads;
 pub mod esign_view;
 pub mod esignature_webhook;
 pub mod estate;
+pub mod events;
 pub mod expunge;
 pub mod expunge_request_route;
 pub mod expunge_route;
@@ -94,6 +95,7 @@ pub use auth::{AuthClaims, AuthConfig};
 pub use blog::{BlogIndex, BlogPost};
 pub use config::{AppConfig, ConfigError};
 pub use docs::{Doc, DocsIndex};
+pub use events::{Event, EventIndex};
 pub use marketing::{MarketingDoc, MarketingIndex, PricingCard};
 // The A2A confirmation gate looks the *approver* up in `persons`, so a
 // test that drives the gate must inject the same `Principal` the auth
@@ -213,6 +215,10 @@ pub const DEFAULT_MARKETING_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/co
 /// `NAVIGATOR_BLOG_DIR`.
 pub const DEFAULT_BLOG_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/content/blog");
 
+/// Root for the bundled event pages served at `/events`. Override with
+/// `NAVIGATOR_EVENTS_DIR`.
+pub const DEFAULT_EVENTS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/content/events");
+
 /// Shared router state. `Clone`-cheap — every field is `Arc`-backed
 /// or wraps one.
 #[derive(Clone)]
@@ -226,6 +232,9 @@ pub struct AppState {
     /// Firm blog posts served at `/blog`, loaded at boot from a
     /// directory of dated `.md` files. See [`blog`].
     pub blog: BlogIndex,
+    /// Public events served at `/events`, loaded from dated markdown
+    /// files. See [`events`].
+    pub events: EventIndex,
     pub auth: AuthConfig,
     /// Google OAuth access-token validator for `/mcp`. Pass-through
     /// when `GOOGLE_OAUTH_CLIENT_IDS` is unset (KIND / local dev).
@@ -363,6 +372,12 @@ impl FromRef<AppState> for DocsIndex {
 impl FromRef<AppState> for BlogIndex {
     fn from_ref(s: &AppState) -> Self {
         s.blog.clone()
+    }
+}
+
+impl FromRef<AppState> for EventIndex {
+    fn from_ref(s: &AppState) -> Self {
+        s.events.clone()
     }
 }
 
@@ -664,6 +679,9 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/", get(home))
             .route("/blog", get(blog_index))
             .route("/blog/{slug}", get(blog_post))
+            .route("/events", get(events_index))
+            .route("/events/{slug}", get(event_page))
+            .route("/events/{slug}/calendar.ics", get(event_ics))
             .route("/contact", get(contact))
             .route("/foundation", get(foundation_mission))
             .route(
@@ -869,6 +887,14 @@ fn format_blog_date(date: chrono::NaiveDate) -> String {
     date.format("%B %-d, %Y").to_string()
 }
 
+fn format_event_datetime_range(start: chrono::NaiveDateTime, end: chrono::NaiveDateTime) -> String {
+    format!(
+        "{}-{} Pacific",
+        start.format("%B %-d, %Y, %-I:%M %p"),
+        end.format("%-I:%M %p")
+    )
+}
+
 /// `GET /blog` — the firm blog index, newest post first.
 async fn blog_index(State(blog): State<BlogIndex>, MaybeAuth(auth): MaybeAuth) -> Markup {
     let dates: Vec<String> = blog
@@ -890,6 +916,28 @@ async fn blog_index(State(blog): State<BlogIndex>, MaybeAuth(auth): MaybeAuth) -
     views::pages::blog::render_index(&summaries, auth)
 }
 
+/// `GET /events` — public event index, soonest first.
+async fn events_index(State(events): State<EventIndex>, MaybeAuth(auth): MaybeAuth) -> Markup {
+    let times: Vec<String> = events
+        .events()
+        .iter()
+        .map(|event| format_event_datetime_range(event.starts_at, event.ends_at))
+        .collect();
+    let summaries: Vec<views::pages::events::EventSummary<'_>> = events
+        .events()
+        .iter()
+        .zip(&times)
+        .map(|(event, time)| views::pages::events::EventSummary {
+            slug: &event.slug,
+            title: &event.title,
+            description: &event.description,
+            time,
+            place: &event.location_name,
+        })
+        .collect();
+    views::pages::events::render_index(&summaries, auth)
+}
+
 /// Build the kebab-case redirect target for a file-backed asset route
 /// when any path segment is in the legacy underscore form, or `None`
 /// when every segment is already canonical.
@@ -908,6 +956,62 @@ fn kebab_redirect_path(segments: &[&str]) -> Option<String> {
         Some(format!("/{path}"))
     } else {
         None
+    }
+}
+
+async fn event_page(
+    State(events): State<EventIndex>,
+    MaybeAuth(auth): MaybeAuth,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    if let Some(to) = kebab_redirect_path(&["events", &slug]) {
+        return axum::response::Redirect::permanent(&to).into_response();
+    }
+    match events.get(&slug) {
+        Some(event) => {
+            let time = format_event_datetime_range(event.starts_at, event.ends_at);
+            let place = format!("{}, {}", event.location_name, event.location_address);
+            let ics_url = format!("/events/{}/calendar.ics", event.slug);
+            (
+                StatusCode::OK,
+                views::pages::events::render_event(
+                    &views::pages::events::EventContent {
+                        slug: &event.slug,
+                        title: &event.title,
+                        description: &event.description,
+                        time: &time,
+                        place: &place,
+                        external_event_provider: &event.external_event_provider,
+                        external_event_url: &event.external_event_url,
+                        ics_url: &ics_url,
+                        body_html: &event.body_html,
+                        video_url: event.video_url.as_deref(),
+                        recap_url: event.recap_url.as_deref(),
+                    },
+                    auth,
+                ),
+            )
+                .into_response()
+        }
+        None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
+    }
+}
+
+async fn event_ics(
+    State(events): State<EventIndex>,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    if let Some(to) = kebab_redirect_path(&["events", &slug]) {
+        return axum::response::Redirect::permanent(&format!("{to}/calendar.ics")).into_response();
+    }
+    match events.get(&slug) {
+        Some(event) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "text/calendar; charset=utf-8")],
+            event.ics(),
+        )
+            .into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
