@@ -1247,17 +1247,22 @@ async fn foundation_transparency_doc(
     AxumPath(slug): AxumPath<String>,
 ) -> impl IntoResponse {
     match transparency.get(&slug) {
-        Some(doc) => (
-            StatusCode::OK,
-            views::pages::transparency::render_doc(
-                &views::pages::transparency::DocContent {
-                    title: &doc.title,
-                    body_html: &doc.body_html,
-                },
-                auth,
-            ),
-        )
-            .into_response(),
+        Some(doc) => {
+            let canonical = format!("/foundation/transparency/{}", doc.slug);
+            (
+                StatusCode::OK,
+                views::pages::transparency::render_doc(
+                    &views::pages::transparency::DocContent {
+                        title: &doc.title,
+                        description: &doc.description,
+                        canonical_path: &canonical,
+                        body_html: &doc.body_html,
+                    },
+                    auth,
+                ),
+            )
+                .into_response()
+        }
         None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
     }
 }

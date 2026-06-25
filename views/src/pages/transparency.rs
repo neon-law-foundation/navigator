@@ -39,6 +39,12 @@ pub struct IndexContent<'a> {
 /// The full content of one transparency document page.
 pub struct DocContent<'a> {
     pub title: &'a str,
+    /// One-line front-matter summary, used for the page's
+    /// `<meta name="description">` (falls back to a generic line when empty).
+    pub description: &'a str,
+    /// Canonical path for this document, e.g.
+    /// `/foundation/transparency/bylaws` — emitted as `<link rel="canonical">`.
+    pub canonical_path: &'a str,
     /// Rendered HTML body (NOT raw markdown).
     pub body_html: &'a str,
 }
@@ -153,13 +159,14 @@ pub fn render_doc(content: &DocContent<'_>, auth: AuthState) -> Markup {
         }
     };
     PageLayout::new(content.title)
-        .with_description(if content.title.is_empty() {
+        .with_description(if content.description.is_empty() {
             "A Neon Law Foundation transparency document."
         } else {
-            content.title
+            content.description
         })
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
+        .with_canonical_path(content.canonical_path)
         .render(&body)
 }
 
@@ -240,6 +247,8 @@ mod tests {
     fn doc_renders_title_body_and_backlink() {
         let doc = DocContent {
             title: "Bylaws",
+            description: "How the board governs the Foundation.",
+            canonical_path: "/foundation/transparency/bylaws",
             body_html: "<p>Article I. Purpose.</p>",
         };
         let html = render_doc(&doc, crate::AuthState::Anonymous).into_string();
@@ -249,5 +258,33 @@ mod tests {
         )));
         assert!(html.contains("<p>Article I. Purpose.</p>"));
         assert!(html.contains("href=\"/foundation/transparency\""));
+    }
+
+    #[test]
+    fn doc_sets_front_matter_description_and_canonical_path() {
+        // Per-document pages get the richer front-matter description as their
+        // `<meta description>` and a canonical link to their own slug — not the
+        // bare title (regression guard for the meta/canonical review fixes).
+        let doc = DocContent {
+            title: "Bylaws",
+            description: "How the board governs the Foundation.",
+            canonical_path: "/foundation/transparency/bylaws",
+            body_html: "<p>body</p>",
+        };
+        let html = render_doc(&doc, crate::AuthState::Anonymous).into_string();
+        assert!(
+            html.contains(
+                "<meta name=\"description\" content=\"How the board governs the Foundation.\">"
+            ),
+            "per-doc meta description should be the front-matter summary, got: {html}"
+        );
+        // `with_canonical_path` declares the page's canonical URL through the
+        // hreflang-alternate links (the same mechanism `render_index` uses).
+        assert!(
+            html.contains(
+                "<link rel=\"alternate\" hreflang=\"en\" href=\"/foundation/transparency/bylaws\">"
+            ),
+            "per-doc page should declare its own canonical URL, got: {html}"
+        );
     }
 }
