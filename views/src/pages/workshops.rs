@@ -208,7 +208,7 @@ pub fn landing_in(
                                     p.workshop-audience."text-uppercase"."small"."fw-semibold"."text-body-secondary"."mb-1" {
                                         (c.audience)
                                     }
-                                    h2 {
+                                    h3 {
                                         a href=(c.href) { (c.title) }
                                     }
                                     p { (c.benefit) }
@@ -717,7 +717,9 @@ mod tests {
         // Each card links to its overview at the canonical per-workshop URL,
         // titled by its short name and tagged with who it's for.
         assert!(html.contains("href=\"/foundation/nebula/workshops/use-the-navigator\""));
-        assert!(html.contains(">Using the Navigator</a>"));
+        assert!(html.contains(
+            "<h3><a href=\"/foundation/nebula/workshops/use-the-navigator\">Using the Navigator</a></h3>"
+        ));
         assert!(html.contains("For lawyers"));
         assert!(html.contains("href=\"/foundation/nebula/workshops/deploy-the-navigator\""));
         assert!(html.contains("For operators"));
