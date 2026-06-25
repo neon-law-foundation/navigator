@@ -82,6 +82,7 @@ mod template_paths;
 /// use it; see the module docs.
 pub mod test_support;
 pub mod transcript_intake;
+pub mod transparency;
 pub mod webhook_auth;
 pub mod welcome;
 pub mod workshops;
@@ -98,6 +99,7 @@ pub use config::{AppConfig, ConfigError};
 pub use docs::{Doc, DocsIndex};
 pub use events::{Event, EventIndex};
 pub use marketing::{MarketingDoc, MarketingIndex, PricingCard};
+pub use transparency::{DocCategory, TransparencyDoc, TransparencyIndex};
 // The A2A confirmation gate looks the *approver* up in `persons`, so a
 // test that drives the gate must inject the same `Principal` the auth
 // middleware produces in prod. Re-export it so the BDD suite can build
@@ -220,6 +222,11 @@ pub const DEFAULT_BLOG_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/content
 /// `NAVIGATOR_EVENTS_DIR`.
 pub const DEFAULT_EVENTS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/content/events");
 
+/// Root for the bundled Foundation transparency documents served under
+/// `/foundation/transparency` (bylaws, conflict policy, quarterly board
+/// minutes). Override with `NAVIGATOR_FOUNDATION_DIR`.
+pub const DEFAULT_FOUNDATION_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/content/foundation");
+
 /// Shared router state. `Clone`-cheap — every field is `Arc`-backed
 /// or wraps one.
 #[derive(Clone)]
@@ -233,6 +240,10 @@ pub struct AppState {
     /// Firm blog posts served at `/blog`, loaded at boot from a
     /// directory of dated `.md` files. See [`blog`].
     pub blog: BlogIndex,
+    /// Foundation transparency documents (bylaws, conflict policy, quarterly
+    /// board minutes) served under `/foundation/transparency`, loaded at boot
+    /// from `web/content/foundation/`. See [`transparency`].
+    pub transparency: TransparencyIndex,
     /// Public events served at `/events`, loaded from dated markdown
     /// files. See [`events`].
     pub events: EventIndex,
@@ -373,6 +384,12 @@ impl FromRef<AppState> for DocsIndex {
 impl FromRef<AppState> for BlogIndex {
     fn from_ref(s: &AppState) -> Self {
         s.blog.clone()
+    }
+}
+
+impl FromRef<AppState> for TransparencyIndex {
+    fn from_ref(s: &AppState) -> Self {
+        s.transparency.clone()
     }
 }
 
@@ -703,6 +720,11 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route(
                 "/foundation/notation-templates",
                 get(|| async { axum::response::Redirect::permanent("/foundation/notations") }),
+            )
+            .route("/foundation/transparency", get(foundation_transparency))
+            .route(
+                "/foundation/transparency/{slug}",
+                get(foundation_transparency_doc),
             )
             .route(
                 "/navigator",
@@ -1189,6 +1211,55 @@ fn foundation_mission_in(
         }
     });
     views::pages::mission::render_in(&content, auth, locale)
+}
+
+/// `GET /foundation/transparency` — the Foundation's public-disclosure hub.
+///
+/// Lists the IRS determination letter (a required IRC §6104(d) disclosure,
+/// served as a PDF from `/public/`) alongside the documents the Foundation
+/// publishes voluntarily: bylaws, the conflict of interest policy, and the
+/// quarterly board minutes loaded from `web/content/foundation/`.
+async fn foundation_transparency(
+    State(transparency): State<TransparencyIndex>,
+    MaybeAuth(auth): MaybeAuth,
+) -> Markup {
+    let to_link = |d: &transparency::TransparencyDoc| views::pages::transparency::DocLink {
+        href: format!("/foundation/transparency/{}", d.slug),
+        title: d.title.clone(),
+        description: d.description.clone(),
+    };
+    let governance: Vec<_> = transparency.governance().into_iter().map(to_link).collect();
+    let minutes: Vec<_> = transparency.minutes().into_iter().map(to_link).collect();
+    let content = views::pages::transparency::IndexContent {
+        determination_letter_href: "/public/foundation/determination-letter.pdf",
+        governance: &governance,
+        minutes: &minutes,
+    };
+    views::pages::transparency::render_index(&content, auth)
+}
+
+/// `GET /foundation/transparency/{slug}` — one transparency document
+/// (`bylaws`, `conflict-of-interest`, or `minutes-YYYY-qN`), or a 404 page
+/// when the slug is unknown.
+async fn foundation_transparency_doc(
+    State(transparency): State<TransparencyIndex>,
+    MaybeAuth(auth): MaybeAuth,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    match transparency.get(&slug) {
+        Some(doc) => (
+            StatusCode::OK,
+            views::pages::transparency::render_doc(
+                &views::pages::transparency::DocContent {
+                    title: &doc.title,
+                    body_html: &doc.body_html,
+                },
+                auth,
+            ),
+        )
+            .into_response(),
+        None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
+    }
 }
 
 /// `GET /docs` — the workspace documentation index.

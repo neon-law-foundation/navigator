@@ -389,6 +389,9 @@ impl<'a> PageLayout<'a> {
                             // row as every other policy link — uniform short
                             // labels, no separate trailing line.
                             a.link-secondary href="/foundation" { "Mission" } " · "
+                            // The Foundation's public 501(c)(3) disclosures
+                            // (determination letter, bylaws, board minutes).
+                            a.link-secondary href="/foundation/transparency" { "Transparency" } " · "
                             a.link-secondary href="/statutes" { "Statutes" }
                             // One-tap language switcher — only on pages with a
                             // translated twin. Rides the same policy-link row as
@@ -929,9 +932,11 @@ mod tests {
                 "href=\"/blog\"",
                 "href=\"/events\"",
                 "href=\"/foundation\"",
+                "href=\"/foundation/transparency\"",
                 "href=\"/statutes\"",
                 ">Blog</a>",
                 ">Mission</a>",
+                ">Transparency</a>",
                 ">Statutes</a>",
                 "Admitted in",
                 "apps.calbar.ca.gov/attorney/Licensee/Detail/337252",
