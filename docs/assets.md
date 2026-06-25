@@ -1,9 +1,9 @@
 # Photography assets
 
-Navigator's marketing and workshop pages render responsive photos through `views::assets::responsive_picture`. Those
-photos are **never** stored in git or baked into the Docker image — they live only in a public Google Cloud Storage
-bucket. That keeps the repository small (a clone is code, not megabytes of binaries) and lets production serve the
-images straight from object storage.
+Neon Law Navigator's marketing and workshop pages render responsive photos through `views::assets::responsive_picture`.
+Those photos are **never** stored in git or baked into the Docker image — they live only in a public Google Cloud
+Storage bucket. That keeps the repository small (a clone is code, not megabytes of binaries) and lets production serve
+the images straight from object storage.
 
 ## The three commands
 

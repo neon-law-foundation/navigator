@@ -1,6 +1,6 @@
-Feature: Workshop "Deploy the Navigator"
+Feature: Workshop "Deploy the Neon Law Navigator"
 
-  Every renderable claim the "Deploy the Navigator" workshop (DEPLOY.md)
+  Every renderable claim the "Deploy the Neon Law Navigator" workshop (DEPLOY.md)
   makes is grounded by a scenario here. If one breaks, the workshop's
   prose is stale — the same contract the sibling
   workshop_navigator_walkthrough.feature carries.
@@ -21,12 +21,12 @@ Feature: Workshop "Deploy the Navigator"
   client intake surface.
 
   Background:
-    Given the "Deploy the Navigator" workshop is loaded from the content directory
+    Given the "Deploy the Neon Law Navigator" workshop is loaded from the content directory
 
   Scenario: Remember — the workshop is registered on the Foundation surface
     When a reader visits "/foundation/nebula/workshops/deploy-the-navigator"
     Then the response status is 200
-    And the page title is "Neon Law Foundation | Deploy the Navigator"
+    And the page title is "Neon Law Foundation | Deploy the Neon Law Navigator"
     And the page shows no "not accepting clients" banner
 
   Scenario: Understand — the agenda opens a stepped walkthrough

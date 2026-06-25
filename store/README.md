@@ -1,8 +1,8 @@
 # store
 
-Data layer for the Navigator CRM. Owns the SeaORM entities, the migration history, the canonical seed loader, and the
-`DbConfig` that resolves `DATABASE_URL` into a Postgres connection. The only crate that touches the schema; `web`,
-`cli`, and `mcp` all consume it.
+Data layer for the Neon Law Navigator CRM. Owns the SeaORM entities, the migration history, the canonical seed loader,
+and the `DbConfig` that resolves `DATABASE_URL` into a Postgres connection. The only crate that touches the schema;
+`web`, `cli`, and `mcp` all consume it.
 
 ## Getting started
 
@@ -35,7 +35,7 @@ attempt at calendar accuracy — bump the date on the new one and you're done.
 ## Authorization columns
 
 > **Role decides the tier; participation decides the scope.** Two columns answer "who can see what" — and they live in
-> two different tables on purpose.
+  two different tables on purpose.
 
 - `persons.role` is `TEXT` with `CHECK (role IN ('client','staff','admin'))`, modeled as a SeaORM `ActiveEnum` in
   [`src/entity/person.rs`](src/entity/person.rs). One row per person, **one role per row**.

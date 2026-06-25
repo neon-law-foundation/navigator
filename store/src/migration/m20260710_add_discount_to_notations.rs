@@ -1,6 +1,6 @@
 //! Add the admin-discretion discount override to `notations`.
 //!
-//! **Navigator is the system of record for the discount *decision*; Xero
+//! **Neon Law Navigator is the system of record for the discount *decision*; Xero
 //! does the client-facing math.** The list price stays one number in the
 //! `products` catalog; a discount is a separate recorded event, applied
 //! to the matter-close invoice as a Xero line-item discount (see

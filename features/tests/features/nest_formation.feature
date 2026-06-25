@@ -15,7 +15,7 @@ Feature: Nest formation, end to end
   too, ends at a filing with the Secretary of State.
 
   Background:
-    Given a fresh Navigator app with the canonical templates seeded
+    Given a fresh Neon Law Navigator app with the canonical templates seeded
     And a client named "Libra" <libra@example.com>
 
   Scenario: From intake to a stamped Secretary-of-State filing

@@ -1,6 +1,6 @@
 # Recurring subscription billing
 
-Navigator bills two kinds of money through the same `billing::BillingProvider` Xero seam:
+Neon Law Navigator bills two kinds of money through the same `billing::BillingProvider` Xero seam:
 
 - **Matter-close flat fees** — raised once, when the firm signs a matter's closing letter (Northstar, Nest). See the
   `MatterCloseInvoice` workflow in `billing-workflows`.

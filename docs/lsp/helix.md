@@ -18,8 +18,8 @@ should see a diagnostic in the gutter.
 
 ## Code actions
 
-- `<Space> a` (default `code_action` binding) lists the quick-fix actions for the violation under the cursor.
-- `:format` is not provided — Navigator's rule set is autofix-driven via `source.fixAll`, which Helix doesn't currently
+- `<Space> a` (default `code_action` binding) lists the quick-fix actions for the violation under the cursor. `:format`
+  is not provided — Neon Law Navigator's rule set is autofix-driven via `source.fixAll`, which Helix doesn't currently
   auto-invoke. Run code actions manually for now.
 
 ## Coexistence with `marksman`

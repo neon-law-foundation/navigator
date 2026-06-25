@@ -1,8 +1,8 @@
-# Gemini Enterprise — Navigator MCP server
+# Gemini Enterprise — Neon Law Navigator MCP server
 
-How to expose Navigator's `/mcp` endpoint to **Gemini Enterprise** so the Workspace's LLMs can call Navigator tools
-(today: `aida_create_person`, `aida_show_person`, `aida_list_jurisdictions`) during chat sessions, with no new identity
-provider to operate. All tool names are namespaced under the `aida_` prefix.
+How to expose Neon Law Navigator's `/mcp` endpoint to **Gemini Enterprise** so the Workspace's LLMs can call its tool
+catalog (today: `aida_create_person`, `aida_show_person`, `aida_list_jurisdictions`) during chat sessions, with no new
+identity provider to operate. All tool names are namespaced under the `aida_` prefix.
 
 This doc is the **setup** story — agent card, OAuth, registration. For the **runtime** behavior once a request lands —
 where AIDA pauses for a yes/no authorization and how a tool failure's reason reaches the user — see
@@ -84,8 +84,8 @@ gcloud services enable iap.googleapis.com --project=YOUR_PROJECT_ID
 ### 2. OAuth consent screen
 
 Cloud Console → APIs & Services → OAuth consent screen. User type **Internal** (Workspace org only). Application name
-`Navigator`, support email `support@neonlaw.com`. This is one click in the UI; there's no REST endpoint that creates the
-consent screen itself.
+`Neon Law Navigator`, support email `support@neonlaw.com`. This is one click in the UI; there's no REST endpoint that
+creates the consent screen itself.
 
 The BackendConfig under `examples/deploy/k8s/gke/iap/backendconfig.yaml` uses the **Google-managed** OAuth client mode
 (no `oauthclientCredentials` stanza), so IAP auto-provisions the client when the consent screen exists. No
@@ -157,15 +157,12 @@ source picker (it's marked "Preview"). Click **Add MCP server**.
 
 Fill the form:
 
-- **MCP Server URL**: `https://www.your-domain.example/mcp`
-- **Authorization URL**: `https://accounts.google.com/o/oauth2/v2/auth`
-- **Token URL**: `https://oauth2.googleapis.com/token`
-- **Client ID** / **Client Secret**: the Gemini Enterprise UI walks you through provisioning these against the same
-  Google Workspace org. The OAuth consent screen from step 2 is what Gemini Enterprise's flow consents against.
-- **Scopes**: `openid email`
-- **Data connector location**: `us-west4` (matches the rest of the stack)
-- **Data connector name**: `navigator-crm`
-- **MCP Server Description**: paste the block in step 9 below.
+- **MCP Server URL**: `https://www.your-domain.example/mcp` **Authorization URL**:
+  `https://accounts.google.com/o/oauth2/v2/auth` **Token URL**: `https://oauth2.googleapis.com/token` **Client ID** /
+  **Client Secret**: the Gemini Enterprise UI walks you through provisioning these against the same Google Workspace
+  org. The OAuth consent screen from step 2 is what Gemini Enterprise's flow consents against.
+- **Scopes**: `openid email` **Data connector location**: `us-west4` (matches the rest of the stack) **Data connector
+  name**: `navigator-crm` **MCP Server Description**: paste the block in step 9 below.
 
 Click **Login** and complete the Google sign-in. Gemini Enterprise performs the authorization-code exchange, lands an ID
 token, and stores the credentials.
@@ -194,9 +191,9 @@ This text is the only thing Gemini Enterprise's planner sees about the server. B
 what NOT to do. Markdown supported.
 
 ```markdown
-## Navigator CRM (Neon Law / Navigator Foundation)
+## Neon Law Navigator CRM (Neon Law / Neon Law Foundation)
 
-The Navigator CRM is the firm's customer-relationship system.
+The Neon Law Navigator CRM is the firm's customer-relationship system.
 It is the source of truth for **Person** records — clients,
 prospects, opposing counsel contacts, and Foundation correspondents.
 

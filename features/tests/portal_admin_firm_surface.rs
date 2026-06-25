@@ -56,7 +56,7 @@ impl FirmWorld {
     }
 }
 
-#[given("the Navigator app is running")]
+#[given("the Neon Law Navigator app is running")]
 async fn build_app(world: &mut FirmWorld) {
     let db = in_memory_db().await;
     let runtime = Arc::new(InMemoryRuntime::new());

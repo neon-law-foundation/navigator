@@ -142,6 +142,11 @@ pub struct Form<'a> {
     /// `(code, label)` pairs for the onboarding-template picker. Empty on
     /// the edit form, which suppresses the whole retainer block.
     pub retainer_templates: &'a [(String, String)],
+    /// When set, the pre-matter conflict check raised review-level
+    /// findings (listed in `error`) and authorized staff may proceed by
+    /// ticking the acknowledgment checkbox this renders. Off on a clean
+    /// form and on a hard block (which has no override path).
+    pub allow_conflict_override: bool,
 }
 
 const STATUSES: &[&str] = &["open", "closed", "archived"];
@@ -583,6 +588,24 @@ fn form_page(
             .help(
                 "Optional — describes the work this retainer covers; rendered into the agreement.",
             ),
+        );
+    }
+
+    // Conflict-check override: rendered only when the check raised
+    // review-level findings (the findings themselves are in `f.error`).
+    // Ticking it re-submits with `conflict_ack=1`, which the handler
+    // records to the relationship log as a staff override. A hard block
+    // never sets this flag — there is no override for a blocking
+    // conflict.
+    if f.allow_conflict_override {
+        fields.push(
+            Field::checkbox(
+                "I have reviewed the conflict findings above and am authorized to open this matter",
+                "conflict_ack",
+                "1",
+                false,
+            )
+            .required(),
         );
     }
 

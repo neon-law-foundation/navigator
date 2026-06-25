@@ -244,7 +244,7 @@ async fn foundation_mission_links_training_to_the_workshop_not_the_repo() {
         let body = body_string(resp).await;
         assert!(
             body.contains("href=\"/foundation/nebula/workshops/use-the-navigator\""),
-            "{uri} should link legal-aid training to the Navigator workshop: {body}",
+            "{uri} should link legal-aid training to the Neon Law Navigator workshop: {body}",
         );
         assert_eq!(
             body.matches("href=\"https://github.com/neon-law-foundation/navigator\"")
@@ -587,7 +587,7 @@ async fn foundation_home_is_the_mission_statement() {
     assert!(body.contains("<title>Neon Law Foundation | Mission</title>"));
     assert!(body.contains("class=\"mission-letter\""));
     assert!(
-        !body.contains("Open the Navigator workshop"),
+        !body.contains("Open the Neon Law Navigator workshop"),
         "old Foundation landing hero should not render on /foundation: {body}"
     );
 }
@@ -609,7 +609,7 @@ async fn navigator_serves_the_readme_under_foundation_brand() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Navigator</title>"));
+    assert!(body.contains("<title>Neon Law Foundation | Neon Law Navigator</title>"));
     // The page is the README: its H1 and the getting-started command.
     assert!(body.contains(">Neon Law Navigator</h1>"));
     assert!(body.contains("cargo run -p cli -- start-dev-server"));
@@ -681,15 +681,19 @@ async fn navigator_package_pages_render_each_crate_readme() {
     for (path, title, needle) in [
         (
             "/foundation/navigator/cli",
-            "Navigator CLI",
-            "Operator CLI for Navigator",
+            "Neon Law Navigator CLI",
+            "Operator CLI for Neon Law Navigator",
         ),
         (
             "/foundation/navigator/mcp",
-            "Navigator MCP",
+            "Neon Law Navigator MCP",
             "Model Context Protocol",
         ),
-        ("/foundation/navigator/web", "Navigator Web", "axum"),
+        (
+            "/foundation/navigator/web",
+            "Neon Law Navigator Web",
+            "axum",
+        ),
     ] {
         let resp = app
             .clone()
@@ -707,7 +711,7 @@ async fn navigator_package_pages_render_each_crate_readme() {
             "{path} should render its README ({needle})"
         );
         assert!(
-            body.contains("aria-label=\"Navigator packages\""),
+            body.contains("aria-label=\"Neon Law Navigator packages\""),
             "{path} should carry the package strip"
         );
     }
@@ -1504,7 +1508,7 @@ async fn deploy_workshop_md_twin_and_llms_index_the_real_content() {
     assert_eq!(ctype, "text/markdown; charset=utf-8");
     let body = body_string(resp).await;
     assert!(
-        body.contains("# Deploy the Navigator"),
+        body.contains("# Deploy the Neon Law Navigator"),
         "raw markdown title"
     );
     assert!(body.contains("cargo run -p cli -- gcp setup --project-id"));

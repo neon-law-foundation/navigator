@@ -1,7 +1,7 @@
 //! Workshop completion certificate.
 //!
 //! Renders a single-page landscape PDF certifying that a named person
-//! completed a Navigator workshop. The workshop "light table" tracks
+//! completed a Neon Law Navigator workshop. The workshop "light table" tracks
 //! progress client-side (browser `localStorage`, no telemetry); once a
 //! student has seen every slide they may request this certificate, which
 //! the durable `certificate_send` workflow generates here and emails as
@@ -22,7 +22,7 @@ use crate::{render, PdfError};
 pub struct CertificateParams {
     /// The recipient's name, as they entered it.
     pub recipient_name: String,
-    /// The workshop title, e.g. "Using the Navigator to Rapidly Solve
+    /// The workshop title, e.g. "Using the Neon Law Navigator to Rapidly Solve
     /// Legal Outcomes".
     pub workshop_title: String,
     /// Human-formatted issue date, e.g. "June 24, 2026".
@@ -100,7 +100,7 @@ mod tests {
     fn params() -> CertificateParams {
         CertificateParams {
             recipient_name: "Jane Q. Student".into(),
-            workshop_title: "Using the Navigator to Rapidly Solve Legal Outcomes".into(),
+            workshop_title: "Using the Neon Law Navigator to Rapidly Solve Legal Outcomes".into(),
             issued_date: "June 24, 2026".into(),
         }
     }

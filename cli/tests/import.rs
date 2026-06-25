@@ -3,7 +3,7 @@
 //! Postgres schema spun up via `store::test_support::pg`. These
 //! tests prove that
 //!
-//! 1. Every shipped template lints clean against the full Navigator
+//! 1. Every shipped template lints clean against the full Neon Law Navigator
 //!    default rule set (so the fixtures stay honest).
 //! 2. The import path actually writes templates and questions to the
 //!    database — re-running it is idempotent and doesn't duplicate.

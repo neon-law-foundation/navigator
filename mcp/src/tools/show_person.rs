@@ -30,7 +30,7 @@ const MAX_RESULTS: u64 = 50;
 pub fn descriptor() -> Value {
     json!({
         "name": "aida_show_person",
-        "description": "Fuzzy-find people in Navigator by name and/or email. \
+        "description": "Fuzzy-find people in Neon Law Navigator by name and/or email. \
                         Both fields are matched case-insensitively as substrings, \
                         so partial fragments (\"libra\", \"@neonlaw.com\") work. \
                         At least one of `name` or `email` is required; when both \

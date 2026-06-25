@@ -1,28 +1,27 @@
-# Deploy the Navigator
+# Deploy the Neon Law Navigator
 
-Our firm runs Navigator on Google Cloud. The Foundation gives the recipe away. This workshop stands up your **own**
-instance — the same Rust stack our attorneys use, on your own Google Cloud project, for your own community. One command
-does most of the work: `navigator gcp setup`, a provisioner written in Rust that talks to Google's REST APIs directly
-and ships with a dry-run so you can read the whole plan before a single packet leaves your laptop.
+Our firm runs Neon Law Navigator on Google Cloud. The Foundation gives the recipe away. This workshop stands up your
+**own** instance — the same Rust stack our attorneys use, on your own Google Cloud project, for your own community. One
+command does most of the work: `navigator gcp setup`, a provisioner written in Rust that talks to Google's REST APIs
+directly and ships with a dry-run so you can read the whole plan before a single packet leaves your laptop.
 
 Two things to hold up front. This provisions **billable** Google Cloud resources — a Cloud SQL instance, a GKE Autopilot
 cluster, three storage buckets — so it is not free, and you should set a budget alert before you begin. And this is a
 deployment guide for engineers standing up infrastructure. With that said: you can run the same stack we run. Let's
 stand it up.
 
-> **Want a free win first?** You do not need a cloud account — or a credit card — to see Navigator run. `cargo run -p
-> cli -- start-dev-server` brings the whole stack up locally in [KIND](https://kind.sigs.k8s.io/) (Postgres, OIDC,
-> storage, the workflow broker, OPA), then `source .devx/env` and `cargo run -p web` serves it on `localhost`. Boot it
-> empty, click around, and only come back here when you want it on the public internet. The full local loop is the
-> `kind-local-dev`
-> path in [`docs/RUNBOOK.md`](/docs/RUNBOOK).
+> **Want a free win first?** You do not need a cloud account — or a credit card — to see Neon Law Navigator run.
+> `cargo run -p cli -- start-dev-server` brings the whole stack up locally in
+> [KIND](https://kind.sigs.k8s.io/) (Postgres, OIDC, storage, the workflow broker, OPA), then `source .devx/env` and
+> `cargo run -p web` serves it on `localhost`. Boot it empty, click around, and only come back here when you want it on
+> the public internet. The full local loop is the `kind-local-dev` path in [`docs/RUNBOOK.md`](/docs/RUNBOOK).
 
 **Set the budget alert before you provision** — one command caps the surprise so the bill cannot run away while you
 learn:
 
 ```bash
 gcloud billing budgets create --billing-account "$BILLING_ACCOUNT_ID" \
-  --display-name "Navigator" --budget-amount 200USD \
+  --display-name "Neon Law Navigator" --budget-amount 200USD \
   --threshold-rule percent=0.5 --threshold-rule percent=0.9
 ```
 
@@ -57,7 +56,7 @@ safe. **Execute** — bring up the GKE Autopilot cluster, the static IP, and Fle
 billing account, then authenticate so the CLI can act as you:
 
 ```bash
-gcloud projects create your-project-id --name "Navigator"
+gcloud projects create your-project-id --name "Neon Law Navigator"
 gcloud billing projects link your-project-id --billing-account "$BILLING_ACCOUNT_ID"
 gcloud auth application-default login
 ```
@@ -107,10 +106,9 @@ like every step — is safe to repeat. Nothing else in the run works until these
 
 With the APIs on, the CLI provisions the data plane over REST:
 
-- A **custom-mode VPC** — no auto-created subnets, regional routing.
-- A **Cloud SQL for Postgres** instance running Postgres 15, with a `navigator` database and a `web` user.
-- **Three Cloud Storage buckets**, all uniform bucket-level access: `-assets` (public), `-documents` (private client
-  documents), `-logs` (Nearline audit logs).
+- A **custom-mode VPC** — no auto-created subnets, regional routing. A **Cloud SQL for Postgres** instance running
+  Postgres 15, with a `navigator` database and a `web` user. **Three Cloud Storage buckets**, all uniform bucket-level
+  access: `-assets` (public), `-documents` (private client documents), `-logs` (Nearline audit logs).
 
 ---
 
@@ -169,7 +167,7 @@ values in [Doppler](https://www.doppler.com/) (`dev` for local and CI, `prd` ren
 
 ## Sign-in: bring an OIDC provider, never store passwords
 
-Navigator **never stores a password** — no password column, no hashing crate. Identity is delegated to an
+Neon Law Navigator **never stores a password** — no password column, no hashing crate. Identity is delegated to an
 **OIDC-compatible provider** you bring, via the standard Authorization Code + PKCE flow. Four env vars wire it:
 
 ```bash
@@ -181,9 +179,9 @@ OAUTH_REDIRECT_URI=https://www.your-domain.example/auth/callback
 
 ---
 
-Navigator speaks the standard Authorization Code + PKCE flow against the provider (`/auth/login` → `/auth/callback`) and
-discovers every endpoint from `<issuer>/.well-known/openid-configuration`, so no provider URL is hard-coded. Worked
-examples for Keycloak, Google, Auth0, and Okta live in `.env.example`.
+Neon Law Navigator speaks the standard Authorization Code + PKCE flow against the provider (`/auth/login` →
+`/auth/callback`) and discovers every endpoint from `<issuer>/.well-known/openid-configuration`, so no provider URL is
+hard-coded. Worked examples for Keycloak, Google, Auth0, and Okta live in `.env.example`.
 
 **Why we delegate rather than store.** A legal-services portal holding its own password hashes would own a breach
 liability, a reset / MFA / lockout system to build and operate, and an account-recovery support burden — none of which
@@ -194,12 +192,12 @@ never a provider reconfiguration — see [`docs/oidc.md`](/docs/oidc) for the fu
 
 **Email/password without Google — bring a provider that hosts its own login.** The person a clinic serves may have no
 Google account, and "Sign in with Google" cannot be the only front door of a public legal-services portal. Any standards
-OIDC provider that hosts its own email/password login page works with the env-swap above and **zero Navigator code
-changes** — because email/password is a feature of the _provider_, not of Navigator. **Keycloak** is the same
-open-source IdP the local KIND loop already runs; it serves email/password, self-registration, password reset, and email
-verification from its own hosted pages, runs in your cluster with no per-user fee, and is the recommended no-Google
-path. **Auth0 / Okta** are hosted SaaS equivalents: same four env vars, same redirect flow, their own login + reset
-pages.
+OIDC provider that hosts its own email/password login page works with the env-swap above and **zero Neon Law Navigator
+code changes** — because email/password is a feature of the _provider_, not of Neon Law Navigator. **Keycloak** is the
+same open-source IdP the local KIND loop already runs; it serves email/password, self-registration, password reset, and
+email verification from its own hosted pages, runs in your cluster with no per-user fee, and is the recommended
+no-Google path. **Auth0 / Okta** are hosted SaaS equivalents: same four env vars, same redirect flow, their own login +
+reset pages.
 
 **GCP Identity Platform — the Google-managed option.** If you want Google to own the account store (NeonLaw's own prod
 choice — see [`docs/gke-prod.md`](/docs/gke-prod)), Identity Platform is Google's customer-identity service, with
@@ -210,8 +208,8 @@ email/password road, a hosted-login IdP like Keycloak is the simpler choice.
 
 ## The external surface — every third party, in one place
 
-Navigator's whole external surface is six services, in two kinds — **platform services** (the cloud the stack runs on)
-and **feature vendors** (each lights up one capability and stubs out cleanly when unconfigured):
+Neon Law Navigator's whole external surface is six services, in two kinds — **platform services** (the cloud the stack
+runs on) and **feature vendors** (each lights up one capability and stubs out cleanly when unconfigured):
 
 | Service | What it gives you | Kind | At boot |
 | --- | --- | --- | --- |
@@ -239,9 +237,9 @@ Two things worth saying out loud for a copyist:
   production envelope quota, lives in [`docs/third-party-integrations.md`](/docs/third-party-integrations) and
   [`docs/docusign-esignature.md`](/docs/docusign-esignature).
 
-One boundary worth naming: **Xero reconciles against the firm's bank (Mercury) inside Xero** — Navigator never speaks to
-Mercury. Our only integration edge is the Xero API. That is the shape to copy: integrate the system of record, not
-everything it in turn connects to.
+One boundary worth naming: **Xero reconciles against the firm's bank (Mercury) inside Xero** — Neon Law Navigator never
+speaks to Mercury. Our only integration edge is the Xero API. That is the shape to copy: integrate the system of record,
+not everything it in turn connects to.
 
 ## Ship and verify
 
@@ -270,8 +268,8 @@ stays private. Then pin the dated `YY.MM.DD` tag in the overlay — **never `:la
 your project's values supplied as a Kubernetes Secret and the runtime `.env`.
 
 Then confirm the service is live — and you can do it **from the page itself**. The site footer renders the deployed
-release as "Navigator YY.MM.DD", so the moment your new image is serving traffic the footer changes: that is your
-end-to-end "it worked." For a scripted check:
+release as "Neon Law Navigator YY.MM.DD", so the moment your new image is serving traffic the footer changes: that is
+your end-to-end "it worked." For a scripted check:
 
 ```bash
 curl -fsS https://www.your-domain.example/readyz
@@ -343,8 +341,8 @@ agent-routable tool. The full per-subcommand reference is the `cli` crate's `REA
 
 ## Make it yours — white-label under your own brand
 
-Navigator runs two brands from one binary, and every brand-identifying string is env-driven — so you can ship it under
-your own name without forking source. Describe your organization once in a `navigator.yaml` brand pack:
+Neon Law Navigator runs two brands from one binary, and every brand-identifying string is env-driven — so you can ship
+it under your own name without forking source. Describe your organization once in a `navigator.yaml` brand pack:
 
 ```bash
 cp navigator.example.yaml navigator.yaml   # then edit: names, emails, domain, logos
@@ -359,13 +357,13 @@ The pack sets only **identity** — names (`NAVIGATOR_BRAND_FIRM`), support addr
 domain, the consultation link, and your `logo-firm.svg` / `logo-firm.png`. It never machine-generates your binding legal
 text.
 
-Most firms already run their own marketing site and have a team for it, so Navigator does not need to be your public
-website — it can be just the client portal and workflow engine. **`NAVIGATOR_PORTAL_ONLY=true`** mounts only the
+Most firms already run their own marketing site and have a team for it, so Neon Law Navigator does not need to be your
+public website — it can be just the client portal and workflow engine. **`NAVIGATOR_PORTAL_ONLY=true`** mounts only the
 application surface (`/portal`, auth, `/api`, `/mcp`, the git transport, webhooks, the health probes, and the legal
 pages) and drops the public marketing + Foundation site; `/` redirects to `/portal`, and your own website links to your
-Navigator portal. **`NAVIGATOR_TERMS_URL` / `NAVIGATOR_PRIVACY_URL`** point the footer's Terms and Privacy links at the
-legal pages your own attorney publishes on your own site; `brand verify` rejects a portal-only pack with an empty
-`terms_url` — so you never ship NeonLaw's bundled, Nevada-governed terms under your name.
+Neon Law Navigator portal. **`NAVIGATOR_TERMS_URL` / `NAVIGATOR_PRIVACY_URL`** point the footer's Terms and Privacy
+links at the legal pages your own attorney publishes on your own site; `brand verify` rejects a portal-only pack with an
+empty `terms_url` — so you never ship NeonLaw's bundled, Nevada-governed terms under your name.
 
 If you would rather not run the install yourself, the Foundation will do it for you, migrate your data, and train your
 team: see [Neon Law Foundation Nimbus](/foundation/nimbus).
@@ -375,14 +373,14 @@ team: see [Neon Law Foundation Nimbus](/foundation/nimbus).
 This workshop is the narrative; these docs are the source of truth and stay current — prefer them when they disagree:
 
 - [`docs/oss-install.md`](/docs/oss-install) — the full end-to-end install (env, Secret, overlay, image, verify).
-- [`docs/secrets-doppler.md`](/docs/secrets-doppler) — secrets management (Doppler `dev`/`prd`, or the `.env` fallback).
-- [`docs/third-party-integrations.md`](/docs/third-party-integrations) — the per-environment vendor-account convention.
-- [`docs/docusign-esignature.md`](/docs/docusign-esignature) — e-signature setup and the one-app, two-environment model.
+  [`docs/secrets-doppler.md`](/docs/secrets-doppler) — secrets management (Doppler `dev`/`prd`, or the `.env` fallback).
+  [`docs/third-party-integrations.md`](/docs/third-party-integrations) — the per-environment vendor-account convention.
+  [`docs/docusign-esignature.md`](/docs/docusign-esignature) — e-signature setup and the one-app, two-environment model.
 
 ---
 
 This is the access-to-justice fight made deployable: the cheaper and more repeatable it is to stand up a grounded legal
 harness, the more clinics and small firms can run one. Read the [Foundation mission](/foundation/mission) for why that
 matters — and when your instance is live, tell us at
-[support@neonlaw.org](mailto:support@neonlaw.org?subject=Deployed+the+Navigator) so we can point the next deployer at
-what you learned.
+[support@neonlaw.org](mailto:support@neonlaw.org?subject=Deployed+the+Neon+Law+Navigator) so we can point the next
+deployer at what you learned.

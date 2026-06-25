@@ -1,4 +1,4 @@
-# KIND (Kubernetes IN Docker) cluster topology for Navigator's
+# KIND (Kubernetes IN Docker) cluster topology for Neon Law Navigator's
 # end-to-end developer environment. One control-plane node, one
 # worker. Ports 80/443 land on a NodePort-backed ingress controller
 # (kept open so `localhost` reaches the cluster directly). The

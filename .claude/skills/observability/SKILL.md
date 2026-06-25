@@ -1,7 +1,7 @@
 ---
 name: observability
 description: >
-  How Navigator emits telemetry and how to debug a durable-execution failure fast. Every binary shares one seam,
+  How Neon Law Navigator emits telemetry and how to debug a durable-execution failure fast. Every binary shares one seam,
   `telemetry::init` (stdout logs — JSON in prod — plus OTLP traces + metrics when `OTEL_EXPORTER_OTLP_ENDPOINT` is set),
   and everything lands in BigQuery (structured logs via a Cloud Logging sink; traces/metrics via an OTel Collector to
   Cloud Trace/Monitoring). Trigger when adding a span/metric/log field, instrumenting a handler or workflow, wiring a
@@ -17,9 +17,9 @@ description: >
 The single most important rule, before anything else:
 
 > **Identifiers and counts, never content.** A span attribute, metric label, or log field may carry a `notation_id`, a
-> `service` name, an `outcome`, a duration, an HTTP status — never a client name, an answer body, an email address, or a
-> document body. Telemetry leaves the firm's trust boundary; privileged client content does not. This is a standing
-> engineering- and legal-council order. When in doubt, log the id and look the rest up.
+  `service` name, an `outcome`, a duration, an HTTP status — never a client name, an answer body, an email address, or a
+  document body. Telemetry leaves the firm's trust boundary; privileged client content does not. This is a standing
+  engineering- and legal-council order. When in doubt, log the id and look the rest up.
 
 ## The seam
 
@@ -27,8 +27,8 @@ Every binary calls `telemetry::init("navigator-<name>")` once in `main` and **ho
 `main`** (the drop flushes batched export — critical for short-lived trigger jobs). Never hand-roll `tracing_subscriber`
 in a binary again; the crate is the one seam.
 
-- `OTEL_EXPORTER_OTLP_ENDPOINT` **unset** → human `fmt` logs to stdout, no OTLP. Zero cost (dev/CI/forks).
-- **set** → JSON logs to stdout (Cloud Logging parses them) **plus** OTLP traces + metrics to the collector.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` **unset** → human `fmt` logs to stdout, no OTLP. Zero cost (dev/CI/forks). **set** →
+  JSON logs to stdout (Cloud Logging parses them) **plus** OTLP traces + metrics to the collector.
 
 Wiring a new binary: add `telemetry.workspace = true`, then in `main` bind the guard to a name (never `let _ =`, which
 drops instantly):
@@ -39,9 +39,9 @@ let _telemetry = telemetry::init("navigator-<name>");
 
 **Opt-out by design.** The seam is for the *service* binaries — the 9 that wire it are `web`, `workflows-service`, the
 four `*-trigger` jobs, `statutes-sync`, `statutes-trigger`, and `redirect`. The interactive / short-lived CLIs — `cli`
-(navigator), `navigator-lsp` — deliberately do **not** init it: their output is for a human at a
-terminal (or an LSP client over stdio), not the lake, so instrumenting them would only add noise. Wiring a new *service*
-binary is the rule; a new CLI staying stdout-only is the exception, and it is a choice, not an oversight.
+(navigator), `navigator-lsp` — deliberately do **not** init it: their output is for a human at a terminal (or an LSP
+client over stdio), not the lake, so instrumenting them would only add noise. Wiring a new *service* binary is the rule;
+a new CLI staying stdout-only is the exception, and it is a choice, not an oversight.
 
 ## Instrumenting work
 
@@ -53,7 +53,7 @@ binary is the rule; a new CLI staying stdout-only is the exception, and it is a 
   `mcp::server::handle_tools_call` (span `mcp.tool.call` + metric `navigator.mcp.tool.called{tool,outcome}`). Tool name
   and outcome only — never the `arguments`.
 - Spans: `#[tracing::instrument(skip(secret_or_body), fields(service = ..., key = ...))]`. Skip bodies and tokens.
-- Metrics: `telemetry::record_trigger_fired(service, outcome)` is the model — create the counter from
+  Metrics: `telemetry::record_trigger_fired(service, outcome)` is the model — create the counter from
   `opentelemetry::global::meter(...)`, add with `KeyValue` labels that are ids/enums only. Safe to call when OTLP is off
   (the global meter is a no-op).
 - Events: `tracing::error!(service, status = code, "…")` — fields are ids/counts; the message names the condition.

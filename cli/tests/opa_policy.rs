@@ -1,4 +1,4 @@
-//! Integration test pinning the Navigator OPA authorization policy.
+//! Integration test pinning the Neon Law Navigator OPA authorization policy.
 //!
 //! The policy is a pure function `input -> bool`, so its decisions are
 //! best asserted by `opa test` against the real Rego — not by deploying

@@ -28,14 +28,14 @@ struct ManifestEntry {
 }
 
 /// Subdirectory under the workshops content root where the
-/// Navigator workshop's materials live.
+/// Neon Law Navigator workshop's materials live.
 const NAVIGATOR_FOLDER: &str = "navigator";
 
 const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
     ManifestEntry {
         category: "workshops",
         slug: "use-the-navigator",
-        title: "Using the Navigator to Rapidly Solve Legal Outcomes",
+        title: "Using the Neon Law Navigator to Rapidly Solve Legal Outcomes",
         description: "A single hands-on workshop for attorneys. Build a deed-of-sale notation \
                       with a notarization step using Gemini's Add AIDA connector — no command \
                       line, no software install. Walk out with a three-minute demo of a \
@@ -51,8 +51,8 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
     ManifestEntry {
         category: "workshops",
         slug: "deploy-the-navigator",
-        title: "Deploy the Navigator",
-        description: "Stand up your own Navigator instance on a custom Google Cloud project. Six \
+        title: "Deploy the Neon Law Navigator",
+        description: "Stand up your own Neon Law Navigator instance on a custom Google Cloud project. Six \
                       grounded steps walk `navigator gcp setup` — APIs, VPC, Cloud SQL, three buckets, \
                       and a GKE Autopilot cluster — with a dry-run that shows every API call \
                       before a packet leaves your laptop.",
@@ -87,7 +87,7 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
     },
 ];
 
-/// Load every manifest entry for the Navigator workshop. Missing
+/// Load every manifest entry for the Neon Law Navigator workshop. Missing
 /// files are silently skipped so a partial install still boots; the
 /// index page drops cards for materials it couldn't find.
 pub fn load_navigator(content_root: &Path) -> Result<Vec<WorkshopMaterial>, ContentLoadError> {
@@ -457,7 +457,7 @@ mod tests {
         fs::create_dir_all(&target).unwrap();
         fs::write(
             target.join("README.md"),
-            "# Runbook\n\nWelcome to Navigator.\n",
+            "# Runbook\n\nWelcome to Neon Law Navigator.\n",
         )
         .unwrap();
         let materials = load_navigator(dir.path()).unwrap();
@@ -466,7 +466,7 @@ mod tests {
         assert_eq!(materials[0].slug, "use-the-navigator");
         assert_eq!(
             materials[0].title,
-            "Using the Navigator to Rapidly Solve Legal Outcomes",
+            "Using the Neon Law Navigator to Rapidly Solve Legal Outcomes",
         );
         // The audience tag and you-voiced benefit ride the manifest, not
         // the markdown — the overview card is fed from these.

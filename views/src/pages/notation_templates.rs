@@ -28,7 +28,7 @@ pub fn render(auth: AuthState) -> Markup {
     };
     PageLayout::new("Notations")
         .with_description(
-            "The Navigator notation tree: markdown blueprints for legal \
+            "The Neon Law Navigator notation tree: markdown blueprints for legal \
              intake, workflows, and attorney-reviewed documents.",
         )
         .with_brand(*FOUNDATION_BRAND)

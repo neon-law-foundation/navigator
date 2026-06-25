@@ -12,7 +12,7 @@ Feature: /portal/projects/:id — the client's invoice card reads the Xero mirro
   billing-workflows reconcile.rs.
 
   Background:
-    Given the Navigator app is running
+    Given the Neon Law Navigator app is running
 
   Scenario: A freshly raised invoice shows the matter total as Due
     Given a seeded person "capricorn@example.com" with role "client"

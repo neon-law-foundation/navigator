@@ -1,8 +1,8 @@
 # views
 
-All HTML for Navigator lives here. Maud components plus full-page templates for the public site (home, about, services,
-foundation, blog, workshops) and the admin UI. The crate has no notion of routing, state, or persistence — `web` hands
-it data and it returns `Markup`.
+All HTML for Neon Law Navigator lives here. Maud components plus full-page templates for the public site (home, about,
+services, foundation, blog, workshops) and the admin UI. The crate has no notion of routing, state, or persistence —
+`web` hands it data and it returns `Markup`.
 
 ## Getting started
 

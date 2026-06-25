@@ -61,7 +61,7 @@ impl LangWorld {
     }
 }
 
-#[given("a fresh Navigator app with the canonical templates seeded")]
+#[given("a fresh Neon Law Navigator app with the canonical templates seeded")]
 async fn build_app(world: &mut LangWorld) {
     let db = in_memory_db().await;
     let storage = fs_storage("intake-language").await;

@@ -23,7 +23,7 @@ Feature: AIDA sends a welcome email from a free-form A2A message
   real welcome email rendered through the CapturingEmail backend.
 
   Background:
-    Given a CapturingEmail-backed Navigator app whose AIDA router runs the lookup-then-send chain
+    Given a CapturingEmail-backed Neon Law Navigator app whose AIDA router runs the lookup-then-send chain
     And a staff persons row for "Firm Staff" with email "staff@neonlaw.com"
 
   Scenario: A free-form welcome request pauses for authorization, then sends on yes

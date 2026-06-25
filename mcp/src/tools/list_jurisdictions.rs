@@ -18,7 +18,7 @@ use super::ToolError;
 pub fn descriptor() -> Value {
     json!({
         "name": "aida_list_jurisdictions",
-        "description": "List every jurisdiction Navigator knows about \
+        "description": "List every jurisdiction Neon Law Navigator knows about \
                         (US states, federal, foreign), returning id, name, \
                         and short code (`NV`, `CA`, `US`). Use this when a \
                         user asks where an entity can be organized, what \

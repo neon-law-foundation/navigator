@@ -1,4 +1,4 @@
-# OpenTelemetry Collector — the telemetry seam every Navigator binary speaks to.
+# OpenTelemetry Collector — the telemetry seam every Neon Law Navigator binary speaks to.
 #
 # Binaries set OTEL_EXPORTER_OTLP_ENDPOINT to this Service and emit OTLP traces,
 # metrics, AND logs (see telemetry/src/lib.rs — logs now export over OTLP too,
@@ -112,7 +112,7 @@ data:
           - k8s.deployment.name
           - k8s.node.name
           - container.name
-          # --- Navigator operational (what telemetry/workflows emit) ---
+          # --- Neon Law Navigator operational (what telemetry/workflows emit) ---
           - service
           - outcome
           - handler

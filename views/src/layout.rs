@@ -412,7 +412,7 @@ impl<'a> PageLayout<'a> {
                                 }
                             }
                         }
-                        // Bottom line: the Navigator version and the repo-star
+                        // Bottom line: the Neon Law Navigator version and the repo-star
                         // CTA share one row, and a version ALWAYS shows. In a
                         // deployed image it is the `YY.MM.DD` ghcr tag this
                         // build shipped under (same value as `/version`'s
@@ -428,11 +428,11 @@ impl<'a> PageLayout<'a> {
                                 (external_link_with_class(
                                     &format!("{}/releases/tag/{release}", foundation_github_url()),
                                     "link-secondary text-decoration-none small",
-                                    html! { "Navigator " (release) },
+                                    html! { "Neon Law Navigator " (release) },
                                 ))
                             } @else {
                                 span."small"."text-body-secondary" {
-                                    "Navigator " (env!("CARGO_PKG_VERSION"))
+                                    "Neon Law Navigator " (env!("CARGO_PKG_VERSION"))
                                 }
                             }
                             (github_star_button(
@@ -1055,8 +1055,8 @@ mod tests {
         let footer = firm_footer();
         let version = crate::brand::deployed_release().unwrap_or(env!("CARGO_PKG_VERSION"));
         assert!(
-            footer.contains(&format!("Navigator {version}")),
-            "footer should always carry a Navigator version line: {footer}"
+            footer.contains(&format!("Neon Law Navigator {version}")),
+            "footer should always carry a Neon Law Navigator version line: {footer}"
         );
     }
 

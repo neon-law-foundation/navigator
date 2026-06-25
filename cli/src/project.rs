@@ -72,6 +72,17 @@ pub async fn create(
     let staff_dri = store::persons::default_firm_dri(db).await?.ok_or_else(|| {
         anyhow::anyhow!("no firm principal for the staff DRI — seed a staff/admin person first")
     })?;
+    // Conflict check — runs before the matter is created, like the web and
+    // MCP paths. The CLI is non-interactive, so **any** finding (block or
+    // review) refuses the open; resolve it through the portal, where
+    // authorized staff can review and acknowledge.
+    let conflict = store::conflicts::check_new_matter(db, client.id, entity_id).await?;
+    if !conflict.is_clear() {
+        anyhow::bail!(
+            "conflict check refused this matter — resolve it in the portal before opening:\n{}",
+            conflict.summary_lines().join("\n")
+        );
+    }
     let inserted = project::ActiveModel {
         name: ActiveValue::Set(name.to_string()),
         status: ActiveValue::Set(status.to_string()),

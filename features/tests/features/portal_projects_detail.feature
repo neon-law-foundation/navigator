@@ -10,7 +10,7 @@ Feature: /portal/projects/:id — single matter detail, scoped to the caller
   [`docs/access-model.md`](../../../../docs/access-model.md).
 
   Background:
-    Given the Navigator app is running
+    Given the Neon Law Navigator app is running
 
   Scenario: An admin can read any project's detail
     Given a seeded person "nick@neonlaw.com" with role "admin"
