@@ -280,18 +280,7 @@ pub async fn build_graph(db: &Db) -> Result<ConflictGraph, sea_orm::DbErr> {
         );
     }
 
-    let person_names = person::Entity::find()
-        .all(db)
-        .await?
-        .into_iter()
-        .map(|p| (p.id, p.name))
-        .collect();
-    let entity_names = entities::Entity::find()
-        .all(db)
-        .await?
-        .into_iter()
-        .map(|e| (e.id, e.name))
-        .collect::<HashMap<_, _>>();
+    let (person_names, entity_names) = load_node_names(db, &index).await?;
 
     let mut entity_clients: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
     let mut client_persons: HashSet<Uuid> = HashSet::new();
@@ -309,14 +298,7 @@ pub async fn build_graph(db: &Db) -> Result<ConflictGraph, sea_orm::DbErr> {
         }
     }
 
-    let mut entity_disclosures: HashMap<Uuid, Vec<String>> = HashMap::new();
-    for d in disclosure::Entity::find().all(db).await? {
-        if matches!(d.kind.as_str(), "conflict" | "related_party") {
-            if let Some(eid) = d.entity_id {
-                entity_disclosures.entry(eid).or_default().push(d.summary);
-            }
-        }
-    }
+    let entity_disclosures = load_entity_disclosures(db).await?;
 
     Ok(ConflictGraph {
         graph,
@@ -327,6 +309,59 @@ pub async fn build_graph(db: &Db) -> Result<ConflictGraph, sea_orm::DbErr> {
         client_persons,
         entity_disclosures,
     })
+}
+
+async fn load_node_names(
+    db: &Db,
+    index: &HashMap<NodeRef, NodeIndex>,
+) -> Result<(HashMap<Uuid, String>, HashMap<Uuid, String>), sea_orm::DbErr> {
+    let mut person_ids = Vec::new();
+    let mut entity_ids = Vec::new();
+    for node_ref in index.keys() {
+        match node_ref.kind {
+            NodeKind::Person => person_ids.push(node_ref.id),
+            NodeKind::Entity => entity_ids.push(node_ref.id),
+        }
+    }
+
+    let person_names = if person_ids.is_empty() {
+        HashMap::new()
+    } else {
+        person::Entity::find()
+            .filter(person::Column::Id.is_in(person_ids))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|p| (p.id, p.name))
+            .collect()
+    };
+    let entity_names = if entity_ids.is_empty() {
+        HashMap::new()
+    } else {
+        entities::Entity::find()
+            .filter(entities::Column::Id.is_in(entity_ids))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|e| (e.id, e.name))
+            .collect()
+    };
+    Ok((person_names, entity_names))
+}
+
+async fn load_entity_disclosures(db: &Db) -> Result<HashMap<Uuid, Vec<String>>, sea_orm::DbErr> {
+    let mut entity_disclosures: HashMap<Uuid, Vec<String>> = HashMap::new();
+    for d in disclosure::Entity::find()
+        .filter(disclosure::Column::Kind.is_in(["conflict", "related_party"]))
+        .filter(disclosure::Column::EntityId.is_not_null())
+        .all(db)
+        .await?
+    {
+        if let Some(eid) = d.entity_id {
+            entity_disclosures.entry(eid).or_default().push(d.summary);
+        }
+    }
+    Ok(entity_disclosures)
 }
 
 /// One node the traversal reached, with how it got there.
@@ -358,22 +393,19 @@ impl ConflictGraph {
     /// whether an `adverse_to` edge lay on the way.
     fn reach(&self, anchors: &[NodeRef]) -> HashMap<NodeRef, Reached> {
         let mut reached: HashMap<NodeRef, Reached> = HashMap::new();
-        let mut visited: HashSet<NodeRef> = HashSet::new();
         let mut queue: VecDeque<(NodeRef, i32, usize, bool, String)> = VecDeque::new();
 
         for &a in anchors {
-            if visited.insert(a) {
-                reached.insert(
-                    a,
-                    Reached {
-                        confidence_pct: 100,
-                        hops: 0,
-                        adverse_on_path: false,
-                        path: self.label(a),
-                    },
-                );
-                queue.push_back((a, 100, 0, false, self.label(a)));
-            }
+            reached.insert(
+                a,
+                Reached {
+                    confidence_pct: 100,
+                    hops: 0,
+                    adverse_on_path: false,
+                    path: self.label(a),
+                },
+            );
+            queue.push_back((a, 100, 0, false, self.label(a)));
         }
 
         while let Some((cur, conf, hops, adverse, path)) = queue.pop_front() {
@@ -390,9 +422,6 @@ impl ConflictGraph {
                     edge.source()
                 };
                 let next = self.graph[next_ix];
-                if visited.contains(&next) {
-                    continue;
-                }
                 let meta = edge.weight();
                 let next_conf = conf * meta.confidence_pct / 100;
                 if next_conf < REVIEW_FLOOR_PCT {
@@ -400,17 +429,24 @@ impl ConflictGraph {
                 }
                 let next_adverse = adverse || meta.kind == relationship_edge::KIND_ADVERSE_TO;
                 let next_path = format!("{path} —{}→ {}", meta.kind, self.label(next));
-                visited.insert(next);
-                reached.insert(
-                    next,
-                    Reached {
-                        confidence_pct: next_conf,
-                        hops: hops + 1,
-                        adverse_on_path: next_adverse,
-                        path: next_path.clone(),
-                    },
-                );
-                queue.push_back((next, next_conf, hops + 1, next_adverse, next_path));
+                let next_hops = hops + 1;
+                let should_update = reached.get(&next).is_none_or(|existing| {
+                    next_hops < existing.hops
+                        || (next_adverse && !existing.adverse_on_path)
+                        || next_conf > existing.confidence_pct
+                });
+                if should_update {
+                    reached.insert(
+                        next,
+                        Reached {
+                            confidence_pct: next_conf,
+                            hops: next_hops,
+                            adverse_on_path: next_adverse,
+                            path: next_path.clone(),
+                        },
+                    );
+                    queue.push_back((next, next_conf, next_hops, next_adverse, next_path));
+                }
             }
         }
         reached
@@ -694,6 +730,53 @@ mod tests {
         assert!(
             report.findings.iter().any(|f| f.reason == Reason::Adverse),
             "expected an adverse finding via the managed entity: {:?}",
+            report.summary_lines()
+        );
+    }
+
+    #[tokio::test]
+    async fn adverse_edge_between_anchors_blocks_even_with_structural_edge() {
+        let db = pg().await;
+        let proposed = person_named(&db, "Anchor Client").await;
+        let proposed_entity = seed_entity(&db).await;
+        let existing_client = person_named(&db, "Existing Entity Client").await;
+        open_project(&db, proposed_entity, existing_client).await;
+
+        // The structural edge is loaded before relationship_edges. The
+        // adverse edge still has to win; otherwise direct adversity to the
+        // proposed entity degrades into an overridable shared-party review.
+        person_entity_role::ActiveModel {
+            person_id: ActiveValue::Set(proposed),
+            entity_id: ActiveValue::Set(proposed_entity),
+            role: ActiveValue::Set("manages".into()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        relationship_edge::ActiveModel {
+            from_type: ActiveValue::Set(relationship_edge::NODE_PERSON.into()),
+            from_id: ActiveValue::Set(proposed),
+            to_type: ActiveValue::Set(relationship_edge::NODE_ENTITY.into()),
+            to_id: ActiveValue::Set(proposed_entity),
+            kind: ActiveValue::Set(relationship_edge::KIND_ADVERSE_TO.into()),
+            confidence_pct: ActiveValue::Set(100),
+            source_kind: ActiveValue::Set(relationship_edge::SOURCE_MANUAL.into()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+
+        let report = check_new_matter(&db, proposed, proposed_entity)
+            .await
+            .unwrap();
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.reason == Reason::Adverse && f.severity == Severity::Block),
+            "expected direct anchor adversity to block: {:?}",
             report.summary_lines()
         );
     }

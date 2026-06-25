@@ -1859,7 +1859,7 @@ async fn projects_create_staff_only(
         );
         return retainer_form_error(&state, &input, &msg).await;
     }
-    if !conflict.is_clear() && input.conflict_ack.is_none() {
+    if !conflict.is_clear() && input.conflict_ack.as_deref() != Some("1") {
         let msg = format!(
             "Conflict check flagged this matter for review. Confirm you have reviewed \
              these findings and are authorized to proceed.\n\n{}",

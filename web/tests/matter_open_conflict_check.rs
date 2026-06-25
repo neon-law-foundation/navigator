@@ -207,6 +207,25 @@ async fn shared_party_warns_then_opens_on_acknowledgment() {
         "no matter should open before acknowledgment",
     );
 
+    // A crafted POST with the field present but no checked value is still not
+    // an acknowledgment.
+    let resp = post_projects(&app, format!("{base}&conflict_ack=")).await;
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let html = body_string(resp).await;
+    assert!(
+        html.contains("flagged this matter for review"),
+        "empty conflict_ack must keep the review gate in place, got: {html}",
+    );
+    assert!(
+        entity::project::Entity::find()
+            .filter(entity::project::Column::Name.eq("Shared entity matter"))
+            .all(&db)
+            .await
+            .unwrap()
+            .is_empty(),
+        "empty conflict_ack must not open the matter",
+    );
+
     // Second submit with the acknowledgment → the matter opens and the
     // override is recorded to the relationship log.
     let resp = post_projects(&app, format!("{base}&conflict_ack=1")).await;

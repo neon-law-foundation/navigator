@@ -166,6 +166,20 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_relationship_edges_unique_tuple")
+                    .table(RelationshipEdges::Table)
+                    .col(RelationshipEdges::FromType)
+                    .col(RelationshipEdges::FromId)
+                    .col(RelationshipEdges::ToType)
+                    .col(RelationshipEdges::ToId)
+                    .col(RelationshipEdges::Kind)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
         Ok(())
     }
 
