@@ -5,7 +5,7 @@ description: Why Neon Law Foundation chose one language for fast, safe, local-fi
 
 _Nick is a lawyer for Neon Law and volunteer for the Neon Law Foundation_.
 
-![Ferris painted in Neon Law Foundation colors](/public/logos/ferris-rust-logo-nlf-handpainted.png)
+![Ferris painted in Neon Law Foundation colors](img/going-all-in-on-rust/ferris-rust-logo-nlf-handpainted.png)
 
 Friends,
 
