@@ -12,17 +12,15 @@
 //!
 //! Prebuilt binaries are served straight from the public assets bucket:
 //! `cli lsp publish` pushes one `navigator-lsp` per platform to
-//! `lsp/<triple>/navigator-lsp`, and the download buttons here resolve
-//! through the `views::assets::asset_url` seam — `/public` in dev and the
-//! `<project>-assets` GCS bucket in production. The shared blueprint
+//! the tag's GitHub Release, and the download buttons here resolve to
+//! those versioned `YY.MM.DD` release assets. The shared blueprint
 //! disclaimer rides this page too.
 
 use maud::{html, Markup};
 
-use crate::assets::asset_url;
 use crate::brand::FOUNDATION_BRAND;
 use crate::components::{external_link, legal_blueprint_disclaimer};
-use crate::lsp::{lsp_binary_key, LSP_TARGETS};
+use crate::pages::package::{release_downloads, ReleaseBinary};
 use crate::{markdown, AuthState, PageLayout};
 
 /// The Navigator monorepo — home of the `lsp/` crate and the bundled
@@ -112,42 +110,11 @@ pub fn render(auth: AuthState) -> Markup {
         .render(&body)
 }
 
-/// The "Download a prebuilt binary" section: one download link per
-/// [`LSP_TARGETS`] entry, each resolved through [`asset_url`] so the URL
-/// points at `/public` in dev and the `<project>-assets` GCS bucket in
-/// production — the same key `cli lsp publish` uploads to.
+/// The "Download" section: one archive per supported desktop platform,
+/// resolved to the current `YY.MM.DD` GitHub Release when this page is
+/// running from a deployed image.
 fn prebuilt_downloads() -> Markup {
-    html! {
-        section."mt-4" {
-            h2 { "Download a prebuilt binary" }
-            p {
-                "Grab the binary for your platform, make it executable, "
-                "and put it on your "
-                code { "$PATH" }
-                " (or point your editor's "
-                code { "binary.path" }
-                " at it). It's the same "
-                code { "navigator-lsp" }
-                " — JSON-RPC over stdio, zero telemetry."
-            }
-            ul.lsp-downloads {
-                @for target in LSP_TARGETS {
-                    li {
-                        a download href=(asset_url(&lsp_binary_key(target.triple))) {
-                            (target.label)
-                        }
-                        " "
-                        code { (target.triple) }
-                    }
-                }
-            }
-            pre { code {
-                "# make it runnable, then put it on your $PATH\n"
-                "chmod +x navigator-lsp\n"
-                "mv navigator-lsp /usr/local/bin/\n"
-            } }
-        }
-    }
+    release_downloads(ReleaseBinary::NavigatorLsp)
 }
 
 /// Render one editor's `docs/lsp/*.md` snippet verbatim. Each source
@@ -184,25 +151,14 @@ mod tests {
     }
 
     #[test]
-    fn offers_a_prebuilt_download_link_for_every_target() {
-        // Each registry target gets a download link resolving through the
-        // `asset_url` seam (the `lsp/<triple>/navigator-lsp` key). With no
-        // `NAVIGATOR_ASSET_BASE_URL` set (tests/dev), that resolves to the
-        // `/public` mount; in prod it points at the assets bucket.
+    fn offers_release_download_links() {
         let html = render(AuthState::Anonymous).into_string();
-        for target in crate::lsp::LSP_TARGETS {
-            let href = crate::assets::asset_url(&crate::lsp::lsp_binary_key(target.triple));
-            assert!(
-                html.contains(&format!("href=\"{href}\"")),
-                "missing download link for {}",
-                target.triple
-            );
-            assert!(
-                html.contains(target.label),
-                "missing label {}",
-                target.label
-            );
-        }
+        assert!(html.contains(">Download</h2>"), "got: {html}");
+        assert!(
+            html.contains("https://github.com/neon-law-foundation/Navigator/releases"),
+            "got: {html}"
+        );
+        assert!(html.contains("YY.MM.DD"), "got: {html}");
     }
 
     #[test]

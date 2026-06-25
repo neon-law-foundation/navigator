@@ -1106,7 +1106,7 @@ async fn navigator_lsp(MaybeAuth(auth): MaybeAuth) -> Markup {
 
 /// `GET /foundation/navigator/cli` — the `navigator` operator CLI.
 async fn navigator_cli(MaybeAuth(auth): MaybeAuth) -> Markup {
-    views::pages::package::render(
+    views::pages::package::render_cli(
         "Navigator CLI",
         "The navigator operator CLI — validate markdown templates, import and seed \
          data, render the ER diagram, and drive deploys.",

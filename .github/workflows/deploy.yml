@@ -8,7 +8,8 @@ name: deploy
 #      e2e + interop + browser/accessibility suite against the live cluster.
 #   2. publish     — only if integration is green, push all images (the two
 #      service images + the five CronJob trigger images) to ghcr.io tagged
-#      with the release date + `latest`.
+#      with the release date + `latest`; concurrently build CLI/LSP binaries
+#      for Linux, macOS, and Windows and attach them to the GitHub Release.
 #   3. notify      — post a "ready to deploy" hand-off to the engineering Slack
 #      channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from
 #      Doppler), tagging Nick with the exact `power-push` command to roll the new
@@ -490,18 +491,113 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
+  # ---------- Stage 2b: build downloadable CLI + LSP binaries ----------
+  # Runs after the same KIND integration gate as image publishing, then builds
+  # the two user-facing executables on native hosted runners. This makes the
+  # tag's GitHub Release carry six downloads: `navigator` and `navigator-lsp`
+  # for Linux, macOS, and Windows. It is deliberately parallel with `publish`;
+  # these artifacts are for people, while `publish` pushes the container images
+  # prod will run.
+  release-binaries-build:
+    name: build release binaries (${{ matrix.platform }})
+    needs: integration
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-latest
+            exe: ""
+            archive: tar.gz
+          - platform: macos
+            os: macos-latest
+            exe: ""
+            archive: tar.gz
+          - platform: windows
+            os: windows-latest
+            exe: ".exe"
+            archive: zip
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+      - name: cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-binaries-${{ matrix.platform }}
+      - name: build navigator and navigator-lsp
+        run: cargo build --release -p cli -p lsp
+      - name: package unix binaries
+        if: runner.os != 'Windows'
+        env:
+          TAG: ${{ github.ref_name }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/pkg-navigator dist/pkg-navigator-lsp
+          cp target/release/navigator dist/pkg-navigator/navigator
+          cp target/release/navigator-lsp dist/pkg-navigator-lsp/navigator-lsp
+          chmod +x dist/pkg-navigator/navigator dist/pkg-navigator-lsp/navigator-lsp
+          tar -C dist/pkg-navigator -czf "dist/navigator-${TAG}-${PLATFORM}.tar.gz" navigator
+          tar -C dist/pkg-navigator-lsp -czf "dist/navigator-lsp-${TAG}-${PLATFORM}.tar.gz" navigator-lsp
+      - name: package windows binaries
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          New-Item -ItemType Directory -Force dist/pkg-navigator, dist/pkg-navigator-lsp | Out-Null
+          Copy-Item "target/release/navigator.exe" "dist/pkg-navigator/navigator.exe"
+          Copy-Item "target/release/navigator-lsp.exe" "dist/pkg-navigator-lsp/navigator-lsp.exe"
+          Compress-Archive -Path "dist/pkg-navigator/navigator.exe" -DestinationPath "dist/navigator-$env:TAG-$env:PLATFORM.zip" -Force
+          Compress-Archive -Path "dist/pkg-navigator-lsp/navigator-lsp.exe" -DestinationPath "dist/navigator-lsp-$env:TAG-$env:PLATFORM.zip" -Force
+      - name: upload packaged binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-binaries-${{ matrix.platform }}
+          path: dist/*${{ matrix.archive }}
+          if-no-files-found: error
+
+  release-binaries-publish:
+    name: publish GitHub Release binaries
+    needs: release-binaries-build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: download packaged binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-binaries-*
+          path: dist
+          merge-multiple: true
+      - name: attach binaries to tag release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Navigator ${{ github.ref_name }}
+          generate_release_notes: true
+          files: dist/*
+
   # ---------- Stage 3: post the "ready to deploy" hand-off to Slack ----------
-  # Sent only after both images are published. Posts to the engineering channel
-  # via the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from Doppler) —
-  # the same channel and webhook the failure guard below uses. Unlike a silent
-  # FYI, this tags Nick and carries the exact `power-push` command, because the
-  # prod roll is a deliberate manual step (docs/gitops.md): the images are on the
-  # shelf, and a human rolls them. The one rule still binds: identifiers and
-  # counts, never content — the body carries the tag, the run URL, and the roll
-  # command, nothing client-bearing.
+  # Sent only after images and downloadable binaries are published. Posts to the
+  # engineering channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL,
+  # synced from Doppler) — the same channel and webhook the failure guard below
+  # uses. Unlike a silent FYI, this tags Nick and carries the exact `power-push`
+  # command, because the prod roll is a deliberate manual step (docs/gitops.md):
+  # the images are on the shelf, and a human rolls them. The one rule still
+  # binds: identifiers and counts, never content — the body carries the tag, the
+  # run URL, and the roll command, nothing client-bearing.
   notify:
     name: slack ready-to-deploy hand-off
-    needs: publish
+    needs: [publish, release-binaries-publish]
     # Tag-only (publish is already tag-gated; stated here too so a branch run
     # never posts a deploy report).
     if: startsWith(github.ref, 'refs/tags/')
@@ -527,7 +623,7 @@ jobs:
           # Concise hand-off: tag the on-call, state the build is ready, and hand
           # over the exact roll command (escaped backticks → literal Slack code
           # span). The prod roll is a deliberate manual step — see docs/gitops.md.
-          TEXT=":rocket: Navigator ${TAG} is built and published to ghcr — ready to deploy. ${SLACK_OPS_MENTION}
+          TEXT=":rocket: Navigator ${TAG} is built and published to ghcr, with CLI/LSP downloads attached to the GitHub Release — ready to deploy. ${SLACK_OPS_MENTION}
           Roll it to prod:
           \`doppler run --project navigator --config prd -- cargo run --release -p cli -- power-push --tag ${TAG}\`
           Run: ${RUN_URL}"
@@ -555,7 +651,7 @@ jobs:
   # content.
   notify-failure:
     name: slack — alert engineering on failure
-    needs: [build, integration, publish, notify]
+    needs: [build, integration, publish, release-binaries-build, release-binaries-publish, notify]
     # Tag-only: a failed `kind-ci/**` branch iteration is expected churn and
     # must not page engineering — only a failed nightly deploy does.
     if: failure() && startsWith(github.ref, 'refs/tags/')

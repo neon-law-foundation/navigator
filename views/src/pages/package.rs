@@ -20,7 +20,7 @@
 
 use maud::{html, Markup};
 
-use crate::brand::FOUNDATION_BRAND;
+use crate::brand::{deployed_release, foundation_github_url, FOUNDATION_BRAND};
 use crate::markdown::render_with_link_rewrite;
 use crate::pages::navigator::rewrite_link;
 use crate::{AuthState, PageLayout};
@@ -64,6 +64,118 @@ pub const PACKAGES: &[Package] = &[
         icon: "globe2",
     },
 ];
+
+/// A downloadable executable family attached to every `YY.MM.DD`
+/// GitHub Release.
+#[derive(Debug, Clone, Copy)]
+pub enum ReleaseBinary {
+    Navigator,
+    NavigatorLsp,
+}
+
+impl ReleaseBinary {
+    const fn artifact_prefix(self) -> &'static str {
+        match self {
+            Self::Navigator => "navigator",
+            Self::NavigatorLsp => "navigator-lsp",
+        }
+    }
+
+    const fn command_name(self) -> &'static str {
+        match self {
+            Self::Navigator => "navigator",
+            Self::NavigatorLsp => "navigator-lsp",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ReleasePlatform {
+    slug: &'static str,
+    label: &'static str,
+    archive_ext: &'static str,
+}
+
+const RELEASE_PLATFORMS: &[ReleasePlatform] = &[
+    ReleasePlatform {
+        slug: "linux",
+        label: "Linux",
+        archive_ext: "tar.gz",
+    },
+    ReleasePlatform {
+        slug: "macos",
+        label: "macOS",
+        archive_ext: "tar.gz",
+    },
+    ReleasePlatform {
+        slug: "windows",
+        label: "Windows",
+        archive_ext: "zip",
+    },
+];
+
+fn release_asset_name(binary: ReleaseBinary, tag: &str, platform: ReleasePlatform) -> String {
+    format!(
+        "{}-{tag}-{}.{}",
+        binary.artifact_prefix(),
+        platform.slug,
+        platform.archive_ext
+    )
+}
+
+fn release_asset_url(binary: ReleaseBinary, tag: &str, platform: ReleasePlatform) -> String {
+    format!(
+        "{}/releases/download/{tag}/{}",
+        foundation_github_url(),
+        release_asset_name(binary, tag, platform)
+    )
+}
+
+/// Versioned download links for the public release artifacts. In prod,
+/// `NAVIGATOR_RELEASE_TAG` is the `YY.MM.DD` tag baked into the image by
+/// `deploy.yml`; in local/dev there is no release tag, so link to the
+/// releases index rather than fabricating a semver asset name.
+#[must_use]
+pub fn release_downloads(binary: ReleaseBinary) -> Markup {
+    html! {
+        section."mt-4" {
+            h2 { "Download" }
+            @if let Some(tag) = deployed_release() {
+                p {
+                    "Version "
+                    code { (tag) }
+                    " is available for each supported desktop platform."
+                }
+                ul."lsp-downloads" {
+                    @for platform in RELEASE_PLATFORMS {
+                        @let href = release_asset_url(binary, tag, *platform);
+                        @let asset = release_asset_name(binary, tag, *platform);
+                        li {
+                            a download href=(href) { (platform.label) }
+                            " "
+                            code { (asset) }
+                        }
+                    }
+                }
+                pre { code {
+                    "# after extracting the archive, put the binary on your PATH\n"
+                    (binary.command_name()) " --help\n"
+                } }
+            } @else {
+                p {
+                    "Release downloads are attached to each "
+                    code { "YY.MM.DD" }
+                    " tag on GitHub."
+                }
+                p {
+                    a href=(format!("{}/releases", foundation_github_url())) {
+                        "Open GitHub releases"
+                    }
+                }
+            }
+        }
+    }
+}
 
 /// A responsive card grid linking every package, with `current` (a page
 /// href) highlighted. Rendered on the hub and atop each package page so a
@@ -120,9 +232,36 @@ pub fn render(
         .render(&body)
 }
 
+/// Render the CLI package page with first-class release downloads above
+/// the README.
+#[must_use]
+pub fn render_cli(
+    title: &str,
+    description: &str,
+    readme: &str,
+    current: &str,
+    auth: AuthState,
+) -> Markup {
+    let body = html! {
+        (package_strip(Some(current)))
+        (release_downloads(ReleaseBinary::Navigator))
+        article.docs-article {
+            (render_with_link_rewrite(readme, rewrite_link))
+        }
+    };
+    PageLayout::new(title)
+        .with_description(description)
+        .with_brand(*FOUNDATION_BRAND)
+        .with_auth(auth)
+        .render(&body)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{package_strip, render, PACKAGES};
+    use super::{
+        package_strip, release_asset_name, release_asset_url, render, render_cli, ReleaseBinary,
+        PACKAGES, RELEASE_PLATFORMS,
+    };
     use crate::brand::FOUNDATION_BRAND;
     use crate::AuthState;
 
@@ -183,5 +322,46 @@ mod tests {
         );
         // The cross-package strip rides above the body.
         assert!(html.contains("aria-label=\"Navigator packages\""));
+    }
+
+    #[test]
+    fn release_asset_names_are_tagged_by_version_and_platform() {
+        let tag = "26.06.24";
+        assert_eq!(
+            release_asset_name(ReleaseBinary::Navigator, tag, RELEASE_PLATFORMS[0]),
+            "navigator-26.06.24-linux.tar.gz"
+        );
+        assert_eq!(
+            release_asset_name(ReleaseBinary::NavigatorLsp, tag, RELEASE_PLATFORMS[2]),
+            "navigator-lsp-26.06.24-windows.zip"
+        );
+        assert_eq!(
+            release_asset_url(ReleaseBinary::Navigator, tag, RELEASE_PLATFORMS[1]),
+            "https://github.com/neon-law-foundation/Navigator/releases/download/26.06.24/navigator-26.06.24-macos.tar.gz"
+        );
+    }
+
+    #[test]
+    fn cli_page_exposes_downloads_before_readme() {
+        let html = render_cli(
+            "Navigator CLI",
+            "The navigator operator CLI.",
+            "# CLI\n\nBody.\n",
+            "/foundation/navigator/cli",
+            AuthState::Anonymous,
+        )
+        .into_string();
+        assert!(html.contains(">Download</h2>"), "got: {html}");
+        assert!(
+            html.contains("https://github.com/neon-law-foundation/Navigator/releases"),
+            "got: {html}"
+        );
+        assert!(
+            html.find(">Download</h2>").expect("download heading")
+                < html
+                    .find("<h1 id=\"cli\">CLI</h1>")
+                    .expect("readme heading"),
+            "downloads should precede the README: {html}"
+        );
     }
 }

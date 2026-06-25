@@ -6,12 +6,12 @@
 //! lands in the public `<project>-assets` bucket — the same lane `cli
 //! assets upload` and `cli forms sync` use — deliberately distinct from
 //! the confidential documents bucket. Each platform's binary lands at
-//! [`lsp_binary_key`]'s `lsp/<triple>/navigator-lsp`, the same key the
+//! [`lsp_binary_key`]'s `lsp/<triple>/<binary_name>`, the same key the
 //! page's download buttons resolve through `views::assets::asset_url`.
 //! Upload and download therefore share one source of truth
 //! ([`views::lsp::LSP_TARGETS`]) and can't drift.
 //!
-//! Input is a directory laid out by triple — `<dir>/<triple>/navigator-lsp`
+//! Input is a directory laid out by triple — `<dir>/<triple>/<binary_name>`
 //! — exactly what the cross-build recipe in `docs/lsp/zed.md` produces.
 //! A target whose binary is absent is reported and skipped, never an
 //! error: a macOS-only publish from a laptop is a valid partial release.
@@ -34,11 +34,9 @@ use views::lsp::{lsp_binary_key, LSP_TARGETS};
 const LSP_CACHE_CONTROL: &str = "public, max-age=3600";
 
 /// The filename every target directory holds.
-const BINARY_NAME: &str = "navigator-lsp";
-
 /// Entry point for `cli lsp publish`. `bucket` defaults to the
 /// `NAVIGATOR_ASSETS_BUCKET` env var — the public `<project>-assets`
-/// bucket. `dir` is the cross-build output root (`<dir>/<triple>/navigator-lsp`).
+/// bucket. `dir` is the cross-build output root (`<dir>/<triple>/<binary_name>`).
 pub fn run_publish(dir: &Path, bucket: Option<String>) -> ExitCode {
     let bucket = match bucket.or_else(|| std::env::var("NAVIGATOR_ASSETS_BUCKET").ok()) {
         Some(b) if !b.trim().is_empty() => b,
@@ -80,7 +78,7 @@ pub fn run_publish(dir: &Path, bucket: Option<String>) -> ExitCode {
                 println!("navigator: lsp publish: {uploaded} binary(ies) → gs://{bucket}/lsp");
                 for triple in &missing {
                     println!(
-                        "  (skipped {triple} — no binary at {dir}/{triple}/{BINARY_NAME})",
+                        "  (skipped {triple} — no binary under {dir}/{triple})",
                         dir = dir.display()
                     );
                 }
@@ -102,7 +100,7 @@ pub fn run_publish(dir: &Path, bucket: Option<String>) -> ExitCode {
 }
 
 /// Upload every registry target whose binary is present under
-/// `<dir>/<triple>/navigator-lsp` to its [`lsp_binary_key`]. Returns
+/// `<dir>/<triple>/<binary_name>` to its [`lsp_binary_key`]. Returns
 /// `(uploaded_count, missing_triples)`. Decoupled from backend
 /// construction so tests drive it against the `Fs` backend.
 async fn publish(
@@ -112,13 +110,13 @@ async fn publish(
     let mut uploaded = 0usize;
     let mut missing = Vec::new();
     for target in LSP_TARGETS {
-        let path: PathBuf = dir.join(target.triple).join(BINARY_NAME);
+        let path: PathBuf = dir.join(target.triple).join(target.binary_name);
         if !path.is_file() {
             missing.push(target.triple);
             continue;
         }
         let bytes = std::fs::read(&path).with_context(|| format!("read `{}`", path.display()))?;
-        let key = lsp_binary_key(target.triple);
+        let key = lsp_binary_key(*target);
         storage
             .put_cached(&key, &bytes, "application/octet-stream", LSP_CACHE_CONTROL)
             .await
@@ -144,7 +142,11 @@ mod tests {
         let present = LSP_TARGETS[0].triple;
         let target_dir = tmp.path().join(present);
         fs::create_dir_all(&target_dir).expect("mkdir target");
-        fs::write(target_dir.join("navigator-lsp"), b"#!/bin/echo fake\n").expect("write binary");
+        fs::write(
+            target_dir.join(LSP_TARGETS[0].binary_name),
+            b"#!/bin/echo fake\n",
+        )
+        .expect("write binary");
 
         let storage = FsStorage::new(tmp.path().join("store"))
             .await
@@ -156,7 +158,7 @@ mod tests {
         assert!(!missing.contains(&present));
         // The uploaded object is fetchable at the shared key.
         let obj = storage
-            .get(&lsp_binary_key(present))
+            .get(&lsp_binary_key(LSP_TARGETS[0]))
             .await
             .expect("uploaded binary present at key");
         assert_eq!(obj.bytes, b"#!/bin/echo fake\n");
