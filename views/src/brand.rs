@@ -133,15 +133,16 @@ const FIRM_NAV: &[NavLink] = &[
 const FOUNDATION_NAV: &[NavLink] = &[
     NavLink::leaf("Firm", "/"),
     // The Foundation publishes the open-source Navigator, Notations,
-    // and training for lawyers who want to wield both:
+    // Nimbus installs, and Nebula sharing programs:
     // "Navigator" (the software: the LSP, CLI, MCP, and web app, each its
     // own package page under the `/foundation/navigator` hub), "Notations"
-    // (the legal blueprints), and "Workshops" (hands-on training). No
-    // "Learn" catch-all dropdown, no separate Presentations surface — a
-    // talk is just another workshop.
+    // (the legal blueprints), "Nimbus" (white-label installs), and
+    // "Nebula" (workshops, show-and-tells, and presentations). No
+    // "Learn" catch-all dropdown.
     NavLink::leaf("Navigator", "/foundation/navigator"),
     NavLink::leaf("Notations", "/foundation/notations"),
-    NavLink::leaf("Workshops", "/foundation/workshops"),
+    NavLink::leaf("Nimbus", "/foundation/nimbus"),
+    NavLink::leaf("Nebula", "/foundation/nebula"),
 ];
 
 /// Read an env var or fall back to the default. The returned slice
@@ -402,8 +403,11 @@ mod tests {
     fn foundation_top_nav_is_four_flat_leaves() {
         let labels: Vec<&str> = FOUNDATION_BRAND.nav.iter().map(|n| n.label).collect();
         // The Foundation nav stays terse: firm cross-link, software,
-        // Notations, and training.
-        assert_eq!(labels, ["Firm", "Navigator", "Notations", "Workshops"]);
+        // Notations, Nimbus, and Nebula.
+        assert_eq!(
+            labels,
+            ["Firm", "Navigator", "Notations", "Nimbus", "Nebula"]
+        );
         assert_eq!(FOUNDATION_BRAND.nav[0].href, "/");
         assert!(
             FOUNDATION_BRAND.nav.iter().all(|n| !n.is_dropdown()),
@@ -436,19 +440,30 @@ mod tests {
     }
 
     #[test]
-    fn foundation_nav_workshops_points_at_the_top_level_overview() {
-        let workshops = FOUNDATION_BRAND
+    fn foundation_nav_nebula_points_at_the_top_level_overview() {
+        let nebula = FOUNDATION_BRAND
             .nav
             .iter()
-            .find(|n| n.label == "Workshops")
-            .expect("Workshops leaf present");
-        assert!(!workshops.is_dropdown());
-        assert_eq!(workshops.href, "/foundation/workshops");
+            .find(|n| n.label == "Nebula")
+            .expect("Nebula leaf present");
+        assert!(!nebula.is_dropdown());
+        assert_eq!(nebula.href, "/foundation/nebula");
+    }
+
+    #[test]
+    fn foundation_nav_nimbus_points_at_the_install_offer() {
+        let nimbus = FOUNDATION_BRAND
+            .nav
+            .iter()
+            .find(|n| n.label == "Nimbus")
+            .expect("Nimbus leaf present");
+        assert!(!nimbus.is_dropdown());
+        assert_eq!(nimbus.href, "/foundation/nimbus");
     }
 
     #[test]
     fn foundation_nav_has_no_presentations_or_learn_surface() {
-        // Presentations folded into Workshops; the "Learn" catch-all is gone.
+        // The "Learn" catch-all is gone.
         assert!(
             !FOUNDATION_BRAND
                 .nav

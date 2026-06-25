@@ -24,10 +24,10 @@ tenets:
 2. **Write legal documents like code**. When legal text is reasoned like code, we can leverage developer tooling like
    git, code editors, [LSPs](/foundation/navigator/lsp), [CLIs](/foundation/navigator/cli), and
    [MCPs](/foundation/navigator/mcp) to _deliver access to justice_.
-3. **Build community around the Navigator**. None of this matters if we aren't helping lawyers serve more clients. We
-   host online and in-person workshops to help lawyers adopt the Navigator and tailor it to their practice to _increase
-   access to justice_. If you're a legal aid organization, we'll provide free training on the [Neon Law
-   Navigator](/foundation/workshops/navigator/readme).
+3. **Share what we learn through Nebula**. None of this matters if we aren't helping lawyers serve more clients. Nebula
+   is where we share workshops, show-and-tells, and presentations that help lawyers adopt the Navigator and tailor it to
+   their practice to _increase access to justice_. If you're a legal aid organization, we'll provide free training on
+   the [Neon Law Navigator](/foundation/nebula/workshops/use-the-navigator).
 
 **Neon Law** is a boutique law firm that dogfoods the Neon Law Navigator. Because lawyers cannot serve adverse parties,
 the firm alone can't _serve access to justice_. Nor does the firm fund the mission alone — the Foundation is supported
