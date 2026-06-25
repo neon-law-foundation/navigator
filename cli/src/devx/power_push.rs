@@ -542,13 +542,13 @@ pub fn pick_latest_release_tag(tags: &[String]) -> Option<String> {
     tags.iter().filter(|t| is_release_tag(t)).max().cloned()
 }
 
-/// Resolve the latest published `YY.MM.DD` tag from ghcr. In `--dry-run`
-/// we don't touch the network — print a placeholder so the planned
-/// `set image` commands still render.
+/// Resolve the latest published `YY.MM.DD[.HH]` tag from ghcr. In
+/// `--dry-run` we don't touch the network — print a placeholder so the
+/// planned `set image` commands still render.
 fn resolve_latest_tag(cfg: &PowerPushConfig, dry_run: bool) -> Result<String> {
     if dry_run {
         eprintln!(
-            "DRY-RUN: would resolve the latest YY.MM.DD tag from ghcr.io/{}/navigator-web",
+            "DRY-RUN: would resolve the latest YY.MM.DD[.HH] tag from ghcr.io/{}/navigator-web",
             cfg.ghcr_owner
         );
         return Ok("<latest-ghcr-tag>".to_string());
@@ -556,7 +556,7 @@ fn resolve_latest_tag(cfg: &PowerPushConfig, dry_run: bool) -> Result<String> {
     let tags = fetch_ghcr_tags(&cfg.ghcr_owner, "navigator-web")?;
     pick_latest_release_tag(&tags).ok_or_else(|| {
         anyhow::anyhow!(
-            "no YY.MM.DD release tag on ghcr.io/{}/navigator-web — has the daily deploy published one yet?",
+            "no YY.MM.DD[.HH] release tag on ghcr.io/{}/navigator-web — has the daily deploy published one yet?",
             cfg.ghcr_owner
         )
     })
@@ -978,7 +978,7 @@ mod tests {
     }
 
     #[test]
-    fn is_release_tag_matches_only_yy_mm_dd() {
+    fn is_release_tag_accepts_yy_mm_dd_and_optional_hh() {
         assert!(is_release_tag("26.06.23"));
         assert!(is_release_tag("00.01.09"));
         assert!(is_release_tag("26.06.25.14")); // ad-hoc same-day .HH suffix
