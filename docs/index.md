@@ -65,6 +65,7 @@ These are the terms agents most often need before making a decision. The full al
 - [`RUNBOOK.md`](RUNBOOK.md) — local KIND runbook.
 - [`test-database.md`](test-database.md) — test Postgres model.
 - [`env-driven-devx.md`](env-driven-devx.md) — env-var-driven dev and deploy surfaces.
+- [`assets.md`](assets.md) — photography pipeline (build/upload/pull); pull photos down for local dev.
 - [`secrets-doppler.md`](secrets-doppler.md) — Doppler and secret handling.
 - [`editing-workflows.md`](editing-workflows.md) — editing notation templates.
 - [`notation-authoring.md`](notation-authoring.md) — authoring notation templates.

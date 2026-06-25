@@ -133,9 +133,16 @@ pub(crate) fn material_from_markdown(
     let (intro_md, section_specs) = split_sections(raw);
     let sections = section_specs
         .into_iter()
-        .map(|(title, body_md)| WorkshopSection {
-            title,
-            body_html: render_markdown(&body_md),
+        .map(|(title, body_md)| {
+            // Each `##` section is one slide: split its body on the first
+            // top-level `---` thematic break into the slide face (above)
+            // and the presenter notes (below).
+            let (face_md, notes_md) = split_face_notes(&body_md);
+            WorkshopSection {
+                title,
+                body_html: render_markdown(&face_md),
+                notes_html: render_markdown(&notes_md),
+            }
         })
         .collect();
     WorkshopMaterial {
@@ -238,11 +245,124 @@ fn is_fence(line: &str) -> bool {
     trimmed.starts_with("```") || trimmed.starts_with("~~~")
 }
 
+/// Split one `##` section's markdown into `(slide_face, presenter_notes)`
+/// on the first top-level `---` thematic break. The face is the slide
+/// shown on top; the notes are the prose shown beneath it. A `---` inside
+/// a fenced code block is sample text, never a divider. With no divider
+/// the whole section is the face and the notes come back empty.
+fn split_face_notes(section_md: &str) -> (String, String) {
+    let lines: Vec<&str> = section_md.lines().collect();
+    let mut in_fence = false;
+    for (i, line) in lines.iter().enumerate() {
+        if is_fence(line) {
+            in_fence = !in_fence;
+            continue;
+        }
+        if !in_fence && is_thematic_break(line) {
+            let face = lines[..i].join("\n");
+            let notes = lines[i + 1..].join("\n");
+            return (face.trim_end().to_string(), notes.trim().to_string());
+        }
+    }
+    (section_md.trim_end().to_string(), String::new())
+}
+
+/// True for a `---` thematic break — a line that, trimmed, is three or
+/// more dashes and nothing else. This is the slide/notes divider; other
+/// break styles (`***`, `___`) are left as ordinary `<hr>` in the face.
+fn is_thematic_break(line: &str) -> bool {
+    let t = line.trim();
+    t.len() >= 3 && t.bytes().all(|b| b == b'-')
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{load_navigator, split_sections, strip_leading_h1};
+    use super::{load_navigator, split_face_notes, split_sections, strip_leading_h1};
     use std::fs;
     use tempfile::TempDir;
+
+    /// The slides + presenter-notes format is the contract for every
+    /// workshop, now and in the future: each `##` slide must carry a
+    /// `---` divider with presenter notes beneath it. This walks the real
+    /// baked content (not a fixture) and fails the build if any slide is
+    /// missing its face or its notes — so a new workshop can't ship in the
+    /// old prose-only shape.
+    #[test]
+    fn every_workshop_section_has_presenter_notes() {
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/content/workshops");
+        let materials = load_navigator(std::path::Path::new(root)).unwrap();
+        assert!(
+            !materials.is_empty(),
+            "real workshop content failed to load from {root}"
+        );
+        for m in &materials {
+            assert!(
+                !m.sections.is_empty(),
+                "workshop `{}` has no `##` slides",
+                m.slug
+            );
+            for (i, s) in m.sections.iter().enumerate() {
+                assert!(
+                    !s.body_html.trim().is_empty(),
+                    "workshop `{}` slide {} (`{}`) has an empty slide face",
+                    m.slug,
+                    i + 1,
+                    s.title
+                );
+                assert!(
+                    !s.notes_html.trim().is_empty(),
+                    "workshop `{}` slide {} (`{}`) is missing presenter notes — every slide \
+                     needs a `---` divider followed by notes",
+                    m.slug,
+                    i + 1,
+                    s.title
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn split_face_notes_divides_on_the_first_top_level_break() {
+        let (face, notes) = split_face_notes("## Build\n\nSlide face.\n\n---\n\nPresenter notes.");
+        assert!(face.contains("Slide face"));
+        assert!(!face.contains("Presenter notes"));
+        assert!(face.contains("## Build"));
+        assert_eq!(notes, "Presenter notes.");
+    }
+
+    #[test]
+    fn split_face_notes_returns_empty_notes_without_a_divider() {
+        let (face, notes) = split_face_notes("## Build\n\nJust a face, no notes.");
+        assert!(face.contains("Just a face"));
+        assert!(notes.is_empty());
+    }
+
+    #[test]
+    fn split_face_notes_ignores_a_break_inside_a_code_fence() {
+        // A `---` line inside a fenced block is YAML/sample text, not the
+        // slide/notes divider.
+        let (face, notes) = split_face_notes(
+            "## Build\n\n```yaml\nkey: value\n---\nmore: yaml\n```\n\n---\n\nNotes.",
+        );
+        assert!(face.contains("more: yaml"), "fenced --- stays in the face");
+        assert_eq!(notes, "Notes.");
+    }
+
+    #[test]
+    fn loaded_section_carries_face_and_notes_html() {
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("navigator");
+        fs::create_dir_all(&target).unwrap();
+        fs::write(
+            target.join("README.md"),
+            "# T\n\nLede.\n\n## Step one\n\nThe slide.\n\n---\n\nThe notes.\n",
+        )
+        .unwrap();
+        let m = &load_navigator(dir.path()).unwrap()[0];
+        assert!(m.sections[0].body_html.contains("The slide"));
+        assert!(!m.sections[0].body_html.contains("The notes"));
+        assert!(m.sections[0].notes_html.contains("The notes"));
+    }
 
     #[test]
     fn load_navigator_returns_empty_when_directory_missing() {

@@ -18,21 +18,27 @@ mv navigator-lsp /usr/local/bin/
 ```
 
 Supported triples: `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`,
-`aarch64-unknown-linux-gnu`. The bucket host is `NAVIGATOR_ASSET_BASE_URL` in the deployer's `.env`; on neonlaw.com it
-is the `<project>-assets` bucket. With the binary on `$PATH`, the extension below finds it automatically.
+`aarch64-unknown-linux-gnu`, and `x86_64-pc-windows-msvc`. The Windows binary is named `navigator-lsp.exe`; the others
+are named `navigator-lsp`. The bucket host is `NAVIGATOR_ASSET_BASE_URL` in the deployer's `.env`; on neonlaw.com it is
+the `<project>-assets` bucket. With the binary on `$PATH`, the extension below finds it automatically.
 
 ### Publishing the binaries (maintainers)
 
 `cli lsp publish` pushes the binaries to the assets bucket. Cross-build each target into the layout the publisher
-expects (`<dir>/<triple>/navigator-lsp`), then publish:
+expects (`<dir>/<triple>/<binary_name>`), then publish:
 
 ```bash
 # Build per target (host arch builds with plain cargo; cross targets via `cross`).
 for triple in aarch64-apple-darwin x86_64-apple-darwin \
-              x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+              x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu \
+              x86_64-pc-windows-msvc; do
   cargo build --release -p lsp --target "$triple"
   mkdir -p "target/lsp-dist/$triple"
-  cp "target/$triple/release/navigator-lsp" "target/lsp-dist/$triple/navigator-lsp"
+  binary="navigator-lsp"
+  if [ "$triple" = "x86_64-pc-windows-msvc" ]; then
+    binary="navigator-lsp.exe"
+  fi
+  cp "target/$triple/release/$binary" "target/lsp-dist/$triple/$binary"
 done
 
 # Publish whatever got built (missing triples are skipped, not an error).
@@ -40,7 +46,7 @@ done
 cargo run -p cli -- lsp publish --dir target/lsp-dist
 ```
 
-Each binary lands at `lsp/<triple>/navigator-lsp` with a bounded (one-hour) `Cache-Control`, so a re-publish is picked
+Each binary lands at `lsp/<triple>/<binary_name>` with a bounded (one-hour) `Cache-Control`, so a re-publish is picked
 up shortly. The download buttons on `/lsp` resolve to exactly these keys via `views::assets::asset_url`, so the upload
 path and the link can never drift.
 

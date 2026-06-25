@@ -23,6 +23,8 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine as _;
 use serde_json::json;
 use thiserror::Error;
 
@@ -75,6 +77,38 @@ pub struct OutboundEmail {
     /// RFC 5322 `References:` header — the space-separated message-id
     /// chain of the thread (each `<…>`-wrapped). `None` omits the header.
     pub references: Option<String>,
+    /// File attachments. Empty for the common case. The SendGrid backend
+    /// base64-encodes each attachment's bytes into the top-level
+    /// `attachments` array; the [`CapturingEmail`] backend keeps them in
+    /// memory for test assertions. Used by the workshop completion
+    /// certificate, which rides a generated PDF along with the email.
+    pub attachments: Vec<Attachment>,
+}
+
+/// A single email attachment: the raw bytes plus the metadata SendGrid
+/// needs to encode it (`filename`, MIME `content_type`). Bytes are held
+/// decoded; the SendGrid backend base64-encodes them at send time so the
+/// audit log and the in-memory recorder both see the original payload.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Attachment {
+    pub filename: String,
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+}
+
+impl Attachment {
+    #[must_use]
+    pub fn new(
+        filename: impl Into<String>,
+        content_type: impl Into<String>,
+        bytes: Vec<u8>,
+    ) -> Self {
+        Self {
+            filename: filename.into(),
+            content_type: content_type.into(),
+            bytes,
+        }
+    }
 }
 
 impl OutboundEmail {
@@ -94,6 +128,7 @@ impl OutboundEmail {
             person_id: None,
             in_reply_to: None,
             references: None,
+            attachments: Vec::new(),
         }
     }
 
@@ -128,6 +163,23 @@ impl OutboundEmail {
     #[must_use]
     pub fn with_reply_to(mut self, reply_to: impl Into<String>) -> Self {
         self.reply_to = Some(reply_to.into());
+        self
+    }
+
+    /// Builder-style: override the envelope `From:` address. The workshop
+    /// certificate uses this to send from `support@neonlaw.org` instead of
+    /// the backend's configured default. The address's domain must be
+    /// authenticated in SendGrid or the send is rejected.
+    #[must_use]
+    pub fn with_from(mut self, from: impl Into<String>) -> Self {
+        self.from = Some(from.into());
+        self
+    }
+
+    /// Builder-style: add a file attachment. Repeat to add several.
+    #[must_use]
+    pub fn with_attachment(mut self, attachment: Attachment) -> Self {
+        self.attachments.push(attachment);
         self
     }
 
@@ -281,9 +333,12 @@ impl SendGridEmail {
         if !headers.is_empty() {
             to_personalization["headers"] = serde_json::Value::Object(headers);
         }
+        // Envelope `From:`: an explicit `email.from` (e.g. the certificate's
+        // `support@neonlaw.org`) wins over the backend's configured default.
+        let from_email = email.from.as_deref().unwrap_or(&self.from_email);
         let mut body = json!({
             "personalizations": [ to_personalization ],
-            "from": { "email": self.from_email },
+            "from": { "email": from_email },
             "subject": email.subject,
             "content": content,
         });
@@ -311,6 +366,24 @@ impl SendGridEmail {
         }
         if !custom_args.is_empty() {
             body["custom_args"] = serde_json::Value::Object(custom_args);
+        }
+        // Attachments ride at the top level, each with base64 `content`,
+        // a MIME `type`, and a `filename`. Only emitted when present so
+        // ordinary sends keep their previous byte-identical body.
+        if !email.attachments.is_empty() {
+            let encoded: Vec<serde_json::Value> = email
+                .attachments
+                .iter()
+                .map(|a| {
+                    json!({
+                        "content": BASE64.encode(&a.bytes),
+                        "type": a.content_type,
+                        "filename": a.filename,
+                        "disposition": "attachment",
+                    })
+                })
+                .collect();
+            body["attachments"] = serde_json::Value::Array(encoded);
         }
         body
     }
@@ -497,6 +570,47 @@ mod tests {
         assert_eq!(body["content"][0]["value"], "Hi Libra");
         assert_eq!(body["content"][1]["type"], "text/html");
         assert_eq!(body["content"][1]["value"], "<p>Hi Libra</p>");
+    }
+
+    #[test]
+    fn build_request_body_omits_attachments_when_none() {
+        let svc = SendGridEmail::new("KEY", "support@neonlaw.com");
+        let body = svc.build_request_body(&OutboundEmail::new("a@example.com", "Hi", "Body"));
+        assert!(body.get("attachments").is_none());
+    }
+
+    #[test]
+    fn build_request_body_base64_encodes_attachment() {
+        use super::Attachment;
+        let svc = SendGridEmail::new("KEY", "support@neonlaw.com");
+        let body = svc.build_request_body(
+            &OutboundEmail::new("a@example.com", "Your certificate", "Attached.").with_attachment(
+                Attachment::new("certificate.pdf", "application/pdf", b"%PDF-1.7".to_vec()),
+            ),
+        );
+        let att = &body["attachments"][0];
+        // "%PDF-1.7" base64-encodes to "JVBERi0xLjc=".
+        assert_eq!(att["content"], "JVBERi0xLjc=");
+        assert_eq!(att["type"], "application/pdf");
+        assert_eq!(att["filename"], "certificate.pdf");
+        assert_eq!(att["disposition"], "attachment");
+    }
+
+    #[test]
+    fn build_request_body_honors_from_override() {
+        let svc = SendGridEmail::new("KEY", "support@neonlaw.com");
+        let body = svc.build_request_body(
+            &OutboundEmail::new("a@example.com", "Hi", "Body").with_from("support@neonlaw.org"),
+        );
+        // The explicit `.with_from(...)` wins over the backend default.
+        assert_eq!(body["from"]["email"], "support@neonlaw.org");
+    }
+
+    #[test]
+    fn build_request_body_falls_back_to_backend_from_when_unset() {
+        let svc = SendGridEmail::new("KEY", "support@neonlaw.com");
+        let body = svc.build_request_body(&OutboundEmail::new("a@example.com", "Hi", "Body"));
+        assert_eq!(body["from"]["email"], "support@neonlaw.com");
     }
 
     #[tokio::test]

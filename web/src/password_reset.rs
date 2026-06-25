@@ -64,26 +64,59 @@ pub fn routes() -> Router<AuthState> {
 /// Mint a fresh CSRF token, drop it as a signed cookie, and return the
 /// plaintext to embed as the form's hidden field (double-submit).
 pub(crate) fn mint_csrf(s: &AuthState, cookies: &Cookies) -> String {
+    mint_csrf_with(
+        &s.sessions,
+        s.secure_cookies,
+        cookies,
+        ACCOUNT_CSRF_COOKIE_NAME,
+    )
+}
+
+/// Like [`mint_csrf`] but taking the signer, secure flag, and cookie name
+/// directly, for callers that hold the full `AppState` rather than an
+/// `AuthState` and need their own cookie (the public workshop-certificate
+/// form lives on a `Router<AppState>` page and uses a dedicated cookie so
+/// it never clobbers the account-recovery cookie).
+pub(crate) fn mint_csrf_with(
+    sessions: &crate::session::SessionStore,
+    secure: bool,
+    cookies: &Cookies,
+    cookie_name: &'static str,
+) -> String {
     let csrf = random_token_32();
-    let signed = s.sessions.encode_signed_bytes(csrf.as_bytes());
-    cookies.add(account_csrf_cookie(signed, s.secure_cookies));
+    let signed = sessions.encode_signed_bytes(csrf.as_bytes());
+    cookies.add(csrf_cookie(cookie_name, signed, secure));
     csrf
 }
 
 /// Verify the double-submit CSRF token: the value in the signed,
 /// HttpOnly cookie must match the hidden form field.
 pub(crate) fn verify_csrf(s: &AuthState, cookies: &Cookies, form_token: &str) -> bool {
+    verify_csrf_with(&s.sessions, cookies, form_token, ACCOUNT_CSRF_COOKIE_NAME)
+}
+
+/// [`verify_csrf`] taking the signer + cookie name directly (see
+/// [`mint_csrf_with`]).
+pub(crate) fn verify_csrf_with(
+    sessions: &crate::session::SessionStore,
+    cookies: &Cookies,
+    form_token: &str,
+    cookie_name: &str,
+) -> bool {
     cookies
-        .get(ACCOUNT_CSRF_COOKIE_NAME)
-        .and_then(|c| s.sessions.decode_signed_bytes(c.value()))
+        .get(cookie_name)
+        .and_then(|c| sessions.decode_signed_bytes(c.value()))
         .map(|b| String::from_utf8_lossy(&b).into_owned())
         .is_some_and(|tok| {
             !tok.is_empty() && constant_time_eq(tok.as_bytes(), form_token.as_bytes())
         })
 }
 
-pub(crate) fn account_csrf_cookie(value: String, secure: bool) -> Cookie<'static> {
-    let mut c = Cookie::new(ACCOUNT_CSRF_COOKIE_NAME, value);
+/// Build a signed double-submit CSRF cookie under the given name. One
+/// builder so every CSRF cookie (account recovery, workshop certificate,
+/// …) shares the same HttpOnly / SameSite=Lax / TTL hardening.
+pub(crate) fn csrf_cookie(name: &'static str, value: String, secure: bool) -> Cookie<'static> {
+    let mut c = Cookie::new(name, value);
     c.set_http_only(true);
     c.set_secure(secure);
     c.set_same_site(tower_cookies::cookie::SameSite::Lax);

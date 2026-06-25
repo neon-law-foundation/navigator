@@ -764,6 +764,24 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
                 "/foundation/workshops/navigator/{slug}/step/{step}",
                 get(workshops_material_step),
             )
+            // The light-table grid of every slide in a workshop, plus the
+            // client-gated certificate request form it mints CSRF for.
+            .route(
+                "/foundation/workshops/navigator/{slug}/slides",
+                get(workshops_slides),
+            )
+            // POST-only: the certificate request. A stray GET lands the
+            // learner back on the light table where the form lives.
+            .route(
+                "/foundation/workshops/navigator/{slug}/certificate",
+                axum::routing::post(workshops_certificate_submit).get(
+                    |AxumPath(slug): AxumPath<String>| async move {
+                        axum::response::Redirect::to(&format!(
+                            "/foundation/workshops/navigator/{slug}/slides"
+                        ))
+                    },
+                ),
+            )
             .route("/docs", get(docs_index_page))
             .route("/docs/{slug}", get(docs_page))
             // Public, no-login template gallery + the LSP showcase — the
@@ -1088,7 +1106,7 @@ async fn navigator_lsp(MaybeAuth(auth): MaybeAuth) -> Markup {
 
 /// `GET /foundation/navigator/cli` — the `navigator` operator CLI.
 async fn navigator_cli(MaybeAuth(auth): MaybeAuth) -> Markup {
-    views::pages::package::render(
+    views::pages::package::render_cli(
         "Navigator CLI",
         "The navigator operator CLI — validate markdown templates, import and seed \
          data, render the ER diagram, and drive deploys.",
@@ -2148,12 +2166,152 @@ async fn workshops_material_step(
                 workshop_title: &m.title,
                 title: &section.title,
                 body_html: &section.body_html,
+                notes_html: &section.notes_html,
                 number: step,
                 total: m.sections.len(),
                 steps: &steps,
             },
             auth,
         ),
+    )
+        .into_response()
+}
+
+/// Dedicated double-submit CSRF cookie for the workshop certificate form.
+/// Distinct from `ACCOUNT_CSRF_COOKIE_NAME` (password reset / email-confirm)
+/// so opening a workshop light table never clobbers an in-flight account
+/// recovery in another tab, and vice versa.
+const WORKSHOP_CERT_CSRF_COOKIE_NAME: &str = "navigator_workshop_cert_csrf";
+
+/// Whether cookies should carry the `Secure` flag — true when the OAuth
+/// redirect URI is HTTPS (prod), false in plain-HTTP local dev. Mirrors
+/// how `AuthState::secure_cookies` is derived, for handlers that hold the
+/// full `AppState` instead of an `AuthState`.
+fn secure_cookies(app: &AppState) -> bool {
+    app.oauth
+        .as_ref()
+        .is_some_and(|o| o.redirect_uri().starts_with("https://"))
+}
+
+/// The light-table grid for one workshop: every slide as a thumbnail.
+/// Mints a double-submit CSRF token for the certificate form embedded on
+/// the page (revealed client-side once every slide has been viewed).
+async fn workshops_slides(
+    State(app): State<AppState>,
+    MaybeAuth(auth): MaybeAuth,
+    cookies: tower_cookies::Cookies,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    let Some(m) = app.workshops.find(&slug) else {
+        return (StatusCode::NOT_FOUND, views::not_found_page()).into_response();
+    };
+    let thumbs: Vec<workshop_views::SlideThumb<'_>> = m
+        .sections
+        .iter()
+        .enumerate()
+        .map(|(i, s)| workshop_views::SlideThumb {
+            number: i + 1,
+            title: &s.title,
+            body_html: &s.body_html,
+        })
+        .collect();
+    let csrf = crate::password_reset::mint_csrf_with(
+        &app.sessions,
+        secure_cookies(&app),
+        &cookies,
+        WORKSHOP_CERT_CSRF_COOKIE_NAME,
+    );
+    (
+        StatusCode::OK,
+        workshop_views::slides(
+            &workshop_views::LightTable {
+                base: WORKSHOP_BASE,
+                slug: &m.slug,
+                workshop_title: &m.title,
+                slides: &thumbs,
+                csrf_token: &csrf,
+            },
+            auth,
+        ),
+    )
+        .into_response()
+}
+
+/// Form body for the certificate request (`POST …/{slug}/certificate`).
+#[derive(serde::Deserialize)]
+struct CertificateForm {
+    name: String,
+    email: String,
+    #[serde(default)]
+    csrf_token: String,
+}
+
+/// `POST …/{slug}/certificate` — a student who has worked through every
+/// slide asks for their completion certificate. Validates the
+/// double-submit CSRF token, then dispatches the durable
+/// `workshop__certificate` workflow (which renders the PDF and emails it
+/// from the Foundation address). Completion is client-trusted
+/// (localStorage, no telemetry), so this endpoint can't verify the slides
+/// were actually viewed — it's an educational courtesy, not a credential.
+async fn workshops_certificate_submit(
+    State(app): State<AppState>,
+    MaybeAuth(auth): MaybeAuth,
+    cookies: tower_cookies::Cookies,
+    AxumPath(slug): AxumPath<String>,
+    axum::extract::Form(form): axum::extract::Form<CertificateForm>,
+) -> impl IntoResponse {
+    let Some(m) = app.workshops.find(&slug) else {
+        return (StatusCode::NOT_FOUND, views::not_found_page()).into_response();
+    };
+    if !crate::password_reset::verify_csrf_with(
+        &app.sessions,
+        &cookies,
+        &form.csrf_token,
+        WORKSHOP_CERT_CSRF_COOKIE_NAME,
+    ) {
+        return (StatusCode::BAD_REQUEST, "invalid or missing CSRF token").into_response();
+    }
+    cookies.add(crate::oauth::expired_cookie(WORKSHOP_CERT_CSRF_COOKIE_NAME));
+
+    let name = form.name.trim();
+    let email = form.email.trim();
+    // Server-side bounds mirror the form's maxlength, so a client that
+    // bypasses the HTML constraint can't feed a multi-megabyte name into
+    // the Typst renderer or an oversized address to SendGrid.
+    if name.is_empty() || name.len() > 120 || !email.contains('@') || email.len() > 254 {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Please enter your name and a valid email address.",
+        )
+            .into_response();
+    }
+
+    // The issue date is stamped here (web), so it rides the Restate signal
+    // value and a replay reuses it deterministically — the worker never
+    // reads the clock.
+    let issued = chrono::Utc::now().format("%B %-d, %Y").to_string();
+    // A fresh key per request: each certificate is its own ephemeral
+    // workflow invocation.
+    let key = uuid::Uuid::new_v4();
+    let runtime = app.workflow_runtime.clone();
+    if let Err(e) = workflows::email::certificate::trigger_certificate(
+        runtime.as_ref(),
+        key,
+        name,
+        email,
+        &m.title,
+        &issued,
+    )
+    .await
+    {
+        // Logged, never surfaced — the reply is the same neutral page so
+        // the endpoint isn't an address-enumeration oracle. Instrument the
+        // workshop + outcome only, never the recipient (trust boundary).
+        tracing::warn!(error = %e, workshop = %m.slug, "certificate dispatch failed");
+    }
+    (
+        StatusCode::OK,
+        workshop_views::certificate_sent(&m.title, WORKSHOP_BASE, auth),
     )
         .into_response()
 }
