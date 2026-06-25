@@ -107,7 +107,7 @@ out](#publish-vs-roll-out) below.
 Separate from the CI/CD three, on its own cron and knowing nothing about tags. Fires daily at **07:00 PST** (15:00 UTC)
 — two hours after the tag cut, so the day's fresh images already exist — and prunes ghcr: it discovers every
 `navigator-*` container package through GitHub's package API, then deletes versions older than 14 days through `gh api`
-authenticated with `secrets.RELEASE_PAT`. That secret must be a classic PAT from an org/package admin with
+authenticated with `secrets.GHCR_CLEANUP_PAT`. That secret must be a classic PAT from an org/package admin with
 `read:packages` and `delete:packages`; fine-grained PATs cannot list org packages through this endpoint. `latest` and
 the recent dated tags are re-pushed daily by `deploy.yml`, so their versions stay under the cutoff and only stale images
 are swept. It then posts a Slack summary, tagging Nick on failure. New scheduled maintenance belongs here, not in a

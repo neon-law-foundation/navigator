@@ -23,7 +23,7 @@ on:
     - cron: "0 15 * * *" # 07:00 PST
   workflow_dispatch:
 
-# The prune authenticates with RELEASE_PAT (a secret), so the workflow's own
+# The prune authenticates with GHCR_CLEANUP_PAT (a secret), so the workflow's own
 # GITHUB_TOKEN needs nothing beyond read.
 permissions:
   contents: read
@@ -43,16 +43,16 @@ jobs:
     steps:
       - name: prune container versions older than 14 days
         env:
-          # RELEASE_PAT (Doppler navigator-gitops/prd, synced to repo secrets).
+          # GHCR_CLEANUP_PAT (Doppler navigator-gitops/prd, synced to repo secrets).
           # Use a classic PAT from an org/package admin with read:packages and
           # delete:packages. Fine-grained PATs do not work for the org package
           # list endpoint; a package-capable GitHub App installation token would
           # also work, but the secret currently carries a PAT.
-          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GH_TOKEN: ${{ secrets.GHCR_CLEANUP_PAT }}
           GH_ORG: ${{ github.repository_owner }}
         run: |
           if [ -z "${GH_TOKEN}" ]; then
-              echo "::error::RELEASE_PAT is unset — cannot prune ghcr packages"
+              echo "::error::GHCR_CLEANUP_PAT is unset — cannot prune ghcr packages"
               exit 1
           fi
 
@@ -66,7 +66,7 @@ jobs:
               --jq '.[] | select(.name | startswith("navigator-")) | .name' \
               > "${workdir}/packages" 2> "${workdir}/packages.err"; then
               cat "${workdir}/packages.err" >&2
-              message="::error::RELEASE_PAT cannot list ${GH_ORG} ghcr packages. "
+              message="::error::GHCR_CLEANUP_PAT cannot list ${GH_ORG} ghcr packages. "
               message+="Use a classic PAT owned by an org/package admin with read:packages and delete:packages, "
               message+="then sync it from Doppler to the repo secret."
               echo "${message}"
