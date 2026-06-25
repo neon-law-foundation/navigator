@@ -1,8 +1,8 @@
 # rules
 
-Validation engine for Navigator markdown notations. Ships the M/F/S rule families (Markdown lint, Frontmatter shape,
-structural checks) behind a single `RuleEngine` that walks a directory and returns a report. Pure: no I/O outside the
-walker, no database, no async — easy to embed and easy to reuse outside Navigator with a custom rulebook.
+Validation engine for Neon Law Navigator markdown notations. Ships the M/F/S rule families (Markdown lint, Frontmatter
+shape, structural checks) behind a single `RuleEngine` that walks a directory and returns a report. Pure: no I/O outside
+the walker, no database, no async — easy to embed and easy to reuse outside Neon Law Navigator with a custom rulebook.
 
 ## Getting started
 

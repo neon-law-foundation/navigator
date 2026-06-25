@@ -7,7 +7,7 @@ Feature: Public site brand routing
   layout emits from each page's `SiteBrand`.
 
   Background:
-    Given the Navigator public site is running
+    Given the Neon Law Navigator public site is running
 
   Scenario Outline: Firm-branded pages carry the Neon Law brand
     When a visitor opens <path>

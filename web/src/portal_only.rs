@@ -8,11 +8,11 @@
 //! `/navigator`, the workshops, presentations, statutes, docs, and the
 //! `/es` twins). The bare host `/` 303-redirects to `/portal`.
 //!
-//! The use case is a law firm that deploys Navigator under its own brand:
+//! The use case is a law firm that deploys Neon Law Navigator under its own brand:
 //! it already runs its own marketing website (WordPress, a marketing
-//! team) and only wants Navigator to be the client portal + workflow
+//! team) and only wants Neon Law Navigator to be the client portal + workflow
 //! engine, not a second public site. See `docs/oss-install.md` and the
-//! "Deploy the Navigator" workshop.
+//! "Deploy the Neon Law Navigator" workshop.
 //!
 //! Disabled by default — NeonLaw's own deploy serves the full public
 //! site, so the flag ships off and the router is unchanged unless it is

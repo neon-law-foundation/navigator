@@ -1,7 +1,7 @@
 //! `playbooks` + `contract_reviews` — the first review-*in* matter
 //! (fractional-GC inbound contract review).
 //!
-//! Every other Navigator workflow is template-*out*: a template body
+//! Every other Neon Law Navigator workflow is template-*out*: a template body
 //! compiles into a document the client signs. Contract review is the
 //! mirror — the client uploads a third party's contract and the binding
 //! artifact the firm produces is a *memo about someone else's document*.

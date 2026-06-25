@@ -18,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
     // (user-edited) always wins over `.devx/env` (tool-generated).
     let _ = dotenvy::from_path(".devx/env");
 
-    // One observability seam shared with every Navigator binary: stdout logs
+    // One observability seam shared with every Neon Law Navigator binary: stdout logs
     // (JSON when an OTLP endpoint is set) plus OTLP traces + metrics. Held to
     // graceful shutdown below so batched spans/metrics flush before exit.
     let telemetry_guard = telemetry::init("navigator-web");

@@ -398,7 +398,7 @@ pub fn build_agent_card(authority: &str) -> AgentCard {
     AgentCard {
         protocol_version: A2A_PROTOCOL_VERSION,
         name: "AIDA",
-        description: "Navigator's domain agent for legal-workflow automation: \
+        description: "Neon Law Navigator's domain agent for legal-workflow automation: \
             people, entities, jurisdictions, notations, projects, and legal-council review. \
             Backed by the same MCP tool registry served at /mcp.",
         url,

@@ -1,9 +1,9 @@
-# Installing Navigator on your own cloud
+# Installing Neon Law Navigator on your own cloud
 
-Navigator's canonical build is just **`cargo build` + `docker build`**. Nothing in the workspace's default surface
-assumes a particular cloud account, project ID, OAuth client, or domain. To run it against production traffic you
-assemble three pieces — a runtime (Kubernetes, ECS, or plain Compose), a Postgres database, and a few SaaS dependencies
-— and wire them together through env vars documented in [`../.env.example`](../.env.example).
+Neon Law Navigator's canonical build is just **`cargo build` + `docker build`**. Nothing in the workspace's default
+surface assumes a particular cloud account, project ID, OAuth client, or domain. To run it against production traffic
+you assemble three pieces — a runtime (Kubernetes, ECS, or plain Compose), a Postgres database, and a few SaaS
+dependencies — and wire them together through env vars documented in [`../.env.example`](../.env.example).
 
 This page walks the end-to-end setup against **GCP**, because the workspace ships a working example overlay for that
 path. The same shape works against EKS, AKS, or self-hosted Kubernetes; see [`multi-cloud.md`](multi-cloud.md) for those
@@ -11,10 +11,9 @@ routes.
 
 ## 0. Prerequisites
 
-- Rust 1.96 (`rustup toolchain install 1.96.0`)
-- Docker (for image builds and the testcontainers-backed test suite)
-- `kubectl`, `kustomize`, `gcloud` (only if you're following the GCP example)
-- A domain you control, with the ability to set A records
+- Rust 1.96 (`rustup toolchain install 1.96.0`) Docker (for image builds and the testcontainers-backed test suite)
+  `kubectl`, `kustomize`, `gcloud` (only if you're following the GCP example) A domain you control, with the ability to
+  set A records
 
 ## 1. Clone and build
 
@@ -160,8 +159,7 @@ before serving traffic, which is the loud-failure-by-design behavior.
 
 ## Where things go from here
 
-- For Restate Cloud setup, see [`gke-prod.md`](gke-prod.md).
-- For the Gemini Enterprise (A2A) wiring, see
+- For Restate Cloud setup, see [`gke-prod.md`](gke-prod.md). For the Gemini Enterprise (A2A) wiring, see
   [`gemini-enterprise-mcp.md`](gemini-enterprise-mcp.md).
 - For an OSS-friendly weekly deploy via GitHub Actions, copy
   [`../examples/deploy/ci/deploy-gke.yml.example`](../examples/deploy/ci/deploy-gke.yml.example) to

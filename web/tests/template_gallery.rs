@@ -183,7 +183,7 @@ async fn off_list_template_path_404s() {
 
 #[tokio::test]
 async fn lsp_showcase_renders_with_install_command_and_disclaimer() {
-    // The LSP page lives under the Navigator package hub now.
+    // The LSP page lives under the Neon Law Navigator package hub now.
     let resp = get(empty_state().await, "/foundation/navigator/lsp").await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;

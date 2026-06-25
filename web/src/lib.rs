@@ -1,5 +1,5 @@
 #![allow(clippy::doc_markdown)]
-//! Navigator web server library.
+//! Neon Law Navigator web server library.
 //!
 //! Exposes [`build_router`] so the binary and the integration tests
 //! share the exact same router instance — there is no second
@@ -705,7 +705,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             )
             .route("/foundation/contact", get(foundation_contact))
             .route("/foundation/nimbus", get(foundation_nimbus))
-            // The Navigator hub and its per-package pages. `/navigator`
+            // The Neon Law Navigator hub and its per-package pages. `/navigator`
             // and `/lsp` were the old top-level URLs; keep them as
             // permanent redirects so existing links never dead-end.
             .route("/foundation/navigator", get(navigator))
@@ -997,7 +997,7 @@ async fn foundation_contact(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::contact::render_foundation(auth)
 }
 
-/// `GET /foundation/navigator` — the Navigator hub: the workspace README
+/// `GET /foundation/navigator` — the Neon Law Navigator hub: the workspace README
 /// over a strip that fans out to the per-package pages below.
 async fn navigator(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::navigator::render(auth)
@@ -1020,7 +1020,7 @@ async fn navigator_lsp(MaybeAuth(auth): MaybeAuth) -> Markup {
 /// `GET /foundation/navigator/cli` — the `navigator` operator CLI.
 async fn navigator_cli(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::package::render_cli(
-        "Navigator CLI",
+        "Neon Law Navigator CLI",
         "The navigator operator CLI — validate markdown templates, import and seed \
          data, render the ER diagram, and drive deploys.",
         CLI_README,
@@ -1033,8 +1033,8 @@ async fn navigator_cli(MaybeAuth(auth): MaybeAuth) -> Markup {
 /// that exposes AIDA's tools to any LLM client.
 async fn navigator_mcp(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::package::render(
-        "Navigator MCP",
-        "Navigator's Model Context Protocol server — AIDA's tool catalog over JSON-RPC \
+        "Neon Law Navigator MCP",
+        "Neon Law Navigator's Model Context Protocol server — AIDA's tool catalog over JSON-RPC \
          for Claude, Gemini Enterprise, LibreChat, and Cursor.",
         MCP_README,
         "/foundation/navigator/mcp",
@@ -1046,8 +1046,8 @@ async fn navigator_mcp(MaybeAuth(auth): MaybeAuth) -> Markup {
 /// this very binary serves.
 async fn navigator_web(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::package::render(
-        "Navigator Web",
-        "The Navigator web app and JSON API — the public site, the portal, the admin UI, \
+        "Neon Law Navigator Web",
+        "The Neon Law Navigator web app and JSON API — the public site, the portal, the admin UI, \
          and the agent surfaces, all from one axum binary.",
         WEB_README,
         "/foundation/navigator/web",
@@ -1943,7 +1943,7 @@ async fn docusign_consent_callback() -> Markup {
                 main .card {
                     h1 { "Consent recorded" }
                     p {
-                        "DocuSign consent for the Navigator integration has been granted. "
+                        "DocuSign consent for the Neon Law Navigator integration has been granted. "
                         "You can close this tab — JWT grant does not use the redirect, so no "
                         "further action is needed here."
                     }

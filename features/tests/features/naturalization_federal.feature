@@ -14,7 +14,7 @@ Feature: Naturalization, end to end (Form N-400 → Certificate of Naturalizatio
   into the matter.
 
   Background:
-    Given a fresh Navigator app with the canonical templates seeded
+    Given a fresh Neon Law Navigator app with the canonical templates seeded
     And a client named "Maria Santos" <maria@example.com>
 
   Scenario: From N-400 intake to the Certificate of Naturalization

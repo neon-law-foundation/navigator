@@ -49,8 +49,8 @@ la tarifa, cualquier tarifa fuera de alcance y los términos de terminación. An
 conflictos de interés contra todos los asuntos actuales y anteriores de la firma —los planes patrimoniales tocan a
 cónyuges, familias y empresas familiares, y no podemos representar a una empresa y a una persona cuyos intereses sean
 adversos entre sí. Si la verificación muestra que no podemos tomar su asunto debidamente, se lo decimos con prontitud y
-le referimos a abogados que también usan el Navigator y están comprometidos con mejorar el acceso a la justicia con
-nuestro software. No existen honorarios por referencia entre Neon Law y ningún despacho al que refiramos casos.
+le referimos a abogados que también usan el Neon Law Navigator y están comprometidos con mejorar el acceso a la justicia
+con nuestro software. No existen honorarios por referencia entre Neon Law y ningún despacho al que refiramos casos.
 
 ## Reserve su sesión
 

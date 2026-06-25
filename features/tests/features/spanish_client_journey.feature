@@ -8,7 +8,7 @@ Feature: Spanish-language client journey, end to end
   them back out of the `/es` funnel (`project_i18n_spanish_phase1`).
 
   Background:
-    Given a fresh Navigator app with the canonical templates seeded
+    Given a fresh Neon Law Navigator app with the canonical templates seeded
 
   Scenario: The whole pre-engagement funnel stays in Spanish
     When a Spanish-speaking client opens "/es"

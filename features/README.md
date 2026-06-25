@@ -1,9 +1,9 @@
 # features
 
-The Cucumber-rust BDD suite — Navigator's executable specification. Gherkin `.feature` files describe how lawyers and
-clients actually move through the firm (intake, onboarding, the portal, e-signature, filings, closing) and the runners
-drive the real `web` router, the workflow walkers, the `rules` validators, and the OIDC callback against in-memory
-wiring. No production code depends on this crate; it exists to be run.
+The Cucumber-rust BDD suite — Neon Law Navigator's executable specification. Gherkin `.feature` files describe how
+lawyers and clients actually move through the firm (intake, onboarding, the portal, e-signature, filings, closing) and
+the runners drive the real `web` router, the workflow walkers, the `rules` validators, and the OIDC callback against
+in-memory wiring. No production code depends on this crate; it exists to be run.
 
 Legal flows are **feature-first**: the `.feature` is written before the template and the workflow it specifies, so the
 Gherkin is the spec and the Rust is the proof.

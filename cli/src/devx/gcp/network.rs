@@ -1,4 +1,4 @@
-//! Provision the Navigator VPC.
+//! Provision the Neon Law Navigator VPC.
 //!
 //! ## Scope
 //!

@@ -8,7 +8,7 @@ Feature: Closing letter walk
   and the firm's signature.
 
   Background:
-    Given a fresh Navigator app with the canonical templates seeded
+    Given a fresh Neon Law Navigator app with the canonical templates seeded
     And a closing notation for "Libra" <libra@example.com> at BEGIN
 
   Scenario: First GET renders the first question

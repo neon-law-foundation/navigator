@@ -6,7 +6,7 @@ Feature: Questionnaire intake in the client's own language
   `question_translations` — it does not bypass the staff_review gate.
 
   Background:
-    Given a fresh Navigator app with the canonical templates seeded
+    Given a fresh Neon Law Navigator app with the canonical templates seeded
     And a Spanish-speaking client "Gemini" <gemini@example.com> with a retainer notation at BEGIN
 
   Scenario: The questionnaire renders the first prompt in Spanish

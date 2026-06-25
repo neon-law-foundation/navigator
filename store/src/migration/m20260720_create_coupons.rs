@@ -2,7 +2,7 @@
 //! subscription at sign-up (e.g. `FRIEND99` for 99% off).
 //!
 //! Xero has no coupon primitive — only a per-invoice `DiscountRate` /
-//! `DiscountAmount`. A coupon is therefore a Navigator concept: the
+//! `DiscountAmount`. A coupon is therefore a Neon Law Navigator concept: the
 //! *intent* of a standing discount, owned here. When a coupon is applied
 //! to a subscription it is resolved to one of `billing::LineDiscount`'s
 //! two shapes and **snapshotted** onto the subscription's own discount

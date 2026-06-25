@@ -222,7 +222,7 @@ mod tests {
         );
     }
 
-    /// Cross-reference the "Deploy the Navigator" workshop prose
+    /// Cross-reference the "Deploy the Neon Law Navigator" workshop prose
     /// (`web/content/workshops/navigator/DEPLOY.md`) against the pipeline
     /// it teaches. If the prose names a service, bucket, or command the
     /// dry-run does not actually use — or omits one it does — this test

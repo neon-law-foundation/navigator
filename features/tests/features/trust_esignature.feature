@@ -14,7 +14,7 @@ Feature: Nevada trust rides the generalized e-signature send path
   not e-signed here.
 
   Background:
-    Given a fresh Navigator app with the canonical templates seeded
+    Given a fresh Neon Law Navigator app with the canonical templates seeded
     And a trust notation for the settlor "Capricorn" <capricorn@example.com>
 
   Scenario: Walking the trust questionnaire sends it for signature through the generalized path

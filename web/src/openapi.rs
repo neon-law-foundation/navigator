@@ -76,10 +76,10 @@ pub fn document_with_base(base: &str) -> Value {
     json!({
       "openapi": "3.1.0",
       "info": {
-        "title": "Navigator API",
+        "title": "Neon Law Navigator API",
         "version": "0.1.0",
         "description":
-          "Read-only JSON listings for the Navigator domain tables, plus a stateless \
+          "Read-only JSON listings for the Neon Law Navigator domain tables, plus a stateless \
            markdown notation validator. Every `/api/*` endpoint requires OIDC \
            authentication — either a browser session cookie issued by the OAuth flow \
            at `/auth/login`, or a JWT bearer token. The documentation itself stays \
@@ -173,7 +173,7 @@ pub fn document_with_base(base: &str) -> Value {
           "post": {
             "summary": "Lint a markdown notation without saving it",
             "description":
-              "Runs the Navigator rule engine over the supplied markdown and returns the \
+              "Runs the Neon Law Navigator rule engine over the supplied markdown and returns the \
                violations. Stateless: no row is inserted, no template registered. \"Notation\" \
                here is the *markdown notation format* — the file format Templates are written \
                in — not a `notations`-table row and not a persisted Template; nothing is \
@@ -285,7 +285,7 @@ pub fn document_with_base(base: &str) -> Value {
                                                  Defaults to `notation.md`." },
               "markdown_only": { "type": "boolean",
                                  "description": "Lint with `navigator_markdown_only_rules` instead \
-                                                 of the default Navigator-notation set." }
+                                                 of the default Neon Law Navigator notation set." }
             },
             "example": {
               "contents":

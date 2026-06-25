@@ -1,8 +1,8 @@
 # Workspace layout
 
-Navigator is a single Cargo workspace. Every executable and library in it is written in Rust — the `navigator` CLI (the
-`cli` crate) orchestrates every machine-bound flow, so there are no shell scripts and no Makefile. This doc is the
-canonical crate map; the workspace `CLAUDE.md` links here.
+Neon Law Navigator is a single Cargo workspace. Every executable and library in it is written in Rust — the `navigator`
+CLI (the `cli` crate) orchestrates every machine-bound flow, so there are no shell scripts and no Makefile. This doc is
+the canonical crate map; the workspace `CLAUDE.md` links here.
 
 ```text
 rules        lib   — validation rules

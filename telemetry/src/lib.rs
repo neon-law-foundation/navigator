@@ -1,5 +1,5 @@
 #![allow(clippy::doc_markdown)]
-//! The one observability seam for every Navigator binary.
+//! The one observability seam for every Neon Law Navigator binary.
 //!
 //! [`init`] wires `tracing` once and returns a [`TelemetryGuard`] whose drop
 //! flushes any pending OpenTelemetry export. Every `main` calls it with its
@@ -16,7 +16,7 @@
 //!   too: logs **dual-emit** to stdout *and* OTLP, so a collector outage
 //!   degrades to "no live traces / no lake telemetry," never "lost a log
 //!   line." Standard `OTEL_*` env vars drive everything; there is no
-//!   Navigator-specific telemetry config.
+//!   Neon Law Navigator-specific telemetry config.
 //!
 //! **The one rule for anyone adding a span, metric, or log field (legal- and
 //! engineering-council standing order): identifiers and counts, never

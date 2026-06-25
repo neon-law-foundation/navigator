@@ -1,6 +1,6 @@
 //! Ops-notification seam — the chat sibling of [`crate::email::EmailService`].
 //!
-//! Navigator's durable workflows prove their liveness by notifying firm ops
+//! Neon Law Navigator's durable workflows prove their liveness by notifying firm ops
 //! (the six-hourly `Heartbeat`, the nightly `Archives` digest, the
 //! `BillingCanary`, …). That signal goes to an incoming **Slack** webhook on
 //! the engineering channel — where engineers already watch — and **no longer

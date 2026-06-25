@@ -5,7 +5,7 @@
 //! canonical [`invoices`](super::m20260525_create_billing_tables) table
 //! is **entity-billing-profile-scoped** (internal accounts-receivable),
 //! while a matter-close Xero invoice is **project-scoped** and keyed by
-//! the Navigator `project_id` carried into Xero's invoice `Reference`
+//! the Neon Law Navigator `project_id` carried into Xero's invoice `Reference`
 //! field. Overloading `invoices` with a half-null `project_id` /
 //! `xero_invoice_id` would muddy that seam, so the Xero side gets its
 //! own table. The portal reads this mirror; it never calls Xero live.
@@ -16,7 +16,7 @@
 //! updates the one row rather than writing a second.
 //!
 //! `persons.xero_contact_id` caches the Xero `ContactID` the first time a
-//! person is mirrored to Xero Contacts (one-way, Navigator → Xero). It
+//! person is mirrored to Xero Contacts (one-way, Neon Law Navigator → Xero). It
 //! backs both the contacts sync and the admin people-detail Xero
 //! deep-link; nullable, since every existing person predates it.
 

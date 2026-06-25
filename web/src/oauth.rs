@@ -690,7 +690,7 @@ struct TokenResponse {
 }
 
 /// Minimal id_token payload. We deliberately only ask for the
-/// fields Navigator actually needs: a stable subject for linkage,
+/// fields Neon Law Navigator actually needs: a stable subject for linkage,
 /// an email for first-time row creation, and an optional display
 /// name. **The role is not read from the token.** Authorization is
 /// derived from the `role` column on the `persons` table after the
