@@ -78,10 +78,12 @@ Markdown validation pass through the `navigator` CLI, a clippy pass with warning
 suite — nothing else. The Markdown pass builds `navigator` once and runs `./target/debug/navigator validate
 --no-default-excludes .`, so ordinary docs get the prose Markdown rules and notation templates get the stricter
 questionnaire/workflow/template rule set. The job keeps target artifacts out of the cache, disables CI debug info, and
-runs `cargo clean` between clippy and test so the standard hosted runner has enough disk. One shared
-`postgres:17-alpine` container backs the whole job via `TEST_DATABASE_URL` (so `store::test_support` makes a per-test
-schema in that single container instead of spawning a testcontainer per binary). Integration/KIND/docker/browser work
-does **not** run here.
+runs `cargo clean` between clippy and test so the standard hosted runner has enough disk. It still uses two
+Rust-specific caches: `Swatinem/rust-cache` restores Cargo's registry, git, and tool caches, while `sccache` stores
+reusable rustc outputs in GitHub Actions cache. That gives successive PRs a compiler cache without restoring the full
+`target/` tree that previously exhausted runner disk. One shared `postgres:17-alpine` container backs the whole job via
+`TEST_DATABASE_URL` (so `store::test_support` makes a per-test schema in that single container instead of spawning a
+testcontainer per binary). Integration/KIND/docker/browser work does **not** run here.
 
 ### Cron flow — `release-tag.yml`
 
@@ -92,11 +94,13 @@ Fires daily at **05:00 PST** (`0 13 * * *` UTC). Its only job is to cut a calend
 
 Triggered by the `YY.MM.DD` tag push. Runs the full **KIND integration** suite, then builds and pushes every image — the
 two service images (`navigator-web`, `navigator-workflows-service`) and the five CronJob trigger images
-(`navigator-*-trigger`) — to **ghcr.io** tagged with that date plus `latest`. On success it posts a **"ready to
-deploy"** message to the engineering Slack channel (the prod ops incoming webhook, `secrets.SLACK_WEBHOOK_URL`, synced
-from Doppler), tagging Nick with the exact `power-push` command to roll the new images to prod; a failure on any stage
-posts a separate alert to the same channel, also tagging Nick. The images are published, **not** rolled out — see
-[Publish vs. roll out](#publish-vs-roll-out) below.
+(`navigator-*-trigger`) — to **ghcr.io** tagged with that date plus `latest`. In parallel with image publishing, it
+builds the public `navigator` CLI and `navigator-lsp` binaries on native Linux, macOS, and Windows runners and attaches
+those six archives to the tag's GitHub Release. On success it posts a **"ready to deploy"** message to the engineering
+Slack channel (the prod ops incoming webhook, `secrets.SLACK_WEBHOOK_URL`, synced from Doppler), tagging Nick with the
+exact `power-push` command to roll the new images to prod; a failure on any stage posts a separate alert to the same
+channel, also tagging Nick. The images are published, **not** rolled out — see [Publish vs. roll
+out](#publish-vs-roll-out) below.
 
 ### Maintenance flow — `cleanup.yml`
 

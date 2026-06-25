@@ -8,7 +8,7 @@
 use maud::{html, Markup};
 
 use crate::brand::{FIRM_BRAND, FOUNDATION_BRAND};
-use crate::components::ExternalLink;
+use crate::components::{testimonial_section, ExternalLink, TestimonialCard};
 use crate::{i18n, AuthState, Locale, PageLayout};
 
 const JUSTICE_GAP_STATS: &[(&str, &str, &str)] = &[
@@ -33,14 +33,14 @@ const JUSTICE_GAP_STATS: &[(&str, &str, &str)] = &[
 /// the firm brand by default.
 #[must_use]
 pub fn render(auth: AuthState) -> Markup {
-    render_in(auth, Locale::En)
+    render_in(auth, Locale::En, &[])
 }
 
 /// Render `/` in `locale`. The page body is English; `locale`
 /// localizes only the surrounding chrome, and `/` stays the canonical
 /// twin of `/es`.
 #[must_use]
-pub fn render_in(auth: AuthState, locale: Locale) -> Markup {
+pub fn render_in(auth: AuthState, locale: Locale, testimonials: &[TestimonialCard<'_>]) -> Markup {
     let body = html! {
         section."py-5" {
             p."text-uppercase"."fw-semibold"."text-body-secondary"."small"."mb-2" {
@@ -68,6 +68,12 @@ pub fn render_in(auth: AuthState, locale: Locale) -> Markup {
                 a."btn"."btn-outline-secondary"."btn-lg" href="/foundation" { "Read the Mission" }
             }
         }
+
+        (testimonial_section(
+            "What clients say",
+            "Published only after client consent and staff review.",
+            testimonials,
+        ))
 
         section."mb-5" {
             div."row"."row-cols-1"."row-cols-md-3"."g-4" {

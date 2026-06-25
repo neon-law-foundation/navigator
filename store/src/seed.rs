@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 use crate::entity::{
     address, answer, credential, entity as entities, entity_billing_profile, entity_type,
     git_repository, invoice, invoice_line_item, jurisdiction, letter, mailroom, person,
-    person_entity_role, person_project_role, product, project, question, template,
+    person_entity_role, person_project_role, product, project, question, template, testimonial,
 };
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
@@ -49,6 +49,7 @@ pub struct SeedReport {
     pub credentials_inserted: usize,
     pub templates_inserted: usize,
     pub products_inserted: usize,
+    pub testimonials_inserted: usize,
 }
 
 impl SeedReport {
@@ -63,7 +64,7 @@ impl SeedReport {
              {} mailrooms, {} addresses, {} letters, {} answers, \
              {} person_entity_roles, {} person_project_roles, \
              {} billing_profiles, {} invoices, {} invoice_line_items, {} credentials, \
-             {} templates, {} products.",
+             {} templates, {} products, {} testimonials.",
             self.jurisdictions_inserted,
             self.entity_types_inserted,
             self.entities_inserted,
@@ -84,6 +85,7 @@ impl SeedReport {
             self.credentials_inserted,
             self.templates_inserted,
             self.products_inserted,
+            self.testimonials_inserted,
         )
     }
 }
@@ -120,6 +122,7 @@ mod canonical {
     pub const INVOICE_LINE_ITEM: &str = include_str!("../seeds/InvoiceLineItem.yaml");
     pub const CREDENTIAL: &str = include_str!("../seeds/Credential.yaml");
     pub const PRODUCT: &str = include_str!("../seeds/Product.yaml");
+    pub const TESTIMONIAL: &str = include_str!("../seeds/Testimonial.yaml");
 
     /// Bundled notation templates. Each entry is `(path, full_md)`
     /// where `path` exists only as a label in the seed report.
@@ -266,6 +269,7 @@ pub async fn seed_canonical(
     seed_credentials(db, &mut r).await?;
     seed_templates(db, storage, &mut r).await?;
     seed_products(db, &mut r).await?;
+    seed_testimonials(db, &mut r).await?;
     Ok(r)
 }
 
@@ -727,6 +731,8 @@ async fn seed_entities(db: &DatabaseConnection, report: &mut SeedReport) -> anyh
 struct PersonRec {
     email: String,
     name: String,
+    #[serde(default)]
+    profile_image_url: Option<String>,
 }
 
 async fn seed_persons(db: &DatabaseConnection, report: &mut SeedReport) -> anyhow::Result<()> {
@@ -744,11 +750,73 @@ async fn seed_persons(db: &DatabaseConnection, report: &mut SeedReport) -> anyho
             email: ActiveValue::Set(rec.email),
             oidc_subject: ActiveValue::Set(None),
             role: ActiveValue::Set(person::Role::Client),
+            profile_image_url: ActiveValue::Set(rec.profile_image_url),
             ..Default::default()
         }
         .insert(db)
         .await?;
         report.persons_inserted += 1;
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct TestimonialRec {
+    project: ProjectCodenameRef,
+    person: PersonEmailRef,
+    #[serde(default)]
+    product_code: Option<String>,
+    quote: String,
+    #[serde(default)]
+    attribution_label: Option<String>,
+    #[serde(default)]
+    consented_at: Option<String>,
+    #[serde(default)]
+    published_at: Option<String>,
+    #[serde(default)]
+    display_order: i32,
+}
+
+async fn seed_testimonials(db: &DatabaseConnection, report: &mut SeedReport) -> anyhow::Result<()> {
+    for rec in parse::<TestimonialRec>(canonical::TESTIMONIAL, "Testimonial.yaml")? {
+        let Some(project) = project::Entity::find()
+            .filter(project::Column::Name.eq(rec.project.codename.clone()))
+            .one(db)
+            .await?
+        else {
+            continue;
+        };
+        let Some(person) = person::Entity::find()
+            .filter(person::Column::Email.eq(rec.person.email.clone()))
+            .one(db)
+            .await?
+        else {
+            continue;
+        };
+        if testimonial::Entity::find()
+            .filter(testimonial::Column::ProjectId.eq(project.id))
+            .filter(testimonial::Column::PersonId.eq(person.id))
+            .filter(testimonial::Column::Quote.eq(rec.quote.clone()))
+            .one(db)
+            .await?
+            .is_some()
+        {
+            continue;
+        }
+        testimonial::ActiveModel {
+            project_id: ActiveValue::Set(project.id),
+            person_id: ActiveValue::Set(person.id),
+            product_code: ActiveValue::Set(rec.product_code),
+            quote: ActiveValue::Set(rec.quote),
+            attribution_label: ActiveValue::Set(rec.attribution_label),
+            consented_at: ActiveValue::Set(rec.consented_at),
+            published_at: ActiveValue::Set(rec.published_at),
+            display_order: ActiveValue::Set(rec.display_order),
+            ..Default::default()
+        }
+        .insert(db)
+        .await?;
+        report.testimonials_inserted += 1;
     }
     Ok(())
 }
