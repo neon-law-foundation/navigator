@@ -35,7 +35,7 @@ Six steps, each tagged with its Bloom verb. You are the operator; the `navigator
 
 - **Create** — stand up a billed project and authenticate.
 - **Predict** — run `--dry-run` and read every API call before sending one.
-- **Identify** — name the twelve Google Cloud APIs the provisioner enables.
+- **Identify** — name the thirteen Google Cloud APIs the provisioner enables.
 - **Explain** — describe the VPC, the Cloud SQL instance, and the three buckets.
 - **Execute** — bring up the cluster, the static IP, and Fleet membership.
 - **Verify** — ship the `web` image and confirm `/readyz` answers 200.
@@ -46,7 +46,7 @@ Each step is tagged with the Bloom verb it exercises (the [Anderson & Krathwohl 
 revision](https://en.wikipedia.org/wiki/Bloom%27s_taxonomy)). You are the operator; the `navigator` CLI is the
 instrument. **Create** — stand up a billed Google Cloud project and authenticate so `navigator` can act on your behalf.
 **Predict** — run `navigator gcp setup --dry-run` and read every API call the provisioner _would_ make before sending
-one. **Identify** — name the twelve Google Cloud APIs the provisioner enables, and why each is needed. **Explain** —
+one. **Identify** — name the thirteen Google Cloud APIs the provisioner enables, and why each is needed. **Explain** —
 describe the VPC, the Cloud SQL Postgres instance, and the three storage buckets, and why re-running setup is always
 safe. **Execute** — bring up the GKE Autopilot cluster, the static IP, and Fleet membership with one command. **Verify**
 — ship the `web` image and confirm the running service answers `/readyz` with a 200.
@@ -93,10 +93,10 @@ idempotent, so a re-run after a partial failure never produces duplicates.
 
 ## The APIs that light up
 
-A real run first enables twelve Google Cloud APIs in a single [Service
+A real run first enables thirteen Google Cloud APIs in a single [Service
 Usage](https://cloud.google.com/service-usage/docs/enable-disable) `batchEnable` call: `compute`, `sqladmin`,
 `servicenetworking`, `storage`, `iam`, `container`, `gkebackup`, `configconnector`, `anthosconfigmanagement`, `logging`,
-`secretmanager`, and `certificatemanager`.
+`secretmanager`, `certificatemanager`, and `speech`.
 
 ---
 

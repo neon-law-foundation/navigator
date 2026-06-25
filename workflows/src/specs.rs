@@ -147,6 +147,10 @@ pub const BUNDLED_SPEC_YAML: &[(&str, &str)] = &[
         "services__contract_review",
         include_str!("../specs/services__contract_review.yaml"),
     ),
+    (
+        "naturalization__federal",
+        include_str!("../specs/naturalization__federal.yaml"),
+    ),
 ];
 
 /// Look up the bundled standalone YAML for `code`. Returns `None`
