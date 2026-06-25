@@ -195,6 +195,10 @@ impl<'a> PageLayout<'a> {
                         href="/public/fonts/noto-serif/noto-serif-latin-400-normal.woff2";
                     link rel="stylesheet" href="/public/css/noto-serif.css";
                     link rel="stylesheet" href="/public/icons/bootstrap-icons.css";
+                    // Neon "Vegas" hero scene for the firm landing page.
+                    // Self-contained dark cyan styling + animation; inert on
+                    // any page without a `.hero-neon` element.
+                    link rel="stylesheet" href="/public/css/hero.css";
                     // Hero preload — only when a page opts in via
                     // `with_preload_image`. `fetchpriority="high"` so
                     // it wins the connection race for the LCP element.
@@ -384,7 +388,6 @@ impl<'a> PageLayout<'a> {
                             a.link-secondary href="/api/docs" { "API" } " · "
                             a.link-secondary href="/contact" { "Contact" } " · "
                             a.link-secondary href="/blog" { "Blog" } " · "
-                            a.link-secondary href="/events" { "Events" } " · "
                             // The mission statement and the Foundation's free
                             // Nevada Revised Statutes reference ride the same link
                             // row as every other policy link — uniform short
@@ -945,7 +948,6 @@ mod tests {
                 "href=\"/api/docs\"",
                 "href=\"/contact\"",
                 "href=\"/blog\"",
-                "href=\"/events\"",
                 "href=\"/foundation\"",
                 "href=\"/foundation/transparency\"",
                 "href=\"/statutes\"",
@@ -991,6 +993,10 @@ mod tests {
             assert!(
                 footer.contains(&format!("href=\"{}\"", foundation_github_url())),
                 "{brand} footer should link the configured repo: {footer}"
+            );
+            assert!(
+                !footer.contains("href=\"/events\""),
+                "{brand} footer should keep events nested under Nebula: {footer}"
             );
         }
     }
