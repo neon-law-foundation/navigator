@@ -156,6 +156,10 @@ name = "nest_formation"
 harness = false
 
 [[test]]
+name = "naturalization_federal"
+harness = false
+
+[[test]]
 name = "entity_formation"
 harness = false
 
