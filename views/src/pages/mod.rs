@@ -25,4 +25,5 @@ pub mod service;
 pub mod statutes;
 pub mod templates;
 pub mod terms;
+pub mod transparency;
 pub mod workshops;
