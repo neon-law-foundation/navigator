@@ -1052,8 +1052,8 @@ async fn navigator_cli(MaybeAuth(auth): MaybeAuth) -> Markup {
 async fn navigator_mcp(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::package::render(
         "Neon Law Navigator MCP",
-        "Neon Law Navigator's Model Context Protocol server — AIDA's tool catalog over JSON-RPC \
-         for Claude, Gemini Enterprise, LibreChat, and Cursor.",
+        "AIDA's tool catalog, surfaced to Google Gemini Enterprise over A2A — query Neon Law \
+         Navigator data from the Gemini chat box, with two LLM calls behind each answer.",
         MCP_README,
         "/foundation/navigator/mcp",
         auth,
