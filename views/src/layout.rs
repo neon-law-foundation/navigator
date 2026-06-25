@@ -195,6 +195,10 @@ impl<'a> PageLayout<'a> {
                         href="/public/fonts/noto-serif/noto-serif-latin-400-normal.woff2";
                     link rel="stylesheet" href="/public/css/noto-serif.css";
                     link rel="stylesheet" href="/public/icons/bootstrap-icons.css";
+                    // Neon "Vegas" hero scene for the firm landing page.
+                    // Self-contained dark cyan styling + animation; inert on
+                    // any page without a `.hero-neon` element.
+                    link rel="stylesheet" href="/public/css/hero.css";
                     // Hero preload — only when a page opts in via
                     // `with_preload_image`. `fetchpriority="high"` so
                     // it wins the connection race for the LCP element.
