@@ -42,6 +42,7 @@ const MANIFEST: &[(&str, &str)] = &[
     doc!("agent-decision-councils", "docs/agent-decision-councils.md"),
     doc!("agent-workflows", "docs/agent-workflows.md"),
     doc!("aida-a2a-interaction", "docs/aida-a2a-interaction.md"),
+    doc!("assets", "docs/assets.md"),
     doc!("bulk-contact-import", "docs/bulk-contact-import.md"),
     doc!("cloud-operations", "docs/cloud-operations.md"),
     doc!("cronjobs", "docs/cronjobs.md"),

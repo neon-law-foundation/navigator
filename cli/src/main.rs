@@ -520,6 +520,25 @@ enum AssetsAction {
         #[arg(long, env = "NAVIGATOR_ASSETS_BUCKET")]
         bucket: Option<String>,
     },
+    /// Restore the gitignored `web/public/img/` tree from the public
+    /// assets bucket — the inverse of `upload`, for local development.
+    /// A fresh clone has empty photo slots (`web/public/img/` is in
+    /// `.gitignore`); this downloads every variant under the bucket's
+    /// `img/` prefix so the `/public` mount serves the photos again,
+    /// without the original source JPEGs. Read-only against the bucket;
+    /// auth is ADC, the emulator endpoint is honored via
+    /// `NAVIGATOR_STORAGE_ENDPOINT`.
+    Pull {
+        /// Output root; variants land under `<out>/<slug>/<file>` (the
+        /// bucket's `img/` prefix is stripped). Defaults to the `/public`
+        /// mount so a local dev loop serves them immediately.
+        #[arg(long, default_value = "web/public/img")]
+        out: PathBuf,
+        /// Source bucket. Defaults to `NAVIGATOR_ASSETS_BUCKET` — the
+        /// public `<project>-assets` bucket.
+        #[arg(long, env = "NAVIGATOR_ASSETS_BUCKET")]
+        bucket: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1060,6 +1079,7 @@ fn main() -> ExitCode {
         Command::Assets { action } => match action {
             AssetsAction::Build { src, out } => assets::run_build(&src, &out),
             AssetsAction::Upload { dir, bucket } => assets::run_upload(&dir, bucket),
+            AssetsAction::Pull { out, bucket } => assets::run_pull(&out, bucket),
         },
         Command::Forms { action } => match action {
             FormsAction::Sync { bucket } => forms_sync::run_sync(bucket),
