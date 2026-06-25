@@ -36,11 +36,14 @@ pub struct WorkshopSection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkshopMaterial {
+    /// Public Nebula category path segment, e.g. `workshops` or
+    /// `presentations`.
+    pub category: String,
     pub slug: String,
     pub title: String,
     pub description: String,
-    /// Who this workshop is for, shown as the audience tag on the
-    /// top-level `/foundation/workshops` overview, e.g. "For lawyers".
+    /// Who this material is for, shown as the audience tag on the
+    /// top-level `/foundation/nebula` overview, e.g. "For lawyers".
     /// The reader self-selects in two seconds (Client Council, Pisces).
     pub audience: String,
     /// The you-voiced takeaway — what the reader walks out with —
@@ -85,7 +88,9 @@ impl WorkshopIndex {
     }
 
     #[must_use]
-    pub fn find(&self, slug: &str) -> Option<&WorkshopMaterial> {
-        self.materials.iter().find(|m| m.slug == slug)
+    pub fn find_in_category(&self, category: &str, slug: &str) -> Option<&WorkshopMaterial> {
+        self.materials
+            .iter()
+            .find(|m| m.category == category && m.slug == slug)
     }
 }

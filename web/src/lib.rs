@@ -218,7 +218,7 @@ pub const DEFAULT_MARKETING_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/co
 /// `NAVIGATOR_BLOG_DIR`.
 pub const DEFAULT_BLOG_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/content/blog");
 
-/// Root for the bundled event pages served at `/events`. Override with
+/// Root for the bundled Nebula show-and-tell pages. Override with
 /// `NAVIGATOR_EVENTS_DIR`.
 pub const DEFAULT_EVENTS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/content/events");
 
@@ -244,8 +244,8 @@ pub struct AppState {
     /// board minutes) served under `/foundation/transparency`, loaded at boot
     /// from `web/content/foundation/`. See [`transparency`].
     pub transparency: TransparencyIndex,
-    /// Public events served at `/events`, loaded from dated markdown
-    /// files. See [`events`].
+    /// Public Nebula show-and-tells, loaded from dated markdown files.
+    /// See [`events`].
     pub events: EventIndex,
     pub auth: AuthConfig,
     /// Google OAuth access-token validator for `/mcp`. Pass-through
@@ -697,9 +697,6 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/", get(home))
             .route("/blog", get(blog_index))
             .route("/blog/{slug}", get(blog_post))
-            .route("/events", get(events_index))
-            .route("/events/{slug}", get(event_page))
-            .route("/events/{slug}/calendar.ics", get(event_ics))
             .route("/contact", get(contact))
             .route("/foundation", get(foundation_mission))
             .route(
@@ -770,36 +767,33 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/es/services/namesake", get(service_namesake_es))
             .route("/es/services/nucleus", get(service_nucleus_es))
             .route("/es/services/pro-bono", get(service_pro_bono_es))
-            // The top-level overview lists every workshop, you-voiced.
-            .route("/foundation/workshops", get(workshops_landing))
-            // The old per-track index folded into the overview; redirect so
-            // bookmarks and the nav's prior target land on the new front door.
+            .route("/es/foundation/nebula", get(nebula_landing_es))
+            // Nebula is the Foundation's sharing surface: workshops,
+            // show-and-tells, and presentations.
+            .route("/foundation/nebula", get(nebula_landing))
+            .route("/foundation/nebula/{category}/{slug}", get(nebula_material))
             .route(
-                "/foundation/workshops/navigator",
-                get(|| async { axum::response::Redirect::permanent("/foundation/workshops") }),
-            )
-            .route(
-                "/foundation/workshops/navigator/{slug}",
-                get(workshops_material),
-            )
-            .route(
-                "/foundation/workshops/navigator/{slug}/step/{step}",
-                get(workshops_material_step),
+                "/foundation/nebula/{category}/{slug}/step/{step}",
+                get(nebula_material_step),
             )
             // The light-table grid of every slide in a workshop, plus the
             // client-gated certificate request form it mints CSRF for.
             .route(
-                "/foundation/workshops/navigator/{slug}/slides",
-                get(workshops_slides),
+                "/foundation/nebula/{category}/{slug}/slides",
+                get(nebula_slides),
+            )
+            .route(
+                "/foundation/nebula/show-and-tell/{slug}/calendar.ics",
+                get(nebula_show_tell_ics),
             )
             // POST-only: the certificate request. A stray GET lands the
             // learner back on the light table where the form lives.
             .route(
-                "/foundation/workshops/navigator/{slug}/certificate",
-                axum::routing::post(workshops_certificate_submit).get(
-                    |AxumPath(slug): AxumPath<String>| async move {
+                "/foundation/nebula/{category}/{slug}/certificate",
+                axum::routing::post(nebula_certificate_submit).get(
+                    |AxumPath((category, slug)): AxumPath<(String, String)>| async move {
                         axum::response::Redirect::to(&format!(
-                            "/foundation/workshops/navigator/{slug}/slides"
+                            "/foundation/nebula/{category}/{slug}/slides"
                         ))
                     },
                 ),
@@ -820,32 +814,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/design", get(design_page))
             .route("/statutes", get(statutes::index))
             .route("/statutes/nrs/{chapter}", get(statutes::chapter))
-            .route("/statutes/nrs/{chapter}/{section}", get(statutes::section))
-            // Presentations folded into Workshops — a talk is just another
-            // hands-on workshop now. Redirect the old surface so deep
-            // links to a talk land on its workshop twin.
-            .route(
-                "/foundation/presentations",
-                get(|| async { axum::response::Redirect::permanent("/foundation/workshops") }),
-            )
-            .route(
-                "/foundation/presentations/{slug}",
-                get(|AxumPath(slug): AxumPath<String>| async move {
-                    axum::response::Redirect::permanent(&format!(
-                        "/foundation/workshops/navigator/{slug}"
-                    ))
-                }),
-            )
-            .route(
-                "/foundation/presentations/{slug}/step/{step}",
-                get(
-                    |AxumPath((slug, step)): AxumPath<(String, u32)>| async move {
-                        axum::response::Redirect::permanent(&format!(
-                            "/foundation/workshops/navigator/{slug}/step/{step}"
-                        ))
-                    },
-                ),
-            );
+            .route("/statutes/nrs/{chapter}/{section}", get(statutes::section));
     }
 
     let mut router = router
@@ -966,28 +935,6 @@ async fn blog_index(State(blog): State<BlogIndex>, MaybeAuth(auth): MaybeAuth) -
     views::pages::blog::render_index(&summaries, auth)
 }
 
-/// `GET /events` — public event index, soonest first.
-async fn events_index(State(events): State<EventIndex>, MaybeAuth(auth): MaybeAuth) -> Markup {
-    let times: Vec<String> = events
-        .events()
-        .iter()
-        .map(|event| format_event_datetime_range(event.starts_at, event.ends_at))
-        .collect();
-    let summaries: Vec<views::pages::events::EventSummary<'_>> = events
-        .events()
-        .iter()
-        .zip(&times)
-        .map(|(event, time)| views::pages::events::EventSummary {
-            slug: &event.slug,
-            title: &event.title,
-            description: &event.description,
-            time,
-            place: &event.location_name,
-        })
-        .collect();
-    views::pages::events::render_index(&summaries, auth)
-}
-
 /// Build the kebab-case redirect target for a file-backed asset route
 /// when any path segment is in the legacy underscore form, or `None`
 /// when every segment is already canonical.
@@ -1006,62 +953,6 @@ fn kebab_redirect_path(segments: &[&str]) -> Option<String> {
         Some(format!("/{path}"))
     } else {
         None
-    }
-}
-
-async fn event_page(
-    State(events): State<EventIndex>,
-    MaybeAuth(auth): MaybeAuth,
-    AxumPath(slug): AxumPath<String>,
-) -> impl IntoResponse {
-    if let Some(to) = kebab_redirect_path(&["events", &slug]) {
-        return axum::response::Redirect::permanent(&to).into_response();
-    }
-    match events.get(&slug) {
-        Some(event) => {
-            let time = format_event_datetime_range(event.starts_at, event.ends_at);
-            let place = format!("{}, {}", event.location_name, event.location_address);
-            let ics_url = format!("/events/{}/calendar.ics", event.slug);
-            (
-                StatusCode::OK,
-                views::pages::events::render_event(
-                    &views::pages::events::EventContent {
-                        slug: &event.slug,
-                        title: &event.title,
-                        description: &event.description,
-                        time: &time,
-                        place: &place,
-                        external_event_provider: &event.external_event_provider,
-                        external_event_url: &event.external_event_url,
-                        ics_url: &ics_url,
-                        body_html: &event.body_html,
-                        video_url: event.video_url.as_deref(),
-                        recap_url: event.recap_url.as_deref(),
-                    },
-                    auth,
-                ),
-            )
-                .into_response()
-        }
-        None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
-    }
-}
-
-async fn event_ics(
-    State(events): State<EventIndex>,
-    AxumPath(slug): AxumPath<String>,
-) -> impl IntoResponse {
-    if let Some(to) = kebab_redirect_path(&["events", &slug]) {
-        return axum::response::Redirect::permanent(&format!("{to}/calendar.ics")).into_response();
-    }
-    match events.get(&slug) {
-        Some(event) => (
-            StatusCode::OK,
-            [(header::CONTENT_TYPE, "text/calendar; charset=utf-8")],
-            event.ics(),
-        )
-            .into_response(),
-        None => StatusCode::NOT_FOUND.into_response(),
     }
 }
 
@@ -2063,21 +1954,43 @@ async fn docusign_consent_callback() -> Markup {
     }
 }
 
-/// Route prefix for the Navigator workshop's overview and steps.
-const WORKSHOP_BASE: &str = "/foundation/workshops/navigator";
+/// Route prefix for the Foundation's sharing surface.
+const NEBULA_BASE: &str = "/foundation/nebula";
 
-async fn workshops_landing(
+fn nebula_material_base(category: &str) -> String {
+    format!("{NEBULA_BASE}/{category}")
+}
+
+async fn nebula_landing(
     State(workshops): State<WorkshopIndex>,
+    State(events): State<EventIndex>,
     MaybeAuth(auth): MaybeAuth,
 ) -> Markup {
-    // Each card links to the workshop's overview one level down. The
-    // hrefs are owned, so hold them alive while the borrowing cards build.
+    render_nebula_landing(&workshops, &events, auth, views::Locale::En)
+}
+
+async fn nebula_landing_es(
+    State(workshops): State<WorkshopIndex>,
+    State(events): State<EventIndex>,
+    MaybeAuth(auth): MaybeAuth,
+) -> Markup {
+    render_nebula_landing(&workshops, &events, auth, views::Locale::Es)
+}
+
+fn render_nebula_landing(
+    workshops: &WorkshopIndex,
+    events: &EventIndex,
+    auth: views::AuthState,
+    locale: views::Locale,
+) -> Markup {
+    // Each card links to its Nebula category one level down. The hrefs
+    // are owned, so hold them alive while the borrowing cards build.
     let hrefs: Vec<String> = workshops
         .materials()
         .iter()
-        .map(|m| format!("{WORKSHOP_BASE}/{}", m.slug))
+        .map(|m| format!("{NEBULA_BASE}/{}/{}", m.category, m.slug))
         .collect();
-    let cards: Vec<workshop_views::WorkshopCard<'_>> = workshops
+    let workshop_cards: Vec<workshop_views::WorkshopCard<'_>> = workshops
         .materials()
         .iter()
         .zip(&hrefs)
@@ -2088,7 +2001,32 @@ async fn workshops_landing(
             benefit: &m.benefit,
         })
         .collect();
-    workshop_views::landing(&cards, auth)
+    let show_tell_meta: Vec<(String, String, String)> = events
+        .events()
+        .iter()
+        .map(|event| {
+            (
+                format!("{NEBULA_BASE}/show-and-tell/{}", event.public_slug),
+                format_event_datetime_range(event.starts_at, event.ends_at),
+                event.location_name.clone(),
+            )
+        })
+        .collect();
+    let show_tell_cards: Vec<workshop_views::ShowTellCard<'_>> = events
+        .events()
+        .iter()
+        .zip(&show_tell_meta)
+        .map(
+            |(event, (href, time, place))| workshop_views::ShowTellCard {
+                href,
+                title: &event.title,
+                time,
+                place,
+                description: &event.description,
+            },
+        )
+        .collect();
+    workshop_views::landing_in(&workshop_cards, &show_tell_cards, auth, locale)
 }
 
 /// Build the table of contents shared by the overview and every step.
@@ -2164,14 +2102,12 @@ async fn llms_txt(
     let mut out = format!("# {}\n\n> {}\n", brand.site_name, brand.tagline);
 
     if !workshops.materials().is_empty() {
-        // Talks (e.g. "Rust in Peace") ride this list too — they're
-        // workshops now, not a separate Presentations surface.
-        out.push_str("\n## Workshops\n\n");
+        out.push_str("\n## Nebula\n\n");
         for m in workshops.materials() {
             let _ = writeln!(
                 out,
-                "- [{}]({base}{WORKSHOP_BASE}/{}.md): {}",
-                m.title, m.slug, m.description
+                "- [{}]({base}{NEBULA_BASE}/{}/{}.md): {}",
+                m.title, m.category, m.slug, m.description
             );
         }
     }
@@ -2179,28 +2115,33 @@ async fn llms_txt(
     markdown_response(&out)
 }
 
-async fn workshops_material(
+async fn nebula_material(
     State(workshops): State<WorkshopIndex>,
+    State(events): State<EventIndex>,
     MaybeAuth(auth): MaybeAuth,
-    AxumPath(slug): AxumPath<String>,
+    AxumPath((category, slug)): AxumPath<(String, String)>,
 ) -> impl IntoResponse {
+    if category == "show-and-tell" {
+        return nebula_show_tell(&events, auth, &slug).into_response();
+    }
     // `…/{slug}.md` is the raw-Markdown twin of `…/{slug}`. matchit
     // captures the whole `readme.md` segment into `slug`, so we branch
     // on the suffix here rather than registering a second route.
     if let Some(stem) = slug.strip_suffix(".md") {
-        return match workshops.find(stem) {
+        return match workshops.find_in_category(&category, stem) {
             Some(m) => markdown_response(&m.raw_markdown).into_response(),
             None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
         };
     }
-    if let Some(m) = workshops.find(&slug) {
+    if let Some(m) = workshops.find_in_category(&category, &slug) {
         let steps = step_summaries(m);
-        let md_href = format!("{WORKSHOP_BASE}/{}.md", m.slug);
+        let material_base = nebula_material_base(&m.category);
+        let md_href = format!("{material_base}/{}.md", m.slug);
         (
             StatusCode::OK,
             workshop_views::overview(
                 &workshop_views::MaterialOverview {
-                    base: WORKSHOP_BASE,
+                    base: &material_base,
                     slug: &m.slug,
                     title: &m.title,
                     description: &m.description,
@@ -2218,13 +2159,61 @@ async fn workshops_material(
     }
 }
 
-async fn workshops_material_step(
+fn nebula_show_tell(events: &EventIndex, auth: views::AuthState, slug: &str) -> impl IntoResponse {
+    match events.get_public(slug) {
+        Some(event) => {
+            let time = format_event_datetime_range(event.starts_at, event.ends_at);
+            let place = format!("{}, {}", event.location_name, event.location_address);
+            let ics_url = format!(
+                "{NEBULA_BASE}/show-and-tell/{}/calendar.ics",
+                event.public_slug
+            );
+            (
+                StatusCode::OK,
+                workshop_views::show_tell(
+                    &workshop_views::ShowTellDetail {
+                        title: &event.title,
+                        description: &event.description,
+                        time: &time,
+                        place: &place,
+                        external_event_provider: &event.external_event_provider,
+                        external_event_url: &event.external_event_url,
+                        ics_url: &ics_url,
+                        body_html: &event.body_html,
+                        video_url: event.video_url.as_deref(),
+                        recap_url: event.recap_url.as_deref(),
+                    },
+                    auth,
+                ),
+            )
+                .into_response()
+        }
+        None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
+    }
+}
+
+async fn nebula_show_tell_ics(
+    State(events): State<EventIndex>,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    match events.get_public(&slug) {
+        Some(event) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "text/calendar; charset=utf-8")],
+            event.ics(),
+        )
+            .into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn nebula_material_step(
     State(workshops): State<WorkshopIndex>,
     MaybeAuth(auth): MaybeAuth,
-    AxumPath((slug, step)): AxumPath<(String, usize)>,
+    AxumPath((category, slug, step)): AxumPath<(String, String, usize)>,
 ) -> impl IntoResponse {
     let not_found = || (StatusCode::NOT_FOUND, views::not_found_page()).into_response();
-    let Some(m) = workshops.find(&slug) else {
+    let Some(m) = workshops.find_in_category(&category, &slug) else {
         return not_found();
     };
     // Steps are 1-based; index 0 and any number past the last section
@@ -2233,11 +2222,12 @@ async fn workshops_material_step(
         return not_found();
     };
     let steps = step_summaries(m);
+    let material_base = nebula_material_base(&m.category);
     (
         StatusCode::OK,
         workshop_views::step(
             &workshop_views::WorkshopStep {
-                base: WORKSHOP_BASE,
+                base: &material_base,
                 slug: &m.slug,
                 workshop_title: &m.title,
                 title: &section.title,
@@ -2272,13 +2262,13 @@ fn secure_cookies(app: &AppState) -> bool {
 /// The light-table grid for one workshop: every slide as a thumbnail.
 /// Mints a double-submit CSRF token for the certificate form embedded on
 /// the page (revealed client-side once every slide has been viewed).
-async fn workshops_slides(
+async fn nebula_slides(
     State(app): State<AppState>,
     MaybeAuth(auth): MaybeAuth,
     cookies: tower_cookies::Cookies,
-    AxumPath(slug): AxumPath<String>,
+    AxumPath((category, slug)): AxumPath<(String, String)>,
 ) -> impl IntoResponse {
-    let Some(m) = app.workshops.find(&slug) else {
+    let Some(m) = app.workshops.find_in_category(&category, &slug) else {
         return (StatusCode::NOT_FOUND, views::not_found_page()).into_response();
     };
     let thumbs: Vec<workshop_views::SlideThumb<'_>> = m
@@ -2297,11 +2287,12 @@ async fn workshops_slides(
         &cookies,
         WORKSHOP_CERT_CSRF_COOKIE_NAME,
     );
+    let material_base = nebula_material_base(&m.category);
     (
         StatusCode::OK,
         workshop_views::slides(
             &workshop_views::LightTable {
-                base: WORKSHOP_BASE,
+                base: &material_base,
                 slug: &m.slug,
                 workshop_title: &m.title,
                 slides: &thumbs,
@@ -2329,14 +2320,14 @@ struct CertificateForm {
 /// from the Foundation address). Completion is client-trusted
 /// (localStorage, no telemetry), so this endpoint can't verify the slides
 /// were actually viewed — it's an educational courtesy, not a credential.
-async fn workshops_certificate_submit(
+async fn nebula_certificate_submit(
     State(app): State<AppState>,
     MaybeAuth(auth): MaybeAuth,
     cookies: tower_cookies::Cookies,
-    AxumPath(slug): AxumPath<String>,
+    AxumPath((category, slug)): AxumPath<(String, String)>,
     axum::extract::Form(form): axum::extract::Form<CertificateForm>,
 ) -> impl IntoResponse {
-    let Some(m) = app.workshops.find(&slug) else {
+    let Some(m) = app.workshops.find_in_category(&category, &slug) else {
         return (StatusCode::NOT_FOUND, views::not_found_page()).into_response();
     };
     if !crate::password_reset::verify_csrf_with(
@@ -2385,9 +2376,10 @@ async fn workshops_certificate_submit(
         // workshop + outcome only, never the recipient (trust boundary).
         tracing::warn!(error = %e, workshop = %m.slug, "certificate dispatch failed");
     }
+    let material_base = nebula_material_base(&m.category);
     (
         StatusCode::OK,
-        workshop_views::certificate_sent(&m.title, WORKSHOP_BASE, auth),
+        workshop_views::certificate_sent(&m.title, &format!("{material_base}/{}", m.slug), auth),
     )
         .into_response()
 }
