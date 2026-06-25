@@ -7,7 +7,7 @@
 //! `store::test_support::pg` so they don't share state.
 
 use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::http::{header, Request, StatusCode};
 use http_body_util::BodyExt;
 use store::test_support::pg;
 use store::Db;
@@ -1341,21 +1341,32 @@ async fn workshops_landing_lists_each_workshop_you_voiced() {
 }
 
 #[tokio::test]
-async fn old_navigator_workshop_index_is_not_mounted() {
+async fn old_workshop_urls_redirect_into_nebula() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/nebula/workshops")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    for (uri, location) in [
+        ("/foundation/workshops", "/foundation/nebula"),
+        (
+            "/foundation/workshops/navigator",
+            "/foundation/nebula/workshops/use-the-navigator",
+        ),
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT, "{uri}");
+        assert_eq!(
+            resp.headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok()),
+            Some(location),
+            "{uri}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -5394,20 +5405,55 @@ async fn nebula_show_tell_ics_uses_pacific_timezone() {
 }
 
 #[tokio::test]
-async fn old_events_surface_is_not_mounted() {
+async fn old_events_surface_redirects_into_nebula() {
     let mut state = empty_state().await;
     state.events = event_state_with_one_event();
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
-    for uri in [
-        "/events",
-        "/events/seattle-agentic-workflows-for-lawyers",
-        "/events/seattle-agentic-workflows-for-lawyers/calendar.ics",
+    for (uri, location) in [
+        ("/events", "/foundation/nebula"),
+        (
+            "/events/seattle-agentic-workflows-for-lawyers",
+            "/foundation/nebula/show-and-tell/seattle-summer-2026",
+        ),
+        (
+            "/events/seattle-summer-2026",
+            "/foundation/nebula/show-and-tell/seattle-summer-2026",
+        ),
+        (
+            "/events/seattle-agentic-workflows-for-lawyers/calendar.ics",
+            "/foundation/nebula/show-and-tell/seattle-summer-2026/calendar.ics",
+        ),
     ] {
         let resp = app
             .clone()
             .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
             .await
             .unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "{uri} should 404");
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT, "{uri}");
+        assert_eq!(
+            resp.headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok()),
+            Some(location),
+            "{uri}"
+        );
     }
+}
+
+#[tokio::test]
+async fn unknown_old_event_url_stays_not_found() {
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/events/missing-show-and-tell")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
