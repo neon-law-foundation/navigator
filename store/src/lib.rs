@@ -10,6 +10,7 @@ pub mod attestations;
 pub mod blobs;
 pub mod communications;
 pub mod config;
+pub mod conflicts;
 pub mod contract_reviews;
 pub mod coupons;
 pub mod db;

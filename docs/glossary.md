@@ -65,6 +65,32 @@ row holds only the metadata.
 Which of the two surfaces (`NEON_LAW` or `NEON_LAW_FOUNDATION`) a given route serves. The same `web` binary handles both
 — see the brand table in [`README.md`](../README.md).
 
+## Conflict-Check Graph
+
+The in-memory graph the firm walks **before opening a matter** to decide whether the new engagement would conflict with
+a client it already serves. Every node is a [Person](#person) or an [Entity](#entity); every edge is a typed
+relationship between two of them.
+
+Postgres stays the source of truth — the graph is a *transient view*, never a store. `store::conflicts::build_graph`
+loads two row sources into a [petgraph](https://docs.rs/petgraph) graph per check:
+
+- `person_entity_roles` — structural ties (manages / owns / member-of), always full confidence.
+- [`relationship_edges`](#relationship-edge) — the supplemental typed edges this feature adds: adversity, related-party,
+  and edges an LLM later parses out of a [Relationship Log](#relationship-log)'s free-form detail.
+
+A check anchors on the proposed client and entity, walks up to three hops, and surfaces every distinct firm-served party
+it reaches. Findings are **advisory to clear, authoritative to block**: a confident, direct `adverse_to` link to a
+current client hard-stops the open; softer entanglements (a shared entity, a recorded [Disclosure](#disclosure)) are
+flagged for authorized staff to acknowledge — recorded to the [Relationship Log](#relationship-log) when they do. The
+graph can *raise* a conflict; only a person can *clear* one, because it is never assumed complete.
+
+It runs on every create path (portal, [AIDA](#aida) MCP tool, CLI); the non-interactive paths have no acknowledgment
+seam, so any finding refuses the open and routes staff to the portal.
+
+- Engine: [`store::conflicts`](../store/src/conflicts.rs)
+- Why not Apache AGE / Neo4j: Cloud SQL forbids the AGE extension, and a firm's whole graph fits in memory — a second
+  graph datastore would be a sync liability, not a win. See [multi-cloud](multi-cloud.md).
+
 ## Council
 
 A **group of experts** the workspace convenes for a structured, twelve-voice review — spelled c-o-u-n-c-i-l.
@@ -184,7 +210,9 @@ The workspace has no Makefile — the `navigator` CLI is the only entry point.
 
 ## Disclosure
 
-A formal disclosure attached to an Entity or a Project (conflicts, related-party, etc.).
+A formal disclosure attached to an Entity or a Project (conflicts, related-party, etc.). A `conflict` / `related_party`
+disclosure on an entity is read by the [Conflict-Check Graph](#conflict-check-graph) and surfaced as a review-level
+finding when a new matter reaches that entity.
 
 - Schema: [`store::entity::disclosure`](../store/src/entity/disclosure.rs)
 
@@ -470,10 +498,29 @@ counsel. The marketing surface is [`litigation.md`](../web/content/marketing/lit
 the firm-footer "every legal matter is different, and past results do not guarantee a similar result" disclaimer
 ([`views/src/brand.rs`](../views/src/brand.rs)) covers transactional and referred matters alike.
 
+## Relationship Edge
+
+A typed graph edge with a [Person](#person) or [Entity](#entity) on **each** end — the canonical two-sided relationship
+the [Conflict-Check Graph](#conflict-check-graph) traverses. Distinct from the [Relationship Log](#relationship-log),
+which is a one-sided audit trail (one actor, one subject); a Relationship Edge instead asserts "A is `adverse_to` B" or
+"A is a `related_party` of B."
+
+Each edge carries provenance (`source_kind` ∈ `manual` / `disclosure` / `relationship_log` / `llm`) and a
+`confidence_pct` (0–100). Human-asserted edges are full confidence; edges an LLM parses out of a Relationship Log's
+free-form detail land lower, and the conflict check multiplies confidence along a path so a chain of weak guesses cannot
+raise a finding on its own.
+
+- Schema: [`store::entity::relationship_edge`](../store/src/entity/relationship_edge.rs)
+
 ## Relationship Log
 
 Append-only audit trail of relationship changes — entries like `person joined entity` or `project closed`. The source of
 truth for "what changed when" outside of normal table rows.
+
+It is **not** the [Conflict-Check Graph](#conflict-check-graph): a Relationship Log row is one-sided (an actor acted on
+a subject), whereas the graph's edges are two-sided [Relationship Edges](#relationship-edge). The log *feeds* the graph
+— an LLM can parse a row's free-form detail into typed edges — and the graph writes back to the log when staff
+acknowledge a conflict override.
 
 - Schema: [`store::entity::relationship_log`](../store/src/entity/relationship_log.rs)
 
