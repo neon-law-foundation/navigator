@@ -16,9 +16,10 @@ secret-rotation "no-rebuild push"). This page is only the short orientation.
   `ghcr.io/neon-law-foundation/navigator-web:YY.MM.DD` and
   `ghcr.io/neon-law-foundation/navigator-workflows-service:YY.MM.DD` (plus `latest`).
 - **`power-push` rolls, it does not build.** It resolves the latest published `YY.MM.DD` ghcr tag (or takes
-  `--tag YY.MM.DD`), confirms the prod Secret satisfies the new binary's boot invariants, pins **both** the
-  `navigator-web` and `workflows-service` deployments to that **one** tag, rolls them out together, and re-registers the
-  worker with Restate. It builds no images, pushes nothing to a registry, and archives no git bundle.
+  `--tag YY.MM.DD`, with an optional `.HH` suffix — e.g. `26.06.25.14` — for an ad-hoc same-day release), confirms the
+  prod Secret satisfies the new binary's boot invariants, pins **both** the `navigator-web` and `workflows-service`
+  deployments to that **one** tag, rolls them out together, and re-registers the worker with Restate. It builds no
+  images, pushes nothing to a registry, and archives no git bundle.
 - **The cluster pulls anonymously.** The ghcr packages are public, so the GKE nodes need no imagePullSecret and there is
   no registry credential to rotate.
 - **Always both binaries, one tag.** `navigator-web` and `workflows-service` share a Secret and a workflow contract;
