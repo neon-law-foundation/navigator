@@ -11,7 +11,7 @@
 
 use maud::{html, Markup, PreEscaped};
 
-use crate::assets::{self, Priority};
+use crate::assets;
 use crate::brand::SiteBrand;
 use crate::components::{
     pricing_section, testimonial_section, ExternalLink, PricingCard, TestimonialCard,
@@ -72,12 +72,12 @@ pub struct ServiceContent<'a> {
     /// Desktop column count for the pricing grid (3 for tiered plans,
     /// up to 4 for flat-fee menus).
     pub pricing_cols: u8,
-    /// Curated gallery slug for the product banner photo (the `hero_image:`
-    /// frontmatter key, e.g. `lake-tahoe`). `Some` leads the page with a
-    /// wide Notion-style banner above the brand title. `None` (a fallback
-    /// page with no marketing doc) renders the stacked layout with no
-    /// banner. Either way the body's leading `<h1>` is lifted into the
-    /// header tagline.
+    /// Curated gallery slug for the product photo (the `hero_image:`
+    /// frontmatter key, e.g. `lake-tahoe`). `Some` rides the photo beneath
+    /// the neon hero as a dimmed backdrop (via the `--ph-photo` custom
+    /// property) and preloads it for the LCP; `None` (a fallback page with
+    /// no marketing doc) renders the neon scene over its flat background.
+    /// Either way the body's leading `<h1>` is lifted into the hero tagline.
     pub hero_image: Option<&'a str>,
     /// Brand chrome for the page: `FIRM_BRAND` for `/services/*`,
     /// `FOUNDATION_BRAND` for a Foundation product page like
@@ -97,6 +97,12 @@ pub struct ServiceContent<'a> {
     /// dropdown; with the dropdown gone, each page keeps its own mark.
     /// `None` renders no icon (the Foundation product pages).
     pub icon: Option<&'a str>,
+    /// Accent-hue keyword for the full-bleed neon product hero — one of the
+    /// `product-hero--<hue>` ramps in `product-hero.css` (e.g. `"cyan"`,
+    /// `"magenta"`, `"crimson"`). The web layer maps each product's slug to
+    /// a signature hue so the catalog's thirteen pages each read as their
+    /// own scene while sharing one animation engine. Defaults to `"cyan"`.
+    pub accent: &'a str,
     /// Public testimonials selected by the web layer for this service's
     /// product code. Empty keeps the page on the no-proof path.
     pub testimonials: &'a [TestimonialCard<'a>],
@@ -138,48 +144,60 @@ pub fn render_in(
     } else {
         (cta.as_str(), cta_mailto.as_str())
     };
-    // Notion-style stacked layout: a wide banner image leads the page,
-    // then the product mark + brand title, then the product card, then
-    // the prose outline, and finally the booking CTA. We always lift the
-    // body's leading `<h1>` into the header lead so the brand title is the
-    // page's single `<h1>` and the headline isn't repeated.
+    // Bold stacked layout: a full-bleed neon hero leads the page — the
+    // product's glowing mark, the brand title as the page's single `<h1>`,
+    // and the lifted headline as its tagline — then the product card, the
+    // prose outline, and finally the booking CTA. We always lift the body's
+    // leading `<h1>` into the hero tagline so the brand title is the page's
+    // single `<h1>` and the headline isn't repeated.
     let (headline, prose_body) = split_leading_h1(content.body_html);
     // The card now sits in its own section above the prose, so drop the
     // inline `[[pricing]]` splice marker if the author left one.
     let prose = prose_body.replace(PRICING_MARKER, "");
+    // The page's curated photo (if any) rides beneath the neon as a dimmed
+    // backdrop via the `--ph-photo` custom property, keeping the art and its
+    // LCP preload meaningful. `preload_href` is the same fallback `.jpg` the
+    // `<head>` preloads, so the backdrop reuses the already-fetched bytes.
+    let photo_href = content.hero_image.and_then(assets::preload_href);
+    let hero_class = format!("product-hero product-hero--{}", content.accent);
     let body = html! {
-        // 1. The wide banner image across the top, like a Notion cover.
-        //    A sibling of `.service-prose`, so the content-image cap in
-        //    brand.css doesn't touch it.
-        @if let Some(slug) = content.hero_image {
-            figure."service-banner"."mb-4"."mb-lg-5" {
-                (assets::banner(slug, Priority::Eager))
+        // 1. The full-bleed neon product hero — the page's bold top band.
+        section class=(hero_class) {
+            div."product-hero__bg" aria-hidden="true" {
+                @if let Some(href) = &photo_href {
+                    div."product-hero__photo"
+                        style=(format!("--ph-photo:url('{href}')")) {}
+                }
+                div."product-hero__glow" {}
+                div."product-hero__grid" {}
+                div."product-hero__horizon" {}
+                div."product-hero__sweep" {}
+            }
+            div."product-hero__content" {
+                @if content.icon.is_some() {
+                    span."product-hero__icon" {
+                        (crate::components::product_icon(content.icon, ""))
+                    }
+                }
+                h1."product-hero__title"."display-3"."fw-bold" { (content.title) }
+                @if let Some(h) = headline {
+                    p."product-hero__tagline"."lead" { (PreEscaped(h)) }
+                }
             }
         }
         article.service-page.service-prose {
-            // 2. The product mark, then the brand title as the page `<h1>`,
-            //    with the lifted headline as a centered lead beneath it.
-            header."text-center"."mb-4"."mb-lg-5" {
-                h1."display-4"."fw-bold"."mb-3" {
-                    (crate::components::product_icon(content.icon, "me-3"))
-                    (content.title)
-                }
-                @if let Some(h) = headline {
-                    p."lead"."mb-0"."mx-auto"."service-tagline" { (PreEscaped(h)) }
-                }
-            }
-            // 3. The product card.
+            // 2. The product card.
             @if !content.pricing.is_empty() {
                 div."mb-4"."mb-lg-5" { (cards()) }
             }
-            // 4. The short outline.
+            // 3. The short outline.
             (PreEscaped(&prose))
             (testimonial_section(
                 "Client proof",
                 "Matter-linked testimonials approved for this service.",
                 content.testimonials,
             ))
-            // 5. The call to action — the firm's booking calendar (a
+            // 4. The call to action — the firm's booking calendar (a
             //    mailto inbox on a Foundation product page).
             footer."text-center"."mt-4"."mt-lg-5" {
                 (cta_button("btn btn-primary btn-lg", footer_label, footer_href))
@@ -235,6 +253,7 @@ mod tests {
             brand: *FIRM_BRAND,
             cta_email: firm_email(),
             icon: None,
+            accent: "cyan",
             testimonials: &[],
         }
     }
@@ -352,85 +371,127 @@ mod tests {
     }
 
     #[test]
-    fn hero_image_renders_a_banner_above_the_brand_title() {
-        // A page with a hero image leads with a wide banner cover, then
-        // the "Neon Law …" brand title as the page <h1> beneath it
-        // (Notion-style stacking).
+    fn renders_the_full_bleed_neon_product_hero_with_its_accent() {
+        // Every service page leads with the full-bleed neon hero: the
+        // accent-themed `.product-hero` scene carrying the animated grid /
+        // glow / sweep layers, the product mark, and the brand title.
+        let mut content = fixture("Neon Law Nexus", "<h1>A GC on retainer</h1><p>body</p>");
+        content.accent = "magenta";
+        let html = render(&content, crate::AuthState::Anonymous).into_string();
+        // The hero is the accent-themed scene with its decorative layers.
+        assert!(
+            html.contains("class=\"product-hero product-hero--magenta\""),
+            "hero should carry its per-product accent modifier, got: {html}"
+        );
+        for layer in [
+            "product-hero__glow",
+            "product-hero__grid",
+            "product-hero__horizon",
+            "product-hero__sweep",
+        ] {
+            assert!(
+                html.contains(layer),
+                "hero should render the {layer} animation layer, got: {html}"
+            );
+        }
+        // The brand title is the page's single <h1>, inside the hero.
+        assert!(
+            html.contains(
+                "<h1 class=\"product-hero__title display-3 fw-bold\">Neon Law Nexus</h1>"
+            ),
+            "brand title should headline the hero as the page h1, got: {html}"
+        );
+        assert_eq!(html.matches("<h1").count(), 1, "exactly one h1: {html}");
+    }
+
+    #[test]
+    fn hero_image_rides_beneath_the_neon_hero_as_a_dimmed_backdrop() {
+        // A page with a hero image keeps its curated photo — but now beneath
+        // the neon scene as a dimmed `--ph-photo` backdrop, not as a separate
+        // Notion-style banner figure. The brand title is still the page <h1>,
+        // and the markdown headline is lifted into the hero tagline once.
         let mut content = fixture(
             "Neon Law Nautilus",
             "<h1>Put a lawyer between you</h1><p>body</p>",
         );
         content.hero_image = Some("migrating-birds");
         let html = render(&content, crate::AuthState::Anonymous).into_string();
-        // The banner is a full-width figure carrying the curated photo.
+        // The photo rides as the neon backdrop, not a standalone banner.
         assert!(
-            html.contains("class=\"service-banner mb-4 mb-lg-5\"")
-                && html.contains("migrating-birds")
-                && html.contains("<picture>"),
-            "page should open with a banner figure of the curated photo, got: {html}"
+            html.contains("product-hero__photo") && html.contains("migrating-birds"),
+            "curated photo should ride as the neon backdrop, got: {html}"
         );
-        // Brand title is the page h1, and it sits *below* the banner.
         assert!(
-            html.contains("<h1 class=\"display-4 fw-bold mb-3\">Neon Law Nautilus</h1>"),
-            "title should headline the page, got: {html}"
+            !html.contains("service-banner"),
+            "the old Notion banner figure should be gone, got: {html}"
         );
-        let banner_at = html.find("service-banner").unwrap();
-        let title_at = html.find("Neon Law Nautilus</h1>").unwrap();
+        // Brand title is the page h1, inside the hero.
         assert!(
-            banner_at < title_at,
-            "banner must lead the title, got: {html}"
+            html.contains(
+                "<h1 class=\"product-hero__title display-3 fw-bold\">Neon Law Nautilus</h1>"
+            ),
+            "title should headline the hero, got: {html}"
         );
-        // The markdown headline is lifted into the centered lead, once.
+        // The markdown headline is lifted into the hero tagline, once.
         assert_eq!(
             html.matches("Put a lawyer between you").count(),
             1,
-            "headline must move into the lead, not be duplicated, got: {html}"
+            "headline must move into the tagline, not be duplicated, got: {html}"
         );
         assert!(
-            html.contains(
-                "<p class=\"lead mb-0 mx-auto service-tagline\">Put a lawyer between you</p>"
-            ),
-            "headline should become the centered tagline lead, got: {html}"
+            html.contains("<p class=\"product-hero__tagline lead\">Put a lawyer between you</p>"),
+            "headline should become the hero tagline, got: {html}"
         );
-        // And it leads the LCP via a hero preload.
+        // And the backdrop photo still leads the LCP via a hero preload.
         assert!(
             html.contains("rel=\"preload\" as=\"image\""),
-            "banner photo should be preloaded, got: {html}"
+            "backdrop photo should be preloaded, got: {html}"
         );
     }
 
     #[test]
     fn hero_title_carries_the_product_icon_when_set() {
         // The product's Bootstrap Icon (the mark that used to sit in the
-        // Services dropdown) renders before the hero brand title.
+        // Services dropdown) renders as the big glowing glyph above the
+        // hero brand title, in its own `.product-hero__icon` span.
         let mut content = fixture("Neon Law Nexus", "<h1>Headline</h1><p>body</p>");
         content.hero_image = Some("bengaluru-skyline");
         content.icon = Some("diagram-3-fill");
         let html = render(&content, crate::AuthState::Anonymous).into_string();
-        assert!(
-            html.contains("<i class=\"bi bi-diagram-3-fill me-3\" aria-hidden=\"true\"></i>"),
-            "hero title should carry the product icon, got: {html}"
-        );
-        // The icon sits inside the hero h1, immediately before the title.
+        // The glyph sits in the hero icon span (no margin utility — the
+        // hero scale comes from CSS), immediately above the title.
         assert!(
             html.contains(
-                "<h1 class=\"display-4 fw-bold mb-3\">\
-                 <i class=\"bi bi-diagram-3-fill me-3\" aria-hidden=\"true\"></i>Neon Law Nexus</h1>"
+                "<span class=\"product-hero__icon\">\
+                 <i class=\"bi bi-diagram-3-fill \" aria-hidden=\"true\"></i></span>"
             ),
-            "icon should lead the hero title, got: {html}"
+            "hero should carry the product icon glyph, got: {html}"
+        );
+        let icon_at = html.find("product-hero__icon").unwrap();
+        let title_at = html.find("Neon Law Nexus</h1>").unwrap();
+        assert!(
+            icon_at < title_at,
+            "icon should lead the title, got: {html}"
         );
     }
 
     #[test]
     fn hero_title_has_no_icon_when_unset() {
         // A page with `icon: None` (the Foundation product pages) renders
-        // the title with no leading glyph.
+        // the hero title with no leading glyph span.
         let mut content = fixture("Neon Law Foundation Nimbus", "<h1>Headline</h1><p>body</p>");
         content.hero_image = Some("bengaluru-skyline");
         let html = render(&content, crate::AuthState::Anonymous).into_string();
         assert!(
-            html.contains("<h1 class=\"display-4 fw-bold mb-3\">Neon Law Foundation Nimbus</h1>"),
+            html.contains(
+                "<h1 class=\"product-hero__title display-3 fw-bold\">\
+                 Neon Law Foundation Nimbus</h1>"
+            ),
             "no-icon page should render a bare hero title, got: {html}"
+        );
+        assert!(
+            !html.contains("product-hero__icon"),
+            "no-icon page should render no hero icon span, got: {html}"
         );
     }
 
@@ -478,16 +539,16 @@ mod tests {
         )
         .into_string();
         assert!(
-            !html.contains("service-banner"),
-            "no banner without a hero image, got: {html}"
+            !html.contains("product-hero__photo"),
+            "no backdrop photo without a hero image, got: {html}"
         );
         assert!(
-            html.contains("<h1 class=\"display-4 fw-bold mb-3\">Services</h1>"),
-            "brand title still leads as the page h1, got: {html}"
+            html.contains("<h1 class=\"product-hero__title display-3 fw-bold\">Services</h1>"),
+            "brand title still leads the hero as the page h1, got: {html}"
         );
         assert!(
             !html.contains("<h1>Everything we do</h1>"),
-            "the body's leading h1 is lifted into the lead, got: {html}"
+            "the body's leading h1 is lifted into the tagline, got: {html}"
         );
     }
 

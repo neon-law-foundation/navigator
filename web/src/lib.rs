@@ -1685,12 +1685,77 @@ fn render_service_with_testimonials(
             brand,
             cta_email,
             icon: page.icon,
+            accent: hero_accent_for(page.slug),
             testimonials,
         },
         auth,
         locale,
         canonical,
     )
+}
+
+/// Each product's signature neon-hero hue — one of the `product-hero--<hue>`
+/// accent ramps in `web/public/css/product-hero.css`. The catalog's thirteen
+/// pages share one animation engine, so a product is "themed" purely by the
+/// accent it picks here: cyan protection for Nautilus, a magenta network for
+/// Nexus, an emerald nest for Nest, and so on. An unknown slug falls back to
+/// the brand's cyan, so a new page is never un-themed.
+fn hero_accent_for(slug: &str) -> &'static str {
+    match slug {
+        "nest" => "emerald",
+        "nexus" => "magenta",
+        "northstar" => "amber",
+        "node" => "lime",
+        "newleaf" => "teal",
+        "namesake" => "gold",
+        "nucleus" => "azure",
+        "nook" => "orange",
+        "nerd" => "violet",
+        "litigation" => "crimson",
+        "pro-bono" => "rose",
+        "nimbus" => "sky",
+        // Nautilus (debt-collection protection) and any new page: brand cyan.
+        _ => "cyan",
+    }
+}
+
+#[cfg(test)]
+mod hero_accent_tests {
+    use super::hero_accent_for;
+
+    #[test]
+    fn every_catalog_slug_gets_a_distinct_themed_accent() {
+        // Each seeded product carries its own signature hue so the thirteen
+        // pages read as distinct scenes; Nautilus + an unknown slug fall to
+        // the brand cyan.
+        let slugs = [
+            "nest",
+            "nexus",
+            "northstar",
+            "node",
+            "newleaf",
+            "namesake",
+            "nucleus",
+            "nook",
+            "nerd",
+            "litigation",
+            "pro-bono",
+            "nimbus",
+            "nautilus",
+        ];
+        for slug in slugs {
+            let accent = hero_accent_for(slug);
+            // A real ramp name, never empty — the view interpolates it into
+            // the `product-hero--<hue>` modifier class.
+            assert!(
+                !accent.is_empty() && accent.chars().all(|c| c.is_ascii_lowercase()),
+                "{slug} should map to a lowercase hue keyword, got {accent:?}"
+            );
+        }
+        assert_eq!(hero_accent_for("nautilus"), "cyan");
+        assert_eq!(hero_accent_for("nexus"), "magenta");
+        assert_eq!(hero_accent_for("definitely-not-a-product"), "cyan");
+    }
 }
 
 fn testimonial_cards(

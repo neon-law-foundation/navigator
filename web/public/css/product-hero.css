@@ -1,0 +1,332 @@
+/* Full-bleed neon product hero — the top band of every `/services/<slug>` */
+/* (and `/foundation/nimbus`) page. It speaks the same synthwave language as */
+/* the firm landing hero (`hero.css`): a dark scene, a receding glowing grid */
+/* floor, a horizon line, and a slow light sweep — but it spans the entire */
+/* viewport width above the product card, and it is *themed per product*. */
+/* */
+/* One engine, thirteen themes: the scene reads four custom properties for */
+/* its accent ramp (`--ph-accent` / `--ph-bright` / `--ph-deep` / `--ph-soft`) */
+/* plus an off-black `--ph-bg`, and each `.product-hero--<hue>` modifier just */
+/* sets that ramp. So a new product picks a hue, never a new keyframe. The */
+/* page's curated photo (`hero_image`) rides underneath as a dimmed backdrop */
+/* via `--ph-photo`, keeping the art and its LCP preload meaningful. */
+/* */
+/* The scene is always dark — it does NOT invert in dark mode — and every */
+/* bit of motion is decorative, hidden from the a11y tree, and disabled */
+/* wholesale under prefers-reduced-motion (the access-to-justice restraint: */
+/* someone landing on the debt-collection page must never meet a strobe). */
+
+.product-hero {
+  /* Cyan ramp by default; the `--<hue>` modifiers below override it. */
+  --ph-accent: #22d3ee;
+  --ph-bright: #67e8f9;
+  --ph-deep: #06b6d4;
+  --ph-soft: #a5f3fc;
+  --ph-bg: #05070e;
+
+  position: relative;
+  /* Full-bleed breakout from the `.container` that wraps the page body: */
+  /* negative side margins stretch the band to the viewport edges, and a */
+  /* negative top margin eats the container's `.py-4` top padding so the */
+  /* scene sits flush under the navbar. `width: auto` (not `100vw`) keeps */
+  /* a vertical scrollbar from forcing a sliver of horizontal scroll. */
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-top: -1.5rem;
+  margin-bottom: 2.5rem;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-height: clamp(300px, 42vh, 460px);
+  padding: clamp(2.75rem, 7vw, 5rem) clamp(1.25rem, 5vw, 3.5rem);
+  overflow: hidden;
+  background: var(--ph-bg);
+  isolation: isolate;
+}
+
+/* Decorative background layers — purely visual, hidden from a11y. */
+.product-hero__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* The curated product photo, dimmed and tinted, sitting beneath the neon */
+/* so the scene keeps its art without drowning the glyph + title. Rendered */
+/* only when the page declares a `hero_image`. */
+.product-hero__photo {
+  position: absolute;
+  inset: 0;
+  background-image: var(--ph-photo);
+  background-size: cover;
+  background-position: center;
+  opacity: 0.22;
+  filter: saturate(1.1) contrast(1.05);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 92%);
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 92%);
+}
+
+/* The accent glow rising from the horizon. */
+.product-hero__glow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  bottom: 0;
+  background: radial-gradient(
+    ellipse 78% 92% at 50% 0%,
+    color-mix(in srgb, var(--ph-accent) 38%, transparent),
+    color-mix(in srgb, var(--ph-deep) 6%, transparent) 58%,
+    transparent 74%
+  );
+}
+
+/* Receding synthwave grid floor, scrolling toward the viewer. */
+.product-hero__grid {
+  position: absolute;
+  left: -30%;
+  right: -30%;
+  bottom: 0;
+  height: 52%;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--ph-accent) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--ph-accent) 55%, transparent) 1px, transparent 1px);
+  background-size: 64px 64px;
+  transform: perspective(300px) rotateX(72deg);
+  transform-origin: 50% 0;
+  animation: product-hero-scroll 1.8s linear infinite;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 32%, #000);
+  mask-image: linear-gradient(to bottom, transparent, #000 32%, #000);
+}
+
+/* The glowing horizon line where the grid meets the sky. */
+.product-hero__horizon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--ph-accent),
+    var(--ph-bright),
+    var(--ph-accent),
+    transparent
+  );
+  box-shadow: 0 0 20px 3px color-mix(in srgb, var(--ph-accent) 75%, transparent);
+}
+
+/* A slow light sweep crossing the scene. */
+.product-hero__sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 80px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--ph-bright) 22%, transparent),
+    transparent
+  );
+  animation: product-hero-sweep 7.5s ease-in-out infinite;
+}
+
+.product-hero__content {
+  position: relative;
+  z-index: 1;
+  max-width: 56rem;
+}
+
+/* The big product mark, glowing in the accent hue. Sizes the inner */
+/* Bootstrap glyph / inline SVG to a hero scale and rides a gentle pulse. */
+.product-hero__icon {
+  display: inline-flex;
+  margin-bottom: 0.85rem;
+  font-size: clamp(2.75rem, 7vw, 4.25rem);
+  line-height: 1;
+  color: var(--ph-bright);
+  filter:
+    drop-shadow(0 0 6px var(--ph-bright))
+    drop-shadow(0 0 18px var(--ph-accent))
+    drop-shadow(0 0 38px var(--ph-deep));
+  animation: product-hero-pulse 4.5s ease-in-out infinite;
+}
+
+.product-hero__icon .bi::before {
+  vertical-align: middle;
+}
+
+/* The product wordmark. text-shadow is inherited, so the glow carries to */
+/* any nested markup; the flicker rides the heading once per cycle. */
+.product-hero__title {
+  margin-bottom: 0.65rem;
+  color: #f4feff;
+  text-shadow:
+    0 0 6px var(--ph-bright),
+    0 0 16px var(--ph-accent),
+    0 0 34px var(--ph-deep),
+    0 0 66px color-mix(in srgb, var(--ph-deep) 70%, #000);
+  animation: product-hero-flicker 6s linear infinite;
+}
+
+.product-hero__tagline {
+  margin-bottom: 0;
+  max-width: 42rem;
+  margin-inline: auto;
+  color: color-mix(in srgb, var(--ph-soft) 88%, #fff);
+}
+
+/* ---- Per-product accent ramps. Each product picks one of these hues; the */
+/* engine above does the rest. Values are Tailwind 200/300/400/600 stops. -- */
+.product-hero--cyan {
+  --ph-accent: #22d3ee;
+  --ph-bright: #67e8f9;
+  --ph-deep: #0891b2;
+  --ph-soft: #a5f3fc;
+}
+.product-hero--emerald {
+  --ph-accent: #34d399;
+  --ph-bright: #6ee7b7;
+  --ph-deep: #059669;
+  --ph-soft: #a7f3d0;
+}
+.product-hero--magenta {
+  --ph-accent: #e879f9;
+  --ph-bright: #f0abfc;
+  --ph-deep: #c026d3;
+  --ph-soft: #f5d0fe;
+}
+.product-hero--amber {
+  --ph-accent: #fbbf24;
+  --ph-bright: #fcd34d;
+  --ph-deep: #d97706;
+  --ph-soft: #fde68a;
+}
+.product-hero--orange {
+  --ph-accent: #fb923c;
+  --ph-bright: #fdba74;
+  --ph-deep: #ea580c;
+  --ph-soft: #fed7aa;
+}
+.product-hero--crimson {
+  --ph-accent: #f87171;
+  --ph-bright: #fca5a5;
+  --ph-deep: #dc2626;
+  --ph-soft: #fecaca;
+}
+.product-hero--violet {
+  --ph-accent: #a78bfa;
+  --ph-bright: #c4b5fd;
+  --ph-deep: #7c3aed;
+  --ph-soft: #ddd6fe;
+}
+.product-hero--lime {
+  --ph-accent: #a3e635;
+  --ph-bright: #bef264;
+  --ph-deep: #65a30d;
+  --ph-soft: #d9f99d;
+}
+.product-hero--teal {
+  --ph-accent: #2dd4bf;
+  --ph-bright: #5eead4;
+  --ph-deep: #0d9488;
+  --ph-soft: #99f6e4;
+}
+.product-hero--gold {
+  --ph-accent: #facc15;
+  --ph-bright: #fde047;
+  --ph-deep: #ca8a04;
+  --ph-soft: #fef08a;
+}
+.product-hero--azure {
+  --ph-accent: #60a5fa;
+  --ph-bright: #93c5fd;
+  --ph-deep: #2563eb;
+  --ph-soft: #bfdbfe;
+}
+.product-hero--rose {
+  --ph-accent: #fb7185;
+  --ph-bright: #fda4af;
+  --ph-deep: #e11d48;
+  --ph-soft: #fecdd3;
+}
+.product-hero--sky {
+  --ph-accent: #38bdf8;
+  --ph-bright: #7dd3fc;
+  --ph-deep: #0284c7;
+  --ph-soft: #bae6fd;
+}
+
+@keyframes product-hero-scroll {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 64px;
+  }
+}
+
+@keyframes product-hero-sweep {
+  0% {
+    transform: translateX(-40%) skewX(-16deg);
+    opacity: 0;
+  }
+  45% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateX(900%) skewX(-16deg);
+    opacity: 0;
+  }
+}
+
+@keyframes product-hero-pulse {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.95;
+  }
+  50% {
+    transform: translateY(-2px) scale(1.03);
+    opacity: 1;
+  }
+}
+
+@keyframes product-hero-flicker {
+  0%,
+  88%,
+  100% {
+    opacity: 1;
+  }
+  89% {
+    opacity: 0.62;
+  }
+  90% {
+    opacity: 1;
+  }
+  93% {
+    opacity: 0.78;
+  }
+  94% {
+    opacity: 1;
+  }
+}
+
+/* Access-to-justice restraint: freeze the grid, kill the flicker + pulse, */
+/* drop the sweep. The scene becomes a still, dignified neon banner. */
+@media (prefers-reduced-motion: reduce) {
+  .product-hero__grid,
+  .product-hero__title,
+  .product-hero__icon {
+    animation: none;
+  }
+  .product-hero__sweep {
+    display: none;
+  }
+}
