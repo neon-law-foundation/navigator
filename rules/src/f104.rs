@@ -198,7 +198,7 @@ fn violation(file: &SourceFile, message: impl Into<String>) -> Violation {
 
 #[cfg(test)]
 mod tests {
-    use super::F104FlowQuestionCodes;
+    use super::{valid_workflow_step_prefix, F104FlowQuestionCodes, VALID_WORKFLOW_STEP_PREFIXES};
     use crate::{Rule, SourceFile};
     use std::path::PathBuf;
 
@@ -389,5 +389,22 @@ workflow:
         assert!(v.iter().any(|x| x
             .message
             .contains("Invalid workflow step prefix: `bespoke_magic`")));
+    }
+
+    #[test]
+    fn workflow_step_registry_stays_aligned_with_engine_prefixes() {
+        for (prefix, _) in workflows::step::STEP_PREFIXES {
+            if *prefix == "_signature" {
+                assert!(
+                    valid_workflow_step_prefix("member_signatures"),
+                    "signature suffix family should be accepted by N104",
+                );
+                continue;
+            }
+            assert!(
+                VALID_WORKFLOW_STEP_PREFIXES.contains(prefix),
+                "workflow engine prefix `{prefix}` is missing from N104 registry",
+            );
+        }
     }
 }
