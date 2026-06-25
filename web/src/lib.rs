@@ -1047,13 +1047,13 @@ async fn navigator_cli(MaybeAuth(auth): MaybeAuth) -> Markup {
     )
 }
 
-/// `GET /foundation/navigator/mcp` — the Model Context Protocol server
-/// that exposes AIDA's tools to any LLM client.
+/// `GET /foundation/navigator/mcp` — AIDA, Neon Law Navigator's agent,
+/// reached over A2A (then MCP) from Google Gemini Enterprise.
 async fn navigator_mcp(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::package::render(
         "Neon Law Navigator MCP",
-        "AIDA's tool catalog, surfaced to Google Gemini Enterprise over A2A — query Neon Law \
-         Navigator data from the Gemini chat box, with two LLM calls behind each answer.",
+        "Tag @AIDA in Google Gemini Enterprise to work with the firm's data in plain English — \
+         the agent surface behind it is A2A, then MCP, over one tool catalog.",
         MCP_README,
         "/foundation/navigator/mcp",
         auth,
