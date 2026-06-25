@@ -770,6 +770,24 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/es/foundation/nebula", get(nebula_landing_es))
             // Nebula is the Foundation's sharing surface: workshops,
             // show-and-tells, and presentations.
+            .route(
+                "/foundation/workshops",
+                get(|| async { axum::response::Redirect::permanent("/foundation/nebula") }),
+            )
+            .route(
+                "/foundation/workshops/navigator",
+                get(|| async {
+                    axum::response::Redirect::permanent(
+                        "/foundation/nebula/workshops/use-the-navigator",
+                    )
+                }),
+            )
+            .route("/events", get(legacy_events_redirect))
+            .route("/events/{slug}", get(legacy_event_redirect))
+            .route(
+                "/events/{slug}/calendar.ics",
+                get(legacy_event_ics_redirect),
+            )
             .route("/foundation/nebula", get(nebula_landing))
             .route("/foundation/nebula/{category}/{slug}", get(nebula_material))
             .route(
@@ -1990,11 +2008,24 @@ fn render_nebula_landing(
         .iter()
         .map(|m| format!("{NEBULA_BASE}/{}/{}", m.category, m.slug))
         .collect();
-    let workshop_cards: Vec<workshop_views::WorkshopCard<'_>> = workshops
+    let workshop_cards: Vec<workshop_views::MaterialCard<'_>> = workshops
         .materials()
         .iter()
         .zip(&hrefs)
-        .map(|(m, href)| workshop_views::WorkshopCard {
+        .filter(|(m, _)| m.category == "workshops")
+        .map(|(m, href)| workshop_views::MaterialCard {
+            href,
+            title: &m.title,
+            audience: &m.audience,
+            benefit: &m.benefit,
+        })
+        .collect();
+    let presentation_cards: Vec<workshop_views::MaterialCard<'_>> = workshops
+        .materials()
+        .iter()
+        .zip(&hrefs)
+        .filter(|(m, _)| m.category == "presentations")
+        .map(|(m, href)| workshop_views::MaterialCard {
             href,
             title: &m.title,
             audience: &m.audience,
@@ -2012,21 +2043,59 @@ fn render_nebula_landing(
             )
         })
         .collect();
-    let show_tell_cards: Vec<workshop_views::ShowTellCard<'_>> = events
+    let event_cards: Vec<workshop_views::EventCard<'_>> = events
         .events()
         .iter()
         .zip(&show_tell_meta)
-        .map(
-            |(event, (href, time, place))| workshop_views::ShowTellCard {
-                href,
-                title: &event.title,
-                time,
-                place,
-                description: &event.description,
-            },
-        )
+        .map(|(event, (href, time, place))| workshop_views::EventCard {
+            href,
+            title: &event.title,
+            time,
+            place,
+            description: &event.description,
+        })
         .collect();
-    workshop_views::landing_in(&workshop_cards, &show_tell_cards, auth, locale)
+    workshop_views::landing_in(
+        &workshop_cards,
+        &presentation_cards,
+        &event_cards,
+        auth,
+        locale,
+    )
+}
+
+async fn legacy_events_redirect() -> impl IntoResponse {
+    axum::response::Redirect::permanent(NEBULA_BASE)
+}
+
+fn legacy_event_destination(events: &EventIndex, slug: &str) -> Option<String> {
+    events
+        .get_public(slug)
+        .or_else(|| events.get(slug))
+        .map(|event| format!("{NEBULA_BASE}/show-and-tell/{}", event.public_slug))
+}
+
+async fn legacy_event_redirect(
+    State(events): State<EventIndex>,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    match legacy_event_destination(&events, &slug) {
+        Some(destination) => axum::response::Redirect::permanent(&destination).into_response(),
+        None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
+    }
+}
+
+async fn legacy_event_ics_redirect(
+    State(events): State<EventIndex>,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    match legacy_event_destination(&events, &slug) {
+        Some(destination) => {
+            let calendar = format!("{destination}/calendar.ics");
+            axum::response::Redirect::permanent(&calendar).into_response()
+        }
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 /// Build the table of contents shared by the overview and every step.
