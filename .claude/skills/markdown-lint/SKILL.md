@@ -19,8 +19,8 @@ cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path
 
 What each piece does:
 
-- `--markdown-only` — runs the M-family Markdown rules and S101 (line length), but skips the N-family (Navigator
-  notation-template rules). Without this, every README would fail with bogus N101/N102/N103 violations.
+- `--markdown-only` — runs the M-family Markdown rules and S101 (line length), but skips the N-family notation-template
+  rules. Without this, every README would fail with bogus N101/N102/N103 violations.
 - `--no-default-excludes` — validates files normally skipped by name
   (`README.md`, `CLAUDE.md`, `LICENSE.md`, `CODE_OF_CONDUCT.md`, `ERD.md`) and directories (`AgentDocumentation`,
   `workshops`, `Blog`). For prose docs you want these in scope.
@@ -38,9 +38,9 @@ Exit `0` on every iteration means clean. Otherwise the violating file, line, rul
 
 ## Common rules that fire
 
-- **S101** — line longer than 120 characters. Reflow the paragraph; don't fight the limit.
-- **M026** — heading ends with trailing punctuation `.`. Drop the period from `## Headings.` (watch for false positives:
-  bash `# comment.` lines inside fenced code blocks trip the same rule).
+- **S101** — line longer than 120 characters. Reflow the paragraph; don't fight the limit. **M026** — heading ends with
+  trailing punctuation `.`. Drop the period from `## Headings.` (watch for false positives: bash `# comment.` lines
+  inside fenced code blocks trip the same rule).
 - **M038** — inline code span has leading or trailing whitespace.
   Usually means the span got broken across two lines; keep code spans on a single line.
 - **M040** — fenced code block is missing a language tag. Add one
@@ -51,10 +51,8 @@ Exit `0` on every iteration means clean. Otherwise the violating file, line, rul
 
 ## When to run it
 
-- Before committing any change that touches a `.md` file.
-- When you create a new README.
-- As part of CI for the docs surface (not currently wired in
-  `ci.yml`, but on the roadmap).
+- Before committing any change that touches a `.md` file. When you create a new README. As part of CI for the docs
+  surface (not currently wired in `ci.yml`, but on the roadmap).
 
 ## What NOT to do
 

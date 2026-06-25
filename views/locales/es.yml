@@ -3,7 +3,7 @@
 # Mirrors the key tree of en.yml. Any key omitted here falls back to the
 # English value, so a partial translation degrades gracefully rather
 # than showing a raw key. Product proper nouns (Nexus, Nest, Northstar,
-# Nautilus, 1337 Lawyers, Navigator) are NOT translated — they are
+# Nautilus, 1337 Lawyers, Neon Law Navigator) are NOT translated — they are
 # carried through verbatim by `nav_label`.
 #
 # These are chrome strings (Tier A in docs/i18n.md). The footer legal

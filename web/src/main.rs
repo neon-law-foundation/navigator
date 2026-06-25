@@ -18,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
     // (user-edited) always wins over `.devx/env` (tool-generated).
     let _ = dotenvy::from_path(".devx/env");
 
-    // One observability seam shared with every Navigator binary: stdout logs
+    // One observability seam shared with every Neon Law Navigator binary: stdout logs
     // (JSON when an OTLP endpoint is set) plus OTLP traces + metrics. Held to
     // graceful shutdown below so batched spans/metrics flush before exit.
     let telemetry_guard = telemetry::init("navigator-web");
@@ -110,6 +110,19 @@ async fn main() -> anyhow::Result<()> {
         .map_or_else(|_| PathBuf::from(web::DEFAULT_EVENTS_DIR), PathBuf::from);
     let events = web::events::load_dir(&events_dir).context("loading events")?;
     tracing::info!(count = events.events().len(), ?events_dir, "loaded events");
+
+    let foundation_dir = std::env::var("NAVIGATOR_FOUNDATION_DIR").map_or_else(
+        |_| PathBuf::from(web::DEFAULT_FOUNDATION_DIR),
+        PathBuf::from,
+    );
+    let transparency =
+        web::transparency::load_dir(&foundation_dir).context("loading foundation documents")?;
+    tracing::info!(
+        governance = transparency.governance().len(),
+        minutes = transparency.minutes().len(),
+        ?foundation_dir,
+        "loaded foundation transparency documents"
+    );
 
     let auth = web::AuthConfig::from_env().await;
     tracing::info!(enforced = auth.is_enforced(), "auth configured");
@@ -256,6 +269,7 @@ async fn main() -> anyhow::Result<()> {
         docs: web::docs::loader::bundled(),
         marketing,
         blog,
+        transparency,
         events,
         auth,
         google_oauth,

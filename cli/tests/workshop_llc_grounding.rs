@@ -1,5 +1,5 @@
 //! Grounding test for the "Form a Nevada LLC from the command line"
-//! section of the Use-Navigator workshop.
+//! section of the Use-Neon Law Navigator workshop.
 //!
 //! `web/content/workshops/navigator/README.md` now teaches a concrete
 //! command-line formation flow that we publish on the website. That prose
@@ -135,7 +135,7 @@ fn the_template_code_the_section_names_is_a_real_seeded_template() {
 #[test]
 fn the_staff_gated_filing_promise_holds_in_the_workflow() {
     // The section promises the matter ends at a staff-gated
-    // `filing__nv_sos` and that Navigator never files. Bind both to the
+    // `filing__nv_sos` and that Neon Law Navigator never files. Bind both to the
     // bundled workflow spec: the LLC formation must actually carry that
     // filing state.
     let section = llc_section();
@@ -145,7 +145,7 @@ fn the_staff_gated_filing_promise_holds_in_the_workflow() {
     );
     assert!(
         section.to_lowercase().contains("never files"),
-        "the workshop must keep the 'Navigator never files for you' promise",
+        "the workshop must keep the 'Neon Law Navigator never files for you' promise",
     );
     let spec = repo_file("workflows/specs/onboarding__nest.yaml");
     assert!(

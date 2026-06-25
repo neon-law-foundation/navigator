@@ -28,9 +28,9 @@ back within reach.
 
 ## Programs
 
-- **Navigator — open legal complement.**
-  Navigator is an open standard for combining templates, questionnaires, and workflows into an executable notation that
-  spans entities and people.
+- **Neon Law Navigator — open legal complement.**
+  Neon Law Navigator is an open standard for combining templates, questionnaires, and workflows into an executable
+  notation that spans entities and people.
 - **CLE programs with bar associations.**
   Continuing legal education delivered in partnership with the Nevada State Bar and other jurisdictions — hands-on
   courses on citation verification, AI-assisted research, and the professional-responsibility rules that govern both.
@@ -49,12 +49,12 @@ deliver competent representation at scale — so that the rights on the page rea
 - **Expanding Legal Aid Capacity.**
   Help legal aid organizations and pro bono attorneys serve more clients with the same resources through technology.
 
-[Open the Navigator workshop →](/foundation/workshops/navigator)
+[Open Nebula →](/foundation/nebula)
 
 ## Reach the foundation
 
-Email **[support@neonlaw.org](mailto:support@neonlaw.org)** for CLE programming, Navigator contributions (the open
-standard's rule engine, CLI, and MCP server), or partnership inquiries. You can also follow our open-source work on
+Email **[support@neonlaw.org](mailto:support@neonlaw.org)** for CLE programming, Neon Law Navigator contributions (the
+open standard's rule engine, CLI, and MCP server), or partnership inquiries. You can also follow our open-source work on
 GitHub at **[neon-law-foundation](https://github.com/neon-law-foundation)**.
 
 ## The firm and the Foundation

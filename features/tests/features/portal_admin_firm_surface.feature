@@ -6,7 +6,7 @@ Feature: /portal/admin/* — firm-wide CRUD, staff-tier only
   matter doesn't exist from their perspective.
 
   Background:
-    Given the Navigator app is running
+    Given the Neon Law Navigator app is running
 
   Scenario: An admin reads the firm-wide people index
     Given a seeded person "nick@neonlaw.com" with role "admin"

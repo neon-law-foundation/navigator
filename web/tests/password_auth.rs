@@ -2,7 +2,7 @@
 //! End-to-end test for the GCP Identity Platform email/password front
 //! door (`web::oauth` password path).
 //!
-//! Navigator never stores a password: the typed credential is forwarded
+//! Neon Law Navigator never stores a password: the typed credential is forwarded
 //! once to Identity Platform's `accounts:signInWithPassword` over TLS,
 //! and the ID token it returns is decoded into the SAME `SessionData`
 //! cookie the OIDC callback mints. These tests stand a `wiremock`

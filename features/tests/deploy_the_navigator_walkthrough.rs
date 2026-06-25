@@ -1,8 +1,8 @@
 //! Cucumber runner for `features/deploy_the_navigator_walkthrough.feature`.
 //!
-//! Grounds the *renderable* claims of the "Deploy the Navigator"
+//! Grounds the *renderable* claims of the "Deploy the Neon Law Navigator"
 //! workshop (`web/content/workshops/navigator/DEPLOY.md`) in the running
-//! web app: it is registered on the Foundation surface, renders under
+//! web app: it is registered on the Nebula surface, renders under
 //! the Foundation brand, opens with an Agenda, splits into stepped
 //! content, and shows the reader the real
 //! `cargo run -p cli -- gcp setup` command. The pipeline-grounding half
@@ -48,18 +48,18 @@ impl DeployWorld {
         self.app.as_ref().expect("app not built").clone()
     }
 
-    /// The deploy workshop material, looked up by slug. Panics with a
+    /// The deploy workshop material, looked up by category and slug. Panics with a
     /// clear message when the manifest entry is missing — that is the
     /// failure the registration scenario exists to surface.
     fn deploy(&self) -> &WorkshopMaterial {
         self.materials
             .iter()
-            .find(|m| m.slug == "deploy")
-            .expect("the `deploy` workshop must be registered in the manifest")
+            .find(|m| m.category == "workshops" && m.slug == "deploy-the-navigator")
+            .expect("the `deploy-the-navigator` workshop must be registered in the manifest")
     }
 }
 
-#[given("the \"Deploy the Navigator\" workshop is loaded from the content directory")]
+#[given("the \"Deploy the Neon Law Navigator\" workshop is loaded from the content directory")]
 async fn load_workshops(world: &mut DeployWorld) {
     // Load the *real* on-disk content so the scenarios ground the file
     // that actually ships, not a synthetic fixture.

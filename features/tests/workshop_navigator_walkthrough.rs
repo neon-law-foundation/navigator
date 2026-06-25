@@ -1,11 +1,11 @@
 //! Cucumber runner for `features/workshop_navigator_walkthrough.feature`.
 //!
-//! Grounds the workshop README's prose ("Using the Navigator to
-//! Rapidly Solve Legal Outcomes") in real Navigator behavior. Every
+//! Grounds the workshop README's prose ("Using the Neon Law Navigator to
+//! Rapidly Solve Legal Outcomes") in real Neon Law Navigator behavior. Every
 //! scenario maps directly onto a Bloom-tagged learning objective in
 //! the README — if a scenario breaks, the page is stale.
 //!
-//! The attorney is the actor in every `When` step; Navigator is the
+//! The attorney is the actor in every `When` step; Neon Law Navigator is the
 //! instrument. Scorpio's trust claim (from the engineer council
 //! review) is asserted at the bottom: the notation's `state` is
 //! `draft` until the attorney explicitly advances the workflow.
@@ -144,7 +144,7 @@ impl WorkshopWorld {
     }
 }
 
-#[given("a fresh Navigator app with a deed-of-sale template")]
+#[given("a fresh Neon Law Navigator app with a deed-of-sale template")]
 async fn build_app_with_deed_template(world: &mut WorkshopWorld) {
     let db = in_memory_db().await;
     let storage = fs_storage("workshop-navigator-walkthrough").await;
@@ -231,7 +231,7 @@ async fn schema_has_table(world: &mut WorkshopWorld, table: String) {
     let present: bool = row.try_get("", "present").unwrap_or(false);
     assert!(
         present,
-        "expected table {table:?} to exist (every Navigator noun must be a real schema entity)",
+        "expected table {table:?} to exist (every Neon Law Navigator noun must be a real schema entity)",
     );
 }
 

@@ -7,7 +7,7 @@
 //! `store::test_support::pg` so they don't share state.
 
 use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::http::{header, Request, StatusCode};
 use http_body_util::BodyExt;
 use store::test_support::pg;
 use store::Db;
@@ -78,6 +78,7 @@ async fn state_with_workshops(materials: Vec<WorkshopMaterial>) -> AppState {
         docs: web::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),
         blog: web::BlogIndex::empty(),
+        transparency: web::TransparencyIndex::empty(),
         events: web::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: web::google_oauth::GoogleOauthConfig::passthrough(),
@@ -136,6 +137,78 @@ async fn foundation_mission_renders_the_letter_under_the_foundation_brand() {
     assert!(body.contains("class=\"mission-letter\""));
 }
 
+async fn state_with_bundled_foundation_docs() -> AppState {
+    AppState {
+        transparency: web::transparency::load_dir(std::path::Path::new(
+            web::DEFAULT_FOUNDATION_DIR,
+        ))
+        .expect("bundled foundation documents load"),
+        ..web::test_support::app_state(in_memory_db().await).await
+    }
+}
+
+#[tokio::test]
+async fn foundation_transparency_lists_required_and_voluntary_disclosures() {
+    let app = web::build_router(
+        state_with_bundled_foundation_docs().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/transparency")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("<title>Neon Law Foundation | Transparency</title>"));
+    assert!(body.contains("Required public disclosures"));
+    assert!(body.contains("Published voluntarily"));
+    // The determination letter PDF is linked, and the bundled governance +
+    // minutes documents are wired through to their own pages.
+    assert!(body.contains("href=\"/public/foundation/determination-letter.pdf\""));
+    assert!(body.contains("href=\"/foundation/transparency/bylaws\""));
+    assert!(body.contains("href=\"/foundation/transparency/conflict-of-interest\""));
+    assert!(body.contains("href=\"/foundation/transparency/minutes-2026-q2\""));
+    assert!(body.contains("href=\"/foundation/transparency/minutes-2021-q1\""));
+}
+
+#[tokio::test]
+async fn foundation_transparency_renders_one_document_and_404s_unknown_slug() {
+    let app = web::build_router(
+        state_with_bundled_foundation_docs().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let bylaws = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/transparency/bylaws")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bylaws.status(), StatusCode::OK);
+    let body = body_string(bylaws).await;
+    assert!(body.contains("<title>Neon Law Foundation | Bylaws</title>"));
+    assert!(body.contains("href=\"/foundation/transparency\""));
+
+    let missing = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/transparency/does-not-exist")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+}
+
 #[tokio::test]
 async fn old_foundation_mission_url_redirects_to_foundation_home() {
     let app = web::build_router(
@@ -170,8 +243,8 @@ async fn foundation_mission_links_training_to_the_workshop_not_the_repo() {
         assert_eq!(resp.status(), StatusCode::OK);
         let body = body_string(resp).await;
         assert!(
-            body.contains("href=\"/foundation/workshops/navigator/readme\""),
-            "{uri} should link legal-aid training to the Navigator workshop: {body}",
+            body.contains("href=\"/foundation/nebula/workshops/use-the-navigator\""),
+            "{uri} should link legal-aid training to the Neon Law Navigator workshop: {body}",
         );
         assert_eq!(
             body.matches("href=\"https://github.com/neon-law-foundation/navigator\"")
@@ -449,6 +522,7 @@ async fn health_returns_503_when_db_is_down() {
         docs: web::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),
         blog: web::BlogIndex::empty(),
+        transparency: web::TransparencyIndex::empty(),
         events: web::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: web::google_oauth::GoogleOauthConfig::passthrough(),
@@ -513,7 +587,7 @@ async fn foundation_home_is_the_mission_statement() {
     assert!(body.contains("<title>Neon Law Foundation | Mission</title>"));
     assert!(body.contains("class=\"mission-letter\""));
     assert!(
-        !body.contains("Open the Navigator workshop"),
+        !body.contains("Open the Neon Law Navigator workshop"),
         "old Foundation landing hero should not render on /foundation: {body}"
     );
 }
@@ -535,7 +609,7 @@ async fn navigator_serves_the_readme_under_foundation_brand() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Navigator</title>"));
+    assert!(body.contains("<title>Neon Law Foundation | Neon Law Navigator</title>"));
     // The page is the README: its H1 and the getting-started command.
     assert!(body.contains(">Neon Law Navigator</h1>"));
     assert!(body.contains("cargo run -p cli -- start-dev-server"));
@@ -607,15 +681,19 @@ async fn navigator_package_pages_render_each_crate_readme() {
     for (path, title, needle) in [
         (
             "/foundation/navigator/cli",
-            "Navigator CLI",
-            "Operator CLI for Navigator",
+            "Neon Law Navigator CLI",
+            "Operator CLI for Neon Law Navigator",
         ),
         (
             "/foundation/navigator/mcp",
-            "Navigator MCP",
+            "Neon Law Navigator MCP",
             "Model Context Protocol",
         ),
-        ("/foundation/navigator/web", "Navigator Web", "axum"),
+        (
+            "/foundation/navigator/web",
+            "Neon Law Navigator Web",
+            "axum",
+        ),
     ] {
         let resp = app
             .clone()
@@ -633,7 +711,7 @@ async fn navigator_package_pages_render_each_crate_readme() {
             "{path} should render its README ({needle})"
         );
         assert!(
-            body.contains("aria-label=\"Navigator packages\""),
+            body.contains("aria-label=\"Neon Law Navigator packages\""),
             "{path} should carry the package strip"
         );
     }
@@ -693,7 +771,7 @@ async fn rust_in_peace_talk_renders_as_a_workshop_under_foundation_brand() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/foundation/workshops/navigator/rust-in-peace")
+                .uri("/foundation/nebula/presentations/rust-in-peace")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -704,11 +782,11 @@ async fn rust_in_peace_talk_renders_as_a_workshop_under_foundation_brand() {
     assert!(body.contains("<title>Neon Law Foundation | Rust in Peace</title>"));
     // The overview's "Start →" button points at the first step under the
     // workshop base — the talk shares the workshop chrome now.
-    assert!(body.contains("href=\"/foundation/workshops/navigator/rust-in-peace/step/1\""));
+    assert!(body.contains("href=\"/foundation/nebula/presentations/rust-in-peace/step/1\""));
     // It advertises its Markdown twin for machine readers.
     assert!(body.contains(
         "<link rel=\"alternate\" type=\"text/markdown\" \
-         href=\"/foundation/workshops/navigator/rust-in-peace.md\">"
+         href=\"/foundation/nebula/presentations/rust-in-peace.md\">"
     ));
 
     // Step 1 is the agenda; the rail shows the progress label.
@@ -716,7 +794,7 @@ async fn rust_in_peace_talk_renders_as_a_workshop_under_foundation_brand() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/foundation/workshops/navigator/rust-in-peace/step/1")
+                .uri("/foundation/nebula/presentations/rust-in-peace/step/1")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -729,39 +807,22 @@ async fn rust_in_peace_talk_renders_as_a_workshop_under_foundation_brand() {
 }
 
 #[tokio::test]
-async fn old_presentation_urls_permanently_redirect_to_workshops() {
-    // Presentations folded into Workshops; the old surface redirects so a
-    // deep link to a talk lands on its workshop twin.
+async fn old_presentation_urls_are_not_mounted() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
-    for (from, to) in [
-        ("/foundation/presentations", "/foundation/workshops"),
-        (
-            "/foundation/presentations/rust-in-peace",
-            "/foundation/workshops/navigator/rust-in-peace",
-        ),
-        (
-            "/foundation/presentations/rust-in-peace/step/1",
-            "/foundation/workshops/navigator/rust-in-peace/step/1",
-        ),
+    for from in [
+        "/foundation/presentations",
+        "/foundation/presentations/rust-in-peace",
+        "/foundation/presentations/rust-in-peace/step/1",
     ] {
         let resp = app
             .clone()
             .oneshot(Request::builder().uri(from).body(Body::empty()).unwrap())
             .await
             .unwrap();
-        assert_eq!(
-            resp.status(),
-            StatusCode::PERMANENT_REDIRECT,
-            "{from} should redirect"
-        );
-        assert_eq!(
-            resp.headers().get("location").unwrap(),
-            to,
-            "{from} should redirect to {to}"
-        );
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "{from} should 404");
     }
 }
 
@@ -789,7 +850,7 @@ async fn services_northstar_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Estate planning</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Estate planning</title>"));
     assert!(body.contains("<h2>Drafted</h2>"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
@@ -873,7 +934,7 @@ async fn services_litigation_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Litigation</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Litigation</title>"));
     assert!(body.contains("connect you with trial counsel"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
@@ -906,7 +967,7 @@ async fn services_nautilus_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Nautilus</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Nautilus</title>"));
     assert!(body.contains("Put a lawyer between you and the collectors"));
     assert!(body.contains("we never take a percentage of your debt"));
     // The firm CTA books a consultation on the calendar, not a mailto.
@@ -931,7 +992,7 @@ async fn services_nest_falls_back_to_default_when_no_doc() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Corporate services</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Corporate services</title>"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
     assert!(body.contains("Book a Consultation"));
@@ -972,7 +1033,7 @@ async fn services_nexus_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Fractional GC</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Fractional GC</title>"));
     assert!(body.contains("<h2>Everything but litigation</h2>"));
     assert!(body.contains("mailto:support@neonlaw.com"));
     // The single pricing card renders and the marker is consumed.
@@ -1125,7 +1186,7 @@ async fn foundation_contact_returns_foundation_brand_contact_html() {
 #[tokio::test]
 async fn legacy_education_route_is_gone() {
     // /education was retired when CLEs collapsed into the single
-    // Workshops surface (/foundation/workshops/navigator).
+    // Workshops surface (/foundation/nebula/workshops).
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -1228,7 +1289,8 @@ async fn public_missing_file_returns_404() {
 
 fn sample_workshop() -> WorkshopMaterial {
     WorkshopMaterial {
-        slug: "readme".into(),
+        category: "workshops".into(),
+        slug: "use-the-navigator".into(),
         title: "Runbook".into(),
         description: "How.".into(),
         audience: "For lawyers".into(),
@@ -1261,7 +1323,7 @@ async fn workshops_landing_lists_each_workshop_you_voiced() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/foundation/workshops")
+                .uri("/foundation/nebula")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1269,37 +1331,42 @@ async fn workshops_landing_lists_each_workshop_you_voiced() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Workshops</title>"));
+    assert!(body.contains("<title>Neon Law Foundation | Nebula</title>"));
     // Each workshop links to its overview one level down, tagged with its
     // audience and led by its you-voiced benefit.
-    assert!(body.contains("href=\"/foundation/workshops/navigator/readme\""));
+    assert!(body.contains("href=\"/foundation/nebula/workshops/use-the-navigator\""));
     assert!(body.contains(">Runbook</a>"));
     assert!(body.contains("For lawyers"));
     assert!(body.contains("You walk out with a notation you built yourself."));
 }
 
 #[tokio::test]
-async fn old_navigator_workshop_index_redirects_to_the_overview() {
-    // The per-track index folded into the top-level overview; the old URL
-    // (and the nav's prior target) 308-redirect so bookmarks survive.
+async fn old_workshop_urls_redirect_into_nebula() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/workshops/navigator")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
-    assert_eq!(
-        resp.headers().get("location").unwrap(),
-        "/foundation/workshops"
-    );
+    for (uri, location) in [
+        ("/foundation/workshops", "/foundation/nebula"),
+        (
+            "/foundation/workshops/navigator",
+            "/foundation/nebula/workshops/use-the-navigator",
+        ),
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT, "{uri}");
+        assert_eq!(
+            resp.headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok()),
+            Some(location),
+            "{uri}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -1311,7 +1378,7 @@ async fn workshops_overview_renders_one_h1_and_links_steps() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/foundation/workshops/navigator/readme")
+                .uri("/foundation/nebula/workshops/use-the-navigator")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1322,15 +1389,15 @@ async fn workshops_overview_renders_one_h1_and_links_steps() {
     assert!(body.contains("<title>Neon Law Foundation | Runbook</title>"));
     // The duplicate-H1 bug regression guard: chrome title is the only one.
     assert_eq!(body.matches("<h1>").count(), 1, "expected a single <h1>");
-    assert!(body.contains("href=\"/foundation/workshops/navigator/readme/step/1\""));
+    assert!(body.contains("href=\"/foundation/nebula/workshops/use-the-navigator/step/1\""));
     assert!(body.contains("Copy as Markdown"));
     // The overview advertises and links its Markdown twin; the copy
     // button fetches it rather than reading an on-page raw node.
     assert!(body.contains(
         "<link rel=\"alternate\" type=\"text/markdown\" \
-         href=\"/foundation/workshops/navigator/readme.md\">"
+         href=\"/foundation/nebula/workshops/use-the-navigator.md\">"
     ));
-    assert!(body.contains("fetch('/foundation/workshops/navigator/readme.md')"));
+    assert!(body.contains("fetch('/foundation/nebula/workshops/use-the-navigator.md')"));
 }
 
 #[tokio::test]
@@ -1342,7 +1409,7 @@ async fn workshops_material_md_twin_serves_raw_markdown() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/foundation/workshops/navigator/readme.md")
+                .uri("/foundation/nebula/workshops/use-the-navigator.md")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1371,7 +1438,7 @@ async fn workshops_material_md_twin_404s_when_slug_missing() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/foundation/workshops/navigator/missing.md")
+                .uri("/foundation/nebula/workshops/missing.md")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1404,15 +1471,17 @@ async fn llms_txt_indexes_the_markdown_corpus_with_absolute_urls() {
         .to_string();
     assert_eq!(ctype, "text/markdown; charset=utf-8");
     let body = body_string(resp).await;
-    // llmstxt.org shape: H1, then a section per corpus. Talks fold into
-    // the Workshops section now — there is no separate Presentations one.
+    // llmstxt.org shape: H1, then a section per corpus. Nebula carries
+    // workshops and presentations.
     assert!(body.starts_with("# "));
-    assert!(body.contains("## Workshops"));
+    assert!(body.contains("## Nebula"));
     assert!(!body.contains("## Presentations"));
     // Every entry is an absolute link to a `.md` twin. With no
     // CANONICAL_HOST and no Host header, the base falls back to the
     // placeholder authority.
-    assert!(body.contains("https://www.example.com/foundation/workshops/navigator/readme.md"));
+    assert!(
+        body.contains("https://www.example.com/foundation/nebula/workshops/use-the-navigator.md")
+    );
 }
 
 #[tokio::test]
@@ -1434,7 +1503,7 @@ async fn deploy_workshop_md_twin_and_llms_index_the_real_content() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/foundation/workshops/navigator/deploy.md")
+                .uri("/foundation/nebula/workshops/deploy-the-navigator.md")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1450,7 +1519,7 @@ async fn deploy_workshop_md_twin_and_llms_index_the_real_content() {
     assert_eq!(ctype, "text/markdown; charset=utf-8");
     let body = body_string(resp).await;
     assert!(
-        body.contains("# Deploy the Navigator"),
+        body.contains("# Deploy the Neon Law Navigator"),
         "raw markdown title"
     );
     assert!(body.contains("cargo run -p cli -- gcp setup --project-id"));
@@ -1467,7 +1536,8 @@ async fn deploy_workshop_md_twin_and_llms_index_the_real_content() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("https://www.example.com/foundation/workshops/navigator/deploy.md"));
+    assert!(body
+        .contains("https://www.example.com/foundation/nebula/workshops/deploy-the-navigator.md"));
 }
 
 #[tokio::test]
@@ -1479,7 +1549,7 @@ async fn workshops_step_renders_single_section_with_progress() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/foundation/workshops/navigator/readme/step/1")
+                .uri("/foundation/nebula/workshops/use-the-navigator/step/1")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1491,7 +1561,7 @@ async fn workshops_step_renders_single_section_with_progress() {
     assert!(body.contains("<h2>Install</h2>"));
     // Step one shows the next section's content nowhere on the page.
     assert!(!body.contains("<h2>Notarize</h2>"));
-    assert!(body.contains("href=\"/foundation/workshops/navigator/readme/step/2\""));
+    assert!(body.contains("href=\"/foundation/nebula/workshops/use-the-navigator/step/2\""));
 }
 
 /// Drive `GET …/{slug}/slides` and return `(cookie_pair, csrf_token)` for a
@@ -1502,7 +1572,7 @@ async fn fetch_workshop_csrf(app: &axum::Router, slug: &str) -> (String, String)
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/foundation/workshops/navigator/{slug}/slides"))
+                .uri(format!("/foundation/nebula/workshops/{slug}/slides"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1534,7 +1604,7 @@ async fn workshops_slides_renders_grid_and_mints_dedicated_csrf_cookie() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/foundation/workshops/navigator/readme/slides")
+                .uri("/foundation/nebula/workshops/use-the-navigator/slides")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1580,7 +1650,7 @@ async fn workshops_certificate_rejects_request_without_valid_csrf() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/foundation/workshops/navigator/readme/certificate")
+                .uri("/foundation/nebula/workshops/use-the-navigator/certificate")
                 .header(
                     axum::http::header::CONTENT_TYPE,
                     "application/x-www-form-urlencoded",
@@ -1601,12 +1671,12 @@ async fn workshops_certificate_accepts_valid_request_and_confirms() {
         state_with_workshops(vec![sample_workshop()]).await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
-    let (cookie, token) = fetch_workshop_csrf(&app, "readme").await;
+    let (cookie, token) = fetch_workshop_csrf(&app, "use-the-navigator").await;
     let resp = app
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/foundation/workshops/navigator/readme/certificate")
+                .uri("/foundation/nebula/workshops/use-the-navigator/certificate")
                 .header(
                     axum::http::header::CONTENT_TYPE,
                     "application/x-www-form-urlencoded",
@@ -1635,13 +1705,13 @@ async fn workshops_certificate_rejects_overlong_name() {
         state_with_workshops(vec![sample_workshop()]).await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
-    let (cookie, token) = fetch_workshop_csrf(&app, "readme").await;
+    let (cookie, token) = fetch_workshop_csrf(&app, "use-the-navigator").await;
     let long_name = "a".repeat(200);
     let resp = app
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/foundation/workshops/navigator/readme/certificate")
+                .uri("/foundation/nebula/workshops/use-the-navigator/certificate")
                 .header(
                     axum::http::header::CONTENT_TYPE,
                     "application/x-www-form-urlencoded",
@@ -1664,8 +1734,8 @@ async fn workshops_step_out_of_range_404s() {
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
     for uri in [
-        "/foundation/workshops/navigator/readme/step/0",
-        "/foundation/workshops/navigator/readme/step/3",
+        "/foundation/nebula/workshops/use-the-navigator/step/0",
+        "/foundation/nebula/workshops/use-the-navigator/step/3",
     ] {
         let resp = app
             .clone()
@@ -1685,7 +1755,7 @@ async fn workshops_material_404s_when_slug_missing() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/foundation/workshops/navigator/missing")
+                .uri("/foundation/nebula/workshops/missing")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -5048,6 +5118,7 @@ fn blog_state_with_one_post() -> web::BlogIndex {
 fn event_state_with_one_event() -> web::EventIndex {
     web::EventIndex::new(vec![web::Event {
         slug: "seattle-agentic-workflows-for-lawyers".into(),
+        public_slug: "seattle-summer-2026".into(),
         date: chrono::NaiveDate::from_ymd_opt(2026, 7, 2).unwrap(),
         title: "Agentic Workflows for Lawyers".into(),
         description: "A practical AI workflow gathering.".into(),
@@ -5263,14 +5334,14 @@ async fn blog_kebab_slug_is_served_without_redirect() {
 }
 
 #[tokio::test]
-async fn events_index_lists_events() {
+async fn nebula_index_lists_show_and_tells() {
     let mut state = empty_state().await;
     state.events = event_state_with_one_event();
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/events")
+                .uri("/foundation/nebula")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -5279,19 +5350,19 @@ async fn events_index_lists_events() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("Agentic Workflows for Lawyers"));
-    assert!(body.contains("href=\"/events/seattle-agentic-workflows-for-lawyers\""));
+    assert!(body.contains("href=\"/foundation/nebula/show-and-tell/seattle-summer-2026\""));
     assert!(body.contains("July 2, 2026"));
 }
 
 #[tokio::test]
-async fn event_page_renders_rsvp_and_calendar_links() {
+async fn nebula_show_tell_renders_rsvp_and_calendar_links() {
     let mut state = empty_state().await;
     state.events = event_state_with_one_event();
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/events/seattle-agentic-workflows-for-lawyers")
+                .uri("/foundation/nebula/show-and-tell/seattle-summer-2026")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -5301,18 +5372,20 @@ async fn event_page_renders_rsvp_and_calendar_links() {
     let body = body_string(resp).await;
     assert!(body.contains("Trade real stories and workflows."));
     assert!(body.contains("href=\"https://luma.com/k26256ut\""));
-    assert!(body.contains("href=\"/events/seattle-agentic-workflows-for-lawyers/calendar.ics\""));
+    assert!(
+        body.contains("href=\"/foundation/nebula/show-and-tell/seattle-summer-2026/calendar.ics\"")
+    );
 }
 
 #[tokio::test]
-async fn event_ics_uses_pacific_timezone() {
+async fn nebula_show_tell_ics_uses_pacific_timezone() {
     let mut state = empty_state().await;
     state.events = event_state_with_one_event();
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/events/seattle-agentic-workflows-for-lawyers/calendar.ics")
+                .uri("/foundation/nebula/show-and-tell/seattle-summer-2026/calendar.ics")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -5329,4 +5402,58 @@ async fn event_ics_uses_pacific_timezone() {
     assert!(body.contains("DTSTART;TZID=America/Los_Angeles:20260702T110000"));
     assert!(body.contains("DTEND;TZID=America/Los_Angeles:20260702T150000"));
     assert!(body.contains("URL:https://luma.com/k26256ut"));
+}
+
+#[tokio::test]
+async fn old_events_surface_redirects_into_nebula() {
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    for (uri, location) in [
+        ("/events", "/foundation/nebula"),
+        (
+            "/events/seattle-agentic-workflows-for-lawyers",
+            "/foundation/nebula/show-and-tell/seattle-summer-2026",
+        ),
+        (
+            "/events/seattle-summer-2026",
+            "/foundation/nebula/show-and-tell/seattle-summer-2026",
+        ),
+        (
+            "/events/seattle-agentic-workflows-for-lawyers/calendar.ics",
+            "/foundation/nebula/show-and-tell/seattle-summer-2026/calendar.ics",
+        ),
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT, "{uri}");
+        assert_eq!(
+            resp.headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok()),
+            Some(location),
+            "{uri}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn unknown_old_event_url_stays_not_found() {
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/events/missing-show-and-tell")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }

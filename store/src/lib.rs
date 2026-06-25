@@ -1,5 +1,5 @@
 #![allow(clippy::doc_markdown)]
-//! Navigator CRM data layer.
+//! Neon Law Navigator CRM data layer.
 //!
 //! Owns the SeaORM schema, migrations, entities, and canonical seed.
 //! Every workspace crate that touches the database — `web`, `cli`,
@@ -10,6 +10,7 @@ pub mod attestations;
 pub mod blobs;
 pub mod communications;
 pub mod config;
+pub mod conflicts;
 pub mod contract_reviews;
 pub mod coupons;
 pub mod db;

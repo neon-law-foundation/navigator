@@ -15,6 +15,7 @@ members = [
     "features",
     "forms",
     "lsp",
+    "live-inquiry",
     "pdf",
     "archives",
     "statutes",
@@ -54,6 +55,11 @@ include_dir = "0.7"
 # the Typst `render` path, which only emits fresh PDFs.
 lopdf = "0.36"
 parquet = { version = "59", default-features = false, features = ["arrow", "snap"] }
+# In-memory graph for the pre-matter conflict check (`store::conflicts`).
+# Postgres stays the source of truth; petgraph is a transient view built
+# from `relationship_edges` + `person_entity_roles` per check. See
+# docs/glossary.md#conflict-check-graph.
+petgraph = { version = "0.6", default-features = false }
 # Google Cloud SDKs. `google-cloud-storage` is consumed only by the
 # `cloud` crate (which wraps it in the provider-agnostic
 # `StorageService` trait). `google-cloud-auth` + `google-cloud-token`
@@ -107,6 +113,7 @@ cloud = { path = "cloud" }
 features = { path = "features" }
 forms = { path = "forms" }
 import = { path = "import" }
+live-inquiry = { path = "live-inquiry" }
 mcp = { path = "mcp" }
 pdf = { path = "pdf" }
 repos = { path = "repos" }

@@ -17,9 +17,9 @@ use crate::components::{external_link_with_class, github_star_button, ExternalLi
 use crate::i18n::{self, Locale};
 
 /// Whether the current request has a valid session. The layout uses
-/// this to render the auth-aware tail of the header nav: an "Admin"
-/// and "Sign out" pair for signed-in visitors, or a "Sign in" link
-/// (pointing at the OIDC start endpoint) for everyone else.
+/// this to render the auth-aware tail of the header nav: "Portal" and
+/// "Sign out" for signed-in visitors, a firm-only "Sign in" link for
+/// anonymous visitors, and no anonymous auth prompt on Foundation pages.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum AuthState {
     #[default]
@@ -265,15 +265,15 @@ impl<'a> PageLayout<'a> {
                                             (render_nav_link(link, self.locale))
                                         }
                                         @if self.auth == AuthState::Authenticated {
-                                            // The portal is the firm's client
-                                            // surface; the Foundation header
-                                            // (the 501(c)(3), not the firm)
-                                            // never links to it.
-                                            @if self.brand.is_law_firm {
-                                                li.nav-item {
-                                                    a.nav-link href="/portal" {
-                                                        (i18n::t(self.locale, "auth.portal"))
-                                                    }
+                                            // Portal is authenticated utility
+                                            // chrome. Anonymous Foundation
+                                            // readers do not see a sign-in
+                                            // prompt, but someone already
+                                            // signed in still gets back to
+                                            // their workspace.
+                                            li.nav-item {
+                                                a.nav-link href="/portal" {
+                                                    (i18n::t(self.locale, "auth.portal"))
                                                 }
                                             }
                                             li.nav-item {
@@ -281,7 +281,7 @@ impl<'a> PageLayout<'a> {
                                                     (i18n::t(self.locale, "auth.sign_out"))
                                                 }
                                             }
-                                        } @else {
+                                        } @else if self.brand.is_law_firm {
                                             li.nav-item {
                                                 a.nav-link href="/auth/login" {
                                                     (i18n::t(self.locale, "auth.sign_in"))
@@ -383,12 +383,14 @@ impl<'a> PageLayout<'a> {
                             a.link-secondary href="/api/docs" { "API" } " · "
                             a.link-secondary href="/contact" { "Contact" } " · "
                             a.link-secondary href="/blog" { "Blog" } " · "
-                            a.link-secondary href="/events" { "Events" } " · "
                             // The mission statement and the Foundation's free
                             // Nevada Revised Statutes reference ride the same link
                             // row as every other policy link — uniform short
                             // labels, no separate trailing line.
                             a.link-secondary href="/foundation" { "Mission" } " · "
+                            // The Foundation's public 501(c)(3) disclosures
+                            // (determination letter, bylaws, board minutes).
+                            a.link-secondary href="/foundation/transparency" { "Transparency" } " · "
                             a.link-secondary href="/statutes" { "Statutes" }
                             // One-tap language switcher — only on pages with a
                             // translated twin. Rides the same policy-link row as
@@ -408,7 +410,7 @@ impl<'a> PageLayout<'a> {
                                 }
                             }
                         }
-                        // Bottom line: the Navigator version and the repo-star
+                        // Bottom line: the Neon Law Navigator version and the repo-star
                         // CTA share one row, and a version ALWAYS shows. In a
                         // deployed image it is the `YY.MM.DD` ghcr tag this
                         // build shipped under (same value as `/version`'s
@@ -424,11 +426,11 @@ impl<'a> PageLayout<'a> {
                                 (external_link_with_class(
                                     &format!("{}/releases/tag/{release}", foundation_github_url()),
                                     "link-secondary text-decoration-none small",
-                                    html! { "Navigator " (release) },
+                                    html! { "Neon Law Navigator " (release) },
                                 ))
                             } @else {
                                 span."small"."text-body-secondary" {
-                                    "Navigator " (env!("CARGO_PKG_VERSION"))
+                                    "Neon Law Navigator " (env!("CARGO_PKG_VERSION"))
                                 }
                             }
                             (github_star_button(
@@ -828,10 +830,23 @@ mod tests {
     }
 
     #[test]
-    fn authenticated_foundation_nav_omits_portal_link() {
-        // The portal is the firm's client surface. On Foundation-branded
-        // pages (the 501(c)(3), not the firm) the header never links to
-        // /portal, even when the visitor is signed in — sign-out still shows.
+    fn anonymous_foundation_nav_omits_sign_in_link() {
+        let body = html! { p { "x" } };
+        let out = PageLayout::new("Home")
+            .with_brand(*FOUNDATION_BRAND)
+            .render(&body)
+            .into_string();
+        assert!(
+            !out.contains("href=\"/auth/login\""),
+            "anonymous Foundation header should not offer sign in: {out}",
+        );
+    }
+
+    #[test]
+    fn authenticated_foundation_nav_shows_portal_and_sign_out() {
+        // Portal is authenticated utility chrome: anonymous Foundation
+        // readers do not see sign-in, but someone already signed in can
+        // still return to their workspace.
         let body = html! { p { "x" } };
         let out = PageLayout::new("Home")
             .with_brand(*FOUNDATION_BRAND)
@@ -839,8 +854,8 @@ mod tests {
             .render(&body)
             .into_string();
         assert!(
-            !out.contains("href=\"/portal\""),
-            "Foundation header should not link to /portal: {out}",
+            out.contains("href=\"/portal\">Portal</a>"),
+            "Foundation header should link signed-in readers to /portal: {out}",
         );
         assert!(
             out.contains("href=\"/auth/logout\">Sign out</a>"),
@@ -927,11 +942,12 @@ mod tests {
                 "href=\"/api/docs\"",
                 "href=\"/contact\"",
                 "href=\"/blog\"",
-                "href=\"/events\"",
                 "href=\"/foundation\"",
+                "href=\"/foundation/transparency\"",
                 "href=\"/statutes\"",
                 ">Blog</a>",
                 ">Mission</a>",
+                ">Transparency</a>",
                 ">Statutes</a>",
                 "Admitted in",
                 "apps.calbar.ca.gov/attorney/Licensee/Detail/337252",
@@ -970,6 +986,10 @@ mod tests {
             assert!(
                 footer.contains(&format!("href=\"{}\"", foundation_github_url())),
                 "{brand} footer should link the configured repo: {footer}"
+            );
+            assert!(
+                !footer.contains("href=\"/events\""),
+                "{brand} footer should keep events nested under Nebula: {footer}"
             );
         }
     }
@@ -1034,8 +1054,8 @@ mod tests {
         let footer = firm_footer();
         let version = crate::brand::deployed_release().unwrap_or(env!("CARGO_PKG_VERSION"));
         assert!(
-            footer.contains(&format!("Navigator {version}")),
-            "footer should always carry a Navigator version line: {footer}"
+            footer.contains(&format!("Neon Law Navigator {version}")),
+            "footer should always carry a Neon Law Navigator version line: {footer}"
         );
     }
 

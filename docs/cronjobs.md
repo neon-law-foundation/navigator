@@ -1,7 +1,7 @@
 # Scheduled jobs (CronJobs)
 
-How Navigator runs anything on a clock — the nightly Archives backup, the weekly billing canary, and the weekly NRS
-statutes sync today, with more periodic jobs to come. Every scheduled job is a **Kubernetes `CronJob`** in the
+How Neon Law Navigator runs anything on a clock — the nightly Archives backup, the weekly billing canary, and the weekly
+NRS statutes sync today, with more periodic jobs to come. Every scheduled job is a **Kubernetes `CronJob`** in the
 `navigator` namespace. **Kubernetes owns the clock.**
 
 GitHub Actions is **not** a scheduler here. CI/CD on GitHub does exactly one thing for the runtime: build and push
@@ -80,8 +80,8 @@ spec:
 `spec.schedule` is **always UTC** (k8s evaluates cron in UTC unless you set `spec.timeZone`). The workspace convention
 is to write the comment in Pacific and the expression in UTC:
 
-- `0 10 * * *` = **02:00 PST** daily (the `archives-trigger` schedule).
-- `0 10 * * 0` = **02:00 PST Sunday** (`0` = Sunday).
+- `0 10 * * *` = **02:00 PST** daily (the `archives-trigger` schedule). `0 10 * * 0` = **02:00 PST Sunday** (`0` =
+  Sunday).
 
 PST is UTC−8; during PDT (UTC−7) the same expression lands at 03:00 local. If a job must hit exactly 02:00 *local*
 year-round, set `spec.timeZone: "America/Los_Angeles"` instead of doing the math.
@@ -105,8 +105,8 @@ kubectl apply -f /tmp/cron-<name>.yaml
 ```
 
 > The daily tag flow publishes `navigator-web` and `navigator-workflows-service` today; a new cron *trigger* image must
-> be added to `deploy.yml`'s publish matrix so it ships the same GitHub-built way. Don't reintroduce a local build +
-> push for it as a side channel.
+  be added to `deploy.yml`'s publish matrix so it ships the same GitHub-built way. Don't reintroduce a local build +
+  push for it as a side channel.
 
 ## Operating a CronJob
 
@@ -136,6 +136,6 @@ end-to-end after deploy.
 
 ## See also
 
-- [Durable workflows](durable-workflows.md) — flavor A, the Restate execution engine, and the registration gotcha.
-- [GKE production](gke-prod.md) and [cloud operations](cloud-operations.md) — the cluster + image-shipping mechanics.
-- [Secrets in Doppler](secrets-doppler.md) — where `navigator-web-secrets` values come from.
+- [Durable workflows](durable-workflows.md) — flavor A, the Restate execution engine, and the registration gotcha. [GKE
+  production](gke-prod.md) and [cloud operations](cloud-operations.md) — the cluster + image-shipping mechanics.
+  [Secrets in Doppler](secrets-doppler.md) — where `navigator-web-secrets` values come from.

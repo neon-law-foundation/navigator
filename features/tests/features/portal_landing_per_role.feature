@@ -12,7 +12,7 @@ Feature: /portal routes a person to the right home for their role
   it isn't re-exercised here.
 
   Background:
-    Given the Navigator app is running
+    Given the Neon Law Navigator app is running
 
   Scenario: An anonymous visitor is bounced to the login flow
     When an anonymous visitor opens /portal

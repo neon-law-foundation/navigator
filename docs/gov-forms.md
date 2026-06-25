@@ -1,9 +1,9 @@
 # Government forms: vendor → map → fill → file
 
-Navigator fills official government PDF forms from questionnaire answers and files them with the issuing authority. This
-document is the end-to-end map of that pipeline — what each layer owns, where the data lives, and which guard test pins
-each seam. The first three forms are the Nevada Secretary of State formation packets (LLC under NRS 86, profit
-corporation under NRS 78, business trust under NRS 88A); the same pipeline is built to absorb thousands more.
+Neon Law Navigator fills official government PDF forms from questionnaire answers and files them with the issuing
+authority. This document is the end-to-end map of that pipeline — what each layer owns, where the data lives, and which
+guard test pins each seam. The first three forms are the Nevada Secretary of State formation packets (LLC under NRS 86,
+profit corporation under NRS 78, business trust under NRS 88A); the same pipeline is built to absorb thousands more.
 
 ## The pipeline at a glance
 

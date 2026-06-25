@@ -75,7 +75,7 @@ impl WebhookWorld {
     }
 }
 
-#[given("a Navigator app with an HMAC-secured e-signature webhook")]
+#[given("a Neon Law Navigator app with an HMAC-secured e-signature webhook")]
 async fn build_app(world: &mut WebhookWorld) {
     let db = in_memory_db().await;
     let storage = fs_storage("esignature-webhook").await;

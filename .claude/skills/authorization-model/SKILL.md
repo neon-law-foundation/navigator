@@ -1,7 +1,7 @@
 ---
 name: authorization-model
 description: >
-  Navigator's role + participation authorization model — the **canonical answer** to "who can see what." Every person
+  Neon Law Navigator's role + participation authorization model — the **canonical answer** to "who can see what." Every person
   carries exactly one role in `persons.role` (`client`, `staff`, or `admin`); per-project scope lives separately in
   `person_project_roles.participation`. Admin bypasses project-scoping silently. Trigger when the user mentions any of
   `role`, `roles`, `staff`, `client`, `admin`, `participation`, OPA, "who can see", "what does Libra/Nick see", or
@@ -16,8 +16,8 @@ The one-liner that captures the whole thing:
 
 > **Role decides the tier; participation decides the scope.**
 
-Navigator separates *what a person is* (system-wide tier) from *what they see* (per-project scope). Both columns live in
-the database, both flow into OPA, neither lives in the IdP token.
+Neon Law Navigator separates *what a person is* (system-wide tier) from *what they see* (per-project scope). Both
+columns live in the database, both flow into OPA, neither lives in the IdP token.
 
 ## One role per person
 
@@ -46,7 +46,7 @@ two people on the same tier may be assigned to different projects via `person_pr
 - **Nick** (`nick@neonlaw.com`, lowercase) — the firm administrator. Role: `admin`. Sees every project. The lowercase
   spelling is exact: `store::seed::require_firm_domain` rejects mixed-case staff/admin seeds at load time.
 - **Staff** — firm employees. Role: `staff`. Convention: lowercase `*@neonlaw.com` emails for any seeded staff record.
-- **Staff** (`staff@neonlaw.com`) — KIND-only Keycloak fixture for the OIDC walk-through. Role: `staff` (per
+  **Staff** (`staff@neonlaw.com`) — KIND-only Keycloak fixture for the OIDC walk-through. Role: `staff` (per
   `docs/RUNBOOK.md` step 3). It is **staff**, exactly one role. Not admin.
 - **Clients** — any seeded non-firm person. Role: `client`. Email is the client's real address; no domain restriction.
 
@@ -73,7 +73,7 @@ on `/portal/projects/:id/edit` and friends. The 404 is intentional: the manageme
 ## Canonical references (read these, don't paraphrase)
 
 - [`docs/access-model.md`](../../../docs/access-model.md) — full narrative + Rego rules.
-- [`store/src/entity/person.rs`](../../../store/src/entity/person.rs) — the `Role` enum.
-- [`web/src/access.rs`](../../../web/src/access.rs) — `visible_projects` + `can_see_project`.
-- [`k8s/base/opa/opa.yaml`](../../../k8s/base/opa/opa.yaml) — the live Rego policy.
-- [`docs/oidc.md`](../../../docs/oidc.md) — how the role enters the session at callback time.
+  [`store/src/entity/person.rs`](../../../store/src/entity/person.rs) — the `Role` enum.
+  [`web/src/access.rs`](../../../web/src/access.rs) — `visible_projects` + `can_see_project`.
+  [`k8s/base/opa/opa.yaml`](../../../k8s/base/opa/opa.yaml) — the live Rego policy.
+  [`docs/oidc.md`](../../../docs/oidc.md) — how the role enters the session at callback time.

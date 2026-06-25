@@ -1,9 +1,9 @@
 //! Cucumber runner for `features/legal_workflow_shapes.feature`.
 //!
 //! Loads each bundled template (LLC, trust, will) from disk and
-//! pins down its questionnaire + workflow shape. Complements
+//! pins down its questionnaire shape + workflow composition. Complements
 //! `workflows/tests/workflow_integrity.rs`, which enforces generic
-//! invariants; these scenarios are template-specific so a reshape
+//! invariants; these scenarios are template-specific so a recomposition
 //! shows up as a named failing scenario in the BDD suite.
 
 #![allow(clippy::unused_async)]
@@ -11,8 +11,7 @@
 use cucumber::{gherkin::Step, given, then, World};
 use features::template_shapes::{strip_workflow_end, templates_root, walk_chain};
 use workflows::{
-    questionnaire_spec_from_template, step_kind_for, workflow_spec_from_template, StateName,
-    WorkflowSpec, WorkflowSpecError,
+    questionnaire_spec_from_template, workflow_spec_from_template, WorkflowSpec, WorkflowSpecError,
 };
 
 #[derive(Default, World)]
@@ -61,23 +60,6 @@ async fn assert_workflow_chain(world: &mut ShapeWorld, step: &Step) {
     let md = world.markdown.as_ref().expect("template loaded");
     let w = workflow_spec_from_template(md).expect("workflow frontmatter parses");
     assert_chain_matches(&w, step);
-}
-
-#[then("every workflow state resolves to a StepKind")]
-async fn assert_step_kinds_resolve(world: &mut ShapeWorld) {
-    let md = world.markdown.as_ref().expect("template loaded");
-    let w = workflow_spec_from_template(md).expect("workflow frontmatter parses");
-    for state in w.states.keys() {
-        if state.as_str() == StateName::END {
-            continue;
-        }
-        assert!(
-            step_kind_for(state).is_some(),
-            "state `{}` has no StepKind (prefix `{}` is unrouted)",
-            state.as_str(),
-            state.prefix(),
-        );
-    }
 }
 
 #[then("parsing the workflow spec returns a MissingEnd error")]

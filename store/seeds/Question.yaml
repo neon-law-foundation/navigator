@@ -286,3 +286,60 @@ records:
       reviews this with the share count before anything is filed.
     question_type: string
     audience: both
+  # --- Immigration: naturalization intake (Form N-400) ---
+  - code: date_of_birth
+    prompt: What is your date of birth?
+    help_text: Enter your date of birth exactly as it appears on your green card and passport.
+    question_type: date
+  - code: country_of_birth
+    prompt: In what country were you born?
+    help_text: The country where you were born, even if its name or borders have since changed.
+    question_type: string
+  - code: country_of_citizenship
+    prompt: Of what country are you currently a citizen or national?
+    help_text: List your current nationality. If you hold more than one citizenship, list each of them.
+    question_type: string
+  - code: a_number
+    prompt: What is your Alien Registration Number (A-Number)?
+    help_text: |
+      The 7-to-9-digit number beginning with "A" on the front of your green card. Enter "None" if you do not have one.
+    question_type: string
+  - code: lpr_since
+    prompt: On what date did you become a lawful permanent resident?
+    help_text: The "Resident Since" date printed on the front of your green card.
+    question_type: date
+  - code: daytime_phone
+    prompt: What is the best daytime phone number to reach you?
+    help_text: The firm and USCIS use this number to reach you about your biometrics, interview, and oath appointments.
+    question_type: string
+  - code: eligibility_basis
+    prompt: Which path to naturalization are you applying under?
+    help_text: |
+      Most applicants qualify after five years as a permanent resident, or after three years if married to and living
+      with the same U.S. citizen the whole time. Military service is its own path. Your attorney confirms your basis.
+    question_type: radio
+    choices:
+      five_year: Five years as a permanent resident
+      three_year_marriage: Three years married to a U.S. citizen
+      military: Qualifying U.S. military service
+  - code: marital_status
+    prompt: What is your current marital status?
+    help_text: Your status today. If it is about to change, tell your attorney so the application reflects the right date.
+    question_type: radio
+    choices:
+      single: Single, never married
+      married: Married
+      divorced: Divorced
+      widowed: Widowed
+  - code: time_outside_us
+    prompt: About how many total days have you spent outside the United States in the last five years?
+    help_text: |
+      A rough total across all your trips is fine for intake — your attorney reviews the exact dates with you. Long or
+      frequent trips can affect the continuous-residence requirement, so it is better to over-report than under-report.
+    question_type: string
+  - code: good_moral_character
+    prompt: Is there anything in your history — arrests, citations, or unpaid taxes — your attorney should know before we file?
+    help_text: |
+      Naturalization asks you to show good moral character. Telling your attorney early, in confidence, lets us handle
+      anything the right way. A "yes" is not a problem — it is a conversation, and nothing is shared without your say.
+    question_type: yes_no

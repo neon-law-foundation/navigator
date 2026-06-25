@@ -54,7 +54,7 @@ struct TemplateFrontmatter {
     workflow: Option<BTreeMap<String, BTreeMap<String, String>>>,
 }
 
-/// Walk `dir`, validate every `*.md` (with the default Navigator rule
+/// Walk `dir`, validate every `*.md` (with the default Neon Law Navigator rule
 /// set minus N104 question-code validation since we're populating the
 /// registry as we go), and insert one `templates` row + one `questions`
 /// row per referenced question code. Files with any rule violation

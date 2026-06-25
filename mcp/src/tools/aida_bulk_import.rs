@@ -28,7 +28,7 @@ pub fn descriptor() -> Value {
     json!({
         "name": "aida_bulk_import",
         "description": "Bulk-import organizations and the people who work at them into \
-                        Navigator. Find-or-creates an entity per organization, a person per \
+                        Neon Law Navigator. Find-or-creates an entity per organization, a person per \
                         contact, and a client_contact link between them. Idempotent: re-running \
                         the same payload changes nothing. Staff/admin only. Use this when a user \
                         hands you a list of contacts to load. Returns a per-row created/updated/ \
@@ -142,7 +142,7 @@ async fn require_staff(db: &Db, principal: Option<&Principal>) -> Result<(), Too
             "{email} is not staff or admin; bulk import is restricted"
         ))),
         None => Err(ToolError::Forbidden(format!(
-            "{email} has no Navigator account; bulk import is restricted"
+            "{email} has no Neon Law Navigator account; bulk import is restricted"
         ))),
     }
 }

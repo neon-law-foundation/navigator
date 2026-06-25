@@ -222,7 +222,7 @@ mod tests {
         );
     }
 
-    /// Cross-reference the "Deploy the Navigator" workshop prose
+    /// Cross-reference the "Deploy the Neon Law Navigator" workshop prose
     /// (`web/content/workshops/navigator/DEPLOY.md`) against the pipeline
     /// it teaches. If the prose names a service, bucket, or command the
     /// dry-run does not actually use — or omits one it does — this test
@@ -268,16 +268,16 @@ mod tests {
             "DEPLOY.md must teach the --dry-run preview",
         );
 
-        // 2. The prose's "twelve" APIs match REQUIRED_SERVICES exactly,
+        // 2. The prose's "thirteen" APIs match REQUIRED_SERVICES exactly,
         //    and each short name is named in the prose.
         assert_eq!(
             REQUIRED_SERVICES.len(),
-            12,
-            "the workshop says twelve APIs; keep prose and code in lockstep",
+            13,
+            "the workshop says thirteen APIs; keep prose and code in lockstep",
         );
         assert!(
-            prose.contains("twelve"),
-            "DEPLOY.md must state the API count in words (twelve)",
+            prose.contains("thirteen"),
+            "DEPLOY.md must state the API count in words (thirteen)",
         );
         for svc in REQUIRED_SERVICES {
             let short = svc.strip_suffix(".googleapis.com").unwrap_or(svc);

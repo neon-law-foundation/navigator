@@ -1,18 +1,17 @@
 # OIDC + DB-role authorization
 
-Navigator separates **identity** (who you are) from **authorization** (what you can do). The OIDC provider (Keycloak
-today, Google tomorrow) owns identity only — a stable `sub` and an `email`. The `persons` table in our database owns
-everything else: profile, project memberships, billing relationships, and the **single role** (`client | staff | admin`)
-that gates the back-office. OPA evaluates the rego policy against that DB-sourced role, never against the IdP token. See
-[`docs/access-model.md`](access-model.md) for the role/participation split.
+Neon Law Navigator separates **identity** (who you are) from **authorization** (what you can do). The OIDC provider
+(Keycloak today, Google tomorrow) owns identity only — a stable `sub` and an `email`. The `persons` table in our
+database owns everything else: profile, project memberships, billing relationships, and the **single role** (`client` /
+`staff` / `admin`) that gates the back-office. OPA evaluates the rego policy against that DB-sourced role, never against
+the IdP token. See [`docs/access-model.md`](access-model.md) for the role/participation split.
 
 This document is the canonical narrative for the system. The Rust modules link back to it from their rustdoc:
 
 - [`web::oauth`](../web/src/oauth.rs) — `/auth/login`, `/auth/callback`, `upsert_person_from_claims`.
-- [`web::session`](../web/src/session.rs) — signed cookie shape (`SessionData`).
-- [`web::policy`](../web/src/policy.rs) — `PolicyClient` and `require_policy` middleware.
-- [`store::entity::person`](../store/src/entity/person.rs) — the `persons` row, including the `role` enum column.
-- Schema migrations:
+  [`web::session`](../web/src/session.rs) — signed cookie shape (`SessionData`). [`web::policy`](../web/src/policy.rs) —
+  `PolicyClient` and `require_policy` middleware. [`store::entity::person`](../store/src/entity/person.rs) — the
+  `persons` row, including the `role` enum column. Schema migrations:
   [`m20260527_add_oidc_subject_to_persons`](../store/src/migration/m20260527_add_oidc_subject_to_persons.rs),
   [`m20260528_add_roles_to_persons`](../store/src/migration/m20260528_add_roles_to_persons.rs) (legacy `roles[]`), and
   [`m20260619_collapse_persons_roles_to_role`](../store/src/migration/m20260619_collapse_persons_roles_to_role.rs)

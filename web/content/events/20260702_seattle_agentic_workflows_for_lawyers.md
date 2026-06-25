@@ -1,8 +1,9 @@
 ---
-title: Agentic Workflows for Lawyers
+title: "Seattle Show and Tell: Agentic Workflows for Lawyers"
 description: >
   A loose, practical Seattle gathering for lawyers to trade real stories, workflows, tools, demos, and guardrails for
   using agentic AI in legal practice.
+public_slug: seattle-summer-2026
 starts_at: "2026-07-02T11:00:00"
 ends_at: "2026-07-02T15:00:00"
 timezone: America/Los_Angeles

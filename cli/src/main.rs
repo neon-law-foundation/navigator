@@ -16,6 +16,7 @@ mod glossary;
 mod import;
 mod intake;
 mod list;
+mod live_transcription;
 mod login;
 mod lsp_publish;
 mod palette;
@@ -30,8 +31,8 @@ use devx::{DnsCmd, GcpCmd, RestateCmd};
 #[command(
     name = "navigator",
     version,
-    about = "Navigator CLI — notation validator/importer + live-site matter driver",
-    long_about = "Navigator CLI — notation validator/importer + live-site matter driver\n\nNothing here is legal advice. Navigator validates and moves legal notation, but an attorney remains responsible for legal advice and judgment."
+    about = "Neon Law Navigator CLI — notation validator/importer + live-site matter driver",
+    long_about = "Neon Law Navigator CLI — notation validator/importer + live-site matter driver\n\nNothing here is legal advice. Neon Law Navigator validates and moves legal notation, but an attorney remains responsible for legal advice and judgment."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -41,7 +42,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Validate every `.md` under `<dir>` against the classified
-    /// Navigator rule set. DB-free by default: notation templates get
+    /// Neon Law Navigator rule set. DB-free by default: notation templates get
     /// N-family structural checks, while prose markdown gets only
     /// Markdown rules. Pass `--database-url` (or set `DATABASE_URL`) to
     /// load the canonical question registry and have N104 reject
@@ -49,7 +50,7 @@ enum Command {
     Validate {
         /// Directory to walk.
         dir: PathBuf,
-        /// Skip the N-family rules (Navigator notation-template
+        /// Skip the N-family rules (Neon Law Navigator notation-template
         /// specific) and only run general Markdown checks.
         #[arg(long)]
         markdown_only: bool,
@@ -181,7 +182,7 @@ enum Command {
         /// File to format in place.
         file: PathBuf,
     },
-    /// Print canonical Navigator vocabulary. With no argument lists
+    /// Print canonical Neon Law Navigator vocabulary. With no argument lists
     /// every term; with one argument prints just that term (case-
     /// insensitive), exiting non-zero on a miss.
     Glossary {
@@ -223,7 +224,7 @@ enum Command {
         #[command(subcommand)]
         action: DriveAction,
     },
-    /// Authenticate to a live Navigator site via a browser-loopback
+    /// Authenticate to a live Neon Law Navigator site via a browser-loopback
     /// flow and store a short-lived (~8h) bearer token at
     /// `~/.navigator.json` (mode `0600`). Like `gcloud auth login`: opens
     /// the browser, reuses the existing OIDC session, and lands the token
@@ -298,6 +299,11 @@ enum Command {
         /// `snake_case` for the template `code`), e.g. `Nevada`.
         #[arg(long)]
         jurisdiction: String,
+    },
+    /// Local live-transcript experiments for Inquiry Coverage.
+    LiveTranscription {
+        #[command(subcommand)]
+        action: LiveTranscriptionAction,
     },
 
     // ── Local-development + deploy orchestration ──────────────────────
@@ -382,7 +388,7 @@ enum Command {
     /// including navigator-web. CI-shaped path: ends with the
     /// navigator-web rollout settling.
     Deploy,
-    /// `kubectl delete namespace navigator`. Removes every Navigator
+    /// `kubectl delete namespace navigator`. Removes every Neon Law Navigator
     /// resource without touching the cluster itself.
     Undeploy,
     /// Smoke-test the deployed stack: wait for every rollout, hit
@@ -407,7 +413,7 @@ enum Command {
     KustomizeGke,
     /// GCP project provisioning. The actual REST plumbing lives in
     /// `cli/src/devx/gcp/`; this is the entry point operators reach for
-    /// when standing up (or re-running) Navigator on a fresh GCP
+    /// when standing up (or re-running) Neon Law Navigator on a fresh GCP
     /// project.
     #[command(subcommand)]
     Gcp(GcpCmd),
@@ -981,6 +987,47 @@ enum ListSubject {
     Letters,
 }
 
+#[derive(Subcommand)]
+enum LiveTranscriptionAction {
+    /// Transcribe an audio file or replay a transcript file, then emit
+    /// Inquiry Coverage JSON for a notation template questionnaire.
+    #[command(alias = "cover")]
+    Demo {
+        /// Template markdown file whose `questionnaire:` becomes the
+        /// Inquiry Set.
+        #[arg(long, default_value = "templates/onboarding/estate.md")]
+        template: PathBuf,
+        /// Plain-text transcript to replay without calling speech-to-text.
+        #[arg(long, conflicts_with = "audio")]
+        transcript: Option<PathBuf>,
+        /// Audio file to transcribe. By default this uses the `fake`
+        /// backend (no cloud call); pass `--speech-backend google` to
+        /// transcribe with real Google Speech-to-Text.
+        #[arg(long, conflicts_with = "transcript")]
+        audio: Option<PathBuf>,
+        /// Speech backend for `--audio`: `fake` (default, deterministic,
+        /// no cloud call) or `google` (real Speech-to-Text — needs a
+        /// project and credentials). Real cloud is opt-in.
+        #[arg(long, env = "NAVIGATOR_SPEECH_BACKEND", default_value = "fake")]
+        speech_backend: String,
+        /// Google Cloud project for Speech-to-Text.
+        #[arg(long, env = "GOOGLE_CLOUD_PROJECT")]
+        google_project: Option<String>,
+        /// Google Speech-to-Text v2 location.
+        #[arg(long, default_value = "global")]
+        google_location: String,
+        /// BCP-47 language code for the audio.
+        #[arg(long, default_value = "en-US")]
+        google_language: String,
+        /// Google Speech-to-Text recognition model.
+        #[arg(long, default_value = "latest_long")]
+        google_model: String,
+        /// Pretty-print the JSON output.
+        #[arg(long)]
+        pretty: bool,
+    },
+}
+
 #[allow(clippy::too_many_lines)] // one flat dispatch match; splitting it hurts readability
 fn main() -> ExitCode {
     // `.env` is picked up before `clap` reads its `env = "..."`
@@ -1065,6 +1112,7 @@ fn main() -> ExitCode {
             &category,
             &jurisdiction,
         ),
+        Command::LiveTranscription { action } => runtime().block_on(run_live_transcription(action)),
         // Local-development + deploy orchestration (collapsed in from the
         // former `devx` binary). The whole group routes through one handler.
         c @ (Command::StartDevServer
@@ -1108,6 +1156,42 @@ fn devx_result(result: anyhow::Result<()>) -> ExitCode {
         Err(err) => {
             eprintln!("Error: {err:?}");
             ExitCode::FAILURE
+        }
+    }
+}
+
+async fn run_live_transcription(action: LiveTranscriptionAction) -> ExitCode {
+    let result = match action {
+        LiveTranscriptionAction::Demo {
+            template,
+            transcript,
+            audio,
+            speech_backend,
+            google_project,
+            google_location,
+            google_language,
+            google_model,
+            pretty,
+        } => {
+            live_transcription::cover(live_transcription::CoverArgs {
+                template,
+                transcript,
+                audio,
+                speech_backend,
+                google_project,
+                google_location,
+                google_language,
+                google_model,
+                pretty,
+            })
+            .await
+        }
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("navigator: live-transcription: {e:?}");
+            ExitCode::from(2)
         }
     }
 }

@@ -1,4 +1,4 @@
-//! Shared scaffolding for the Navigator BDD feature suite.
+//! Shared scaffolding for the Neon Law Navigator BDD feature suite.
 //!
 //! Each `tests/<name>.rs` runner owns its own `cucumber::World` and
 //! step set; this library only carries pieces that more than one
@@ -89,6 +89,7 @@ pub fn app_state_with_email(
         docs: web::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),
         blog: web::BlogIndex::empty(),
+        transparency: web::TransparencyIndex::empty(),
         events: web::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: web::google_oauth::GoogleOauthConfig::passthrough(),
@@ -128,7 +129,7 @@ pub async fn fs_storage(suite: &str) -> Arc<dyn cloud::StorageService> {
     )
 }
 
-/// Drain a response body into a `String`. The Navigator handlers
+/// Drain a response body into a `String`. The Neon Law Navigator handlers
 /// always emit UTF-8.
 pub async fn body_string(resp: Response<Body>) -> String {
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();

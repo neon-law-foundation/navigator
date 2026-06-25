@@ -6,7 +6,7 @@ Feature: Retainer intake walk
   workflow to its terminal state.
 
   Background:
-    Given a fresh Navigator app with the canonical templates seeded
+    Given a fresh Neon Law Navigator app with the canonical templates seeded
     And a retainer notation for "Libra" <libra@example.com> at BEGIN
 
   Scenario: First GET renders the first question

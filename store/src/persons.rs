@@ -1,7 +1,7 @@
 //! Person directory helpers.
 //!
 //! Today: caching the Xero `ContactID` on a person the first time they
-//! are mirrored to Xero Contacts (one-way, Navigator → Xero). The
+//! are mirrored to Xero Contacts (one-way, Neon Law Navigator → Xero). The
 //! matter-close invoice workflow resolves the client's contact and folds
 //! the id back here so the admin people-detail page can deep-link to the
 //! contact in Xero and future syncs are idempotent.

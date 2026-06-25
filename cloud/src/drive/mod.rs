@@ -1,4 +1,4 @@
-//! Google Drive integration for the Navigator workspace.
+//! Google Drive integration for the Neon Law Navigator workspace.
 //!
 //! Drive is **one inbound channel** for matter materials — peer to
 //! email, fax, scan, and the web upload form. The canonical store
@@ -6,7 +6,7 @@
 //! [`crate::StorageService`]); this module never holds bytes longer
 //! than it takes to push them through `ingest_bytes`. Drive
 //! permissions matter for *reading*; once a byte lands in our
-//! object storage, Navigator's own DB-role authz governs access.
+//! object storage, Neon Law Navigator's own DB-role authz governs access.
 //!
 //! ## Scope
 //!
@@ -37,7 +37,7 @@
 //! The third door named in `CLAUDE.md` — browser-as-lawyer — does
 //! not flow through this module; that path uses the lawyer's own
 //! Google session cookies in their own browser, never through
-//! Navigator's server.
+//! Neon Law Navigator's server.
 
 use thiserror::Error;
 

@@ -1,6 +1,6 @@
 # Notation
 
-This tree holds Navigator's markdown notation templates: static legal blueprints whose frontmatter declares a
+This tree holds Neon Law Navigator's markdown notation templates: static legal blueprints whose frontmatter declares a
 questionnaire and workflow, and whose body supplies the legal prose. When a Template is bound to a respondent and
 Project, it becomes a **Notation** — the running instance whose questions are answered and whose workflow advances to
 review, signature, filing, or closeout. The vocabulary (Template, Notation, Questionnaire, Question, Answer) is taught
@@ -61,7 +61,7 @@ they live in their own branch:
 - `engagements/` — engagement / onboarding letters and intake (retainers, the estate-planning intake, fractional-GC
   onboarding).
 - `correspondence/` — client and third-party letters (a generic closing letter and other one-off correspondence).
-- `filings/` — government compliance filings that are not tied to a single jurisdiction-and-practice-area. Tax filings
+  `filings/` — government compliance filings that are not tied to a single jurisdiction-and-practice-area. Tax filings
   that *are* (Nevada Modified Business Tax, IRS Form 990) live in the substantive tree under `.../taxation/`, coded by
   their forum (`state`, `irs`).
 - `services/` — service-delivery work products (contract review).

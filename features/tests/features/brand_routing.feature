@@ -7,7 +7,7 @@ Feature: Public site brand routing
   layout emits from each page's `SiteBrand`.
 
   Background:
-    Given the Navigator public site is running
+    Given the Neon Law Navigator public site is running
 
   Scenario Outline: Firm-branded pages carry the Neon Law brand
     When a visitor opens <path>
@@ -34,10 +34,9 @@ Feature: Public site brand routing
       | /privacy                          |
       | /terms                            |
 
-  Scenario: The old /foundation/workshops/navigator URL permanently redirects to the workshops overview
+  Scenario: The old /foundation/workshops/navigator URL is retired without a redirect
     When a visitor opens /foundation/workshops/navigator
-    Then the response status is 308
-    And the response redirects to "/foundation/workshops"
+    Then the response status is 404
 
   Scenario: The old /foundation/mission URL permanently redirects to the Foundation home
     When a visitor opens /foundation/mission

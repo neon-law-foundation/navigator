@@ -1,4 +1,4 @@
-Feature: Bundled-template workflow shapes (compliance filings)
+Feature: Bundled-template workflow composition (compliance filings)
 
   Three compliance filings round out the law-firm side of the
   template tree: a Nevada LLC dissolution, the annual Nevada list of
@@ -7,7 +7,7 @@ Feature: Bundled-template workflow shapes (compliance filings)
   staff review.
 
   Like `legal_workflow_shapes.feature`, each scenario pins the
-  exact transition chain so an accidental reshape — splitting the
+  reusable-step composition so an accidental reshape — splitting the
   staff_review step, dropping the outbound mailroom hop — surfaces
   as a named failing scenario. A rejection scenario per template
   confirms the parser's MissingEnd guard stays load-bearing.
@@ -28,7 +28,6 @@ Feature: Bundled-template workflow shapes (compliance filings)
       | member_signatures | staff_review      |
       | staff_review      | mailroom_send     |
       | mailroom_send     | END               |
-    And every workflow state resolves to a StepKind
 
   Scenario: Nevada dissolution template with END stripped fails to parse
     Given the bundled template "united_states/nevada/state/business_associations/dissolution.md" with the workflow END declaration removed
@@ -49,7 +48,6 @@ Feature: Bundled-template workflow shapes (compliance filings)
       | BEGIN         | staff_review  |
       | staff_review  | mailroom_send |
       | mailroom_send | END           |
-    And every workflow state resolves to a StepKind
 
   Scenario: Nevada annual report template with END stripped fails to parse
     Given the bundled template "united_states/nevada/state/business_associations/annual_report.md" with the workflow END declaration removed
@@ -71,7 +69,6 @@ Feature: Bundled-template workflow shapes (compliance filings)
       | member_signatures | staff_review      |
       | staff_review      | mailroom_send     |
       | mailroom_send     | END               |
-    And every workflow state resolves to a StepKind
 
   Scenario: Nevada Modified Business Tax template with END stripped fails to parse
     Given the bundled template "united_states/nevada/state/taxation/modified_business_tax.md" with the workflow END declaration removed

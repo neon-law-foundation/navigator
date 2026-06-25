@@ -165,7 +165,7 @@ pub fn t_args(locale: Locale, key: &str, args: &[(&str, &str)]) -> String {
 }
 
 /// Translate a navbar label. Known chrome labels route through the
-/// catalog; product proper nouns (Nexus, Northstar, Navigator, …) and
+/// catalog; product proper nouns (Nexus, Northstar, Neon Law Navigator, …) and
 /// any unrecognized label pass through verbatim. In `En` the catalog
 /// value equals the input, so English output is unchanged.
 #[must_use]
@@ -197,6 +197,7 @@ pub fn nav_label(label: &str, locale: Locale) -> String {
 pub const ES_ENABLED_PATHS: &[&str] = &[
     "/",
     "/foundation",
+    "/foundation/nebula",
     "/services",
     "/services/nexus",
     "/services/nest",
@@ -363,6 +364,10 @@ mod tests {
             "/es/services/northstar"
         );
         assert_eq!(localize_href("/foundation", Locale::Es), "/es/foundation");
+        assert_eq!(
+            localize_href("/foundation/nebula", Locale::Es),
+            "/es/foundation/nebula"
+        );
         // English never rewrites.
         assert_eq!(
             localize_href("/services/northstar", Locale::En),

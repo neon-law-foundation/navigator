@@ -2,7 +2,7 @@
 //!
 //! Today this owns the **admin-discretion discount** — the recorded
 //! decision that an engagement was billed below its catalog list price.
-//! Navigator is the system of record for that decision (the audit trail);
+//! Neon Law Navigator is the system of record for that decision (the audit trail);
 //! Xero does the client-facing math (see `billing::LineDiscount`). The
 //! list price itself never lives here — it stays in the `products`
 //! catalog. This module records only *how far below* list, *why*, *who*

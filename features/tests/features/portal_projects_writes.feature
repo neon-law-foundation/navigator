@@ -11,7 +11,7 @@ Feature: /portal/projects writes — staff/admin only, clients get 404
   perspective, in keeping with [`docs/access-model.md`](../../../../docs/access-model.md).
 
   Background:
-    Given the Navigator app is running
+    Given the Neon Law Navigator app is running
 
   Scenario: An admin opens a matter via POST /portal/projects
     # The create form always opens a matter on a retainer, for an existing

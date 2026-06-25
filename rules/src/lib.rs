@@ -188,7 +188,7 @@ pub trait Rule: Send + Sync {
     /// summary should override this so editor tooltips and other
     /// surfaces can show why a violation matters at a glance.
     fn description(&self) -> &'static str {
-        "Navigator rule violation"
+        "Neon Law Navigator rule violation"
     }
 
     /// Produce a single source edit that resolves `violation`, if the
@@ -201,7 +201,7 @@ pub trait Rule: Send + Sync {
     }
 }
 
-/// Look up the one-line description for the given Navigator rule
+/// Look up the one-line description for the given Neon Law Navigator rule
 /// code. Returns the rule's `description()` if the code matches one
 /// of the rules in [`navigator_default_rules`] (or `S102`, which is
 /// markdown-only); falls back to a generic blurb otherwise.
@@ -217,7 +217,7 @@ pub fn description_for_code(code: &str) -> &'static str {
         "N101" => "Notation template must declare a non-empty `title`",
         "N102" => "Notation template must declare a valid `respondent_type`",
         "N103" => "Notation template filename must be snake_case",
-        "N104" => "Notation workflow state references an unknown question code",
+        "N104" => "Notation questionnaire/workflow state references an unknown registry item",
         "N105" => "Notation template must declare `confidential`",
         "N106" => "Notation workflow must include staff review",
         "N107" => {
@@ -272,7 +272,7 @@ pub fn description_for_code(code: &str) -> &'static str {
         "M058" => "Tables must be surrounded by blank lines",
         "M059" => "Link text must be descriptive (not `here`/`click`)",
         "M060" => "Table column styles must be consistent",
-        _ => "Navigator rule violation",
+        _ => "Neon Law Navigator rule violation",
     }
 }
 
@@ -481,7 +481,7 @@ mod tests {
             let description = description_for_code(rule.code());
             assert_ne!(
                 description,
-                "Navigator rule violation",
+                "Neon Law Navigator rule violation",
                 "{} has no custom description in description_for_code",
                 rule.code(),
             );
@@ -490,7 +490,10 @@ mod tests {
 
     #[test]
     fn description_for_code_falls_back_for_unknown_code() {
-        assert_eq!(description_for_code("XYZ"), "Navigator rule violation");
+        assert_eq!(
+            description_for_code("XYZ"),
+            "Neon Law Navigator rule violation"
+        );
     }
 
     #[test]

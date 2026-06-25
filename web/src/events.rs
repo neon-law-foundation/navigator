@@ -1,8 +1,8 @@
-//! Public events served from dated markdown files under
+//! Nebula show-and-tells loaded from dated markdown files under
 //! `web/content/events/`.
 //!
 //! Events mirror the blog convention: one `YYYYMMDD_slug.md` file per
-//! public event, with reviewable front matter and a rendered markdown body.
+//! public show-and-tell, with reviewable front matter and a rendered markdown body.
 //! The extra event fields form the authoring contract that the CLI validates
 //! in PRs.
 
@@ -20,6 +20,7 @@ const NON_EVENT_FILES: &[&str] = &["README.md", ".gitkeep"];
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Event {
     pub slug: String,
+    pub public_slug: String,
     pub date: NaiveDate,
     pub title: String,
     pub description: String,
@@ -62,6 +63,11 @@ impl EventIndex {
     pub fn get(&self, slug: &str) -> Option<&Event> {
         self.events.iter().find(|event| event.slug == slug)
     }
+
+    #[must_use]
+    pub fn get_public(&self, slug: &str) -> Option<&Event> {
+        self.events.iter().find(|event| event.public_slug == slug)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -76,6 +82,8 @@ pub enum EventLoadError {
 struct EventFrontmatter {
     title: String,
     description: String,
+    #[serde(default)]
+    public_slug: Option<String>,
     starts_at: String,
     ends_at: String,
     timezone: String,
@@ -194,6 +202,12 @@ fn parse_event(
         "external_event_provider",
     )?;
     require_non_empty(&fields.external_event_url, path, "external_event_url")?;
+    let public_slug = fields
+        .public_slug
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map_or_else(|| slug.to_string(), views::slug::to_url);
     if starts_at.date() != date {
         return Err(EventLoadError::Invalid {
             path: path.to_string(),
@@ -206,6 +220,7 @@ fn parse_event(
     })?;
     Ok(Event {
         slug: slug.to_string(),
+        public_slug,
         date,
         title: fields.title,
         description: fields.description,
@@ -260,7 +275,7 @@ impl Event {
         let mut lines = Vec::from([
             "BEGIN:VCALENDAR".to_string(),
             "VERSION:2.0".to_string(),
-            "PRODID:-//Neon Law//Navigator Events//EN".to_string(),
+            "PRODID:-//Neon Law//Neon Law Navigator Events//EN".to_string(),
             "CALSCALE:GREGORIAN".to_string(),
         ]);
         lines.extend(vtimezone_lines(&self.timezone));
@@ -368,6 +383,8 @@ mod tests {
         let event = ix
             .get("seattle-agentic-workflows-for-lawyers")
             .expect("Seattle event should load from bundled events");
+        assert_eq!(event.public_slug, "seattle-summer-2026");
+        assert!(ix.get_public("seattle-summer-2026").is_some());
         assert_eq!(
             event.starts_at.date(),
             NaiveDate::from_ymd_opt(2026, 7, 2).unwrap()
@@ -486,6 +503,30 @@ external_event_url: https://luma.com/k26256ut\n\
             err.contains("location_name is required"),
             "expected location_name error, got: {err}"
         );
+    }
+
+    #[test]
+    fn load_dir_defaults_public_slug_to_filename_slug() {
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join("20260702_source_slug.md"),
+            "---\n\
+title: Source Slug\n\
+description: Event uses its source slug.\n\
+starts_at: \"2026-07-02T11:00:00\"\n\
+ends_at: \"2026-07-02T15:00:00\"\n\
+timezone: America/Los_Angeles\n\
+location_name: Room\n\
+location_address: Seattle\n\
+external_event_provider: luma\n\
+external_event_url: https://luma.com/k26256ut\n\
+---\n\nBody.\n",
+        )
+        .unwrap();
+        let ix = load_dir(dir.path()).unwrap();
+        let event = ix.get("source-slug").unwrap();
+        assert_eq!(event.public_slug, "source-slug");
+        assert!(ix.get_public("source-slug").is_some());
     }
 
     #[test]

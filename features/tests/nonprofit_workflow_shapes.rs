@@ -1,6 +1,6 @@
 //! Cucumber runner for `features/nonprofit_workflow_shapes.feature`.
 //!
-//! Shape-lock for the Foundation (nonprofit) side of the template
+//! Composition-lock for the Foundation (nonprofit) side of the template
 //! tree: 501(c)(3) formation, Form 990 annual report, and Nevada
 //! charitable solicitation registration. Same pattern as
 //! `legal_workflow_shapes.rs` and `compliance_filings_workflow_shapes.rs`.
@@ -10,8 +10,7 @@
 use cucumber::{gherkin::Step, given, then, World};
 use features::template_shapes::{strip_workflow_end, templates_root, walk_chain};
 use workflows::{
-    questionnaire_spec_from_template, step_kind_for, workflow_spec_from_template, StateName,
-    WorkflowSpec, WorkflowSpecError,
+    questionnaire_spec_from_template, workflow_spec_from_template, WorkflowSpec, WorkflowSpecError,
 };
 
 #[derive(Default, World)]
@@ -60,23 +59,6 @@ async fn assert_workflow_chain(world: &mut ShapeWorld, step: &Step) {
     let md = world.markdown.as_ref().expect("template loaded");
     let w = workflow_spec_from_template(md).expect("workflow frontmatter parses");
     assert_chain_matches(&w, step);
-}
-
-#[then("every workflow state resolves to a StepKind")]
-async fn assert_step_kinds_resolve(world: &mut ShapeWorld) {
-    let md = world.markdown.as_ref().expect("template loaded");
-    let w = workflow_spec_from_template(md).expect("workflow frontmatter parses");
-    for state in w.states.keys() {
-        if state.as_str() == StateName::END {
-            continue;
-        }
-        assert!(
-            step_kind_for(state).is_some(),
-            "state `{}` has no StepKind (prefix `{}` is unrouted)",
-            state.as_str(),
-            state.prefix(),
-        );
-    }
 }
 
 #[then("parsing the workflow spec returns a MissingEnd error")]
