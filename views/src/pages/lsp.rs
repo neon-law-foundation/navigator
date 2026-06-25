@@ -23,7 +23,7 @@ use crate::components::{external_link, legal_blueprint_disclaimer};
 use crate::pages::package::{release_downloads, ReleaseBinary};
 use crate::{markdown, AuthState, PageLayout};
 
-/// The Navigator monorepo — home of the `lsp/` crate and the bundled
+/// The Neon Law Navigator monorepo — home of the `lsp/` crate and the bundled
 /// Zed extension linked from this page.
 const REPO_URL: &str = "https://github.com/neon-law-foundation/Navigator";
 const ZED_EXT_URL: &str = "https://github.com/neon-law-foundation/Navigator/tree/main/lsp/zed-ext";
@@ -36,12 +36,12 @@ const ZED: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../docs/lsp
 #[must_use]
 pub fn render(auth: AuthState) -> Markup {
     let body = html! {
-        // Cross-package nav: the LSP page sits under the Navigator hub
+        // Cross-package nav: the LSP page sits under the Neon Law Navigator hub
         // beside the CLI, MCP, and Web pages.
         (crate::pages::package::package_strip(Some("/foundation/navigator/lsp")))
         article {
             header {
-                h1 { "Navigator LSP — the editor experience" }
+                h1 { "Neon Law Navigator LSP — the editor experience" }
                 p.lead {
                     "Our legal templates are plain markdown, so they get "
                     "first-class editor tooling. "
@@ -80,7 +80,7 @@ pub fn render(auth: AuthState) -> Markup {
             section."mt-4" {
                 h2 { "Bundled editor extension" }
                 p {
-                    "Zed ships a ready-to-sideload extension in the Navigator "
+                    "Zed ships a ready-to-sideload extension in Neon Law Navigator "
                     "repo:"
                 }
                 ul {
@@ -100,7 +100,7 @@ pub fn render(auth: AuthState) -> Markup {
             }
         }
     };
-    PageLayout::new("Navigator LSP")
+    PageLayout::new("Neon Law Navigator LSP")
         .with_description(
             "Install navigator-lsp for Zed — live markdown-notation diagnostics \
              and one-click fixes. Zero telemetry.",

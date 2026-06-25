@@ -23,12 +23,12 @@ mirrored from Drive by the planned Drive→GCS sync — never in the public `-as
 
 ### Three auth doors, one OAuth app
 
-Single Internal OAuth consent screen (app name "Navigator", project `YOUR_PROJECT_ID`, User Type Internal) backs all
-three call paths so Workspace policy only has to allow one client.
+Single Internal OAuth consent screen (app name "Neon Law Navigator", project `YOUR_PROJECT_ID`, User Type Internal)
+backs all three call paths so Workspace policy only has to allow one client.
 
 - **Browser UI** — Auth: Lawyer's existing Google session via `<a href="drive.google.com/…">`. Scopes: none server-side.
-- **CLI** — Auth: OAuth installed-app refresh token at `~/.config/navigator/drive_token.json`. Scopes: `drive.readonly`.
-- **Server (web, sync workflows)** — Auth: Service account
+  **CLI** — Auth: OAuth installed-app refresh token at `~/.config/navigator/drive_token.json`. Scopes: `drive.readonly`.
+  **Server (web, sync workflows)** — Auth: Service account
   `navigator-drive-sync@YOUR_PROJECT_ID.iam.gserviceaccount.com`, added directly as Content Manager on the NeonLaw
   shared drive. Scopes: `drive.readonly`.
 
@@ -108,8 +108,8 @@ dedicated `exports_from_env()`. And if the worker's render lane resolved to the 
 bucket and 500 with `object not found` — which is exactly the break the split was added to close.
 
 > **`NAVIGATOR_STORAGE_BACKEND` is required on the worker.** It is unset by default → `fs`, which writes to the pod's
-> ephemeral disk. The worker must set `NAVIGATOR_STORAGE_BACKEND=gcs` alongside both bucket vars, or every rendered PDF
-> and every snapshot is written into the void. See the `workflows-service` Deployment in the deploy overlay.
+  ephemeral disk. The worker must set `NAVIGATOR_STORAGE_BACKEND=gcs` alongside both bucket vars, or every rendered PDF
+  and every snapshot is written into the void. See the `workflows-service` Deployment in the deploy overlay.
 
 The trait is `Send + Sync`, returns `StorageError` (concrete enum so callers can match on `NotFound`), and stores key
 plus bytes plus content-type — enough to round-trip an inbound email or a generated PDF without coupling callers to
@@ -123,10 +123,10 @@ The marketing photography is **not** stored in the documents bucket (`NAVIGATOR_
 into the `navigator-web` image. It is served from the public **`NAVIGATOR_ASSETS_BUCKET`** (the `YOUR_PROJECT_ID-assets`
 bucket), uploaded by `cli assets upload` through `put_cached`:
 
-- Keys mirror the on-disk variant tree: `img/<slug>/<slug>-<width>w.<ext>`.
-- Each object carries `Cache-Control: public, max-age=604800` (~1 week). It is **bounded, never `immutable`** — the
-  variant URLs carry no `?v=` cache-bust token, so `immutable` would pin a stale photo forever; a bounded max-age lets a
-  re-`build` + re-`upload` propagate once the week elapses.
+- Keys mirror the on-disk variant tree: `img/<slug>/<slug>-<width>w.<ext>`. Each object carries
+  `Cache-Control: public, max-age=604800` (~1 week). It is **bounded, never `immutable`** — the variant URLs carry no
+  `?v=` cache-bust token, so `immutable` would pin a stale photo forever; a bounded max-age lets a re-`build` +
+  re-`upload` propagate once the week elapses.
 - `web` points `NAVIGATOR_ASSET_BASE_URL` at `https://storage.googleapis.com/YOUR_PROJECT_ID-assets` so every
   `<picture>`/preload URL (resolved through `views::assets::asset_url`) sources from the bucket — zero app-code change.
   Unset, the seam defaults to `/public` so KIND / `cargo test` / OSS forks render unchanged. When the var names an
@@ -145,9 +145,8 @@ REST-driven, idempotent (`409 Conflict` = success). See [`cli/src/devx/gcp/mod.r
 pipeline order.
 
 - **API enablement** — ~30 services (`serviceusage.batchEnable`), in [`services`](../cli/src/devx/gcp/services.rs).
-- **VPC** — `navigator` (custom-mode), in [`network`](../cli/src/devx/gcp/network.rs).
-- **Cloud SQL Postgres** — instance `navigator-pg`, database `navigator`, user `web`, in
-  [`sql`](../cli/src/devx/gcp/sql.rs).
+  **VPC** — `navigator` (custom-mode), in [`network`](../cli/src/devx/gcp/network.rs). **Cloud SQL Postgres** — instance
+  `navigator-pg`, database `navigator`, user `web`, in [`sql`](../cli/src/devx/gcp/sql.rs).
 - **GCS buckets** (all `us-west4`, uniform access), in [`buckets`](../cli/src/devx/gcp/buckets.rs): -
   `YOUR_PROJECT_ID-assets` — Standard, **public** marketing photography only (the sole bucket with an `allUsers`
   binding). - `YOUR_PROJECT_ID-documents` — Standard, **private** client documents (the content-addressed `blobs/<sha>`
@@ -158,10 +157,10 @@ pipeline order.
   documents, and logs buckets; `-source` and `-exports` are created manually via `gsutil mb`. All five buckets carry a
   365-day → Coldline lifecycle policy (applied via `gsutil lifecycle set` on 2026-05-24; `-documents` gets the same
   lifecycle when provisioned).
-- **GKE Autopilot cluster** — `navigator-prod` (regional, `us-west4`), in [`gke`](../cli/src/devx/gcp/gke.rs).
-- **Global static IPv4** — `navigator-ingress-ip` (shell-out in `gke.rs`).
-- **Fleet membership + Config Sync `RootSync`** — created via shell-out in `gke.rs`. RootSync is **not currently
-  reconciling** because the repo isn't pushed to a git remote yet.
+- **GKE Autopilot cluster** — `navigator-prod` (regional, `us-west4`), in [`gke`](../cli/src/devx/gcp/gke.rs). **Global
+  static IPv4** — `navigator-ingress-ip` (shell-out in `gke.rs`). **Fleet membership + Config Sync `RootSync`** —
+  created via shell-out in `gke.rs`. RootSync is **not currently reconciling** because the repo isn't pushed to a git
+  remote yet.
 
 There is **no Artifact Registry**. Container images are built by CI (`deploy.yml`) and published to the **public**
 `ghcr.io/neon-law-foundation/navigator-*` packages, tagged `YY.MM.DD` (the release date) + `latest`; the GKE nodes pull
@@ -333,7 +332,7 @@ for ip in <IP1> <IP2> <IP3> <IP4>; do
 done
 ```
 
-`www.your-domain.example` itself is served by Navigator (see the "navigator-web hostnames" section below) — the
+`www.your-domain.example` itself is served by Neon Law Navigator (see the "navigator-web hostnames" section below) — the
 naked-apex 308 lands the user on it, and the GKE LB owns HTTPS there.
 
 #### Verify
@@ -352,10 +351,10 @@ sit on `CertificatePending` for longer than the cert actually takes to start ser
 
 ### navigator-web hostnames (`www.your-domain.example` + `workflows.your-domain.example`)
 
-The GKE LB serves Navigator on two hostnames; both `A` records point at the global static IPv4 `navigator-ingress-ip`.
-DNS is at **DNSimple** — same zone (`neonlaw.com`) and same `dnsimple` CLI as the redirect swap above. The CLI install
-is one-liner at <https://dnsimple-cli.netlify.app/install.sh> on Linux, `brew install dnsimple/tap/dnsimple` on macOS;
-it reads `DNSIMPLE_TOKEN` (or `~/.config/dnsimple/credentials.yml`).
+The GKE LB serves Neon Law Navigator on two hostnames; both `A` records point at the global static IPv4
+`navigator-ingress-ip`. DNS is at **DNSimple** — same zone (`neonlaw.com`) and same `dnsimple` CLI as the redirect swap
+above. The CLI install is one-liner at <https://dnsimple-cli.netlify.app/install.sh> on Linux. On macOS, use `brew` to
+install `dnsimple/tap/dnsimple`; it reads `DNSIMPLE_TOKEN` (or `~/.config/dnsimple/credentials.yml`).
 
 **Retirement of `navigator.neonlaw.com` and `workflows.navigator.neonlaw.com`.** The old hostnames are no longer
 referenced anywhere in the workspace. Remove their records once the new ones resolve and the Google-managed certs flip
@@ -420,7 +419,7 @@ Cloud Billing exports daily usage + cost rows from billing account `013469-2BBE0
 `YOUR_PROJECT_ID.billing_export` (us-west4). Two tables once populated (~24h after enablement):
 
 - `gcp_billing_export_v1_013469_2BBE03_532C72` — standard daily cost by SKU/service/project.
-- `gcp_billing_export_resource_v1_013469_2BBE03_532C72` — per-resource detail (which bucket, which instance, which Cloud
+  `gcp_billing_export_resource_v1_013469_2BBE03_532C72` — per-resource detail (which bucket, which instance, which Cloud
   Run service).
 
 Export enablement is **Console-only** — Google has not exposed `BillingAccounts.updateBillingExportSettings` via
@@ -520,20 +519,19 @@ for the history and the rationale.
   then verify that the binding scope is the assets bucket only, using `gsutil iam get gs://YOUR_PROJECT_ID-assets`;
   confirm `gsutil iam get gs://YOUR_PROJECT_ID-documents` shows **no** `allUsers` member.
 
-  > **Cloud SQL `instances.export` IAM change (Google notice, effective 2026-08-01) — Navigator is not affected.**
-  > Google is removing the `cloudsql.instances.export` permission from `roles/cloudsql.viewer` and the legacy `READER`
-  > role; after the rollout, the *managed* "export instance to GCS" feature (Console / `gcloud sql export` / the Cloud
-  > SQL Admin API) needs `roles/cloudsql.editor` or a custom role that carries `cloudsql.instances.export`. **No
-  > Navigator path uses that managed export.** Despite the name, the nightly `archives` snapshot is an
-  > *application-level* export: `archives::runner` runs a SeaORM `SELECT` (`fetch_batch`) over the **Cloud SQL Auth
-  > Proxy** (`roles/cloudsql.client`), encodes Parquet, and writes it to `gs://YOUR_PROJECT_ID-exports/` via
-  > `cloud::StorageService` — it never calls `cloudsql.instances.export`. Neither GSA holds `roles/cloudsql.viewer` or
-  > legacy `READER` (they hold `roles/cloudsql.client` only), and no human grant relies on viewer-plus-export. So **no
-  > IAM change is required, and we deliberately do *not* grant `roles/cloudsql.editor` to any service account** — that
-  > role re-adds a whole-instance exfiltration primitive on a database holding confidential client data, which is
-  > exactly the risk this Google change reduces. The only legitimate future use of the managed export is an ad-hoc DR
-  > dump a *human* runs; after 2026-08-01 that human needs `roles/cloudsql.editor` (grant it ephemerally and revoke it;
-  > see [`docs/cloud-operations.md`](../docs/cloud-operations.md)), never a standing binding.
+  > **Cloud SQL `instances.export` IAM change (Google notice, effective 2026-08-01) — Neon Law Navigator is not
+    affected.** Google is removing the `cloudsql.instances.export` permission from `roles/cloudsql.viewer` and the
+    legacy `READER` role; after the rollout, the *managed* "export instance to GCS" feature (Console, `gcloud`, or the
+    Cloud SQL Admin API) needs `roles/cloudsql.editor` or a custom role that carries `cloudsql.instances.export`. **No
+    Neon Law Navigator path uses that managed export.** Despite the name, the nightly `archives` snapshot is an
+    *application-level* export: `archives::runner` runs a SeaORM `SELECT` (`fetch_batch`) over the **Cloud SQL Auth
+    Proxy** (`roles/cloudsql.client`), encodes Parquet, and writes it to `gs://YOUR_PROJECT_ID-exports/` via
+    `cloud::StorageService` — it never calls `cloudsql.instances.export`. Neither GSA holds `roles/cloudsql.viewer` or
+    legacy `READER` (they hold `roles/cloudsql.client` only), and no human grant relies on viewer-plus-export. So **no
+    IAM change is required, and we deliberately do *not* grant `roles/cloudsql.editor` to any service account** — that
+    role re-adds whole-instance exfiltration on a confidential client database. The only legitimate future use of the
+    managed export is an ad-hoc DR dump a *human* runs; after 2026-08-01 that human needs `roles/cloudsql.editor` (grant
+    it ephemerally; see [`docs/cloud-operations.md`](../docs/cloud-operations.md)), never a standing binding.
 - **OAuth 2.0 client (Google Sign-in)**: `YOUR_PROJECT_NUMBER-…apps.googleusercontent.com`, used by the browser SSO flow
   into `/portal`.
 - **K8s Secret `navigator-web-secrets`** — holds `DATABASE_URL`, `SESSION_SECRET`, `OAUTH_CLIENT_SECRET`,
@@ -571,9 +569,9 @@ hostname, both attached to the same Ingress).
 
 - **Cloud Armor** (`ComputeSecurityPolicy` + `GCPBackendPolicy`) — removed to save ~$15/mo. No WAF / rate-limit at the
   LB today.
-- **Config Connector** — controller isn't running on this GKE version; IAM stays gcloud-driven.
-- **CSI Secret Manager driver** — driver name mismatch with the upstream `SecretProviderClass`. `navigator-web-secrets`
-  is a plain K8s Secret managed by hand.
+- **Config Connector** — controller isn't running on this GKE version; IAM stays gcloud-driven. **CSI Secret Manager
+  driver** — driver name mismatch with the upstream `SecretProviderClass`. `navigator-web-secrets` is a plain K8s Secret
+  managed by hand.
 - **VPC Service Controls / Private Service Connect** — Restate Cloud reaches the worker over the public LB; private
   ingress is a later hardening step.
 
@@ -582,9 +580,8 @@ hostname, both attached to the same Ingress).
 `/mcp` is gated by `web::google_oauth::require_google_oauth`, which validates the bearer token Gemini Enterprise sends
 by calling Google's tokeninfo endpoint (`https://oauth2.googleapis.com/tokeninfo`) and verifying:
 
-- `aud` (or `azp`) is in an allowlist of OAuth client IDs from `GOOGLE_OAUTH_CLIENT_IDS`
-- `email_verified` is `true`
-- `email` ends with `@<GOOGLE_OAUTH_REQUIRED_HD>` (Workspace domain enforcement)
+- `aud` (or `azp`) is in an allowlist of OAuth client IDs from `GOOGLE_OAUTH_CLIENT_IDS` `email_verified` is `true`
+  `email` ends with `@<GOOGLE_OAUTH_REQUIRED_HD>` (Workspace domain enforcement)
 
 The path-routed `navigator-web-mcp` Service + BackendConfig + Ingress rule are kept as scaffolding so a future
 IAP-compatible caller can be re-enabled with one flag flip (today the BackendConfig has `iap.enabled: false`). See
@@ -592,21 +589,19 @@ IAP-compatible caller can be re-enabled with one flag flip (today the BackendCon
 
 **Pinned identifiers (cite these in code / scripts; don't re-derive):**
 
-- **Project number** — `YOUR_PROJECT_NUMBER`
-- **IAP-scaffolding K8s Service** — `navigator-web-mcp` (selector matches `navigator-web` pods). Currently un-gated at
-  the LB (BackendConfig has `iap.enabled: false`); kept for future use.
-- **GKE-mangled backend service name** — `k8s1-e820f1a0-navigator-navigator-web-mcp-80-44ef5975`
-- **OAuth clients accepted by `web::google_oauth`** (env `GOOGLE_OAUTH_CLIENT_IDS`, comma-separated): -
+- **Project number** — `YOUR_PROJECT_NUMBER` **IAP-scaffolding K8s Service** — `navigator-web-mcp` (selector matches
+  `navigator-web` pods). Currently un-gated at the LB (BackendConfig has `iap.enabled: false`); kept for future use.
+- **GKE-mangled backend service name** — `k8s1-e820f1a0-navigator-navigator-web-mcp-80-44ef5975` **OAuth clients
+  accepted by `web::google_oauth`** (env `GOOGLE_OAUTH_CLIENT_IDS`, comma-separated): -
   `YOUR_OAUTH_CLIENT_ID_BROWSER.apps.googleusercontent.com` — the canonical client: navigator-web browser SSO **and**
   the Gemini Enterprise Custom MCP Server data store. One client, one rotation, one audit trail. -
   `YOUR_OAUTH_CLIENT_ID_GEMINI.apps.googleusercontent.com` — original Gemini Enterprise client, kept in the allowlist
   while the legacy data store is being retired. Drop from the env list (and from APIs & Services → Credentials) once no
   `python-httpx` traffic has cited it in 30 days.
-- **Required Workspace domain** (`GOOGLE_OAUTH_REQUIRED_HD`) — `neonlaw.com`
-- **Canonical Gemini Enterprise MCP URL** — `https://www.your-domain.example/mcp`. The retired `navigator.neonlaw.com`
-  hostname **must not** appear in any Gemini Enterprise data store config; DNS no longer resolves, so `/mcp` requests
-  die before leaving Google's network. See `docs/gemini-enterprise-mcp.md` → "Common pitfalls" for the symptom +
-  first-step diagnostic.
+- **Required Workspace domain** (`GOOGLE_OAUTH_REQUIRED_HD`) — `neonlaw.com` **Canonical Gemini Enterprise MCP URL** —
+  `https://www.your-domain.example/mcp`. The retired `navigator.neonlaw.com` hostname **must not** appear in any Gemini
+  Enterprise data store config; DNS no longer resolves, so `/mcp` requests die before leaving Google's network. See
+  `docs/gemini-enterprise-mcp.md` → "Common pitfalls" for the symptom + first-step diagnostic.
 
 **Existing IAM bindings (currently dormant)** on
 `projects/YOUR_PROJECT_NUMBER/iap_web/compute/services/k8s1-e820f1a0-navigator-navigator-web-mcp-80-44ef5975`

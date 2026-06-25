@@ -1,15 +1,15 @@
 # pdf
 
-PDF rendering for Navigator's legal documents. Backed by the [Typst](https://typst.app) embedded compiler via the
-`typst-as-lib` wrapper: callers feed Typst markup to `render` and return the PDF bytes; persistence is the caller's job
-through the `cloud::StorageService` seam, so this crate stays I/O-free. Consumed by `web`, `workflows`, and `features`.
+PDF rendering for Neon Law Navigator's legal documents. Backed by the [Typst](https://typst.app) embedded compiler via
+the `typst-as-lib` wrapper: callers feed Typst markup to `render` and return the PDF bytes; persistence is the caller's
+job through the `cloud::StorageService` seam, so this crate stays I/O-free. Consumed by `web`, `workflows`, and
+`features`.
 
 ## What it provides
 
-- `render(&str) -> Vec<u8>` — compile Typst markup to PDF bytes.
-- `render_with_redactions(...)` — the same, applying redaction marks.
-- `RedactionStyle` — `Block` (solid rectangle), `Bar` (the classic centred "with prejudice" mark), or `Strike`
-  (review-mode strikethrough on still-legible text).
+- `render(&str) -> Vec<u8>` — compile Typst markup to PDF bytes. `render_with_redactions(...)` — the same, applying
+  redaction marks. `RedactionStyle` — `Block` (solid rectangle), `Bar` (the classic centred "with prejudice" mark), or
+  `Strike` (review-mode strikethrough on still-legible text).
 - `acroform::{blank_acroform, fill_acroform, read_field_value}` — author and fill AcroForm fields for form PDFs.
 
 ## Fonts

@@ -3,9 +3,9 @@
 This page replaces the old private cloud runbooks with one common operating model. Public docs are the shared surface
 every LLM and human maintainer should read first.
 
-Navigator is GCP-wired and provider-agnostic. The production path uses GKE Autopilot, Cloud SQL for Postgres, GCS,
-Secret Manager, Cloud Logging, Cloud Trace, BigQuery billing export, and Restate Cloud. The application code keeps the
-cloud boundary behind traits, protocols, and env vars: `cloud::StorageService`, SeaORM/Postgres, OIDC, OPA, Restate,
+Neon Law Navigator is GCP-wired and provider-agnostic. The production path uses GKE Autopilot, Cloud SQL for Postgres,
+GCS, Secret Manager, Cloud Logging, Cloud Trace, BigQuery billing export, and Restate Cloud. The application code keeps
+the cloud boundary behind traits, protocols, and env vars: `cloud::StorageService`, SeaORM/Postgres, OIDC, OPA, Restate,
 SendGrid, Kubernetes, and `web::agent_router::AgentRouter`.
 
 ## Former private-runbook coverage
@@ -14,13 +14,11 @@ SendGrid, Kubernetes, and `web::agent_router::AgentRouter`.
   [`test-database.md`](test-database.md).
 - **GCP REST setup** — source of truth: [`oss-install.md`](oss-install.md), this page, and
   `cli/src/devx/gcp/` module docs.
-- **GKE production** — source of truth: [`gke-prod.md`](gke-prod.md) and [`gitops.md`](gitops.md).
-- **Power-push** — source of truth: [`gke-prod.md`](gke-prod.md) and
+- **GKE production** — source of truth: [`gke-prod.md`](gke-prod.md) and [`gitops.md`](gitops.md). **Power-push** —
+  source of truth: [`gke-prod.md`](gke-prod.md) and
   [`deploy/gke-power-push-example.md`](deploy/gke-power-push-example.md).
-- **GCP spend** — source of truth: this page.
-- **Prod DB access** — source of truth: this page.
-- **Observability/LGTM** — source of truth: [`observability.md`](observability.md) and
-  [`durable-workflows.md`](durable-workflows.md).
+- **GCP spend** — source of truth: this page. **Prod DB access** — source of truth: this page. **Observability/LGTM** —
+  source of truth: [`observability.md`](observability.md) and [`durable-workflows.md`](durable-workflows.md).
 - **OIDC/OPA/Keycloak** — source of truth: [`oidc.md`](oidc.md), [`access-model.md`](access-model.md), and
   [`RUNBOOK.md`](RUNBOOK.md).
 
@@ -63,17 +61,15 @@ single dry-run intercept point and keeps endpoint behavior testable with wiremoc
 
 When touching `cli/src/devx/gcp/`, keep four things correct:
 
-- `GcpService::default_base_url()` in `cli/src/devx/gcp/client.rs`.
-- Each per-step endpoint path in `services.rs`, `network.rs`, `sql.rs`, `buckets.rs`, and `run.rs`.
-- The JSON request body shape.
-- The long-running-operation polling path passed to `lro::wait`.
+- `GcpService::default_base_url()` in `cli/src/devx/gcp/client.rs`. Each per-step endpoint path in `services.rs`,
+  `network.rs`, `sql.rs`, `buckets.rs`, and `run.rs`. The JSON request body shape. The long-running-operation polling
+  path passed to `lro::wait`.
 
 Every step follows the same conventions:
 
-- POST the create/enable operation and treat `409 Conflict` as success.
-- Wait for LROs on 2xx responses that return an operation name; skip the wait on 409.
-- Let `GcpClient` handle dry-run recording.
-- Do not add a `gcloud` fallback or move base URLs into env vars.
+- POST the create/enable operation and treat `409 Conflict` as success. Wait for LROs on 2xx responses that return an
+  operation name; skip the wait on 409. Let `GcpClient` handle dry-run recording. Do not add a `gcloud` fallback or move
+  base URLs into env vars.
 
 When an endpoint drifts, update the module's wiremock test to match Google's current docs first, then update the
 implementation and run the dry-run command from [`oss-install.md`](oss-install.md).
@@ -105,12 +101,9 @@ impersonation, not password shortcuts.
 
 Read-only `SELECT`s are allowed when the user asks for inspection. Before any `INSERT`, `UPDATE`, `DELETE`, or DDL:
 
-- Write the exact SQL to a timestamped file under `/tmp/navigator-prod-sql/`.
-- Show the user the path and contents.
-- Wait for explicit approval for that exact statement.
-- Scope the write with a guard on the old value.
-- Wrap the write in a transaction and verify it.
-- Revoke the temporary IAM impersonation grant when done.
+- Write the exact SQL to a timestamped file under `/tmp/navigator-prod-sql/`. Show the user the path and contents. Wait
+  for explicit approval for that exact statement. Scope the write with a guard on the old value. Wrap the write in a
+  transaction and verify it. Revoke the temporary IAM impersonation grant when done.
 
 The canonical seed is idempotent: it inserts missing rows and does not update existing production rows. A live data fix
 needs a guarded update, a migration, or an app seam.
@@ -119,11 +112,8 @@ needs a guarded update, a migration, or an app seam.
 
 Report GCP spend from the BigQuery Cloud Billing export, not console guesses or rate-card math. Always show:
 
-- gross cost,
-- credits, which are negative,
-- net cost, which is `gross + credits`,
-- currency,
-- and whether the current day is partial because billing export data lags by roughly 24 hours.
+- gross cost, credits, which are negative, net cost, which is `gross + credits`, currency, and whether the current day
+  is partial because billing export data lags by roughly 24 hours.
 
 Discover the project from env and the billing table from BigQuery. Do not hard-code billing account generated table
 names into docs or code.
@@ -153,10 +143,9 @@ routes. That gives every maintainer and LLM the same documentation surface.
 
 Good next steps for the website:
 
-- Add a `/docs` hub that lists every `DocsIndex::docs()` entry instead of requiring users to know a slug.
-- Add a short "For agents" section on `/navigator` linking to
-  [`agent-decision-councils.md`](agent-decision-councils.md), this page, [`access-model.md`](access-model.md),
-  [`glossary.md`](glossary.md), and [`RUNBOOK.md`](RUNBOOK.md).
+- Add a `/docs` hub that lists every `DocsIndex::docs()` entry instead of requiring users to know a slug. Add a short
+  "For agents" section on `/navigator` linking to [`agent-decision-councils.md`](agent-decision-councils.md), this page,
+  [`access-model.md`](access-model.md), [`glossary.md`](glossary.md), and [`RUNBOOK.md`](RUNBOOK.md).
 - Keep top-level docs concise and push long command transcripts into examples such as
   [`deploy/gke-power-push-example.md`](deploy/gke-power-push-example.md).
 - Keep public docs as the source of truth. If an invariant matters, lift it into `docs/`.

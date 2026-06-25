@@ -40,7 +40,7 @@ when your matter reaches one, we say so plainly and quote it separately.
 
 **The fund is the client.** Once formed, the fund and its general-partner entity — not you personally, and not any
 investor — are the Firm's client. Before we start we run a conflict check against every current and former matter at the
-firm. If we cannot properly take your matter, we tell you promptly and refer you to counsel who also use the Navigator.
+firm. If we cannot properly take your matter, we tell you promptly and refer you to counsel who also use the platform.
 There are no referral fees between Neon Law and any firm we refer matters to.
 
 ## Start a Nucleus formation

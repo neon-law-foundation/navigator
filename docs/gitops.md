@@ -1,6 +1,6 @@
 # GitOps: edit → merge → release → deploy
 
-Navigator's entire lifecycle hangs off one branch — `main`. Every change reaches it the same way (a PR that
+Neon Law Navigator's entire lifecycle hangs off one branch — `main`. Every change reaches it the same way (a PR that
 auto-merges), `main` is what the production cluster pulls, and the daily release rides off `main`'s history. This doc is
 the source of truth for that flow; the workspace `CLAUDE.md` carries only the short rules and links here.
 
@@ -9,8 +9,8 @@ test gate, release tag, and deploy hand-off are all supporting steps inside thos
 
 ## `main` is sacred and squash-merge-only
 
-- **Never commit directly to `main`.** It advances solely through pull requests — there is no direct push, ever.
-- **Every PR lands by squash.** Squash is the *only* merge strategy: each PR collapses to exactly one commit on `main`,
+- **Never commit directly to `main`.** It advances solely through pull requests — there is no direct push, ever. **Every
+  PR lands by squash.** Squash is the *only* merge strategy: each PR collapses to exactly one commit on `main`,
   regardless of how many commits (or `Merge branch 'main'` commits) the branch carried. Merge commits and rebase-merge
   are disabled on the repo — there is no other way to land. So `main`'s history is one linear commit per PR, and a
   branch's internal history never reaches it.
@@ -37,8 +37,8 @@ inherit this.
 
 ### TDD and the pre-commit gate
 
-- Tests land in the **same commit** as the implementation they cover.
-- When a PR changes Rust files or build/runtime configuration, run before committing:
+- Tests land in the **same commit** as the implementation they cover. When a PR changes Rust files or build/runtime
+  configuration, run before committing:
 
   ```bash
   cargo fmt
@@ -75,8 +75,8 @@ CI/CD path, so a retention change never lands in a release diff and a cleanup ru
 Runs only on every `pull_request` targeting `main` — **never on `push`**, so `main` itself runs no CI on merge (it
 advances merge-only, and the heavy paths ride the release tag). Lean by design: a format check, a repository-wide
 Markdown validation pass through the `navigator` CLI, a clippy pass with warnings as errors, then the workspace test
-suite — nothing else. The Markdown pass builds `navigator` once and runs `./target/debug/navigator validate
---no-default-excludes .`, so ordinary docs get the prose Markdown rules and notation templates get the stricter
+suite — nothing else. The Markdown pass builds `navigator` once and runs the local debug binary with `validate
+--no-default-excludes .`, so ordinary docs get prose Markdown rules and notation templates get the stricter
 questionnaire/workflow/template rule set. The job keeps target artifacts out of the cache, disables CI debug info, and
 runs `cargo clean` between clippy and test so the standard hosted runner has enough disk. It still uses two
 Rust-specific caches: `Swatinem/rust-cache` restores Cargo's registry, git, and tool caches, while `sccache` stores

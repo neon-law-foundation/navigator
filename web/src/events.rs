@@ -275,7 +275,7 @@ impl Event {
         let mut lines = Vec::from([
             "BEGIN:VCALENDAR".to_string(),
             "VERSION:2.0".to_string(),
-            "PRODID:-//Neon Law//Navigator Events//EN".to_string(),
+            "PRODID:-//Neon Law//Neon Law Navigator Events//EN".to_string(),
             "CALSCALE:GREGORIAN".to_string(),
         ]);
         lines.extend(vtimezone_lines(&self.timezone));

@@ -1,7 +1,7 @@
 # cli
 
-Operator CLI for Navigator (binary name: `navigator`; the crate is still `cli`, so `cargo run -p cli -- …` works
-unchanged). Validates markdown templates against the rule engine, imports clean files into the same SeaORM-managed
+Operator CLI for Neon Law Navigator (binary name: `navigator`; the crate is still `cli`, so `cargo run -p cli -- …`
+works unchanged). Validates markdown templates against the rule engine, imports clean files into the same SeaORM-managed
 Postgres `web` reads from, seeds canonical reference data, prints rows, renders an ER diagram for the schema, and — over
 a browser-loopback login — drives a **live site's** matter flow against a short-lived bearer token.
 
@@ -148,13 +148,13 @@ cargo run -p cli -- assets upload   # web/public/img → gs://<project>-assets/i
 cargo run -p cli -- assets pull     # gs://<project>-assets/img → web/public/img
 ```
 
-> **First-run note.** `web/public/img/` is gitignored — the variants ship from the bucket in production, never from
-> git or the Docker image. A fresh clone therefore has **empty photo slots** until you populate them. Run
-> `assets pull` to download the already-published variants (no source JPEGs, no re-encode), or `assets build` if you
-> have the sources. This is intentional and matches how workshop/marketing assets are handled; everything else under
-> `web/public` (Bootstrap, brand SVGs) is tracked and renders immediately. With `NAVIGATOR_ASSET_BASE_URL` unset the
-> page markup resolves photos against `/public`, so once the directory is populated the KIND dev loop serves them with
-> zero configuration. Full pipeline: [`docs/assets.md`](../docs/assets.md).
+> **First-run note.** `web/public/img/` is gitignored — the variants ship from the bucket in production, never from git
+  or the Docker image. A fresh clone therefore has **empty photo slots** until you populate them. Run `assets pull` to
+  download the already-published variants (no source JPEGs, no re-encode), or `assets build` if you have the sources.
+  This is intentional and matches how workshop/marketing assets are handled; everything else under `web/public`
+  (Bootstrap, brand SVGs) is tracked and renders immediately. With `NAVIGATOR_ASSET_BASE_URL` unset the page markup
+  resolves photos against `/public`, so once the directory is populated the KIND dev loop serves them with zero
+  configuration. Full pipeline: [`docs/assets.md`](../docs/assets.md).
 
 ## What's next
 

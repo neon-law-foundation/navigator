@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
-# The one observability seam for every Navigator binary. `telemetry::init`
+# The one observability seam for every Neon Law Navigator binary. `telemetry::init`
 # wires `tracing` to stdout (JSON when an OTLP endpoint is configured, so pod
 # logs land in Cloud Logging -> BigQuery cleanly) and, when
 # `OTEL_EXPORTER_OTLP_ENDPOINT` is set, also exports OpenTelemetry traces and

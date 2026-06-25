@@ -1,4 +1,4 @@
-//! Run the Navigator rule set over a buffer and produce LSP
+//! Run the Neon Law Navigator rule set over a buffer and produce LSP
 //! `Diagnostic`s. The default rule selection matches classified
 //! `cli validate`: prose markdown gets markdown-only rules, while
 //! notation templates get frontmatter diagnostics too.

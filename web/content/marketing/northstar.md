@@ -45,7 +45,7 @@ directives.
 out-of-scope rate, and the disengagement terms. Before that letter goes out we run a conflict check against every
 current and former matter at the firm — estate plans touch spouses, families, and family businesses, and we cannot
 represent a business and an individual whose interests are adverse to each other. If the check shows we cannot properly
-take your matter, we tell you promptly and refer you to counsel who also use the Navigator and are committed to
+take your matter, we tell you promptly and refer you to counsel who also use the Neon Law Navigator and are committed to
 improving access to justice with our software. There are no referral fees between Neon Law and any firm we refer cases
 to.
 

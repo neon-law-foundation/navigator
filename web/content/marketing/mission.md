@@ -13,9 +13,8 @@ The United States of America works best when everyone is equal under the law. Pa
 their legal claims heard as quickly as possible. When more people can exercise their legal rights, civic engagement
 improves, and together we build a more just society for all.
 
-**Neon Law Foundation** is a 501(c)(3) non-profit that builds the [Neon Law
-Navigator](https://github.com/neon-law-foundation/navigator) — an open source legal platform based on these three
-tenets:
+**Neon Law Foundation** is a 501(c)(3) non-profit that builds [Neon Law Navigator][navigator-repo] — an open source
+legal platform based on these three tenets:
 
 1. **Extract repeatable workflows**. Our lawyers review common workflows, then create programmatic variants from their
    interpretation. For example, we read "How to create a Nevada LLC" and then built a Rust, durable-execution workflow
@@ -25,9 +24,13 @@ tenets:
    git, code editors, [LSPs](/foundation/navigator/lsp), [CLIs](/foundation/navigator/cli), and
    [MCPs](/foundation/navigator/mcp) to _deliver access to justice_.
 3. **Share what we learn through Nebula**. None of this matters if we aren't helping lawyers serve more clients. Nebula
-   is where we share workshops, show-and-tells, and presentations that help lawyers adopt the Navigator and tailor it to
-   their practice to _increase access to justice_. If you're a legal aid organization, we'll provide free training on
-   the [Neon Law Navigator](/foundation/nebula/workshops/use-the-navigator).
+   is where we share workshops, show-and-tells, and presentations that help lawyers adopt the Neon Law Navigator and
+   tailor it to their practice to _increase access to justice_. If you're a legal aid organization, we'll provide free
+   training on [Neon Law Navigator][navigator-workshop].
+
+[navigator-repo]: <https://github.com/neon-law-foundation/navigator>
+
+[navigator-workshop]: /foundation/nebula/workshops/use-the-navigator
 
 **Neon Law** is a boutique law firm that dogfoods the Neon Law Navigator. Because lawyers cannot serve adverse parties,
 the firm alone can't _serve access to justice_. Nor does the firm fund the mission alone — the Foundation is supported

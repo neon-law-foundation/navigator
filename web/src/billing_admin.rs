@@ -14,7 +14,7 @@
 //! - A discount may come from an inline percent/amount **or** a coupon
 //!   code (not both); either way it is validated *below* the product's
 //!   list price via [`billing::LineDiscount::validate`] and snapshotted
-//!   onto the subscription. Xero owns the resulting invoices; Navigator
+//!   onto the subscription. Xero owns the resulting invoices; Neon Law Navigator
 //!   owns this standing intent.
 
 use axum::extract::{Extension, Query, State};

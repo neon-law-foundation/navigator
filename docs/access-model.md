@@ -1,8 +1,8 @@
 # Access model — role + participation
 
-Navigator separates **what a person is** (system-wide tier) from **what a person sees** (per-project scope). Both
-answers live in the database, both flow into OPA, neither lives in the IdP token. The IdP supplies only identity (`sub`,
-`email`).
+Neon Law Navigator separates **what a person is** (system-wide tier) from **what a person sees** (per-project scope).
+Both answers live in the database, both flow into OPA, neither lives in the IdP token. The IdP supplies only identity
+(`sub`, `email`).
 
 > **Role decides the tier; participation decides the scope.**
 
@@ -49,10 +49,8 @@ assigned to any matter; making them ask for participation rows on every project 
 `person_project_roles.participation` is a free-form `text` column. The values currently in use (from
 `store/seeds/PersonProjectRole.yaml` and live writes):
 
-- `attorney` — lead attorney on the matter.
-- `paralegal` — supporting paralegal.
-- `client` — the natural-person client.
-- `co_counsel` — outside counsel collaborating on the matter.
+- `attorney` — lead attorney on the matter. `paralegal` — supporting paralegal. `client` — the natural-person client.
+  `co_counsel` — outside counsel collaborating on the matter.
 
 The matter-side vocabulary is open: new participation kinds (`translator`, `guardian_ad_litem`) arrive as the firm takes
 on new kinds of work without needing a migration.
@@ -118,6 +116,6 @@ the failure mode we are explicitly avoiding — it's how authz quietly drifts.
 ## Related
 
 - [`docs/oidc.md`](oidc.md) — Authorization Code + PKCE login flow and how the persons row is upserted.
-- [`docs/glossary.md`](glossary.md) — Person, Project, Disclosure, Participation.
-- [`k8s/base/opa/opa.yaml`](../k8s/base/opa/opa.yaml) — the live Rego policy.
-- [`web::policy`](../web/src/policy.rs) — the `require_policy` middleware that posts to OPA.
+  [`docs/glossary.md`](glossary.md) — Person, Project, Disclosure, Participation.
+  [`k8s/base/opa/opa.yaml`](../k8s/base/opa/opa.yaml) — the live Rego policy. [`web::policy`](../web/src/policy.rs) —
+  the `require_policy` middleware that posts to OPA.

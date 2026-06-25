@@ -12,7 +12,7 @@
 # logos into web/public/. It does NOT introduce a new runtime contract —
 # `.env` keeps working for forks that don't want a manifest.
 #
-# Identity strings only. Navigator never machine-generates your binding
+# Identity strings only. Neon Law Navigator never machine-generates your binding
 # legal text: host your own terms of use + privacy policy on your site
 # and point `terms_url` / `privacy_url` at them (see `portal_only` below).
 

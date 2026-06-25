@@ -117,7 +117,7 @@ impl ChainWorld {
     }
 }
 
-#[given("a CapturingEmail-backed Navigator app whose AIDA router runs the lookup-then-send chain")]
+#[given("a CapturingEmail-backed Neon Law Navigator app whose AIDA router runs the lookup-then-send chain")]
 async fn build_app(world: &mut ChainWorld) {
     let db = in_memory_db().await;
     let storage = fs_storage("aida-welcome-chain").await;

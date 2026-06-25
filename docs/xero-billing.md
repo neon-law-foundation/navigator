@@ -1,8 +1,8 @@
 # Xero billing — setup, invoice flow, and production cutover
 
-How Navigator raises the matter-close flat fee as a Xero invoice, how that invoice's paid-status is reconciled back into
-the portal, and how **one custom connection per organisation** keeps test invoices off the live ledger. Secrets are
-selected per environment by Doppler config (`dev` = demo company, `prd` = live organisation) — see
+How Neon Law Navigator raises the matter-close flat fee as a Xero invoice, how that invoice's paid-status is reconciled
+back into the portal, and how **one custom connection per organisation** keeps test invoices off the live ledger.
+Secrets are selected per environment by Doppler config (`dev` = demo company, `prd` = live organisation) — see
 [`secrets-doppler.md`](secrets-doppler.md); the env-file fallback convention is in
 [`third-party-integrations.md`](third-party-integrations.md). This page is the Xero specifics.
 
@@ -46,8 +46,8 @@ through the pluggable `billing_provider` seam — the `Arc<dyn billing::BillingP
    `Xero-Tenant-Id` header, and an idempotency key so a retry never double-bills.
 
 The invoice id and paid-status are mirrored into the `xero_invoices` table, which backs the per-project invoice card in
-the portal. Navigator raises invoices and mirrors their status; it **never holds client funds, card data, or bank
-credentials** — Xero reconciles against the firm's bank (Mercury) itself. The integration boundary is the Xero
+the portal. Neon Law Navigator raises invoices and mirrors their status; it **never holds client funds, card data, or
+bank credentials** — Xero reconciles against the firm's bank (Mercury) itself. The integration boundary is the Xero
 Accounting API and nothing beyond it.
 
 ## Where the price comes from (the product catalog)
@@ -68,7 +68,7 @@ carry a list price for reference but raise no matter-close fee.
 ### Discounts: list price is data, a discount is an event
 
 The catalog holds exactly **one** list price per product. An admin-discretion discount is a separate recorded event,
-never a second price. Navigator is the system of record for the *decision* — the columns `discount_pct` /
+never a second price. Neon Law Navigator is the system of record for the *decision* — the columns `discount_pct` /
 `discount_amount_cents`, `discount_reason`, `discount_approved_by`, `discount_approved_at` on the originating notation
 (`store::notations::record_discount`) are the audit trail. Xero does the client-facing math: the discount rides the
 invoice line as `DiscountRate` (a percentage) or `DiscountAmount` (a currency amount), so the client sees list −
@@ -103,8 +103,8 @@ together with **either** the client-credentials pair **or** a static access toke
 2. **Have a demo company.** From your Xero account, enable the **Demo Company** (My Xero → "Try the demo company"). It
    is free, pre-populated, and resets periodically — the right target for dev and CI.
 3. **Create a custom connection.** In My Apps → **New app** → choose **Custom connection** (the machine-to-machine,
-   client-credentials app type). Name it (e.g. `Navigator (demo)`), and add the **integrator** email that will authorise
-   it.
+   client-credentials app type). Name it (e.g. `Neon Law Navigator (demo)`), and add the **integrator** email that will
+   authorise it.
 4. **Select scopes.** Grant exactly `accounting.contacts` and `accounting.invoices`. A custom connection offers only
    granular scopes — the legacy parent `accounting.transactions` is **not** offered, and requesting it fails token
    minting with `invalid_scope`.
@@ -155,4 +155,4 @@ per-workflow worker pod.
 - [`third-party-integrations.md`](third-party-integrations.md) — the per-environment vendor-account convention and the
   full integration catalog.
 - [`docusign-esignature.md`](docusign-esignature.md) — the sibling e-signature integration (one app, two environments).
-- [`secrets-doppler.md`](secrets-doppler.md) — how `dev` / `prd` secrets are selected and rendered.
+  [`secrets-doppler.md`](secrets-doppler.md) — how `dev` / `prd` secrets are selected and rendered.

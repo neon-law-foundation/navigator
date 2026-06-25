@@ -27,9 +27,9 @@ pub struct LintReport {
 pub enum DocumentKind {
     /// Ordinary prose/content Markdown: READMEs, docs, blog posts,
     /// marketing pages, and other files whose frontmatter is not the
-    /// Navigator notation contract.
+    /// Neon Law Navigator notation contract.
     Markdown,
-    /// A Navigator notation Template: the static blueprint that declares
+    /// A Neon Law Navigator notation Template: the static blueprint that declares
     /// a questionnaire/workflow and becomes a running Notation later.
     NotationTemplate,
 }
@@ -49,7 +49,7 @@ pub trait FileFilter: Send + Sync {
 
 /// The default filter: skip hidden directories (`.git`, `.build`,
 /// `.claude`, …), `target/`, and a small allowlist of names that are
-/// almost never Navigator notation (`README.md`, `CLAUDE.md`,
+/// almost never Neon Law Navigator notation (`README.md`, `CLAUDE.md`,
 /// `CODE_OF_CONDUCT.md`, `LICENSE.md`, `ERD.md`) plus directory
 /// subtrees that hold non-notation content (`AgentDocumentation`,
 /// `workshops`, `Blog`).
@@ -232,7 +232,7 @@ impl ClassifiedRuleEngine {
     }
 
     /// Walk `dir`, classify every included markdown file, and lint it
-    /// with the matching Navigator rule set.
+    /// with the matching Neon Law Navigator rule set.
     pub fn lint_directory(&self, dir: &Path) -> io::Result<LintReport> {
         let mut report = LintReport::default();
         for entry in WalkDir::new(dir)
@@ -351,7 +351,7 @@ pub fn code_uniqueness_violations(
     Ok(violations)
 }
 
-/// The canonical Navigator rule set, in the stable presentation
+/// The canonical Neon Law Navigator rule set, in the stable presentation
 /// order. `N104` is included with no recognized codes by default —
 /// callers that want strict flow-code validation should construct a
 /// `RuleEngine` with their own list that supplies
@@ -454,7 +454,7 @@ pub fn navigator_default_rules_with_codes(valid_codes: &[String]) -> Vec<Box<dyn
 /// The Markdown-only subset of [`navigator_default_rules`] — every
 /// rule except the N-family, plus `S102` (line-packing). Suitable for
 /// linting arbitrary prose markdown (READMEs, blog posts, marketing
-/// copy) that doesn't carry the Navigator notation frontmatter and
+/// copy) that doesn't carry the Neon Law Navigator notation frontmatter and
 /// that benefits from being packed tight to the 120-character budget.
 ///
 /// `S102` is markdown-only rather than universal because template

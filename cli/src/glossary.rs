@@ -1,4 +1,4 @@
-//! `navigator glossary [term]` — print canonical Navigator term
+//! `navigator glossary [term]` — print canonical Neon Law Navigator term
 //! definitions. With no argument, prints every term. With an
 //! argument, prints just the matching term (case-insensitive); exits
 //! non-zero on an unknown term so scripts can detect it.
@@ -11,7 +11,7 @@ use std::process::ExitCode;
 
 use crate::palette;
 
-/// Canonical Navigator vocabulary. Pairs of `(term, definition)`,
+/// Canonical Neon Law Navigator vocabulary. Pairs of `(term, definition)`,
 /// presentation order preserved.
 pub const TERMS: &[(&str, &str)] = &[
     (
