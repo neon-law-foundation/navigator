@@ -49,8 +49,8 @@ opinion on the merits of any deal or token. We publish only the facts you give i
 **Engagement letter governs.** A written engagement letter signed before we start states the exact fact to be attested,
 the $44 per-attestation fee, and how either of us can end the representation. Before that letter goes out we run a
 conflict check against every current and former matter at the firm. If the check shows we cannot properly take your
-matter, we tell you promptly and refer you to counsel who also use the Navigator. There are no referral fees between
-Neon Law and any firm we refer matters to.
+matter, we tell you promptly and refer you to counsel who also use the Neon Law Navigator. There are no referral fees
+between Neon Law and any firm we refer matters to.
 
 ## Start a Node attestation
 

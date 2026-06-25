@@ -37,7 +37,7 @@ use workflows::{EmailService, OutboundEmail};
 /// The canary's stable display name (Xero's required unique `Name` on
 /// create). Labelled a system probe so no bookkeeper mistakes it for a
 /// real client (legal-council ask).
-const CANARY_NAME: &str = "Navigator Billing Canary [system health check]";
+const CANARY_NAME: &str = "Neon Law Navigator Billing Canary [system health check]";
 
 /// The canary's stable email — the find-or-create match key. Never
 /// emailed; it only anchors the lookup so the same contact is reused

@@ -1,6 +1,6 @@
 # Glossary
 
-The vocabulary used across the Navigator workspace. Most of these nouns are also table names in
+The vocabulary used across the Neon Law Navigator workspace. Most of these nouns are also table names in
 [`store`](../store/src/entity/) — the definitions below cite the canonical SeaORM entity where one exists, so a reader
 can jump straight from term to schema.
 
@@ -16,9 +16,8 @@ docs that explain how those terms behave in code, operations, and workflows.
 
 Who advances the workflow out of a given State:
 
-- **system** — driven by a background step (e.g. rendering, sending an email).
-- **staff** — a Navigator operator must take action.
-- **respondent** — the client must take action (e.g. sign).
+- **system** — driven by a background step (e.g. rendering, sending an email). **staff** — a Neon Law Navigator operator
+  must take action. **respondent** — the client must take action (e.g. sign).
 
 See [`workflows::step::step_kind_for`](../workflows/src/step.rs).
 
@@ -31,7 +30,8 @@ A postal address attached to exactly one of a Person or an Entity (XOR, enforced
 ## AIDA
 
 The workspace's **domain agent persona**. AIDA exposes the same tool catalog through two protocol surfaces — A2A and MCP
-— so clients across the ecosystem can drive Navigator's workflows without caring which underlying LLM does the routing.
+— so clients across the ecosystem can drive Neon Law Navigator's workflows without caring which underlying LLM does the
+routing.
 
 - **A2A** (Agent2Agent) — public agent card at [`/api/aida.json`](https://www.your-domain.example/api/aida.json),
   JSON-RPC at `/api/aida/rpc`. Used by Gemini Enterprise and any other A2A-compatible orchestrator. A free-form
@@ -49,9 +49,8 @@ Skill names are mirrored across both protocols by [`mcp::tools::list_tools()`](.
 them prefixed with `aida_` (`aida_create_person`); A2A clients see the unprefixed form (`create_person`) since AIDA
 herself is the namespace.
 
-- Card builder: [`web::a2a`](../web/src/a2a.rs)
-- Router trait: [`web::agent_router`](../web/src/agent_router.rs)
-- Tool registry: [`mcp::tools`](../mcp/src/tools/mod.rs)
+- Card builder: [`web::a2a`](../web/src/a2a.rs) Router trait: [`web::agent_router`](../web/src/agent_router.rs) Tool
+  registry: [`mcp::tools`](../mcp/src/tools/mod.rs)
 
 ## Blob
 
@@ -94,8 +93,9 @@ seam, so any finding refuses the open and routes staff to the portal.
 
 ## Council
 
-A **group of experts** the workspace convenes for a structured, twelve-voice review — spelled c-o-u-n-c-i-l. Navigator
-runs three, the same shape with a different bench:
+A **group of experts** the workspace convenes for a structured, twelve-voice review — spelled c-o-u-n-c-i-l.
+
+Neon Law Navigator runs three, the same shape with a different bench:
 
 - The **Engineering Council** (the "Council of Twelve") — twelve practitioner-engineer voices for architecture
   decisions, design planning, and cross-cutting refactors.
@@ -176,8 +176,7 @@ BigQuery query template, Restate invocation link) to `ARCHIVES_NOTIFY_EMAIL`.
 Disambiguates from the deploy **source export** — that ships git bundles of HEAD to `gs://YOUR_PROJECT_ID-source/` for
 repo distribution. Two buckets, two flavors of "export," one shared word.
 
-- Crate: [`archives/`](../archives/)
-- Bucket: `gs://YOUR_PROJECT_ID-exports/iceberg/<table>/`
+- Crate: [`archives/`](../archives/) Bucket: `gs://YOUR_PROJECT_ID-exports/iceberg/<table>/`
 
 ## `devx`
 
@@ -198,17 +197,14 @@ Subcommands:
 
 - `up` — KIND + nginx-ingress + Restate Operator + every dep + workflows-service + port-forwards + env file. Web is left
   for the host to run.
-- `down` — kill port-forwards and delete the KIND cluster.
-- `env`, `status` — print the env file / show whether port-forwards are alive.
-- `kind-up`, `kind-down` — just the cluster + ingress + Operator (no application manifests).
-- `deploy` — full in-cluster stack including `navigator-web`. The CI-shaped path: idempotently sets the cluster up,
+- `down` — kill port-forwards and delete the KIND cluster. `env`, `status` — print the env file / show whether
+  port-forwards are alive. `kind-up`, `kind-down` — just the cluster + ingress + Operator (no application manifests).
+  `deploy` — full in-cluster stack including `navigator-web`. The CI-shaped path: idempotently sets the cluster up,
   builds both images, `kind load`s, applies every manifest, waits for the navigator-web rollout.
-- `undeploy` — `kubectl delete namespace navigator`.
-- `image`, `image-workflows-service` — build one image at a time.
-- `e2e` — smoke-test the deployed stack (rollouts, `/health`, OPA decisions, seed counts).
-- `grant-staff` — pre-seed the Staff demo user with the `staff` role for the browser e2e.
-- `power-push` — one-shot ship to prod (build + push both images, bundle, roll out, re-register).
-- `logs` — tail navigator-web logs.
+- `undeploy` — `kubectl delete namespace navigator`. `image`, `image-workflows-service` — build one image at a time.
+  `e2e` — smoke-test the deployed stack (rollouts, `/health`, OPA decisions, seed counts). `grant-staff` — pre-seed the
+  Staff demo user with the `staff` role for the browser e2e. `power-push` — one-shot ship to prod (build + push both
+  images, bundle, roll out, re-register). `logs` — tail navigator-web logs.
 
 The workspace has no Makefile — the `navigator` CLI is the only entry point.
 
@@ -225,15 +221,11 @@ finding when a new matter reaches that entity.
 A named, project-scoped reference to a [Blob](#blob) — the metadata callers see (filename, kind) alongside the storage
 handle.
 
-> **Source of truth = the Blob (Model B).** When the application
-> generates or proxies a document (a rendered retainer PDF, a raw
-> inbound email body), the bytes land in object storage via
-> [`cloud::StorageService`](../cloud/) and the `documents` +
-> `blobs` rows are the canonical record. A planned sync writes a
-> mirror copy into the Project's archive folder so the lawyer's
-> "open the matter" view stays complete — but the Blob, not the
-> archive copy, is the row the schema, the audit trail, and the
-> application's read path point at.
+> **Source of truth = the Blob (Model B).** When the application generates or proxies a document (a rendered retainer
+  PDF, a raw inbound email body), the bytes land in object storage via [`cloud::StorageService`](../cloud/) and the
+  `documents` + `blobs` rows are the canonical record. A planned sync writes a mirror copy into the Project's archive
+  folder so the lawyer's "open the matter" view stays complete — but the Blob, not the archive copy, is the row the
+  schema, the audit trail, and the application's read path point at.
 
 - Schema: [`store::entity::document`](../store/src/entity/document.rs)
 
@@ -264,8 +256,7 @@ the workflow runtime speak Notation.
 A legal organization — an LLC, trust, corporation, foundation, etc. Has a name, an [Entity Type](#entity-type), and a
 [Jurisdiction](#jurisdiction) it is organized under.
 
-- Schema: [`store::entity::entity`](../store/src/entity/entity.rs)
-- Lives in: `entities` table
+- Schema: [`store::entity::entity`](../store/src/entity/entity.rs) Lives in: `entities` table
 
 ## Entity Billing Profile
 
@@ -301,8 +292,7 @@ Inbound channels share one entry point — `store::documents::ingest_bytes` — 
 transaction. Per-channel data (email headers, fax metadata) belongs in per-channel tables (`inbound_emails`,
 `inbound_faxes`) when those channels ship.
 
-- Schema: [`store::entity::document`](../store/src/entity/document.rs)
-- Lives in: `documents` table
+- Schema: [`store::entity::document`](../store/src/entity/document.rs) Lives in: `documents` table
 
 ## Inquiry
 
@@ -335,8 +325,8 @@ One billable line on an Invoice — description, quantity, and unit price in cen
 A US state, federal jurisdiction, or foreign jurisdiction that an Entity can be organized under, or that a
 [Credential](#credential) is issued by. Identified by short code (`NV`, `CA`, `US`, …).
 
-- Schema: [`store::entity::jurisdiction`](../store/src/entity/jurisdiction.rs)
-- Seed: [`store/seeds/Jurisdiction.yaml`](../store/seeds/Jurisdiction.yaml)
+- Schema: [`store::entity::jurisdiction`](../store/src/entity/jurisdiction.rs) Seed:
+  [`store/seeds/Jurisdiction.yaml`](../store/seeds/Jurisdiction.yaml)
 
 ## Letter
 
@@ -365,7 +355,7 @@ Client-English synonym for **[Project](#project)**. The same row, under the noun
 *"Open a matter"* and *"open a Project"* describe the same insert into the `projects` table; the marketing surface picks
 one, the schema picks the other.
 
-## Navigator
+## Neon Law Navigator
 
 Short for **Neon Law Navigator** — the product name and the umbrella over this workspace: the CLI (`navigator`), the
 public website (`web`), the rule engine (`rules`), the MCP server, and everything else under this Cargo workspace.
@@ -379,8 +369,8 @@ white-label seam.
 ## Neon Law Foundation (NLF)
 
 The 501(c)(3) nonprofit half of the two-organization structure — **Neon Law** is the law firm, the **Neon Law Foundation
-(NLF)** runs the access-to-justice programs and **publishes Navigator as open source**. "NLF" is the abbreviation used
-across code comments and brand assets (e.g. the NLF PNG mark) for the Foundation. See
+(NLF)** runs the access-to-justice programs and **publishes Neon Law Navigator as open source**. "NLF" is the
+abbreviation used across code comments and brand assets (e.g. the NLF PNG mark) for the Foundation. See
 [`mission.md`](../web/content/marketing/mission.md) and the Foundation brand in [`views::brand`](../views/src/brand.rs).
 
 ## Notation Event
@@ -393,8 +383,7 @@ these so replay is deterministic, and the "current state" of a pair is the `to_s
 The on-disk shape mirrors the runtime type [`workflows::runtime::WorkflowEvent`](../workflows/src/runtime.rs); both
 layers stay in sync because the worker writes them through `ctx.run`.
 
-- Schema: [`store::entity::notation_event`](../store/src/entity/notation_event.rs)
-- Lives in: `notation_events` table
+- Schema: [`store::entity::notation_event`](../store/src/entity/notation_event.rs) Lives in: `notation_events` table
 
 ## Participation
 
@@ -413,8 +402,7 @@ the OIDC token. The Keycloak / Google id_token carries only `sub` and `email`; t
 Person via `oidc_subject` and reads `role` from the DB. See [`docs/access-model.md`](access-model.md) and
 [`docs/oidc.md`](oidc.md).
 
-- Schema: [`store::entity::person`](../store/src/entity/person.rs)
-- Lives in: `persons` table
+- Schema: [`store::entity::person`](../store/src/entity/person.rs) Lives in: `persons` table
 
 ## Person–Entity Role
 
@@ -491,9 +479,9 @@ Hard standards we can cite to source the factor, in descending order of rigor:
   international $)*, indicator `PA.NUS.PPP`, refreshed on the ICP benchmark cycle. The default source.
 - **IMF World Economic Outlook** — *Implied PPP conversion rate*, published twice a year; useful for the years between
   ICP benchmarks.
-- **OECD PPPs and exchange rates** — finer-grained PPPs for OECD / EU member economies.
-- **Penn World Table** (Groningen Growth and Development Centre) — research-grade PPP time series for longitudinal work.
-- **The Economist's Big Mac Index** — informal single-good sanity check only; never the basis of a quoted fee.
+- **OECD PPPs and exchange rates** — finer-grained PPPs for OECD / EU member economies. **Penn World Table** (Groningen
+  Growth and Development Centre) — research-grade PPP time series for longitudinal work. **The Economist's Big Mac
+  Index** — informal single-good sanity check only; never the basis of a quoted fee.
 
 The published factor and benchmark year behind any given fee are recorded in the engagement letter, so the adjustment is
 auditable rather than discretionary.
@@ -566,19 +554,17 @@ The handle Restate passes into every handler invocation. Carries the durable **j
 (or `SharedObjectContext<'_>` for read-only handlers); that's how the worker reads the stored spec yaml, advances state,
 and records side effects atomically with respect to replay.
 
-> **Mental model.** `ctx` is to a Restate handler what a database
-> *transaction handle* is to a SeaORM helper — every durable thing
-> the handler does flows through it, and the framework treats the
-> sequence of `ctx` calls as the unit of replay.
+> **Mental model.** `ctx` is to a Restate handler what a database *transaction handle* is to a SeaORM helper — every
+  durable thing the handler does flows through it, and the framework treats the sequence of `ctx` calls as the unit of
+  replay.
 
 ## Role
 
 The **system-wide authorization tier** a [Person](#person) carries in `persons.role`. There are exactly four tiers and a
 person holds exactly one:
 
-- **Anonymous** — not signed in; no `persons` row at all. The public visitor, who sees only public pages.
-- **Client** — a person the firm represents on at least one matter. Sees only Projects with a matching
-  `person_project_roles` row.
+- **Anonymous** — not signed in; no `persons` row at all. The public visitor, who sees only public pages. **Client** — a
+  person the firm represents on at least one matter. Sees only Projects with a matching `person_project_roles` row.
 - **Staff** — a firm employee. Same per-Project visibility scope as `client`; the tier difference is in what they may
   *do* on a visible Project (edit, sign, file), not in what is visible.
 - **Admin** — a firm employee with system-administration authority. Bypasses Project-scoping entirely and sees every

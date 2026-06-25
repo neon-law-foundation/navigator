@@ -1,14 +1,14 @@
 # Observability
 
-How Navigator emits telemetry, where it lands for analysis, and how an operator debugs a durable-execution failure fast.
-Born from an incident: a trigger Job sat in `ImagePullBackOff` for days while a `CronJob`'s `concurrencyPolicy: Forbid`
-silently skipped every run, and *nothing emitted a queryable signal* — the only telemetry was the nightly email, which
-was the thing that broke. This page exists so that never repeats.
+How Neon Law Navigator emits telemetry, where it lands for analysis, and how an operator debugs a durable-execution
+failure fast. Born from an incident: a trigger Job sat in `ImagePullBackOff` for days while a `CronJob`'s
+`concurrencyPolicy: Forbid` silently skipped every run, and *nothing emitted a queryable signal* — the only telemetry
+was the nightly email, which was the thing that broke. This page exists so that never repeats.
 
 > **The one rule for anyone adding a span, metric, or log field — identifiers and counts, never content.** A
-> `notation_id`, a `service` name, an `outcome`, a duration, a status code: yes. A client name, an answer body, an email
-> address, a document body: never. Telemetry crosses the firm's trust boundary; client content does not. This is a
-> standing engineering- and legal-council order, not a style preference.
+  `notation_id`, a `service` name, an `outcome`, a duration, a status code: yes. A client name, an answer body, an email
+  address, a document body: never. Telemetry crosses the firm's trust boundary; client content does not. This is a
+  standing engineering- and legal-council order, not a style preference.
 
 ## One seam: `telemetry::init`
 
@@ -24,7 +24,7 @@ share the one crate. Two modes, chosen by whether `OTEL_EXPORTER_OTLP_ENDPOINT` 
 | cost | zero — no network | one batch span + periodic metric push |
 
 Standard `OTEL_*` env vars (`OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`) drive everything; there is no
-Navigator-specific telemetry config. The guard's drop flushes batched spans/metrics — important for the short-lived
+product-specific telemetry config. The guard's drop flushes batched spans/metrics — important for the short-lived
 trigger jobs, which would otherwise exit before the periodic exporter fires.
 
 ## What is instrumented
@@ -32,8 +32,8 @@ trigger jobs, which would otherwise exit before the periodic exporter fires.
 Every workflow trigger funnels through `workflows::start_workflow`, instrumented once there so every trigger inherits
 it:
 
-- a span `workflow.trigger` with `service` / `key` / `handler` — never the request body;
-- the metric **`navigator.workflow.trigger.fired`**, dimensioned by `service` and `outcome` ∈ {`accepted`, `rejected`,
+- a span `workflow.trigger` with `service` / `key` / `handler` — never the request body; the metric
+  **`navigator.workflow.trigger.fired`**, dimensioned by `service` and `outcome` ∈ {`accepted`, `rejected`,
   `transport_error`}. A flat line for a service that should fire on a schedule is the signal a trigger has silently
   stopped — the exact failure that hid for days;
 - a structured event on each outcome (`status`, `service`) so a 401 / 404 / timeout is one log line, not a guess.
@@ -98,14 +98,14 @@ handler span — no other code changes.
 ## The hardening that came with this
 
 - **HTTP timeout** in `start_workflow` (30s) so a hung ingress can't keep a trigger pod running forever.
-- **`activeDeadlineSeconds: 120` + `startingDeadlineSeconds`** on the trigger `CronJob`s, so a stuck trigger
+  **`activeDeadlineSeconds: 120` + `startingDeadlineSeconds`** on the trigger `CronJob`s, so a stuck trigger
   self-terminates instead of holding the `Forbid` lock and skipping every run — the precise failure mode that stopped
   the nightly archives email for days.
 - **`navigator doctor`** so the next operator sees the wedge in one command instead of `kubectl` archaeology.
 
 ## See also
 
-- The [durable-workflows guide](durable-workflows.md) — the durable-execution model and the registration gotcha.
-- The [Iceberg archive guide](iceberg-archive.md) — the nightly Postgres → Parquet → BigQuery table archive.
-- `examples/deploy/k8s/observability/` — the OTel Collector + the Cloud Logging → BigQuery sink.
-- [`cloud-operations.md`](cloud-operations.md) — the author-facing recipe (leads with the no-content rule).
+- The [durable-workflows guide](durable-workflows.md) — the durable-execution model and the registration gotcha. The
+  [Iceberg archive guide](iceberg-archive.md) — the nightly Postgres → Parquet → BigQuery table archive.
+  `examples/deploy/k8s/observability/` — the OTel Collector + the Cloud Logging → BigQuery sink.
+  [`cloud-operations.md`](cloud-operations.md) — the author-facing recipe (leads with the no-content rule).

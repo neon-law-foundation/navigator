@@ -196,7 +196,10 @@ async fn uploader_identity(db: &Db, session: Option<SessionData>) -> (String, St
             return (email.clone(), email);
         }
     }
-    ("Navigator staff".to_string(), "staff@localhost".to_string())
+    (
+        "Neon Law Navigator staff".to_string(),
+        "staff@localhost".to_string(),
+    )
 }
 
 /// `GET /portal/projects/:id/documents/:doc_id/download`. Resolves

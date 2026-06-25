@@ -129,7 +129,7 @@ async fn sandbox_resolves_a_contact_idempotently() {
     // only return the same id by FINDING what the first call created.
     let unique = Uuid::new_v4();
     let request = ContactRequest {
-        name: format!("Navigator Sandbox {unique}"),
+        name: format!("Neon Law Navigator Sandbox {unique}"),
         email: format!("sandbox+{unique}@example.com"),
     };
 

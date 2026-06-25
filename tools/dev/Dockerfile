@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 #
-# Navigator devcontainer — bundles the dev-time prerequisites
+# Neon Law Navigator devcontainer — bundles the dev-time prerequisites
 # (kind, kubectl, docker CLI, the pinned Rust toolchain) so a
 # contributor can drive `make dev-up` without installing anything
 # on the host. Mount the host's docker socket at run time:

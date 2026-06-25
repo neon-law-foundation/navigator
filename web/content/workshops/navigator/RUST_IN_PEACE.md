@@ -3,26 +3,25 @@
 *How we use Rust to improve access to justice* — a [Neon Law Foundation](/foundation/mission) talk for [Rust
 NYC](https://www.meetup.com/rust-nyc/).
 
-This talk comes from the Foundation itself — the 501(c)(3) that stewards Navigator, the open-source harness behind a law
-firm that drafts, checks, and files routine legal work. We started as software engineers. We became lawyers. We kept
-writing Rust — one Cargo workspace, every executable and library in a single language. The thesis of the half hour: our
-goal is to create **deterministic workflows from law**, and a language that is *widely available* — free, permissively
-licensed, governed by a non-profit — is what lets a small nonprofit build them with the same first-class tooling the
-largest companies run on. Every code block below is an exact copy from the repository, kept honest by a test that fails
-the build if a slide drifts from the source. The steps are the talk, beat by beat; the "Copy as Markdown" button hands
-you the whole thing to take home.
+This talk comes from the Foundation itself — the 501(c)(3) that stewards Neon Law Navigator, the open-source harness
+behind a law firm that drafts, checks, and files routine legal work. We started as software engineers. We became
+lawyers. We kept writing Rust — one Cargo workspace, every executable and library in a single language. The thesis of
+the half hour: our goal is to create **deterministic workflows from law**, and a language that is *widely available* —
+free, permissively licensed, governed by a non-profit — is what lets a small nonprofit build them with the same
+first-class tooling the largest companies run on. Every code block below is an exact copy from the repository, kept
+honest by a test that fails the build if a slide drifts from the source. The steps are the talk, beat by beat; the "Copy
+as Markdown" button hands you the whole thing to take home.
 
 ## Agenda
 
 An agenda, not a lecture outline — you are here to argue back. By the end of the half hour you will be able to:
 
-- **Recount** how a two-person team crossed from software to law without dropping the toolchain.
-- **Explain** why a foundation-stewarded language is access-to-justice infrastructure.
-- **Trace** our process from the law, to a Cucumber feature, to a template, to a signed notation.
-- **Dissect** one workflow — forming a Nevada LLC — into attorney-gated steps with the shipped code.
-- **Defend** the claim that a reviewed, repeatable workflow beats a prompt.
-- **Map** how the rules of professional conduct compile into schema and workflow.
-- **Decide** whether to open the repository, read the code, and star it.
+- **Recount** how a two-person team crossed from software to law without dropping the toolchain. **Explain** why a
+  foundation-stewarded language is access-to-justice infrastructure. **Trace** our process from the law, to a Cucumber
+  feature, to a template, to a signed notation. **Dissect** one workflow — forming a Nevada LLC — into attorney-gated
+  steps with the shipped code. **Defend** the claim that a reviewed, repeatable workflow beats a prompt. **Map** how the
+  rules of professional conduct compile into schema and workflow. **Decide** whether to open the repository, read the
+  code, and star it.
 
 ---
 
@@ -51,9 +50,10 @@ started applying the discipline of one craft to the other. A pull request and a 
 profession likes to admit: both are reviewed line by line, both fail in the edge cases, both are worse when a single
 person is the only one who understands them.
 
-Navigator is what fell out of that conviction. It is a harness — a deterministic checklist applied every time — that
-grounds an LLM's output in a shared, database-backed vocabulary so the routine parts of legal drafting come out correct
-and cheap. The lawyer still signs. The machine just makes it faster and more correct to *be* the lawyer who signs.
+Neon Law Navigator is what fell out of that conviction. It is a harness — a deterministic checklist applied every time —
+that grounds an LLM's output in a shared, database-backed vocabulary so the routine parts of legal drafting come out
+correct and cheap. The lawyer still signs. The machine just makes it faster and more correct to *be* the lawyer who
+signs.
 
 ## Widely available — governed in the open
 
@@ -313,12 +313,11 @@ but a longer shelf of workflows anyone can read, run, and extend.
 
 The bill of materials for a real legal-tech product — every line a crate you can pull today:
 
-- **HTTP and views** — `axum`, `maud`, `tower` / `tower-http`.
-- **Async runtime** — `tokio`, multi-threaded, with graceful shutdown.
-- **Database** — `sea-orm` over Postgres, `uuid` (v7) + `chrono` for keys and timestamps.
-- **Durable execution** — `restate-sdk`. **Archive** — `arrow` + `parquet`.
-- **Content** — `pulldown-cmark`. **Cloud** — `google-cloud-storage` + `reqwest`.
-- **Identity** — `jsonwebtoken` + `oauth2`. **Tests** — `testcontainers`, `fantoccini`, `cucumber`.
+- **HTTP and views** — `axum`, `maud`, `tower` / `tower-http`. **Async runtime** — `tokio`, multi-threaded, with
+  graceful shutdown. **Database** — `sea-orm` over Postgres, `uuid` (v7) + `chrono` for keys and timestamps. **Durable
+  execution** — `restate-sdk`. **Archive** — `arrow` + `parquet`. **Content** — `pulldown-cmark`. **Cloud** —
+  `google-cloud-storage` + `reqwest`. **Identity** — `jsonwebtoken` + `oauth2`. **Tests** — `testcontainers`,
+  `fantoccini`, `cucumber`.
 
 ---
 
@@ -346,9 +345,9 @@ to sign anything.
 Lawyers who code still carry the rules of professional conduct, and the engineering answer is the same as it is for
 memory safety: make the invariant structural, not aspirational.
 
-- **Scope is a field, not a vibe.** Every engagement is scoped in writing before work starts.
-- **The conflict check runs first.** Before any matter opens, we query every current and former matter.
-- **Referral, without a referral fee.** When conflicted out, we refer — with no referral fee.
+- **Scope is a field, not a vibe.** Every engagement is scoped in writing before work starts. **The conflict check runs
+  first.** Before any matter opens, we query every current and former matter. **Referral, without a referral fee.** When
+  conflicted out, we refer — with no referral fee.
 
 ---
 
@@ -362,7 +361,7 @@ your matter if we can. Before any matter opens, we check it against every curren
 firm — a query, not a memory. Ethics rules may conflict us out: we cannot represent a business and an individual whose
 interests are adverse to each other.
 
-**Referral, without a referral fee.** When we are conflicted out, we refer you to counsel who also use the Navigator and
+**Referral, without a referral fee.** When we are conflicted out, we refer you to counsel who also use the platform and
 are committed to improving access to justice with our software. There are no referral fees between Neon Law and any firm
 we refer cases to — the referral is the mission working, not a revenue line.
 
@@ -371,12 +370,12 @@ where it cannot be skipped.
 
 ## Review the code, star the repo
 
-Navigator is open source under MIT OR Apache-2.0 — the same permissive, foundation-aligned licensing we just argued for.
-The ask: open the repository, read the code, push on it, and — if the work earns it — **star it**.
+Neon Law Navigator is open source under MIT OR Apache-2.0 — the same permissive, foundation-aligned licensing we just
+argued for. The ask: open the repository, read the code, push on it, and — if the work earns it — **star it**.
 
 > Read the code and star it:
-> **[github.com/neon-law-foundation/Navigator](https://github.com/neon-law-foundation/Navigator)** — and read the
-> [Foundation mission](/foundation/mission) for why any of this matters.
+  **[github.com/neon-law-foundation/Navigator](https://github.com/neon-law-foundation/Navigator)** — and read the
+  [Foundation mission](/foundation/mission) for why any of this matters.
 
 ---
 

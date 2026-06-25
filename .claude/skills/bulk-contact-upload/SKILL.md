@@ -1,7 +1,7 @@
 ---
 name: bulk-contact-upload
 description: >
-  Turn a raw list of organizations and the people who work at them into a valid Navigator bulk-import payload, then load
+  Turn a raw list of organizations and the people who work at them into a valid Neon Law Navigator bulk-import payload, then load
   it through the shared `import` engine: the `cli import-contacts` command, the `aida_bulk_import` MCP tool, or the web
   upload route. Use this when someone hands you a contact list (names, emails, titles, phone numbers, org names) and
   wants those people and their organizations created as `persons` and `entities` with the links between them. Trigger on

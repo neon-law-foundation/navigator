@@ -1,9 +1,9 @@
 # mcp
 
-[Model Context Protocol](https://modelcontextprotocol.io/) server for Navigator. Exposes a JSON-RPC `/mcp` endpoint that
-LLM clients ([Gemini Enterprise](https://cloud.google.com/gemini-enterprise), LibreChat, etc.) call to operate on
-Navigator data. Same database as `web`; a successful `aida_create_person` lands in the same `persons` table the website
-reads from.
+[Model Context Protocol](https://modelcontextprotocol.io/) server for Neon Law Navigator. Exposes a JSON-RPC `/mcp`
+endpoint that LLM clients ([Gemini Enterprise](https://cloud.google.com/gemini-enterprise), LibreChat, etc.) call to
+operate on Neon Law Navigator data. Same database as `web`; a successful `aida_create_person` lands in the same
+`persons` table the website reads from.
 
 ## Tool registry
 
@@ -24,10 +24,10 @@ advertises) and the `match` arm in `call_tool` (what `tools/call` dispatches).
 ### The `aida_` prefix is required
 
 Every tool name MUST start with `aida_` — multi-server MCP clients (Gemini Enterprise's Custom MCP Server, LibreChat,
-Claude Desktop) surface tools from every connected server in one flat list, and the prefix is what keeps Navigator's
-tools grouped and free of name collisions. The prefix lives in `tools::REQUIRED_PREFIX` and is enforced by a generic
-unit test (`every_tool_name_starts_with_aida_prefix`) that iterates over whatever `list_tools()` returns — so a new tool
-that forgets the prefix fails `cargo test -p mcp` without anyone having to remember to update an explicit allow-list.
+Claude Desktop) surface tools from every connected server in one flat list, and the prefix is what keeps AIDA tools
+grouped and free of name collisions. The prefix lives in `tools::REQUIRED_PREFIX` and is enforced by a generic unit test
+(`every_tool_name_starts_with_aida_prefix`) that iterates over whatever `list_tools()` returns — so a new tool that
+forgets the prefix fails `cargo test -p mcp` without anyone having to remember to update an explicit allow-list.
 
 ## Conversational notation: `aida_create_notation` + `aida_answer_notation`
 

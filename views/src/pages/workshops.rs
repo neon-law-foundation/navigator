@@ -4,7 +4,7 @@
 //! (`/foundation/nebula/:category/:slug/step/:n`).
 //!
 //! There is one workshop on the public surface today — "Using the
-//! Navigator to Rapidly Solve Legal Outcomes." Earlier work
+//! Neon Law Navigator to Rapidly Solve Legal Outcomes." Earlier work
 //! ("Claude Code + Twelve Zodiac Lawyers") lives under `prompts/`
 //! and is not on the public surface. See the AIDA + engineer council
 //! review on 2026-05-26 for the rationale.
@@ -132,19 +132,19 @@ pub struct LightTable<'a> {
 }
 
 // The top-level overview speaks to the reader, not about the firm.
-// Nebula is the Foundation's sharing surface: the Navigator is what
+// Nebula is the Foundation's sharing surface: the Neon Law Navigator is what
 // we build; Nebula is how we show the work and help others learn it.
 const LANDING_TITLE: &str = "Nebula";
 const LANDING_LEDE: &str =
     "Nebula is where the Foundation shares what it is learning: workshops, show-and-tells, \
-     and presentations for lawyers and legal professionals who want to build with Navigator.";
+     and presentations for lawyers and legal professionals who want to build with Neon Law Navigator.";
 const LANDING_MORE: &str =
     "More workshops, show-and-tells, and presentations land here as we run them.";
 const LANDING_TITLE_ES: &str = "Nebula";
 const LANDING_LEDE_ES: &str =
     "Nebula es donde la Fundación comparte lo que está aprendiendo: talleres, muestras \
      prácticas y presentaciones para abogados y profesionales legales que quieren construir \
-     con Navigator.";
+     con Neon Law Navigator.";
 const LANDING_MORE_ES: &str =
     "Aquí publicaremos más talleres, muestras prácticas y presentaciones a medida que las hagamos.";
 
@@ -648,13 +648,13 @@ mod tests {
         vec![
             WorkshopCard {
                 href: "/foundation/nebula/workshops/use-the-navigator",
-                title: "Using the Navigator",
+                title: "Using the Neon Law Navigator",
                 audience: "For lawyers",
                 benefit: "You walk out with a deed-of-sale notation you built yourself.",
             },
             WorkshopCard {
                 href: "/foundation/nebula/workshops/deploy-the-navigator",
-                title: "Deploy the Navigator",
+                title: "Deploy the Neon Law Navigator",
                 audience: "For operators",
                 benefit: "You walk out running the same stack a working law firm runs.",
             },
@@ -718,7 +718,7 @@ mod tests {
         // titled by its short name and tagged with who it's for.
         assert!(html.contains("href=\"/foundation/nebula/workshops/use-the-navigator\""));
         assert!(html.contains(
-            "<h3><a href=\"/foundation/nebula/workshops/use-the-navigator\">Using the Navigator</a></h3>"
+            "<h3><a href=\"/foundation/nebula/workshops/use-the-navigator\">Using the Neon Law Navigator</a></h3>"
         ));
         assert!(html.contains("For lawyers"));
         assert!(html.contains("href=\"/foundation/nebula/workshops/deploy-the-navigator\""));

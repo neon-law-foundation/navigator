@@ -129,7 +129,7 @@ fn ensure_gsa_iam(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
             Command::new("gcloud")
                 .args(["iam", "service-accounts", "create", OTEL_GSA])
                 .arg(format!("--project={}", cfg.project_id))
-                .args(["--display-name", "Navigator `OTel` Collector"]),
+                .args(["--display-name", "Neon Law Navigator `OTel` Collector"]),
         )?;
     }
     // Bind the telemetry-write roles one at a time. `add-iam-policy-binding`

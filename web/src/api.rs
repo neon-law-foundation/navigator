@@ -155,7 +155,7 @@ pub struct ValidateRequest {
     /// When true, lint with the Markdown-only rule set (drops the
     /// N-family, adds `S102` line packing) — same as
     /// `cli validate --markdown-only`. Defaults to false: the full
-    /// Navigator-notation rule set runs.
+    /// Neon Law Navigator notation rule set runs.
     #[serde(default)]
     pub markdown_only: bool,
 }

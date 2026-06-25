@@ -66,7 +66,7 @@ impl CardWorld {
     }
 }
 
-#[given("the Navigator app is running")]
+#[given("the Neon Law Navigator app is running")]
 async fn build_app(world: &mut CardWorld) {
     let db = in_memory_db().await;
     let runtime = Arc::new(InMemoryRuntime::new());

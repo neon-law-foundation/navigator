@@ -37,7 +37,7 @@ pub fn render(auth: AuthState) -> Markup {
             (render_with_link_rewrite(README, rewrite_link))
         }
     };
-    PageLayout::new("Navigator")
+    PageLayout::new("Neon Law Navigator")
         .with_description(
             "Neon Law Navigator — open source legal software from the Neon Law \
              Foundation that helps lawyers finish more legal projects.",
@@ -106,7 +106,7 @@ mod tests {
         let html = render(AuthState::Anonymous).into_string();
         assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(html.contains(&format!(
-            "<title>{} | Navigator</title>",
+            "<title>{} | Neon Law Navigator</title>",
             FOUNDATION_BRAND.site_name
         )));
         // The README's own H1 is the page heading — proof it's the README.

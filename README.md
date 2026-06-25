@@ -5,9 +5,9 @@ lawyers to finish more legal projects in the United States of America.
 
 ## How it works
 
-Navigator contains a shared core of rules and implementations as a command-line executable, an MCP server, and a
-website. If you are a lawyer, you are encouraged to use Navigator to supplement your existing AI conversations with
-reliable legal workflows.
+Neon Law Navigator contains a shared core of rules and implementations as a command-line executable, an MCP server, and
+a website. If you are a lawyer, you are encouraged to use Neon Law Navigator to supplement your existing AI
+conversations with reliable legal workflows.
 
 After you install the navigator and a client contacts your firm, a [Project](docs/glossary.md#project) is created for
 their [Matter](docs/glossary.md#matter). Every project contains a git repository of its files and [notation
@@ -27,14 +27,14 @@ plethora of automations that save time, and we see its impact in scaling legal s
 
 ## Getting started
 
-To run Navigator on your machine, run the following and review its output. The invocation will spawn a Rust process and
-a KIND cluster with common Linux Foundation technologies.
+To run Neon Law Navigator on your machine, run the following and review its output. The invocation will spawn a Rust
+process and a KIND cluster with common Linux Foundation technologies.
 
 ```bash
 cargo run -p cli -- start-dev-server
 ```
 
-If you want to deploy Navigator to the cloud, we recommend [Google Cloud](https://cloud.google.com) with
+If you want to deploy Neon Law Navigator to the cloud, we recommend [Google Cloud](https://cloud.google.com) with
 [Doppler](https://doppler.com), [Restate](https://restate.dev), [Twilio](https://twilio.com),
 [DNSimple](https://dnsimple.com), and [Mercury](https://mercury.com). GitHub Actions builds and publishes the dated
 container images to [ghcr.io](https://ghcr.io); you then roll a published image onto your GKE cluster with one command
@@ -52,8 +52,8 @@ command, the error messages will tell you what you need. Loop that back to your 
 
 Licensed under either of the following at your option.
 
-- Apache License, Version 2.0 ([local copy](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
-- MIT license ([local copy](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+- Apache License, Version 2.0 ([local copy](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>) MIT license
+  ([local copy](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 ## Trademarks
 

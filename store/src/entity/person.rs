@@ -78,7 +78,7 @@ pub struct Model {
     #[sea_orm(nullable)]
     pub phone: Option<String>,
     /// Xero `ContactID` (GUID) once this person has been mirrored to
-    /// Xero Contacts via the billing seam (one-way, Navigator → Xero).
+    /// Xero Contacts via the billing seam (one-way, Neon Law Navigator → Xero).
     /// `None` until first synced. Backs the admin people-detail Xero
     /// deep-link and makes the contacts upsert idempotent after the
     /// first resolve. See `m20260707_create_xero_invoices`.

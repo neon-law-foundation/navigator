@@ -1,4 +1,4 @@
-//! Cloud-provider abstractions for the Navigator workspace.
+//! Cloud-provider abstractions for the Neon Law Navigator workspace.
 //!
 //! This is the one crate that depends on a cloud-provider SDK
 //! (`google-cloud-storage`). Everything else in the workspace

@@ -84,7 +84,7 @@ pub fn index(cards: &[TemplateCard<'_>], auth: AuthState) -> Markup {
                 p {
                     "Want the editor experience? "
                     a href="/foundation/navigator/lsp" {
-                        "Install the Navigator language server"
+                        "Install the Neon Law Navigator language server"
                     }
                     " for live diagnostics and one-click fixes on any "
                     code { ".md" }
@@ -141,7 +141,7 @@ pub fn detail(detail: &TemplateDetail<'_>, auth: AuthState) -> Markup {
             section."mt-4" {
                 h2."h5" { "The notation format" }
                 p {
-                    "Every Navigator template is plain markdown with a YAML "
+                    "Every Neon Law Navigator template is plain markdown with a YAML "
                     "header — the machine-readable contract the questionnaire "
                     "and workflow run on. Here is this template's, verbatim:"
                 }

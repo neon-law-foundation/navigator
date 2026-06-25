@@ -70,7 +70,7 @@ impl RetainerWorld {
     }
 }
 
-#[given("a fresh Navigator app with the canonical templates seeded")]
+#[given("a fresh Neon Law Navigator app with the canonical templates seeded")]
 async fn build_app(world: &mut RetainerWorld) {
     let db = in_memory_db().await;
     let storage = fs_storage("retainer").await;

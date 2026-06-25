@@ -1,6 +1,6 @@
 Feature: Bundled-template workflow composition (Foundation / nonprofit)
 
-  The Foundation brand runs the nonprofit side of Navigator: 501(c)(3)
+  The Foundation brand runs the nonprofit side of Neon Law Navigator: 501(c)(3)
   formation, the annual Form 990, and state-level charitable
   solicitation registration. These scenarios pin each template's
   reusable-step composition — like `legal_workflow_shapes.feature`

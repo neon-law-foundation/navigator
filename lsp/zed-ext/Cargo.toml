@@ -1,4 +1,4 @@
-# Standalone package — NOT a member of the Navigator workspace. Zed
+# Standalone package — NOT a member of the Neon Law Navigator workspace. Zed
 # compiles a dev extension by running `cargo` inside this directory; an
 # empty `[workspace]` table stops Cargo from walking up to the
 # repo-root `Cargo.toml` and failing with "believes it's in a workspace

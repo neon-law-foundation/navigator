@@ -26,7 +26,7 @@ pub fn render(content: &DocContent<'_>, auth: AuthState) -> Markup {
         }
     };
     PageLayout::new(content.title)
-        .with_description("Navigator workspace documentation.")
+        .with_description("Neon Law Navigator workspace documentation.")
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
         .render(&body)

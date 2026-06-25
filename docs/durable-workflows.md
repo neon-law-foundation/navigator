@@ -1,15 +1,15 @@
 # Durable workflows
 
-How Navigator runs long-lived, crash-safe work — retainer intake, Drive sync, the nightly Archives backup — on
+How Neon Law Navigator runs long-lived, crash-safe work — retainer intake, Drive sync, the nightly Archives backup — on
 [Restate](https://restate.dev), and how an operator tells *why one didn't run*.
 
 > **The one rule that costs two hours when forgotten:** a registered Restate deployment is a **snapshot, not a
-> subscription**. Rolling a new worker image does **not** re-register it. A service you just added (or its new
-> handlers) stays invisible at the ingress — `404 "service not found"` — until you **re-register the deployment**.
-> See [The registration gotcha](#the-registration-gotcha).
->
+  subscription**. Rolling a new worker image does **not** re-register it. A service you just added (or its new handlers)
+  stays invisible at the ingress — `404 "service not found"` — until you **re-register the deployment**. See [The
+  registration gotcha](#the-registration-gotcha).
+
 > **The mental model:** **Kubernetes owns the clock; Restate owns the journal.** A trigger fires an invocation once;
-> Restate makes its execution durable — journals every step, retries failures, runs it to completion on the worker.
+  Restate makes its execution durable — journals every step, retries failures, runs it to completion on the worker.
 
 ## Two sides: submit vs. run
 
@@ -200,7 +200,6 @@ Work down the chain; the break is almost always near the top:
 
 - The *what* of each individual workflow: [notation](notation.md), [retainer intake](retainer_intake.md),
   [Nautilus workflows](nautilus-workflows.md).
-- Scheduling any periodic job (the CronJob pattern, both flavors): [Scheduled jobs](cronjobs.md).
-- Deploy and secret mechanics: [GKE production](gke-prod.md), [secrets in Doppler](secrets-doppler.md).
-- Crate entry points: [`workflows/README.md`](../workflows/README.md) and
-  [`workflows-service/README.md`](../workflows-service/README.md).
+- Scheduling any periodic job (the CronJob pattern, both flavors): [Scheduled jobs](cronjobs.md). Deploy and secret
+  mechanics: [GKE production](gke-prod.md), [secrets in Doppler](secrets-doppler.md). Crate entry points:
+  [`workflows/README.md`](../workflows/README.md) and [`workflows-service/README.md`](../workflows-service/README.md).

@@ -260,7 +260,7 @@ pub async fn require_google_oauth(
     // Resolve the caller's REAL tier from `persons.role`. A valid Google
     // token from the allowlisted client/domain is an *identity*, not an
     // authorization: it does not by itself confer staff access. An email
-    // with no Navigator account (or a client-tier one) gets `Client`, and
+    // with no Neon Law Navigator account (or a client-tier one) gets `Client`, and
     // the OPA staff-gate on `/mcp` + `/api/aida/rpc` then denies it.
     // Operators must seed legitimate agent identities as staff/admin in
     // `persons`, exactly as for the browser/CLI paths.

@@ -17,7 +17,7 @@ use super::ToolError;
 pub fn descriptor() -> Value {
     json!({
         "name": "aida_list_entities",
-        "description": "List every legal Entity Navigator knows about (LLCs, trusts, \
+        "description": "List every legal Entity Neon Law Navigator knows about (LLCs, trusts, \
                         corporations, foundations, etc.), returning id, name, entity_type, \
                         and jurisdiction. Use this when a user wants to bind a Project to \
                         an existing Entity but only knows the name (e.g. \"the Shook family \

@@ -1,7 +1,7 @@
 # GKE production deployment
 
-The Navigator production deployment runs on **GKE Autopilot** with every supporting service managed by Google or
-Restate. The daily operator workload is reviewing dependency PRs and glancing at dashboards; no node patching, no DB
+The Neon Law Navigator production deployment runs on **GKE Autopilot** with every supporting service managed by Google
+or Restate. The daily operator workload is reviewing dependency PRs and glancing at dashboards; no node patching, no DB
 failover drills, no Helm chart babysitting.
 
 ## Architecture at a glance
@@ -186,11 +186,10 @@ gcloud logging read \
 
 **Pull-based deploy** = no external system holds cluster credentials. Specifically:
 
-- GHCR push token is scoped to package writes only.
-- GitHub Actions repo write token can commit to `main` but never reaches `kube-apiserver`.
-- Config Sync inside the cluster uses an in-cluster ServiceAccount to pull the public repo — no external token at all.
-- Workload Identity binds each Kubernetes ServiceAccount to a GCP service account, so pods talk to GCP without JSON
-  keys.
+- GHCR push token is scoped to package writes only. GitHub Actions repo write token can commit to `main` but never
+  reaches `kube-apiserver`. Config Sync inside the cluster uses an in-cluster ServiceAccount to pull the public repo —
+  no external token at all. Workload Identity binds each Kubernetes ServiceAccount to a GCP service account, so pods
+  talk to GCP without JSON keys.
 
 Result: nothing outside Google's perimeter has a credential that can touch the cluster control plane or the data plane.
 

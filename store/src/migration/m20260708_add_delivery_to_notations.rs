@@ -3,9 +3,9 @@
 //! How the client receives a notation sent for e-signature:
 //!
 //! - `embedded` (the default) — the client is a **captive** DocuSign
-//!   recipient who signs inside Navigator via the embedded recipient
+//!   recipient who signs inside Neon Law Navigator via the embedded recipient
 //!   view (`web::esign_view`). DocuSign does not email them; they sign on
-//!   a Navigator screen (in-office, or a logged-in portal session). This
+//!   a Neon Law Navigator screen (in-office, or a logged-in portal session). This
 //!   preserves the historical retainer-walk behavior for every existing
 //!   notation.
 //! - `emailed` — the client is a **non-captive** recipient; DocuSign
@@ -40,7 +40,7 @@ impl MigrationTrait for Migration {
                             .default("embedded")
                             .comment(
                                 "How the client receives a notation sent for signature: \
-                                 'embedded' (captive — signs inside Navigator, no email) or \
+                                 'embedded' (captive — signs inside Neon Law Navigator, no email) or \
                                  'emailed' (DocuSign emails a signing link). Read when building \
                                  the signature manifest; selects how the single send path \
                                  addresses the client recipient.",
