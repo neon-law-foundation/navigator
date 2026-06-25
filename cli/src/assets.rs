@@ -242,15 +242,22 @@ pub fn run_pull(out: &Path, bucket: Option<String>) -> ExitCode {
     })
 }
 
-/// The content type for a built variant, keyed off its extension. The
-/// three formats `cli assets build` emits are the only ones uploaded;
-/// anything else under `dir` (a stray `.DS_Store`, an editor temp
-/// file) is skipped rather than pushed with a wrong type.
+/// The content type for an asset under `web/public/img/`, keyed off its
+/// extension. The three formats `cli assets build` emits (AVIF/WebP/JPEG)
+/// plus `png` for hand-authored blog/illustration heroes are carried;
+/// anything else under `dir` (a stray `.DS_Store`, an editor temp file)
+/// is skipped rather than pushed with a wrong type.
 fn content_type_for(ext: &str) -> Option<&'static str> {
     match ext {
         "avif" => Some("image/avif"),
         "webp" => Some("image/webp"),
         "jpg" | "jpeg" => Some("image/jpeg"),
+        // Not a `build` re-encode variant — `png` carries hand-authored
+        // blog/illustration assets dropped straight under
+        // `web/public/img/<slug>/` (e.g. a painted hero), where JPEG's
+        // ringing on sharp edges would show. `upload`/`pull` carry the
+        // bytes through untouched.
+        "png" => Some("image/png"),
         _ => None,
     }
 }
@@ -360,7 +367,7 @@ async fn download(storage: &dyn StorageService, out: &Path) -> anyhow::Result<us
              `cli assets build` + `cli assets upload`"
         } else {
             "objects exist under `img/`, but none are supported image variants \
-             (.avif, .webp, .jpg, .jpeg)"
+             (.avif, .webp, .jpg, .jpeg, .png)"
         }
     );
     Ok(pulled)
@@ -425,11 +432,13 @@ mod tests {
     }
 
     #[test]
-    fn content_type_covers_the_three_built_formats_and_skips_others() {
+    fn content_type_covers_the_built_formats_plus_png_and_skips_others() {
         assert_eq!(content_type_for("avif"), Some("image/avif"));
         assert_eq!(content_type_for("webp"), Some("image/webp"));
         assert_eq!(content_type_for("jpg"), Some("image/jpeg"));
         assert_eq!(content_type_for("jpeg"), Some("image/jpeg"));
+        // PNG rides the same lane for hand-authored blog/illustration heroes.
+        assert_eq!(content_type_for("png"), Some("image/png"));
         assert_eq!(content_type_for("txt"), None);
         assert_eq!(content_type_for("DS_Store"), None);
     }
@@ -611,6 +620,38 @@ mod tests {
         assert_eq!(
             fs::read(out.path().join("lantana/lantana-800w.jpg")).unwrap(),
             b"JPEG-bytes"
+        );
+    }
+
+    #[tokio::test]
+    async fn png_blog_image_uploads_and_round_trips_with_its_content_type() {
+        // A hand-authored blog hero is a raw `.png` dropped straight
+        // under `web/public/img/<slug>/` — not a `build` variant. It must
+        // upload (keyed under `img/`, content-type `image/png`) and pull
+        // back byte-for-byte so a fresh clone serves it from `/public`.
+        let src = TempDir::new().unwrap();
+        let slug = src.path().join("going-all-in-on-rust");
+        fs::create_dir_all(&slug).unwrap();
+        fs::write(slug.join("ferris.png"), b"PNG-bytes").unwrap();
+
+        let store_dir = TempDir::new().unwrap();
+        let storage = FsStorage::new(store_dir.path().to_path_buf())
+            .await
+            .unwrap();
+        assert_eq!(upload(&storage, src.path()).await.unwrap(), 1);
+
+        let stored = storage
+            .get("img/going-all-in-on-rust/ferris.png")
+            .await
+            .unwrap();
+        assert_eq!(stored.bytes, b"PNG-bytes");
+        assert_eq!(stored.content_type, "image/png");
+
+        let out = TempDir::new().unwrap();
+        assert_eq!(download(&storage, out.path()).await.unwrap(), 1);
+        assert_eq!(
+            fs::read(out.path().join("going-all-in-on-rust/ferris.png")).unwrap(),
+            b"PNG-bytes"
         );
     }
 }
