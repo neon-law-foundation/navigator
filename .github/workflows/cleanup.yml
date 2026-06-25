@@ -44,8 +44,10 @@ jobs:
       - name: prune container versions older than 14 days
         env:
           # RELEASE_PAT (Doppler navigator-gitops/prd, synced to repo secrets).
-          # A PAT — not the temporal GITHUB_TOKEN — is what carries the package
-          # scope to list and delete org-owned package versions.
+          # Use a classic PAT from an org/package admin with read:packages and
+          # delete:packages. Fine-grained PATs do not work for the org package
+          # list endpoint; a package-capable GitHub App installation token would
+          # also work, but the secret currently carries a PAT.
           GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           GH_ORG: ${{ github.repository_owner }}
         run: |
@@ -59,10 +61,17 @@ jobs:
           workdir="$(mktemp -d)"
           trap 'rm -rf "${workdir}"' EXIT
 
-          gh api --paginate \
+          if ! gh api --paginate \
               "/orgs/${GH_ORG}/packages?package_type=container&per_page=100" \
               --jq '.[] | select(.name | startswith("navigator-")) | .name' \
-              > "${workdir}/packages"
+              > "${workdir}/packages" 2> "${workdir}/packages.err"; then
+              cat "${workdir}/packages.err" >&2
+              message="::error::RELEASE_PAT cannot list ${GH_ORG} ghcr packages. "
+              message+="Use a classic PAT owned by an org/package admin with read:packages and delete:packages, "
+              message+="then sync it from Doppler to the repo secret."
+              echo "${message}"
+              exit 1
+          fi
 
           while IFS= read -r package; do
               [ -n "${package}" ] || continue
