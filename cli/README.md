@@ -89,6 +89,11 @@ navigator logout
 `--host` is optional after a single `login` (the sole stored host is used); pass it to pick between prod, staging, and a
 local `http://localhost:8080` KIND run, each keyed separately in the credential file.
 
+Opening a matter — `project create`, `project open`, or `matter open` — first runs the conflict check before any row is
+written. The CLI is non-interactive, so **any** finding (a hard adverse block or a softer review item) refuses the open;
+resolve it in the portal, where authorized staff can review and acknowledge the findings, then retry. The graph itself
+is documented in the [glossary](../docs/glossary.md#conflict-check-graph).
+
 ## Forming an LLC from the CLI
 
 A person can form a Nevada LLC end to end without opening a browser. `matter open` starts a questionnaire-driven

@@ -1621,6 +1621,13 @@ struct ProjectInput {
     retainer_template_code: String,
     #[serde(default)]
     scope_of_services: String,
+    /// Set (to `"1"`) when staff tick the conflict-acknowledgment
+    /// checkbox to override review-level conflict findings. `None` on a
+    /// first submit; the handler re-renders the form with the override
+    /// checkbox until it is present. A *blocking* conflict ignores this —
+    /// there is no override for adversity to a current client.
+    #[serde(default)]
+    conflict_ack: Option<String>,
 }
 
 fn nonblank(s: &str) -> Option<String> {
@@ -1697,7 +1704,16 @@ async fn selected_client_dri(
 /// the submitted values echoed back, as `422 Unprocessable Entity`. No
 /// matter is created — the caller returns this before any insert, or
 /// after dropping (rolling back) the open transaction.
-async fn retainer_form_error(state: &AdminState, input: &ProjectInput, msg: &str) -> Response {
+/// Re-render the matter-open form with a message. `allow_conflict_override`
+/// adds the conflict-acknowledgment checkbox so authorized staff can
+/// proceed past *review-level* conflict findings; it stays `false` for
+/// ordinary validation errors and for hard conflict blocks.
+async fn project_form_response(
+    state: &AdminState,
+    input: &ProjectInput,
+    msg: &str,
+    allow_conflict_override: bool,
+) -> Response {
     let entities = entity::Entity::find()
         .all(&state.db)
         .await
@@ -1730,12 +1746,27 @@ async fn retainer_form_error(state: &AdminState, input: &ProjectInput, msg: &str
         retainer_template_code: &input.retainer_template_code,
         scope_of_services: &input.scope_of_services,
         retainer_templates: &retainer_templates,
+        allow_conflict_override,
     };
     (
         StatusCode::UNPROCESSABLE_ENTITY,
         admin_views::projects::new_form(&form, &choices),
     )
         .into_response()
+}
+
+async fn retainer_form_error(state: &AdminState, input: &ProjectInput, msg: &str) -> Response {
+    project_form_response(state, input, msg, false).await
+}
+
+/// Re-render the form with conflict findings and the override checkbox so
+/// authorized staff can acknowledge review-level findings and proceed.
+async fn retainer_conflict_warning(
+    state: &AdminState,
+    input: &ProjectInput,
+    msg: &str,
+) -> Response {
+    project_form_response(state, input, msg, true).await
 }
 
 /// POST `/portal/projects` — open a matter and, when the "Send retainer
@@ -1806,6 +1837,37 @@ async fn projects_create_staff_only(
         }
     }
 
+    // Conflict check — runs on **every** matter open, before any row is
+    // written. The relationship graph (`store::conflicts`) is advisory to
+    // clear but authoritative to block: a confident, direct adverse link
+    // to a current client hard-stops the open; softer entanglements
+    // (shared party, recorded disclosure) surface for authorized staff to
+    // acknowledge. The graph can raise a conflict; only a person clears
+    // one — it is never assumed complete.
+    let conflict = match store::conflicts::check_new_matter(&state.db, client.id, entity_id).await {
+        Ok(report) => report,
+        Err(e) => {
+            tracing::error!(error = %e, "projects_create: conflict check failed");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
+        }
+    };
+    if conflict.has_blocking() {
+        let msg = format!(
+            "Conflict check blocked this matter — it is adverse to a current client. \
+             Resolve the conflict or record a waiver before opening.\n\n{}",
+            conflict.summary_lines().join("\n"),
+        );
+        return retainer_form_error(&state, &input, &msg).await;
+    }
+    if !conflict.is_clear() && input.conflict_ack.is_none() {
+        let msg = format!(
+            "Conflict check flagged this matter for review. Confirm you have reviewed \
+             these findings and are authorized to proceed.\n\n{}",
+            conflict.summary_lines().join("\n"),
+        );
+        return retainer_conflict_warning(&state, &input, &msg).await;
+    }
+
     // Resolve the matter's **staff-side** DRI — a required, NOT NULL column
     // (every matter names exactly one accountable attorney/admin). The
     // opening staffer is it; a session not linked to a firm Person (the dev
@@ -1852,6 +1914,32 @@ async fn projects_create_staff_only(
             return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
         }
     };
+
+    // Record a conflict-review override to the relationship log, in the
+    // same transaction as the matter it authorized. We only reach here
+    // with findings when staff ticked the acknowledgment (a block already
+    // returned; a clean check has none), so this row is the durable audit
+    // trail of who opened a flagged matter and over what findings.
+    if !conflict.is_clear() {
+        let detail = format!(
+            "Conflict review acknowledged at matter open:\n{}",
+            conflict.summary_lines().join("\n"),
+        );
+        if let Err(e) = (relationship_log::ActiveModel {
+            actor_person_id: ActiveValue::Set(session.as_deref().and_then(|s| s.person_id)),
+            subject_type: ActiveValue::Set("project".to_string()),
+            subject_id: ActiveValue::Set(project_id),
+            action: ActiveValue::Set("conflict_review_acknowledged".to_string()),
+            detail: ActiveValue::Set(detail),
+            ..Default::default()
+        })
+        .insert(&txn)
+        .await
+        {
+            tracing::error!(error = %e, "projects_create: conflict override audit insert failed");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
+        }
+    }
 
     // Designate the opening staffer as the matter's **staff-side** DRI —
     // the firm-internal person accountable for it — as a participation
