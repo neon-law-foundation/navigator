@@ -433,7 +433,8 @@ impl ConflictGraph {
                 let should_update = reached.get(&next).is_none_or(|existing| {
                     next_hops < existing.hops
                         || (next_adverse && !existing.adverse_on_path)
-                        || next_conf > existing.confidence_pct
+                        || (next_conf > existing.confidence_pct
+                            && (next_adverse || !existing.adverse_on_path))
                 });
                 if should_update {
                     reached.insert(
@@ -778,6 +779,97 @@ mod tests {
                 .any(|f| f.reason == Reason::Adverse && f.severity == Severity::Block),
             "expected direct anchor adversity to block: {:?}",
             report.summary_lines()
+        );
+    }
+
+    #[tokio::test]
+    async fn higher_confidence_structural_path_does_not_clear_prior_adversity() {
+        let db = pg().await;
+        let proposed = person_named(&db, "Mixed Path Client").await;
+        let bridge = person_named(&db, "Mixed Path Bridge").await;
+        let proposed_entity = seed_entity(&db).await;
+        let opposing_entity = seed_entity(&db).await;
+        let existing_client = person_named(&db, "Mixed Path Existing Client").await;
+        open_project(&db, opposing_entity, existing_client).await;
+
+        relationship_edge::ActiveModel {
+            from_type: ActiveValue::Set(relationship_edge::NODE_PERSON.into()),
+            from_id: ActiveValue::Set(proposed),
+            to_type: ActiveValue::Set(relationship_edge::NODE_PERSON.into()),
+            to_id: ActiveValue::Set(bridge),
+            kind: ActiveValue::Set(relationship_edge::KIND_ADVERSE_TO.into()),
+            confidence_pct: ActiveValue::Set(40),
+            source_kind: ActiveValue::Set(relationship_edge::SOURCE_LLM.into()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        person_entity_role::ActiveModel {
+            person_id: ActiveValue::Set(proposed),
+            entity_id: ActiveValue::Set(proposed_entity),
+            role: ActiveValue::Set("manages".into()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        person_entity_role::ActiveModel {
+            person_id: ActiveValue::Set(bridge),
+            entity_id: ActiveValue::Set(proposed_entity),
+            role: ActiveValue::Set("manages".into()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        person_entity_role::ActiveModel {
+            person_id: ActiveValue::Set(bridge),
+            entity_id: ActiveValue::Set(opposing_entity),
+            role: ActiveValue::Set("manages".into()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+
+        let report = check_new_matter(&db, proposed, proposed_entity)
+            .await
+            .unwrap();
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.reason == Reason::Adverse && f.severity == Severity::Review),
+            "expected adversity to survive a later high-confidence structural update: {:?}",
+            report.summary_lines()
+        );
+    }
+
+    #[tokio::test]
+    async fn relationship_edges_reject_unknown_endpoint_types() {
+        let db = pg().await;
+        let from = person_named(&db, "Typo Source").await;
+        let to = seed_entity(&db).await;
+
+        let err = relationship_edge::ActiveModel {
+            from_type: ActiveValue::Set("persn".into()),
+            from_id: ActiveValue::Set(from),
+            to_type: ActiveValue::Set(relationship_edge::NODE_ENTITY.into()),
+            to_id: ActiveValue::Set(to),
+            kind: ActiveValue::Set(relationship_edge::KIND_RELATED_PARTY.into()),
+            confidence_pct: ActiveValue::Set(100),
+            source_kind: ActiveValue::Set(relationship_edge::SOURCE_MANUAL.into()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .expect_err("unknown endpoint types must fail the database check constraint");
+
+        let message = err.to_string();
+        assert!(
+            message.contains("relationship_edges"),
+            "unexpected insert error: {message}"
         );
     }
 }

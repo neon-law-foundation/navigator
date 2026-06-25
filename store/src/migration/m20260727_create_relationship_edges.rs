@@ -27,7 +27,7 @@
 //! conflict report shows the source so staff can judge a finding rather
 //! than trust a guess.
 
-use sea_orm_migration::prelude::*;
+use sea_orm_migration::{prelude::*, sea_orm::sea_query::Expr};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -140,6 +140,8 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .comment("RFC 3339 timestamp when this row was last updated."),
                     )
+                    .check(Expr::col(RelationshipEdges::FromType).is_in(["person", "entity"]))
+                    .check(Expr::col(RelationshipEdges::ToType).is_in(["person", "entity"]))
                     .to_owned(),
             )
             .await?;
