@@ -29,6 +29,8 @@ Before changing files:
 5. Read [`access-model.md`](access-model.md) before touching roles, participation, OPA, sessions, or visibility.
 6. Check the working tree with `git status --short --branch`; never overwrite user changes.
 7. Pick the narrowest docs and code path that actually cover the task.
+8. If the task changes English marketing or public Foundation prose, update the matching Spanish surface in the same PR
+   according to [`i18n.md`](i18n.md); do not leave Spanish as a follow-up.
 
 If the decision is architectural, legal-copy, or client-facing, use the relevant council in
 [`agent-decision-councils.md`](agent-decision-councils.md) after reading the facts.

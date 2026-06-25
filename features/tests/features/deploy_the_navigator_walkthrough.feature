@@ -24,7 +24,7 @@ Feature: Workshop "Deploy the Navigator"
     Given the "Deploy the Navigator" workshop is loaded from the content directory
 
   Scenario: Remember — the workshop is registered on the Foundation surface
-    When a reader visits "/foundation/workshops/navigator/deploy"
+    When a reader visits "/foundation/nebula/workshops/deploy-the-navigator"
     Then the response status is 200
     And the page title is "Neon Law Foundation | Deploy the Navigator"
     And the page shows no "not accepting clients" banner
@@ -39,7 +39,7 @@ Feature: Workshop "Deploy the Navigator"
     And the rendered workshop shows the "--dry-run" flag
 
   Scenario: Verify — the markdown twin serves raw markdown
-    When a reader visits "/foundation/workshops/navigator/deploy.md"
+    When a reader visits "/foundation/nebula/workshops/deploy-the-navigator.md"
     Then the response status is 200
     And the response content-type is "text/markdown; charset=utf-8"
     And the markdown twin contains "## Agenda"

@@ -1,7 +1,7 @@
-//! Workshop landing page (`/foundation/workshops/navigator`), the
-//! per-material overview (`/foundation/workshops/navigator/:slug`),
+//! Nebula landing page (`/foundation/nebula`), the per-material
+//! overview (`/foundation/nebula/:category/:slug`),
 //! and the one-step-at-a-time classroom flow
-//! (`/foundation/workshops/navigator/:slug/step/:n`).
+//! (`/foundation/nebula/:category/:slug/step/:n`).
 //!
 //! There is one workshop on the public surface today — "Using the
 //! Navigator to Rapidly Solve Legal Outcomes." Earlier work
@@ -19,15 +19,15 @@ use maud::{html, Markup, PreEscaped};
 
 use crate::assets::{self, Priority};
 use crate::brand::FOUNDATION_BRAND;
-use crate::{AuthState, PageLayout};
+use crate::{AuthState, Locale, PageLayout};
 
-/// One workshop on the top-level `/foundation/workshops` overview.
+/// One item on the top-level `/foundation/nebula` overview.
 /// The copy is you-voiced: `audience` lets the reader self-select, and
 /// `benefit` leads with what they walk out with — never a guaranteed
 /// outcome (this surface is public attorney advertising).
 pub struct WorkshopCard<'a> {
-    /// Absolute path to the workshop's overview page, e.g.
-    /// `/foundation/workshops/navigator/readme`.
+    /// Absolute path to the Nebula material page, e.g.
+    /// `/foundation/nebula/workshops/use-the-navigator`.
     pub href: &'a str,
     pub title: &'a str,
     /// Who it's for, e.g. "For lawyers".
@@ -43,13 +43,36 @@ pub struct StepSummary<'a> {
     pub title: &'a str,
 }
 
+/// One show-and-tell on the top-level `/foundation/nebula` overview.
+pub struct ShowTellCard<'a> {
+    pub href: &'a str,
+    pub title: &'a str,
+    pub time: &'a str,
+    pub place: &'a str,
+    pub description: &'a str,
+}
+
+/// A Nebula show-and-tell detail page.
+pub struct ShowTellDetail<'a> {
+    pub title: &'a str,
+    pub description: &'a str,
+    pub time: &'a str,
+    pub place: &'a str,
+    pub external_event_provider: &'a str,
+    pub external_event_url: &'a str,
+    pub ics_url: &'a str,
+    pub body_html: &'a str,
+    pub video_url: Option<&'a str>,
+    pub recap_url: Option<&'a str>,
+}
+
 /// The workshop hub: orientation lede, a numbered table of contents
 /// linking to each step, a "start" button, and the copy-as-markdown
 /// affordance. This is the bookmarkable page a returning learner lands
 /// on.
 pub struct MaterialOverview<'a> {
     /// Route prefix for this material's overview and step links, e.g.
-    /// `/foundation/workshops/navigator`.
+    /// `/foundation/nebula/workshops`.
     pub base: &'a str,
     pub slug: &'a str,
     pub title: &'a str,
@@ -70,7 +93,7 @@ pub struct MaterialOverview<'a> {
 /// presenter notes beneath, like a Keynote slide with its speaker notes.
 pub struct WorkshopStep<'a> {
     /// Route prefix for this material, e.g.
-    /// `/foundation/workshops/navigator`.
+    /// `/foundation/nebula/workshops`.
     pub base: &'a str,
     pub slug: &'a str,
     pub workshop_title: &'a str,
@@ -108,42 +131,78 @@ pub struct LightTable<'a> {
     pub csrf_token: &'a str,
 }
 
-// The top-level overview speaks to the reader, not about the firm:
-// every line is what *you* get. The cards themselves are data-driven
-// from the workshop manifest, so a new workshop (or a show-and-tell)
-// appears here by adding a manifest entry, not by editing this view.
-const LANDING_TITLE: &str = "Workshops";
+// The top-level overview speaks to the reader, not about the firm.
+// Nebula is the Foundation's sharing surface: the Navigator is what
+// we build; Nebula is how we show the work and help others learn it.
+const LANDING_TITLE: &str = "Nebula";
 const LANDING_LEDE: &str =
-    "Pick the one that meets you where you sit. Each walks you, hands-on, from where you \
-     are now to something you can use the same day — and you keep what you build.";
-const LANDING_MORE: &str = "More workshops — and our show-and-tells — land here as we run them.";
+    "Nebula is where the Foundation shares what it is learning: workshops, show-and-tells, \
+     and presentations for lawyers and legal professionals who want to build with Navigator.";
+const LANDING_MORE: &str =
+    "More workshops, show-and-tells, and presentations land here as we run them.";
+const LANDING_TITLE_ES: &str = "Nebula";
+const LANDING_LEDE_ES: &str =
+    "Nebula es donde la Fundación comparte lo que está aprendiendo: talleres, muestras \
+     prácticas y presentaciones para abogados y profesionales legales que quieren construir \
+     con Navigator.";
+const LANDING_MORE_ES: &str =
+    "Aquí publicaremos más talleres, muestras prácticas y presentaciones a medida que las hagamos.";
 
-/// The top-level workshops overview (`/foundation/workshops`): a
-/// you-voiced lede and one card per workshop, each tagged with who it's
-/// for and what the reader walks out with. The per-workshop overview,
-/// step flow, and Markdown twin live one level down under
-/// `/foundation/workshops/navigator/{slug}`.
+/// The top-level Nebula overview (`/foundation/nebula`).
 #[must_use]
-pub fn landing(cards: &[WorkshopCard<'_>], auth: AuthState) -> Markup {
+pub fn landing(
+    workshop_cards: &[WorkshopCard<'_>],
+    show_tell_cards: &[ShowTellCard<'_>],
+    auth: AuthState,
+) -> Markup {
+    landing_in(workshop_cards, show_tell_cards, auth, Locale::En)
+}
+
+#[must_use]
+pub fn landing_in(
+    workshop_cards: &[WorkshopCard<'_>],
+    show_tell_cards: &[ShowTellCard<'_>],
+    auth: AuthState,
+    locale: Locale,
+) -> Markup {
+    let (title, lede, more, workshops, show_tells, empty) = match locale {
+        Locale::En => (
+            LANDING_TITLE,
+            LANDING_LEDE,
+            LANDING_MORE,
+            "Workshops",
+            "Show-and-tells",
+            "Nebula materials are still loading. Email ",
+        ),
+        Locale::Es => (
+            LANDING_TITLE_ES,
+            LANDING_LEDE_ES,
+            LANDING_MORE_ES,
+            "Talleres",
+            "Muestras prácticas",
+            "Los materiales de Nebula todavía se están cargando. Escriba a ",
+        ),
+    };
     let body = html! {
         section.workshops {
             div.container {
-                h1 { (LANDING_TITLE) }
-                p.lede { (LANDING_LEDE) }
+                h1 { (title) }
+                p.lede { (lede) }
                 div."my-4" {
                     (assets::picture("lantana", "100vw", Priority::Lazy))
                 }
-                @if cards.is_empty() {
+                @if workshop_cards.is_empty() && show_tell_cards.is_empty() {
                     p.empty {
-                        "Workshops are still loading. Email "
+                        (empty)
                         a href={ "mailto:" (crate::brand::foundation_email()) } {
                             (crate::brand::foundation_email())
                         }
                         " for the runbook in the meantime."
                     }
                 } @else {
+                    h2 { (workshops) }
                     ul.workshop-materials."list-unstyled" {
-                        @for c in cards {
+                        @for c in workshop_cards {
                             li.workshop-material."mb-4" {
                                 p.workshop-audience."text-uppercase"."small"."fw-semibold"."text-body-secondary"."mb-1" {
                                     (c.audience)
@@ -155,16 +214,74 @@ pub fn landing(cards: &[WorkshopCard<'_>], auth: AuthState) -> Markup {
                             }
                         }
                     }
-                    p.workshops-more."fst-italic"."text-body-secondary" { (LANDING_MORE) }
+                    @if !show_tell_cards.is_empty() {
+                        h2 { (show_tells) }
+                        ul.workshop-materials."list-unstyled" {
+                            @for c in show_tell_cards {
+                                li.workshop-material."mb-4" {
+                                    p.workshop-audience."text-uppercase"."small"."fw-semibold"."text-body-secondary"."mb-1" {
+                                        (c.time) " · " (c.place)
+                                    }
+                                    h3 {
+                                        a href=(c.href) { (c.title) }
+                                    }
+                                    p { (c.description) }
+                                }
+                            }
+                        }
+                    }
+                    p.workshops-more."fst-italic"."text-body-secondary" { (more) }
                 }
             }
         }
     };
-    PageLayout::new(LANDING_TITLE)
-        .with_description(LANDING_LEDE)
+    PageLayout::new(title)
+        .with_description(lede)
+        .with_brand(*FOUNDATION_BRAND)
+        .with_auth(auth)
+        .with_locale(locale)
+        .with_canonical_path("/foundation/nebula")
+        .render(&body)
+}
+
+#[must_use]
+pub fn show_tell(event: &ShowTellDetail<'_>, auth: AuthState) -> Markup {
+    let body = html! {
+        article.blog-post style="max-width: 65ch; margin-inline: auto;" {
+            p { a href="/foundation/nebula" { "← Nebula" } }
+            h1 { (event.title) }
+            p.blog-date { small { (event.time) " · " (event.place) } }
+            p {
+                a.btn.btn-primary href=(event.external_event_url) {
+                    "RSVP on " (provider_label(event.external_event_provider))
+                }
+                " "
+                a.btn.btn-outline-secondary href=(event.ics_url) { "Add to calendar" }
+            }
+            (PreEscaped(event.body_html))
+            @if let Some(video_url) = event.video_url {
+                h2 { "Video" }
+                p { a href=(video_url) { "Watch the show-and-tell" } }
+            }
+            @if let Some(recap_url) = event.recap_url {
+                h2 { "Recap" }
+                p { a href=(recap_url) { "Read the recap" } }
+            }
+        }
+    };
+    PageLayout::new(event.title)
+        .with_description(event.description)
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
         .render(&body)
+}
+
+fn provider_label(provider: &str) -> &str {
+    if provider.eq_ignore_ascii_case("luma") {
+        "Luma"
+    } else {
+        "event page"
+    }
 }
 
 #[must_use]
@@ -528,13 +645,13 @@ mod tests {
     fn sample_cards() -> Vec<WorkshopCard<'static>> {
         vec![
             WorkshopCard {
-                href: "/foundation/workshops/navigator/readme",
+                href: "/foundation/nebula/workshops/use-the-navigator",
                 title: "Using the Navigator",
                 audience: "For lawyers",
                 benefit: "You walk out with a deed-of-sale notation you built yourself.",
             },
             WorkshopCard {
-                href: "/foundation/workshops/navigator/deploy",
+                href: "/foundation/nebula/workshops/deploy-the-navigator",
                 title: "Deploy the Navigator",
                 audience: "For operators",
                 benefit: "You walk out running the same stack a working law firm runs.",
@@ -561,9 +678,9 @@ mod tests {
 
     #[test]
     fn landing_titles_the_page_workshops() {
-        let html = landing(&[], crate::AuthState::Anonymous).into_string();
+        let html = landing(&[], &[], crate::AuthState::Anonymous).into_string();
         assert!(html.contains(&format!(
-            "<title>{} | Workshops</title>",
+            "<title>{} | Nebula</title>",
             FOUNDATION_BRAND.site_name
         )));
         // The sole <h1> is the overview title, not a single workshop's.
@@ -573,7 +690,7 @@ mod tests {
 
     #[test]
     fn landing_shows_an_inviting_lazy_banner() {
-        let html = landing(&[], crate::AuthState::Anonymous).into_string();
+        let html = landing(&[], &[], crate::AuthState::Anonymous).into_string();
         assert!(
             html.contains("lantana"),
             "workshops overview should carry the banner photo"
@@ -586,7 +703,7 @@ mod tests {
 
     #[test]
     fn landing_empty_falls_back_to_real_foundation_email() {
-        let html = landing(&[], crate::AuthState::Anonymous).into_string();
+        let html = landing(&[], &[], crate::AuthState::Anonymous).into_string();
         let email = foundation_email();
         assert!(html.contains(&format!("mailto:{email}")));
     }
@@ -594,13 +711,13 @@ mod tests {
     #[test]
     fn landing_lists_each_workshop_with_audience_and_benefit() {
         let cards = sample_cards();
-        let html = landing(&cards, crate::AuthState::Anonymous).into_string();
+        let html = landing(&cards, &[], crate::AuthState::Anonymous).into_string();
         // Each card links to its overview at the canonical per-workshop URL,
         // titled by its short name and tagged with who it's for.
-        assert!(html.contains("href=\"/foundation/workshops/navigator/readme\""));
+        assert!(html.contains("href=\"/foundation/nebula/workshops/use-the-navigator\""));
         assert!(html.contains(">Using the Navigator</a>"));
         assert!(html.contains("For lawyers"));
-        assert!(html.contains("href=\"/foundation/workshops/navigator/deploy\""));
+        assert!(html.contains("href=\"/foundation/nebula/workshops/deploy-the-navigator\""));
         assert!(html.contains("For operators"));
         // You-voiced benefit copy renders, and the "more coming" footer
         // signals the surface grows.
@@ -612,14 +729,14 @@ mod tests {
     fn overview_carries_exactly_one_h1_and_links_each_step() {
         let steps = sample_steps();
         let m = MaterialOverview {
-            base: "/foundation/workshops/navigator",
-            slug: "readme",
+            base: "/foundation/nebula/workshops",
+            slug: "use-the-navigator",
             title: "Runbook",
             description: "How.",
             intro_html: "<p>Orientation.</p>",
             body_html: "",
             steps: &steps,
-            md_href: "/foundation/workshops/navigator/readme.md",
+            md_href: "/foundation/nebula/workshops/use-the-navigator.md",
         };
         let html = overview(&m, crate::AuthState::Anonymous).into_string();
         // The chrome's title is the sole <h1> — no duplicate.
@@ -629,19 +746,19 @@ mod tests {
             FOUNDATION_BRAND.site_name
         )));
         // Start button + every step links to its step route.
-        assert!(html.contains("href=\"/foundation/workshops/navigator/readme/step/1\""));
-        assert!(html.contains("href=\"/foundation/workshops/navigator/readme/step/2\""));
-        assert!(html.contains("href=\"/foundation/workshops/navigator/readme/step/3\""));
+        assert!(html.contains("href=\"/foundation/nebula/workshops/use-the-navigator/step/1\""));
+        assert!(html.contains("href=\"/foundation/nebula/workshops/use-the-navigator/step/2\""));
+        assert!(html.contains("href=\"/foundation/nebula/workshops/use-the-navigator/step/3\""));
         assert!(html.contains("Start →"));
     }
 
     #[test]
     fn overview_copy_button_and_link_point_at_the_md_twin() {
         let steps = sample_steps();
-        let md = "/foundation/workshops/navigator/readme.md";
+        let md = "/foundation/nebula/workshops/use-the-navigator.md";
         let m = MaterialOverview {
-            base: "/foundation/workshops/navigator",
-            slug: "readme",
+            base: "/foundation/nebula/workshops",
+            slug: "use-the-navigator",
             title: "Runbook",
             description: "How.",
             intro_html: "",
@@ -666,8 +783,8 @@ mod tests {
     fn step_and_overview_load_syntax_highlighting() {
         let steps = sample_steps();
         let s = WorkshopStep {
-            base: "/foundation/workshops/navigator",
-            slug: "readme",
+            base: "/foundation/nebula/workshops",
+            slug: "use-the-navigator",
             workshop_title: "Runbook",
             title: "Build the template",
             body_html: "<pre><code class=\"language-rust\">fn main() {}</code></pre>",
@@ -678,14 +795,14 @@ mod tests {
         };
         let step_html = step(&s, crate::AuthState::Anonymous).into_string();
         let m = MaterialOverview {
-            base: "/foundation/workshops/navigator",
-            slug: "readme",
+            base: "/foundation/nebula/workshops",
+            slug: "use-the-navigator",
             title: "Runbook",
             description: "How.",
             intro_html: "",
             body_html: "",
             steps: &steps,
-            md_href: "/foundation/workshops/navigator/readme.md",
+            md_href: "/foundation/nebula/workshops/use-the-navigator.md",
         };
         let overview_html = overview(&m, crate::AuthState::Anonymous).into_string();
         // Both chrome variants vendor the highlighter: stylesheet, core
@@ -701,14 +818,14 @@ mod tests {
     #[test]
     fn overview_with_no_steps_falls_back_to_full_body() {
         let m = MaterialOverview {
-            base: "/foundation/workshops/navigator",
-            slug: "readme",
+            base: "/foundation/nebula/workshops",
+            slug: "use-the-navigator",
             title: "Runbook",
             description: "How.",
             intro_html: "",
             body_html: "<h2>Only section</h2><p>x</p>",
             steps: &[],
-            md_href: "/foundation/workshops/navigator/readme.md",
+            md_href: "/foundation/nebula/workshops/use-the-navigator.md",
         };
         let html = overview(&m, crate::AuthState::Anonymous).into_string();
         assert!(html.contains("<h2>Only section</h2>"));
@@ -719,8 +836,8 @@ mod tests {
     fn step_renders_progress_prev_next_and_single_body() {
         let steps = sample_steps();
         let s = WorkshopStep {
-            base: "/foundation/workshops/navigator",
-            slug: "readme",
+            base: "/foundation/nebula/workshops",
+            slug: "use-the-navigator",
             workshop_title: "Runbook",
             title: "Build the template",
             body_html: "<h2>Build the template</h2><p>do it</p>",
@@ -740,8 +857,8 @@ mod tests {
             "expected width:66%, got: {html}"
         );
         // Prev → step 1, Next → step 3.
-        assert!(html.contains("href=\"/foundation/workshops/navigator/readme/step/1\""));
-        assert!(html.contains("href=\"/foundation/workshops/navigator/readme/step/3\""));
+        assert!(html.contains("href=\"/foundation/nebula/workshops/use-the-navigator/step/1\""));
+        assert!(html.contains("href=\"/foundation/nebula/workshops/use-the-navigator/step/3\""));
         assert!(html.contains("← Previous"));
         assert!(html.contains("Next →"));
         // The step body renders; the chrome title is the only <h1>.
@@ -751,12 +868,12 @@ mod tests {
 
     #[test]
     fn step_links_honor_the_provided_base() {
-        // The "Rust in Peace" talk is a workshop now (`rust-in-peace`
+        // The "Rust in Peace" talk is a Nebula presentation now (`rust-in-peace`
         // slug); every generated link threads the `base` + `slug` it was
         // given, so a talk and a runbook share one chrome.
         let steps = sample_steps();
         let s = WorkshopStep {
-            base: "/foundation/workshops/navigator",
+            base: "/foundation/nebula/presentations",
             slug: "rust-in-peace",
             workshop_title: "Rust in Peace",
             title: "One language, every library",
@@ -767,17 +884,17 @@ mod tests {
             steps: &steps,
         };
         let html = step(&s, crate::AuthState::Anonymous).into_string();
-        assert!(html.contains("href=\"/foundation/workshops/navigator/rust-in-peace/step/1\""));
-        assert!(html.contains("href=\"/foundation/workshops/navigator/rust-in-peace/step/3\""));
-        assert!(html.contains("href=\"/foundation/workshops/navigator/rust-in-peace\""));
+        assert!(html.contains("href=\"/foundation/nebula/presentations/rust-in-peace/step/1\""));
+        assert!(html.contains("href=\"/foundation/nebula/presentations/rust-in-peace/step/3\""));
+        assert!(html.contains("href=\"/foundation/nebula/presentations/rust-in-peace\""));
     }
 
     #[test]
     fn first_step_offers_overview_not_previous() {
         let steps = sample_steps();
         let s = WorkshopStep {
-            base: "/foundation/workshops/navigator",
-            slug: "readme",
+            base: "/foundation/nebula/workshops",
+            slug: "use-the-navigator",
             workshop_title: "Runbook",
             title: "Install",
             body_html: "<h2>Install</h2>",
@@ -795,8 +912,8 @@ mod tests {
     fn last_step_offers_finish_not_next() {
         let steps = sample_steps();
         let s = WorkshopStep {
-            base: "/foundation/workshops/navigator",
-            slug: "readme",
+            base: "/foundation/nebula/workshops",
+            slug: "use-the-navigator",
             workshop_title: "Runbook",
             title: "Notarize",
             body_html: "<h2>Notarize</h2>",

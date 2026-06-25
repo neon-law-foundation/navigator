@@ -197,6 +197,7 @@ pub fn nav_label(label: &str, locale: Locale) -> String {
 pub const ES_ENABLED_PATHS: &[&str] = &[
     "/",
     "/foundation",
+    "/foundation/nebula",
     "/services",
     "/services/nexus",
     "/services/nest",
@@ -363,6 +364,10 @@ mod tests {
             "/es/services/northstar"
         );
         assert_eq!(localize_href("/foundation", Locale::Es), "/es/foundation");
+        assert_eq!(
+            localize_href("/foundation/nebula", Locale::Es),
+            "/es/foundation/nebula"
+        );
         // English never rewrites.
         assert_eq!(
             localize_href("/services/northstar", Locale::En),

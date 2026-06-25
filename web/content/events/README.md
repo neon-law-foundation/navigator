@@ -1,15 +1,16 @@
-# Event Markdown
+# Nebula Show-And-Tell Markdown
 
-Events are reviewable markdown files, stored like blog posts:
+Show-and-tells are reviewable markdown files, stored like blog posts:
 
 ```text
 YYYYMMDD_slug.md
 ```
 
-The filename date must match `starts_at`. Public URLs use the slug after the date in kebab-case, for example
-`20260702_seattle_agentic_workflows_for_lawyers.md` becomes `/events/seattle-agentic-workflows-for-lawyers`.
+The filename date must match `starts_at`. Nebula chooses the public URL for each show-and-tell; for example,
+`20260702_seattle_agentic_workflows_for_lawyers.md` is currently served at
+`/foundation/nebula/show-and-tell/seattle-summer-2026`.
 
-Every event requires this front matter:
+Every show-and-tell requires this front matter:
 
 ```yaml
 title: Agentic Workflows for Lawyers
@@ -27,7 +28,7 @@ recap_url:
 ```
 
 `starts_at` and `ends_at` are local Pacific wall times. The iCalendar route emits `TZID=America/Los_Angeles`, so
-calendar clients convert the event for each viewer's timezone.
+calendar clients convert the show-and-tell for each viewer's timezone.
 
 Validate event content before opening a PR:
 

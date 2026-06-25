@@ -1,8 +1,8 @@
-//! Public events served from dated markdown files under
+//! Nebula show-and-tells loaded from dated markdown files under
 //! `web/content/events/`.
 //!
 //! Events mirror the blog convention: one `YYYYMMDD_slug.md` file per
-//! public event, with reviewable front matter and a rendered markdown body.
+//! public show-and-tell, with reviewable front matter and a rendered markdown body.
 //! The extra event fields form the authoring contract that the CLI validates
 //! in PRs.
 
