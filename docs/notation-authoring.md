@@ -63,16 +63,17 @@ full history of a matter is replayable for audit.
 ## How to create one — the five-step recipe
 
 New legal matters follow a fixed order (see [`agent-workflows.md`](agent-workflows.md) for the long form).
-Feature-first, so the behavior is specified before the prose exists:
+Feature-first, so the composition is specified before the prose exists:
 
-1. **Write the `.feature` first.** Describe the matter as a BDD scenario in `features/` using only Person / Entity
-   role nouns from [`glossary.md`](glossary.md). The feature is the spec; the template satisfies it.
+1. **Write the composition `.feature` first.** Describe the matter as a sequence or branching graph of reusable workflow
+   steps, using only Person / Entity nouns from [`glossary.md`](glossary.md). The feature is the product-level spec; the
+   template satisfies it by composing already-known steps.
 2. **Write the template + questionnaire.** Create `notation_templates/<category>/<snake_case_name>.md` with the
    frontmatter above. Declare the `questionnaire:` walk and the `workflow:` states. Body prose uses `{{question_code}}`
    placeholders.
 3. **Seed the questions.** Add each new question `code` to `store/seeds/Question.yaml` (prompt, `question_type`,
    help text). The questionnaire's state prefixes must resolve to these codes or N104 fails.
-4. **Declare the workflow YAML.** Compose the post-intake flow from the shared step library (below) — never a one-off
+4. **Declare the workflow YAML.** Compose the post-intake flow from the shared step registry (below) — never a one-off
    handler. Reuse `staff_review`, signature, and document steps so the flow stays auditable.
 5. **Wire the durable handlers.** Bind new workflow steps onto the existing `workflows-service` worker. Never stand up a
    per-workflow pod — one worker hosts every flow.
@@ -80,17 +81,24 @@ Feature-first, so the behavior is specified before the prose exists:
 A template is not legally usable until an attorney has reviewed the body copy. The `staff_review` state is mandatory
 (N106) precisely so a licensed human is always in the loop before anything is sent or filed.
 
+Question codes should stay minimal and reusable. A Question is the stable prompt/fact type (`citizenship_status`,
+`passport_expiration_date`, `registered_agent`); an Answer is the respondent's time-bound value for that question. If a
+future workflow needs to know whether an answer is still fresh, add freshness/expiration metadata to the answer side
+rather than minting a new one-off question code. That keeps questionnaires short: reuse a still-valid answer when it can
+lawfully answer the question, and ask again only when the recorded answer has expired or is no longer adequate for the
+matter.
+
 ## The validation contract
 
 Three rule families guard every template, enforced identically in your editor, in `cli validate`, and in CI — because
 all three call the same `rules` crate. A template that is clean on your laptop is clean in the merge gate.
 
 - **N-family (notation template shape, structural).** N101 title present; N102 valid `respondent_type`; N103 snake_case
-  filename; N104 both machines declare `BEGIN`, reach `END`, and every state prefix resolves to a real Question code;
-  N105 `confidential` is an explicit bool; N106 the `workflow:` has a bare `staff_review` state (the suffix form
-  `staff_review__for_grantor` does **not** satisfy it — the human-review gate must be unconditional); N108 `code` is the
-  stable Template identifier. N-family rules are diagnostic-only: a human must resolve them, the tool will not
-  auto-rewrite legal structure.
+  filename; N104 both machines declare `BEGIN`, reach `END`, questionnaire states resolve to real Question codes, and
+  workflow states resolve to known workflow-step prefixes; N105 `confidential` is an explicit bool; N106 the `workflow:`
+  has a bare `staff_review` state (the suffix form `staff_review__for_grantor` does **not** satisfy it — the
+  human-review gate must be unconditional); N108 `code` is the stable Template identifier. N-family rules are
+  diagnostic-only: a human must resolve them, the tool will not auto-rewrite legal structure.
 - **M-family (markdown hygiene, ~50 rules).** Headings, lists, fences, tables, spacing. Most carry a safe autofix.
 - **S101 (line length).** 120 Unicode scalars per line, every `.md`. Frontmatter is linted too; folded YAML scalars let
   a long value wrap and still pass.
@@ -130,7 +138,7 @@ Neovim, Helix, Emacs, Zed. The authoring loop for a non-engineer legal author:
   The rules themselves are versioned Rust with snapshot tests. A proprietary document-automation tool hides the document
   in an opaque format with no line-level diff and no enforceable structural contract.
 
-## What runs after intake — the step library
+## What runs after intake — the step registry
 
 Once the questionnaire reaches `END`, the workflow machine takes over. Steps are resolved from a state-name prefix to a
 `StepKind` and an actor class (System / Staff / Respondent) in `workflows/src/step.rs`. Honest status of what is wired
@@ -170,6 +178,11 @@ row stays `pending` and no live retainer can claim an on-chain record that does 
 wired into the binding `onboarding__retainer_node` workflow; that one-line YAML edge lands together with the
 `SolanaAttestor` (whose open questions — firm key custody, the client wallet, public-chain confidentiality of the hash,
 and finality — are decisions, not code). See `workflows::attest` and the Neon Law Node product page.
+
+The registry is deliberately small. Template authors should compose these prefixes with discriminators
+(`document_open__articles_pdf`, `mailroom_send__notice_of_representation`) rather than creating per-product verbs. If a
+workflow needs a genuinely new act, add a reusable `StepKind` first, document it here, cover the mechanics in Rust, and
+then compose it from a feature spec.
 
 ### Adding a reusable step — the recipe
 

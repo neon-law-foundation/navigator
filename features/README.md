@@ -8,9 +8,15 @@ wiring. No production code depends on this crate; it exists to be run.
 Legal flows are **feature-first**: the `.feature` is written before the template and the workflow it specifies, so the
 Gherkin is the spec and the Rust is the proof.
 
+For notation-template workflows, a feature spec proves **composition**: which reusable workflow steps a template wires
+together, in what order or branching shape, and which client/lawyer journey that composition supports. Step mechanics
+belong in Rust tests (`StepKind`, payload decoding, dispatch side effects, `ctx.run` durability, guardrails). A feature
+should say "this matter composes `document_open` → `staff_review` → `sent_for_signature`"; it should not re-prove that
+`document_open` is a known engine prefix.
+
 ## Layout
 
-- `tests/features/*.feature` — the Gherkin specs (one file per flow).
+- `tests/features/*.feature` — the Gherkin specs (one file per journey or composition family).
 - `tests/<name>.rs` — one `harness = false` runner per feature file; each owns its own `cucumber::World` and step set.
 - `src/lib.rs` — shared scaffolding only (the pieces more than one runner would otherwise duplicate): the per-test
   Postgres-schema `in_memory_db`, an in-memory `AppState` constructor, an unsigned-JWT forger for the OIDC scenarios,
@@ -32,8 +38,9 @@ Gherkin is the spec and the Rust is the proof.
 - **Portal** — `portal_landing_per_role`, `portal_projects_detail`, `portal_projects_writes`,
   `portal_admin_firm_surface`, `brand_routing`.
 - **Documents & signature** — `trust_esignature`, `esignature_webhook`, `acroform_fill`, `drive_sync_resume`.
-- **Workflow shapes** — `legal_workflow_shapes`, `compliance_filings_workflow_shapes`, `nonprofit_workflow_shapes`,
-  `nautilus_workflows`, `annual_report_filing`.
+- **Workflow composition** — `legal_workflow_shapes`, `compliance_filings_workflow_shapes`,
+  `nonprofit_workflow_shapes`, `nautilus_workflows`, `annual_report_filing`. These group related notation templates by
+  shared step composition; they are not one file per template and not step-unit tests.
 - **Agent & platform** — `mcp_create_notation`, `oidc_callback`, `template_validate`,
   `deploy_the_navigator_walkthrough`, `workshop_navigator_walkthrough`.
 

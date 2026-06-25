@@ -45,6 +45,7 @@ COPY forms             forms
 COPY workflows         workflows
 COPY workflows-service workflows-service
 COPY cloud             cloud
+COPY live-inquiry      live-inquiry
 COPY mcp               mcp
 COPY features          features
 COPY lsp               lsp

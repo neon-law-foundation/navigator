@@ -1428,6 +1428,7 @@ dependencies = [
  "google-cloud-token",
  "image",
  "import",
+ "live-inquiry",
  "owo-colors",
  "pdf",
  "predicates",
@@ -1464,10 +1465,12 @@ dependencies = [
  "async-trait",
  "axum",
  "axum-extra",
+ "base64 0.22.1",
  "chrono",
  "google-cloud-auth",
  "google-cloud-storage",
  "google-cloud-token",
+ "live-inquiry",
  "rand 0.10.1",
  "reqwest 0.13.4",
  "serde",
@@ -4618,6 +4621,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
+name = "live-inquiry"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "rules",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6754,6 +6769,7 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "walkdir",
+ "workflows",
 ]
 
 [[package]]
