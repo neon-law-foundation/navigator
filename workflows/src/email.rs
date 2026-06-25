@@ -24,6 +24,7 @@ pub struct Template {
     pub raw: &'static str,
 }
 
+pub mod certificate;
 pub mod dispatch;
 pub mod email_confirm;
 pub mod google_sign_in;
@@ -35,8 +36,8 @@ pub mod welcome;
 pub use dispatch::{dispatch_state, parse_slug, DispatchError, EmailPayload};
 pub use layout::{base_url_from_env, render_email_html, EmailBrand};
 pub use service::{
-    CapturingEmail, EmailError, EmailService, OutboundEmail, SendGridEmail, SendReceipt,
-    DEFAULT_FROM_EMAIL,
+    Attachment, CapturingEmail, EmailError, EmailService, OutboundEmail, SendGridEmail,
+    SendReceipt, DEFAULT_FROM_EMAIL,
 };
 
 /// Look up an email template by `email_send__<slug>` slug.
@@ -48,6 +49,7 @@ pub use service::{
 pub fn template_for_slug(slug: &str) -> Option<Template> {
     match slug {
         "welcome" => Some(welcome::TEMPLATE),
+        "certificate" => Some(certificate::TEMPLATE),
         // `password_reset` and `email_confirm` are sent directly from
         // `web` (the body carries a per-request, single-use URL the
         // dispatcher's name+email payload can't supply), so they are not
