@@ -6769,6 +6769,7 @@ dependencies = [
  "serde_yaml",
  "tempfile",
  "walkdir",
+ "workflows",
 ]
 
 [[package]]
