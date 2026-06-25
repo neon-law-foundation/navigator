@@ -95,12 +95,12 @@ Fires daily at **05:00 PST** (`0 13 * * *` UTC). Its only job is to cut a calend
 Triggered by the `YY.MM.DD` tag push. Runs the full **KIND integration** suite, then builds and pushes every image — the
 two service images (`navigator-web`, `navigator-workflows-service`) and the five CronJob trigger images
 (`navigator-*-trigger`) — to **ghcr.io** tagged with that date plus `latest`. In parallel with image publishing, it
-builds the public `navigator` CLI and `navigator-lsp` binaries on native Linux, macOS, and Windows runners and attaches
-those six archives to the tag's GitHub Release. On success it posts a **"ready to deploy"** message to the engineering
-Slack channel (the prod ops incoming webhook, `secrets.SLACK_WEBHOOK_URL`, synced from Doppler), tagging Nick with the
-exact `power-push` command to roll the new images to prod; a failure on any stage posts a separate alert to the same
-channel, also tagging Nick. The images are published, **not** rolled out — see [Publish vs. roll
-out](#publish-vs-roll-out) below.
+builds the public `navigator` CLI and `navigator-lsp` binaries on native Linux, macOS, and Windows runners, records
+GitHub artifact attestations for the downloadable archives, and attaches those six archives to the tag's GitHub Release.
+On success it posts a **"ready to deploy"** message to the engineering Slack channel (the prod ops incoming webhook,
+`secrets.SLACK_WEBHOOK_URL`, synced from Doppler), tagging Nick with the exact `power-push` command to roll the new
+images to prod; a failure on any stage posts a separate alert to the same channel, also tagging Nick. The images are
+published, **not** rolled out — see [Publish vs. roll out](#publish-vs-roll-out) below.
 
 ### Maintenance flow — `cleanup.yml`
 
