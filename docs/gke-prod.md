@@ -89,6 +89,11 @@ Daily 05:00 PST (13:00 UTC)
                   ├─ build + push both images to ghcr.io tagged YY.MM.DD + latest
                   └─ post a "ready to deploy" hand-off to the engineering Slack channel
                         Images are on the shelf, tagged by date.
+
+Manual same-day publish
+  └─→ gh workflow run deploy.yml
+        └─→ .github/workflows/deploy.yml derives YY.MM.DD.HH in Pacific time
+              (for example, 26.06.25.14 for June 25, 2026 at 2 p.m.)
 ```
 
 The images are published, not rolled out — promoting a dated image to the GKE cluster (the Config Sync reconcile, or an
@@ -100,7 +105,8 @@ and no registry credential to rotate. Old dated tags are pruned after **14 days*
 
 Friday-Sunday is deliberately skipped — see the comment in `deploy.yml`.
 
-Manual rollout: `gh workflow run deploy.yml` triggers the same sequence on demand.
+Manual rollout: `gh workflow run deploy.yml` triggers the same sequence on demand and publishes under the
+Pacific-hour-suffixed tag.
 
 ## What lives outside this repo
 
