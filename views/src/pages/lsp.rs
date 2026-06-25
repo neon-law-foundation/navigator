@@ -66,7 +66,10 @@ pub fn render(auth: AuthState) -> Markup {
             section."mt-4" {
                 h2 { "…or build from source" }
                 p {
-                    "Prefer to build it yourself? It takes one command."
+                    "Just using the LSP? The download above is all you need. "
+                    "Building from source is the contributor path: clone "
+                    (external_link(REPO_URL, html! { "the repository" }))
+                    " and run one command."
                 }
                 pre { code {
                     "# put navigator-lsp on your $PATH\n"
