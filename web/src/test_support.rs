@@ -44,6 +44,7 @@ pub async fn app_state(db: store::Db) -> AppState {
         docs: crate::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),
         blog: crate::BlogIndex::empty(),
+        transparency: crate::TransparencyIndex::empty(),
         events: crate::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: crate::google_oauth::GoogleOauthConfig::passthrough(),
