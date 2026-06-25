@@ -384,6 +384,7 @@ impl<'a> PageLayout<'a> {
                             a.link-secondary href=(privacy_url()) { "Privacy" } " · "
                             a.link-secondary href=(terms_url()) { "Terms" } " · "
                             a.link-secondary href="/docs" { "Docs" } " · "
+                            a.link-secondary href="/design" { "Design" } " · "
                             a.link-secondary href="/api/docs" { "API" } " · "
                             a.link-secondary href="/contact" { "Contact" } " · "
                             a.link-secondary href="/blog" { "Blog" } " · "
@@ -943,6 +944,7 @@ mod tests {
                 "href=\"/privacy\"",
                 "href=\"/terms\"",
                 "href=\"/docs\"",
+                "href=\"/design\"",
                 "href=\"/api/docs\"",
                 "href=\"/contact\"",
                 "href=\"/blog\"",
@@ -950,6 +952,7 @@ mod tests {
                 "href=\"/foundation/transparency\"",
                 "href=\"/statutes\"",
                 ">Blog</a>",
+                ">Design</a>",
                 ">Mission</a>",
                 ">Transparency</a>",
                 ">Statutes</a>",
