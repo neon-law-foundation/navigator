@@ -40,9 +40,9 @@ your instance, your data, and your upgrade path when we leave.
 [[pricing]]
 
 Prefer to run the install yourself? The Foundation gives the very same recipe away, free and entirely in the open. The
-[Deploy the Navigator](/foundation/workshops/navigator/deploy) workshop stands up the identical stack on your own Google
-Cloud project, and a single `navigator.yaml` brand pack — your name, your logos, your domain — applies in one command.
-Nimbus is that same install, done for you, with your data migrated and your team trained.
+[Deploy the Navigator](/foundation/nebula/workshops/deploy-the-navigator) workshop stands up the identical stack on your
+own Google Cloud project, and a single `navigator.yaml` brand pack — your name, your logos, your domain — applies in one
+command. Nimbus is that same install, done for you, with your data migrated and your team trained.
 
 ## What the two weeks look like
 

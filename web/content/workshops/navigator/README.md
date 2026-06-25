@@ -204,8 +204,8 @@ fight, and these steps equip you to join it. Read the [Foundation mission](/foun
 ## Run your own — and drive it from the command line
 
 This workshop used the "Add AIDA" connector. When you are ready to run your **own** Navigator, the [Deploy the
-Navigator](/foundation/workshops/navigator/deploy) workshop stands up the same stack on your own Google Cloud project —
-and once it is live, the `navigator` CLI drives it from your terminal:
+Navigator](/foundation/nebula/workshops/deploy-the-navigator) workshop stands up the same stack on your own Google Cloud
+project — and once it is live, the `navigator` CLI drives it from your terminal:
 
 ```bash
 navigator login --host <your-host>   # mints a short-lived token
