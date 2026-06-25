@@ -17,8 +17,9 @@ acting on anything below, and keep the doc, not this file, authoritative.
 - **English-first.** English is the only language of every binding or internal artifact: a legal **template body is
   English-only, no exceptions**, as are the portal UI, `/docs`, code, and comments. We localize in exactly two places —
   marketing pages (`/es` Tier-A + the mission letter) and questionnaire intake prompts (`question_translations`, which
-  never bypass `staff_review`). Everything else stays English; push back on portal/`/docs`/email localization. →
-  [`docs/i18n.md`](docs/i18n.md)
+  never bypass `staff_review`). Whenever an English marketing or public Foundation page changes, update its Spanish
+  counterpart in the same PR; do not leave Spanish as a follow-up. Everything else stays English; push back on
+  portal/`/docs`/email localization. → [`docs/i18n.md`](docs/i18n.md)
 - **GCP, but provider-agnostic.** GCP-specific code is isolated to two crates: `cloud` (object storage behind the
   `StorageService` trait — `web` depends on `cloud`, never the GCP SDK) and `cli` (`gcp setup` project provisioning). DB
   (Cloud SQL Postgres), OIDC (Google Identity), and the per-Project git archive stay spec-compliant, not SDK-bound. Dev

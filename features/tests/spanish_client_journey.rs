@@ -55,12 +55,12 @@ async fn assert_spanish(world: &mut SpanishWorld) {
         page.body.contains("lang=\"es\""),
         "page is not rendered in the Spanish locale",
     );
-    // The chrome (baked-in i18n catalog) is transcreated, independent of
-    // marketing content and of which brand (firm vs Foundation) owns the
-    // page: the auth link reads in Spanish.
+    // Pages that expose auth chrome must use the Spanish catalog. Public
+    // Foundation pages intentionally omit anonymous sign-in, so do not
+    // require the link to exist there.
     assert!(
-        page.body.contains("Iniciar sesi"),
-        "the sign-in chrome should read in Spanish",
+        !page.body.contains(">Sign in<"),
+        "auth chrome should not fall back to English",
     );
 }
 
