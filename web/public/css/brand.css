@@ -99,6 +99,69 @@
   border-color: #06b6d4;
 }
 
+.nebula-hero {
+  min-height: clamp(21rem, 48vw, 34rem);
+  background: #111827;
+  border-radius: 0.5rem;
+  color: #fff;
+}
+
+.nebula-hero-media {
+  position: absolute;
+  inset: 0;
+}
+
+.nebula-hero-media .ratio {
+  height: 100%;
+}
+
+.nebula-hero-media::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(90deg, rgba(17, 24, 39, 0.9), rgba(17, 24, 39, 0.56) 48%, rgba(17, 24, 39, 0.2)),
+    linear-gradient(0deg, rgba(17, 24, 39, 0.54), rgba(17, 24, 39, 0));
+}
+
+.nebula-hero-copy {
+  display: flex;
+  min-height: inherit;
+  max-width: 48rem;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.nebula-hero h1 {
+  font-size: 5.5rem;
+  line-height: 0.95;
+}
+
+.nebula-hero .lede {
+  max-width: 44rem;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+@media (max-width: 575.98px) {
+  .nebula-hero {
+    min-height: 26rem;
+  }
+
+  .nebula-hero h1 {
+    font-size: 3.25rem;
+  }
+
+  .nebula-hero-media::after {
+    background: linear-gradient(0deg, rgba(17, 24, 39, 0.92), rgba(17, 24, 39, 0.38));
+  }
+}
+
+@media (min-width: 992px) {
+  .nebula-hero h1 {
+    font-size: 6.5rem;
+  }
+}
+
 .btn-outline-primary {
   --bs-btn-color: #0891b2;
   --bs-btn-border-color: #06b6d4;

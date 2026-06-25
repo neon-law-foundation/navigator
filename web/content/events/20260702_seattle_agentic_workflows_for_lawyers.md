@@ -1,5 +1,5 @@
 ---
-title: Agentic Workflows for Lawyers
+title: "Seattle Show and Tell: Agentic Workflows for Lawyers"
 description: >
   A loose, practical Seattle gathering for lawyers to trade real stories, workflows, tools, demos, and guardrails for
   using agentic AI in legal practice.

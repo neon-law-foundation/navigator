@@ -387,7 +387,6 @@ impl<'a> PageLayout<'a> {
                             a.link-secondary href="/api/docs" { "API" } " · "
                             a.link-secondary href="/contact" { "Contact" } " · "
                             a.link-secondary href="/blog" { "Blog" } " · "
-                            a.link-secondary href="/events" { "Events" } " · "
                             // The mission statement and the Foundation's free
                             // Nevada Revised Statutes reference ride the same link
                             // row as every other policy link — uniform short
@@ -947,7 +946,6 @@ mod tests {
                 "href=\"/api/docs\"",
                 "href=\"/contact\"",
                 "href=\"/blog\"",
-                "href=\"/events\"",
                 "href=\"/foundation\"",
                 "href=\"/foundation/transparency\"",
                 "href=\"/statutes\"",
@@ -992,6 +990,10 @@ mod tests {
             assert!(
                 footer.contains(&format!("href=\"{}\"", foundation_github_url())),
                 "{brand} footer should link the configured repo: {footer}"
+            );
+            assert!(
+                !footer.contains("href=\"/events\""),
+                "{brand} footer should keep events nested under Nebula: {footer}"
             );
         }
     }

@@ -65,7 +65,7 @@ products:
   litigation_phase_suffix: " quoted per phase"
   desc_litigation: High-stakes technology litigation, quoted as a flat fee per phase after case assessment.
   desc_nerd: An independent expert witness on software and data-access disputes, billed hourly.
-  desc_node: An attorney attestation of a fact, like accredited-investor status, recorded on-chain on Solana.
+  desc_node: An attorney attestation of a fact — accredited-investor status, a satisfied closing condition, an entity in good standing — recorded on-chain on Solana.
   desc_newleaf: A flat-fee uncontested divorce for a couple who have already agreed to part ways.
   desc_namesake: A flat-fee U.S. trademark filing for one class, prepared and filed by a licensed attorney.
   desc_nucleus: Flat-fee Nevada investment-fund formation, prepared and filed by a licensed attorney.
