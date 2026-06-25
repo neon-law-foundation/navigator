@@ -78,6 +78,7 @@ async fn state_with_workshops(materials: Vec<WorkshopMaterial>) -> AppState {
         docs: web::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),
         blog: web::BlogIndex::empty(),
+        transparency: web::TransparencyIndex::empty(),
         events: web::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: web::google_oauth::GoogleOauthConfig::passthrough(),
@@ -134,6 +135,78 @@ async fn foundation_mission_renders_the_letter_under_the_foundation_brand() {
     let body = body_string(resp).await;
     assert!(body.contains("<title>Neon Law Foundation | Mission</title>"));
     assert!(body.contains("class=\"mission-letter\""));
+}
+
+async fn state_with_bundled_foundation_docs() -> AppState {
+    AppState {
+        transparency: web::transparency::load_dir(std::path::Path::new(
+            web::DEFAULT_FOUNDATION_DIR,
+        ))
+        .expect("bundled foundation documents load"),
+        ..web::test_support::app_state(in_memory_db().await).await
+    }
+}
+
+#[tokio::test]
+async fn foundation_transparency_lists_required_and_voluntary_disclosures() {
+    let app = web::build_router(
+        state_with_bundled_foundation_docs().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/transparency")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("<title>Neon Law Foundation | Transparency</title>"));
+    assert!(body.contains("Required public disclosures"));
+    assert!(body.contains("Published voluntarily"));
+    // The determination letter PDF is linked, and the bundled governance +
+    // minutes documents are wired through to their own pages.
+    assert!(body.contains("href=\"/public/foundation/determination-letter.pdf\""));
+    assert!(body.contains("href=\"/foundation/transparency/bylaws\""));
+    assert!(body.contains("href=\"/foundation/transparency/conflict-of-interest\""));
+    assert!(body.contains("href=\"/foundation/transparency/minutes-2026-q2\""));
+    assert!(body.contains("href=\"/foundation/transparency/minutes-2021-q1\""));
+}
+
+#[tokio::test]
+async fn foundation_transparency_renders_one_document_and_404s_unknown_slug() {
+    let app = web::build_router(
+        state_with_bundled_foundation_docs().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let bylaws = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/transparency/bylaws")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bylaws.status(), StatusCode::OK);
+    let body = body_string(bylaws).await;
+    assert!(body.contains("<title>Neon Law Foundation | Bylaws</title>"));
+    assert!(body.contains("href=\"/foundation/transparency\""));
+
+    let missing = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/transparency/does-not-exist")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -449,6 +522,7 @@ async fn health_returns_503_when_db_is_down() {
         docs: web::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),
         blog: web::BlogIndex::empty(),
+        transparency: web::TransparencyIndex::empty(),
         events: web::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: web::google_oauth::GoogleOauthConfig::passthrough(),
