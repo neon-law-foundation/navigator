@@ -9,16 +9,29 @@ pub mod loader;
 
 use std::sync::Arc;
 
-/// One step in a workshop — the content under a single `##` heading,
-/// rendered for the "one thing at a time" classroom flow. The reader
-/// walks these one URL at a time (`/…/:slug/step/:n`).
+/// One slide in a workshop — the content under a single `##` heading,
+/// rendered for the Keynote-style classroom flow. The reader walks
+/// these one URL at a time (`/…/:slug/step/:n`) or scans them all in
+/// the light-table grid (`/…/:slug/slides`).
+///
+/// Each slide is authored as a `##` section whose body may carry a
+/// thematic-break divider (`---`): everything above is the **slide
+/// face** ([`Self::body_html`]); everything below is the **presenter
+/// notes** ([`Self::notes_html`]). The workshop-format invariant test
+/// (`every_workshop_section_has_presenter_notes`) requires every slide
+/// to carry notes, so the divider is mandatory in shipped content.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkshopSection {
     /// The heading text, used for the table of contents and the
     /// progress label.
     pub title: String,
-    /// Pre-rendered HTML for this section (includes its own `<h2>`).
+    /// Pre-rendered HTML for the slide face (includes its own `<h2>`) —
+    /// the content above the `---` divider.
     pub body_html: String,
+    /// Pre-rendered HTML for the presenter notes — the content below the
+    /// `---` divider. Empty only for legacy/unsplit sections; shipped
+    /// workshops always populate it (enforced by the format test).
+    pub notes_html: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

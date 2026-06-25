@@ -225,6 +225,12 @@ impl<'a> PageLayout<'a> {
                     // footer is one block on every page, signed-in or not,
                     // so the script loads unconditionally.
                     script defer src="/public/js/github-stars.js" {}
+                    // First-party: workshop slide progress — marks slides
+                    // seen in localStorage (no telemetry), paints checks on
+                    // the light table, and unlocks the certificate form.
+                    // Inert unless a `[data-workshop-progress]` element is
+                    // on the page.
+                    script defer src="/public/js/workshop-progress.js" {}
                 }
                 body {
                     header {

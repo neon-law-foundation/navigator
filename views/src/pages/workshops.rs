@@ -66,7 +66,8 @@ pub struct MaterialOverview<'a> {
     pub md_href: &'a str,
 }
 
-/// A single step in the classroom flow.
+/// A single slide in the classroom flow — the slide face on top, the
+/// presenter notes beneath, like a Keynote slide with its speaker notes.
 pub struct WorkshopStep<'a> {
     /// Route prefix for this material, e.g.
     /// `/foundation/workshops/navigator`.
@@ -74,13 +75,37 @@ pub struct WorkshopStep<'a> {
     pub slug: &'a str,
     pub workshop_title: &'a str,
     pub title: &'a str,
-    /// Rendered HTML for this one section (includes its own `<h2>`).
+    /// Rendered HTML for the slide face (includes its own `<h2>`).
     pub body_html: &'a str,
+    /// Rendered HTML for the presenter notes shown beneath the slide.
+    /// Empty only for legacy/unsplit sections.
+    pub notes_html: &'a str,
     /// 1-based position.
     pub number: usize,
     pub total: usize,
     /// Every step, for the jump-to-step dropdown.
     pub steps: &'a [StepSummary<'a>],
+}
+
+/// One slide thumbnail in the light-table grid.
+pub struct SlideThumb<'a> {
+    /// 1-based slide number.
+    pub number: usize,
+    pub title: &'a str,
+    /// Rendered HTML of the slide face, shown shrunk into the thumbnail.
+    pub body_html: &'a str,
+}
+
+/// The light-table view of a whole workshop: every slide as a thumbnail
+/// in a grid, a client-side progress count, and — once every slide has
+/// been viewed — a form to receive a completion certificate by email.
+pub struct LightTable<'a> {
+    pub base: &'a str,
+    pub slug: &'a str,
+    pub workshop_title: &'a str,
+    pub slides: &'a [SlideThumb<'a>],
+    /// Double-submit CSRF token for the certificate request form.
+    pub csrf_token: &'a str,
 }
 
 // The top-level overview speaks to the reader, not about the firm:
@@ -160,6 +185,12 @@ pub fn overview(m: &MaterialOverview<'_>, auth: AuthState) -> Markup {
                             "Start →"
                         }
                     }
+                    @if !m.steps.is_empty() {
+                        a."btn"."btn-outline-secondary" href={ (m.base) "/" (m.slug) "/slides" } {
+                            i."bi"."bi-grid-3x3-gap" aria-hidden="true" {}
+                            " View all slides"
+                        }
+                    }
                     (copy_markdown_button(m.md_href))
                     a."btn"."btn-outline-secondary" href=(m.md_href) {
                         i."bi"."bi-filetype-md" aria-hidden="true" {}
@@ -198,7 +229,15 @@ pub fn overview(m: &MaterialOverview<'_>, auth: AuthState) -> Markup {
 pub fn step(s: &WorkshopStep<'_>, auth: AuthState) -> Markup {
     let pct = (s.number * 100).checked_div(s.total).unwrap_or(0);
     let body = html! {
-        article.workshop-step {
+        // `data-workshop-progress="step"` + the slug/number let
+        // `workshop-progress.js` mark this slide seen in localStorage on
+        // view (no server call, no telemetry). The light-table reads the
+        // same keys to paint checks and unlock the certificate.
+        article.workshop-step
+            data-workshop-progress="step"
+            data-workshop-slug=(s.slug)
+            data-slide=(s.number)
+        {
             div.container {
                 // Persistent rail: back to the hub, progress, and a
                 // jump-to-step dropdown so orientation is never stranded
@@ -225,8 +264,33 @@ pub fn step(s: &WorkshopStep<'_>, auth: AuthState) -> Markup {
                         div."progress-bar" style={ "width:" (pct) "%" } {}
                     }
                 }
-                section.material-body { (PreEscaped(s.body_html)) }
+                // The slide face: a fixed-aspect card so the deck reads
+                // like Keynote. A green check rides the corner once the
+                // JS has marked this slide seen.
+                section.workshop-slide."card"."shadow-sm"."position-relative" {
+                    span.slide-seen-badge."position-absolute"."top-0"."end-0"."m-2"
+                        data-slide-seen-badge hidden
+                        aria-hidden="true"
+                    {
+                        i."bi"."bi-check-circle-fill"."text-success"."fs-4" {}
+                    }
+                    div."card-body"."material-body" { (PreEscaped(s.body_html)) }
+                }
                 (crate::components::code::syntax_highlight_assets())
+                @if !s.notes_html.is_empty() {
+                    aside.presenter-notes."mt-3" aria-label="Presenter notes" {
+                        p.presenter-notes-label."text-uppercase"."small"."fw-semibold"."text-body-secondary"."mb-2" {
+                            "Presenter notes"
+                        }
+                        div.presenter-notes-body { (PreEscaped(s.notes_html)) }
+                    }
+                }
+                div."text-center"."mt-3" {
+                    a."small"."text-decoration-none" href={ (s.base) "/" (s.slug) "/slides" } {
+                        i."bi"."bi-grid-3x3-gap" aria-hidden="true" {}
+                        " View all slides"
+                    }
+                }
                 nav."d-flex"."justify-content-between"."align-items-center"."gap-2"."mt-4"
                     aria-label="Step navigation"
                 {
@@ -256,6 +320,138 @@ pub fn step(s: &WorkshopStep<'_>, auth: AuthState) -> Markup {
     };
     PageLayout::new(s.title)
         .with_description(s.workshop_title)
+        .with_brand(*FOUNDATION_BRAND)
+        .with_auth(auth)
+        .render(&body)
+}
+
+/// The light-table grid: every slide as a thumbnail, a client-side
+/// progress count, and a certificate form unlocked once all slides are
+/// seen. Progress lives only in `localStorage` (no telemetry); the
+/// `data-*` hooks drive `workshop-progress.js`.
+#[must_use]
+pub fn slides(t: &LightTable<'_>, auth: AuthState) -> Markup {
+    let title = format!("{} — slides", t.workshop_title);
+    let action = format!("{}/{}/certificate", t.base, t.slug);
+    let total = t.slides.len();
+    let body = html! {
+        article.workshop-lighttable
+            data-workshop-progress="lighttable"
+            data-workshop-slug=(t.slug)
+            data-total=(total)
+        {
+            div.container {
+                nav."mb-3" aria-label="Back to workshop" {
+                    a."small"."text-decoration-none" href={ (t.base) "/" (t.slug) } {
+                        "← " (t.workshop_title)
+                    }
+                }
+                header."d-flex"."justify-content-between"."align-items-center"."flex-wrap"."gap-2"."mb-3" {
+                    h1."h3"."mb-0" { (t.workshop_title) }
+                    span.workshop-progress-count."badge"."text-bg-secondary" data-progress-count {
+                        "0 / " (total) " viewed"
+                    }
+                }
+                p."text-body-secondary" {
+                    "Open any slide to read it — each one earns a green check, kept only in this browser and "
+                    "never sent anywhere. View them all to unlock your certificate."
+                }
+                div."row"."row-cols-2"."row-cols-md-3"."row-cols-lg-4"."g-3" {
+                    @for sl in t.slides {
+                        div."col" {
+                            a."slide-thumb-link"."text-decoration-none"."text-reset"
+                                href={ (t.base) "/" (t.slug) "/step/" (sl.number) }
+                                data-slide=(sl.number)
+                            {
+                                div."card"."h-100"."shadow-sm"."position-relative" {
+                                    span.slide-seen-badge."position-absolute"."top-0"."end-0"."m-1"
+                                        data-slide-seen-badge hidden aria-hidden="true"
+                                    {
+                                        i."bi"."bi-check-circle-fill"."text-success"."fs-5" {}
+                                    }
+                                    // A shrunk peek of the slide face. Inline
+                                    // styles match the existing progress-bar
+                                    // pattern (CSP allows inline style).
+                                    div."slide-thumb-preview"."card-body"."p-2"."overflow-hidden"
+                                        aria-hidden="true"
+                                        style="height:9rem;font-size:.5rem;line-height:1.2"
+                                    {
+                                        (PreEscaped(sl.body_html))
+                                    }
+                                    div."card-footer"."small"."text-truncate"."py-1" {
+                                        (sl.number) ". " (sl.title)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                (crate::components::code::syntax_highlight_assets())
+                // Revealed by `workshop-progress.js` only when every slide
+                // has been viewed. Completion is client-trusted by design
+                // (no telemetry), so this gate is a courtesy, not an
+                // access control.
+                section.workshop-certificate."card"."border-success"."mt-4"
+                    data-cert-gate hidden
+                {
+                    div."card-body" {
+                        h2."h4" { "You finished — claim your certificate" }
+                        p {
+                            "Enter your name and email and the Neon Law Foundation will send a PDF "
+                            "certificate of completion."
+                        }
+                        form."row"."g-2"."align-items-end" method="post" action=(action) {
+                            input type="hidden" name="csrf_token" value=(t.csrf_token);
+                            div."col-12"."col-md-4" {
+                                label."form-label"."small" for="cert-name" { "Your name" }
+                                input."form-control" type="text" id="cert-name" name="name"
+                                    required maxlength="120" placeholder="Jane Q. Student";
+                            }
+                            div."col-12"."col-md-5" {
+                                label."form-label"."small" for="cert-email" { "Email" }
+                                input."form-control" type="email" id="cert-email" name="email"
+                                    required maxlength="254" placeholder="you@example.com";
+                            }
+                            div."col-12"."col-md-3"."d-grid" {
+                                button."btn"."btn-success" type="submit" { "Email my certificate" }
+                            }
+                        }
+                        p."form-text"."mt-2"."mb-0" {
+                            "We use your email only to send this certificate."
+                        }
+                    }
+                }
+            }
+        }
+    };
+    PageLayout::new(&title)
+        .with_description("Every slide in the workshop, at a glance.")
+        .with_brand(*FOUNDATION_BRAND)
+        .with_auth(auth)
+        .render(&body)
+}
+
+/// Neutral confirmation after a certificate request. The same page shows
+/// whether or not the address was valid, so the endpoint isn't an oracle.
+#[must_use]
+pub fn certificate_sent(workshop_title: &str, base: &str, auth: AuthState) -> Markup {
+    let body = html! {
+        article.workshop-cert-sent {
+            div.container."text-center"."py-5" {
+                h1 { "Check your inbox" }
+                p.lead {
+                    "Your certificate for " em { (workshop_title) }
+                    " is on its way from the Neon Law Foundation."
+                }
+                p."text-body-secondary" {
+                    "It can take a minute to arrive — and it's worth checking your spam folder."
+                }
+                a."btn"."btn-outline-secondary" href=(base) { "← Back to the workshop" }
+            }
+        }
+    };
+    PageLayout::new("Certificate on its way")
+        .with_description("Your workshop completion certificate is on its way.")
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
         .render(&body)
@@ -475,6 +671,7 @@ mod tests {
             workshop_title: "Runbook",
             title: "Build the template",
             body_html: "<pre><code class=\"language-rust\">fn main() {}</code></pre>",
+            notes_html: "<p>Notes.</p>",
             number: 1,
             total: 3,
             steps: &steps,
@@ -527,6 +724,7 @@ mod tests {
             workshop_title: "Runbook",
             title: "Build the template",
             body_html: "<h2>Build the template</h2><p>do it</p>",
+            notes_html: "<p>Walk the room through why.</p>",
             number: 2,
             total: 3,
             steps: &steps,
@@ -563,6 +761,7 @@ mod tests {
             workshop_title: "Rust in Peace",
             title: "One language, every library",
             body_html: "<h2>One language, every library</h2>",
+            notes_html: "<p>Speaker notes.</p>",
             number: 2,
             total: 3,
             steps: &steps,
@@ -582,6 +781,7 @@ mod tests {
             workshop_title: "Runbook",
             title: "Install",
             body_html: "<h2>Install</h2>",
+            notes_html: "<p>Notes.</p>",
             number: 1,
             total: 3,
             steps: &steps,
@@ -600,6 +800,7 @@ mod tests {
             workshop_title: "Runbook",
             title: "Notarize",
             body_html: "<h2>Notarize</h2>",
+            notes_html: "<p>Notes.</p>",
             number: 3,
             total: 3,
             steps: &steps,
