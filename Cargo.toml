@@ -15,6 +15,7 @@ members = [
     "features",
     "forms",
     "lsp",
+    "live-inquiry",
     "pdf",
     "archives",
     "statutes",
@@ -112,6 +113,7 @@ cloud = { path = "cloud" }
 features = { path = "features" }
 forms = { path = "forms" }
 import = { path = "import" }
+live-inquiry = { path = "live-inquiry" }
 mcp = { path = "mcp" }
 pdf = { path = "pdf" }
 repos = { path = "repos" }

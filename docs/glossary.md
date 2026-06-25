@@ -116,6 +116,14 @@ An **attorney** — spelled c-o-u-n-s-e-l. The members of the [Legal Council](#c
 Distinct from [Council](#council) (c-o-u-n-c-i-l), which is the *group*: the Legal Council is a council of counsels.
 [AIDA](#aida) is the agent that carries the Legal Council tool — it is neither a counsel nor the name of the council.
 
+## Coverage Finding
+
+One assessment of whether an [Inquiry](#inquiry) has been answered during a Live Inquiry Session. A finding may be
+model-authored or staff-authored, and it cites transcript evidence; it is not a confirmed [Answer](notation.md#answer)
+until staff turns it into one.
+
+- Design: [`live-inquiry-coverage.md`](live-inquiry-coverage.md)
+
 ## Credential
 
 A Person's licensure in a Jurisdiction — pairs a Person with a Jurisdiction and a state-issued `license_number`. The
@@ -296,6 +304,19 @@ transaction. Per-channel data (email headers, fax metadata) belongs in per-chann
 - Schema: [`store::entity::document`](../store/src/entity/document.rs)
 - Lives in: `documents` table
 
+## Inquiry
+
+One thing a transcript-bearing session should answer. By default, an Inquiry is the normalized live-coverage projection
+of a Template Question: the markdown Template declares the `questionnaire:`, the LSP/CLI validate it, and the Live
+Inquiry Session tracks whether the transcript answered it. The term is broader than [Question](notation.md#question)
+because deposition outline items, witness-prep prompts, and intake checklist items can also be Inquiries. An ordered
+group of Inquiries is an **Inquiry Set**.
+
+Use Inquiry rather than "interrogatory" for the generic product noun: an interrogatory is already a formal written
+discovery device in litigation.
+
+- Design: [`live-inquiry-coverage.md`](live-inquiry-coverage.md)
+
 ## Invoice
 
 One billable invoice owned by an Entity Billing Profile. Status is `draft`, `issued`, `paid`, or `void`. Totals are
@@ -322,6 +343,15 @@ A US state, federal jurisdiction, or foreign jurisdiction that an Entity can be 
 One physical piece of mail, incoming or outgoing, scoped to a Mailroom.
 
 - Schema: [`store::entity::letter`](../store/src/entity/letter.rs)
+
+## Live Inquiry Session
+
+One Project-scoped, transcript-bearing event — for example a Northstar sitting, deposition, witness interview, or client
+intake call — evaluated against an [Inquiry](#inquiry) Set while the transcript develops. Transcript segments persist
+immediately, speaker labels are provisional until mapped to a [Person](#person), and Coverage Findings remain proposed
+until staff confirms them.
+
+- Design: [`live-inquiry-coverage.md`](live-inquiry-coverage.md)
 
 ## Mailroom
 
@@ -596,6 +626,14 @@ is **retainer intake** — see [`docs/retainer_intake.md`](retainer_intake.md).
 ## Transition
 
 One edge between States, fired by an event (e.g. `retainer_rendered`, `signature_received`).
+
+## Transcript Segment
+
+One append-only chunk of text captured during a [Live Inquiry Session](#live-inquiry-session). A segment may carry a
+provider speaker label such as `speaker_1`, but that label is not identity; staff can later map it to a Person or
+session role before confirming an Answer.
+
+- Design: [`live-inquiry-coverage.md`](live-inquiry-coverage.md)
 
 ## Workflow
 

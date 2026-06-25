@@ -1,0 +1,52 @@
+questionnaire:
+  BEGIN:
+    _: client_name
+  client_name:
+    _: client_email
+  client_email:
+    _: date_of_birth
+  date_of_birth:
+    _: country_of_birth
+  country_of_birth:
+    _: country_of_citizenship
+  country_of_citizenship:
+    _: a_number
+  a_number:
+    _: lpr_since
+  lpr_since:
+    _: daytime_phone
+  daytime_phone:
+    _: eligibility_basis
+  eligibility_basis:
+    _: marital_status
+  marital_status:
+    _: time_outside_us
+  time_outside_us:
+    _: good_moral_character
+  good_moral_character:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    intake_submitted: intake_persisted__applicant
+  intake_persisted__applicant:
+    application_rendered: staff_review
+  staff_review:
+    approved: document_open__n400_summary
+    rejected: END
+  document_open__n400_summary:
+    pdf_persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: e_filing__uscis
+    signature_declined: END
+  e_filing__uscis:
+    filed: mailroom_receive__biometrics_notice
+  mailroom_receive__biometrics_notice:
+    received: mailroom_receive__interview_notice
+  mailroom_receive__interview_notice:
+    received: mailroom_receive__oath_notice
+  mailroom_receive__oath_notice:
+    certificate_received: document_intake__certificate_of_naturalization
+  document_intake__certificate_of_naturalization:
+    certificate_filed: END
+  END: {}

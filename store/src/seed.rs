@@ -194,6 +194,9 @@ mod canonical {
     pub const TEMPLATE_NAUTILUS_SETTLEMENT: &str = include_str!(
         "../../notation_templates/united_states/federal/internal/debt_relief/settlement_letter.md"
     );
+    pub const TEMPLATE_NATURALIZATION: &str = include_str!(
+        "../../notation_templates/united_states/federal/internal/immigration/naturalization.md"
+    );
     // Service-specific retainers — one engagement agreement per product.
     // Each carries the shared JAMS arbitration + `support@` clauses
     // (byte-identical across all six, guarded by a body test) and a
@@ -378,6 +381,10 @@ async fn seed_templates(
         (
             "united_states/federal/internal/debt_relief/settlement_letter.md",
             canonical::TEMPLATE_NAUTILUS_SETTLEMENT,
+        ),
+        (
+            "united_states/federal/internal/immigration/naturalization.md",
+            canonical::TEMPLATE_NATURALIZATION,
         ),
         (
             "neon_law/engagements/retainer_nest.md",
@@ -1653,7 +1660,7 @@ mod tests {
             .await
             .expect("seed");
         assert_eq!(
-            report.templates_inserted, 37,
+            report.templates_inserted, 38,
             "expected the full bundled template catalog to be inserted on first pass"
         );
         // Spot-check templates from across the catalog so a dropped
@@ -1708,7 +1715,7 @@ mod tests {
         let db = pg().await;
         let first = seed_canonical(&db, &fs_storage().await).await.unwrap();
         let second = seed_canonical(&db, &fs_storage().await).await.unwrap();
-        assert_eq!(first.templates_inserted, 37);
+        assert_eq!(first.templates_inserted, 38);
         assert_eq!(
             second.templates_inserted, 0,
             "second pass must skip every existing template"
