@@ -302,9 +302,8 @@ async fn root_returns_home_page_html() {
     let body = body_string(resp).await;
     assert!(body.starts_with("<!DOCTYPE html>"));
     assert!(body.contains("<title>Neon Law | Home</title>"));
-    assert!(body.contains(
-        "A licensed attorney scopes the work, quotes a fixed fee when the matter can be priced that way"
-    ));
+    assert!(body
+        .contains("a licensed attorney works with you, with transparent pricing before the work"));
     assert!(body.contains("LSC Justice Gap Report, 2022"));
     assert!(body.contains("href=\"/foundation/notations\""));
     // It is firm-branded prose and cards — no old marketing hero strip.
