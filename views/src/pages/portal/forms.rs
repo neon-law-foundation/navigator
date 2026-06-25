@@ -27,7 +27,7 @@ pub fn index(rows: &[FormRow]) -> Markup {
             div.container {
                 h1."h3"."mb-2" { "Blank government forms" }
                 p."text-body-secondary"."mb-4" {
-                    "The official forms Navigator fills — vendored from each authority's "
+                    "The official forms Neon Law Navigator fills — vendored from each authority's "
                     "own site and pinned by revision. Download a blank to read what a "
                     "filing asks before you answer the questionnaire; your matter's "
                     "filled copy always goes through attorney review."
@@ -72,7 +72,7 @@ pub fn index(rows: &[FormRow]) -> Markup {
             }
         }
     };
-    PageLayout::new("Blank government forms — Navigator")
+    PageLayout::new("Blank government forms — Neon Law Navigator")
         .with_auth(crate::AuthState::Authenticated)
         .render(&body)
 }

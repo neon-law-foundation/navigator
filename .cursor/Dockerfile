@@ -1,4 +1,4 @@
-# Base image for Cursor Cloud / Background Agents working on Navigator.
+# Base image for Cursor Cloud / Background Agents working on Neon Law Navigator.
 #
 # Bakes the native build toolchain, a pinned Rust, and a local Postgres
 # (role/db `navigator`) so `cargo fmt`/`clippy`/`test --workspace` work

@@ -1,7 +1,7 @@
 //! `coupons` table — a reusable, named discount applied to a subscription
 //! at sign-up. See [`m20260720_create_coupons`](super::super::migration).
 //!
-//! Xero has no coupon object, so a coupon is a Navigator concept: it holds
+//! Xero has no coupon object, so a coupon is a Neon Law Navigator concept: it holds
 //! the *intent* of a standing discount. Applying it resolves to one of
 //! [`billing::LineDiscount`]'s two shapes and snapshots that onto the
 //! subscription's own discount columns — see [`super::subscription`] — so

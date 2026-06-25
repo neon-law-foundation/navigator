@@ -1,8 +1,8 @@
-# Running Navigator on AWS, Azure, or self-hosted Kubernetes
+# Running Neon Law Navigator on AWS, Azure, or self-hosted Kubernetes
 
-Navigator's application code is cloud-agnostic. The Rust workspace depends on two abstractions — `cloud::StorageService`
-and `store::Db` — plus a handful of SaaS-shaped env-driven integrations (OIDC, OPA, Restate, SendGrid). Nothing in the
-canonical build pulls in a GCP-only SDK at compile time.
+Neon Law Navigator's application code is cloud-agnostic. The Rust workspace depends on two abstractions —
+`cloud::StorageService` and `store::Db` — plus a handful of SaaS-shaped env-driven integrations (OIDC, OPA, Restate,
+SendGrid). Nothing in the canonical build pulls in a GCP-only SDK at compile time.
 
 What ships **wired up** is the GCP path (see [`oss-install.md`](oss-install.md)). What ships **sketched** below are the
 moving parts you'd swap to run on a different cloud. None of the sketches has production-equivalent test coverage today
@@ -50,7 +50,7 @@ moving parts you'd swap to run on a different cloud. None of the sketches has pr
 The shape is identical to EKS, with two substitutions:
 
 - **Identity** — Microsoft Entra ID (formerly Azure AD) is a fine OIDC provider; the redirect URI shape is the same.
-- **Storage** — Azure Blob Storage. Same gap as S3: write an `AzureBlobStorage: StorageService`.
+  **Storage** — Azure Blob Storage. Same gap as S3: write an `AzureBlobStorage: StorageService`.
 
 The Kubernetes manifests don't need cluster-specific changes beyond the ingress class and the cert source.
 
@@ -58,11 +58,10 @@ The Kubernetes manifests don't need cluster-specific changes beyond the ingress 
 
 If you're running k3s, k0s, kind, or a vanilla kubeadm cluster:
 
-- Run Postgres in-cluster via the Bitnami / Zalando operator, or point at any external instance.
-- Run Keycloak in-cluster for OIDC (see [`oidc.md`](oidc.md) — the KIND dev path uses exactly this).
-- Run the Restate Operator in-cluster for durable workflows.
-- Use the `fs` storage backend (`NAVIGATOR_STORAGE_BACKEND=fs`) backed by a PersistentVolume, or stand up
-  `fake-gcs-server` / MinIO for S3-compatible storage.
+- Run Postgres in-cluster via the Bitnami / Zalando operator, or point at any external instance. Run Keycloak in-cluster
+  for OIDC (see [`oidc.md`](oidc.md) — the KIND dev path uses exactly this). Run the Restate Operator in-cluster for
+  durable workflows. Use the `fs` storage backend (`NAVIGATOR_STORAGE_BACKEND=fs`) backed by a PersistentVolume, or
+  stand up `fake-gcs-server` / MinIO for S3-compatible storage.
 
 This is essentially the KIND dev path scaled out — see [`cli/README.md`](../cli/README.md).
 

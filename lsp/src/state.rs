@@ -160,7 +160,7 @@ impl Server {
                 kept.push(edit);
             }
             actions.push(CodeActionOrCommand::CodeAction(CodeAction {
-                title: "Navigator: fix all auto-fixable problems".to_string(),
+                title: "Neon Law Navigator: fix all auto-fixable problems".to_string(),
                 kind: Some(CodeActionKind::SOURCE_FIX_ALL),
                 diagnostics: None,
                 edit: Some(workspace_edit(uri, text, &kept)),

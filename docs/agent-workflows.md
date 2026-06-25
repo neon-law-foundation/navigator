@@ -7,8 +7,8 @@ those actions.
 ## The two actions
 
 - **Create a PR** when the task asks for new code, docs, configuration, tests, or a branch that can merge into `main`.
-- **Review/update a PR** when the task starts from an existing PR, review comment, CI result, requested change, or
-  "view this PR" request.
+  **Review/update a PR** when the task starts from an existing PR, review comment, CI result, requested change, or "view
+  this PR" request.
 
 Do not invent a third agent workflow. Preparing, authoring a Restate handler, creating a legal workflow, running
 Markdown lint, checking GitOps, and consulting the councils are subroutines inside one of these two actions.
@@ -108,9 +108,9 @@ cargo build -p cli --quiet
 ./target/debug/navigator validate --no-default-excludes .
 ```
 
-That command builds the Navigator CLI, checks every included Markdown file in the visible repository tree, and applies
-the notation-template superset to files under `notation_templates/` or any Markdown file with `questionnaire:` or
-`workflow:` frontmatter.
+That command builds the Neon Law Navigator CLI, checks every included Markdown file in the visible repository tree, and
+applies the notation-template superset to files under `notation_templates/` or any Markdown file with `questionnaire:`
+or `workflow:` frontmatter.
 
 ### Legal workflow authoring
 
@@ -158,8 +158,8 @@ durable worker is a production risk.
 
 ### Resource cleanup
 
-Navigator is a large Rust monorepo; agents should assume disk and memory are scarce. Before ending a create-PR or
-review/update-PR session, clean up resources created for that task.
+Neon Law Navigator is a large Rust monorepo; agents should assume disk and memory are scarce. Before ending a create-PR
+or review/update-PR session, clean up resources created for that task.
 
 For Cargo builds:
 
@@ -178,9 +178,9 @@ For Docker, KIND, and browser e2e:
   the cluster and forces a slow rebuild next time. Full teardown is for a deliberate clean rebuild only. If a
   port-forward died, re-running `start-dev-server` reuses the existing cluster. See
   [`RUNBOOK.md`](RUNBOOK.md#keep-the-deps-up-across-sessions-the-persistent-fixture).
-- Remove task-created standalone containers and images when they are no longer needed.
-- Reclaim Docker build cache after image-heavy or e2e work with `docker builder prune --force --filter until=24h`, or
-  the narrowest equivalent that matches the resources you created.
+- Remove task-created standalone containers and images when they are no longer needed. Reclaim Docker build cache after
+  image-heavy or e2e work with `docker builder prune --force --filter until=24h`, or the narrowest equivalent that
+  matches the resources you created.
 - Use `docker system df` before broad cleanup. `docker system prune` removes stopped containers, unused networks,
   dangling images, and unused build cache; add `-a` only when you intentionally want unused images removed too.
 - Do not prune Docker volumes unless the user explicitly approves the data loss. Docker does not remove volumes by
@@ -193,6 +193,6 @@ report anything left running or left on disk.
 
 - Dependency refresh: follow the Rust crate and web asset sections in [`rust-programming.md`](rust-programming.md) and
   the vendored asset rules in `web/public/VENDOR.toml`.
-- ERD refresh: regenerate [`erd.md`](erd.md) and [`erd.svg`](erd.svg) together after schema changes.
-- Government forms: use canonical issuing-authority sources and keep provenance in [`gov-forms.md`](gov-forms.md).
-- Disk cleanup: measure first, reclaim safely, and do not delete Docker volumes unless the user approves the data loss.
+- ERD refresh: regenerate [`erd.md`](erd.md) and [`erd.svg`](erd.svg) together after schema changes. Government forms:
+  use canonical issuing-authority sources and keep provenance in [`gov-forms.md`](gov-forms.md). Disk cleanup: measure
+  first, reclaim safely, and do not delete Docker volumes unless the user approves the data loss.

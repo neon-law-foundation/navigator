@@ -1,9 +1,9 @@
 # Local end-to-end runbook
 
-Step-by-step instructions to bring the full Navigator stack up in a local KIND cluster and walk through the OIDC + admin
-flow in Chrome. Every command in this document has been verified against the manifests and Makefile in the repo as of
-the commit that introduces this file. The runtime steps (`docker`, `kind`, `kubectl`) run on your machine, so they're
-marked with `🔧 you run`; everything else has been mechanically validated.
+Step-by-step instructions to bring the full Neon Law Navigator stack up in a local KIND cluster and walk through the
+OIDC + admin flow in Chrome. Every command in this document has been verified against the manifests and Makefile in the
+repo as of the commit that introduces this file. The runtime steps (`docker`, `kind`, `kubectl`) run on your machine, so
+they're marked with `🔧 you run`; everything else has been mechanically validated.
 
 ## 0. Prerequisites
 
@@ -144,7 +144,7 @@ You should see staff with `role = staff`. After it logs in, `oidc_subject` popul
 
 Five URLs to visit, in order. Each one exercises a different piece of the stack.
 
-### 4.1 Navigator home page
+### 4.1 Neon Law Navigator home page
 
 <http://localhost:8080>
 
@@ -184,24 +184,19 @@ Click "Sign In". Keycloak issues a one-time `code`, redirects back to
 
 If you pre-seeded the staff role in step 3:
 
-- Callback decodes id_token (`sub=<keycloak-uuid>`, `email=staff@neonlaw.com`).
-- `upsert_person_from_claims` matches the seeded row by email, promotes it (stamps `oidc_subject`), reads
-  `role = staff`.
-- Session cookie set: `{ sub, email, person_id, role: "staff", exp, csrf_token }`.
-- 302 → `/portal` — the role-aware landing. OPA allows any authenticated person here, so the dashboard renders;
-  `role == "staff"` only becomes load-bearing on the `/portal/admin/*` routes below.
+- Callback decodes id_token (`sub=<keycloak-uuid>`, `email=staff@neonlaw.com`). `upsert_person_from_claims` matches the
+  seeded row by email, promotes it (stamps `oidc_subject`), reads `role = staff`.
+- Session cookie set: `{ sub, email, person_id, role: "staff", exp, csrf_token }`. 302 → `/portal` — the role-aware
+  landing. OPA allows any authenticated person here, so the dashboard renders; `role == "staff"` only becomes
+  load-bearing on the `/portal/admin/*` routes below.
 
 Now try the admin routes — each `/portal/admin/*` path hits the `staff` gate, while `/portal` and `/portal/projects`
 need only an authenticated session:
 
-- <http://localhost:8080/portal>
-- <http://localhost:8080/portal/admin/people>
-- <http://localhost:8080/portal/admin/entities>
-- <http://localhost:8080/portal/admin/jurisdictions>
-- <http://localhost:8080/portal/admin/entity-types>
-- <http://localhost:8080/portal/admin/templates>
-- <http://localhost:8080/portal/admin/questions>
-- <http://localhost:8080/portal/projects>
+- <http://localhost:8080/portal> <http://localhost:8080/portal/admin/people>
+  <http://localhost:8080/portal/admin/entities> <http://localhost:8080/portal/admin/jurisdictions>
+  <http://localhost:8080/portal/admin/entity-types> <http://localhost:8080/portal/admin/templates>
+  <http://localhost:8080/portal/admin/questions> <http://localhost:8080/portal/projects>
 
 All should return 200 and render their table.
 

@@ -4,10 +4,10 @@ Every Project's documents live in **one simple git repository with a single bran
 images) versioned through **Git LFS** — and that repo *is* how we track changes to a matter. Nothing fancier: no second
 branch, no tags, no pull requests, just commits appended to `main`.
 
-Navigator hosts one **append-only git repository per Project**, served Rust-native from `web`. The commit log *is* the
-matter's audit trail — who changed what, when — and every version of every document is recoverable from history. There
-is no separate versioning system and no new deployed service: `web` exposes a git smart-HTTP endpoint gated by the
-session + OPA we already run.
+Neon Law Navigator hosts one **append-only git repository per Project**, served Rust-native from `web`. The commit log
+*is* the matter's audit trail — who changed what, when — and every version of every document is recoverable from
+history. There is no separate versioning system and no new deployed service: `web` exposes a git smart-HTTP endpoint
+gated by the session + OPA we already run.
 
 This document is the durable design; the three councils' findings are folded into it. The raw deliberation is not kept.
 
@@ -16,9 +16,9 @@ This document is the durable design; the three councils' findings are folded int
 On 2026-05-25 we moved per-Project storage from Gitea to a Google Drive shared-drive folder. **This design reverses
 that.** Every Project becomes a real git repository because git gives us three things Drive never will:
 
-- **Attribution** — the commit log records who changed what, natively. The audit trail *is* the history.
-- **File history** — every version of every document, diffable and recoverable, with no separate versioning system.
-- **Automation surface** — once "a matter is a repo," future automation (push-time notation linting, agent commits)
+- **Attribution** — the commit log records who changed what, natively. The audit trail *is* the history. **File
+  history** — every version of every document, diffable and recoverable, with no separate versioning system.
+  **Automation surface** — once "a matter is a repo," future automation (push-time notation linting, agent commits)
   composes on one well-understood primitive instead of a bespoke Drive API.
 
 `drive_folder_id` has since been **dropped** (migration `m20260713_drop_drive_folder_id_from_projects`), along with the
@@ -40,9 +40,9 @@ cookie) at the shared `/projects/:id` prefix — the router splits on it.
 Per the matter-record requirement, each repo is **append-only with exactly one branch, `main`**. No other branches, no
 tags, no pull requests — additive history only. The server enforces this so a misconfigured client cannot violate it:
 
-- `receive.denyNonFastForwards = true` and `receive.denyDeletes = true` in each bare repo's config.
-- A `pre-receive` hook rejects any ref update whose name is not `refs/heads/main`, and rejects any non-fast-forward
-  update to `main`. The only writes that land are new commits appended to `main`.
+- `receive.denyNonFastForwards = true` and `receive.denyDeletes = true` in each bare repo's config. A `pre-receive` hook
+  rejects any ref update whose name is not `refs/heads/main`, and rejects any non-fast-forward update to `main`. The
+  only writes that land are new commits appended to `main`.
 
 This is a deliberate simplification, not a limitation we apologize for. Stating what the system *does*: it keeps one
 linear, additive record per matter. There is therefore no branch-level ACL to design — push authorization is simply "may
@@ -189,8 +189,8 @@ Each becomes a read/write against the repo. **The client never sees the word "gi
 `branch`, or a commit SHA.
 
 - **Inbound-email attachments** → matter documents become commits to `main` authored as the sender's `persons` identity.
-- **E-signature flow** (`project_esignature_design`) → the generated and signed PDFs are committed (PDFs ride LFS).
-- **Northstar review surface** (`project_northstar_estate_flow`, `review_documents` / `document_comments`) → reads the
+  **E-signature flow** (`project_esignature_design`) → the generated and signed PDFs are committed (PDFs ride LFS).
+  **Northstar review surface** (`project_northstar_estate_flow`, `review_documents` / `document_comments`) → reads the
   document content from the repo HEAD.
 - **`/portal` document listing** → a plain, dated, named list rendered from the repo working tree at HEAD, with a
   one-click **"Download all my documents"** that produces a friendly **ZIP of files** (never a packfile or git bundle).

@@ -54,6 +54,6 @@ jobs:
               echo "Tag ${TAG} already exists on origin — nothing to cut today."
               exit 0
           fi
-          git tag -a "${TAG}" -m "Navigator nightly release ${TAG}"
+          git tag -a "${TAG}" -m "Neon Law Navigator nightly release ${TAG}"
           git push origin "refs/tags/${TAG}"
           echo "Pushed tag ${TAG}; deploy.yml will take it from here."

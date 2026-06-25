@@ -8,7 +8,7 @@ it with, and the choices you have. We aim to collect as little as possible and t
 This policy covers two organizations that operate through this site:
 
 - **Neon Law Foundation** — a 501(c)(3) non-profit that runs our access-to-justice programs and the open-source
-  Navigator project.
+  Neon Law Navigator project.
 - **Neon Law** — the brand under which **Shook Law PLLC**, a Nevada professional limited liability company, renders
   legal services.
 

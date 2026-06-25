@@ -5,7 +5,7 @@ use maud::{html, Markup};
 use super::ExternalLink;
 
 /// Render the footer button that invites visitors to star the public
-/// Navigator repository. It is first-party HTML enhanced by
+/// Neon Law Navigator repository. It is first-party HTML enhanced by
 /// `/public/js/github-stars.js`, not the third-party GitHub Buttons
 /// script, so CSP and privacy stay simple.
 #[must_use]

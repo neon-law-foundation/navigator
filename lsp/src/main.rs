@@ -1,5 +1,5 @@
 //! `navigator-lsp` — Language Server Protocol entry point for
-//! Navigator's markdown rules. Speaks JSON-RPC over stdio so any
+//! Neon Law Navigator's markdown rules. Speaks JSON-RPC over stdio so any
 //! LSP-aware editor (Neovim, Helix, VS Code, Zed, Emacs) can attach
 //! by setting `cmd = "navigator-lsp"` against `*.md` files.
 

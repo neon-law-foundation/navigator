@@ -2,7 +2,7 @@
 name: grafana-lgtm
 description: >
   The local OpenTelemetry loop — run the KIND stack with Grafana LGTM (Loki logs + Tempo traces + Prometheus metrics + a
-  bundled OTel Collector) and actually SEE the telemetry every Navigator binary emits. `navigator start-dev-server`
+  bundled OTel Collector) and actually SEE the telemetry every Neon Law Navigator binary emits. `navigator start-dev-server`
   stands LGTM up, wires both in-cluster and host-side `web` to export to it, and port-forwards Grafana to the host.
   Trigger when asked to "see
   traces locally", "test OTel output", "check logs/metrics/traces in Grafana", "is my span showing up", debug a
@@ -13,9 +13,9 @@ description: >
 
 # Seeing telemetry locally with Grafana LGTM
 
-Navigator emits OpenTelemetry through one seam — `telemetry::init` in every service binary — but emitting is only half
-the loop. This skill is the other half: a local sink that **shows** the traces, logs, and metrics so you can confirm
-they're shaped right before they ever reach prod's Cloud Trace / Cloud Logging.
+Neon Law Navigator emits OpenTelemetry through one seam — `telemetry::init` in every service binary — but emitting is
+only half the loop. This skill is the other half: a local sink that **shows** the traces, logs, and metrics so you can
+confirm they're shaped right before they ever reach prod's Cloud Trace / Cloud Logging.
 
 The sink is **Grafana LGTM** (the `grafana/otel-lgtm` one-process image): Grafana + **L**oki (logs) + **G**rafana +
 **T**empo (traces) + Prometheus (**M**etrics, historically Mimir) + a bundled OTel Collector that receives OTLP and fans
@@ -24,9 +24,9 @@ it into the three stores. One pod, datasources auto-provisioned, no dashboards t
 ## The load-bearing rule still applies
 
 > **Identifiers and counts, never content.** Even locally, a span attribute / metric label / log field carries a
-> `notation_id`, a `service`, an `outcome`, a duration, a status code — never a client name, answer body, email
-> address, or document body. LGTM is a debugging convenience, not a license to log content. See the `observability`
-> skill — this is a standing engineering- and legal-council order.
+  `notation_id`, a `service`, an `outcome`, a duration, a status code — never a client name, answer body, email address,
+  or document body. LGTM is a debugging convenience, not a license to log content. See the `observability` skill — this
+  is a standing engineering- and legal-council order.
 
 ## The loop
 
@@ -40,8 +40,8 @@ cargo run --release -p cli -- start-dev-server
 
 - Applies the `lgtm` Deployment + Service (`k8s/overlays/kind/deps/lgtm.yaml`, included from the `kind-deps`
   kustomization) and waits for its rollout.
-- Port-forwards **Grafana 3000 → host `:3000`** and the **OTLP gRPC 4317 → host `:4317`**.
-- Writes `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` into `.devx/env`.
+- Port-forwards **Grafana 3000 → host `:3000`** and the **OTLP gRPC 4317 → host `:4317`**. Writes
+  `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` into `.devx/env`.
 
 Override the host ports with `NAVIGATOR_KIND_GRAFANA_PORT` / `NAVIGATOR_KIND_OTLP_PORT` if 3000/4317 clash.
 
@@ -93,7 +93,7 @@ empty/blank endpoint as "do not export."
 ## Where the wiring lives
 
 - `k8s/overlays/kind/deps/lgtm.yaml` — the LGTM Deployment + Service (OTLP gRPC 4317, OTLP HTTP 4318, Grafana 3000).
-- `k8s/overlays/kind/deps/kustomization.yaml` — includes `lgtm.yaml`, so both the `kind` and `kind-deps` overlays apply
+  `k8s/overlays/kind/deps/kustomization.yaml` — includes `lgtm.yaml`, so both the `kind` and `kind-deps` overlays apply
   it.
 - `cli/src/devx/mod.rs` — `up()` port-forwards `svc/lgtm`, waits for its rollout, and `render_env` writes the OTLP
   endpoint into `.devx/env`; `NAVIGATOR_KIND_GRAFANA_PORT` / `NAVIGATOR_KIND_OTLP_PORT` are the host-port knobs.
@@ -105,6 +105,6 @@ empty/blank endpoint as "do not export."
 - Hand-rolling a `kubectl port-forward deploy/lgtm 4317:4317` — `navigator start-dev-server` already does it; a second
   forward fights it.
 - Expecting telemetry without sourcing `.devx/env` — no endpoint means `telemetry::init` stays stdout-only by design.
-- Putting client content in a span/log to "make it easier to find" in Grafana — never. Log the id, look the rest up.
-- Treating prod the same way — prod exports to Cloud Trace / Cloud Logging via the real OTel Collector
-  (`observability` skill); LGTM is KIND-only.
+  Putting client content in a span/log to "make it easier to find" in Grafana — never. Log the id, look the rest up.
+  Treating prod the same way — prod exports to Cloud Trace / Cloud Logging via the real OTel Collector (`observability`
+  skill); LGTM is KIND-only.

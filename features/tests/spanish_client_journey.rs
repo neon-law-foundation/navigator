@@ -34,7 +34,7 @@ impl SpanishWorld {
     }
 }
 
-#[given("a fresh Navigator app with the canonical templates seeded")]
+#[given("a fresh Neon Law Navigator app with the canonical templates seeded")]
 async fn build_app(world: &mut SpanishWorld) {
     world.journey = Some(Journey::open("spanish").await);
 }

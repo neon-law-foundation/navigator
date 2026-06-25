@@ -1,6 +1,6 @@
 //! Cucumber runner for `features/deploy_the_navigator_walkthrough.feature`.
 //!
-//! Grounds the *renderable* claims of the "Deploy the Navigator"
+//! Grounds the *renderable* claims of the "Deploy the Neon Law Navigator"
 //! workshop (`web/content/workshops/navigator/DEPLOY.md`) in the running
 //! web app: it is registered on the Nebula surface, renders under
 //! the Foundation brand, opens with an Agenda, splits into stepped
@@ -59,7 +59,7 @@ impl DeployWorld {
     }
 }
 
-#[given("the \"Deploy the Navigator\" workshop is loaded from the content directory")]
+#[given("the \"Deploy the Neon Law Navigator\" workshop is loaded from the content directory")]
 async fn load_workshops(world: &mut DeployWorld) {
     // Load the *real* on-disk content so the scenarios ground the file
     // that actually ships, not a synthetic fixture.

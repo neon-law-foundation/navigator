@@ -1,7 +1,7 @@
 //! Grounding test for the "Sign-in" section of the deploy workshop.
 //!
 //! `web/content/workshops/navigator/DEPLOY.md` now teaches the auth
-//! stance: Navigator delegates identity to an OIDC-compatible provider
+//! stance: Neon Law Navigator delegates identity to an OIDC-compatible provider
 //! (Keycloak / Auth0 / Okta / GCP Identity Platform) and **never stores
 //! a password**. That prose is a public promise, so nothing stops it
 //! drifting from reality — a password column added to `persons`, a
@@ -93,7 +93,7 @@ fn workshop_oidc_mechanism_matches_the_oauth_code() {
 
 #[test]
 fn never_store_passwords_promise_holds_in_the_code() {
-    // The workshop promises, in print, that Navigator never stores a
+    // The workshop promises, in print, that Neon Law Navigator never stores a
     // password. Bind that promise to two facts in the source tree: the
     // `persons` entity has no password field, and no password-hashing
     // crate is in the dependency graph. The day someone adds either, the
@@ -116,7 +116,7 @@ fn never_store_passwords_promise_holds_in_the_code() {
         let stanza = format!("name = \"{crate_name}\"");
         assert!(
             !lockfile.contains(&stanza),
-            "`{crate_name}` is now in Cargo.lock — Navigator is storing/hashing passwords, \
+            "`{crate_name}` is now in Cargo.lock — Neon Law Navigator is storing/hashing passwords, \
              contradicting the deploy workshop. Update the workshop or reconsider the design.",
         );
     }

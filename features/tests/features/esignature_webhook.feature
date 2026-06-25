@@ -9,7 +9,7 @@ Feature: E-signature completion webhook closes the retainer loop
   receipt is a ministerial transition with no human in the middle.
 
   Background:
-    Given a Navigator app with an HMAC-secured e-signature webhook
+    Given a Neon Law Navigator app with an HMAC-secured e-signature webhook
     And a retainer parked at sent_for_signature__pending with envelope id "env-abc"
 
   Scenario: A verified completion callback advances the retainer to END

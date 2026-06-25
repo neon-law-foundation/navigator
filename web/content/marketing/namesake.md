@@ -43,8 +43,8 @@ reaches one of those, we say so plainly and quote it separately.
 **Engagement letter governs.** A written engagement letter signed before we start states the exact scope, the $777 fee
 for one class, the per-class fee for additional classes, and how either of us can end the representation. Before that
 letter goes out we run a conflict check against every current and former matter at the firm. If we cannot properly take
-your matter, we tell you promptly and refer you to counsel who also use the Navigator. There are no referral fees
-between Neon Law and any firm we refer matters to.
+your matter, we tell you promptly and refer you to counsel who also use the Neon Law Navigator. There are no referral
+fees between Neon Law and any firm we refer matters to.
 
 ## Start a Namesake filing
 

@@ -688,7 +688,7 @@ pub async fn send_intake_post(
     );
     let msg = crate::email::OutboundEmail::new(
         client.email.clone(),
-        "Finish your Navigator intake",
+        "Finish your Neon Law Navigator intake",
         body,
     )
     .with_html(html)
@@ -2061,7 +2061,7 @@ pub fn client_user_id(notation_id: Uuid) -> String {
 /// view agree.
 ///
 /// The client is **captive** (a `client_user_id` derived from the
-/// notation): they sign embedded inside Navigator, so DocuSign does not
+/// notation): they sign embedded inside Neon Law Navigator, so DocuSign does not
 /// email them. The firm is left non-captive — it countersigns from the
 /// support inbox via the usual emailed link.
 fn build_signature_manifest(
@@ -2099,7 +2099,7 @@ fn build_signature_manifest(
             routing_order: 1,
             // Captive (`embedded` delivery): a `client_user_id` makes the
             // client an embedded recipient DocuSign does NOT email — they
-            // sign inside Navigator (`crate::esign_view`). Non-captive
+            // sign inside Neon Law Navigator (`crate::esign_view`). Non-captive
             // (`emailed` delivery): `None`, so DocuSign emails them a
             // signing link they open from their own inbox.
             client_user_id: captive.then(|| client_user_id(notation_id)),

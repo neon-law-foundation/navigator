@@ -1,4 +1,4 @@
-// devx — developer-experience tool that brings up the Navigator
+// devx — developer-experience tool that brings up Neon Law Navigator
 // dependency stack (Postgres, fake-gcs-server, Keycloak, Restate,
 // OPA) inside a KIND cluster while leaving the `web` binary on the
 // host so it can be restarted in-process during a Rust edit-compile
@@ -1398,7 +1398,7 @@ fn print_chrome_summary(cfg: &KindConfig) {
     let web = cfg.web_port;
     eprintln!();
     eprintln!("===========================================================");
-    eprintln!(" devx up — full Navigator stack running in KIND");
+    eprintln!(" devx up — full Neon Law Navigator stack running in KIND");
     eprintln!("===========================================================");
     eprintln!();
     eprintln!("Start the web server on the host:");

@@ -1,6 +1,6 @@
 //! Self-service password reset for email/password (non-Google) users.
 //!
-//! Passwords live in **GCP Identity Platform**, not Navigator, so a reset
+//! Passwords live in **GCP Identity Platform**, not Neon Law Navigator, so a reset
 //! is: mint our own single-use, expiring token (the
 //! [`store::email_tokens`] table), email the link through the SendGrid
 //! seam, and on confirm write the new password into Identity Platform via
@@ -162,7 +162,7 @@ async fn request_submit(
 }
 
 /// The side effect behind a reset request: if the email maps to a
-/// Navigator person who is a password (non-Google) Identity Platform
+/// Neon Law Navigator person who is a password (non-Google) Identity Platform
 /// account, mint a token and email the link. Any "no account / not a
 /// password user / throttled" case is a silent no-op.
 async fn try_send_reset(s: &AuthState, email: &str) -> anyhow::Result<()> {

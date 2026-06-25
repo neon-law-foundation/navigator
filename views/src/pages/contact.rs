@@ -60,11 +60,11 @@ pub fn render_firm(auth: AuthState) -> Markup {
 #[must_use]
 pub fn render_foundation(auth: AuthState) -> Markup {
     let description = format!(
-        "Reach the {} about CLEs, Navigator, or partnerships.",
+        "Reach the {} about CLEs, Neon Law Navigator, or partnerships.",
         FOUNDATION_BRAND.site_name,
     );
     let intro = "Email the foundation about CLE programming, contributions \
-         to the Navigator open-source codebase, or partnership ideas \
+         to the Neon Law Navigator open-source codebase, or partnership ideas \
          with bar associations and legal-aid organizations."
         .to_string();
     let github = Some(("GitHub", foundation_github_url()));
