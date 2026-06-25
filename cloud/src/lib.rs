@@ -1,4 +1,4 @@
-//! Object storage abstraction for the Navigator workspace.
+//! Cloud-provider abstractions for the Navigator workspace.
 //!
 //! This is the one crate that depends on a cloud-provider SDK
 //! (`google-cloud-storage`). Everything else in the workspace
@@ -27,10 +27,12 @@ pub mod drive;
 pub mod fs;
 pub mod gcs;
 pub mod redirect;
+pub mod speech;
 
 pub use drive::{DriveAuth, DriveError};
 pub use fs::FsStorage;
 pub use gcs::{GcsStorage, GcsStorageConfig};
+pub use speech::{GoogleSpeechConfig, GoogleSpeechTranscriptProvider, SpeechError};
 
 #[derive(Debug, Error)]
 pub enum StorageError {

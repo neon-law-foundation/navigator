@@ -23,6 +23,7 @@ google-cloud-auth.workspace = true
 google-cloud-token.workspace = true
 image.workspace = true
 import.workspace = true
+live-inquiry.workspace = true
 owo-colors.workspace = true
 pdf.workspace = true
 rand.workspace = true
