@@ -175,6 +175,27 @@ If a call fails — a bad jurisdiction code, a malformed import — the chat now
 fix it and re-run rather than staring at a blank "it didn't work." The full behavior is documented in [AIDA over A2A —
 confirmations and errors](/docs/aida-a2a-interaction).
 
+## The conflict check runs before every new matter
+
+When you create a Project, Navigator runs a conflict check **first** — before the matter exists:
+
+> *"Conflict check flagged this matter for review: shares a party with a current client's matter. Confirm you have
+> reviewed these findings and are authorized to proceed."*
+
+---
+
+Opening a matter is a write, so — like every write in this class — it pauses. But this pause is doing conflicts work.
+Navigator builds a graph from the firm's relationships (who manages which entity, who is adverse to whom) and walks it
+out from your proposed client and entity to see whether the new matter touches a client the firm already serves. The
+check is **advisory to clear, authoritative to block**: a confident, direct adverse link to a current client *blocks*
+the open, and a softer entanglement — a shared entity, a recorded disclosure — is *flagged for you to acknowledge*.
+
+The lawyer is still the actor. The graph can **raise** a conflict; only you can **clear** one — by reviewing the finding
+and acknowledging it, which Navigator records to the relationship log as your decision. It is a harness for the conflict
+review you already owe under the Rules of Professional Conduct (1.7 / 1.9, imputed firm-wide by 1.10), not a substitute
+for your judgment, and it does not promise to surface every conflict — your independent check still governs. The same
+gate runs on every path that opens a matter: the portal, the AIDA tool call, and the command line.
+
 ## Notarize and demo
 
 Advance the notation: `draft → staff_review → notarization_pending → notarized → signed`. For the three-minute demo:
