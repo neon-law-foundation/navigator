@@ -186,7 +186,24 @@ pub fn render_in(
             }
         }
     };
-    let mut layout = PageLayout::new(content.title)
+    // The browser `<title>` on a firm `/services` page brands once, then
+    // names the catalog and the bare product: "Neon Law | Services | Nest"
+    // — never the redundant "Neon Law | Neon Law Nest". The layout prepends
+    // the brand, so strip the firm-brand prefix off the product mark (so the
+    // brand isn't stated twice) and slot it behind a localized "Services".
+    // The visible `<h1>` keeps the full `content.title` ("Neon Law Nest").
+    // Foundation product pages (Nimbus) aren't under `/services`, so they
+    // keep the plain product title.
+    let head_title = if content.brand.is_law_firm {
+        let product = content
+            .title
+            .strip_prefix(&format!("{} ", content.brand.site_name))
+            .unwrap_or(content.title);
+        format!("{} | {product}", i18n::t(locale, "nav.services"))
+    } else {
+        content.title.to_string()
+    };
+    let mut layout = PageLayout::new(&head_title)
         .with_description(content.description)
         .with_brand(content.brand)
         .with_auth(auth)
@@ -224,15 +241,86 @@ mod tests {
 
     #[test]
     fn render_uses_title_in_browser_title_under_firm_brand() {
+        // A firm `/services` page brands once, then slots the product
+        // behind a "Services" segment: "Neon Law | Services | …".
         let html = render(
             &fixture("Estate planning", "<p>body</p>"),
             crate::AuthState::Anonymous,
         )
         .into_string();
         assert!(html.contains(&format!(
-            "<title>{} | Estate planning</title>",
+            "<title>{} | Services | Estate planning</title>",
             FIRM_BRAND.site_name
         )));
+    }
+
+    #[test]
+    fn firm_browser_title_strips_the_redundant_brand_prefix_from_the_product() {
+        // The product mark "Neon Law Nest" must not double the brand in the
+        // tab title — it reads "Neon Law | Services | Nest", not the
+        // redundant "Neon Law | Neon Law Nest". The visible <h1> keeps the
+        // full mark.
+        let html = render(
+            &fixture("Neon Law Nest", "<h1>Headline</h1><p>body</p>"),
+            crate::AuthState::Anonymous,
+        )
+        .into_string();
+        assert!(
+            html.contains(&format!(
+                "<title>{} | Services | Nest</title>",
+                FIRM_BRAND.site_name
+            )),
+            "tab title should brand once, then Services | Nest, got: {html}"
+        );
+        assert!(
+            !html.contains(&format!("{0} | {0} Nest", FIRM_BRAND.site_name)),
+            "tab title must not double the brand, got: {html}"
+        );
+        // The on-page heading still carries the full product mark.
+        assert!(
+            html.contains(">Neon Law Nest</h1>"),
+            "the <h1> keeps the full product mark, got: {html}"
+        );
+    }
+
+    #[test]
+    fn firm_browser_title_keeps_a_product_with_no_brand_prefix_intact() {
+        // A product whose mark doesn't lead with the brand (e.g. the
+        // litigation practice "1337 Lawyers") slots in whole — no prefix
+        // to strip.
+        let html = render(
+            &fixture("1337 Lawyers", "<p>body</p>"),
+            crate::AuthState::Anonymous,
+        )
+        .into_string();
+        assert!(
+            html.contains(&format!(
+                "<title>{} | Services | 1337 Lawyers</title>",
+                FIRM_BRAND.site_name
+            )),
+            "tab title should read Services | 1337 Lawyers, got: {html}"
+        );
+    }
+
+    #[test]
+    fn foundation_product_keeps_the_plain_browser_title() {
+        // A Foundation product page (Nimbus) is not under `/services`, so
+        // its tab title stays the plain product mark under the Foundation
+        // brand — no "Services" segment.
+        let mut content = fixture("Neon Law Foundation Nimbus", "<p>body</p>");
+        content.brand = *FOUNDATION_BRAND;
+        let html = render(&content, crate::AuthState::Anonymous).into_string();
+        assert!(
+            html.contains(&format!(
+                "<title>{} | Neon Law Foundation Nimbus</title>",
+                FOUNDATION_BRAND.site_name
+            )),
+            "Foundation product keeps the plain title, got: {html}"
+        );
+        assert!(
+            !html.contains("| Services |"),
+            "Foundation product is not a /services page, got: {html}"
+        );
     }
 
     #[test]
