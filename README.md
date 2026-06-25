@@ -1,7 +1,8 @@
 # Neon Law Navigator
 
-Our [mission](https://www.neonlaw.com/foundation/mission) is to improve access to justice. Neon Law Navigator enables
-lawyers to finish more legal projects in the United States of America.
+Our [mission](https://www.neonlaw.com/foundation/mission) is to improve access to justice. Neon Law Navigator is an
+open-source operating system for a modern law practice, built around versioned legal templates, durable workflows,
+attorney-reviewed automation, and agent-accessible tooling.
 
 ## How it works
 

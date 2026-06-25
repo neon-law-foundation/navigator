@@ -13,7 +13,7 @@ it is absent, the filename slug is used. For example, `public_slug: seattle-summ
 Every show-and-tell requires this front matter:
 
 ```yaml
-title: Agentic Workflows for Lawyers
+title: "Seattle Show and Tell: Agentic Workflows for Lawyers"
 description: >
   One sentence summary for lists, search, and calendar descriptions.
 public_slug: seattle-summer-2026
