@@ -1,7 +1,7 @@
 //! Cucumber runner for
 //! `features/compliance_filings_workflow_shapes.feature`.
 //!
-//! Same shape-lock pattern as `legal_workflow_shapes.rs` but for the
+//! Same composition-lock pattern as `legal_workflow_shapes.rs` but for the
 //! compliance side of the template tree: Nevada LLC dissolution,
 //! annual list, and Modified Business Tax. Kept as a separate
 //! runner (not folded into the legal-side suite) so the

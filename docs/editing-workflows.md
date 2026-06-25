@@ -6,9 +6,9 @@ from scratch, start with [agent workflows](agent-workflows.md) and [notation aut
 is about evolving what is already shipped.
 
 The guiding idea, proven by the end-to-end journey suite in [`features/`](../features/): **the questionnaire and the
-workflow are the tested contract; the template body is replaceable.** A stub template (see the [Nevada entity-formation
-template](../notation_templates/united_states/nevada/state/business_associations/entity_formation.md)) ships a real,
-tested flow with placeholder prose, and the prose is filled in later without touching the flow.
+workflow composition are the tested contract; the template body is replaceable.** A stub template (see the [Nevada
+entity-formation template](../notation_templates/united_states/nevada/state/business_associations/entity_formation.md))
+ships a real, tested flow with placeholder prose, and the prose is filled in later without touching the flow.
 
 ## The four artifacts of one workflow
 
@@ -65,7 +65,7 @@ Signature placeholders are role-scoped and carry a dot — `{{client.signature}}
 substituted first, so the two never collide. Turning a stub into the real document is *only* a body edit — the
 questionnaire and workflow, and every journey that exercises them, are untouched.
 
-## Changing the workflow (steps)
+## Changing the workflow composition
 
 The `workflow:` block is a state machine whose state-name **prefix** selects the actor and side effect via
 `workflows::step::step_kind_for`. The vocabulary you compose from:
@@ -80,12 +80,20 @@ The `workflow:` block is a state machine whose state-name **prefix** selects the
 | `firm_signature__*` | `FirmSignature` | the firm signs — on the closing letter, this closes the matter |
 | `mailroom_send` / `certified_mail__*` / `e_filing__*` / `filing__*` | submission kinds | record a `filings` row |
 
+The prefix is the reusable step; the discriminator after `__` names the instance in this template. Prefer
+`document_open__articles_pdf` or `mailroom_send__debt_validation` over a new bespoke state. A new prefix means a new
+engine capability, not just a new legal product.
+
 Rules to hold when editing:
 
 - **Add the prefix to `step_kind_for` first** if it is genuinely new, or `workflow_integrity` fails with "unrouted".
 - **`staff_review` gates every government submission** (`N106` + `workflows::staff_review_precedes_submission`): no
   `filing__*` / `mailroom_send` / `e_filing__*` state may be reachable without first crossing a bare `staff_review`.
 - **`END` must stay reachable** from `BEGIN`, and every branch target must be a declared state.
+
+Feature files should prove the composition ("this template wires these reusable steps in this order/branching shape").
+Rust tests should prove the step mechanics (`StepKind` routing, payload decoding, dispatch side effects, and replay-safe
+durability).
 
 ### Two ways a workflow is driven
 
@@ -129,10 +137,11 @@ matcher silently skips its assertion. The journey is not done until its runner i
 
 ## Where the journeys live
 
-[`features/`](../features/) carries one end-to-end journey per product and surface, each following one client and one
-lawyer across the whole arc of a representation. Shared mechanics — the seeded app, the admin walker over HTTP, the
+[`features/`](../features/) carries one end-to-end journey per product and surface, plus grouped composition specs for
+notation templates that share a workflow shape. Shared mechanics — the seeded app, the admin walker over HTTP, the
 worker-shaped runtime, the client Person — live in [`features/src/journey.rs`](../features/src/journey.rs). When you
-change a workflow, the matching journey is both the proof it still works and the worked example of how to drive it.
+change a workflow, the matching journey or composition scenario is both the proof it still works and the worked example
+of how to drive it.
 
 ## Mutating a notation at runtime
 

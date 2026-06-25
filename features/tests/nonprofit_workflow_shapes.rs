@@ -1,6 +1,6 @@
 //! Cucumber runner for `features/nonprofit_workflow_shapes.feature`.
 //!
-//! Shape-lock for the Foundation (nonprofit) side of the template
+//! Composition-lock for the Foundation (nonprofit) side of the template
 //! tree: 501(c)(3) formation, Form 990 annual report, and Nevada
 //! charitable solicitation registration. Same pattern as
 //! `legal_workflow_shapes.rs` and `compliance_filings_workflow_shapes.rs`.
