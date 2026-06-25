@@ -849,7 +849,7 @@ async fn services_northstar_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Estate planning</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Estate planning</title>"));
     assert!(body.contains("<h2>Drafted</h2>"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
@@ -933,7 +933,7 @@ async fn services_litigation_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Litigation</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Litigation</title>"));
     assert!(body.contains("connect you with trial counsel"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
@@ -966,7 +966,7 @@ async fn services_nautilus_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Nautilus</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Nautilus</title>"));
     assert!(body.contains("Put a lawyer between you and the collectors"));
     assert!(body.contains("we never take a percentage of your debt"));
     // The firm CTA books a consultation on the calendar, not a mailto.
@@ -991,7 +991,7 @@ async fn services_nest_falls_back_to_default_when_no_doc() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Corporate services</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Corporate services</title>"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
     assert!(body.contains("Book a Consultation"));
@@ -1032,7 +1032,7 @@ async fn services_nexus_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Fractional GC</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Fractional GC</title>"));
     assert!(body.contains("<h2>Everything but litigation</h2>"));
     assert!(body.contains("mailto:support@neonlaw.com"));
     // The single pricing card renders and the marker is consumed.
