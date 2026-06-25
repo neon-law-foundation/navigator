@@ -21,7 +21,10 @@ name: deploy
 # nightly deploy is seen immediately. It carries only the tag + run URL — the
 # "identifiers and counts, never content" rule binds here too.
 #
-# The image tag is the release tag itself (`github.ref_name`, e.g. 26.06.18).
+# The image tag is the release tag itself (`github.ref_name`, e.g. 26.06.18)
+# for nightly tag pushes. Manual workflow-dispatch publishes add the Pacific
+# hour as a fourth digit (e.g. 26.06.25.14) so operators can publish multiple
+# build sets in one day without overwriting the dated image/release.
 
 on:
   push:
@@ -44,6 +47,27 @@ permissions:
   packages: write
 
 jobs:
+  release-version:
+    name: derive release version
+    if: github.repository == 'neon-law-foundation/Navigator'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: derive image and release tag
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+              tag="$(TZ=America/Los_Angeles date +'%y.%m.%d.%H')"
+          else
+              tag="${REF_NAME}"
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "release tag: ${tag}"
+
   # ---------- Stage 0: build both service images in parallel ----------
   # Each image cold-compiles the whole Rust workspace (~15 min apiece).
   # Building them as a parallel matrix here — instead of two sequential
@@ -61,6 +85,7 @@ jobs:
   # auto-created trigger-image packages already have.
   build:
     name: build ${{ matrix.image }}
+    needs: release-version
     if: github.repository == 'neon-law-foundation/Navigator'
     runs-on: ubuntu-latest
     # Cold workspace compile; cap so a stuck build can't hang the run.
@@ -104,8 +129,8 @@ jobs:
 
   # ---------- Stage 1: KIND end-to-end integration ----------
   integration:
-    name: KIND integration (tag ${{ github.ref_name }})
-    needs: build
+    name: KIND integration (tag ${{ needs.release-version.outputs.tag }})
+    needs: [build, release-version]
     if: github.repository == 'neon-law-foundation/Navigator'
     runs-on: ubuntu-latest
     # Fail fast instead of hanging for hours. With the image builds moved
@@ -395,10 +420,10 @@ jobs:
   # CRATE/BIN) cold-build here since integration doesn't build them.
   publish:
     name: publish ${{ matrix.image }} to ghcr.io
-    needs: integration
-    # Tag-only. A `kind-ci/**` branch run stops after integration — it must
-    # never push branch-tagged images to ghcr.io.
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [integration, release-version]
+    # Tag/manual only. A `kind-ci/**` branch run stops after integration — it
+    # must never push branch-tagged images to ghcr.io.
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # Cold image build + ghcr push; cap it so a stuck registry/build can't
     # hang the release indefinitely.
@@ -459,20 +484,20 @@ jobs:
           images: ${{ steps.img.outputs.name }}
           tags: |
             type=raw,value=latest
-            type=raw,value=${{ github.ref_name }}
-      # Stamp the release into every image. RELEASE_TAG is the `YY.MM.DD` ghcr
-      # tag (github.ref_name); `telemetry::init` reads it as `service.version`
-      # so the worker and the trigger CronJobs self-report their release in
-      # logs/traces — the headless counterpart to web's `GET /version`. The web
-      # image additionally gets GIT_SHA/BUILD_TIME for the `/version` commit
-      # fields (only its Dockerfile declares those ARGs).
+            type=raw,value=${{ needs.release-version.outputs.tag }}
+      # Stamp the release into every image. RELEASE_TAG is the ghcr tag derived
+      # above; `telemetry::init` reads it as `service.version` so the worker and
+      # the trigger CronJobs self-report their release in logs/traces — the
+      # headless counterpart to web's `GET /version`. The web image additionally
+      # gets GIT_SHA/BUILD_TIME for the `/version` commit fields (only its
+      # Dockerfile declares those ARGs).
       - name: compose build-args
         id: ba
         run: |
           {
             printf 'args<<__BUILD_ARGS_EOF__\n'
             printf '%s\n' "${{ matrix.build-args }}"
-            printf 'RELEASE_TAG=%s\n' "${{ github.ref_name }}"
+            printf 'RELEASE_TAG=%s\n' "${{ needs.release-version.outputs.tag }}"
             if [ "${{ matrix.image }}" = "navigator-web" ]; then
               printf 'GIT_SHA=%s\n' "${{ github.sha }}"
               printf 'BUILD_TIME=%s\n' "$(git show -s --format=%cI HEAD)"
@@ -500,8 +525,8 @@ jobs:
   # prod will run.
   release-binaries-build:
     name: build release binaries (${{ matrix.platform }})
-    needs: integration
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [integration, release-version]
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     permissions:
@@ -538,7 +563,7 @@ jobs:
       - name: package unix binaries
         if: runner.os != 'Windows'
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.release-version.outputs.tag }}
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
@@ -552,7 +577,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.release-version.outputs.tag }}
           PLATFORM: ${{ matrix.platform }}
         run: |
           New-Item -ItemType Directory -Force dist/pkg-navigator, dist/pkg-navigator-lsp | Out-Null
@@ -573,8 +598,8 @@ jobs:
 
   release-binaries-publish:
     name: publish GitHub Release binaries
-    needs: release-binaries-build
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [release-binaries-build, release-version]
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -589,8 +614,8 @@ jobs:
       - name: attach binaries to tag release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Neon Law Navigator ${{ github.ref_name }}
+          tag_name: ${{ needs.release-version.outputs.tag }}
+          name: Neon Law Navigator ${{ needs.release-version.outputs.tag }}
           generate_release_notes: true
           files: dist/*
 
@@ -605,10 +630,10 @@ jobs:
   # run URL, and the roll command, nothing client-bearing.
   notify:
     name: slack ready-to-deploy hand-off
-    needs: [publish, release-binaries-publish]
-    # Tag-only (publish is already tag-gated; stated here too so a branch run
+    needs: [publish, release-binaries-publish, release-version]
+    # Tag/manual only (publish is already gated; stated here too so a branch run
     # never posts a deploy report).
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     # A single webhook POST — should be seconds; cap it so a hung HTTP
     # request can't keep the workflow open.
@@ -621,7 +646,7 @@ jobs:
           # GitHub-synced secret rather than a hard-coded user id, so a fork tags
           # its own on-call (or none). See SLACK_OPS_MENTION in .env.example.
           SLACK_OPS_MENTION: ${{ secrets.SLACK_OPS_MENTION }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.release-version.outputs.tag }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
@@ -659,10 +684,10 @@ jobs:
   # content.
   notify-failure:
     name: slack — alert engineering on failure
-    needs: [build, integration, publish, release-binaries-build, release-binaries-publish, notify]
-    # Tag-only: a failed `kind-ci/**` branch iteration is expected churn and
-    # must not page engineering — only a failed nightly deploy does.
-    if: failure() && startsWith(github.ref, 'refs/tags/')
+    needs: [release-version, build, integration, publish, release-binaries-build, release-binaries-publish, notify]
+    # Tag/manual only: a failed `kind-ci/**` branch iteration is expected churn
+    # and must not page engineering — only a failed publishable deploy does.
+    if: failure() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     # A single webhook POST — cap it so a hung request can't keep the run open.
     timeout-minutes: 10
@@ -671,7 +696,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_OPS_MENTION: ${{ secrets.SLACK_OPS_MENTION }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.release-version.outputs.tag }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then

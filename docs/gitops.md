@@ -67,7 +67,7 @@ CI/CD path, so a retention change never lands in a release diff and a cleanup ru
 | --- | --- | --- |
 | [`ci.yml`](../.github/workflows/ci.yml) | `pull_request` → `main` | fmt + Markdown CLI + clippy + tests |
 | [`release-tag.yml`](../.github/workflows/release-tag.yml) | cron 05:00 PST | cut + push the `YY.MM.DD` tag |
-| [`deploy.yml`](../.github/workflows/deploy.yml) | `YY.MM.DD` tag push | integration → push images → Slack hand-off |
+| [`deploy.yml`](../.github/workflows/deploy.yml) | tag push or dispatch | integration → push images → Slack |
 | [`cleanup.yml`](../.github/workflows/cleanup.yml) | cron 07:00 PST | prune ghcr versions > 14 days (maintenance) |
 
 ### PR flow — `ci.yml`
@@ -92,12 +92,15 @@ Fires daily at **05:00 PST** (`0 13 * * *` UTC). Its only job is to cut a calend
 
 ### Tag flow — `deploy.yml`
 
-Triggered by the `YY.MM.DD` tag push. Runs the full **KIND integration** suite, then builds and pushes every image — the
-two service images (`navigator-web`, `navigator-workflows-service`) and the five CronJob trigger images
-(`navigator-*-trigger`) — to **ghcr.io** tagged with that date plus `latest`. In parallel with image publishing, it
-builds the public `navigator` CLI and `navigator-lsp` binaries on native Linux, macOS, and Windows runners, records
-GitHub artifact attestations for the downloadable archives, and attaches those six archives to the tag's GitHub Release.
-On success it posts a **"ready to deploy"** message to the engineering Slack channel (the prod ops incoming webhook,
+Triggered by the `YY.MM.DD` tag push, or manually with `workflow_dispatch` when an operator needs another publish during
+the same day. The nightly path keeps the plain calendar tag. A manual dispatch derives a Pacific-time `YY.MM.DD.HH` tag,
+so a run on June 25, 2026 at 2 p.m. publishes `26.06.25.14` instead of overwriting `26.06.25`. Either path runs the full
+**KIND integration** suite, then builds and pushes every image — the two service images (`navigator-web`,
+`navigator-workflows-service`) and the five CronJob trigger images (`navigator-*-trigger`) — to **ghcr.io** tagged with
+that release version plus `latest`. In parallel with image publishing, it builds the public `navigator` CLI and
+`navigator-lsp` binaries on native Linux, macOS, and Windows runners, records GitHub artifact attestations for the
+downloadable archives, and attaches those six archives to the GitHub Release for that version. On success it posts a
+**"ready to deploy"** message to the engineering Slack channel (the prod ops incoming webhook,
 `secrets.SLACK_WEBHOOK_URL`, synced from Doppler), tagging Nick with the exact `power-push` command to roll the new
 images to prod; a failure on any stage posts a separate alert to the same channel, also tagging Nick. The images are
 published, **not** rolled out — see [Publish vs. roll out](#publish-vs-roll-out) below.
