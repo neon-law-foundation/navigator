@@ -35,6 +35,7 @@ pub mod seed;
 pub mod statutes;
 pub mod subscriptions;
 pub mod templates;
+pub mod testimonials;
 pub mod xero_invoices;
 
 pub use db_error::is_unique_violation;

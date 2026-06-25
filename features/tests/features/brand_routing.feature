@@ -33,7 +33,11 @@ Feature: Public site brand routing
       | /foundation/contact               |
       | /privacy                          |
       | /terms                            |
-      | /foundation/workshops/navigator   |
+
+  Scenario: The old /foundation/workshops/navigator URL permanently redirects to the workshops overview
+    When a visitor opens /foundation/workshops/navigator
+    Then the response status is 308
+    And the response redirects to "/foundation/workshops"
 
   Scenario: The old /foundation/mission URL permanently redirects to the Foundation home
     When a visitor opens /foundation/mission

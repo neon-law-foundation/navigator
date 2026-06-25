@@ -748,7 +748,14 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/es/services/namesake", get(service_namesake_es))
             .route("/es/services/nucleus", get(service_nucleus_es))
             .route("/es/services/pro-bono", get(service_pro_bono_es))
-            .route("/foundation/workshops/navigator", get(workshops_index))
+            // The top-level overview lists every workshop, you-voiced.
+            .route("/foundation/workshops", get(workshops_landing))
+            // The old per-track index folded into the overview; redirect so
+            // bookmarks and the nav's prior target land on the new front door.
+            .route(
+                "/foundation/workshops/navigator",
+                get(|| async { axum::response::Redirect::permanent("/foundation/workshops") }),
+            )
             .route(
                 "/foundation/workshops/navigator/{slug}",
                 get(workshops_material),
@@ -779,9 +786,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             // links to a talk land on its workshop twin.
             .route(
                 "/foundation/presentations",
-                get(|| async {
-                    axum::response::Redirect::permanent("/foundation/workshops/navigator")
-                }),
+                get(|| async { axum::response::Redirect::permanent("/foundation/workshops") }),
             )
             .route(
                 "/foundation/presentations/{slug}",
@@ -869,13 +874,21 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
         .layer(SetRequestIdLayer::new(X_REQUEST_ID, MakeRequestUuid))
 }
 
-async fn home(MaybeAuth(auth): MaybeAuth) -> Markup {
-    views::pages::home::render_in(auth, views::Locale::En)
+async fn home(State(db): State<Db>, MaybeAuth(auth): MaybeAuth) -> Markup {
+    let testimonials = store::testimonials::published_for_home(&db, 2)
+        .await
+        .unwrap_or_default();
+    let cards = testimonial_cards(&testimonials);
+    views::pages::home::render_in(auth, views::Locale::En, &cards)
 }
 
 /// Spanish landing page (`/es`).
-async fn home_es(MaybeAuth(auth): MaybeAuth) -> Markup {
-    views::pages::home::render_in(auth, views::Locale::Es)
+async fn home_es(State(db): State<Db>, MaybeAuth(auth): MaybeAuth) -> Markup {
+    let testimonials = store::testimonials::published_for_home(&db, 2)
+        .await
+        .unwrap_or_default();
+    let cards = testimonial_cards(&testimonials);
+    views::pages::home::render_in(auth, views::Locale::Es, &cards)
 }
 
 /// Human-readable publish date for the blog (e.g. `"June 19, 2026"`).
@@ -1075,7 +1088,7 @@ async fn navigator_lsp(MaybeAuth(auth): MaybeAuth) -> Markup {
 
 /// `GET /foundation/navigator/cli` — the `navigator` operator CLI.
 async fn navigator_cli(MaybeAuth(auth): MaybeAuth) -> Markup {
-    views::pages::package::render(
+    views::pages::package::render_cli(
         "Navigator CLI",
         "The navigator operator CLI — validate markdown templates, import and seed \
          data, render the ER diagram, and drive deploys.",
@@ -1452,8 +1465,9 @@ async fn service_northstar(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
 async fn service_nest(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NEST, a.0, views::Locale::En)
 }
-async fn service_nexus(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_NEXUS, a.0, views::Locale::En)
+async fn service_nexus(s: State<MarketingIndex>, State(db): State<Db>, a: MaybeAuth) -> Markup {
+    render_service_with_product_testimonials(&s.0, &db, &SERVICE_NEXUS, a.0, views::Locale::En)
+        .await
 }
 async fn service_nautilus(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NAUTILUS, a.0, views::Locale::En)
@@ -1461,8 +1475,13 @@ async fn service_nautilus(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
 async fn service_nook(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NOOK, a.0, views::Locale::En)
 }
-async fn service_litigation(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_LITIGATION, a.0, views::Locale::En)
+async fn service_litigation(
+    s: State<MarketingIndex>,
+    State(db): State<Db>,
+    a: MaybeAuth,
+) -> Markup {
+    render_service_with_product_testimonials(&s.0, &db, &SERVICE_LITIGATION, a.0, views::Locale::En)
+        .await
 }
 async fn service_nerd(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NERD, a.0, views::Locale::En)
@@ -1498,8 +1517,9 @@ async fn service_northstar_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup 
 async fn service_nest_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NEST, a.0, views::Locale::Es)
 }
-async fn service_nexus_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_NEXUS, a.0, views::Locale::Es)
+async fn service_nexus_es(s: State<MarketingIndex>, State(db): State<Db>, a: MaybeAuth) -> Markup {
+    render_service_with_product_testimonials(&s.0, &db, &SERVICE_NEXUS, a.0, views::Locale::Es)
+        .await
 }
 async fn service_nautilus_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NAUTILUS, a.0, views::Locale::Es)
@@ -1507,8 +1527,13 @@ async fn service_nautilus_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
 async fn service_nook_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NOOK, a.0, views::Locale::Es)
 }
-async fn service_litigation_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
-    render_service(&s.0, &SERVICE_LITIGATION, a.0, views::Locale::Es)
+async fn service_litigation_es(
+    s: State<MarketingIndex>,
+    State(db): State<Db>,
+    a: MaybeAuth,
+) -> Markup {
+    render_service_with_product_testimonials(&s.0, &db, &SERVICE_LITIGATION, a.0, views::Locale::Es)
+        .await
 }
 async fn service_nerd_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NERD, a.0, views::Locale::Es)
@@ -1538,6 +1563,30 @@ fn render_service(
     page: &ServicePage,
     auth: views::AuthState,
     locale: views::Locale,
+) -> Markup {
+    render_service_with_testimonials(marketing, page, auth, locale, &[])
+}
+
+async fn render_service_with_product_testimonials(
+    marketing: &MarketingIndex,
+    db: &Db,
+    page: &ServicePage,
+    auth: views::AuthState,
+    locale: views::Locale,
+) -> Markup {
+    let testimonials = store::testimonials::published_for_product(db, page.slug, 2)
+        .await
+        .unwrap_or_default();
+    let cards = testimonial_cards(&testimonials);
+    render_service_with_testimonials(marketing, page, auth, locale, &cards)
+}
+
+fn render_service_with_testimonials(
+    marketing: &MarketingIndex,
+    page: &ServicePage,
+    auth: views::AuthState,
+    locale: views::Locale,
+    testimonials: &[views::components::TestimonialCard<'_>],
 ) -> Markup {
     // Brand-driven fallback description used when the marketing
     // markdown doesn't ship a copy for this service slug. Leaked
@@ -1633,11 +1682,75 @@ fn render_service(
             brand,
             cta_email,
             icon: page.icon,
+            testimonials,
         },
         auth,
         locale,
         canonical,
     )
+}
+
+fn testimonial_cards(
+    testimonials: &[store::testimonials::PublishedTestimonial],
+) -> Vec<views::components::TestimonialCard<'_>> {
+    testimonials
+        .iter()
+        .map(|t| {
+            let attribution = t
+                .attribution_label
+                .as_deref()
+                .unwrap_or(t.person_name.as_str());
+            views::components::TestimonialCard {
+                quote: &t.quote,
+                attribution,
+                detail: t.person_title.as_deref().or(Some(t.project_name.as_str())),
+                profile_image_url: t.profile_image_url.as_deref(),
+                product_label: t.product_code.as_deref().and_then(product_label),
+            }
+        })
+        .collect()
+}
+
+fn product_label(code: &str) -> Option<&'static str> {
+    match code {
+        "litigation" => Some("Litigation"),
+        "namesake" => Some("Namesake"),
+        "nautilus" => Some("Nautilus"),
+        "nest" => Some("Nest"),
+        "nerd" => Some("Nerd"),
+        "newleaf" => Some("Newleaf"),
+        "nexus" => Some("Nexus"),
+        "node" => Some("Node"),
+        "nook" => Some("Nook"),
+        "northstar" => Some("Northstar"),
+        "nucleus" => Some("Nucleus"),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod testimonial_label_tests {
+    use super::product_label;
+
+    #[test]
+    fn product_label_covers_the_seeded_catalog() {
+        for code in [
+            "litigation",
+            "namesake",
+            "nautilus",
+            "nest",
+            "nerd",
+            "newleaf",
+            "nexus",
+            "node",
+            "nook",
+            "northstar",
+            "nucleus",
+        ] {
+            assert!(product_label(code).is_some(), "{code} should have a label");
+        }
+        assert_eq!(product_label("unknown"), None);
+    }
 }
 
 /// Map a product `code` to the `/services/<slug>` marketing page that
@@ -1859,20 +1972,29 @@ async fn docusign_consent_callback() -> Markup {
 /// Route prefix for the Navigator workshop's overview and steps.
 const WORKSHOP_BASE: &str = "/foundation/workshops/navigator";
 
-async fn workshops_index(
+async fn workshops_landing(
     State(workshops): State<WorkshopIndex>,
     MaybeAuth(auth): MaybeAuth,
 ) -> Markup {
-    let summaries: Vec<workshop_views::MaterialSummary<'_>> = workshops
+    // Each card links to the workshop's overview one level down. The
+    // hrefs are owned, so hold them alive while the borrowing cards build.
+    let hrefs: Vec<String> = workshops
         .materials()
         .iter()
-        .map(|m| workshop_views::MaterialSummary {
-            slug: &m.slug,
+        .map(|m| format!("{WORKSHOP_BASE}/{}", m.slug))
+        .collect();
+    let cards: Vec<workshop_views::WorkshopCard<'_>> = workshops
+        .materials()
+        .iter()
+        .zip(&hrefs)
+        .map(|(m, href)| workshop_views::WorkshopCard {
+            href,
             title: &m.title,
-            description: &m.description,
+            audience: &m.audience,
+            benefit: &m.benefit,
         })
         .collect();
-    workshop_views::index(&summaries, auth)
+    workshop_views::landing(&cards, auth)
 }
 
 /// Build the table of contents shared by the overview and every step.

@@ -38,7 +38,7 @@ inherit this.
 ### TDD and the pre-commit gate
 
 - Tests land in the **same commit** as the implementation they cover.
-- Always run before committing:
+- When a PR changes Rust files or build/runtime configuration, run before committing:
 
   ```bash
   cargo fmt
@@ -46,8 +46,16 @@ inherit this.
   cargo test --workspace
   ```
 
-  Plus the markdown lint (`cargo run -p cli -- validate --markdown-only --no-default-excludes <path>`) if you touched
-  any `.md` file.
+- When a PR changes only Markdown or other prose files and no Rust files changed, the full Rust suite is not required.
+  Run the Markdown gate for the touched docs instead:
+
+  ```bash
+  cargo run -p cli -- validate --markdown-only --no-default-excludes <path>
+  ```
+
+- After the PR is created or updated, clean task-owned build and e2e resources. `cargo clean` the task worktree when
+  Rust commands created local build artifacts, stop the KIND/dev stack you started, and prune task-created Docker build
+  cache or images. Do not prune Docker volumes without explicit approval.
 
 ## CI/CD — three workflows, plus maintenance
 
@@ -57,7 +65,7 @@ CI/CD path, so a retention change never lands in a release diff and a cleanup ru
 
 | Workflow | Trigger | Job |
 | --- | --- | --- |
-| [`ci.yml`](../.github/workflows/ci.yml) | `pull_request` → `main` | lean fmt + clippy + `cargo test --workspace` |
+| [`ci.yml`](../.github/workflows/ci.yml) | `pull_request` → `main` | fmt + Markdown CLI + clippy + tests |
 | [`release-tag.yml`](../.github/workflows/release-tag.yml) | cron 05:00 PST | cut + push the `YY.MM.DD` tag |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | `YY.MM.DD` tag push | integration → push images → Slack hand-off |
 | [`cleanup.yml`](../.github/workflows/cleanup.yml) | cron 07:00 PST | prune ghcr versions > 14 days (maintenance) |
@@ -65,12 +73,17 @@ CI/CD path, so a retention change never lands in a release diff and a cleanup ru
 ### PR flow — `ci.yml`
 
 Runs only on every `pull_request` targeting `main` — **never on `push`**, so `main` itself runs no CI on merge (it
-advances merge-only, and the heavy paths ride the release tag). Lean by design: a format check, a clippy pass with
-warnings as errors, then the workspace test suite — nothing else. The job keeps target artifacts out of the cache,
-disables CI debug info, and runs `cargo clean` between clippy and test so the standard hosted runner has enough disk.
-One shared `postgres:17-alpine` container backs the whole job via `TEST_DATABASE_URL` (so `store::test_support` makes a
-per-test schema in that single container instead of spawning a testcontainer per binary).
-Integration/KIND/docker/browser work does **not** run here.
+advances merge-only, and the heavy paths ride the release tag). Lean by design: a format check, a repository-wide
+Markdown validation pass through the `navigator` CLI, a clippy pass with warnings as errors, then the workspace test
+suite — nothing else. The Markdown pass builds `navigator` once and runs `./target/debug/navigator validate
+--no-default-excludes .`, so ordinary docs get the prose Markdown rules and notation templates get the stricter
+questionnaire/workflow/template rule set. The job keeps target artifacts out of the cache, disables CI debug info, and
+runs `cargo clean` between clippy and test so the standard hosted runner has enough disk. It still uses two
+Rust-specific caches: `Swatinem/rust-cache` restores Cargo's registry, git, and tool caches, while `sccache` stores
+reusable rustc outputs in GitHub Actions cache. That gives successive PRs a compiler cache without restoring the full
+`target/` tree that previously exhausted runner disk. One shared `postgres:17-alpine` container backs the whole job via
+`TEST_DATABASE_URL` (so `store::test_support` makes a per-test schema in that single container instead of spawning a
+testcontainer per binary). Integration/KIND/docker/browser work does **not** run here.
 
 ### Cron flow — `release-tag.yml`
 
@@ -81,11 +94,13 @@ Fires daily at **05:00 PST** (`0 13 * * *` UTC). Its only job is to cut a calend
 
 Triggered by the `YY.MM.DD` tag push. Runs the full **KIND integration** suite, then builds and pushes every image — the
 two service images (`navigator-web`, `navigator-workflows-service`) and the five CronJob trigger images
-(`navigator-*-trigger`) — to **ghcr.io** tagged with that date plus `latest`. On success it posts a **"ready to
-deploy"** message to the engineering Slack channel (the prod ops incoming webhook, `secrets.SLACK_WEBHOOK_URL`, synced
-from Doppler), tagging Nick with the exact `power-push` command to roll the new images to prod; a failure on any stage
-posts a separate alert to the same channel, also tagging Nick. The images are published, **not** rolled out — see
-[Publish vs. roll out](#publish-vs-roll-out) below.
+(`navigator-*-trigger`) — to **ghcr.io** tagged with that date plus `latest`. In parallel with image publishing, it
+builds the public `navigator` CLI and `navigator-lsp` binaries on native Linux, macOS, and Windows runners and attaches
+those six archives to the tag's GitHub Release. On success it posts a **"ready to deploy"** message to the engineering
+Slack channel (the prod ops incoming webhook, `secrets.SLACK_WEBHOOK_URL`, synced from Doppler), tagging Nick with the
+exact `power-push` command to roll the new images to prod; a failure on any stage posts a separate alert to the same
+channel, also tagging Nick. The images are published, **not** rolled out — see [Publish vs. roll
+out](#publish-vs-roll-out) below.
 
 ### Maintenance flow — `cleanup.yml`
 

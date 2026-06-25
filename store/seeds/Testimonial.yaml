@@ -1,0 +1,9 @@
+lookup_fields:
+  - project.codename
+  - person.email
+  - quote
+
+# Add retroactive testimonials here only after the sender has consented to
+# public use and staff has approved publication. Website reads require both
+# `consented_at` and `published_at`.
+records: []

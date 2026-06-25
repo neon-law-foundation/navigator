@@ -2,11 +2,12 @@ name: ci
 
 # The PR flow — one of exactly three workflows in this repo (see CLAUDE.md
 # "CI/CD — three workflows, no more"). Lean on purpose: fmt + clippy +
-# `cargo test --workspace`, run under `cargo llvm-cov` so the SAME test pass
-# also emits the lcov uploaded to Codecov for per-PR diff coverage (no second
-# test run). Integration (KIND), docker image builds, browser tests, and the
-# deploy email all live in the tag flow (`deploy.yml`), cut nightly by the
-# cron flow (`release-tag.yml`).
+# `cargo test --workspace`, plus a repository-wide Markdown validation pass
+# through the Navigator CLI. The test pass runs under `cargo llvm-cov` so the
+# SAME test pass also emits the lcov uploaded to Codecov for per-PR diff
+# coverage (no second test run). Integration (KIND), docker image builds,
+# browser tests, and the deploy email all live in the tag flow (`deploy.yml`),
+# cut nightly by the cron flow (`release-tag.yml`).
 #
 # Do NOT add audit/deny/cucumber/docker/e2e jobs back here — the Cucumber BDD
 # suite already runs inside `cargo test --workspace`, and the heavy paths
@@ -36,6 +37,12 @@ jobs:
       CARGO_INCREMENTAL: "0"
       CARGO_PROFILE_DEV_DEBUG: "0"
       CARGO_PROFILE_TEST_DEBUG: "0"
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+      # Treat the cache as an accelerator, never as part of correctness. If the
+      # GitHub cache service hiccups, rustc runs locally and the gate still
+      # proves the code path.
+      SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
     steps:
       # The standard ubuntu-latest runner ships ~21-28 GB free on `/` — not
       # enough for this workspace's test artifacts (arrow/parquet/iceberg/
@@ -78,6 +85,8 @@ jobs:
           # Restoring target/ makes the standard hosted runner run out of
           # disk once clippy and test artifacts accumulate.
           cache-targets: false
+      - name: cache rustc outputs with sccache
+        uses: mozilla-actions/sccache-action@v0.0.10
       # One Postgres for the whole job — "the same postgres container."
       # With `TEST_DATABASE_URL` set, `store::test_support` connects here
       # and creates a per-test schema instead of spawning a testcontainer
@@ -104,6 +113,15 @@ jobs:
           echo "test-pg never came up" >&2; exit 1
       - name: cargo fmt
         run: cargo fmt --all -- --check
+      # Dogfood the CLI as the Markdown gate: build `navigator` once, then run
+      # that binary over the full visible repository tree (including
+      # README/CLAUDE-style files). Ordinary docs get prose Markdown rules, and
+      # templates get the notation-template superset
+      # (questionnaire/workflow/template rules).
+      - name: build navigator CLI
+        run: cargo build -p cli --quiet
+      - name: validate markdown with navigator
+        run: ./target/debug/navigator validate --no-default-excludes .
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: clear clippy artifacts
@@ -122,6 +140,11 @@ jobs:
           files: lcov.info
           # Never let a Codecov outage block the auto-merge gate.
           fail_ci_if_error: false
+      - name: show sccache stats
+        if: always()
+        continue-on-error: true
+        run: |
+          "${SCCACHE_PATH:-sccache}" --show-stats
 
   enable-automerge:
     name: enable PR auto-merge
