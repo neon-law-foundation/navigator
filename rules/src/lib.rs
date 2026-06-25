@@ -217,7 +217,7 @@ pub fn description_for_code(code: &str) -> &'static str {
         "N101" => "Notation template must declare a non-empty `title`",
         "N102" => "Notation template must declare a valid `respondent_type`",
         "N103" => "Notation template filename must be snake_case",
-        "N104" => "Notation workflow state references an unknown question code",
+        "N104" => "Notation questionnaire/workflow state references an unknown registry item",
         "N105" => "Notation template must declare `confidential`",
         "N106" => "Notation workflow must include staff review",
         "N107" => {

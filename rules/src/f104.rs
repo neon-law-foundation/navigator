@@ -1,10 +1,12 @@
-//! `N104` — questionnaire and workflow state names must reference
-//! valid question codes.
+//! `N104` — questionnaire states must reference valid question codes
+//! and workflow states must compose known workflow step prefixes.
 //!
-//! State name shape: `<question_code>__<discriminator>` (the
-//! `__<discriminator>` part is optional). The prefix before the
-//! first `__` must appear in the configured valid-codes set. The
-//! sentinel states `BEGIN` and `END` are exempt.
+//! Questionnaire state name shape: `<question_code>__<discriminator>`
+//! (the `__<discriminator>` part is optional). The prefix before the
+//! first `__` must appear in the configured valid-codes set. Workflow
+//! state names use the same discriminator convention, but their prefix
+//! must come from the reusable workflow-step catalog. The sentinel
+//! states `BEGIN` and `END` are exempt.
 //!
 //! Both the `questionnaire:` and `workflow:` maps in frontmatter
 //! are validated; both must declare a `BEGIN` state and reach
@@ -19,6 +21,35 @@ use crate::{frontmatter, line_byte_range, Rule, SourceFile, Violation};
 pub struct F104FlowQuestionCodes {
     valid_codes: HashSet<String>,
 }
+
+/// Canonical reusable workflow-step prefixes accepted in notation
+/// template `workflow:` maps.
+///
+/// This is intentionally a small registry, not a free-form namespace:
+/// Templates compose these step families instead of inventing a new
+/// state vocabulary per legal product. Keep this list aligned with
+/// `workflows::step::STEP_PREFIXES`.
+pub const VALID_WORKFLOW_STEP_PREFIXES: &[&str] = &[
+    "analysis",
+    "certified_mail",
+    "client_review",
+    "document_drafts",
+    "document_intake",
+    "document_open",
+    "e_filing",
+    "email_send",
+    "extract",
+    "filing",
+    "firm_signature",
+    "intake_persisted",
+    "mailroom_receive",
+    "mailroom_send",
+    "notarization",
+    "onchain",
+    "sent_for_signature",
+    "staff_review",
+    "witnesses",
+];
 
 impl F104FlowQuestionCodes {
     pub const CODE: &'static str = "N104";
@@ -65,26 +96,25 @@ impl Rule for F104FlowQuestionCodes {
             violations.push(violation(file, "Missing required `workflow` key"));
             return violations;
         };
-        self.validate_map(file, &questionnaire, "questionnaire", &mut violations);
-        self.validate_map(file, &workflow, "workflow", &mut violations);
+        self.validate_questionnaire(file, &questionnaire, &mut violations);
+        Self::validate_workflow(file, &workflow, &mut violations);
         violations
     }
 }
 
 impl F104FlowQuestionCodes {
-    fn validate_map(
-        &self,
+    fn validate_common_shape(
         file: &SourceFile,
         map: &BTreeMap<String, BTreeMap<String, String>>,
         map_name: &str,
         violations: &mut Vec<Violation>,
-    ) {
+    ) -> bool {
         if !map.contains_key("BEGIN") {
             violations.push(violation(
                 file,
                 format!("{map_name} is missing required BEGIN state"),
             ));
-            return;
+            return false;
         }
         let reaches_end = map.values().any(|t| t.values().any(|n| n == "END"));
         if !reaches_end {
@@ -92,6 +122,18 @@ impl F104FlowQuestionCodes {
                 file,
                 format!("{map_name} is missing required END state"),
             ));
+            return false;
+        }
+        true
+    }
+
+    fn validate_questionnaire(
+        &self,
+        file: &SourceFile,
+        map: &BTreeMap<String, BTreeMap<String, String>>,
+        violations: &mut Vec<Violation>,
+    ) {
+        if !Self::validate_common_shape(file, map, "questionnaire", violations) {
             return;
         }
         if self.valid_codes.is_empty() {
@@ -113,6 +155,35 @@ impl F104FlowQuestionCodes {
             }
         }
     }
+
+    fn validate_workflow(
+        file: &SourceFile,
+        map: &BTreeMap<String, BTreeMap<String, String>>,
+        violations: &mut Vec<Violation>,
+    ) {
+        if !Self::validate_common_shape(file, map, "workflow", violations) {
+            return;
+        }
+        for state in map.keys() {
+            if state == "BEGIN" || state == "END" {
+                continue;
+            }
+            let prefix = state.split_once("__").map_or(state.as_str(), |(p, _)| p);
+            if !valid_workflow_step_prefix(prefix) {
+                violations.push(violation(
+                    file,
+                    format!("Invalid workflow step prefix: `{prefix}` (from state `{state}`)"),
+                ));
+            }
+        }
+    }
+}
+
+#[must_use]
+pub fn valid_workflow_step_prefix(prefix: &str) -> bool {
+    VALID_WORKFLOW_STEP_PREFIXES.contains(&prefix)
+        || prefix.ends_with("_signature")
+        || prefix.ends_with("_signatures")
 }
 
 fn violation(file: &SourceFile, message: impl Into<String>) -> Violation {
@@ -127,7 +198,7 @@ fn violation(file: &SourceFile, message: impl Into<String>) -> Violation {
 
 #[cfg(test)]
 mod tests {
-    use super::F104FlowQuestionCodes;
+    use super::{valid_workflow_step_prefix, F104FlowQuestionCodes, VALID_WORKFLOW_STEP_PREFIXES};
     use crate::{Rule, SourceFile};
     use std::path::PathBuf;
 
@@ -138,7 +209,7 @@ mod tests {
         }
     }
 
-    const VALID_CODES: &[&str] = &["trustee_name", "beneficiary_name", "staff_review"];
+    const VALID_CODES: &[&str] = &["trustee_name", "beneficiary_name"];
 
     fn rule() -> F104FlowQuestionCodes {
         F104FlowQuestionCodes::new(VALID_CODES.iter().copied())
@@ -248,5 +319,92 @@ workflow:
 ---
 ";
         assert!(rule().lint(&file(body)).is_empty());
+    }
+
+    #[test]
+    fn workflow_states_are_validated_against_step_prefixes_not_question_codes() {
+        let body = "---
+title: T
+questionnaire:
+  BEGIN:
+    created: trustee_name
+  trustee_name:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: document_open__trust_pdf
+  document_open__trust_pdf:
+    persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: END
+  END: {}
+---
+";
+        assert!(rule().lint(&file(body)).is_empty());
+    }
+
+    #[test]
+    fn workflow_signature_suffixes_are_known_steps() {
+        let body = "---
+title: T
+questionnaire:
+  BEGIN:
+    created: trustee_name
+  trustee_name:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: member_signatures
+  member_signatures:
+    signed: staff_review
+  staff_review:
+    approved: END
+  END: {}
+---
+";
+        assert!(rule().lint(&file(body)).is_empty());
+    }
+
+    #[test]
+    fn flags_workflow_states_outside_the_step_catalog() {
+        let body = "---
+title: T
+questionnaire:
+  BEGIN:
+    created: trustee_name
+  trustee_name:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: bespoke_magic
+  bespoke_magic:
+    done: END
+  END: {}
+---
+";
+        let v = rule().lint(&file(body));
+        assert!(v.iter().any(|x| x
+            .message
+            .contains("Invalid workflow step prefix: `bespoke_magic`")));
+    }
+
+    #[test]
+    fn workflow_step_registry_stays_aligned_with_engine_prefixes() {
+        for (prefix, _) in workflows::step::STEP_PREFIXES {
+            if *prefix == "_signature" {
+                assert!(
+                    valid_workflow_step_prefix("member_signatures"),
+                    "signature suffix family should be accepted by N104",
+                );
+                continue;
+            }
+            assert!(
+                VALID_WORKFLOW_STEP_PREFIXES.contains(prefix),
+                "workflow engine prefix `{prefix}` is missing from N104 registry",
+            );
+        }
     }
 }

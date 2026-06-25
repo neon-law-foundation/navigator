@@ -115,11 +115,11 @@ the notation-template superset to files under `notation_templates/` or any Markd
 Use this path when adding a new matter type or extending a template's workflow. Do not solve legal workflows with a
 one-off router handler when a template + questionnaire + workflow can express the matter.
 
-1. Write the `.feature` first in `features/tests/features/`.
+1. Write the composition `.feature` first in `features/tests/features/`.
 2. Create or edit the template in `notation_templates/<category>/<snake_case_name>.md`.
 3. Add new questions to `store/seeds/Question.yaml`.
 4. Compose the workflow from documented step prefixes in [`notation-authoring.md`](notation-authoring.md).
-5. Add reusable `StepKind` and dispatch code only when the existing step library cannot express the work.
+5. Add reusable `StepKind` and dispatch code only when the existing step registry cannot express the work.
 6. Put every external or non-deterministic side effect behind Restate durability.
 7. Add tests in the same commit as the implementation.
 
