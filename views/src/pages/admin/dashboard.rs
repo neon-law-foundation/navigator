@@ -123,7 +123,7 @@ pub fn dashboard(counts: &DashboardCounts, csrf_token: &str) -> Markup {
         }
     };
     PageLayout::new("Admin")
-        .with_description("Navigator administrative overview.")
+        .with_description("Neon Law Navigator administrative overview.")
         .with_auth(crate::AuthState::Authenticated)
         .render(&body)
 }

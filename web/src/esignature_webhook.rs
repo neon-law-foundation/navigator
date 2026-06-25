@@ -339,7 +339,10 @@ async fn commit_executed_to_repo(
     // if the persons row can't be loaded.
     let (name, email) = match person::Entity::find_by_id(n.person_id).one(&state.db).await {
         Ok(Some(p)) => (p.name, p.email),
-        _ => ("Navigator".to_string(), "matter@localhost".to_string()),
+        _ => (
+            "Neon Law Navigator".to_string(),
+            "matter@localhost".to_string(),
+        ),
     };
     crate::matter_documents::commit_files(
         &state.db,

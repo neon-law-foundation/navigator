@@ -582,7 +582,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Navigator ${{ github.ref_name }}
+          name: Neon Law Navigator ${{ github.ref_name }}
           generate_release_notes: true
           files: dist/*
 
@@ -623,7 +623,7 @@ jobs:
           # Concise hand-off: tag the on-call, state the build is ready, and hand
           # over the exact roll command (escaped backticks → literal Slack code
           # span). The prod roll is a deliberate manual step — see docs/gitops.md.
-          TEXT=":rocket: Navigator ${TAG} is built and published to ghcr, with CLI/LSP downloads attached to the GitHub Release — ready to deploy. ${SLACK_OPS_MENTION}
+          TEXT=":rocket: Neon Law Navigator ${TAG} is built and published to ghcr, with CLI/LSP downloads attached to the GitHub Release — ready to deploy. ${SLACK_OPS_MENTION}
           Roll it to prod:
           \`doppler run --project navigator --config prd -- cargo run --release -p cli -- power-push --tag ${TAG}\`
           Run: ${RUN_URL}"
@@ -670,7 +670,7 @@ jobs:
               echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the failure alert"
               exit 1
           fi
-          TEXT=":x: Navigator deploy ${TAG} failed — ${SLACK_OPS_MENTION} please investigate.
+          TEXT=":x: Neon Law Navigator deploy ${TAG} failed — ${SLACK_OPS_MENTION} please investigate.
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
           code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \

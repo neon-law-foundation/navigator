@@ -61,7 +61,7 @@ impl WritesWorld {
     }
 }
 
-#[given("the Navigator app is running")]
+#[given("the Neon Law Navigator app is running")]
 async fn build_app(world: &mut WritesWorld) {
     let db = in_memory_db().await;
     let runtime = Arc::new(InMemoryRuntime::new());

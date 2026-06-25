@@ -2,7 +2,7 @@
 //!
 //! Opens a new Project (a [Matter] in client English) without
 //! attaching a Notation yet. Use this when onboarding a matter
-//! whose Template doesn't exist in Navigator (a one-off settlement,
+//! whose Template doesn't exist in Neon Law Navigator (a one-off settlement,
 //! a custom expungement petition, an entity-management container) —
 //! the Project is the durable home for Persons and Documents;
 //! Notations attach later as Templates ship.
@@ -24,7 +24,7 @@ const STATUSES: &[&str] = &["open", "closed", "archived"];
 pub fn descriptor() -> Value {
     json!({
         "name": "aida_create_project",
-        "description": "Open a new Project (matter) in Navigator. A matter always opens against a \
+        "description": "Open a new Project (matter) in Neon Law Navigator. A matter always opens against a \
                         pre-existing Entity — pass its uuid as `entity_id` (create the Entity \
                         first if needed). Returns the new id, name, status, and entity_id so the \
                         caller can reference the row.",

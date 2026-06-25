@@ -45,7 +45,7 @@ pub fn intake_step(view: &IntakeStep<'_>) -> Markup {
         view.project_id, view.notation_id
     );
     let title = format!("{} — step {current} of {total}", view.flow_label);
-    let page_title = format!("Your {} — Navigator", view.flow_label);
+    let page_title = format!("Your {} — Neon Law Navigator", view.flow_label);
     // `people_list` is a composite widget (several inputs assembled by
     // the POST handler into one JSON answer); everything else is one
     // `value` control.
@@ -116,7 +116,7 @@ pub struct IntakeComplete<'a> {
 
 #[must_use]
 pub fn intake_complete(view: &IntakeComplete<'_>) -> Markup {
-    let page_title = format!("Your {} — Navigator", view.flow_label);
+    let page_title = format!("Your {} — Neon Law Navigator", view.flow_label);
     let back = format!("/portal/projects/{}", view.project_id);
     let body = html! {
         section."portal" {

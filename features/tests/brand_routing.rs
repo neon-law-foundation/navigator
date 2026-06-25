@@ -36,7 +36,7 @@ impl std::fmt::Debug for BrandWorld {
     }
 }
 
-#[given("the Navigator public site is running")]
+#[given("the Neon Law Navigator public site is running")]
 async fn build(world: &mut BrandWorld) {
     let db = in_memory_db().await;
     let runtime = Arc::new(InMemoryRuntime::new());

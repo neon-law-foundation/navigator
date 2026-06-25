@@ -1,6 +1,6 @@
 //! Admin cron-schedule reference page.
 //!
-//! Lists the Kubernetes `CronJob`s that drive Navigator's scheduled
+//! Lists the Kubernetes `CronJob`s that drive Neon Law Navigator's scheduled
 //! work (today: the nightly Archives export) with their cron expression,
 //! a human cadence, what each does, and a "Run now" trigger for jobs
 //! that expose one.
@@ -28,7 +28,7 @@ pub struct CronJobEntry {
     pub manual_run: Option<&'static str>,
 }
 
-/// The `CronJob`s Navigator ships. Mirrors the manifests under
+/// The `CronJob`s Neon Law Navigator ships. Mirrors the manifests under
 /// `examples/deploy/k8s/exports/`. Add a row when a `CronJob` is added.
 const CRON_JOBS: &[CronJobEntry] = &[
     CronJobEntry {
@@ -136,7 +136,7 @@ pub fn schedules(csrf_token: &str) -> Markup {
         }
     };
     PageLayout::new("Cron schedules")
-        .with_description("Navigator scheduled-job reference.")
+        .with_description("Neon Law Navigator scheduled-job reference.")
         .with_auth(crate::AuthState::Authenticated)
         .render(&body)
 }

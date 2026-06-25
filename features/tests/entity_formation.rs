@@ -60,7 +60,7 @@ impl FormationWorld {
     }
 }
 
-#[given("a fresh Navigator app with the canonical templates seeded")]
+#[given("a fresh Neon Law Navigator app with the canonical templates seeded")]
 async fn build_app(world: &mut FormationWorld) {
     world.journey = Some(Journey::open("entity-formation").await);
 }

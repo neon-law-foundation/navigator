@@ -5,7 +5,7 @@ Feature: MCP conversational notation creation
   just relays prompts to the user and submits the answers.
 
   Background:
-    Given a fresh Navigator app with the canonical templates seeded
+    Given a fresh Neon Law Navigator app with the canonical templates seeded
     And a seeded person "Libra" with email "libra@example.com"
 
   Scenario: Full retainer walk over MCP advances the questionnaire to END

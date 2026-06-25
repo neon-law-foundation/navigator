@@ -9,7 +9,7 @@ Feature: Profit corporation and business trust formations on the official packet
   packet, and the matter ends at a recorded Secretary-of-State filing.
 
   Background:
-    Given a fresh Navigator app with the canonical templates seeded
+    Given a fresh Neon Law Navigator app with the canonical templates seeded
     And a client named "Libra" <libra@example.com>
 
   Scenario: A profit corporation forms on the official SoS packet

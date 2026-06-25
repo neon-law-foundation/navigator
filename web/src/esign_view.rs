@@ -4,7 +4,7 @@
 //! DocuSign recipient (see [`crate::retainer_walk::client_user_id`]) —
 //! DocuSign does not email them. Instead this route asks the provider for
 //! a short-lived [recipient view] URL and iframes it, so the client signs
-//! inside Navigator rather than leaving for an emailed DocuSign link.
+//! inside Neon Law Navigator rather than leaving for an emailed DocuSign link.
 //!
 //! `GET /portal/admin/notations/:id/sign`
 //!

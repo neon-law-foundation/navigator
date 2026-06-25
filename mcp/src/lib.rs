@@ -1,7 +1,7 @@
-//! Model Context Protocol (MCP) server for Navigator.
+//! Model Context Protocol (MCP) server for Neon Law Navigator.
 //!
 //! Built for one purpose: let LibreChat-hosted LLMs reach into the
-//! Navigator CRM database. The transport is MCP's "Streamable HTTP"
+//! Neon Law Navigator CRM database. The transport is MCP's "Streamable HTTP"
 //! variant — a single `/mcp` endpoint that speaks JSON-RPC 2.0.
 //!
 //! Two deployment shapes share the same router:

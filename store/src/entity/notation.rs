@@ -30,7 +30,7 @@ pub struct Model {
     /// `m20260621_add_signature_request_id_to_notations`.
     pub signature_request_id: Option<String>,
     /// How the client receives this notation when it is sent for
-    /// signature: [`DELIVERY_EMBEDDED`] (captive — signs inside Navigator,
+    /// signature: [`DELIVERY_EMBEDDED`] (captive — signs inside Neon Law Navigator,
     /// not emailed) or [`DELIVERY_EMAILED`] (DocuSign emails a signing
     /// link). Read once when the signature manifest is built; selects how
     /// the single send path addresses the client recipient. Defaults to
@@ -58,7 +58,7 @@ pub struct Model {
     pub updated_at: String,
 }
 
-/// Captive client recipient: signs embedded inside Navigator (no email).
+/// Captive client recipient: signs embedded inside Neon Law Navigator (no email).
 /// The historical retainer-walk default.
 pub const DELIVERY_EMBEDDED: &str = "embedded";
 

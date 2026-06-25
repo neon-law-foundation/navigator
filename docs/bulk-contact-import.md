@@ -1,6 +1,6 @@
 # Bulk contact import
 
-One engine, three surfaces, for turning a list of organizations and the people who work at them into Navigator
+One engine, three surfaces, for turning a list of organizations and the people who work at them into Neon Law Navigator
 `entities`, `persons`, and the links between them.
 
 The motivating case: a list of legal-aid organizations and their executive directors / CIOs, loaded so each org is a
@@ -13,8 +13,8 @@ Parse, validate, and apply live in the [`import`](../import) crate — the same 
 engine:
 
 - **`cli import-contacts <file>`** — operator-run batch import (and `--dry-run` for validation only).
-- **`aida_bulk_import`** — the AIDA MCP tool; hands the engine a whole document. Staff/admin only.
-- **`web` upload route** — *(fast-follow)* the same engine behind a browser upload page.
+  **`aida_bulk_import`** — the AIDA MCP tool; hands the engine a whole document. Staff/admin only. **`web` upload
+  route** — *(fast-follow)* the same engine behind a browser upload page.
 
 No surface re-implements the logic. Adding the web page later is wiring, not new behavior.
 
@@ -58,9 +58,8 @@ Field notes:
   row. The states themselves are all seeded.
 - **`organizations[].url`** is canonicalized before storage: `http` upgraded to `https`, host lowercased, query /
   fragment / trailing slash dropped. `http://NWJustice.org/?ref=x` is stored as `https://nwjustice.org`.
-- **`people[].email`** is the unique upsert key.
-- **`people[].organization`** must be a `key` from this same payload's `organizations`.
-- **`people[].entity_role`** is the `person_entity_roles` link role; it defaults to `client_contact`.
+- **`people[].email`** is the unique upsert key. **`people[].organization`** must be a `key` from this same payload's
+  `organizations`. **`people[].entity_role`** is the `person_entity_roles` link role; it defaults to `client_contact`.
 
 The `projects` block — opening the engagement Project with its onboarding / offboarding lifecycle — is deliberately not
 in version 1. Contacts land first; a Project is opened per real install later. The envelope is versioned so that block

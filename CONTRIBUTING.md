@@ -1,6 +1,6 @@
-# Contributing to Navigator
+# Contributing to Neon Law Navigator
 
-Thanks for your interest in Navigator. This project has an intentionally narrow contribution model.
+Thanks for your interest in Neon Law Navigator. This project has an intentionally narrow contribution model.
 
 ## We accept issues; we do not accept pull requests
 
@@ -9,10 +9,8 @@ contribution surface we accept from the community.**
 
 Open an issue to:
 
-- report a bug, with steps to reproduce and the expected vs. actual behavior;
-- propose a feature, with the motivating use case and the rough shape of the change;
-- ask a design question;
-- flag a doc or markdown lint problem.
+- report a bug, with steps to reproduce and the expected vs. actual behavior; propose a feature, with the motivating use
+  case and the rough shape of the change; ask a design question; flag a doc or markdown lint problem.
 
 **Pull requests opened by external contributors will be closed without review.** This is not a comment on the quality of
 the work — it is a process choice. We want the design conversation to happen on the issue *before* any code is written,
@@ -27,9 +25,8 @@ helpful. Just do not open a PR.
 
 ## Before you open an issue
 
-- **Search first.** Check existing open and closed issues; the question or bug may already be tracked.
-- **One issue per concern.** Split unrelated bugs and feature requests into separate issues so each can be discussed on
-  its own thread.
+- **Search first.** Check existing open and closed issues; the question or bug may already be tracked. **One issue per
+  concern.** Split unrelated bugs and feature requests into separate issues so each can be discussed on its own thread.
 - **Include versions and environment** for bug reports: Rust toolchain (`rustc --version`), OS, and whether you
   reproduced against KIND (`navigator start-dev-server`) or another environment.
 
@@ -40,7 +37,7 @@ engaging with the project, you agree to abide by it.
 
 ## License
 
-Navigator is dual-licensed under your choice of the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT
+Neon Law Navigator is dual-licensed under your choice of the [Apache License, Version 2.0](LICENSE-APACHE) or the [MIT
 license](LICENSE-MIT). This is the standard licensing convention across the Rust ecosystem: the Apache-2.0 grant carries
 an explicit patent license, while the MIT option preserves compatibility with GPLv2 and other licenses whose terms the
 Apache patent clause would otherwise conflict with.

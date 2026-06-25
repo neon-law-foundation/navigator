@@ -48,7 +48,7 @@ bankruptcy, we tell you and point you to an attorney who files them.
 monthly fee, any out-of-scope rate, and how either of us can end the representation. Before that letter goes out we run
 a conflict check against every current and former matter at the firm — we represent businesses too, and we cannot
 represent a business and an individual whose interests are adverse to each other. If the check shows we cannot properly
-take your matter, we tell you promptly and refer you to counsel who also use the Navigator and are committed to
+take your matter, we tell you promptly and refer you to counsel who also use the Neon Law Navigator and are committed to
 improving access to justice with our software. There are no referral fees between Neon Law and any firm we refer cases
 to. Nautilus does not guarantee any particular result, and it does not erase debts you owe — it makes sure your rights
 are used and that the people collecting deal with your lawyer.

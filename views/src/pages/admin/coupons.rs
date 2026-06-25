@@ -1,7 +1,7 @@
 //! Admin coupons page — the reusable-discount listing plus the "mint a
 //! coupon" form.
 //!
-//! Xero has no coupon object, so a coupon is a Navigator concept: it holds
+//! Xero has no coupon object, so a coupon is a Neon Law Navigator concept: it holds
 //! the *intent* of a standing discount. Applying one to a subscription
 //! resolves it to a `billing::LineDiscount` and snapshots that onto the
 //! subscription, so editing or expiring the coupon later never re-prices
