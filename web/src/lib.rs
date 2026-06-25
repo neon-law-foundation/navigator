@@ -935,9 +935,6 @@ async fn blog_index(State(blog): State<BlogIndex>, MaybeAuth(auth): MaybeAuth) -
     views::pages::blog::render_index(&summaries, auth)
 }
 
-const SEATTLE_SHOW_TELL_SOURCE_SLUG: &str = "seattle-agentic-workflows-for-lawyers";
-const SEATTLE_SHOW_TELL_PUBLIC_SLUG: &str = "seattle-summer-2026";
-
 /// Build the kebab-case redirect target for a file-backed asset route
 /// when any path segment is in the legacy underscore form, or `None`
 /// when every segment is already canonical.
@@ -957,10 +954,6 @@ fn kebab_redirect_path(segments: &[&str]) -> Option<String> {
     } else {
         None
     }
-}
-
-fn seattle_show_tell(events: &EventIndex) -> Option<&Event> {
-    events.get(SEATTLE_SHOW_TELL_SOURCE_SLUG)
 }
 
 /// `GET /blog/{slug}` — one post, or a 404 page when the slug is unknown.
@@ -2008,21 +2001,31 @@ fn render_nebula_landing(
             benefit: &m.benefit,
         })
         .collect();
-    let show_tell_time;
-    let show_tell_place;
-    let show_tell_cards = if let Some(event) = seattle_show_tell(events) {
-        show_tell_time = format_event_datetime_range(event.starts_at, event.ends_at);
-        show_tell_place = event.location_name.clone();
-        vec![workshop_views::ShowTellCard {
-            href: "/foundation/nebula/show-and-tell/seattle-summer-2026",
-            title: &event.title,
-            time: &show_tell_time,
-            place: &show_tell_place,
-            description: &event.description,
-        }]
-    } else {
-        Vec::new()
-    };
+    let show_tell_meta: Vec<(String, String, String)> = events
+        .events()
+        .iter()
+        .map(|event| {
+            (
+                format!("{NEBULA_BASE}/show-and-tell/{}", event.public_slug),
+                format_event_datetime_range(event.starts_at, event.ends_at),
+                event.location_name.clone(),
+            )
+        })
+        .collect();
+    let show_tell_cards: Vec<workshop_views::ShowTellCard<'_>> = events
+        .events()
+        .iter()
+        .zip(&show_tell_meta)
+        .map(
+            |(event, (href, time, place))| workshop_views::ShowTellCard {
+                href,
+                title: &event.title,
+                time,
+                place,
+                description: &event.description,
+            },
+        )
+        .collect();
     workshop_views::landing_in(&workshop_cards, &show_tell_cards, auth, locale)
 }
 
@@ -2157,15 +2160,14 @@ async fn nebula_material(
 }
 
 fn nebula_show_tell(events: &EventIndex, auth: views::AuthState, slug: &str) -> impl IntoResponse {
-    if slug != SEATTLE_SHOW_TELL_PUBLIC_SLUG {
-        return (StatusCode::NOT_FOUND, views::not_found_page()).into_response();
-    }
-    match seattle_show_tell(events) {
+    match events.get_public(slug) {
         Some(event) => {
             let time = format_event_datetime_range(event.starts_at, event.ends_at);
             let place = format!("{}, {}", event.location_name, event.location_address);
-            let ics_url =
-                format!("{NEBULA_BASE}/show-and-tell/{SEATTLE_SHOW_TELL_PUBLIC_SLUG}/calendar.ics");
+            let ics_url = format!(
+                "{NEBULA_BASE}/show-and-tell/{}/calendar.ics",
+                event.public_slug
+            );
             (
                 StatusCode::OK,
                 workshop_views::show_tell(
@@ -2194,10 +2196,7 @@ async fn nebula_show_tell_ics(
     State(events): State<EventIndex>,
     AxumPath(slug): AxumPath<String>,
 ) -> impl IntoResponse {
-    if slug != SEATTLE_SHOW_TELL_PUBLIC_SLUG {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-    match seattle_show_tell(&events) {
+    match events.get_public(&slug) {
         Some(event) => (
             StatusCode::OK,
             [(header::CONTENT_TYPE, "text/calendar; charset=utf-8")],

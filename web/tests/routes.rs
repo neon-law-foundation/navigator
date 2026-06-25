@@ -5103,6 +5103,7 @@ fn blog_state_with_one_post() -> web::BlogIndex {
 fn event_state_with_one_event() -> web::EventIndex {
     web::EventIndex::new(vec![web::Event {
         slug: "seattle-agentic-workflows-for-lawyers".into(),
+        public_slug: "seattle-summer-2026".into(),
         date: chrono::NaiveDate::from_ymd_opt(2026, 7, 2).unwrap(),
         title: "Agentic Workflows for Lawyers".into(),
         description: "A practical AI workflow gathering.".into(),

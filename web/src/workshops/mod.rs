@@ -88,11 +88,6 @@ impl WorkshopIndex {
     }
 
     #[must_use]
-    pub fn find(&self, slug: &str) -> Option<&WorkshopMaterial> {
-        self.materials.iter().find(|m| m.slug == slug)
-    }
-
-    #[must_use]
     pub fn find_in_category(&self, category: &str, slug: &str) -> Option<&WorkshopMaterial> {
         self.materials
             .iter()

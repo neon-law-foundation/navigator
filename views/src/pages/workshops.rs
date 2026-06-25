@@ -200,17 +200,19 @@ pub fn landing_in(
                         " for the runbook in the meantime."
                     }
                 } @else {
-                    h2 { (workshops) }
-                    ul.workshop-materials."list-unstyled" {
-                        @for c in workshop_cards {
-                            li.workshop-material."mb-4" {
-                                p.workshop-audience."text-uppercase"."small"."fw-semibold"."text-body-secondary"."mb-1" {
-                                    (c.audience)
+                    @if !workshop_cards.is_empty() {
+                        h2 { (workshops) }
+                        ul.workshop-materials."list-unstyled" {
+                            @for c in workshop_cards {
+                                li.workshop-material."mb-4" {
+                                    p.workshop-audience."text-uppercase"."small"."fw-semibold"."text-body-secondary"."mb-1" {
+                                        (c.audience)
+                                    }
+                                    h2 {
+                                        a href=(c.href) { (c.title) }
+                                    }
+                                    p { (c.benefit) }
                                 }
-                                h2 {
-                                    a href=(c.href) { (c.title) }
-                                }
-                                p { (c.benefit) }
                             }
                         }
                     }
@@ -637,8 +639,8 @@ fn copy_markdown_button(md_href: &str) -> Markup {
 #[cfg(test)]
 mod tests {
     use super::{
-        landing, overview, step, MaterialOverview, StepSummary, WorkshopCard, WorkshopStep,
-        LANDING_TITLE,
+        landing, overview, step, MaterialOverview, ShowTellCard, StepSummary, WorkshopCard,
+        WorkshopStep, LANDING_TITLE,
     };
     use crate::brand::{foundation_email, FOUNDATION_BRAND};
 
@@ -723,6 +725,21 @@ mod tests {
         // signals the surface grows.
         assert!(html.contains("You walk out"));
         assert!(html.contains("land here as we run them"));
+    }
+
+    #[test]
+    fn landing_omits_workshops_section_when_only_show_tells_exist() {
+        let show_tells = vec![ShowTellCard {
+            href: "/foundation/nebula/show-and-tell/seattle-summer-2026",
+            title: "Seattle Summer 2026",
+            time: "July 2, 2026, 11:00 AM-3:00 PM PT",
+            place: "Private lounge",
+            description: "A practical AI workflow gathering.",
+        }];
+        let html = landing(&[], &show_tells, crate::AuthState::Anonymous).into_string();
+        assert!(!html.contains(">Workshops</h2>"), "got: {html}");
+        assert!(html.contains(">Show-and-tells</h2>"));
+        assert!(html.contains("href=\"/foundation/nebula/show-and-tell/seattle-summer-2026\""));
     }
 
     #[test]
