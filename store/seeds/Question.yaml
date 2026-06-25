@@ -349,7 +349,7 @@ records:
     question_type: string
   - code: nonprofit_state
     prompt: In which U.S. state is the nonprofit incorporated?
-    help_text: The state whose law governs the organization and this agreement.
+    help_text: Enter the full state name as it will appear in the agreement, for example Nevada or California, not NV or CA.
     question_type: string
   - code: worker_legal_name
     prompt: What is the worker's full legal name?
@@ -385,5 +385,5 @@ records:
     question_type: string
   - code: termination_notice_days
     prompt: How many days' written notice may either party give to end the engagement?
-    help_text: A whole number of days, for example 14 or 30.
+    help_text: Enter a whole number only, with no unit suffix. For example, enter 14 or 30, not "14 days".
     question_type: string

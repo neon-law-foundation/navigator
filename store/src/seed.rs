@@ -180,10 +180,10 @@ mod canonical {
     pub const TEMPLATE_NEXUS: &str =
         include_str!("../../notation_templates/united_states/nevada/internal/business_associations/fractional_gc.md");
     pub const TEMPLATE_EMPLOYMENT_W2: &str = include_str!(
-        "../../notation_templates/united_states/nevada/internal/employment/employment_agreement.md"
+        "../../notation_templates/united_states/nevada/internal/contracts/employment_agreement.md"
     );
     pub const TEMPLATE_CONTRACTOR_1099: &str = include_str!(
-        "../../notation_templates/united_states/nevada/internal/employment/contractor_agreement.md"
+        "../../notation_templates/united_states/nevada/internal/contracts/contractor_agreement.md"
     );
     pub const TEMPLATE_CONTRACT_REVIEW: &str =
         include_str!("../../notation_templates/services/contract_review.md");
@@ -365,11 +365,11 @@ async fn seed_templates(
         ),
         ("united_states/nevada/internal/business_associations/fractional_gc.md", canonical::TEMPLATE_NEXUS),
         (
-            "united_states/nevada/internal/employment/employment_agreement.md",
+            "united_states/nevada/internal/contracts/employment_agreement.md",
             canonical::TEMPLATE_EMPLOYMENT_W2,
         ),
         (
-            "united_states/nevada/internal/employment/contractor_agreement.md",
+            "united_states/nevada/internal/contracts/contractor_agreement.md",
             canonical::TEMPLATE_CONTRACTOR_1099,
         ),
         (
