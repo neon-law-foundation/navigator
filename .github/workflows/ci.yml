@@ -149,7 +149,14 @@ jobs:
   enable-automerge:
     name: enable PR auto-merge
     needs: rust
+    # Request auto-merge exactly ONCE per PR — only when it is opened or a draft
+    # is marked ready for review, NOT on `synchronize`. Re-running on every push
+    # would re-enable auto-merge after a human deliberately disabled it to hold
+    # the PR. `gh pr merge --auto` only *requests* the merge; GitHub still holds
+    # the PR until the required checks above (the `rust` job) pass, so gating the
+    # request to the open event loses nothing — the tests still gate the merge.
     if: >
+      (github.event.action == 'opened' || github.event.action == 'ready_for_review') &&
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
@@ -161,14 +168,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          current_head="$(gh pr view "${PR_URL}" --json headRefOid --jq .headRefOid)"
-          if [ "${current_head}" != "${PR_HEAD_SHA}" ]; then
-              echo "PR head moved from ${PR_HEAD_SHA} to ${current_head}; a newer CI run will handle auto-merge."
-              exit 0
-          fi
-
           auto_merge_enabled="$(
               gh pr view "${PR_URL}" \
                   --json autoMergeRequest \
@@ -179,6 +179,4 @@ jobs:
               exit 0
           fi
 
-          gh pr merge --auto --squash \
-              --match-head-commit "${PR_HEAD_SHA}" \
-              "${PR_URL}"
+          gh pr merge --auto --squash "${PR_URL}"

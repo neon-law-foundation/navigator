@@ -49,7 +49,7 @@ deliver competent representation at scale — so that the rights on the page rea
 - **Expanding Legal Aid Capacity.**
   Help legal aid organizations and pro bono attorneys serve more clients with the same resources through technology.
 
-[Open the Navigator workshop →](/foundation/workshops/navigator)
+[Open Nebula →](/foundation/nebula)
 
 ## Reach the foundation
 

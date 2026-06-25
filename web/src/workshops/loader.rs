@@ -1,10 +1,8 @@
 //! Load the baked-in workshop manifest.
 //!
-//! There is one canonical workshop on the public surface today —
-//! "Using the Navigator to Rapidly Solve Legal Outcomes" — but the
-//! `WorkshopIndex` is intentionally kept general (Capricorn's call
-//! in the engineer council: in two years there will be ten
-//! workshops, not one).
+//! Nebula groups public sharing materials — workshops, presentations,
+//! and show-and-tells — while this loader keeps the authored markdown
+//! manifest stable.
 
 use std::fs;
 use std::io;
@@ -16,11 +14,12 @@ use super::{WorkshopMaterial, WorkshopSection};
 use crate::content_loader::ContentLoadError;
 
 struct ManifestEntry {
+    category: &'static str,
     slug: &'static str,
     title: &'static str,
     description: &'static str,
-    /// Who the workshop is for, shown as the audience tag on the
-    /// `/foundation/workshops` overview so a reader self-selects fast.
+    /// Who the material is for, shown as the audience tag on the
+    /// `/foundation/nebula` overview so a reader self-selects fast.
     audience: &'static str,
     /// The you-voiced takeaway shown as the overview card body —
     /// what the reader walks out with, never a guaranteed outcome.
@@ -34,7 +33,8 @@ const NAVIGATOR_FOLDER: &str = "navigator";
 
 const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
     ManifestEntry {
-        slug: "readme",
+        category: "workshops",
+        slug: "use-the-navigator",
         title: "Using the Navigator to Rapidly Solve Legal Outcomes",
         description: "A single hands-on workshop for attorneys. Build a deed-of-sale notation \
                       with a notarization step using Gemini's Add AIDA connector — no command \
@@ -49,7 +49,8 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
         filename: "README.md",
     },
     ManifestEntry {
-        slug: "deploy",
+        category: "workshops",
+        slug: "deploy-the-navigator",
         title: "Deploy the Navigator",
         description: "Stand up your own Navigator instance on a custom Google Cloud project. Six \
                       grounded steps walk `navigator gcp setup` — APIs, VPC, Cloud SQL, three buckets, \
@@ -63,12 +64,13 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
                   give you the command.",
         filename: "DEPLOY.md",
     },
-    // A conference talk is a hands-on workshop too — it folded in here when
-    // the standalone Presentations surface was removed. Every code slide is
-    // an exact copy of the workspace file it cites; the
+    // A conference talk folded into Nebula when the standalone
+    // Presentations surface was removed. Every code slide is an exact
+    // copy of the workspace file it cites; the
     // `rust_in_peace_snippets_are_exact_copies_of_cited_sources` test fails
     // the build if one drifts.
     ManifestEntry {
+        category: "presentations",
         slug: "rust-in-peace",
         title: "Rust in Peace",
         description:
@@ -104,6 +106,7 @@ pub fn load_navigator(content_root: &Path) -> Result<Vec<WorkshopMaterial>, Cont
             }
         };
         materials.push(material_from_markdown(
+            entry.category,
             entry.slug,
             entry.title,
             entry.description,
@@ -123,6 +126,7 @@ pub fn load_navigator(content_root: &Path) -> Result<Vec<WorkshopMaterial>, Cont
 /// The title, description, audience, and benefit come from the caller,
 /// not the markdown, so the surface controls its own chrome.
 pub(crate) fn material_from_markdown(
+    category: &str,
     slug: &str,
     title: &str,
     description: &str,
@@ -146,6 +150,7 @@ pub(crate) fn material_from_markdown(
         })
         .collect();
     WorkshopMaterial {
+        category: category.to_string(),
         slug: slug.to_string(),
         title: title.to_string(),
         description: description.to_string(),
@@ -457,7 +462,8 @@ mod tests {
         .unwrap();
         let materials = load_navigator(dir.path()).unwrap();
         assert_eq!(materials.len(), 1, "exactly one workshop on the surface");
-        assert_eq!(materials[0].slug, "readme");
+        assert_eq!(materials[0].category, "workshops");
+        assert_eq!(materials[0].slug, "use-the-navigator");
         assert_eq!(
             materials[0].title,
             "Using the Navigator to Rapidly Solve Legal Outcomes",
