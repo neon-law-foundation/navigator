@@ -1,17 +1,17 @@
-Feature: Bundled-template workflow shapes (LLC, trust, will)
+Feature: Bundled-template workflow composition (LLC, trust, will)
 
   The retainer is BDD-tested end-to-end via the walker; the other
-  three bundled templates lock down their state-machine shapes here
-  instead. The `workflow_integrity` workspace test asserts a small
-  set of generic invariants (BEGIN present, END reachable, every
-  transition target exists, every workflow prefix resolves to a
-  `StepKind`); these scenarios pin the *exact* transitions per
-  template so an accidental reshape — adding a witness step to the
-  LLC, for example — surfaces as a named failing scenario.
+  three bundled templates lock down their workflow-step composition
+  here instead. The `workflow_integrity` workspace test owns generic
+  engine invariants (BEGIN present, END reachable, every transition
+  target exists, every workflow prefix resolves to a `StepKind`);
+  these scenarios pin the product-level composition so an accidental
+  reshape — adding a witness step to the LLC, for example — surfaces
+  as a named failing scenario.
 
   The Nevada trust now rides the e-signature engine (its workflow
   branches on named conditions rather than the linear `_` chain these
-  shape-locks walk), so its workflow shape and signed send path are
+  composition checks walk), so its workflow composition and signed send path are
   pinned in `trust_esignature.feature` instead. Its questionnaire shape
   stays here.
 
@@ -35,7 +35,6 @@ Feature: Bundled-template workflow shapes (LLC, trust, will)
       | BEGIN             | member_signatures |
       | member_signatures | staff_review      |
       | staff_review      | END               |
-    And every workflow state resolves to a StepKind
 
   Scenario: California LLC template with END stripped fails to parse
     Given the bundled template "united_states/california/state/business_associations/llc.md" with the workflow END declaration removed
@@ -71,7 +70,6 @@ Feature: Bundled-template workflow shapes (LLC, trust, will)
       | witnesses          | staff_review       |
       | staff_review       | notarization       |
       | notarization       | END                |
-    And every workflow state resolves to a StepKind
 
   Scenario: Simple will template with END stripped fails to parse
     Given the bundled template "united_states/nevada/internal/trusts_and_estates/will.md" with the workflow END declaration removed

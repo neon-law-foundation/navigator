@@ -1,11 +1,11 @@
-//! Shape-locking helpers for the `*_workflow_shapes.feature`
+//! Composition-locking helpers for the `*_workflow_shapes.feature`
 //! Cucumber runners.
 //!
 //! Each scenario in those suites loads one bundled template,
 //! parses its `questionnaire:` and `workflow:` frontmatter blocks,
 //! and walks the resulting state machine from BEGIN following the
 //! canonical `_` transition. The walk is compared to a Gherkin data
-//! table that pins the exact transition chain — an accidental
+//! table that pins the reusable-step composition — an accidental
 //! reshape shows up as a named failing scenario.
 
 use std::path::PathBuf;
