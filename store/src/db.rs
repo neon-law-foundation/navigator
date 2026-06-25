@@ -1,4 +1,4 @@
-//! Database access for the Navigator data layer.
+//! Database access for the Neon Law Navigator data layer.
 //!
 //! Built on SeaORM (Postgres backend). SeaORM handles pooling,
 //! prepared statements, and migrations; we just expose a thin

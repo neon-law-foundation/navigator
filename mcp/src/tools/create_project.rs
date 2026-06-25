@@ -2,7 +2,7 @@
 //!
 //! Opens a new Project (a [Matter] in client English) without
 //! attaching a Notation yet. Use this when onboarding a matter
-//! whose Template doesn't exist in Navigator (a one-off settlement,
+//! whose Template doesn't exist in Neon Law Navigator (a one-off settlement,
 //! a custom expungement petition, an entity-management container) —
 //! the Project is the durable home for Persons and Documents;
 //! Notations attach later as Templates ship.
@@ -24,7 +24,7 @@ const STATUSES: &[&str] = &["open", "closed", "archived"];
 pub fn descriptor() -> Value {
     json!({
         "name": "aida_create_project",
-        "description": "Open a new Project (matter) in Navigator. A matter always opens against a \
+        "description": "Open a new Project (matter) in Neon Law Navigator. A matter always opens against a \
                         pre-existing Entity — pass its uuid as `entity_id` (create the Entity \
                         first if needed). Returns the new id, name, status, and entity_id so the \
                         caller can reference the row.",
@@ -129,6 +129,19 @@ pub async fn call(db: &Db, arguments: &Value) -> Result<Value, ToolError> {
             "no firm principal to assign as staff DRI — seed a staff/admin person first".into(),
         )
     })?;
+
+    // Conflict check — runs before the matter is created, like the web and
+    // CLI paths. This caller is non-interactive, so there is no
+    // acknowledgment seam: **any** finding (block or review) refuses the
+    // open. Resolve it through the portal, where authorized staff can
+    // review and acknowledge, rather than from an automated tool.
+    let conflict = store::conflicts::check_new_matter(db, client.id, entity_id).await?;
+    if !conflict.is_clear() {
+        return Err(ToolError::Forbidden(format!(
+            "conflict check refused this matter — resolve it in the portal before opening:\n{}",
+            conflict.summary_lines().join("\n")
+        )));
+    }
 
     let inserted = project::ActiveModel {
         name: ActiveValue::Set(name),

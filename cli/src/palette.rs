@@ -1,4 +1,4 @@
-//! Navigator's CLI palette — the three Tailwind cyans that compose
+//! Neon Law Navigator's CLI palette — the three Tailwind cyans that compose
 //! the brand mark. Each shade carries one letter: dark-teal `F`,
 //! cyan `L`, light-cyan `N`. The firm mark
 //! (`web/public/logo-firm.svg`) keeps only `N + L`; the Foundation

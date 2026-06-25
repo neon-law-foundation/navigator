@@ -68,7 +68,7 @@ pub const REPO_ROOT_ENV: &str = "NAVIGATOR_GIT_REPO_ROOT";
 /// not `refs/heads/main`; the config guards (`denyNonFastForwards`,
 /// `denyDeletes`) cover force-push and deletion of `main` itself.
 const PRE_RECEIVE_HOOK: &str = "#!/bin/sh\n\
-# Navigator: matter repos are append-only and single-branch (main).\n\
+# Neon Law Navigator: matter repos are append-only and single-branch (main).\n\
 # Only fast-forward additions to refs/heads/main are accepted; the\n\
 # repo config rejects non-fast-forward updates and deletions.\n\
 while read -r _old _new ref; do\n\

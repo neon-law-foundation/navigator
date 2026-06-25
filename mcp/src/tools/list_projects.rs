@@ -17,7 +17,7 @@ use super::ToolError;
 pub fn descriptor() -> Value {
     json!({
         "name": "aida_list_projects",
-        "description": "List every Project (matter) Navigator knows about, returning id, name, \
+        "description": "List every Project (matter) Neon Law Navigator knows about, returning id, name, \
                         status, and the bound Entity's id and name when one is \
                         attached. Use this when a user asks to see open matters or wants to pick \
                         a Project by name (e.g. \"ShookEstate\") before linking a Person or \

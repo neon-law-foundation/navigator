@@ -1,11 +1,11 @@
 id = "navigator-lsp"
-name = "Navigator LSP"
-description = "Navigator markdown rule diagnostics + source.fixAll via navigator-lsp"
+name = "Neon Law Navigator LSP"
+description = "Neon Law Navigator markdown rule diagnostics + source.fixAll via navigator-lsp"
 version = "0.1.0"
 schema_version = 1
 authors = ["NeonLaw"]
 repository = "https://github.com/neonlaw/navigator"
 
 [language_servers.navigator-lsp]
-name = "Navigator LSP"
+name = "Neon Law Navigator LSP"
 languages = ["Markdown"]

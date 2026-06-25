@@ -7,7 +7,7 @@
 //! `store::test_support::pg` so they don't share state.
 
 use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::http::{header, Request, StatusCode};
 use http_body_util::BodyExt;
 use store::test_support::pg;
 use store::Db;
@@ -244,7 +244,7 @@ async fn foundation_mission_links_training_to_the_workshop_not_the_repo() {
         let body = body_string(resp).await;
         assert!(
             body.contains("href=\"/foundation/nebula/workshops/use-the-navigator\""),
-            "{uri} should link legal-aid training to the Navigator workshop: {body}",
+            "{uri} should link legal-aid training to the Neon Law Navigator workshop: {body}",
         );
         assert_eq!(
             body.matches("href=\"https://github.com/neon-law-foundation/navigator\"")
@@ -302,9 +302,8 @@ async fn root_returns_home_page_html() {
     let body = body_string(resp).await;
     assert!(body.starts_with("<!DOCTYPE html>"));
     assert!(body.contains("<title>Neon Law | Home</title>"));
-    assert!(body.contains(
-        "A licensed attorney scopes the work, quotes a fixed fee when the matter can be priced that way"
-    ));
+    assert!(body
+        .contains("a licensed attorney works with you, with transparent pricing before the work"));
     assert!(body.contains("LSC Justice Gap Report, 2022"));
     assert!(body.contains("href=\"/foundation/notations\""));
     // It is firm-branded prose and cards — no old marketing hero strip.
@@ -587,7 +586,7 @@ async fn foundation_home_is_the_mission_statement() {
     assert!(body.contains("<title>Neon Law Foundation | Mission</title>"));
     assert!(body.contains("class=\"mission-letter\""));
     assert!(
-        !body.contains("Open the Navigator workshop"),
+        !body.contains("Open the Neon Law Navigator workshop"),
         "old Foundation landing hero should not render on /foundation: {body}"
     );
 }
@@ -609,7 +608,7 @@ async fn navigator_serves_the_readme_under_foundation_brand() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Navigator</title>"));
+    assert!(body.contains("<title>Neon Law Foundation | Neon Law Navigator</title>"));
     // The page is the README: its H1 and the getting-started command.
     assert!(body.contains(">Neon Law Navigator</h1>"));
     assert!(body.contains("cargo run -p cli -- start-dev-server"));
@@ -681,15 +680,19 @@ async fn navigator_package_pages_render_each_crate_readme() {
     for (path, title, needle) in [
         (
             "/foundation/navigator/cli",
-            "Navigator CLI",
-            "Operator CLI for Navigator",
+            "Neon Law Navigator CLI",
+            "Operator CLI for Neon Law Navigator",
         ),
         (
             "/foundation/navigator/mcp",
-            "Navigator MCP",
+            "Neon Law Navigator MCP",
             "Model Context Protocol",
         ),
-        ("/foundation/navigator/web", "Navigator Web", "axum"),
+        (
+            "/foundation/navigator/web",
+            "Neon Law Navigator Web",
+            "axum",
+        ),
     ] {
         let resp = app
             .clone()
@@ -707,7 +710,7 @@ async fn navigator_package_pages_render_each_crate_readme() {
             "{path} should render its README ({needle})"
         );
         assert!(
-            body.contains("aria-label=\"Navigator packages\""),
+            body.contains("aria-label=\"Neon Law Navigator packages\""),
             "{path} should carry the package strip"
         );
     }
@@ -846,7 +849,7 @@ async fn services_northstar_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Estate planning</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Estate planning</title>"));
     assert!(body.contains("<h2>Drafted</h2>"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
@@ -930,7 +933,7 @@ async fn services_litigation_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Litigation</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Litigation</title>"));
     assert!(body.contains("connect you with trial counsel"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
@@ -963,7 +966,7 @@ async fn services_nautilus_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Nautilus</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Nautilus</title>"));
     assert!(body.contains("Put a lawyer between you and the collectors"));
     assert!(body.contains("we never take a percentage of your debt"));
     // The firm CTA books a consultation on the calendar, not a mailto.
@@ -988,7 +991,7 @@ async fn services_nest_falls_back_to_default_when_no_doc() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Corporate services</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Corporate services</title>"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
     assert!(body.contains("Book a Consultation"));
@@ -1029,7 +1032,7 @@ async fn services_nexus_uses_marketing_doc_when_present() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law | Fractional GC</title>"));
+    assert!(body.contains("<title>Neon Law | Services | Fractional GC</title>"));
     assert!(body.contains("<h2>Everything but litigation</h2>"));
     assert!(body.contains("mailto:support@neonlaw.com"));
     // The single pricing card renders and the marker is consumed.
@@ -1337,21 +1340,32 @@ async fn workshops_landing_lists_each_workshop_you_voiced() {
 }
 
 #[tokio::test]
-async fn old_navigator_workshop_index_is_not_mounted() {
+async fn old_workshop_urls_redirect_into_nebula() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
     );
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/nebula/workshops")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    for (uri, location) in [
+        ("/foundation/workshops", "/foundation/nebula"),
+        (
+            "/foundation/workshops/navigator",
+            "/foundation/nebula/workshops/use-the-navigator",
+        ),
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT, "{uri}");
+        assert_eq!(
+            resp.headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok()),
+            Some(location),
+            "{uri}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -1504,7 +1518,7 @@ async fn deploy_workshop_md_twin_and_llms_index_the_real_content() {
     assert_eq!(ctype, "text/markdown; charset=utf-8");
     let body = body_string(resp).await;
     assert!(
-        body.contains("# Deploy the Navigator"),
+        body.contains("# Deploy the Neon Law Navigator"),
         "raw markdown title"
     );
     assert!(body.contains("cargo run -p cli -- gcp setup --project-id"));
@@ -5390,20 +5404,55 @@ async fn nebula_show_tell_ics_uses_pacific_timezone() {
 }
 
 #[tokio::test]
-async fn old_events_surface_is_not_mounted() {
+async fn old_events_surface_redirects_into_nebula() {
     let mut state = empty_state().await;
     state.events = event_state_with_one_event();
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
-    for uri in [
-        "/events",
-        "/events/seattle-agentic-workflows-for-lawyers",
-        "/events/seattle-agentic-workflows-for-lawyers/calendar.ics",
+    for (uri, location) in [
+        ("/events", "/foundation/nebula"),
+        (
+            "/events/seattle-agentic-workflows-for-lawyers",
+            "/foundation/nebula/show-and-tell/seattle-summer-2026",
+        ),
+        (
+            "/events/seattle-summer-2026",
+            "/foundation/nebula/show-and-tell/seattle-summer-2026",
+        ),
+        (
+            "/events/seattle-agentic-workflows-for-lawyers/calendar.ics",
+            "/foundation/nebula/show-and-tell/seattle-summer-2026/calendar.ics",
+        ),
     ] {
         let resp = app
             .clone()
             .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
             .await
             .unwrap();
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "{uri} should 404");
+        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT, "{uri}");
+        assert_eq!(
+            resp.headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok()),
+            Some(location),
+            "{uri}"
+        );
     }
+}
+
+#[tokio::test]
+async fn unknown_old_event_url_stays_not_found() {
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/events/missing-show-and-tell")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }

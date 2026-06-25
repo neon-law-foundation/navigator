@@ -35,7 +35,7 @@ pub fn descriptor() -> Value {
         "description": "Send the firm's \"Welcome to Neon Law\" email to an existing \
                         person. This is the correct tool for any \"send/email a welcome\" \
                         request, even when the user names the recipient only by email \
-                        address. Identify the recipient by their Navigator person_id: \
+                        address. Identify the recipient by their Neon Law Navigator person_id: \
                         when you were given an email or name instead, call aida_show_person \
                         FIRST to resolve the person_id, then call this — do NOT create a \
                         new person. The email and name are read from that record, so you \
@@ -48,7 +48,7 @@ pub fn descriptor() -> Value {
                     "type": "string",
                     "format": "uuid",
                     "description": "UUID of the person to welcome. Must already exist \
-                                    in Navigator (see aida_show_person)."
+                                    in Neon Law Navigator (see aida_show_person)."
                 }
             },
             "required": ["person_id"],

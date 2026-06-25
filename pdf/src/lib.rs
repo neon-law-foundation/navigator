@@ -1,4 +1,4 @@
-//! PDF rendering for Navigator's legal documents.
+//! PDF rendering for Neon Law Navigator's legal documents.
 //!
 //! Backed by the [Typst](https://typst.app) embedded compiler via the
 //! `typst-as-lib` wrapper. Callers feed Typst markup to [`render`] and

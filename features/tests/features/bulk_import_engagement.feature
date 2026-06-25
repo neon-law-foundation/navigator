@@ -13,7 +13,7 @@ Feature: Bulk-import to engagement, end to end
   yet an engaged client — until a matter is opened for them.
 
   Background:
-    Given a fresh Navigator app with the canonical templates seeded
+    Given a fresh Neon Law Navigator app with the canonical templates seeded
 
   Scenario: Staff imports a contact list, then engages one of the contacts
     When staff bulk-imports two organizations and three contacts

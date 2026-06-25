@@ -23,7 +23,7 @@ use serde::Deserialize;
 
 use super::DriveError;
 
-/// Subset of the installed-app client config Navigator needs.
+/// Subset of the installed-app client config Neon Law Navigator needs.
 #[derive(Debug, Clone, Deserialize)]
 pub struct OauthClientConfig {
     /// OAuth 2.0 client id (the `…apps.googleusercontent.com` form).

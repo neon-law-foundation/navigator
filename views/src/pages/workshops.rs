@@ -4,7 +4,7 @@
 //! (`/foundation/nebula/:category/:slug/step/:n`).
 //!
 //! There is one workshop on the public surface today — "Using the
-//! Navigator to Rapidly Solve Legal Outcomes." Earlier work
+//! Neon Law Navigator to Rapidly Solve Legal Outcomes." Earlier work
 //! ("Claude Code + Twelve Zodiac Lawyers") lives under `prompts/`
 //! and is not on the public surface. See the AIDA + engineer council
 //! review on 2026-05-26 for the rationale.
@@ -21,11 +21,11 @@ use crate::assets::{self, Priority};
 use crate::brand::FOUNDATION_BRAND;
 use crate::{AuthState, Locale, PageLayout};
 
-/// One item on the top-level `/foundation/nebula` overview.
+/// One learning item on the top-level `/foundation/nebula` overview.
 /// The copy is you-voiced: `audience` lets the reader self-select, and
 /// `benefit` leads with what they walk out with — never a guaranteed
 /// outcome (this surface is public attorney advertising).
-pub struct WorkshopCard<'a> {
+pub struct MaterialCard<'a> {
     /// Absolute path to the Nebula material page, e.g.
     /// `/foundation/nebula/workshops/use-the-navigator`.
     pub href: &'a str,
@@ -43,8 +43,8 @@ pub struct StepSummary<'a> {
     pub title: &'a str,
 }
 
-/// One show-and-tell on the top-level `/foundation/nebula` overview.
-pub struct ShowTellCard<'a> {
+/// One event on the top-level `/foundation/nebula` overview.
+pub struct EventCard<'a> {
     pub href: &'a str,
     pub title: &'a str,
     pub time: &'a str,
@@ -132,46 +132,55 @@ pub struct LightTable<'a> {
 }
 
 // The top-level overview speaks to the reader, not about the firm.
-// Nebula is the Foundation's sharing surface: the Navigator is what
+// Nebula is the Foundation's sharing surface: the Neon Law Navigator is what
 // we build; Nebula is how we show the work and help others learn it.
 const LANDING_TITLE: &str = "Nebula";
 const LANDING_LEDE: &str =
     "Nebula is where the Foundation shares what it is learning: workshops, show-and-tells, \
-     and presentations for lawyers and legal professionals who want to build with Navigator.";
+     and presentations for lawyers and legal professionals who want to build with Neon Law Navigator.";
 const LANDING_MORE: &str =
     "More workshops, show-and-tells, and presentations land here as we run them.";
 const LANDING_TITLE_ES: &str = "Nebula";
 const LANDING_LEDE_ES: &str =
     "Nebula es donde la Fundación comparte lo que está aprendiendo: talleres, muestras \
      prácticas y presentaciones para abogados y profesionales legales que quieren construir \
-     con Navigator.";
+     con Neon Law Navigator.";
 const LANDING_MORE_ES: &str =
     "Aquí publicaremos más talleres, muestras prácticas y presentaciones a medida que las hagamos.";
 
 /// The top-level Nebula overview (`/foundation/nebula`).
 #[must_use]
 pub fn landing(
-    workshop_cards: &[WorkshopCard<'_>],
-    show_tell_cards: &[ShowTellCard<'_>],
+    workshop_cards: &[MaterialCard<'_>],
+    presentation_cards: &[MaterialCard<'_>],
+    event_cards: &[EventCard<'_>],
     auth: AuthState,
 ) -> Markup {
-    landing_in(workshop_cards, show_tell_cards, auth, Locale::En)
+    landing_in(
+        workshop_cards,
+        presentation_cards,
+        event_cards,
+        auth,
+        Locale::En,
+    )
 }
 
 #[must_use]
 pub fn landing_in(
-    workshop_cards: &[WorkshopCard<'_>],
-    show_tell_cards: &[ShowTellCard<'_>],
+    workshop_cards: &[MaterialCard<'_>],
+    presentation_cards: &[MaterialCard<'_>],
+    event_cards: &[EventCard<'_>],
     auth: AuthState,
     locale: Locale,
 ) -> Markup {
-    let (title, lede, more, workshops, show_tells, empty) = match locale {
+    let (title, lede, more, workshops, presentations, events, empty) = match locale {
         Locale::En => (
             LANDING_TITLE,
             LANDING_LEDE,
             LANDING_MORE,
             "Workshops",
-            "Show-and-tells",
+            "Presentations",
+            "Events",
             "Nebula materials are still loading. Email ",
         ),
         Locale::Es => (
@@ -179,19 +188,25 @@ pub fn landing_in(
             LANDING_LEDE_ES,
             LANDING_MORE_ES,
             "Talleres",
-            "Muestras prácticas",
+            "Presentaciones",
+            "Eventos",
             "Los materiales de Nebula todavía se están cargando. Escriba a ",
         ),
     };
     let body = html! {
         section.workshops {
             div.container {
-                h1 { (title) }
-                p.lede { (lede) }
-                div."my-4" {
-                    (assets::picture("lantana", "100vw", Priority::Lazy))
+                header.nebula-hero."position-relative"."overflow-hidden"."mb-5" {
+                    div.nebula-hero-media aria-hidden="true" {
+                        (assets::picture("lantana", "100vw", Priority::Eager))
+                    }
+                    div.nebula-hero-copy."position-relative"."py-5"."px-4"."px-lg-5" {
+                        p."text-uppercase"."small"."fw-semibold"."mb-2" { "Neon Law Foundation" }
+                        h1 { (title) }
+                        p.lede."mb-0" { (lede) }
+                    }
                 }
-                @if workshop_cards.is_empty() && show_tell_cards.is_empty() {
+                @if workshop_cards.is_empty() && presentation_cards.is_empty() && event_cards.is_empty() {
                     p.empty {
                         (empty)
                         a href={ "mailto:" (crate::brand::foundation_email()) } {
@@ -202,24 +217,24 @@ pub fn landing_in(
                 } @else {
                     @if !workshop_cards.is_empty() {
                         h2 { (workshops) }
-                        ul.workshop-materials."list-unstyled" {
+                        ul.workshop-materials."list-unstyled"."mb-5" {
                             @for c in workshop_cards {
-                                li.workshop-material."mb-4" {
-                                    p.workshop-audience."text-uppercase"."small"."fw-semibold"."text-body-secondary"."mb-1" {
-                                        (c.audience)
-                                    }
-                                    h3 {
-                                        a href=(c.href) { (c.title) }
-                                    }
-                                    p { (c.benefit) }
-                                }
+                                (material_card(c))
                             }
                         }
                     }
-                    @if !show_tell_cards.is_empty() {
-                        h2 { (show_tells) }
-                        ul.workshop-materials."list-unstyled" {
-                            @for c in show_tell_cards {
+                    @if !presentation_cards.is_empty() {
+                        h2 { (presentations) }
+                        ul.workshop-materials."list-unstyled"."mb-5" {
+                            @for c in presentation_cards {
+                                (material_card(c))
+                            }
+                        }
+                    }
+                    @if !event_cards.is_empty() {
+                        h2 { (events) }
+                        ul.workshop-materials."list-unstyled"."mb-5" {
+                            @for c in event_cards {
                                 li.workshop-material."mb-4" {
                                     p.workshop-audience."text-uppercase"."small"."fw-semibold"."text-body-secondary"."mb-1" {
                                         (c.time) " · " (c.place)
@@ -237,13 +252,30 @@ pub fn landing_in(
             }
         }
     };
-    PageLayout::new(title)
+    let layout = PageLayout::new(title)
         .with_description(lede)
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
         .with_locale(locale)
-        .with_canonical_path("/foundation/nebula")
-        .render(&body)
+        .with_canonical_path("/foundation/nebula");
+    match assets::preload_href("lantana") {
+        Some(href) => layout.with_preload_image(&href).render(&body),
+        None => layout.render(&body),
+    }
+}
+
+fn material_card(c: &MaterialCard<'_>) -> Markup {
+    html! {
+        li.workshop-material."mb-4" {
+            p.workshop-audience."text-uppercase"."small"."fw-semibold"."text-body-secondary"."mb-1" {
+                (c.audience)
+            }
+            h3 {
+                a href=(c.href) { (c.title) }
+            }
+            p { (c.benefit) }
+        }
+    }
 }
 
 #[must_use]
@@ -639,22 +671,22 @@ fn copy_markdown_button(md_href: &str) -> Markup {
 #[cfg(test)]
 mod tests {
     use super::{
-        landing, overview, step, MaterialOverview, ShowTellCard, StepSummary, WorkshopCard,
+        landing, overview, step, EventCard, MaterialCard, MaterialOverview, StepSummary,
         WorkshopStep, LANDING_TITLE,
     };
     use crate::brand::{foundation_email, FOUNDATION_BRAND};
 
-    fn sample_cards() -> Vec<WorkshopCard<'static>> {
+    fn sample_cards() -> Vec<MaterialCard<'static>> {
         vec![
-            WorkshopCard {
+            MaterialCard {
                 href: "/foundation/nebula/workshops/use-the-navigator",
-                title: "Using the Navigator",
+                title: "Using the Neon Law Navigator",
                 audience: "For lawyers",
                 benefit: "You walk out with a deed-of-sale notation you built yourself.",
             },
-            WorkshopCard {
+            MaterialCard {
                 href: "/foundation/nebula/workshops/deploy-the-navigator",
-                title: "Deploy the Navigator",
+                title: "Deploy the Neon Law Navigator",
                 audience: "For operators",
                 benefit: "You walk out running the same stack a working law firm runs.",
             },
@@ -679,8 +711,8 @@ mod tests {
     }
 
     #[test]
-    fn landing_titles_the_page_workshops() {
-        let html = landing(&[], &[], crate::AuthState::Anonymous).into_string();
+    fn landing_titles_the_page_nebula() {
+        let html = landing(&[], &[], &[], crate::AuthState::Anonymous).into_string();
         assert!(html.contains(&format!(
             "<title>{} | Nebula</title>",
             FOUNDATION_BRAND.site_name
@@ -691,21 +723,25 @@ mod tests {
     }
 
     #[test]
-    fn landing_shows_an_inviting_lazy_banner() {
-        let html = landing(&[], &[], crate::AuthState::Anonymous).into_string();
+    fn landing_shows_an_inviting_preloaded_hero() {
+        let html = landing(&[], &[], &[], crate::AuthState::Anonymous).into_string();
         assert!(
-            html.contains("lantana"),
-            "workshops overview should carry the banner photo"
+            html.contains("class=\"nebula-hero"),
+            "Nebula overview should carry the hero shell"
         );
         assert!(
-            html.contains("loading=\"lazy\""),
-            "banner must not block the page"
+            html.contains("fetchpriority=\"high\""),
+            "hero should be loaded eagerly"
+        );
+        assert!(
+            html.contains("rel=\"preload\" as=\"image\""),
+            "hero should preload its image"
         );
     }
 
     #[test]
     fn landing_empty_falls_back_to_real_foundation_email() {
-        let html = landing(&[], &[], crate::AuthState::Anonymous).into_string();
+        let html = landing(&[], &[], &[], crate::AuthState::Anonymous).into_string();
         let email = foundation_email();
         assert!(html.contains(&format!("mailto:{email}")));
     }
@@ -713,12 +749,12 @@ mod tests {
     #[test]
     fn landing_lists_each_workshop_with_audience_and_benefit() {
         let cards = sample_cards();
-        let html = landing(&cards, &[], crate::AuthState::Anonymous).into_string();
+        let html = landing(&cards, &[], &[], crate::AuthState::Anonymous).into_string();
         // Each card links to its overview at the canonical per-workshop URL,
         // titled by its short name and tagged with who it's for.
         assert!(html.contains("href=\"/foundation/nebula/workshops/use-the-navigator\""));
         assert!(html.contains(
-            "<h3><a href=\"/foundation/nebula/workshops/use-the-navigator\">Using the Navigator</a></h3>"
+            "<h3><a href=\"/foundation/nebula/workshops/use-the-navigator\">Using the Neon Law Navigator</a></h3>"
         ));
         assert!(html.contains("For lawyers"));
         assert!(html.contains("href=\"/foundation/nebula/workshops/deploy-the-navigator\""));
@@ -730,17 +766,37 @@ mod tests {
     }
 
     #[test]
-    fn landing_omits_workshops_section_when_only_show_tells_exist() {
-        let show_tells = vec![ShowTellCard {
+    fn landing_separates_workshops_presentations_and_events() {
+        let workshops = vec![MaterialCard {
+            href: "/foundation/nebula/workshops/use-the-navigator",
+            title: "Using the Navigator",
+            audience: "For lawyers",
+            benefit: "You walk out with a notation.",
+        }];
+        let presentations = vec![MaterialCard {
+            href: "/foundation/nebula/presentations/rust-in-peace",
+            title: "Rust in Peace",
+            audience: "For the curious",
+            benefit: "You walk out able to argue from real code.",
+        }];
+        let events = vec![EventCard {
             href: "/foundation/nebula/show-and-tell/seattle-summer-2026",
             title: "Seattle Summer 2026",
             time: "July 2, 2026, 11:00 AM-3:00 PM PT",
             place: "Private lounge",
             description: "A practical AI workflow gathering.",
         }];
-        let html = landing(&[], &show_tells, crate::AuthState::Anonymous).into_string();
-        assert!(!html.contains(">Workshops</h2>"), "got: {html}");
-        assert!(html.contains(">Show-and-tells</h2>"));
+        let html = landing(
+            &workshops,
+            &presentations,
+            &events,
+            crate::AuthState::Anonymous,
+        )
+        .into_string();
+        assert!(html.contains(">Workshops</h2>"));
+        assert!(html.contains(">Presentations</h2>"));
+        assert!(html.contains(">Events</h2>"));
+        assert!(html.contains("href=\"/foundation/nebula/presentations/rust-in-peace\""));
         assert!(html.contains("href=\"/foundation/nebula/show-and-tell/seattle-summer-2026\""));
     }
 

@@ -1,6 +1,6 @@
 //! Cucumber runner for `features/naturalization_federal.feature`.
 //!
-//! Navigator's first immigration journey: one lawful permanent resident
+//! Neon Law Navigator's first immigration journey: one lawful permanent resident
 //! (Maria Santos) through a whole Form N-400 naturalization, crossing the
 //! admin intake walker (real HTTP), the post-intake signing workflow the
 //! walker auto-drives, and the worker-shaped runtime that records the USCIS
@@ -85,7 +85,7 @@ impl NaturalizationWorld {
     }
 }
 
-#[given("a fresh Navigator app with the canonical templates seeded")]
+#[given("a fresh Neon Law Navigator app with the canonical templates seeded")]
 async fn build_app(world: &mut NaturalizationWorld) {
     world.journey = Some(Journey::open("naturalization").await);
 }

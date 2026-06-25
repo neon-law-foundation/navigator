@@ -83,7 +83,7 @@ sink lands every line — including the `navigator.workflow.trigger.fired` outco
 # Dataset to receive telemetry logs.
 bq --location=us-west4 mk --dataset YOUR_PROJECT_ID:navigator_telemetry
 
-# Sink: route Navigator *application* pod logs to that dataset. A BigQuery
+# Sink: route Neon Law Navigator *application* pod logs to that dataset. A BigQuery
 # logging sink infers the table schema from the FIRST entry per field and pins
 # it for the day's date-sharded table (every JSON number becomes FLOAT); a later
 # entry that sends the same field as a non-numeric string is rejected with

@@ -1,7 +1,7 @@
 //! `/` — the firm landing page.
 //!
 //! The root is firm-branded: it leads with Neon Law's flat-fee legal
-//! work, then explains how the firm uses Navigator and supports the
+//! work, then explains how the firm uses Neon Law Navigator and supports the
 //! Foundation's access-to-justice mission. The Foundation's full mission
 //! letter now lives at `/foundation`.
 
@@ -24,7 +24,7 @@ const JUSTICE_GAP_STATS: &[(&str, &str, &str)] = &[
     ),
     (
         "$0",
-        "to self-host Navigator's rule engine, CLI, MCP server, and web app",
+        "to self-host Neon Law Navigator's rule engine, CLI, MCP server, and web app",
         "Apache-2.0 / MIT",
     ),
 ];
@@ -42,30 +42,41 @@ pub fn render(auth: AuthState) -> Markup {
 #[must_use]
 pub fn render_in(auth: AuthState, locale: Locale, testimonials: &[TestimonialCard<'_>]) -> Markup {
     let body = html! {
-        section."py-5" {
-            p."text-uppercase"."fw-semibold"."text-body-secondary"."small"."mb-2" {
-                "Flat-fee legal services"
+        section."hero-neon"."mb-5" {
+            // Decorative neon scene (grid horizon + glow + sweep). Hidden
+            // from assistive tech; all meaning lives in the content block.
+            div."hero-neon__bg" aria-hidden="true" {
+                div."hero-neon__glow" {}
+                div."hero-neon__grid" {}
+                div."hero-neon__horizon" {}
+                div."hero-neon__sweep" {}
             }
-            h1."display-4"."fw-bold"."mb-3" {
-                @if let Some(url) = FIRM_BRAND.trademark_registration_url {
-                    (ExternalLink::new(url)
-                        .with_class("link-body-emphasis text-decoration-none")
-                        .with_title(
-                            "NEON LAW is a registered trademark — \
-                             U.S. Reg. No. 6,325,650",
-                        )
-                        .render(html! { (FIRM_BRAND.site_name) sup { "®" } }))
-                } @else {
-                    (FIRM_BRAND.site_name)
+            div."hero-neon__content" {
+                p."hero-neon__eyebrow"."mb-2" {
+                    "Everything we can toward access to justice"
                 }
-            }
-            p."lead"."col-lg-8"."mb-4" {
-                "A licensed attorney scopes the work, quotes a fixed fee when the matter can be priced that way, \
-                 and uses Navigator to keep intake, drafting, review, and delivery moving in one auditable system."
-            }
-            div."d-flex"."flex-wrap"."gap-2" {
-                a."btn"."btn-primary"."btn-lg" href="/services" { "View Services" }
-                a."btn"."btn-outline-secondary"."btn-lg" href="/foundation" { "Read the Mission" }
+                h1."hero-neon__mark"."display-3"."fw-bold"."mb-3" {
+                    @if let Some(url) = FIRM_BRAND.trademark_registration_url {
+                        (ExternalLink::new(url)
+                            .with_class("link-body-emphasis text-decoration-none")
+                            .with_title(
+                                "NEON LAW is a registered trademark — \
+                                 U.S. Reg. No. 6,325,650",
+                            )
+                            .render(html! { (FIRM_BRAND.site_name) sup { "®" } }))
+                    } @else {
+                        (FIRM_BRAND.site_name)
+                    }
+                }
+                p."hero-neon__lead"."mb-4" {
+                    "Building something, protecting it, or exercising a right you already hold — \
+                     a licensed attorney works with you, with transparent pricing before the work \
+                     begins. We believe that everyone in America should exercise their legal rights."
+                }
+                div."d-flex"."flex-wrap"."gap-2" {
+                    a."btn"."btn-primary"."btn-lg" href="/services" { "View Services" }
+                    a."btn"."btn-lg"."hero-neon__btn-ghost" href="/foundation" { "Read the Mission" }
+                }
             }
         }
 
@@ -98,7 +109,7 @@ pub fn render_in(auth: AuthState, locale: Locale, testimonials: &[TestimonialCar
                 div."col-lg-6" {
                     h2."h3" { "Legal work in an auditable workflow" }
                     p {
-                        "Navigator turns intake questions, legal templates, and workflow states into plain-text \
+                        "Neon Law Navigator turns intake questions, legal templates, and workflow states into plain-text \
                          Notations. The firm uses that system in its own matters so each engagement has a clear path \
                          from first answer to attorney review."
                     }
@@ -109,7 +120,7 @@ pub fn render_in(auth: AuthState, locale: Locale, testimonials: &[TestimonialCar
                 div."col-lg-6" {
                     h2."h3" { "The Foundation carries the public mission" }
                     p {
-                        (FOUNDATION_BRAND.site_name) " publishes Navigator as open-source software and trains lawyers \
+                        (FOUNDATION_BRAND.site_name) " publishes Neon Law Navigator as open-source software and trains lawyers \
                          to adapt it for legal-aid and public-interest work. The firm and the Foundation share a \
                          mission, but the Foundation's work is public-interest work, not legal representation."
                     }
@@ -125,7 +136,7 @@ pub fn render_in(auth: AuthState, locale: Locale, testimonials: &[TestimonialCar
     PageLayout::new(&title)
         .with_description(
             "Neon Law offers flat-fee legal services with a licensed attorney in the loop, \
-             using Navigator to keep intake, drafting, review, and delivery auditable.",
+             using Neon Law Navigator to keep intake, drafting, review, and delivery auditable.",
         )
         .with_auth(auth)
         .with_locale(locale)
@@ -159,9 +170,12 @@ mod tests {
             html.contains("<sup>®</sup>"),
             "brand should carry the ® mark: {html}"
         );
+        // The hero leads on the access-to-justice mission, not on price.
+        assert!(html.contains("Everything we can toward access to justice"));
         assert!(html.contains(
-            "A licensed attorney scopes the work, quotes a fixed fee when the matter can be priced that way"
+            "a licensed attorney works with you, with transparent pricing before the work"
         ));
+        assert!(html.contains("everyone in America should exercise their legal rights"));
         assert!(
             html.contains(FOUNDATION_BRAND.site_name),
             "home should name the Foundation: {html}"
@@ -179,7 +193,7 @@ mod tests {
         assert!(html.contains("World Justice Project, 2023"));
         assert!(html.contains(">0</p>") || html.contains(">$0</p>"));
         assert!(
-            html.contains("to self-host Navigator"),
+            html.contains("to self-host Neon Law Navigator"),
             "home should carry the Foundation open-source stat: {html}"
         );
     }

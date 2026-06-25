@@ -1,8 +1,8 @@
 # DocuSign e-signature — setup, signing flow, and production cutover
 
-How Navigator sends a retainer for signature, how a client signs it inside the portal, and how **one** DocuSign app
-serves both the demo and production environments. Secrets are selected per environment by Doppler config (`dev` = demo,
-`prd` = production) — see [`secrets-doppler.md`](secrets-doppler.md); the env-file fallback convention is in
+How Neon Law Navigator sends a retainer for signature, how a client signs it inside the portal, and how **one** DocuSign
+app serves both the demo and production environments. Secrets are selected per environment by Doppler config (`dev` =
+demo, `prd` = production) — see [`secrets-doppler.md`](secrets-doppler.md); the env-file fallback convention is in
 [`third-party-integrations.md`](third-party-integrations.md). This page is the DocuSign specifics.
 
 The signature seam lives in [`web/src/signature.rs`](../web/src/signature.rs) (the `SignatureProvider` trait + the
@@ -13,14 +13,14 @@ stub, so a fresh checkout boots and self-tests without a DocuSign account.
 
 ## One app, two environments
 
-Navigator uses **one DocuSign app** — integration key `43daaa90` ("Neon Law") — for development, testing, **and**
-production. The separate "Neon Law Sandbox" app was retired on 2026-06-04. DocuSign's own model makes this safe: at
-Go-Live the integration key is *copied*, not moved —
+Neon Law Navigator uses **one DocuSign app** — integration key `43daaa90` ("Neon Law") — for development, testing,
+**and** production. The separate "Neon Law Sandbox" app was retired on 2026-06-04. DocuSign's own model makes this safe:
+at Go-Live the integration key is *copied*, not moved —
 
 > When you Go-Live, your integration key is copied to the production environment, rather than moved. This means you can
-> continue using the same integration key in the demo environment and in production. Configuration settings such as
-> secrets and redirect URIs are not copied automatically. After promotion, you must configure these values separately in
-> the production environment.
+  continue using the same integration key in the demo environment and in production. Configuration settings such as
+  secrets and redirect URIs are not copied automatically. After promotion, you must configure these values separately in
+  the production environment.
 
 — [Docusign Go-Live](https://developers.docusign.com/platform/go-live/)
 
@@ -43,8 +43,8 @@ DocuSign documents as a free, isolated sandbox whose envelopes are watermarked a
 [Developer account](https://developers.docusign.com/platform/account/) page:
 
 > A Docusign developer account (sometimes referred to as a demo account) enables you to develop and test your app in the
-> developer environment … which is isolated from the production environment. … a developer account … provides a free
-> sandbox environment … any documents sent are purely for testing and are not legally binding.
+  developer environment … which is isolated from the production environment. … a developer account … provides a free
+  sandbox environment … any documents sent are purely for testing and are not legally binding.
 
 So a full end-to-end integration test — render, create the envelope, sign it embedded, reach `completed`, download the
 executed documents, and receive the completion webhook — runs entirely against that free demo environment and consumes
@@ -72,11 +72,11 @@ new handler — the spec just needs the retainer's shape: an `intake_persisted__
 
 Signed templates today:
 
-- **`onboarding__retainer`** — the engagement letter; client signs, firm countersigns.
-- **`trusts__nevada`** — the Nevada revocable trust instrument; the settlor signs as `client`, the attorney countersigns
-  as `firm`. The trust instrument is valid e-signed (NRS 163.008 — no witnesses or notary required), but any deed
-  funding **real property** into the trust must be notarized and recorded as a separate step; the template states this
-  caveat and the deed is **not** e-signed here.
+- **`onboarding__retainer`** — the engagement letter; client signs, firm countersigns. **`trusts__nevada`** — the Nevada
+  revocable trust instrument; the settlor signs as `client`, the attorney countersigns as `firm`. The trust instrument
+  is valid e-signed (NRS 163.008 — no witnesses or notary required), but any deed funding **real property** into the
+  trust must be notarized and recorded as a separate step; the template states this caveat and the deed is **not**
+  e-signed here.
 
 Deliberately **not** e-signed: `will__simple` (Nevada wills need two attesting witnesses + a notarized self-proving
 affidavit, NRS 133.040/133.050, or the NRS 133.085 qualified-custodian path) keeps its in-person `testator_signature` →
@@ -101,13 +101,12 @@ user.
 Required env (canonical `DOCUSIGN_*` names — same names in `.env` for sandbox and `.env.production` for prod):
 
 - `DOCUSIGN_INTEGRATION_KEY` — the app's Integration Key / OAuth client id (the JWT `iss`). **Not** the OAuth secret.
-- `DOCUSIGN_USER_ID` — the impersonated API user GUID (the JWT `sub`); the "API Username", not the email.
-- `DOCUSIGN_ACCOUNT_ID` — the API Account ID GUID.
-- `DOCUSIGN_PRIVATE_KEY` — the RSA private-key PEM whose public half is registered on the app.
-- `DOCUSIGN_BASE_URL` — the eSignature REST base; `https://demo.docusign.net/restapi` for the sandbox.
-- `DOCUSIGN_OAUTH_BASE` — optional OAuth host; defaults to the demo host `https://account-d.docusign.com`.
-- `DOCUSIGN_SIGNER_EMAIL` — the firm countersignature inbox and the live test's signer.
-- `DOCUSIGN_HMAC_KEY` — the DocuSign Connect HMAC key used to verify completion webhooks (see below).
+  `DOCUSIGN_USER_ID` — the impersonated API user GUID (the JWT `sub`); the "API Username", not the email.
+  `DOCUSIGN_ACCOUNT_ID` — the API Account ID GUID. `DOCUSIGN_PRIVATE_KEY` — the RSA private-key PEM whose public half is
+  registered on the app. `DOCUSIGN_BASE_URL` — the eSignature REST base; `https://demo.docusign.net/restapi` for the
+  sandbox. `DOCUSIGN_OAUTH_BASE` — optional OAuth host; defaults to the demo host `https://account-d.docusign.com`.
+  `DOCUSIGN_SIGNER_EMAIL` — the firm countersignature inbox and the live test's signer. `DOCUSIGN_HMAC_KEY` — the
+  DocuSign Connect HMAC key used to verify completion webhooks (see below).
 
 ## Sandbox setup (one-time)
 
@@ -153,10 +152,9 @@ cargo test -p web --test docusign_sandbox -- --ignored --nocapture
 
 Success prints `created sandbox envelope <id>` and `embedded signing URL: https://…`. Common errors map directly:
 
-- `issuer_not_found` — wrong integration key (likely the OAuth secret).
-- `consent_required` — redo the consent grant.
-- `invalid_grant` / `no_valid_keys` — the private key is not the one registered on the app.
-- `USER_DOES_NOT_BELONG_TO_ACCOUNT` — the user / account pair does not match.
+- `issuer_not_found` — wrong integration key (likely the OAuth secret). `consent_required` — redo the consent grant.
+  `invalid_grant` / `no_valid_keys` — the private key is not the one registered on the app.
+  `USER_DOES_NOT_BELONG_TO_ACCOUNT` — the user / account pair does not match.
 
 What the live run still cannot automate (no API auto-signs an envelope): driving the ceremony to `completed`,
 downloading the executed documents, and capturing a real Connect completion/decline payload plus the
@@ -170,7 +168,7 @@ second (`routingOrder` 2) as a non-captive recipient — it receives the usual e
 
 - **`embedded`** (the default; the standalone retainer walk) — the client is a **captive** recipient: the manifest sets
   `client_user_id` (derived from the notation), so DocuSign suppresses the signing email and the client signs *inside*
-  Navigator. `GET /portal/admin/notations/:id/sign` ([`web::esign_view`](../web/src/esign_view.rs)) requests a
+  Neon Law Navigator. `GET /portal/admin/notations/:id/sign` ([`web::esign_view`](../web/src/esign_view.rs)) requests a
   short-lived, single-use recipient-view URL via `SignatureProvider::create_recipient_view` (which POSTs
   `envelopes/{id}/views/recipient`, matching the recipient on the email / userName / clientUserId triple) and iframes
   it. The URL expires in minutes, so the page is rendered fresh per request. The stub returns a deterministic URL in
@@ -189,8 +187,8 @@ DocuSign Connect POSTs to `/webhook/esignature/:secret`. The handler verifies th
 archives the signed PDF + Certificate of Completion to object storage (best-effort).
 
 > **Production readiness gate.** The prod `DOCUSIGN_HMAC_KEY` is currently a generated placeholder (a boot invariant in
-> [`web/src/config.rs`](../web/src/config.rs)). E-sign is safe to run, but **not client-ready** until DocuSign Connect
-> on the production account is configured with an HMAC key and the matching value is set in the prod Secret.
+  [`web/src/config.rs`](../web/src/config.rs)). E-sign is safe to run, but **not client-ready** until DocuSign Connect
+  on the production account is configured with an HMAC key and the matching value is set in the prod Secret.
 
 ## Production cutover (Phase 2)
 
@@ -215,5 +213,5 @@ not copy; set up the production environment separately:
 ## Related
 
 - [`third-party-integrations.md`](third-party-integrations.md) — the two-account, env-file convention this follows.
-- [`.env.example`](../.env.example) — the canonical per-variable reference (JWT-grant preferred, static fallback).
-- `prompts/esignature-e2e-and-production.md` — the build-out kickoff (gitignored; the durable decisions live here).
+  [`.env.example`](../.env.example) — the canonical per-variable reference (JWT-grant preferred, static fallback).
+  `prompts/esignature-e2e-and-production.md` — the build-out kickoff (gitignored; the durable decisions live here).

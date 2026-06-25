@@ -1,7 +1,7 @@
 ---
 name: durable-execution
 description: >
-  The operational contract for Navigator's Restate-backed durable execution — how to keep the running workflows alive,
+  The operational contract for Neon Law Navigator's Restate-backed durable execution — how to keep the running workflows alive,
   diagnose why one didn't fire, and not break them. Covers the submit-vs-run split (workflows lib / workflows-service
   bin), the service inventory, the six-hourly Heartbeat liveness canary, the three start modes, and — front and center —
   the ranked failure modes with their one-line detectors and fixes (missing trigger image / Forbid wedge / registration
@@ -29,7 +29,7 @@ durable — journals every step, retries failures, runs it to completion on the 
 the workspace never binds `restate-sdk` outside one crate:
 
 - `workflows` (lib) — **outbound**: `start_workflow` POSTs to the ingress. Called by `web` and every `*-trigger`.
-- `workflows-service` (bin) — **inbound**: the worker Restate dials into. The only `restate-sdk` consumer.
+  `workflows-service` (bin) — **inbound**: the worker Restate dials into. The only `restate-sdk` consumer.
 
 Full architecture, the registration gotcha, and the auth model:
 [`docs/durable-workflows.md`](../../../docs/durable-workflows.md).
@@ -128,12 +128,11 @@ them is what silently broke prod. Never paste either into the repo.
   `workflows_service::registry` tests (shares `rules::is_pascal_case`; template filenames are the separate snake_case
   convention `N103` enforces).
 - **Trigger CronJobs carry `activeDeadlineSeconds` + `startingDeadlineSeconds`** so Forbid can't wedge them.
-- **`start_workflow` has a 30s HTTP timeout** so a hung ingress can't keep a trigger pod alive.
-- **Debugging stays identifier-and-status only — never client content** (the standing no-content rule; see the
-  `observability` skill).
+  **`start_workflow` has a 30s HTTP timeout** so a hung ingress can't keep a trigger pod alive. **Debugging stays
+  identifier-and-status only — never client content** (the standing no-content rule; see the `observability` skill).
 
 ## Boundaries
 
 - To *add* a new workflow (feature → template + questionnaire → Restate handlers): the `create-legal-workflow` skill.
-- Telemetry, the trigger metric, the BigQuery landing: the `observability` skill.
-- This skill keeps the *running* engine alive.
+  Telemetry, the trigger metric, the BigQuery landing: the `observability` skill. This skill keeps the *running* engine
+  alive.

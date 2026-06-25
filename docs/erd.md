@@ -411,6 +411,20 @@ erDiagram
         TEXT updated_at
         CHARACTER VARYING audience
     }
+    relationship_edges {
+        UUID id PK
+        CHARACTER VARYING from_type
+        UUID from_id
+        CHARACTER VARYING to_type
+        UUID to_id
+        CHARACTER VARYING kind
+        INTEGER confidence_pct
+        CHARACTER VARYING source_kind
+        UUID source_id
+        TEXT detail
+        CHARACTER VARYING inserted_at
+        CHARACTER VARYING updated_at
+    }
     relationship_logs {
         UUID id PK
         UUID actor_person_id FK
@@ -601,4 +615,5 @@ erDiagram
     persons ||--o{ testimonials : "person_id"
     products ||--o{ testimonials : "product_code"
     projects ||--o{ xero_invoices : "project_id"
+
 ```

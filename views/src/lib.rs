@@ -1,4 +1,4 @@
-//! HTML view components for the Navigator web target.
+//! HTML view components for the Neon Law Navigator web target.
 //!
 //! Every page returns a `maud::Markup`. The router wires those into
 //! axum responses (via maud's `axum` feature) so the handler signature
@@ -75,7 +75,7 @@ pub fn forbidden_page_with_auth(auth: AuthState) -> maud::Markup {
 /// Rendered by `web::oauth` only when the Identity Platform password
 /// front door is configured. The form posts to `/auth/password`; the
 /// password the person types is validated by GCP Identity Platform, not
-/// by us — Navigator never stores or hashes a password. `csrf_token` is
+/// by us — Neon Law Navigator never stores or hashes a password. `csrf_token` is
 /// the double-submit token also dropped as a signed cookie. When
 /// `oidc_enabled`, a "Sign in with Google" link to `/auth/login/oidc`
 /// sits alongside, so email/password is a first-class door rather than a

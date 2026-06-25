@@ -52,10 +52,10 @@ la tarifa mensual de $66, cualquier tarifa fuera de alcance y cómo cualquiera d
 representación. Antes de enviar esa carta, verificamos conflictos de interés contra todos los asuntos actuales y
 anteriores de la firma —también representamos a empresas, y no podemos representar a una empresa y a una persona cuyos
 intereses sean adversos entre sí. Si la verificación muestra que no podemos tomar su asunto debidamente, se lo decimos
-con prontitud y le referimos a abogados que también usan el Navigator y están comprometidos con mejorar el acceso a la
-justicia con nuestro software. No existen honorarios por referencia entre Neon Law y ningún despacho al que refiramos
-casos. Nautilus no garantiza ningún resultado en particular, y no borra las deudas que usted debe —se asegura de que sus
-derechos se usen y de que quienes cobran traten con su abogado.
+con prontitud y le referimos a abogados que también usan el Neon Law Navigator y están comprometidos con mejorar el
+acceso a la justicia con nuestro software. No existen honorarios por referencia entre Neon Law y ningún despacho al que
+refiramos casos. Nautilus no garantiza ningún resultado en particular, y no borra las deudas que usted debe —se asegura
+de que sus derechos se usen y de que quienes cobran traten con su abogado.
 
 ## Comience Nautilus
 

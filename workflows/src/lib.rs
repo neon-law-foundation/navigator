@@ -1,5 +1,5 @@
 #![allow(clippy::doc_markdown)]
-//! Durable workflow primitives for Navigator.
+//! Durable workflow primitives for Neon Law Navigator.
 //!
 //! Templates carry both a `questionnaire:` spec and a `workflow:`
 //! spec in their YAML frontmatter; each notation (a filled-in

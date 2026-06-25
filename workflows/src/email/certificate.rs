@@ -147,16 +147,20 @@ mod tests {
 
     #[test]
     fn body_substitutes_recipient_and_workshop_and_drops_frontmatter() {
-        let body = render_certificate_body("Aries Tenant", "Deploy the Navigator");
+        let body = render_certificate_body("Aries Tenant", "Deploy the Neon Law Navigator");
         assert!(!body.starts_with("---"), "frontmatter must be stripped");
         assert!(body.contains("Aries Tenant"));
-        assert!(body.contains("Deploy the Navigator"));
+        assert!(body.contains("Deploy the Neon Law Navigator"));
         assert!(!body.contains("{{"), "no placeholder may survive: {body}");
     }
 
     #[test]
     fn html_wraps_body_with_foundation_brand() {
-        let html = render_certificate_html("Aries", "Deploy the Navigator", "https://example.test");
+        let html = render_certificate_html(
+            "Aries",
+            "Deploy the Neon Law Navigator",
+            "https://example.test",
+        );
         assert!(html.starts_with("<!doctype html>"));
         assert!(html.contains("Aries"));
         // Foundation email carries the foundation logo, never the firm's.
@@ -165,7 +169,7 @@ mod tests {
 
     #[test]
     fn attachment_is_a_named_pdf() {
-        let att = certificate_attachment("Aries", "Deploy the Navigator", "June 24, 2026")
+        let att = certificate_attachment("Aries", "Deploy the Neon Law Navigator", "June 24, 2026")
             .expect("certificate pdf renders");
         assert_eq!(att.filename, "certificate.pdf");
         assert_eq!(att.content_type, "application/pdf");
@@ -181,7 +185,7 @@ mod tests {
             key,
             "Aries",
             "aries@example.com",
-            "Deploy the Navigator",
+            "Deploy the Neon Law Navigator",
             "June 24, 2026",
         )
         .await

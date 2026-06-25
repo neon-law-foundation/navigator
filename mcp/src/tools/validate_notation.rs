@@ -27,7 +27,7 @@ pub fn descriptor() -> Value {
     json!({
         "name": "aida_validate_notation",
         "description":
-            "Lint markdown for Navigator notation rules and return the \
+            "Lint markdown for Neon Law Navigator notation rules and return the \
              list of violations. Does NOT persist anything — safe to \
              call repeatedly while drafting. Pass `contents` (the raw \
              markdown, including any YAML frontmatter), optionally a \
@@ -61,7 +61,7 @@ pub fn descriptor() -> Value {
                          set (drops the N-family, adds `S102` line \
                          packing) — same as \
                          `cli validate --markdown-only`. Defaults to \
-                         false: the full Navigator-notation rule set \
+                         false: the full Neon Law Navigator notation rule set \
                          runs."
                 }
             },

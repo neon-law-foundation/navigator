@@ -195,6 +195,10 @@ impl<'a> PageLayout<'a> {
                         href="/public/fonts/noto-serif/noto-serif-latin-400-normal.woff2";
                     link rel="stylesheet" href="/public/css/noto-serif.css";
                     link rel="stylesheet" href="/public/icons/bootstrap-icons.css";
+                    // Neon "Vegas" hero scene for the firm landing page.
+                    // Self-contained dark cyan styling + animation; inert on
+                    // any page without a `.hero-neon` element.
+                    link rel="stylesheet" href="/public/css/hero.css";
                     // Hero preload — only when a page opts in via
                     // `with_preload_image`. `fetchpriority="high"` so
                     // it wins the connection race for the LCP element.
@@ -380,10 +384,10 @@ impl<'a> PageLayout<'a> {
                             a.link-secondary href=(privacy_url()) { "Privacy" } " · "
                             a.link-secondary href=(terms_url()) { "Terms" } " · "
                             a.link-secondary href="/docs" { "Docs" } " · "
+                            a.link-secondary href="/design" { "Design" } " · "
                             a.link-secondary href="/api/docs" { "API" } " · "
                             a.link-secondary href="/contact" { "Contact" } " · "
                             a.link-secondary href="/blog" { "Blog" } " · "
-                            a.link-secondary href="/events" { "Events" } " · "
                             // The mission statement and the Foundation's free
                             // Nevada Revised Statutes reference ride the same link
                             // row as every other policy link — uniform short
@@ -411,7 +415,7 @@ impl<'a> PageLayout<'a> {
                                 }
                             }
                         }
-                        // Bottom line: the Navigator version and the repo-star
+                        // Bottom line: the Neon Law Navigator version and the repo-star
                         // CTA share one row, and a version ALWAYS shows. In a
                         // deployed image it is the `YY.MM.DD` ghcr tag this
                         // build shipped under (same value as `/version`'s
@@ -427,11 +431,11 @@ impl<'a> PageLayout<'a> {
                                 (external_link_with_class(
                                     &format!("{}/releases/tag/{release}", foundation_github_url()),
                                     "link-secondary text-decoration-none small",
-                                    html! { "Navigator " (release) },
+                                    html! { "Neon Law Navigator " (release) },
                                 ))
                             } @else {
                                 span."small"."text-body-secondary" {
-                                    "Navigator " (env!("CARGO_PKG_VERSION"))
+                                    "Neon Law Navigator " (env!("CARGO_PKG_VERSION"))
                                 }
                             }
                             (github_star_button(
@@ -940,14 +944,15 @@ mod tests {
                 "href=\"/privacy\"",
                 "href=\"/terms\"",
                 "href=\"/docs\"",
+                "href=\"/design\"",
                 "href=\"/api/docs\"",
                 "href=\"/contact\"",
                 "href=\"/blog\"",
-                "href=\"/events\"",
                 "href=\"/foundation\"",
                 "href=\"/foundation/transparency\"",
                 "href=\"/statutes\"",
                 ">Blog</a>",
+                ">Design</a>",
                 ">Mission</a>",
                 ">Transparency</a>",
                 ">Statutes</a>",
@@ -988,6 +993,10 @@ mod tests {
             assert!(
                 footer.contains(&format!("href=\"{}\"", foundation_github_url())),
                 "{brand} footer should link the configured repo: {footer}"
+            );
+            assert!(
+                !footer.contains("href=\"/events\""),
+                "{brand} footer should keep events nested under Nebula: {footer}"
             );
         }
     }
@@ -1052,8 +1061,8 @@ mod tests {
         let footer = firm_footer();
         let version = crate::brand::deployed_release().unwrap_or(env!("CARGO_PKG_VERSION"));
         assert!(
-            footer.contains(&format!("Navigator {version}")),
-            "footer should always carry a Navigator version line: {footer}"
+            footer.contains(&format!("Neon Law Navigator {version}")),
+            "footer should always carry a Neon Law Navigator version line: {footer}"
         );
     }
 

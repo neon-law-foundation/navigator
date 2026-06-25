@@ -12,15 +12,15 @@
 //!
 //! ## Customizing the brand
 //!
-//! The names default to a generic "Navigator" / "Navigator Foundation"
+//! The names default to a generic "Neon Law Navigator" / "Neon Law Navigator Foundation"
 //! so a fresh OSS clone never accidentally ships pre-branded under
 //! another organization's name. Set the following env vars (typically
 //! in your `.env`) before `web` starts to override:
 //!
 //! - `NAVIGATOR_BRAND_FIRM` — the firm's display name (default
-//!   `"Navigator"`).
+//!   `"Neon Law Navigator"`).
 //! - `NAVIGATOR_BRAND_FOUNDATION` — the foundation's display name
-//!   (default `"Navigator Foundation"`).
+//!   (default `"Neon Law Navigator Foundation"`).
 //!
 //! The brand structs cache the resolved values in `LazyLock`, so the
 //! env vars are read on first access and the resulting `&'static str`
@@ -132,14 +132,14 @@ const FIRM_NAV: &[NavLink] = &[
 
 const FOUNDATION_NAV: &[NavLink] = &[
     NavLink::leaf("Firm", "/"),
-    // The Foundation publishes the open-source Navigator, Notations,
+    // The Foundation publishes the open-source Neon Law Navigator, Notations,
     // Nimbus installs, and Nebula sharing programs:
-    // "Navigator" (the software: the LSP, CLI, MCP, and web app, each its
+    // "Neon Law Navigator" (the software: the LSP, CLI, MCP, and web app, each its
     // own package page under the `/foundation/navigator` hub), "Notations"
     // (the legal blueprints), "Nimbus" (white-label installs), and
     // "Nebula" (workshops, show-and-tells, and presentations). No
     // "Learn" catch-all dropdown.
-    NavLink::leaf("Navigator", "/foundation/navigator"),
+    NavLink::leaf("Neon Law Navigator", "/foundation/navigator"),
     NavLink::leaf("Notations", "/foundation/notations"),
     NavLink::leaf("Nimbus", "/foundation/nimbus"),
     NavLink::leaf("Nebula", "/foundation/nebula"),
@@ -188,7 +188,7 @@ pub fn consultation_url() -> &'static str {
 /// Where the footer's "Terms" link points. Defaults to the in-app
 /// `/terms` page (NeonLaw's bundled terms of use). A white-label deploy
 /// — a firm whose own marketing site already hosts its terms — sets
-/// `NAVIGATOR_TERMS_URL` to that off-site URL so Navigator links out
+/// `NAVIGATOR_TERMS_URL` to that off-site URL so Neon Law Navigator links out
 /// instead of serving someone else's binding legal text. Same `Copy`-
 /// friendly `&'static str` shape as the other brand links; resolved once
 /// per process.
@@ -219,7 +219,7 @@ pub fn foundation_email() -> &'static str {
     *FOUNDATION_EMAIL
 }
 
-/// Foundation GitHub URL — the open-source Navigator repository.
+/// Foundation GitHub URL — the open-source Neon Law Navigator repository.
 /// Canonical across deploys so public chrome always points at the
 /// Foundation-owned source.
 #[must_use]
@@ -406,7 +406,13 @@ mod tests {
         // Notations, Nimbus, and Nebula.
         assert_eq!(
             labels,
-            ["Firm", "Navigator", "Notations", "Nimbus", "Nebula"]
+            [
+                "Firm",
+                "Neon Law Navigator",
+                "Notations",
+                "Nimbus",
+                "Nebula"
+            ]
         );
         assert_eq!(FOUNDATION_BRAND.nav[0].href, "/");
         assert!(
@@ -417,13 +423,13 @@ mod tests {
 
     #[test]
     fn foundation_nav_navigator_points_at_the_package_hub() {
-        // "Navigator" is a flat top-level leaf at the hub that fans out to
+        // "Neon Law Navigator" is a flat top-level leaf at the hub that fans out to
         // the per-package pages (lsp / cli / mcp / web).
         let navigator = FOUNDATION_BRAND
             .nav
             .iter()
-            .find(|n| n.label == "Navigator")
-            .expect("Navigator leaf present");
+            .find(|n| n.label == "Neon Law Navigator")
+            .expect("Neon Law Navigator leaf present");
         assert!(!navigator.is_dropdown());
         assert_eq!(navigator.href, "/foundation/navigator");
     }
@@ -495,7 +501,7 @@ mod tests {
     fn terms_and_privacy_links_default_to_the_in_app_pages() {
         // Unset → the bundled `/terms` and `/privacy` routes. A white-label
         // deploy overrides these to its own off-site legal pages so
-        // Navigator never serves a deployer's binding legal text.
+        // Neon Law Navigator never serves a deployer's binding legal text.
         assert!(
             super::terms_url() == "/terms" || std::env::var("NAVIGATOR_TERMS_URL").is_ok(),
             "terms link defaults to /terms unless overridden"

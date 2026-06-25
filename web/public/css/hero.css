@@ -1,0 +1,187 @@
+/* Neon "Vegas" hero — the firm landing page (`/`). A self-contained dark */
+/* cyan scene that does NOT invert in dark mode (it is always dark), so */
+/* every colour here is a hardcoded cyan from the brand ramp rather than a */
+/* Bootstrap token: #06b6d4 (cyan-500, the brand primary) and its lighter */
+/* cyan-400 (#22d3ee) / cyan-300 (#67e8f9) / cyan-100 (#cffafe) tints carry */
+/* the glow. All motion is decorative and is disabled wholesale under */
+/* prefers-reduced-motion. The wordmark inherits Noto Serif from the page. */
+
+.hero-neon {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 360px;
+  padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1.5rem, 5vw, 3.5rem);
+  overflow: hidden;
+  border-radius: var(--bs-border-radius-xl, 1rem);
+  background: #04161d;
+  isolation: isolate;
+}
+
+/* Decorative background layers — purely visual, hidden from a11y tree. */
+.hero-neon__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.hero-neon__glow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  bottom: 0;
+  background: radial-gradient(
+    ellipse 75% 90% at 50% 0%,
+    rgba(34, 211, 238, 0.4),
+    rgba(6, 182, 212, 0.06) 58%,
+    transparent 74%
+  );
+}
+
+/* Receding synthwave grid floor, scrolling toward the viewer. */
+.hero-neon__grid {
+  position: absolute;
+  left: -30%;
+  right: -30%;
+  bottom: 0;
+  height: 50%;
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.55) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.55) 1px, transparent 1px);
+  background-size: 64px 64px;
+  transform: perspective(300px) rotateX(72deg);
+  transform-origin: 50% 0;
+  animation: hero-neon-scroll 1.7s linear infinite;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 32%, #000);
+  mask-image: linear-gradient(to bottom, transparent, #000 32%, #000);
+}
+
+/* The glowing horizon line where the grid meets the sky. */
+.hero-neon__horizon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #22d3ee, #67e8f9, #22d3ee, transparent);
+  box-shadow: 0 0 20px 3px rgba(34, 211, 238, 0.75);
+}
+
+/* A slow light sweep crossing the scene. */
+.hero-neon__sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 70px;
+  background: linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.22), transparent);
+  animation: hero-neon-sweep 7s ease-in-out infinite;
+}
+
+.hero-neon__content {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-neon__eyebrow {
+  margin-bottom: 0.75rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #a5f3fc;
+}
+
+/* The neon wordmark. text-shadow is an inherited property, so the inner */
+/* trademark <a> and <sup> pick up the glow; the flicker rides the whole */
+/* heading once (kept off the <a> to avoid compounding opacity). */
+.hero-neon__mark {
+  color: #ecfeff;
+  text-shadow:
+    0 0 6px #67e8f9,
+    0 0 16px #22d3ee,
+    0 0 34px #06b6d4,
+    0 0 66px #0891b2;
+  animation: hero-neon-flicker 5.5s linear infinite;
+}
+
+.hero-neon .hero-neon__mark a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.hero-neon__lead {
+  max-width: 34rem;
+  font-size: 1.15rem;
+  line-height: 1.7;
+  color: #e0fbff;
+}
+
+/* Ghost CTA tuned for the dark scene; the primary CTA reuses .btn-primary. */
+.hero-neon__btn-ghost {
+  color: #a5f3fc;
+  border: 1px solid #22d3ee;
+}
+
+.hero-neon__btn-ghost:hover,
+.hero-neon__btn-ghost:focus {
+  color: #04161d;
+  background-color: #67e8f9;
+  border-color: #67e8f9;
+}
+
+@keyframes hero-neon-scroll {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 64px;
+  }
+}
+
+@keyframes hero-neon-flicker {
+  0%,
+  89%,
+  100% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 0.5;
+  }
+  91% {
+    opacity: 1;
+  }
+  93% {
+    opacity: 0.72;
+  }
+  94% {
+    opacity: 1;
+  }
+}
+
+@keyframes hero-neon-sweep {
+  0% {
+    transform: translateX(-40%) skewX(-16deg);
+    opacity: 0;
+  }
+  45% {
+    opacity: 0.45;
+  }
+  100% {
+    transform: translateX(760%) skewX(-16deg);
+    opacity: 0;
+  }
+}
+
+/* Respect reduced-motion: freeze the grid, kill the flicker, drop the sweep. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-neon__grid,
+  .hero-neon__mark {
+    animation: none;
+  }
+  .hero-neon__sweep {
+    display: none;
+  }
+}

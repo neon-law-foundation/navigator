@@ -1,8 +1,8 @@
-# Navigator workspace — agent rules
+# Neon Law Navigator workspace — agent rules
 
-**Navigator** (Neon Law Navigator) is open source by the **Neon Law Foundation** under dual Apache-2.0 / MIT, run in
-production by **Neon Law**, the law firm. The code is licensed; the names and marks are reserved (see the Trademarks
-note in [`README.md`](README.md#trademarks)). Forks rebrand via the `navigator rebrand` white-label seam.
+**Neon Law Navigator** (Neon Law Navigator) is open source by the **Neon Law Foundation** under dual Apache-2.0 / MIT,
+run in production by **Neon Law**, the law firm. The code is licensed; the names and marks are reserved (see the
+Trademarks note in [`README.md`](README.md#trademarks)). Forks rebrand via the `navigator rebrand` white-label seam.
 
 This file is the short list of rules. Each rule links to the doc that is its source of truth — read that doc before
 acting on anything below, and keep the doc, not this file, authoritative.
@@ -125,11 +125,11 @@ hanging. The full recipe (read → assess → collect every comment → ask → 
 
 ## AIDA — the agent
 
-**AIDA** is Navigator's domain agent: one tool catalog (`mcp/src/tools/`), two LLM-agnostic protocol surfaces — **A2A**
-(`/api/aida.json`, `/api/aida/rpc`; routed by `web::agent_router::AgentRouter`) and **MCP** (`/mcp`; client-side LLM
-routes). MCP keeps the `aida_` prefix; A2A strips it, and `web::a2a` bridges both (snapshot-tested in `web/src/a2a.rs`).
-Swapping the router means a new `impl AgentRouter` selected from `web::build_router` — never fork the catalog. →
-[`docs/aida-a2a-interaction.md`](docs/aida-a2a-interaction.md),
+**AIDA** is Neon Law Navigator's domain agent: one tool catalog (`mcp/src/tools/`), two LLM-agnostic protocol surfaces —
+**A2A** (`/api/aida.json`, `/api/aida/rpc`; routed by `web::agent_router::AgentRouter`) and **MCP** (`/mcp`; client-side
+LLM routes). MCP keeps the `aida_` prefix; A2A strips it, and `web::a2a` bridges both (snapshot-tested in
+`web/src/a2a.rs`). Swapping the router means a new `impl AgentRouter` selected from `web::build_router` — never fork the
+catalog. → [`docs/aida-a2a-interaction.md`](docs/aida-a2a-interaction.md),
 [`docs/gemini-enterprise-mcp.md`](docs/gemini-enterprise-mcp.md).
 
 ## Where to find things
@@ -142,8 +142,8 @@ Swapping the router means a new `impl AgentRouter` selected from `web::build_rou
   [RUNBOOK](docs/RUNBOOK.md).
 - `web/content/marketing/mission.md` — why this project exists (live at `/foundation/mission`). Every product decision
   should be justifiable against it.
-- `README.md` — workspace overview, install, demo. `cli/README.md` — per-subcommand reference.
-- `k8s/` — KIND manifests. `notation_templates/` — notation templates. `store/seeds/` — canonical reference-data YAML.
+- `README.md` — workspace overview, install, demo. `cli/README.md` — per-subcommand reference. `k8s/` — KIND manifests.
+  `notation_templates/` — notation templates. `store/seeds/` — canonical reference-data YAML.
 
 ## Local-only convention: `prompts/`
 

@@ -116,7 +116,7 @@ jobs:
               echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the cleanup notice"
               exit 1
           fi
-          TEXT=":broom: Navigator ghcr cleanup ran — pruned navigator-* image versions older than 14 days.
+          TEXT=":broom: Neon Law Navigator ghcr cleanup ran — pruned navigator-* image versions older than 14 days.
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
           code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
@@ -152,7 +152,7 @@ jobs:
               echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the failure alert"
               exit 1
           fi
-          TEXT=":x: Navigator ghcr cleanup failed — ${SLACK_OPS_MENTION} please investigate.
+          TEXT=":x: Neon Law Navigator ghcr cleanup failed — ${SLACK_OPS_MENTION} please investigate.
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
           code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \

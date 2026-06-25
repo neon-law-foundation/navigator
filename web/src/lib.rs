@@ -1,5 +1,5 @@
 #![allow(clippy::doc_markdown)]
-//! Navigator web server library.
+//! Neon Law Navigator web server library.
 //!
 //! Exposes [`build_router`] so the binary and the integration tests
 //! share the exact same router instance — there is no second
@@ -705,7 +705,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             )
             .route("/foundation/contact", get(foundation_contact))
             .route("/foundation/nimbus", get(foundation_nimbus))
-            // The Navigator hub and its per-package pages. `/navigator`
+            // The Neon Law Navigator hub and its per-package pages. `/navigator`
             // and `/lsp` were the old top-level URLs; keep them as
             // permanent redirects so existing links never dead-end.
             .route("/foundation/navigator", get(navigator))
@@ -770,6 +770,24 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/es/foundation/nebula", get(nebula_landing_es))
             // Nebula is the Foundation's sharing surface: workshops,
             // show-and-tells, and presentations.
+            .route(
+                "/foundation/workshops",
+                get(|| async { axum::response::Redirect::permanent("/foundation/nebula") }),
+            )
+            .route(
+                "/foundation/workshops/navigator",
+                get(|| async {
+                    axum::response::Redirect::permanent(
+                        "/foundation/nebula/workshops/use-the-navigator",
+                    )
+                }),
+            )
+            .route("/events", get(legacy_events_redirect))
+            .route("/events/{slug}", get(legacy_event_redirect))
+            .route(
+                "/events/{slug}/calendar.ics",
+                get(legacy_event_ics_redirect),
+            )
             .route("/foundation/nebula", get(nebula_landing))
             .route("/foundation/nebula/{category}/{slug}", get(nebula_material))
             .route(
@@ -997,7 +1015,7 @@ async fn foundation_contact(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::contact::render_foundation(auth)
 }
 
-/// `GET /foundation/navigator` — the Navigator hub: the workspace README
+/// `GET /foundation/navigator` — the Neon Law Navigator hub: the workspace README
 /// over a strip that fans out to the per-package pages below.
 async fn navigator(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::navigator::render(auth)
@@ -1020,7 +1038,7 @@ async fn navigator_lsp(MaybeAuth(auth): MaybeAuth) -> Markup {
 /// `GET /foundation/navigator/cli` — the `navigator` operator CLI.
 async fn navigator_cli(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::package::render_cli(
-        "Navigator CLI",
+        "Neon Law Navigator CLI",
         "The navigator operator CLI — validate markdown templates, import and seed \
          data, render the ER diagram, and drive deploys.",
         CLI_README,
@@ -1033,8 +1051,8 @@ async fn navigator_cli(MaybeAuth(auth): MaybeAuth) -> Markup {
 /// that exposes AIDA's tools to any LLM client.
 async fn navigator_mcp(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::package::render(
-        "Navigator MCP",
-        "Navigator's Model Context Protocol server — AIDA's tool catalog over JSON-RPC \
+        "Neon Law Navigator MCP",
+        "Neon Law Navigator's Model Context Protocol server — AIDA's tool catalog over JSON-RPC \
          for Claude, Gemini Enterprise, LibreChat, and Cursor.",
         MCP_README,
         "/foundation/navigator/mcp",
@@ -1046,8 +1064,8 @@ async fn navigator_mcp(MaybeAuth(auth): MaybeAuth) -> Markup {
 /// this very binary serves.
 async fn navigator_web(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::package::render(
-        "Navigator Web",
-        "The Navigator web app and JSON API — the public site, the portal, the admin UI, \
+        "Neon Law Navigator Web",
+        "The Neon Law Navigator web app and JSON API — the public site, the portal, the admin UI, \
          and the agent surfaces, all from one axum binary.",
         WEB_README,
         "/foundation/navigator/web",
@@ -1943,7 +1961,7 @@ async fn docusign_consent_callback() -> Markup {
                 main .card {
                     h1 { "Consent recorded" }
                     p {
-                        "DocuSign consent for the Navigator integration has been granted. "
+                        "DocuSign consent for the Neon Law Navigator integration has been granted. "
                         "You can close this tab — JWT grant does not use the redirect, so no "
                         "further action is needed here."
                     }
@@ -1990,11 +2008,24 @@ fn render_nebula_landing(
         .iter()
         .map(|m| format!("{NEBULA_BASE}/{}/{}", m.category, m.slug))
         .collect();
-    let workshop_cards: Vec<workshop_views::WorkshopCard<'_>> = workshops
+    let workshop_cards: Vec<workshop_views::MaterialCard<'_>> = workshops
         .materials()
         .iter()
         .zip(&hrefs)
-        .map(|(m, href)| workshop_views::WorkshopCard {
+        .filter(|(m, _)| m.category == "workshops")
+        .map(|(m, href)| workshop_views::MaterialCard {
+            href,
+            title: &m.title,
+            audience: &m.audience,
+            benefit: &m.benefit,
+        })
+        .collect();
+    let presentation_cards: Vec<workshop_views::MaterialCard<'_>> = workshops
+        .materials()
+        .iter()
+        .zip(&hrefs)
+        .filter(|(m, _)| m.category == "presentations")
+        .map(|(m, href)| workshop_views::MaterialCard {
             href,
             title: &m.title,
             audience: &m.audience,
@@ -2012,21 +2043,59 @@ fn render_nebula_landing(
             )
         })
         .collect();
-    let show_tell_cards: Vec<workshop_views::ShowTellCard<'_>> = events
+    let event_cards: Vec<workshop_views::EventCard<'_>> = events
         .events()
         .iter()
         .zip(&show_tell_meta)
-        .map(
-            |(event, (href, time, place))| workshop_views::ShowTellCard {
-                href,
-                title: &event.title,
-                time,
-                place,
-                description: &event.description,
-            },
-        )
+        .map(|(event, (href, time, place))| workshop_views::EventCard {
+            href,
+            title: &event.title,
+            time,
+            place,
+            description: &event.description,
+        })
         .collect();
-    workshop_views::landing_in(&workshop_cards, &show_tell_cards, auth, locale)
+    workshop_views::landing_in(
+        &workshop_cards,
+        &presentation_cards,
+        &event_cards,
+        auth,
+        locale,
+    )
+}
+
+async fn legacy_events_redirect() -> impl IntoResponse {
+    axum::response::Redirect::permanent(NEBULA_BASE)
+}
+
+fn legacy_event_destination(events: &EventIndex, slug: &str) -> Option<String> {
+    events
+        .get_public(slug)
+        .or_else(|| events.get(slug))
+        .map(|event| format!("{NEBULA_BASE}/show-and-tell/{}", event.public_slug))
+}
+
+async fn legacy_event_redirect(
+    State(events): State<EventIndex>,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    match legacy_event_destination(&events, &slug) {
+        Some(destination) => axum::response::Redirect::permanent(&destination).into_response(),
+        None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
+    }
+}
+
+async fn legacy_event_ics_redirect(
+    State(events): State<EventIndex>,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    match legacy_event_destination(&events, &slug) {
+        Some(destination) => {
+            let calendar = format!("{destination}/calendar.ics");
+            axum::response::Redirect::permanent(&calendar).into_response()
+        }
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 /// Build the table of contents shared by the overview and every step.

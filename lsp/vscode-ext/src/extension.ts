@@ -23,7 +23,7 @@ export function activate(_context: vscode.ExtensionContext) {
 
   client = new LanguageClient(
     "navigator-lsp",
-    "Navigator LSP",
+    "Neon Law Navigator LSP",
     serverOptions,
     clientOptions,
   );

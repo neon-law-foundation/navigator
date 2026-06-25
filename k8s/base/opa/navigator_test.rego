@@ -1,4 +1,4 @@
-# Unit tests for the Navigator authorization policy.
+# Unit tests for the Neon Law Navigator authorization policy.
 #
 # These pin every decision the firm-wide access model promises — the
 # allow rules AND the deny cases — directly against the real Rego in

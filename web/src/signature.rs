@@ -90,7 +90,7 @@ impl SignatureFieldKind {
 /// `client_user_id`, when set, makes the recipient **captive** (embedded):
 /// DocuSign does NOT email them a signing link; instead the app requests
 /// a short-lived signing URL via [`SignatureProvider::create_recipient_view`]
-/// and shows it inside Navigator. The same id must be replayed on the
+/// and shows it inside Neon Law Navigator. The same id must be replayed on the
 /// recipient-view request, so it is the caller's stable handle for this
 /// signer (we key it on the notation). `None` keeps the recipient
 /// non-captive — DocuSign emails them the usual link (the firm
@@ -166,7 +166,7 @@ pub trait SignatureProvider: Send + Sync {
 
     /// Request a short-lived, single-use **embedded-signing URL** for a
     /// captive recipient of an already-created envelope. The client signs
-    /// inside Navigator (we iframe the URL) instead of following an
+    /// inside Neon Law Navigator (we iframe the URL) instead of following an
     /// emailed link. Only valid for recipients sent with a
     /// `client_user_id`; the URL expires in minutes.
     async fn create_recipient_view(
@@ -617,7 +617,7 @@ impl SignatureProvider for DocuSignSignatureProvider {
         );
         // `authenticationMethod` is the audit label DocuSign records for
         // how the signer was authenticated upstream; "none" means the app
-        // (Navigator, behind its own OIDC login) vouched for them. The
+        // (Neon Law Navigator, behind its own OIDC login) vouched for them. The
         // email/userName/clientUserId triple resolves the captive
         // recipient created at envelope time.
         let body = serde_json::json!({

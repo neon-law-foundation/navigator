@@ -31,8 +31,8 @@ use devx::{DnsCmd, GcpCmd, RestateCmd};
 #[command(
     name = "navigator",
     version,
-    about = "Navigator CLI — notation validator/importer + live-site matter driver",
-    long_about = "Navigator CLI — notation validator/importer + live-site matter driver\n\nNothing here is legal advice. Navigator validates and moves legal notation, but an attorney remains responsible for legal advice and judgment."
+    about = "Neon Law Navigator CLI — notation validator/importer + live-site matter driver",
+    long_about = "Neon Law Navigator CLI — notation validator/importer + live-site matter driver\n\nNothing here is legal advice. Neon Law Navigator validates and moves legal notation, but an attorney remains responsible for legal advice and judgment."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -42,7 +42,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Validate every `.md` under `<dir>` against the classified
-    /// Navigator rule set. DB-free by default: notation templates get
+    /// Neon Law Navigator rule set. DB-free by default: notation templates get
     /// N-family structural checks, while prose markdown gets only
     /// Markdown rules. Pass `--database-url` (or set `DATABASE_URL`) to
     /// load the canonical question registry and have N104 reject
@@ -50,7 +50,7 @@ enum Command {
     Validate {
         /// Directory to walk.
         dir: PathBuf,
-        /// Skip the N-family rules (Navigator notation-template
+        /// Skip the N-family rules (Neon Law Navigator notation-template
         /// specific) and only run general Markdown checks.
         #[arg(long)]
         markdown_only: bool,
@@ -182,7 +182,7 @@ enum Command {
         /// File to format in place.
         file: PathBuf,
     },
-    /// Print canonical Navigator vocabulary. With no argument lists
+    /// Print canonical Neon Law Navigator vocabulary. With no argument lists
     /// every term; with one argument prints just that term (case-
     /// insensitive), exiting non-zero on a miss.
     Glossary {
@@ -224,7 +224,7 @@ enum Command {
         #[command(subcommand)]
         action: DriveAction,
     },
-    /// Authenticate to a live Navigator site via a browser-loopback
+    /// Authenticate to a live Neon Law Navigator site via a browser-loopback
     /// flow and store a short-lived (~8h) bearer token at
     /// `~/.navigator.json` (mode `0600`). Like `gcloud auth login`: opens
     /// the browser, reuses the existing OIDC session, and lands the token
@@ -388,7 +388,7 @@ enum Command {
     /// including navigator-web. CI-shaped path: ends with the
     /// navigator-web rollout settling.
     Deploy,
-    /// `kubectl delete namespace navigator`. Removes every Navigator
+    /// `kubectl delete namespace navigator`. Removes every Neon Law Navigator
     /// resource without touching the cluster itself.
     Undeploy,
     /// Smoke-test the deployed stack: wait for every rollout, hit
@@ -413,7 +413,7 @@ enum Command {
     KustomizeGke,
     /// GCP project provisioning. The actual REST plumbing lives in
     /// `cli/src/devx/gcp/`; this is the entry point operators reach for
-    /// when standing up (or re-running) Navigator on a fresh GCP
+    /// when standing up (or re-running) Neon Law Navigator on a fresh GCP
     /// project.
     #[command(subcommand)]
     Gcp(GcpCmd),

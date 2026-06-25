@@ -3,7 +3,7 @@ name: ci
 # The PR flow — one of exactly three workflows in this repo (see CLAUDE.md
 # "CI/CD — three workflows, no more"). Lean on purpose: fmt + clippy +
 # `cargo test --workspace`, plus a repository-wide Markdown validation pass
-# through the Navigator CLI. The test pass runs under `cargo llvm-cov` so the
+# through the Neon Law Navigator CLI. The test pass runs under `cargo llvm-cov` so the
 # SAME test pass also emits the lcov uploaded to Codecov for per-PR diff
 # coverage (no second test run). Integration (KIND), docker image builds,
 # browser tests, and the deploy email all live in the tag flow (`deploy.yml`),

@@ -1,6 +1,6 @@
-Feature: Workshop "Using the Navigator to Rapidly Solve Legal Outcomes"
+Feature: Workshop "Using the Neon Law Navigator to Rapidly Solve Legal Outcomes"
 
-  Every Bloom-tagged claim the workshop README makes about Navigator
+  Every Bloom-tagged claim the workshop README makes about Neon Law Navigator
   is grounded by an executable scenario in this file. If a scenario
   here breaks, the workshop's prose is stale — the AIDA + engineer
   council insisted on this contract so the page cannot drift away
@@ -13,16 +13,16 @@ Feature: Workshop "Using the Navigator to Rapidly Solve Legal Outcomes"
     Template  — real_estate__deed_of_sale (markdown body with one
                 {{client_name}} placeholder)
 
-  The attorney is the actor in every When step; Navigator is the
+  The attorney is the actor in every When step; Neon Law Navigator is the
   instrument. Scorpio's load-bearing trust claim — the deed is not
   signed until the attorney advances the workflow — is asserted in
   the final scenario.
 
   Background:
-    Given a fresh Navigator app with a deed-of-sale template
+    Given a fresh Neon Law Navigator app with a deed-of-sale template
     And the workshop attorney "Virgo" is registered with email "virgo@example.com"
 
-  Scenario: Remember — the four Navigator nouns are real schema entities
+  Scenario: Remember — the four Neon Law Navigator nouns are real schema entities
     Then the schema has a "projects" table
     And the schema has a "templates" table
     And the schema has a "notations" table
@@ -40,7 +40,7 @@ Feature: Workshop "Using the Navigator to Rapidly Solve Legal Outcomes"
 
   Scenario: Create — the deed is not signed until the attorney advances the workflow
     # Scorpio's load-bearing trust claim from the engineer-council
-    # review: Navigator must never produce a signed deed on its own.
+    # review: Neon Law Navigator must never produce a signed deed on its own.
     # Whatever the runtime calls the initial state, it must NOT be
     # `signed`, `notarized`, or `notarization_pending` — those only
     # appear after an explicit workflow advance the attorney drives.

@@ -165,7 +165,7 @@ pub fn t_args(locale: Locale, key: &str, args: &[(&str, &str)]) -> String {
 }
 
 /// Translate a navbar label. Known chrome labels route through the
-/// catalog; product proper nouns (Nexus, Northstar, Navigator, …) and
+/// catalog; product proper nouns (Nexus, Northstar, Neon Law Navigator, …) and
 /// any unrecognized label pass through verbatim. In `En` the catalog
 /// value equals the input, so English output is unchanged.
 #[must_use]

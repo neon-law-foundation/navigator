@@ -1,7 +1,8 @@
 # navigator-lsp
 
-Language Server Protocol entry point for Navigator's markdown rules. One binary, JSON-RPC over stdio, no telemetry. Any
-LSP-aware editor (Neovim, Helix, VS Code, Zed, Emacs, Cursor) attaches by registering `navigator-lsp` against `*.md`.
+Language Server Protocol entry point for Neon Law Navigator's markdown rules. One binary, JSON-RPC over stdio, no
+telemetry. Any LSP-aware editor (Neovim, Helix, VS Code, Zed, Emacs, Cursor) attaches by registering `navigator-lsp`
+against `*.md`.
 
 ## What it provides
 
@@ -26,14 +27,10 @@ is treated as a notation template when it lives under `notation_templates/` or i
 
 `source.fixAll` applies every rule whose `Rule::fix()` returns `Some(TextEdit)`:
 
-- `M009` — strip trailing whitespace.
-- `M010` — replace hard tab with two spaces.
-- `M012` — collapse multi-blank runs to one blank.
-- `M018` — insert space after `#` in ATX heading.
-- `M019` — collapse multi-space after `#` to one space.
-- `M020` — insert space before closing `#` of closed ATX.
-- `M021` — collapse multi-space before closing `#`.
-- `M027` — collapse multi-space after blockquote `>`.
+- `M009` — strip trailing whitespace. `M010` — replace hard tab with two spaces. `M012` — collapse multi-blank runs to
+  one blank. `M018` — insert space after `#` in ATX heading. `M019` — collapse multi-space after `#` to one space.
+  `M020` — insert space before closing `#` of closed ATX. `M021` — collapse multi-space before closing `#`. `M027` —
+  collapse multi-space after blockquote `>`.
 
 Diagnostic-only (stays for a human): N-family, `M024` duplicate heading, `M026` trailing punctuation, `M005` list
 indent, `S101` long line (no safe break heuristic in v1).

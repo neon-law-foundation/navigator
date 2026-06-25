@@ -1,8 +1,8 @@
 #![allow(clippy::doc_markdown)]
-//! `/foundation/navigator/<pkg>` — one page per shipped Navigator
+//! `/foundation/navigator/<pkg>` — one page per shipped Neon Law Navigator
 //! package.
 //!
-//! Navigator is published as a set of open-source crates; the Foundation
+//! Neon Law Navigator is published as a set of open-source crates; the Foundation
 //! surfaces the ones a reader actually runs as their own pages under the
 //! `/foundation/navigator` hub:
 //!
@@ -69,21 +69,21 @@ pub const PACKAGES: &[Package] = &[
 /// GitHub Release.
 #[derive(Debug, Clone, Copy)]
 pub enum ReleaseBinary {
-    Navigator,
+    Cli,
     NavigatorLsp,
 }
 
 impl ReleaseBinary {
     const fn artifact_prefix(self) -> &'static str {
         match self {
-            Self::Navigator => "navigator",
+            Self::Cli => "navigator",
             Self::NavigatorLsp => "navigator-lsp",
         }
     }
 
     const fn command_name(self) -> &'static str {
         match self {
-            Self::Navigator => "navigator",
+            Self::Cli => "navigator",
             Self::NavigatorLsp => "navigator-lsp",
         }
     }
@@ -183,7 +183,7 @@ pub fn release_downloads(binary: ReleaseBinary) -> Markup {
 #[must_use]
 pub fn package_strip(current: Option<&str>) -> Markup {
     html! {
-        nav."mb-4" aria-label="Navigator packages" {
+        nav."mb-4" aria-label="Neon Law Navigator packages" {
             div."row"."row-cols-2"."row-cols-md-4"."g-3" {
                 @for pkg in PACKAGES {
                     @let active = current == Some(pkg.href);
@@ -244,7 +244,7 @@ pub fn render_cli(
 ) -> Markup {
     let body = html! {
         (package_strip(Some(current)))
-        (release_downloads(ReleaseBinary::Navigator))
+        (release_downloads(ReleaseBinary::Cli))
         article.docs-article {
             (render_with_link_rewrite(readme, rewrite_link))
         }
@@ -298,7 +298,7 @@ mod tests {
     fn render_emits_readme_under_foundation_brand_with_rewritten_links() {
         let readme = "# CLI\n\nSee [the glossary](docs/glossary.md) and [a template](notation_templates/united_states/nevada/state/business_associations/entity_formation.md).\n";
         let html = render(
-            "Navigator CLI",
+            "Neon Law Navigator CLI",
             "The navigator operator CLI.",
             readme,
             "/foundation/navigator/cli",
@@ -307,7 +307,7 @@ mod tests {
         .into_string();
         assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(html.contains(&format!(
-            "<title>{} | Navigator CLI</title>",
+            "<title>{} | Neon Law Navigator CLI</title>",
             FOUNDATION_BRAND.site_name
         )));
         // Repo-relative links are retargeted for the web (same mapping as
@@ -321,14 +321,14 @@ mod tests {
             "got: {html}"
         );
         // The cross-package strip rides above the body.
-        assert!(html.contains("aria-label=\"Navigator packages\""));
+        assert!(html.contains("aria-label=\"Neon Law Navigator packages\""));
     }
 
     #[test]
     fn release_asset_names_are_tagged_by_version_and_platform() {
         let tag = "26.06.24";
         assert_eq!(
-            release_asset_name(ReleaseBinary::Navigator, tag, RELEASE_PLATFORMS[0]),
+            release_asset_name(ReleaseBinary::Cli, tag, RELEASE_PLATFORMS[0]),
             "navigator-26.06.24-linux.tar.gz"
         );
         assert_eq!(
@@ -336,7 +336,7 @@ mod tests {
             "navigator-lsp-26.06.24-windows.zip"
         );
         assert_eq!(
-            release_asset_url(ReleaseBinary::Navigator, tag, RELEASE_PLATFORMS[1]),
+            release_asset_url(ReleaseBinary::Cli, tag, RELEASE_PLATFORMS[1]),
             "https://github.com/neon-law-foundation/Navigator/releases/download/26.06.24/navigator-26.06.24-macos.tar.gz"
         );
     }
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn cli_page_exposes_downloads_before_readme() {
         let html = render_cli(
-            "Navigator CLI",
+            "Neon Law Navigator CLI",
             "The navigator operator CLI.",
             "# CLI\n\nBody.\n",
             "/foundation/navigator/cli",

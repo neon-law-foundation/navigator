@@ -6,7 +6,7 @@
 //!
 //! Tool names are namespaced under `aida_` so clients that surface
 //! multiple MCP servers (Gemini Enterprise, `LibreChat`) can group
-//! Navigator's tools cleanly in their UI.
+//! Neon Law Navigator's tools cleanly in their UI.
 
 use serde_json::Value;
 
@@ -51,7 +51,7 @@ pub fn list_tools() -> Vec<Value> {
 
 /// Required prefix for every MCP tool name we advertise. Multi-server
 /// MCP clients (Gemini Enterprise, `LibreChat`) surface tools from
-/// every connected server in one list — namespacing Navigator's tools
+/// every connected server in one list — namespacing Neon Law Navigator's tools
 /// keeps them grouped and avoids name collisions. Enforced by
 /// `every_tool_name_starts_with_aida_prefix` in this module's tests.
 pub const REQUIRED_PREFIX: &str = "aida_";

@@ -1,6 +1,6 @@
 # Third-party integrations — one vendor account per environment
 
-Navigator talks to a handful of external services. They fall into two kinds:
+Neon Law Navigator talks to a handful of external services. They fall into two kinds:
 
 - **Binding vendors** perform real, billable, or legally binding actions on the firm's behalf — DocuSign for
   e-signature, Xero for accounting and billing. For every such vendor we keep **two separate vendor apps/accounts**: a
@@ -21,7 +21,7 @@ out of scope here: they are not code dependencies, and a fork can swap them free
 - **No legal or financial weight in dev.** A test envelope or a draft invoice created against the sandbox account is not
   a binding signature or a real ledger entry. A leaked dev key cannot mint a production signature request.
 - **Clean books and clean signers.** Test data stays out of the real accounting ledger and off real signers' inboxes.
-- **Self-testable forks.** An OSS adopter can stand up their own sandbox account and exercise the full flow without
+  **Self-testable forks.** An OSS adopter can stand up their own sandbox account and exercise the full flow without
   touching a real account or paying for live API calls.
 
 ## How we switch: by env file, not `APP_ENV`
@@ -58,8 +58,8 @@ safe default: a fresh checkout boots and self-tests without touching a real acco
 
 Notes:
 
-- **Xero ↔ Mercury.** Xero reconciles against the firm's bank (Mercury) inside Xero itself. Navigator never speaks to
-  Mercury — our only integration boundary is the Xero API.
+- **Xero ↔ Mercury.** Xero reconciles against the firm's bank (Mercury) inside Xero itself. Neon Law Navigator never
+  speaks to Mercury — our only integration boundary is the Xero API.
 - **Google Cloud is several spec-compliant touchpoints, not one SDK.** Object storage goes through the `cloud`
   crate's `StorageService` trait (GCS in prod, filesystem/`fake-gcs-server` in dev); the database is vanilla Postgres
   over `DATABASE_URL` (Cloud SQL in prod); OIDC is Google Identity validated against `GOOGLE_OAUTH_*`; the per-Project
@@ -94,5 +94,5 @@ account convention does not apply to them:
 ## Related
 
 - `.env.example` — the canonical per-variable reference; this convention is stated in its top "Conventions" block.
-- [`oss-install.md`](oss-install.md) — the install walkthrough's env-configuration step.
-- [`env-driven-devx.md`](env-driven-devx.md) — the broader "one config surface, three audiences" env philosophy.
+  [`oss-install.md`](oss-install.md) — the install walkthrough's env-configuration step.
+  [`env-driven-devx.md`](env-driven-devx.md) — the broader "one config surface, three audiences" env philosophy.

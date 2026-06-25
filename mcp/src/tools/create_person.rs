@@ -4,7 +4,7 @@
 //! attorney, staffer, or admin chatting through `LibreChat`) wants to
 //! register a new human contact. The handler inserts a row into
 //! `persons` via `SeaORM` and returns the new id + name + email so the
-//! model can confirm what landed. Every Navigator tool is namespaced
+//! model can confirm what landed. Every Neon Law Navigator tool is namespaced
 //! under the `aida_` prefix so clients can group them in their UI.
 
 use sea_orm::{ActiveModelTrait, ActiveValue};
@@ -22,7 +22,7 @@ use super::ToolError;
 pub fn descriptor() -> Value {
     json!({
         "name": "aida_create_person",
-        "description": "Create a NEW person record in Navigator. Use this ONLY when \
+        "description": "Create a NEW person record in Neon Law Navigator. Use this ONLY when \
                         the user explicitly asks to add or register a new contact, \
                         client, prospect, or staff member. Do NOT call this to look up, \
                         message, email, or welcome someone — a request that mentions an \

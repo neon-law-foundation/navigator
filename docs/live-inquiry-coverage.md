@@ -282,8 +282,8 @@ Conclusions:
 
 ## Speaker attribution
 
-Provider speaker labels are useful but provisional. A speech provider can say `speaker_1`; Navigator should not assume
-that label means "client" or "attorney" until staff maps it.
+Provider speaker labels are useful but provisional. A speech provider can say `speaker_1`; Neon Law Navigator should not
+assume that label means "client" or "attorney" until staff maps it.
 
 ```rust
 pub struct TranscriptSegmentDraft {
@@ -351,7 +351,7 @@ Template has a questionnaire and the staff starts a Live Inquiry Session from a 
 ## Staff flow
 
 1. Staff opens a Project and starts a Live Inquiry Session.
-2. Navigator loads the Notation's Template and normalizes its questionnaire into an Inquiry Set.
+2. Neon Law Navigator loads the Notation's Template and normalizes its questionnaire into an Inquiry Set.
 3. Transcript segments persist immediately as final provider segments arrive.
 4. Coverage inference runs against the latest segment window and updates Coverage Findings.
 5. Staff sees follow-up prompts while the session is still live.
