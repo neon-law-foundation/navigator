@@ -42,6 +42,7 @@ pub mod product;
 pub mod project;
 pub mod question;
 pub mod question_translation;
+pub mod relationship_edge;
 pub mod relationship_log;
 pub mod review_document;
 pub mod sent_email;

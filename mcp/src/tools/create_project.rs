@@ -130,6 +130,19 @@ pub async fn call(db: &Db, arguments: &Value) -> Result<Value, ToolError> {
         )
     })?;
 
+    // Conflict check — runs before the matter is created, like the web and
+    // CLI paths. This caller is non-interactive, so there is no
+    // acknowledgment seam: **any** finding (block or review) refuses the
+    // open. Resolve it through the portal, where authorized staff can
+    // review and acknowledge, rather than from an automated tool.
+    let conflict = store::conflicts::check_new_matter(db, client.id, entity_id).await?;
+    if !conflict.is_clear() {
+        return Err(ToolError::Forbidden(format!(
+            "conflict check refused this matter — resolve it in the portal before opening:\n{}",
+            conflict.summary_lines().join("\n")
+        )));
+    }
+
     let inserted = project::ActiveModel {
         name: ActiveValue::Set(name),
         status: ActiveValue::Set(status),
