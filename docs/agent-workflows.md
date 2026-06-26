@@ -62,7 +62,8 @@ When a dirty tree is ready to land:
    under `/tmp/navigator-screenshots/` and embed it in the PR **description** with `<img src="/tmp/...">`. Do not
    self-host the artifact on a remote branch; the PR tooling resolves the local path. Rendering tests are not a
    substitute for seeing the page served.
-8. Push and open a PR against `main`; Mergify auto-queues it after the configured merge protections pass.
+8. Push and open a PR against `main`; GitHub's merge queue lands it after the required checks pass (CI enables
+   auto-merge on open, which enqueues the PR).
 9. Clean up task-owned local resources before ending the session. See [Resource cleanup](#resource-cleanup).
 
 If the work should become multiple PRs, decide that before committing. Use the Engineering Council for real sequencing
