@@ -110,21 +110,56 @@ pub fn parse(raw: &str, fallback_slug: &str) -> Option<MarketingDoc> {
 }
 
 fn parse_frontmatter(source: &str) -> std::collections::HashMap<String, String> {
+    if let Ok(serde_yaml::Value::Mapping(mapping)) = serde_yaml::from_str(source) {
+        return mapping
+            .into_iter()
+            .filter_map(|(key, value)| {
+                let serde_yaml::Value::String(key) = key else {
+                    return None;
+                };
+                let value = match value {
+                    serde_yaml::Value::String(s) => s.trim().to_string(),
+                    serde_yaml::Value::Number(n) => n.to_string(),
+                    serde_yaml::Value::Bool(b) => b.to_string(),
+                    _ => return None,
+                };
+                Some((key, value))
+            })
+            .collect();
+    }
+
     let mut out = std::collections::HashMap::new();
-    for line in source.lines() {
-        // Indented lines belong to a nested structure (the `pricing:`
-        // block, a folded `description: >` scalar) — serde_yaml owns
-        // those; the line parser only takes top-level scalar keys.
+    let lines: Vec<&str> = source.lines().collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i];
+        // Indented lines belong to the previous top-level key: either a
+        // nested structure (`pricing:`) or a folded scalar handled below.
         if line.starts_with([' ', '\t']) {
+            i += 1;
             continue;
         }
         let trimmed = line.trim();
         let Some(colon) = trimmed.find(':') else {
+            i += 1;
             continue;
         };
         let key = trimmed[..colon].trim().to_string();
         let value = unwrap_quotes(trimmed[colon + 1..].trim());
+        if matches!(value.as_str(), ">" | "|") {
+            let folded = value == ">";
+            let mut parts = Vec::new();
+            i += 1;
+            while i < lines.len() && lines[i].starts_with([' ', '\t']) {
+                parts.push(lines[i].trim());
+                i += 1;
+            }
+            let separator = if folded { " " } else { "\n" };
+            out.insert(key, parts.join(separator).trim().to_string());
+            continue;
+        }
         out.insert(key, value);
+        i += 1;
     }
     out
 }
@@ -242,6 +277,22 @@ mod tests {
         assert_eq!(doc.description, "Estate and corporate, no litigation.");
         assert!(doc.body_html.contains("<h2>Lead</h2>"));
         assert!(doc.body_html.contains("<p>Flat-fee.</p>"));
+    }
+
+    #[test]
+    fn parse_extracts_folded_description_scalar() {
+        let raw = include_str!("../../content/marketing/nest.md");
+        let doc = parse(raw, "fallback").expect("parses");
+        assert_eq!(
+            doc.description,
+            "Neon Law Nest is all-inclusive incorporation, a physical business address, \
+             and mail receiving for small businesses."
+        );
+        assert_eq!(
+            doc.metadata.get("hero_image").map(String::as_str),
+            Some("mojave-yucca")
+        );
+        assert!(!doc.metadata.contains_key("pricing"));
     }
 
     #[test]

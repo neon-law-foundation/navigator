@@ -3,8 +3,7 @@ title: "Neon Law Nexus"
 slug: nexus
 hero_image: bengaluru-skyline
 description: >
-  Neon Law Nexus is fractional general counsel for scaling software and emerging-technology companies — $2,222 a month
-  for everything your company needs except litigation, including cap-table management for your Nevada C corp.
+  Neon Law Nexus is fractional general counsel as a service for scaling companies, with no hourly or per-matter billing.
 pricing:
   - title: "Neon Law Nexus"
     price: "$2,222"
