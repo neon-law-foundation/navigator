@@ -73,10 +73,20 @@ impl EventIndex {
 
     #[must_use]
     pub fn upcoming(&self, today: NaiveDate) -> Vec<&Event> {
-        self.events
+        let mut events: Vec<_> = self
+            .events
             .iter()
             .filter(|event| event.date >= today)
-            .collect()
+            .collect();
+        // Sort ascending (nearest first) so the "soonest upcoming" promise holds
+        // regardless of insertion order — `EventIndex::new` carries no ordering
+        // contract, mirroring `past`'s explicit descending sort.
+        events.sort_by(|a, b| {
+            a.starts_at
+                .cmp(&b.starts_at)
+                .then_with(|| a.slug.cmp(&b.slug))
+        });
+        events
     }
 
     #[must_use]
@@ -728,5 +738,46 @@ invite_link: https://luma.com/k26256ut\n\
         let today = NaiveDate::from_ymd_opt(2026, 7, 2).unwrap();
         assert_eq!(ix.upcoming(today)[0].slug, "today");
         assert_eq!(ix.past(today)[0].slug, "past");
+    }
+
+    fn event_on(slug: &str, date: NaiveDate) -> Event {
+        Event {
+            slug: slug.into(),
+            public_slug: slug.into(),
+            date,
+            title: slug.into(),
+            description: String::new(),
+            body_html: String::new(),
+            starts_at: date.and_hms_opt(18, 0, 0).unwrap(),
+            ends_at: date.and_hms_opt(20, 0, 0).unwrap(),
+            timezone: "America/Los_Angeles".into(),
+            location_name: String::new(),
+            location_address: String::new(),
+            external_event_provider: "luma".into(),
+            external_event_url: format!("https://luma.com/{slug}"),
+            image_url: None,
+            image_alt: None,
+            video_url: None,
+            recap_url: None,
+        }
+    }
+
+    #[test]
+    fn upcoming_and_past_sort_independently_of_insertion_order() {
+        // Insert deliberately out of chronological order: the index carries no
+        // ordering contract, so the split methods must impose their own order.
+        let ix = EventIndex::new(vec![
+            event_on("aug", NaiveDate::from_ymd_opt(2026, 8, 1).unwrap()),
+            event_on("jun", NaiveDate::from_ymd_opt(2026, 6, 1).unwrap()),
+            event_on("jul", NaiveDate::from_ymd_opt(2026, 7, 15).unwrap()),
+            event_on("may", NaiveDate::from_ymd_opt(2026, 5, 1).unwrap()),
+        ]);
+        let today = NaiveDate::from_ymd_opt(2026, 7, 1).unwrap();
+        // Upcoming: nearest first (ascending).
+        let upcoming: Vec<_> = ix.upcoming(today).iter().map(|e| e.slug.clone()).collect();
+        assert_eq!(upcoming, vec!["jul", "aug"]);
+        // Past: newest first (descending).
+        let past: Vec<_> = ix.past(today).iter().map(|e| e.slug.clone()).collect();
+        assert_eq!(past, vec!["jun", "may"]);
     }
 }
