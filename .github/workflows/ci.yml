@@ -34,12 +34,11 @@ on:
   # check never reports and merges hang. See docs/gitops.md.
   merge_group:
 
+# Default every job to read-only; the one job that needs more (enable-automerge)
+# requests pull-requests:write at the job level, so the test job never runs with
+# write access — including on merge_group events.
 permissions:
   contents: read
-  # The `enable-automerge` job below turns on GitHub auto-merge for a fresh PR,
-  # which is what adds it to the merge queue once the gate is green. Adding the
-  # request needs pull-requests:write; the built-in GITHUB_TOKEN carries it.
-  pull-requests: write
 
 jobs:
   rust:
@@ -168,6 +167,10 @@ jobs:
   # skips PRs from forks, whose GITHUB_TOKEN is read-only.
   enable-automerge:
     name: enable PR auto-merge
+    # Only this job needs write; the test job stays contents:read (above).
+    permissions:
+      contents: read
+      pull-requests: write
     if: >
       github.event_name == 'pull_request' &&
       (github.event.action == 'opened' || github.event.action == 'ready_for_review') &&
