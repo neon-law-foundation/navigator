@@ -9,7 +9,7 @@ client provides, and a hash of the signed attestation is written to Solana, bind
 wallet, and that hash. Solana is the chain because the workspace is Rust top-to-bottom — Solana programs are written in
 Rust and [Anchor](https://www.anchor-lang.com/) is a framework of Rust macros — so the same workspace speaks to the
 chain natively. The marketing copy lives in `web/content/marketing/node.md`; the binding engagement letter is
-`notation_templates/neon_law/engagements/retainer_node.md`.
+`notation_templates/neon_law/node/retainer.md`.
 
 ## What is built
 
@@ -59,7 +59,7 @@ struct Attestation { firm: Pubkey, client: Pubkey, sha256: [u8; 32], recorded_at
 The PDA is also the **exactly-once key**: a replayed submit hits "account already in use", which the attestor treats as
 success — the chain itself dedupes, complementing the journaled `ctx.run`.
 
-**3. The workflow edge** — the one-line YAML change in `retainer_node.md`, routing the signature into the new step:
+**3. The workflow edge** — the one-line YAML change in `node/retainer.md`, routing the signature into the new step:
 
 ```yaml
 sent_for_signature__pending:
@@ -100,4 +100,4 @@ contract.
 - Local record: `store::attestations` + the `attestations` entity / migration `m20260722`.
 - Step kind / status table: `workflows::step` and [`docs/notation-authoring.md`](notation-authoring.md) (the `onchain__`
   row).
-- Product surfaces: `web/content/marketing/node.md`, `notation_templates/neon_law/engagements/retainer_node.md`.
+- Product surfaces: `web/content/marketing/node.md`, `notation_templates/neon_law/node/retainer.md`.

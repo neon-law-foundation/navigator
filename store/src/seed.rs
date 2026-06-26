@@ -209,27 +209,27 @@ mod canonical {
     // practice-area-specific ethics reading naming the RPC(s) that bite
     // for that service.
     pub const TEMPLATE_RETAINER_NEST: &str =
-        include_str!("../../notation_templates/neon_law/engagements/retainer_nest.md");
+        include_str!("../../notation_templates/neon_law/nest/retainer.md");
     pub const TEMPLATE_RETAINER_NEXUS: &str =
-        include_str!("../../notation_templates/neon_law/engagements/retainer_nexus.md");
+        include_str!("../../notation_templates/neon_law/nexus/retainer.md");
     pub const TEMPLATE_RETAINER_NORTHSTAR: &str =
-        include_str!("../../notation_templates/neon_law/engagements/retainer_northstar.md");
+        include_str!("../../notation_templates/neon_law/northstar/retainer.md");
     pub const TEMPLATE_RETAINER_NAUTILUS: &str =
-        include_str!("../../notation_templates/neon_law/engagements/retainer_nautilus.md");
+        include_str!("../../notation_templates/neon_law/nautilus/retainer.md");
     pub const TEMPLATE_RETAINER_NOOK: &str =
-        include_str!("../../notation_templates/neon_law/engagements/retainer_nook.md");
+        include_str!("../../notation_templates/neon_law/nook/retainer.md");
     pub const TEMPLATE_RETAINER_LITIGATION: &str =
-        include_str!("../../notation_templates/neon_law/engagements/retainer_litigation.md");
+        include_str!("../../notation_templates/neon_law/litigation/retainer.md");
     pub const TEMPLATE_RETAINER_NERD: &str =
-        include_str!("../../notation_templates/neon_law/engagements/retainer_nerd.md");
+        include_str!("../../notation_templates/neon_law/nerd/retainer.md");
     pub const TEMPLATE_RETAINER_NODE: &str =
-        include_str!("../../notation_templates/neon_law/engagements/retainer_node.md");
+        include_str!("../../notation_templates/neon_law/node/retainer.md");
     pub const TEMPLATE_RETAINER_NEWLEAF: &str =
-        include_str!("../../notation_templates/neon_law/engagements/retainer_newleaf.md");
+        include_str!("../../notation_templates/neon_law/newleaf/retainer.md");
     pub const TEMPLATE_RETAINER_NAMESAKE: &str =
-        include_str!("../../notation_templates/neon_law/engagements/retainer_namesake.md");
+        include_str!("../../notation_templates/neon_law/namesake/retainer.md");
     pub const TEMPLATE_RETAINER_NUCLEUS: &str =
-        include_str!("../../notation_templates/neon_law/engagements/retainer_nucleus.md");
+        include_str!("../../notation_templates/neon_law/nucleus/retainer.md");
 }
 
 /// Wrap a list of records under the YAML's `records:` key. Every seed
@@ -401,47 +401,47 @@ async fn seed_templates(
             canonical::TEMPLATE_NATURALIZATION,
         ),
         (
-            "neon_law/engagements/retainer_nest.md",
+            "neon_law/nest/retainer.md",
             canonical::TEMPLATE_RETAINER_NEST,
         ),
         (
-            "neon_law/engagements/retainer_nexus.md",
+            "neon_law/nexus/retainer.md",
             canonical::TEMPLATE_RETAINER_NEXUS,
         ),
         (
-            "neon_law/engagements/retainer_northstar.md",
+            "neon_law/northstar/retainer.md",
             canonical::TEMPLATE_RETAINER_NORTHSTAR,
         ),
         (
-            "neon_law/engagements/retainer_nautilus.md",
+            "neon_law/nautilus/retainer.md",
             canonical::TEMPLATE_RETAINER_NAUTILUS,
         ),
         (
-            "neon_law/engagements/retainer_nook.md",
+            "neon_law/nook/retainer.md",
             canonical::TEMPLATE_RETAINER_NOOK,
         ),
         (
-            "neon_law/engagements/retainer_litigation.md",
+            "neon_law/litigation/retainer.md",
             canonical::TEMPLATE_RETAINER_LITIGATION,
         ),
         (
-            "neon_law/engagements/retainer_nerd.md",
+            "neon_law/nerd/retainer.md",
             canonical::TEMPLATE_RETAINER_NERD,
         ),
         (
-            "neon_law/engagements/retainer_node.md",
+            "neon_law/node/retainer.md",
             canonical::TEMPLATE_RETAINER_NODE,
         ),
         (
-            "neon_law/engagements/retainer_newleaf.md",
+            "neon_law/newleaf/retainer.md",
             canonical::TEMPLATE_RETAINER_NEWLEAF,
         ),
         (
-            "neon_law/engagements/retainer_namesake.md",
+            "neon_law/namesake/retainer.md",
             canonical::TEMPLATE_RETAINER_NAMESAKE,
         ),
         (
-            "neon_law/engagements/retainer_nucleus.md",
+            "neon_law/nucleus/retainer.md",
             canonical::TEMPLATE_RETAINER_NUCLEUS,
         ),
     ] {
