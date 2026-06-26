@@ -26,6 +26,20 @@ We encourage writing notation templates with [Zed](https://zed.dev) and our [LSP
 from Word, but once you get used to it, you may find it as productive as we do. Treating legal text like code opens a
 plethora of automations that save time, and we see its impact in scaling legal services.
 
+## Install the CLI
+
+On Apple Silicon macOS, install the `navigator` CLI and the `navigator-lsp` language server from our Homebrew tap:
+
+```bash
+brew tap neon-law-foundation/tap
+brew install neon-law-foundation/tap/navigator
+brew install neon-law-foundation/tap/navigator-lsp
+```
+
+A new `YY.MM.DD` release publishes every day, so `brew upgrade` always pulls the latest build. The published binaries
+are Apple-Silicon only; on other platforms — or to hack on the workspace — build from source with `cargo` as below. The
+tap and its formulae live at [neon-law-foundation/homebrew-tap](https://github.com/neon-law-foundation/homebrew-tap).
+
 ## Getting started
 
 To run Neon Law Navigator on your machine, run the following and review its output. The invocation will spawn a Rust
