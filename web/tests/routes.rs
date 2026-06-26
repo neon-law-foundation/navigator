@@ -857,12 +857,13 @@ async fn services_northstar_uses_marketing_doc_when_present() {
 }
 
 #[tokio::test]
-async fn services_northstar_renders_a_split_hero_from_the_hero_image_metadata() {
-    // The `hero_image:` frontmatter key turns a product page into a split
-    // hero: the "Neon Law …" brand title becomes the page <h1> beside the
-    // curated photo, and the body's own leading <h1> is lifted up into the
-    // hero lead (so it isn't repeated). This drives the full web→view seam
-    // — the metadata read in `service_page` plus the view's hero render.
+async fn services_northstar_renders_the_neon_hero_from_the_hero_image_metadata() {
+    // The `hero_image:` frontmatter key rides the curated photo beneath the
+    // neon product hero as a dimmed `--ph-photo` backdrop: the "Neon Law …"
+    // brand title is the page's single <h1> inside the hero, and the body's
+    // own leading <h1> is lifted up into the hero tagline (so it isn't
+    // repeated). This drives the full web→view seam — the metadata read in
+    // `service_page` plus the view's hero render.
     let docs = vec![web::MarketingDoc {
         slug: "northstar".into(),
         title: "Neon Law Northstar".into(),
@@ -888,17 +889,28 @@ async fn services_northstar_renders_a_split_hero_from_the_hero_image_metadata() 
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    // Brand title is the hero <h1>, led by the product's icon (the mark
-    // that used to sit in the Services dropdown); the curated photo is
-    // preloaded.
+    // The product's icon (the mark that used to sit in the Services
+    // dropdown) leads the hero in its own `.product-hero__icon` span.
     assert!(
         body.contains(
-            "<h1 class=\"display-4 fw-bold mb-3\">\
-             <i class=\"bi bi-star-fill me-3\" aria-hidden=\"true\"></i>Neon Law Northstar</h1>"
+            "<span class=\"product-hero__icon\">\
+             <i class=\"bi bi-star-fill \" aria-hidden=\"true\"></i></span>"
         ),
-        "expected the icon-led brand title as the hero h1"
+        "expected the product icon glyph leading the neon hero"
     );
-    assert!(body.contains("lake-tahoe") && body.contains("<picture>"));
+    // The brand title is the page's single <h1>, inside the neon hero.
+    assert!(
+        body.contains(
+            "<h1 class=\"product-hero__title display-3 fw-bold\">Neon Law Northstar</h1>"
+        ),
+        "expected the brand title as the hero h1"
+    );
+    // The curated photo rides beneath the neon as a dimmed `--ph-photo`
+    // backdrop (no separate <picture> banner) and still leads the LCP.
+    assert!(
+        body.contains("product-hero__photo") && body.contains("lake-tahoe"),
+        "curated photo should ride as the dimmed neon backdrop"
+    );
     assert!(
         body.contains("rel=\"preload\" as=\"image\""),
         "hero photo should be preloaded for LCP"

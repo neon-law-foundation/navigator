@@ -199,6 +199,10 @@ impl<'a> PageLayout<'a> {
                     // Self-contained dark cyan styling + animation; inert on
                     // any page without a `.hero-neon` element.
                     link rel="stylesheet" href="/public/css/hero.css";
+                    // Full-bleed neon product hero, themed per product.
+                    // Self-contained; inert on any page without a
+                    // `.product-hero` element (every `/services/*` page).
+                    link rel="stylesheet" href="/public/css/product-hero.css";
                     // Hero preload — only when a page opts in via
                     // `with_preload_image`. `fetchpriority="high"` so
                     // it wins the connection race for the LCP element.
@@ -1181,6 +1185,18 @@ mod tests {
         assert!(
             out.contains("/public/icons/bootstrap-icons.css"),
             "expected vendored Bootstrap Icons CSS link, got: {out}",
+        );
+    }
+
+    #[test]
+    fn product_hero_stylesheet_is_linked() {
+        // The per-product neon hero is its own self-contained sheet, linked
+        // on every page (inert without a `.product-hero` element) so each
+        // `/services/*` page can wear the rounded animated header.
+        let out = render("Home", &html! { p { "x" } });
+        assert!(
+            out.contains("/public/css/product-hero.css"),
+            "expected product-hero CSS link, got: {out}",
         );
     }
 
