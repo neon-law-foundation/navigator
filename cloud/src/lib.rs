@@ -23,12 +23,14 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use thiserror::Error;
 
+pub mod audio;
 pub mod drive;
 pub mod fs;
 pub mod gcs;
 pub mod redirect;
 pub mod speech;
 
+pub use audio::{decode_to_mono_pcm16, AudioError, DecodedAudio};
 pub use drive::{DriveAuth, DriveError};
 pub use fs::FsStorage;
 pub use gcs::{GcsStorage, GcsStorageConfig};
