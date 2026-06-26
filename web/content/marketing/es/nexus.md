@@ -3,9 +3,8 @@ title: "Neon Law Nexus"
 slug: nexus
 hero_image: bengaluru-skyline
 description: >
-  Neon Law Nexus es asesoría jurídica general fraccionada para empresas de software y tecnología emergente en
-  crecimiento — $2,222 al mes por todo lo que su empresa necesita salvo litigio, incluida la gestión de la tabla de
-  capitalización de su sociedad C de Nevada.
+  Neon Law Nexus es asesoría jurídica general fraccionada como servicio para empresas en crecimiento, sin facturación
+  por hora ni por asunto.
 pricing:
   - title: "Neon Law Nexus"
     price: "$2,222"

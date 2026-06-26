@@ -1099,6 +1099,16 @@ async fn service_pages_emit_share_descriptions_from_bundled_marketing() {
             "Neon Law Nexus is fractional general counsel as a service for scaling companies, \
              with no hourly or per-matter billing.",
         ),
+        (
+            "/es/services/nest",
+            "Neon Law Nest es constitución todo incluido, dirección comercial física y recepción \
+             de correo para pequeñas empresas.",
+        ),
+        (
+            "/es/services/nexus",
+            "Neon Law Nexus es asesoría jurídica general fraccionada como servicio para empresas \
+             en crecimiento, sin facturación por hora ni por asunto.",
+        ),
     ] {
         let resp = app
             .clone()
