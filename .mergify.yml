@@ -2,6 +2,7 @@ queue_rules:
   - name: default
     queue_conditions:
       - base = main
+      - draft = false
     merge_method: squash
 
 merge_protections_settings:
