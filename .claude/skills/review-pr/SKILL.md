@@ -231,9 +231,13 @@ gh pr view <N> --repo <slug> --json mergeStateStatus,mergeable -q '{mergeState: 
   gh pr update-branch <N> --repo <slug>
   ```
 
-  If that reports a conflict, fall back to a local merge in the PR's worktree, resolve, re-run the gate, and push:
+  If that reports a conflict, the branch is effectively `DIRTY` at that moment, so the same consent gate applies: **stop
+  and ask the user** before resolving anything locally — don't auto-resolve and push, that's a silent change to what
+  lands. Only when they ask you to, switch to the PR branch first (you may still be on `main` if Step 7 applied no
+  fixes), merge `main`, resolve, re-run the gate, and push:
 
   ```bash
+  git switch <headRefName>                         # never merge into main — Step 7 may not have switched you
   git fetch origin main && git merge origin/main   # resolve conflicts, then cargo fmt/clippy/test + markdown lint
   git push
   ```
@@ -245,6 +249,9 @@ gh pr view <N> --repo <slug> --json mergeStateStatus,mergeable -q '{mergeState: 
   needed, and do not attempt an automated update unless the user asks you to resolve the conflicts locally and re-run
   the gate.
 - **`CLEAN` / `HAS_HOOKS`** — nothing to do; it's mergeable.
+- **`UNKNOWN` / `UNSTABLE`** — GitHub hasn't finished computing mergeability (`UNKNOWN`), or the branch is mergeable but
+  a non-required check is failing/pending (`UNSTABLE`). Neither is staleness — don't update-branch. Re-query after a
+  moment for `UNKNOWN`; for `UNSTABLE`, confirm with `gh pr checks <N>` and leave auto-merge to land it once green.
 
 Only update a branch you're reviewing — never force-push, and never update someone else's branch out from under them
 without saying so in the report. After an update, CI re-runs; auto-merge (if enabled) still lands it when green.
