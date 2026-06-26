@@ -123,15 +123,17 @@ The first executable slice is deliberately local and staff/developer-facing:
 
 ```bash
 cargo run -p cli -- live-transcription demo \
+  --template notation_templates/engagements/estate.md \
   --transcript /tmp/northstar-sitting.txt \
   --pretty
 ```
 
-That command is a thin shell over the shared `live-inquiry` crate: it reads a Template markdown file (defaulting to
-`templates/onboarding/estate.md`), normalizes its `questionnaire:` into an Inquiry Set, segments the transcript text,
-and emits JSON Coverage Findings with `evidence_segment_ids` and follow-up prompts. Passing `--audio <file>` calls the
-Google Speech-to-Text v2 provider in `cloud` using Application Default Credentials and `GOOGLE_CLOUD_PROJECT` /
-`GCLOUD_PROJECT` / Doppler's `NAVIGATOR_GCP_PROJECT_ID` (or `--google-project`) before running the same coverage pass.
+That command is a thin shell over the shared `live-inquiry` crate: it reads a Template markdown file (required — pass
+`--template` or set `NAVIGATOR_NOTATION_TEMPLATE`), normalizes its `questionnaire:` into an Inquiry Set, segments the
+transcript text, and emits JSON Coverage Findings with `evidence_segment_ids` and follow-up prompts. Passing audio via
+`--audio <file>` calls the Google Speech-to-Text v2 provider in `cloud` using Application Default Credentials and
+`GOOGLE_CLOUD_PROJECT` / `GCLOUD_PROJECT` / Doppler's `NAVIGATOR_GCP_PROJECT_ID` (or `--google-project`) before running
+the same coverage pass.
 
 The live transcription path has an opt-in E2E that uses Doppler dev secrets and Google Speech-to-Text against Google's
 public Brooklyn Bridge sample:

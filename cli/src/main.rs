@@ -994,8 +994,9 @@ enum LiveTranscriptionAction {
     #[command(alias = "cover")]
     Demo {
         /// Template markdown file whose `questionnaire:` becomes the
-        /// Inquiry Set.
-        #[arg(long, default_value = "templates/onboarding/estate.md")]
+        /// Inquiry Set. Required — pass `--template` or set
+        /// `NAVIGATOR_NOTATION_TEMPLATE`.
+        #[arg(long, env = "NAVIGATOR_NOTATION_TEMPLATE")]
         template: PathBuf,
         /// Plain-text transcript to replay without calling speech-to-text.
         #[arg(long, conflicts_with = "audio")]
