@@ -75,6 +75,23 @@ the function (`engagements/`, `filings/`), never a product. That keeps them safe
 that carries a Neon Law product mark (Nautilus, Nest, Northstar, Nexus, and the like). It lives at the top level,
 parallel to `united_states/`, so the brand is quarantined in one place instead of leaking into the body of law.
 
+Inside the quarantine, each product gets **its own folder, one level deep**, holding that product's engagement letter
+(and any future product-specific templates). The product name lives in the folder, so the file is named by document type
+— `retainer.md` — not repeated in the filename:
+
+```text
+notation_templates/
+└── neon_law/
+    ├── nautilus/retainer.md
+    ├── nest/retainer.md
+    ├── nexus/retainer.md
+    ├── northstar/retainer.md
+    └── …                       # node, nook, nerd, newleaf, namesake, nucleus, litigation
+```
+
+The retainer's identity is still its `code` (`onboarding__retainer_nautilus`), not its path, so a product's engagement
+letter is renamed or moved without touching the workflows, seeds, or Product rows that reference it.
+
 These files are shared publicly so you can read and learn from them, **but they are not yours to use as-is.** **"Neon
 Law"** is a registered trademark of Shook Law PLLC (U.S. Reg. No. 6,325,650) — see the [Trademarks note in the root
 `README.md`](../README.md#trademarks). A fork **must not ship anything under `neon_law/` without first stripping the
