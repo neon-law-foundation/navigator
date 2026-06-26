@@ -13,6 +13,11 @@ use std::env;
 fn main() {
     // Rebuild when the release tag changes so a re-tag re-bakes the version.
     println!("cargo:rerun-if-env-changed=NAVIGATOR_RELEASE_TAG");
+    // Emitting any rerun-if directive opts out of Cargo's package-wide file
+    // scan, so also watch the workspace manifest — that is where the fallback
+    // `version` lives (`version.workspace = true`), and a bump there must
+    // re-bake the baked `CARGO_PKG_VERSION` instead of leaving it stale.
+    println!("cargo:rerun-if-changed=../Cargo.toml");
 
     let version = match env::var("NAVIGATOR_RELEASE_TAG") {
         Ok(tag) if !tag.trim().is_empty() => tag.trim().to_string(),
