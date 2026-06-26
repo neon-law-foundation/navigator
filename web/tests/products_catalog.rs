@@ -264,6 +264,10 @@ async fn spanish_catalog_renders_at_es_services() {
     // Spanish chrome, real DB prices.
     assert!(body.contains("Servicios"), "Spanish heading");
     assert!(body.contains("$44"));
+    assert!(
+        body.contains("acuerdo prenupcial o divorcio de mutuo acuerdo"),
+        "Spanish Newleaf card includes both service options"
+    );
     // The Spanish service links are `/es`-prefixed.
     assert!(body.contains("href=\"/es/services/nautilus\""));
 }
