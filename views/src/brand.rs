@@ -224,7 +224,7 @@ pub fn foundation_email() -> &'static str {
 /// Foundation-owned source.
 #[must_use]
 pub const fn foundation_github_url() -> &'static str {
-    "https://github.com/neon-law-foundation/Navigator"
+    "https://github.com/neon-law-foundation/navigator"
 }
 
 /// The firm's legal-advice disclaimer, shown in the footer of every

@@ -25,8 +25,8 @@ use crate::{markdown, AuthState, PageLayout};
 
 /// The Neon Law Navigator monorepo — home of the `lsp/` crate and the bundled
 /// Zed extension linked from this page.
-const REPO_URL: &str = "https://github.com/neon-law-foundation/Navigator";
-const ZED_EXT_URL: &str = "https://github.com/neon-law-foundation/Navigator/tree/main/lsp/zed-ext";
+const REPO_URL: &str = "https://github.com/neon-law-foundation/navigator";
+const ZED_EXT_URL: &str = "https://github.com/neon-law-foundation/navigator/tree/main/lsp/zed-ext";
 
 // The public page currently shows only the Zed setup path. Keep it
 // single-sourced from `docs/lsp/zed.md` so the local setup and the website
@@ -158,7 +158,7 @@ mod tests {
         let html = render(AuthState::Anonymous).into_string();
         assert!(html.contains(">Download</h2>"), "got: {html}");
         assert!(
-            html.contains("https://github.com/neon-law-foundation/Navigator/releases"),
+            html.contains("https://github.com/neon-law-foundation/navigator/releases"),
             "got: {html}"
         );
         assert!(html.contains("YY.MM.DD"), "got: {html}");

@@ -25,7 +25,7 @@ use crate::{AuthState, PageLayout};
 const README: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../README.md"));
 
 /// GitHub blob root for repo-relative links with no on-site route.
-const REPO_BLOB_BASE: &str = "https://github.com/neon-law-foundation/Navigator/blob/main/";
+const REPO_BLOB_BASE: &str = "https://github.com/neon-law-foundation/navigator/blob/main/";
 
 #[must_use]
 pub fn render(auth: AuthState) -> Markup {
@@ -167,12 +167,12 @@ mod tests {
         // Nested docs aren't published at `/docs/:slug`.
         assert_eq!(
             rewrite_link("docs/lsp/README.md"),
-            "https://github.com/neon-law-foundation/Navigator/blob/main/docs/lsp/README.md"
+            "https://github.com/neon-law-foundation/navigator/blob/main/docs/lsp/README.md"
         );
         // License files live in the repo root, served from GitHub.
         assert_eq!(
             rewrite_link("LICENSE-APACHE"),
-            "https://github.com/neon-law-foundation/Navigator/blob/main/LICENSE-APACHE"
+            "https://github.com/neon-law-foundation/navigator/blob/main/LICENSE-APACHE"
         );
     }
 
@@ -201,7 +201,7 @@ mod tests {
         );
         assert!(
             html.contains(
-                "href=\"https://github.com/neon-law-foundation/Navigator/blob/main/LICENSE-APACHE\""
+                "href=\"https://github.com/neon-law-foundation/navigator/blob/main/LICENSE-APACHE\""
             ),
             "license link should resolve to the GitHub source"
         );
