@@ -23,13 +23,19 @@ timezone: America/Los_Angeles
 location_name: Private lounge
 location_address: 1920 4th Ave, downtown Seattle
 external_event_provider: luma
-external_event_url: https://luma.com/k26256ut
+invite_link: https://luma.com/k26256ut
+image_url: /public/events/nebula-show-and-tell/nlf-lawyers-seattle.png
+image_alt: Lawyers gathered in Seattle with a Neon Law Foundation flag
 video_url:
 recap_url:
 ```
 
-`starts_at` and `ends_at` are local Pacific wall times. The iCalendar route emits `TZID=America/Los_Angeles`, so
-calendar clients convert the show-and-tell for each viewer's timezone.
+`starts_at` and `ends_at` are local wall times in the declared `timezone`. Supported event time zones are
+`America/Los_Angeles`, `America/Denver`, `America/Chicago`, and `America/New_York`. The iCalendar route emits the
+matching `TZID`, so calendar clients convert the show-and-tell for each viewer's timezone.
+
+Use `invite_link` for the Luma RSVP URL. `image_url` should point at a committed public asset, normally under
+`/public/events/nebula-show-and-tell/`.
 
 Validate event content before opening a PR:
 

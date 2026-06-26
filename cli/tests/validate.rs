@@ -177,7 +177,7 @@ fn validate_events_accepts_bundled_event_markdown() {
         .arg(&events)
         .assert()
         .success()
-        .stdout(str::contains("Validated 1 event markdown file(s)"));
+        .stdout(str::contains("Validated 18 event markdown file(s)"));
 }
 
 #[test]

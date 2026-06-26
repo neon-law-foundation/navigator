@@ -10,7 +10,9 @@ timezone: America/Los_Angeles
 location_name: Private lounge
 location_address: 1920 4th Ave, downtown Seattle
 external_event_provider: luma
-external_event_url: https://luma.com/k26256ut
+invite_link: https://luma.com/k26256ut
+image_url: /public/events/nebula-show-and-tell/nlf-lawyers-seattle.png
+image_alt: Lawyers gathered in Seattle with a Neon Law Foundation flag
 video_url:
 recap_url:
 ---
