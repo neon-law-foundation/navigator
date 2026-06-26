@@ -27,11 +27,9 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
+  # Mergify auto-merges green PRs on its own (see .mergify.yml
+  # `auto_merge_conditions`), so CI needs no write access — it is purely the gate.
   contents: read
-  # The final step labels the PR `automerge` so Mergify enqueues it (see
-  # .mergify.yml). Adding a label needs pull-requests:write; the built-in
-  # GITHUB_TOKEN carries it, so no PAT or stored secret is involved.
-  pull-requests: write
 
 jobs:
   rust:
@@ -144,18 +142,9 @@ jobs:
           files: lcov.info
           # Never let a Codecov outage block the auto-merge gate.
           fail_ci_if_error: false
-      # Gate is green (fmt + markdown + clippy + test all succeeded above, or
-      # the job would have stopped). Signal readiness to Mergify by adding the
-      # `automerge` label; the matching rule in .mergify.yml then enqueues the
-      # PR with no manual `@Mergifyio queue`. `success()` keeps this from firing
-      # on a failed gate; the fork guard skips PRs from forks, whose GITHUB_TOKEN
-      # is read-only — those queue via the Mergify dashboard checkbox instead.
-      - name: mark ready for the Mergify queue
-        if: success() && github.event.pull_request.head.repo.full_name == github.repository
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh pr edit "${{ github.event.pull_request.number }}" --repo "${{ github.repository }}" --add-label automerge
+      # No "mark ready" step: Mergify auto-merges any PR whose merge protections
+      # pass (see .mergify.yml `auto_merge_conditions`), so a green gate enqueues
+      # the PR with no label and no manual `@Mergifyio queue`.
       - name: show sccache stats
         if: always()
         continue-on-error: true
