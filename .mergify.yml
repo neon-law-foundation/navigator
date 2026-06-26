@@ -5,6 +5,26 @@ queue_rules:
       - -draft
     merge_method: squash
 
+pull_request_rules:
+  - name: rebase main PRs when the base branch moves
+    conditions:
+      - base = main
+      - -draft
+      - "#commits-behind > 0"
+    actions:
+      update:
+        method: rebase
+
+  - name: queue ready main PRs
+    conditions:
+      - base = main
+      - -draft
+      - "#review-threads-unresolved = 0"
+      - "check-success = @github-actions/cargo test (workspace)"
+    actions:
+      queue:
+        name: default
+
 merge_protections_settings:
   auto_merge_conditions: true
 
