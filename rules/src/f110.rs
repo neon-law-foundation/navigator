@@ -289,9 +289,7 @@ mod tests {
     #[test]
     fn skips_brand_quarantine() {
         // `neon_law/` carries no jurisdiction segment.
-        let v = F110JurisdictionPath.lint(&at(
-            "notation_templates/neon_law/engagements/retainer_nautilus.md",
-        ));
+        let v = F110JurisdictionPath.lint(&at("notation_templates/neon_law/nautilus/retainer.md"));
         assert!(v.is_empty(), "{v:?}");
     }
 
