@@ -12,8 +12,7 @@ pull_request_rules:
       - -draft
       - "#commits-behind > 0"
     actions:
-      update:
-        method: rebase
+      rebase:
 
   - name: queue ready main PRs
     conditions:
