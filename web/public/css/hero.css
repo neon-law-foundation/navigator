@@ -1,9 +1,22 @@
-/* Neon "Vegas" hero — the firm landing page (`/`). A self-contained dark */
-/* cyan scene that does NOT invert in dark mode (it is always dark), so */
-/* every colour here is a hardcoded cyan from the brand ramp rather than a */
-/* Bootstrap token: #06b6d4 (cyan-500, the brand primary) and its lighter */
-/* cyan-400 (#22d3ee) / cyan-300 (#67e8f9) / cyan-100 (#cffafe) tints carry */
-/* the glow. All motion is decorative and is disabled wholesale under */
+/* Neon "Vegas" hero — the firm landing page (`/`). The scene has TWO */
+/* self-contained variants, toggled by `data-bs-theme` on <html> (resolved */
+/* from the OS by color-scheme.js): */
+/* */
+/*   • DARK (the base rules below) — the always-dark cyan synthwave scene: */
+/*     glowing grid floor, neon-flicker wordmark, light sweep. Every colour */
+/*     is a hardcoded cyan from the brand ramp rather than a Bootstrap */
+/*     token: #06b6d4 (cyan-500, the brand primary) and its lighter cyan-400 */
+/*     (#22d3ee) / cyan-300 (#67e8f9) / cyan-100 (#cffafe) tints carry the */
+/*     glow. */
+/* */
+/*   • LIGHT (`[data-bs-theme="light"]` overrides near the end) — a distinct */
+/*     "daylight blueprint" scene: white paper, ink-black text, a faint cyan */
+/*     blueprint grid, a soft sky wash, and a calm static wordmark with a */
+/*     gentle cyan halo (the neon flicker is dropped — it reads as a glitch */
+/*     on white). Darker cyans (cyan-700 #0e7490 / cyan-800 #155e75) carry */
+/*     the accents so they hold contrast against paper. */
+/* */
+/* All motion is decorative and is disabled wholesale under */
 /* prefers-reduced-motion. The wordmark inherits Noto Serif from the page. */
 
 .hero-neon {
@@ -173,6 +186,81 @@
     transform: translateX(760%) skewX(-16deg);
     opacity: 0;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* LIGHT variant — "daylight blueprint". Activated when color-scheme.js */
+/* resolves <html data-bs-theme> to `light`. Everything is re-tinted    */
+/* for white paper: an ink wordmark on a soft cyan sky, a faint cyan     */
+/* blueprint grid receding to a crisp horizon. The animations (grid      */
+/* scroll, sweep) are reused as-is; only the neon flicker is dropped.    */
+/* ------------------------------------------------------------------ */
+[data-bs-theme="light"] .hero-neon {
+  /* White paper with a faint cyan wash falling from the top. */
+  background:
+    linear-gradient(180deg, #ecfeff 0%, #f8feff 38%, #ffffff 100%);
+  box-shadow: inset 0 0 0 1px rgba(8, 145, 178, 0.12);
+}
+
+/* Soft daylight glow at the horizon — sky-blue, not neon. */
+[data-bs-theme="light"] .hero-neon__glow {
+  background: radial-gradient(
+    ellipse 75% 90% at 50% 0%,
+    rgba(34, 211, 238, 0.28),
+    rgba(8, 145, 178, 0.05) 58%,
+    transparent 74%
+  );
+}
+
+/* Blueprint grid — darker cyan ink lines so they read on white. */
+[data-bs-theme="light"] .hero-neon__grid {
+  background-image:
+    linear-gradient(rgba(14, 116, 144, 0.28) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 116, 144, 0.28) 1px, transparent 1px);
+}
+
+/* Crisp cyan horizon with a softer, paper-friendly bloom. */
+[data-bs-theme="light"] .hero-neon__horizon {
+  background: linear-gradient(90deg, transparent, #0891b2, #22d3ee, #0891b2, transparent);
+  box-shadow: 0 0 14px 2px rgba(8, 145, 178, 0.35);
+}
+
+/* A pale cyan light sweep instead of the bright neon one. */
+[data-bs-theme="light"] .hero-neon__sweep {
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.2), transparent);
+}
+
+/* Darker cyan eyebrow for contrast against paper. */
+[data-bs-theme="light"] .hero-neon__eyebrow {
+  color: #0e7490;
+}
+
+/* Ink wordmark with a gentle cyan halo — no flicker on white. */
+[data-bs-theme="light"] .hero-neon__mark {
+  color: #04161d;
+  text-shadow:
+    0 0 1px rgba(8, 145, 178, 0.35),
+    0 1px 0 rgba(8, 145, 178, 0.18),
+    0 0 18px rgba(34, 211, 238, 0.25);
+  animation: none;
+}
+
+/* Near-black lead copy for readable body text on white. */
+[data-bs-theme="light"] .hero-neon__lead {
+  color: #0f242b;
+}
+
+/* Ghost CTA tuned for paper: cyan-700 outline, fills cyan on hover. */
+[data-bs-theme="light"] .hero-neon__btn-ghost {
+  color: #0e7490;
+  border-color: #0891b2;
+}
+
+[data-bs-theme="light"] .hero-neon__btn-ghost:hover,
+[data-bs-theme="light"] .hero-neon__btn-ghost:focus {
+  color: #ffffff;
+  background-color: #0891b2;
+  border-color: #0891b2;
 }
 
 /* Respect reduced-motion: freeze the grid, kill the flicker, drop the sweep. */
