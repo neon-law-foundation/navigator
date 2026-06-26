@@ -217,7 +217,7 @@ async fn new_service_detail_pages_render_with_their_marketing_copy() {
     // confirm it returns 200 with its headline + representative fee marker.
     for (path, needle, fee_marker) in [
         ("/services/node", "recorded on-chain", "$44"),
-        ("/services/newleaf", "uncontested divorce", "$555"),
+        ("/services/newleaf", "prenup or uncontested divorce", "$555"),
         ("/services/namesake", "filed with the USPTO", "$777"),
         ("/services/nucleus", "Nevada fund", "$8,888"),
         (
