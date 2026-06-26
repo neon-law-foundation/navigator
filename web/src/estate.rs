@@ -12,7 +12,7 @@
 //!
 //! Extraction is a seam: [`EstateExtractor`] maps a transcript onto the
 //! estate question codes. [`StubEstateExtractor`] ships now (deterministic
-//! `Label: value` scanning, ~$0); the Ada/Gemini Enterprise extractor
+//! `Label: value` scanning, ~$0); the AIDA/Gemini Enterprise extractor
 //! swaps in behind the same trait later. Machine-proposed answers are
 //! written with `source = extracted` so an attorney can see and correct
 //! them before any draft leaves `draft` — the human-in-the-loop boundary.
@@ -71,7 +71,7 @@ pub trait EstateExtractor: Send + Sync {
 /// Deterministic, dependency-free extractor: scans the transcript for
 /// `Label: value` segments (value runs to the next `.`, `;`, or newline),
 /// one set of labels per estate question code. Good enough to drive the
-/// full pipeline and the demo at ~$0; the real extractor is Ada on the
+/// full pipeline and the demo at ~$0; the real extractor is AIDA on the
 /// already-paid Gemini Enterprise, behind the same trait.
 pub struct StubEstateExtractor;
 

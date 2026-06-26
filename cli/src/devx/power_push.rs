@@ -311,8 +311,8 @@ pub struct PowerPushOpts {
     /// No-rebuild path: just `kubectl rollout restart` both
     /// deployments (Secret-value rotation), then exit.
     pub restart_only: bool,
-    /// The `YY.MM.DD` ghcr tag to roll onto. `None` resolves the latest
-    /// published tag from ghcr.
+    /// The `YY.MM.DD[.HH]` ghcr tag to roll onto. `None` resolves the
+    /// latest published tag from ghcr.
     pub tag: Option<String>,
 }
 
@@ -508,42 +508,47 @@ fn pin_cronjob_images(cfg: &PowerPushConfig, tag: &str, dry_run: bool) -> Result
 }
 
 /// True when `tag` is the `YY.MM.DD` release shape — three dot-separated
-/// two-digit groups (e.g. `26.06.23`).
+/// two-digit groups (e.g. `26.06.23`) — with an optional `.HH` fourth
+/// group for an ad-hoc same-day release (e.g. `26.06.25.14`).
 #[must_use]
 pub fn is_release_tag(tag: &str) -> bool {
     let parts: Vec<&str> = tag.split('.').collect();
-    parts.len() == 3
+    (parts.len() == 3 || parts.len() == 4)
         && parts
             .iter()
             .all(|p| p.len() == 2 && p.bytes().all(|b| b.is_ascii_digit()))
 }
 
-/// Reject a `--tag` that is not a `YY.MM.DD` release tag — rolling a
+/// Reject a `--tag` that is not a `YY.MM.DD[.HH]` release tag — rolling a
 /// `latest` or a `ci-<sha>` tag onto a workload is exactly the
 /// un-auditable deploy we forbid.
 fn validate_release_tag(tag: &str) -> Result<()> {
     if is_release_tag(tag) {
         Ok(())
     } else {
-        bail!("--tag must be a YY.MM.DD release tag (e.g. 26.06.23), got `{tag}`");
+        bail!(
+            "--tag must be a YY.MM.DD release tag, optionally with an .HH suffix for an ad-hoc same-day release (e.g. 26.06.23 or 26.06.25.14), got `{tag}`"
+        );
     }
 }
 
-/// The newest `YY.MM.DD` tag in `tags`. Zero-padded `YY.MM.DD` sorts
-/// lexicographically the same as chronologically, so `max` is the
-/// latest. Non-release tags (`latest`, `ci-<sha>`) are ignored.
+/// The newest `YY.MM.DD[.HH]` tag in `tags`. Zero-padded `YY.MM.DD` sorts
+/// lexicographically the same as chronologically, and an `.HH` ad-hoc
+/// suffix (e.g. `26.06.25.14`) sorts after the bare same-day tag it
+/// extends, so `max` is the latest. Non-release tags (`latest`,
+/// `ci-<sha>`) are ignored.
 #[must_use]
 pub fn pick_latest_release_tag(tags: &[String]) -> Option<String> {
     tags.iter().filter(|t| is_release_tag(t)).max().cloned()
 }
 
-/// Resolve the latest published `YY.MM.DD` tag from ghcr. In `--dry-run`
-/// we don't touch the network — print a placeholder so the planned
-/// `set image` commands still render.
+/// Resolve the latest published `YY.MM.DD[.HH]` tag from ghcr. In
+/// `--dry-run` we don't touch the network — print a placeholder so the
+/// planned `set image` commands still render.
 fn resolve_latest_tag(cfg: &PowerPushConfig, dry_run: bool) -> Result<String> {
     if dry_run {
         eprintln!(
-            "DRY-RUN: would resolve the latest YY.MM.DD tag from ghcr.io/{}/navigator-web",
+            "DRY-RUN: would resolve the latest YY.MM.DD[.HH] tag from ghcr.io/{}/navigator-web",
             cfg.ghcr_owner
         );
         return Ok("<latest-ghcr-tag>".to_string());
@@ -551,7 +556,7 @@ fn resolve_latest_tag(cfg: &PowerPushConfig, dry_run: bool) -> Result<String> {
     let tags = fetch_ghcr_tags(&cfg.ghcr_owner, "navigator-web")?;
     pick_latest_release_tag(&tags).ok_or_else(|| {
         anyhow::anyhow!(
-            "no YY.MM.DD release tag on ghcr.io/{}/navigator-web — has the daily deploy published one yet?",
+            "no YY.MM.DD[.HH] release tag on ghcr.io/{}/navigator-web — has the daily deploy published one yet?",
             cfg.ghcr_owner
         )
     })
@@ -973,14 +978,18 @@ mod tests {
     }
 
     #[test]
-    fn is_release_tag_matches_only_yy_mm_dd() {
+    fn is_release_tag_accepts_yy_mm_dd_and_optional_hh() {
         assert!(is_release_tag("26.06.23"));
         assert!(is_release_tag("00.01.09"));
+        assert!(is_release_tag("26.06.25.14")); // ad-hoc same-day .HH suffix
+        assert!(is_release_tag("26.06.25.00"));
         assert!(!is_release_tag("latest"));
         assert!(!is_release_tag("ci-6a5f96a"));
         assert!(!is_release_tag("2026.06.23")); // four-digit year
         assert!(!is_release_tag("26.6.23")); // unpadded month
         assert!(!is_release_tag("26.06")); // too few groups
+        assert!(!is_release_tag("26.06.25.4")); // unpadded hour
+        assert!(!is_release_tag("26.06.25.14.30")); // too many groups
     }
 
     #[test]
@@ -993,6 +1002,15 @@ mod tests {
             "26.05.31".to_string(),
         ];
         assert_eq!(pick_latest_release_tag(&tags), Some("26.06.23".to_string()));
+        // An ad-hoc `.HH` release sorts after the bare same-day tag.
+        assert_eq!(
+            pick_latest_release_tag(&[
+                "26.06.25".to_string(),
+                "26.06.25.14".to_string(),
+                "26.06.10".to_string(),
+            ]),
+            Some("26.06.25.14".to_string())
+        );
         assert_eq!(
             pick_latest_release_tag(&["latest".to_string(), "ci-x".to_string()]),
             None

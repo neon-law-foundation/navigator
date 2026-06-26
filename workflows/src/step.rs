@@ -139,13 +139,13 @@ pub const STEP_PREFIXES: &[(&str, StepKind)] = &[
     ("client_review", StepKind::ClientReview),
     ("notarization", StepKind::Notarization),
     // Northstar estate pipeline. The recorded sitting is transcribed
-    // *offline* — Ada on the already-paid Google Gemini Enterprise turns
+    // *offline* — AIDA on the already-paid Google Gemini Enterprise turns
     // the recording into a transcript at ~$0 marginal cost — and the
     // transcript is then *uploaded* through the reusable document-intake
     // step (`document_intake__transcript`): the worker files it into the
     // matter, so this kind has a real side effect (unlike the old
     // `transcribe__*` STT seam it replaces). The structured estate inputs
-    // are mined from that transcript (`extract__*`), again by Ada/Gemini —
+    // are mined from that transcript (`extract__*`), again by AIDA/Gemini —
     // no metered API — so extraction stays a System seam advanced by the
     // extraction-complete signal, like the signature webhook advances
     // `sent_for_signature__pending`.
