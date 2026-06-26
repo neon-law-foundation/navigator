@@ -93,13 +93,12 @@ acting on anything below, and keep the doc, not this file, authoritative.
 ## Shipping — create PR or review/update PR
 
 **Never commit directly to `main`** — it advances merge-only. Create a dedicated worktree and topic branch before the
-first edit, push, then open a PR and enable auto-merge so GitHub lands it once CI is green:
+first edit, push, then open a PR. Mergify auto-queues PRs targeting `main` once the configured merge protections pass:
 
 ```bash
 git worktree add -b <kebab-topic> .worktrees/<kebab-topic> origin/main
 git push -u origin <kebab-topic>
 gh pr create
-gh pr merge --auto --squash
 ```
 
 Run the Rust gate before committing when Rust files or build/runtime configuration changed:

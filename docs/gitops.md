@@ -18,7 +18,7 @@ test gate, release tag, and deploy hand-off are all supporting steps inside thos
   [`gke-prod.md`](gke-prod.md)), and the nightly release tag is cut from `main`'s tip. A bad merge to `main` is a
   production concern, not just a code-review one.
 
-## The branch → PR → auto-merge flow
+## The branch → PR → Mergify queue flow
 
 Every task — agent or human — follows the same three steps. No workflow invents its own branch ceremony; they all
 inherit this.
@@ -27,13 +27,11 @@ inherit this.
    `git switch -c daily-cd-pipeline`). If you find yourself on `main` with uncommitted work, branch first and carry the
    changes over — never commit them to `main`.
 2. **Push + open a PR.** `git push -u origin <branch>` then `gh pr create`.
-3. **Enable auto-merge.** `gh pr merge --auto --squash`. **Always `--squash`** — it is the only strategy the repo
-   accepts, so the flag matches what GitHub would do anyway, but pass it explicitly so intent is never ambiguous. GitHub
-   squash-merges the moment every required check goes green — you do not babysit the merge or merge by hand. The whole
-   PR becomes one commit on `main`; write the PR title as the Conventional Commit you want in `main`'s history, since
-   that title (not the branch's individual commits) is the squashed commit's subject.
-
-**Auto-merge is a GitHub-native repo setting, not a workflow** — which is why the three workflows below still suffice.
+3. **Let Mergify queue it.** `.mergify.yml` auto-queues PRs targeting `main` once the merge-protection conditions pass.
+   Mergify keeps the queued branch current with `main`, waits for the required `cargo test (workspace)` check, and
+   squash-merges from the queue. You do not babysit the merge, rebase by hand, or pre-authorize GitHub auto-merge per
+   PR. The whole PR becomes one commit on `main`; write the PR title as the Conventional Commit you want in `main`'s
+   history, since that title (not the branch's individual commits) is the squashed commit's subject.
 
 ### TDD and the pre-commit gate
 
