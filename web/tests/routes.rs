@@ -1083,6 +1083,52 @@ async fn service_pages_live_at_their_product_codename_slug() {
 }
 
 #[tokio::test]
+async fn service_pages_emit_share_descriptions_from_bundled_marketing() {
+    let app = web::build_router(
+        state_with_bundled_marketing().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    for (path, description) in [
+        (
+            "/services/nest",
+            "Neon Law Nest is all-inclusive incorporation, a physical business address, \
+             and mail receiving for small businesses.",
+        ),
+        (
+            "/services/nexus",
+            "Neon Law Nexus is fractional general counsel as a service for scaling companies, \
+             with no hourly or per-matter billing.",
+        ),
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "{path} should render");
+        let body = body_string(resp).await;
+        assert!(
+            body.contains(&format!(
+                "<meta name=\"description\" content=\"{description}\">"
+            )),
+            "{path} should emit the plain meta description"
+        );
+        assert!(
+            body.contains(&format!(
+                "<meta property=\"og:description\" content=\"{description}\">"
+            )),
+            "{path} should emit the Open Graph share description"
+        );
+        assert!(
+            body.contains(&format!(
+                "<meta name=\"twitter:description\" content=\"{description}\">"
+            )),
+            "{path} should emit the Twitter Card share description"
+        );
+    }
+}
+
+#[tokio::test]
 async fn old_descriptive_service_slugs_are_gone_with_no_redirect() {
     // The rename keeps NO back-compat for the old descriptive URLs — the
     // user asked not to preserve them. The former paths must 404 (not 301),
