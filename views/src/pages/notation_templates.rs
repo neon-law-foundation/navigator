@@ -17,7 +17,7 @@ const README: &str = include_str!(concat!(
 ));
 
 const REPO_BLOB_BASE: &str =
-    "https://github.com/neon-law-foundation/Navigator/blob/main/notation_templates/";
+    "https://github.com/neon-law-foundation/navigator/blob/main/notation_templates/";
 
 #[must_use]
 pub fn render(auth: AuthState) -> Markup {
@@ -128,7 +128,7 @@ mod tests {
     fn other_relative_links_point_at_the_github_source() {
         assert_eq!(
             rewrite_link("forms/FORMS.toml"),
-            "https://github.com/neon-law-foundation/Navigator/blob/main/notation_templates/forms/FORMS.toml"
+            "https://github.com/neon-law-foundation/navigator/blob/main/notation_templates/forms/FORMS.toml"
         );
     }
 }
