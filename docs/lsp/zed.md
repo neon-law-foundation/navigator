@@ -50,6 +50,20 @@ Each binary lands at `lsp/<triple>/<binary_name>` with a bounded (one-hour) `Cac
 up shortly. The download buttons on `/lsp` resolve to exactly these keys via `views::assets::asset_url`, so the upload
 path and the link can never drift.
 
+## Install the wasm target first
+
+Zed compiles a dev extension to a WebAssembly target, so that target must be installed under your Rust toolchain or the
+install dies with `failed to compile Rust extension` and (in `~/Library/Logs/Zed/Zed.log`) `can't find crate for core …
+the wasm32-wasip2 target may not be installed`. Add it once:
+
+```bash
+rustup target add wasm32-wasip2
+```
+
+The exact target name tracks the Zed version — current Zed builds against `wasm32-wasip2`; older releases used
+`wasm32-wasip1`. If the log names a different triple than the one you installed, add that one too. The real error is
+only in the Zed log; the UI shows just the one-line `failed to compile Rust extension`.
+
 ## Build + sideload
 
 Zed reads extensions from `~/Library/Application Support/Zed/extensions/` on macOS or `~/.local/share/zed/extensions/`
