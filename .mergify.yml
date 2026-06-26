@@ -4,6 +4,10 @@ queue_rules:
       - base = main
       - -draft
     merge_method: squash
+    # main enforces required_linear_history, so the queue must rebase a stale PR
+    # onto main (a merge-commit update would be rejected) to clear the strict
+    # "branches up to date" check before the squash merge.
+    update_method: rebase
 
 pull_request_rules:
   - name: rebase main PRs when the base branch moves
