@@ -2,7 +2,7 @@
 //!
 //! `POST /portal/projects/:id/notations/:nid/transcript` — the
 //! staff/agent surface that files a sitting's transcript into an estate
-//! matter. The sitting is recorded offline and transcribed by Ada on the
+//! matter. The sitting is recorded offline and transcribed by AIDA on the
 //! already-paid Google Gemini Enterprise (no live speech-to-text); the
 //! resulting transcript is uploaded here.
 //!
