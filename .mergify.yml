@@ -18,10 +18,18 @@ pull_request_rules:
     actions:
       rebase:
 
-  - name: queue ready main PRs
+  # CI adds the `automerge` label as its final step once the whole gate is green
+  # (see .github/workflows/ci.yml). That label is the queue trigger, so a PR
+  # enters the queue automatically the moment CI passes — no manual
+  # `@Mergifyio queue`. `check-success` is kept as a belt-and-suspenders guard:
+  # even if the label is applied by hand before CI is green, Mergify still holds
+  # the PR out of the queue until the test job succeeds, and drops it back out
+  # the instant a new push turns that check non-green.
+  - name: queue main PRs once CI labels them ready
     conditions:
       - base = main
       - -draft
+      - "label = automerge"
       - "#review-threads-unresolved = 0"
       - "check-success = @github-actions/cargo test (workspace)"
     actions:
