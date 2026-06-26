@@ -27,10 +27,32 @@ mod transcribe;
 use devx::brand::BrandCmd;
 use devx::{DnsCmd, GcpCmd, RestateCmd};
 
+/// The version `navigator --version` / `-V` reports.
+///
+/// Precedence, highest first:
+/// 1. A runtime `NAVIGATOR_RELEASE_TAG` — the workspace-wide convention `web`
+///    and `lsp` already follow, and the seam tests assert against.
+/// 2. The tag baked at build time by `build.rs` (`NAVIGATOR_CLI_VERSION`), so a
+///    *downloaded* release binary self-reports its `YY.MM.DD` release with no
+///    environment set.
+/// 3. The workspace crate version (`0.1.0`) on a plain local build, since
+///    `build.rs` falls back to `CARGO_PKG_VERSION` when no tag is present.
+fn cli_version() -> &'static str {
+    if let Ok(tag) = std::env::var("NAVIGATOR_RELEASE_TAG") {
+        let tag = tag.trim();
+        if !tag.is_empty() {
+            // Leak the single resolved version string: it lives for the whole
+            // process, and clap's `version` wants a `&'static str`.
+            return Box::leak(tag.to_owned().into_boxed_str());
+        }
+    }
+    env!("NAVIGATOR_CLI_VERSION")
+}
+
 #[derive(Parser)]
 #[command(
     name = "navigator",
-    version,
+    version = cli_version(),
     about = "Neon Law Navigator CLI — notation validator/importer + live-site matter driver",
     long_about = "Neon Law Navigator CLI — notation validator/importer + live-site matter driver\n\nNothing here is legal advice. Neon Law Navigator validates and moves legal notation, but an attorney remains responsible for legal advice and judgment."
 )]
