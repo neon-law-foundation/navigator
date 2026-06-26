@@ -9,19 +9,18 @@ description: >
   nicety: a PR is not "reviewed" until every comment has a reply (and, where it is a real thread, is marked resolved).
   When no PR is named, it DEFAULTS to the PR for the current branch (never asks "which PR?" unless the branch genuinely
   has none or maps to several), and when the branch has fallen behind `main` it updates the branch from `main` so the
-  review lands on a current tree and auto-merge is unblocked.
-  Trigger when the user says "review PR", "review the PR", "review PR #N", "review this pull request", "look at the
-  comments on #N", "go through the Greptile comments", or pastes a GitHub PR URL and asks for a review. A bare "review
-  PR" with no number is the common case — resolve it to the current branch's PR automatically. This is the
-  COMMENT-RESOLUTION review front door;
-  for grouping a dirty tree into commits and opening a PR use [[create-pr]], for a deep multi-agent cloud review use
-  `/code-review ultra`, and for a from-scratch diff read with no existing comments the built-in `/review` also works.
+  review lands on a current tree and auto-merge is unblocked. Trigger when the user says "review PR", "review the PR",
+  "review PR #N", "review this pull request", "look at the comments on #N", "go through the Greptile comments", or
+  pastes a GitHub PR URL and asks for a review. A bare "review PR" with no number is the common case — resolve it to the
+  current branch's PR automatically. This is the COMMENT-RESOLUTION review front door; for grouping a dirty tree into
+  commits and opening a PR use [[create-pr]], for a deep multi-agent cloud review use `/code-review ultra`, and for a
+  from-scratch diff read with no existing comments the built-in `/review` also works.
 ---
 
 # `/review-pr` — review a PR and resolve every comment
 
-The job: take a pull request and leave it in a state where (1) you have given an honest, code-grounded assessment of
-the change, and (2) **every reviewer comment has been answered** — fixed-and-replied, or acknowledged-with-rationale and
+The job: take a pull request and leave it in a state where (1) you have given an honest, code-grounded assessment of the
+change, and (2) **every reviewer comment has been answered** — fixed-and-replied, or acknowledged-with-rationale and
 replied, and resolved where it is a real review thread. The deliverable is not just "here's what I think"; it is "every
 open thread is closed or has a decision on it."
 
@@ -51,7 +50,7 @@ branch already tells you which one:
 
 ```bash
 gh repo view --json nameWithOwner -q .nameWithOwner          # the {owner}/{repo} for this checkout
-gh pr view --json number,headRefName,state -q .number        # the PR for the CURRENT branch (no number needed)
+gh pr view --json number -q .number                         # the PR for the CURRENT branch (no number needed)
 ```
 
 `gh pr view` with no argument resolves the open PR whose head is the current branch. That is the answer in the common
@@ -73,9 +72,9 @@ gh pr view <N> --repo <slug> \
 gh pr diff <N> --repo <slug>     # full diff; if large, scope to the files you care about
 ```
 
-The diff is the claim; the **files at the head commit are the truth.** Read the real files, not just the patch hunks —
-a comment can be wrong because of context outside the hunk. Either check the branch out, or shallow-clone the head ref
-to `/tmp` (never into the working tree — see `CLAUDE.md` scratch rule):
+The diff is the claim; the **files at the head commit are the truth.** Read the real files, not just the patch hunks — a
+comment can be wrong because of context outside the hunk. Either check the branch out, or shallow-clone the head ref to
+`/tmp` (never into the working tree — see `CLAUDE.md` scratch rule):
 
 ```bash
 git fetch origin <headRefName> && git switch <headRefName>     # to also be able to fix
@@ -85,8 +84,8 @@ git clone --depth 1 --branch <headRefName> <repo-url> /tmp/pr-<N>
 
 ## Step 3 — Assess independently first
 
-Before you read a single bot comment, form your own view, so the bots don't anchor you. Focus on what actually breaks
-or rots:
+Before you read a single bot comment, form your own view, so the bots don't anchor you. Focus on what actually breaks or
+rots:
 
 - **Correctness** — does each changed path do what its name/PR claims? Trace the real code path; "it compiles" and "it
   looks right" are not evidence (the `CLAUDE.md` no-assumptions rule). Run or read the covering test.
@@ -125,8 +124,8 @@ diff" that never became inline threads. Treat every distinct finding as a commen
 
 First, **filter the Step 4a set to thread roots** — comments where `in_reply_to_id` is null. The non-null ones are
 existing replies (a bot or human already responded), not new findings; adjudicating them produces duplicate re-replies
-and inflates the question set. Keep the replies around for context — they tell you whether a thread is already
-answered — but only roots enter the loop below.
+and inflates the question set. Keep the replies around for context — they tell you whether a thread is already answered
+— but only roots enter the loop below.
 
 For **each** finding, do not take the bot's word for it. Open the cited file at the head commit and decide:
 
@@ -142,11 +141,11 @@ State your verdict on each with the evidence, so the user is deciding from facts
 ## Step 6 — Ask the user whether to fix
 
 For every comment you classified **Valid** (and any **won't-fix** you're unsure about), ask the user whether to apply
-the fix. Lead with your recommendation. Use `AskUserQuestion` for a clean per-comment decision when there are several;
-a short inline question is fine for one or two. Do **not** silently fix or silently skip — the user decides what lands.
+the fix. Lead with your recommendation. Use `AskUserQuestion` for a clean per-comment decision when there are several; a
+short inline question is fine for one or two. Do **not** silently fix or silently skip — the user decides what lands.
 
-Invalid / false-positive comments don't need a fix question — but they still get a reply in Step 8 explaining why
-you're not acting (that is the resolution).
+Invalid / false-positive comments don't need a fix question — but they still get a reply in Step 8 explaining why you're
+not acting (that is the resolution).
 
 ## Step 7 — Apply the approved fixes
 
@@ -242,6 +241,9 @@ gh pr view <N> --repo <slug> --json mergeStateStatus,mergeable -q '{mergeState: 
 - **`BLOCKED`** — usually just pending CI or an unresolved thread, *not* staleness; don't update-branch to "fix" it.
   Confirm with `gh pr checks <N>` and the Step 8 thread list. Auto-merge stays armed and lands it when the blocker
   clears, so a `BLOCKED`-on-pending-CI PR needs no action beyond what you've already done.
+- **`DIRTY`** — the branch has merge conflicts with `main`. Flag this in the report, do not claim that no update was
+  needed, and do not attempt an automated update unless the user asks you to resolve the conflicts locally and re-run
+  the gate.
 - **`CLEAN` / `HAS_HOOKS`** — nothing to do; it's mergeable.
 
 Only update a branch you're reviewing — never force-push, and never update someone else's branch out from under them
