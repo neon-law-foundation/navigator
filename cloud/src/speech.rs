@@ -38,12 +38,6 @@ impl GoogleSpeechConfig {
 
 #[derive(Debug, Error)]
 pub enum SpeechError {
-    #[error("io error on {path}: {source}")]
-    Io {
-        path: String,
-        #[source]
-        source: std::io::Error,
-    },
     #[error("auth error: {0}")]
     Auth(String),
     #[error("http error: {0}")]
@@ -73,12 +67,29 @@ impl GoogleSpeechTranscriptProvider {
         let provider = google_cloud_auth::token::DefaultTokenSourceProvider::new(auth_config)
             .await
             .map_err(|e| SpeechError::Auth(e.to_string()))?;
-        Ok(Self {
+        Ok(Self::from_parts(
             config,
-            token_source: google_cloud_token::TokenSourceProvider::token_source(&provider),
+            base_url,
+            google_cloud_token::TokenSourceProvider::token_source(&provider),
+        ))
+    }
+
+    /// Construct from explicit parts. This is the dependency-injection seam:
+    /// [`new_adc`](Self::new_adc) feeds it a real ADC token source and the
+    /// production base URL, while tests feed it a fake token source and a
+    /// mock server's URL so the request/response path runs with no ADC and
+    /// no real Google call.
+    fn from_parts(
+        config: GoogleSpeechConfig,
+        base_url: &str,
+        token_source: Arc<dyn google_cloud_token::TokenSource>,
+    ) -> Self {
+        Self {
+            config,
+            token_source,
             http: reqwest::Client::new(),
             base_url: base_url.trim_end_matches('/').to_string(),
-        })
+        }
     }
 
     async fn token(&self) -> Result<String, SpeechError> {
@@ -196,5 +207,175 @@ impl TranscriptProvider for GoogleSpeechTranscriptProvider {
             })
             .collect();
         Ok(segments)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GoogleSpeechConfig, GoogleSpeechTranscriptProvider, SpeechError};
+    use live_inquiry::TranscriptProvider;
+    use std::io::Write;
+    use std::sync::Arc;
+    use tempfile::NamedTempFile;
+    use wiremock::matchers::{header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// A token source that returns a fixed dummy bearer string — never a real
+    /// credential. Lets the provider build its `Authorization` header offline.
+    #[derive(Debug)]
+    struct FakeTokenSource;
+
+    #[async_trait::async_trait]
+    impl google_cloud_token::TokenSource for FakeTokenSource {
+        async fn token(&self) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+            Ok("Bearer test-token".to_string())
+        }
+    }
+
+    /// Write a minimal 16-bit mono PCM WAV so `transcribe_file` runs the real
+    /// Symphonia decode path — the test exercises decode → request, not a stub.
+    fn write_temp_wav(sample_rate: u32, frames: u32) -> NamedTempFile {
+        let data_len = frames * 2;
+        let mut wav = Vec::new();
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&(36 + data_len).to_le_bytes());
+        wav.extend_from_slice(b"WAVE");
+        wav.extend_from_slice(b"fmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes()); // PCM
+        wav.extend_from_slice(&1u16.to_le_bytes()); // mono
+        wav.extend_from_slice(&sample_rate.to_le_bytes());
+        wav.extend_from_slice(&(sample_rate * 2).to_le_bytes());
+        wav.extend_from_slice(&2u16.to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&data_len.to_le_bytes());
+        for i in 0..frames {
+            let s: i16 = if i % 2 == 0 { 6000 } else { -6000 };
+            wav.extend_from_slice(&s.to_le_bytes());
+        }
+        let mut tmp = tempfile::Builder::new()
+            .suffix(".wav")
+            .tempfile()
+            .expect("tempfile");
+        tmp.write_all(&wav).expect("write wav");
+        tmp.flush().expect("flush");
+        tmp
+    }
+
+    fn provider_for(base_url: &str, project: &str) -> GoogleSpeechTranscriptProvider {
+        GoogleSpeechTranscriptProvider::from_parts(
+            GoogleSpeechConfig::new(project.to_string()),
+            base_url,
+            Arc::new(FakeTokenSource),
+        )
+    }
+
+    #[tokio::test]
+    async fn builds_linear16_request_and_parses_segments() {
+        let server = MockServer::start().await;
+        let response = serde_json::json!({
+            "results": [
+                { "alternatives": [{ "transcript": "hello world" }] },
+                { "alternatives": [{ "transcript": "  " }] }, // whitespace → dropped
+                { "alternatives": [{ "transcript": "second segment" }] }
+            ]
+        });
+        Mock::given(method("POST"))
+            .and(path(
+                "/projects/test-proj/locations/global/recognizers/_:recognize",
+            ))
+            .and(header("authorization", "Bearer test-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(response))
+            .mount(&server)
+            .await;
+
+        let provider = provider_for(&server.uri(), "test-proj");
+        let wav = write_temp_wav(8000, 800);
+        let segments = provider
+            .transcribe_file(wav.path())
+            .await
+            .expect("transcribe should succeed against the mock");
+
+        // Whitespace-only alternative is filtered; the two real ones survive.
+        assert_eq!(segments.len(), 2);
+        assert_eq!(segments[0].text, "hello world");
+        assert_eq!(segments[0].provider_sequence, 1);
+        assert_eq!(segments[1].text, "second segment");
+        // Index 2 in the response (the 3rd result) keeps its original sequence.
+        assert_eq!(segments[1].provider_sequence, 3);
+
+        // The request we sent must pin explicit LINEAR16 decoding, the WAV's
+        // native rate, mono, the configured language — and carry real PCM.
+        let received = &server.received_requests().await.expect("requests")[0];
+        let body: serde_json::Value = serde_json::from_slice(&received.body).expect("json body");
+        assert_eq!(
+            body["config"]["explicitDecodingConfig"]["encoding"],
+            "LINEAR16"
+        );
+        assert_eq!(
+            body["config"]["explicitDecodingConfig"]["sampleRateHertz"],
+            8000
+        );
+        assert_eq!(
+            body["config"]["explicitDecodingConfig"]["audioChannelCount"],
+            1
+        );
+        assert_eq!(body["config"]["languageCodes"][0], "en-US");
+        assert_eq!(body["config"]["model"], "latest_long");
+        assert!(
+            !body["content"].as_str().expect("content string").is_empty(),
+            "request must carry base64 PCM content"
+        );
+    }
+
+    #[tokio::test]
+    async fn maps_non_success_status_to_api_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(
+                ResponseTemplate::new(400).set_body_string("{\"error\":{\"message\":\"nope\"}}"),
+            )
+            .mount(&server)
+            .await;
+
+        let provider = provider_for(&server.uri(), "p");
+        let wav = write_temp_wav(8000, 400);
+        let err = provider
+            .transcribe_file(wav.path())
+            .await
+            .expect_err("a 400 must surface as an error");
+        let speech_err = err
+            .downcast_ref::<SpeechError>()
+            .expect("error should be a SpeechError");
+        assert!(
+            matches!(speech_err, SpeechError::Api { status: 400, .. }),
+            "expected SpeechError::Api(400), got {speech_err:?}"
+        );
+    }
+
+    /// An empty `results` array is a valid response and must yield zero
+    /// segments (not an error) — and the request still carries the expected
+    /// top-level shape.
+    #[tokio::test]
+    async fn empty_results_yields_no_segments() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+            .mount(&server)
+            .await;
+
+        let provider = provider_for(&server.uri(), "p");
+        let wav = write_temp_wav(16000, 320);
+        let segments = provider
+            .transcribe_file(wav.path())
+            .await
+            .expect("empty results is valid and yields no segments");
+        assert!(segments.is_empty());
+
+        let received = &server.received_requests().await.expect("requests")[0];
+        let body: serde_json::Value = serde_json::from_slice(&received.body).expect("json body");
+        assert!(body["config"]["explicitDecodingConfig"].is_object());
+        assert!(body["content"].is_string());
     }
 }
