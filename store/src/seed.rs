@@ -179,6 +179,12 @@ mod canonical {
         include_str!("../../notation_templates/united_states/nevada/state/business_associations/business_trust_formation.md");
     pub const TEMPLATE_NEXUS: &str =
         include_str!("../../notation_templates/united_states/nevada/internal/business_associations/fractional_gc.md");
+    pub const TEMPLATE_EMPLOYMENT_W2: &str = include_str!(
+        "../../notation_templates/united_states/nevada/internal/contracts/employment_agreement.md"
+    );
+    pub const TEMPLATE_CONTRACTOR_1099: &str = include_str!(
+        "../../notation_templates/united_states/nevada/internal/contracts/contractor_agreement.md"
+    );
     pub const TEMPLATE_CONTRACT_REVIEW: &str =
         include_str!("../../notation_templates/services/contract_review.md");
     pub const TEMPLATE_NAUTILUS_CEASE: &str =
@@ -358,6 +364,14 @@ async fn seed_templates(
             canonical::TEMPLATE_NEST_BUSINESS_TRUST_NV,
         ),
         ("united_states/nevada/internal/business_associations/fractional_gc.md", canonical::TEMPLATE_NEXUS),
+        (
+            "united_states/nevada/internal/contracts/employment_agreement.md",
+            canonical::TEMPLATE_EMPLOYMENT_W2,
+        ),
+        (
+            "united_states/nevada/internal/contracts/contractor_agreement.md",
+            canonical::TEMPLATE_CONTRACTOR_1099,
+        ),
         (
             "services/contract_review.md",
             canonical::TEMPLATE_CONTRACT_REVIEW,
@@ -1660,7 +1674,7 @@ mod tests {
             .await
             .expect("seed");
         assert_eq!(
-            report.templates_inserted, 38,
+            report.templates_inserted, 40,
             "expected the full bundled template catalog to be inserted on first pass"
         );
         // Spot-check templates from across the catalog so a dropped
@@ -1673,6 +1687,8 @@ mod tests {
             "llc__california",
             "form_990__annual_report",
             "services__contract_review",
+            "employment__nonprofit_w2",
+            "contractor__nonprofit_1099",
         ] {
             assert!(
                 template::Entity::find()
@@ -1715,7 +1731,7 @@ mod tests {
         let db = pg().await;
         let first = seed_canonical(&db, &fs_storage().await).await.unwrap();
         let second = seed_canonical(&db, &fs_storage().await).await.unwrap();
-        assert_eq!(first.templates_inserted, 38);
+        assert_eq!(first.templates_inserted, 40);
         assert_eq!(
             second.templates_inserted, 0,
             "second pass must skip every existing template"
