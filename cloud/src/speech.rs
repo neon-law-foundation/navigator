@@ -16,6 +16,13 @@ use thiserror::Error;
 const CLOUD_PLATFORM_SCOPE: &str = "https://www.googleapis.com/auth/cloud-platform";
 const SPEECH_BASE_URL: &str = "https://speech.googleapis.com/v2";
 
+/// Google Speech-to-Text v2's synchronous `recognizers.recognize` caps the
+/// inline `content` (base64) at 10 MB. Past that the API rejects the request
+/// with an opaque 400, so we guard locally and hand the caller a clear error
+/// pointing at a shorter clip — long-form audio needs the GCS-URI /
+/// `batchRecognize` path, which this command does not implement yet.
+const MAX_INLINE_CONTENT_BYTES: usize = 10 * 1024 * 1024;
+
 #[derive(Debug, Clone)]
 pub struct GoogleSpeechConfig {
     pub project_id: String,
@@ -44,6 +51,40 @@ pub enum SpeechError {
     Http(#[from] reqwest::Error),
     #[error("speech api returned {status}: {body}")]
     Api { status: u16, body: String },
+    #[error(
+        "decoded audio is too large for inline transcription: {encoded_bytes} base64 bytes \
+         (~{seconds}s at {sample_rate} Hz mono) exceeds the {limit}-byte cap for Google \
+         Speech-to-Text v2 synchronous recognize; use a shorter clip (long-form audio needs \
+         the batchRecognize/GCS path, which this command does not implement yet)"
+    )]
+    PayloadTooLarge {
+        encoded_bytes: usize,
+        limit: usize,
+        seconds: u64,
+        sample_rate: u32,
+    },
+}
+
+/// Reject decoded audio that would overflow the inline `content` cap before we
+/// spend a round-trip discovering the API's opaque 400. `pcm_byte_len` is the
+/// raw LINEAR16 length; the API limit is on the base64-encoded payload, so we
+/// size that (4 output bytes per 3 input bytes, rounded up).
+fn ensure_inline_capacity(
+    pcm_byte_len: usize,
+    samples: usize,
+    sample_rate: u32,
+) -> Result<(), SpeechError> {
+    let encoded_bytes = 4 * pcm_byte_len.div_ceil(3);
+    if encoded_bytes <= MAX_INLINE_CONTENT_BYTES {
+        return Ok(());
+    }
+    let seconds = u64::try_from(samples).unwrap_or(u64::MAX) / u64::from(sample_rate.max(1));
+    Err(SpeechError::PayloadTooLarge {
+        encoded_bytes,
+        limit: MAX_INLINE_CONTENT_BYTES,
+        seconds,
+        sample_rate,
+    })
 }
 
 pub struct GoogleSpeechTranscriptProvider {
@@ -162,6 +203,9 @@ impl TranscriptProvider for GoogleSpeechTranscriptProvider {
         for sample in &decoded.samples {
             pcm.extend_from_slice(&sample.to_le_bytes());
         }
+        // Fail fast with a clear local error rather than an opaque Google 400
+        // when the recording is too long for the inline `content` path.
+        ensure_inline_capacity(pcm.len(), decoded.samples.len(), decoded.sample_rate)?;
         let body = RecognizeRequest {
             config: RecognitionConfig {
                 explicit_decoding_config: ExplicitDecodingConfig {
@@ -212,7 +256,10 @@ impl TranscriptProvider for GoogleSpeechTranscriptProvider {
 
 #[cfg(test)]
 mod tests {
-    use super::{GoogleSpeechConfig, GoogleSpeechTranscriptProvider, SpeechError};
+    use super::{
+        ensure_inline_capacity, GoogleSpeechConfig, GoogleSpeechTranscriptProvider, SpeechError,
+        MAX_INLINE_CONTENT_BYTES,
+    };
     use live_inquiry::TranscriptProvider;
     use std::io::Write;
     use std::sync::Arc;
@@ -327,6 +374,39 @@ mod tests {
             !body["content"].as_str().expect("content string").is_empty(),
             "request must carry base64 PCM content"
         );
+    }
+
+    /// The largest raw PCM length whose base64 encoding still fits the inline
+    /// cap is accepted; one sample past it (2 more PCM bytes) is rejected with
+    /// a `PayloadTooLarge` carrying a sane duration estimate.
+    #[test]
+    fn ensure_inline_capacity_guards_the_base64_cap() {
+        // base64 length is 4 * ceil(n/3); the cap is a multiple of 3 bytes of
+        // input, so 3/4 of the cap is the largest input that still fits.
+        let max_pcm = MAX_INLINE_CONTENT_BYTES / 4 * 3;
+        ensure_inline_capacity(max_pcm, max_pcm / 2, 16_000)
+            .expect("a payload at the cap must be accepted");
+
+        // 16 kHz mono 16-bit → 2 bytes/sample. A 30-minute recording is far
+        // over the cap and must be refused before any network call.
+        let samples = 16_000 * 60 * 30;
+        let over_pcm = samples * 2;
+        let err = ensure_inline_capacity(over_pcm, samples, 16_000)
+            .expect_err("an over-cap payload must be rejected");
+        match err {
+            SpeechError::PayloadTooLarge {
+                encoded_bytes,
+                limit,
+                seconds,
+                sample_rate,
+            } => {
+                assert!(encoded_bytes > limit, "encoded size must exceed the limit");
+                assert_eq!(limit, MAX_INLINE_CONTENT_BYTES);
+                assert_eq!(seconds, 60 * 30, "duration estimate from samples/rate");
+                assert_eq!(sample_rate, 16_000);
+            }
+            other => panic!("expected PayloadTooLarge, got {other:?}"),
+        }
     }
 
     #[tokio::test]
