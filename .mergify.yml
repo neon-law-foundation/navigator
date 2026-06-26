@@ -21,8 +21,12 @@ merge_protections_settings:
   # PR matching these conditions whose success_conditions pass is queued and
   # merged with no human action. `-draft` restricts the audience to ready PRs
   # (GitHub refuses to merge a draft anyway — this keeps Mergify from queuing
-  # one and is the explicit guard the prior `queue_conditions` carried).
+  # one and is the explicit guard the prior `queue_conditions` carried). `base =
+  # main` keeps the scope to main-targeting PRs — the other half of what the
+  # prior `queue_conditions` carried — so a PR against any other base is never
+  # auto-merged here.
   auto_merge_conditions:
+    - base = main
     - -draft
 
 merge_protections:
