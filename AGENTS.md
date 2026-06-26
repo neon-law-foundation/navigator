@@ -93,7 +93,8 @@ acting on anything below, and keep the doc, not this file, authoritative.
 ## Shipping — create PR or review/update PR
 
 **Never commit directly to `main`** — it advances merge-only. Create a dedicated worktree and topic branch before the
-first edit, push, then open a PR. Mergify auto-queues PRs targeting `main` once the configured merge protections pass:
+first edit, push, then open a PR. GitHub's merge queue lands PRs targeting `main` once the required checks pass (CI
+enables auto-merge on open, which enqueues the PR):
 
 ```bash
 git worktree add -b <kebab-topic> .worktrees/<kebab-topic> origin/main
