@@ -49,7 +49,7 @@ permissions:
 jobs:
   release-version:
     name: derive release version
-    if: github.repository == 'neon-law-foundation/Navigator'
+    if: github.repository == 'neon-law-foundation/navigator'
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.version.outputs.tag }}
@@ -86,7 +86,7 @@ jobs:
   build:
     name: build ${{ matrix.image }}
     needs: release-version
-    if: github.repository == 'neon-law-foundation/Navigator'
+    if: github.repository == 'neon-law-foundation/navigator'
     runs-on: ubuntu-latest
     # Cold workspace compile; cap so a stuck build can't hang the run.
     timeout-minutes: 45
@@ -131,7 +131,7 @@ jobs:
   integration:
     name: KIND integration (tag ${{ needs.release-version.outputs.tag }})
     needs: [build, release-version]
-    if: github.repository == 'neon-law-foundation/Navigator'
+    if: github.repository == 'neon-law-foundation/navigator'
     runs-on: ubuntu-latest
     # Fail fast instead of hanging for hours. With the image builds moved
     # to the parallel `build` job, a healthy run here is just the KIND
@@ -635,7 +635,7 @@ jobs:
   homebrew-tap:
     name: cross-pollinate Homebrew tap
     needs: [release-binaries-publish, release-version]
-    if: github.repository == 'neon-law-foundation/Navigator' && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
+    if: github.repository == 'neon-law-foundation/navigator' && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -670,7 +670,7 @@ jobs:
           cat > homebrew-tap/Formula/navigator.rb <<EOF
           class Navigator < Formula
             desc "Neon Law Navigator CLI for reliable legal workflows"
-            homepage "https://github.com/neon-law-foundation/Navigator"
+            homepage "https://github.com/neon-law-foundation/navigator"
             url "${base}/${cli_tar}"
             version "${TAG}"
             sha256 "${cli_sha}"
@@ -693,7 +693,7 @@ jobs:
           cat > homebrew-tap/Formula/navigator-lsp.rb <<EOF
           class NavigatorLsp < Formula
             desc "Neon Law Navigator LSP server for notation templates"
-            homepage "https://github.com/neon-law-foundation/Navigator"
+            homepage "https://github.com/neon-law-foundation/navigator"
             url "${base}/${lsp_tar}"
             version "${TAG}"
             sha256 "${lsp_sha}"
