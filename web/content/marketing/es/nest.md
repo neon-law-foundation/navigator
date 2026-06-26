@@ -3,9 +3,7 @@ title: "Neon Law Nest"
 slug: nest
 hero_image: mojave-yucca
 description: >
-  Neon Law Nest es una entidad de Nevada para resguardar lo que posee — $1,111 al año. Constitución integral y el
-  papeleo de rutina de una entidad simple: un acuerdo operativo, un agente registrado de Nevada y un abogado no
-  contencioso.
+  Neon Law Nest es constitución todo incluido, dirección comercial física y recepción de correo para pequeñas empresas.
 pricing:
   - title: "Neon Law Nest"
     price: "$1,111"

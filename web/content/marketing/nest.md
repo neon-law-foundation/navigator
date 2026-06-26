@@ -3,8 +3,7 @@ title: "Neon Law Nest"
 slug: nest
 hero_image: mojave-yucca
 description: >
-  Neon Law Nest is a Nevada entity to hold what you own — $1,111 a year. Comprehensive formation and the routine
-  paperwork a simple entity needs: an operating agreement, a Nevada registered agent, and a non-litigation lawyer.
+  Neon Law Nest is all-inclusive incorporation, a physical business address, and mail receiving for small businesses.
 pricing:
   - title: "Neon Law Nest"
     price: "$1,111"
