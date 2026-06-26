@@ -16,10 +16,14 @@ queue_rules:
     update_method: rebase
 
 merge_protections_settings:
-  # Auto-merge every PR that satisfies the merge protections below. This is the
-  # trigger: with at least one merge_protections rule defined, every non-draft
-  # PR whose success_conditions pass is queued and merged with no human action.
-  auto_merge_conditions: true
+  # Auto-merge every NON-DRAFT PR that satisfies the merge protections below.
+  # This is the trigger: with at least one merge_protections rule defined, each
+  # PR matching these conditions whose success_conditions pass is queued and
+  # merged with no human action. `-draft` restricts the audience to ready PRs
+  # (GitHub refuses to merge a draft anyway — this keeps Mergify from queuing
+  # one and is the explicit guard the prior `queue_conditions` carried).
+  auto_merge_conditions:
+    - -draft
 
 merge_protections:
   - name: main-required-gates
