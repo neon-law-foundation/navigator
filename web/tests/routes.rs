@@ -5135,9 +5135,33 @@ fn event_state_with_one_event() -> web::EventIndex {
         location_address: "1920 4th Ave, downtown Seattle".into(),
         external_event_provider: "luma".into(),
         external_event_url: "https://luma.com/k26256ut".into(),
+        image_url: Some("/public/events/seattle.webp".into()),
+        image_alt: Some("Seattle skyline".into()),
         video_url: None,
         recap_url: None,
     }])
+}
+
+fn test_event(slug: &str, title: &str, date: chrono::NaiveDate) -> web::Event {
+    web::Event {
+        slug: slug.into(),
+        public_slug: slug.into(),
+        date,
+        title: title.into(),
+        description: format!("{title} description."),
+        body_html: format!("<p>{title} body.</p>"),
+        starts_at: date.and_hms_opt(18, 0, 0).unwrap(),
+        ends_at: date.and_hms_opt(20, 0, 0).unwrap(),
+        timezone: "America/Los_Angeles".into(),
+        location_name: "Community venue".into(),
+        location_address: "Downtown".into(),
+        external_event_provider: "luma".into(),
+        external_event_url: format!("https://luma.com/{slug}"),
+        image_url: Some(format!("/public/events/{slug}.webp")),
+        image_alt: Some(format!("{title} event image")),
+        video_url: None,
+        recap_url: None,
+    }
 }
 
 #[tokio::test]
@@ -5351,6 +5375,51 @@ async fn nebula_index_lists_show_and_tells() {
     assert!(body.contains("Agentic Workflows for Lawyers"));
     assert!(body.contains("href=\"/foundation/nebula/show-and-tell/seattle-summer-2026\""));
     assert!(body.contains("July 2, 2026"));
+}
+
+#[tokio::test]
+async fn nebula_show_tell_index_paginates_upcoming_and_past_events() {
+    let today = chrono::Local::now().date_naive();
+    let mut events = Vec::new();
+    for offset in 0..6 {
+        let date = today + chrono::Duration::days(offset);
+        events.push(test_event(
+            &format!("upcoming-{offset}"),
+            &format!("Upcoming {offset}"),
+            date,
+        ));
+    }
+    for offset in 1..=6 {
+        let date = today - chrono::Duration::days(offset);
+        events.push(test_event(
+            &format!("past-{offset}"),
+            &format!("Past {offset}"),
+            date,
+        ));
+    }
+    let mut state = empty_state().await;
+    state.events = web::EventIndex::new(events);
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/nebula/show-and-tell?upcoming_page=2&past_page=2")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("Show-and-tell events"));
+    assert!(body.contains("Upcoming 5"));
+    assert!(!body.contains("Upcoming 0"));
+    assert!(body.contains("Past 6"));
+    assert!(!body.contains("Past 1"));
+    assert!(body.contains("Page 2 of 2"));
+    assert!(body.contains("src=\"/public/events/upcoming-5.webp\""));
+    assert!(body.contains("src=\"/public/logos/luma.svg\""));
+    assert!(body.contains("href=\"https://luma.com/upcoming-5\""));
 }
 
 #[tokio::test]
