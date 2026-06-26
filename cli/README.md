@@ -106,7 +106,7 @@ In interactive mode `intake answer` shows one prompt per question — a `radio` 
 entered row by row (a blank name ends the rows).
 
 ```bash
-navigator login http://localhost:8080
+navigator login --host http://localhost:8080
 navigator matter open --template onboarding__nest --client-email libra@example.com
 navigator intake answer <notation-id>
 navigator notation status <notation-id>

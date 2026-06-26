@@ -157,10 +157,7 @@ pub fn release_downloads(binary: ReleaseBinary) -> Markup {
                         }
                     }
                 }
-                pre { code {
-                    "# after extracting the archive, put the binary on your PATH\n"
-                    (binary.command_name()) " --help\n"
-                } }
+                (post_download_steps(binary, tag))
             } @else {
                 p {
                     "Release downloads are attached to each "
@@ -174,6 +171,34 @@ pub fn release_downloads(binary: ReleaseBinary) -> Markup {
                 }
             }
         }
+    }
+}
+
+/// The shell steps shown beneath the download links once a release tag is
+/// known: extract the archive, clear the macOS Gatekeeper quarantine, then
+/// put the binary on `$PATH`. macOS stamps every downloaded file with
+/// `com.apple.quarantine`, and these binaries are unsigned, so without the
+/// `xattr` step Gatekeeper blocks the first run ("cannot be opened because
+/// the developer cannot be verified"). It is the one platform that needs
+/// more than extract-and-run, so the macOS asset name is the worked example.
+fn post_download_steps(binary: ReleaseBinary, tag: &str) -> Markup {
+    let cmd = binary.command_name();
+    let macos = RELEASE_PLATFORMS
+        .iter()
+        .find(|p| p.slug == "macos")
+        .expect("macOS is a supported release platform");
+    let macos_asset = release_asset_name(binary, tag, *macos);
+    html! {
+        pre { code {
+            "# extract the archive you downloaded above\n"
+            "tar xzf " (macos_asset) "\n\n"
+            "# macOS only: the binary is unsigned, so clear the quarantine\n"
+            "# Gatekeeper adds to downloads, or the first run is blocked\n"
+            "xattr -d com.apple.quarantine " (cmd) "\n\n"
+            "# put it on your PATH, then confirm it runs\n"
+            "sudo mv " (cmd) " /usr/local/bin/\n"
+            (cmd) " --help\n"
+        } }
     }
 }
 
@@ -259,8 +284,8 @@ pub fn render_cli(
 #[cfg(test)]
 mod tests {
     use super::{
-        package_strip, release_asset_name, release_asset_url, render, render_cli, ReleaseBinary,
-        PACKAGES, RELEASE_PLATFORMS,
+        package_strip, post_download_steps, release_asset_name, release_asset_url, render,
+        render_cli, ReleaseBinary, PACKAGES, RELEASE_PLATFORMS,
     };
     use crate::brand::FOUNDATION_BRAND;
     use crate::AuthState;
@@ -338,6 +363,22 @@ mod tests {
         assert_eq!(
             release_asset_url(ReleaseBinary::Cli, tag, RELEASE_PLATFORMS[1]),
             "https://github.com/neon-law-foundation/Navigator/releases/download/26.06.24/navigator-26.06.24-macos.tar.gz"
+        );
+    }
+
+    #[test]
+    fn post_download_steps_give_a_working_macos_install() {
+        // The macOS archive needs the Gatekeeper quarantine cleared before the
+        // unsigned binary will run — "extract and add to PATH" alone is a dead
+        // end on macOS. The worked example uses the macOS asset name.
+        let html = post_download_steps(ReleaseBinary::NavigatorLsp, "26.06.25").into_string();
+        assert!(
+            html.contains("xattr -d com.apple.quarantine navigator-lsp"),
+            "macOS install must clear the Gatekeeper quarantine, got: {html}"
+        );
+        assert!(
+            html.contains("navigator-lsp-26.06.25-macos.tar.gz"),
+            "the worked example should use the macOS asset name, got: {html}"
         );
     }
 
