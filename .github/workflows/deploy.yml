@@ -559,6 +559,12 @@ jobs:
         with:
           key: release-binaries-${{ matrix.platform }}
       - name: build navigator and navigator-lsp
+        # Bake the release tag into the binaries so `navigator --version`
+        # self-reports the `YY.MM.DD` release it shipped from (cli/build.rs
+        # reads NAVIGATOR_RELEASE_TAG); without it the binary reports the
+        # placeholder `0.1.0` workspace crate version.
+        env:
+          NAVIGATOR_RELEASE_TAG: ${{ needs.release-version.outputs.tag }}
         run: cargo build --release -p cli -p lsp
       - name: package unix binaries
         if: runner.os != 'Windows'
