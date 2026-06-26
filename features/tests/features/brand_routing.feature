@@ -34,9 +34,10 @@ Feature: Public site brand routing
       | /privacy                          |
       | /terms                            |
 
-  Scenario: The old /foundation/workshops/navigator URL is retired without a redirect
+  Scenario: The old /foundation/workshops/navigator URL permanently redirects to its Nebula home
     When a visitor opens /foundation/workshops/navigator
-    Then the response status is 404
+    Then the response status is 308
+    And the response redirects to "/foundation/nebula/workshops/use-the-navigator"
 
   Scenario: The old /foundation/mission URL permanently redirects to the Foundation home
     When a visitor opens /foundation/mission
