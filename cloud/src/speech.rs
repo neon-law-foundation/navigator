@@ -107,13 +107,21 @@ struct RecognizeRequest {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RecognitionConfig {
-    auto_decoding_config: AutoDecodingConfig,
+    explicit_decoding_config: ExplicitDecodingConfig,
     language_codes: Vec<String>,
     model: String,
 }
 
+/// We decode the input ourselves (see [`crate::audio`]) and hand Google raw
+/// 16-bit mono PCM, so the request always pins `LINEAR16` rather than asking
+/// the API to guess the container — which it cannot do for AAC/ALAC `.m4a`.
 #[derive(Debug, Serialize)]
-struct AutoDecodingConfig {}
+#[serde(rename_all = "camelCase")]
+struct ExplicitDecodingConfig {
+    encoding: &'static str,
+    sample_rate_hertz: u32,
+    audio_channel_count: u32,
+}
 
 #[derive(Debug, Deserialize)]
 struct RecognizeResponse {
@@ -135,17 +143,25 @@ struct SpeechRecognitionAlternative {
 #[async_trait]
 impl TranscriptProvider for GoogleSpeechTranscriptProvider {
     async fn transcribe_file(&self, audio: &Path) -> anyhow::Result<Vec<TranscriptSegment>> {
-        let bytes = std::fs::read(audio).map_err(|source| SpeechError::Io {
-            path: audio.display().to_string(),
-            source,
-        })?;
+        // Decode whatever the caller handed us (m4a/AAC, mp3, flac, wav, ogg,
+        // …) into 16-bit mono PCM so the codec never has to be named and the
+        // API never has to guess the container.
+        let decoded = crate::audio::decode_to_mono_pcm16(audio)?;
+        let mut pcm = Vec::with_capacity(decoded.samples.len() * 2);
+        for sample in &decoded.samples {
+            pcm.extend_from_slice(&sample.to_le_bytes());
+        }
         let body = RecognizeRequest {
             config: RecognitionConfig {
-                auto_decoding_config: AutoDecodingConfig {},
+                explicit_decoding_config: ExplicitDecodingConfig {
+                    encoding: "LINEAR16",
+                    sample_rate_hertz: decoded.sample_rate,
+                    audio_channel_count: 1,
+                },
                 language_codes: vec![self.config.language_code.clone()],
                 model: self.config.model.clone(),
             },
-            content: base64::engine::general_purpose::STANDARD.encode(bytes),
+            content: base64::engine::general_purpose::STANDARD.encode(&pcm),
         };
         let token = self.token().await?;
         let response = self
