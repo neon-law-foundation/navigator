@@ -28,7 +28,7 @@ jobs:
     name: cut YY.MM.DD release tag
     # Never run the auto-tagger from a fork — only the canonical repo cuts
     # releases. Forks rebrand and run their own cadence.
-    if: github.repository == 'neon-law-foundation/Navigator'
+    if: github.repository == 'neon-law-foundation/navigator'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

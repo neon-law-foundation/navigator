@@ -362,7 +362,7 @@ mod tests {
         );
         assert_eq!(
             release_asset_url(ReleaseBinary::Cli, tag, RELEASE_PLATFORMS[1]),
-            "https://github.com/neon-law-foundation/Navigator/releases/download/26.06.24/navigator-26.06.24-macos.tar.gz"
+            "https://github.com/neon-law-foundation/navigator/releases/download/26.06.24/navigator-26.06.24-macos.tar.gz"
         );
     }
 
@@ -394,7 +394,7 @@ mod tests {
         .into_string();
         assert!(html.contains(">Download</h2>"), "got: {html}");
         assert!(
-            html.contains("https://github.com/neon-law-foundation/Navigator/releases"),
+            html.contains("https://github.com/neon-law-foundation/navigator/releases"),
             "got: {html}"
         );
         assert!(
