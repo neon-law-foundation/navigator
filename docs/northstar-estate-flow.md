@@ -73,7 +73,7 @@ lives at `notation_templates/engagements/estate.md` with the mirrored standalone
 `features/tests/features/estate_intake.feature`. The states:
 
 - `BEGIN --transcript_uploaded--> document_intake__transcript` — the sitting is recorded offline (phone voice memo,
-  Zoom, in person) and transcribed offline by Ada on the already-paid Google Gemini Enterprise (~$0 marginal cost — the
+  Zoom, in person) and transcribed offline by AIDA on the already-paid Google Gemini Enterprise (~$0 marginal cost — the
   access-to-justice lever); the transcript is then **uploaded** through the reusable `document_intake__*` step, which
   files it into the matter (`store::documents::ingest_bytes`). The upload is phone-friendly — a text paste, a file, or a
   link — never "scan a PDF". The shipped path does not require live speech-to-text or real-time streaming: a client may
@@ -82,7 +82,7 @@ lives at `notation_templates/engagements/estate.md` with the mirrored standalone
 - `extract__inputs --inputs_ready--> document_drafts__estate` — structured estate inputs are derived from the
   transcript and written as `answers` (source `extracted`): the testator's name, executor, successor trustee,
   guardianship nomination, residuary beneficiary, and the health-care and financial agents. System step; the extraction
-  is done by an `EstateExtractor` seam (a deterministic stub today, Ada/Gemini Enterprise later) — not a metered API.
+  is done by an `EstateExtractor` seam (a deterministic stub today, AIDA/Gemini Enterprise later) — not a metered API.
 - `document_drafts__estate --drafts_persisted--> staff_review` — the will, trust, and the health and financial
   directives are rendered from those answers into one `review_documents` row each at `status = draft`. This is a System
   wait state driven by `web` (which renders the instrument bodies, the same way the retainer renders its document
@@ -114,7 +114,7 @@ first and swapped in DocuSign). Status:
   (`web::transcript_intake`) accepts text/file/link, files it via `document_intake__*`, and the staff matter page
   renders the phone-friendly upload form while the workflow is at `BEGIN` (`views::pages::admin::projects`).
 - **Shipped (stub)** — extraction behind `extract__inputs`. An `EstateExtractor` seam (`web::estate`) maps the
-  transcript onto `answers` (source `extracted`); a deterministic `StubEstateExtractor` ships now, Ada/Gemini swaps in
+  transcript onto `answers` (source `extracted`); a deterministic `StubEstateExtractor` ships now, AIDA/Gemini swaps in
   behind the same trait. A coverage report records which questions the sitting answered.
 - **Shipped** — `document_drafts__estate` renders the will, trust, and the two directives from those answers into one
   `review_documents` row each at `status = draft`, web-side via `store::review_documents::create`.
@@ -136,7 +136,7 @@ first and swapped in DocuSign). Status:
   signed engagement letter and the firm's file-retention policy, not by code; the workflow records the deletion when it
   runs. Retention is a legal decision, so it lives in the engagement letter — the pipeline only enforces whatever window
   that decision sets.
-- **Transcription.** The shipped lane is offline-first. The sitting is recorded offline and transcribed by Ada on the
+- **Transcription.** The shipped lane is offline-first. The sitting is recorded offline and transcribed by AIDA on the
   already-paid Google Gemini Enterprise (memory `project_gemini_enterprise_mcp`), keeping the data inside the same GCP
   trust boundary as the rest of client data (GCP-only, per the workspace cloud rule) at ~$0 marginal cost. That
   transcript is then uploaded through the reusable `document_intake__transcript` step and stored as a document; the
@@ -167,7 +167,7 @@ These carry into the build and must not be designed away:
   special-needs trust are separate engagements, not Northstar variants (see the top of this document).
 - **Recording** storage, retention, and the offline transcription lane are settled above: `cloud::StorageService` under
   the matter prefix, matter-life-plus-retention-window deletion governed by the engagement letter, and transcription by
-  Ada/Gemini Enterprise in-project, with the transcript uploaded through `document_intake__*`.
+  AIDA/Gemini Enterprise in-project, with the transcript uploaded through `document_intake__*`.
 - **Review viewer** stays the first-party `<northstar-review>` element. TipTap was considered and declined to avoid a
   JavaScript build step; the anchor model is engine-independent, so a richer editor can be swapped in later (through
   `/council`, as a new front-end dependency) without changing the server's comment contract.

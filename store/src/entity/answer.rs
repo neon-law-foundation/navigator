@@ -16,7 +16,7 @@ pub const SOURCE_STAFF: &str = "staff";
 /// `answers.source` — the client self-entered the answer (magic link).
 pub const SOURCE_CLIENT: &str = "client";
 /// `answers.source` — machine-extracted from a recorded sitting's
-/// transcript (Ada/Gemini), neither staff- nor client-typed. The
+/// transcript (AIDA/Gemini), neither staff- nor client-typed. The
 /// distinct value is the human-in-the-loop boundary: a machine-proposed
 /// answer is visibly different from a confirmed one, so an attorney can
 /// see and correct it before any draft is released to the client.

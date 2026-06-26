@@ -41,7 +41,7 @@ fn estate_spec_has_expected_state_machine() {
     );
 
     // The uploaded transcript is filed into the matter by the reusable
-    // document-intake step (no live STT — Ada/Gemini transcribes offline,
+    // document-intake step (no live STT — AIDA/Gemini transcribes offline,
     // then the text is uploaded), and the intake advances to extraction.
     let intake = spec
         .transitions_from(&StateName::from("document_intake__transcript"))
