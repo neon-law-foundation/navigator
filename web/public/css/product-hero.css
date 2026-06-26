@@ -1,8 +1,8 @@
-/* Full-bleed neon product hero — the top band of every `/services/<slug>` */
-/* (and `/foundation/nimbus`) page. It speaks the same synthwave language as */
-/* the firm landing hero (`hero.css`): a dark scene, a receding glowing grid */
-/* floor, a horizon line, and a slow light sweep — but it spans the entire */
-/* viewport width above the product card, and it is *themed per product*. */
+/* Neon product hero — the top band of every `/services/<slug>` (and */
+/* `/foundation/nimbus`) page. It speaks the same synthwave language as the */
+/* firm landing hero (`hero.css`): a dark scene framed in the same rounded */
+/* border box, with a receding glowing grid floor, a horizon line, and a */
+/* slow light sweep — but it is *themed per product*. */
 /* */
 /* One engine, thirteen themes: the scene reads four custom properties for */
 /* its accent ramp (`--ph-accent` / `--ph-bright` / `--ph-deep` / `--ph-soft`) */
@@ -25,15 +25,14 @@
   --ph-bg: #05070e;
 
   position: relative;
-  /* Full-bleed breakout from the `.container` that wraps the page body: */
-  /* negative side margins stretch the band to the viewport edges, and a */
-  /* negative top margin eats the container's `.py-4` top padding so the */
-  /* scene sits flush under the navbar. `width: auto` (not `100vw`) keeps */
-  /* a vertical scrollbar from forcing a sliver of horizontal scroll. */
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
-  margin-top: -1.5rem;
+  /* Contained, rounded scene — the same framing as the firm landing hero */
+  /* (`hero.css`): the band sits *inside* the page `.container` as a rounded */
+  /* card rather than breaking out to the viewport edges, so every product */
+  /* page wears its animation in the same rounded border box as the home */
+  /* page. `overflow: hidden` (below) clips the grid / glow / sweep to the */
+  /* rounded corners. */
   margin-bottom: 2.5rem;
+  border-radius: var(--bs-border-radius-xl, 1rem);
 
   display: flex;
   flex-direction: column;

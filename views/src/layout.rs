@@ -1192,7 +1192,7 @@ mod tests {
     fn product_hero_stylesheet_is_linked() {
         // The per-product neon hero is its own self-contained sheet, linked
         // on every page (inert without a `.product-hero` element) so each
-        // `/services/*` page can wear the full-bleed animated header.
+        // `/services/*` page can wear the rounded animated header.
         let out = render("Home", &html! { p { "x" } });
         assert!(
             out.contains("/public/css/product-hero.css"),

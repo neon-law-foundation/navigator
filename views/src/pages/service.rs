@@ -152,7 +152,7 @@ pub struct ServiceContent<'a> {
     /// dropdown; with the dropdown gone, each page keeps its own mark.
     /// `None` renders no icon (the Foundation product pages).
     pub icon: Option<&'a str>,
-    /// Accent ramp for the full-bleed neon product hero — one of the
+    /// Accent ramp for the neon product hero — one of the
     /// [`ProductAccent`] variants, each a `product-hero--<hue>` modifier in
     /// `product-hero.css`. The web layer maps each product's slug to a
     /// signature hue so the catalog's thirteen pages each read as their own
@@ -200,7 +200,7 @@ pub fn render_in(
     } else {
         (cta.as_str(), cta_mailto.as_str())
     };
-    // Bold stacked layout: a full-bleed neon hero leads the page — the
+    // Bold stacked layout: a rounded neon hero leads the page — the
     // product's glowing mark, the brand title as the page's single `<h1>`,
     // and the lifted headline as its tagline — then the product card, the
     // prose outline, and finally the booking CTA. We always lift the body's
@@ -217,7 +217,7 @@ pub fn render_in(
     let photo_href = content.hero_image.and_then(assets::preload_href);
     let hero_class = format!("product-hero product-hero--{}", content.accent);
     let body = html! {
-        // 1. The full-bleed neon product hero — the page's bold top band.
+        // 1. The neon product hero — the page's bold, rounded top band.
         section class=(hero_class) {
             div."product-hero__bg" aria-hidden="true" {
                 @if let Some(href) = &photo_href {
@@ -427,8 +427,8 @@ mod tests {
     }
 
     #[test]
-    fn renders_the_full_bleed_neon_product_hero_with_its_accent() {
-        // Every service page leads with the full-bleed neon hero: the
+    fn renders_the_neon_product_hero_with_its_accent() {
+        // Every service page leads with the rounded neon hero: the
         // accent-themed `.product-hero` scene carrying the animated grid /
         // glow / sweep layers, the product mark, and the brand title.
         let mut content = fixture("Neon Law Nexus", "<h1>A GC on retainer</h1><p>body</p>");
