@@ -343,3 +343,47 @@ records:
       Naturalization asks you to show good moral character. Telling your attorney early, in confidence, lets us handle
       anything the right way. A "yes" is not a problem — it is a conversation, and nothing is shared without your say.
     question_type: yes_no
+  - code: nonprofit_legal_name
+    prompt: What is the full legal name of the nonprofit organization?
+    help_text: Enter the organization's exact legal name as it appears on its incorporation documents.
+    question_type: string
+  - code: nonprofit_state
+    prompt: In which U.S. state is the nonprofit incorporated?
+    help_text: Enter the full state name as it will appear in the agreement, for example Nevada or California, not NV or CA.
+    question_type: string
+  - code: worker_legal_name
+    prompt: What is the worker's full legal name?
+    help_text: The full legal name of the employee or contractor who will sign this agreement.
+    question_type: string
+  - code: worker_title
+    prompt: What is the position or title?
+    help_text: For example, Executive Director, Program Coordinator, or Bookkeeper.
+    question_type: string
+  - code: worker_duties
+    prompt: Summarize the duties or scope of work.
+    help_text: A short description of what the employee or contractor will do.
+    question_type: string
+  - code: engagement_start_date
+    prompt: What is the start date?
+    help_text: The date the employment or contractor engagement begins.
+    question_type: date
+  - code: annual_salary
+    prompt: What is the annual base salary?
+    help_text: For example, $52,000 per year. Used for the W-2 employment agreement.
+    question_type: string
+  - code: pay_schedule
+    prompt: How often is the employee paid?
+    help_text: For example, semi-monthly or every two weeks.
+    question_type: string
+  - code: contractor_rate
+    prompt: What is the contractor's compensation?
+    help_text: For example, $75 per hour or $5,000 per project. Used for the 1099 contractor agreement.
+    question_type: string
+  - code: contractor_term
+    prompt: What is the term of the engagement?
+    help_text: For example, "until the project is complete" or "through December 31, 2026."
+    question_type: string
+  - code: termination_notice_days
+    prompt: How many days' written notice may either party give to end the engagement?
+    help_text: Enter a whole number only, with no unit suffix. For example, enter 14 or 30, not "14 days".
+    question_type: string

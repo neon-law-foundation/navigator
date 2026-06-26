@@ -1,83 +1,89 @@
 # mcp
 
-[Model Context Protocol](https://modelcontextprotocol.io/) server for Neon Law Navigator. Exposes a JSON-RPC `/mcp`
-endpoint that LLM clients ([Gemini Enterprise](https://cloud.google.com/gemini-enterprise), LibreChat, etc.) call to
-operate on Neon Law Navigator data. Same database as `web`; a successful `aida_create_person` lands in the same
-`persons` table the website reads from.
+**AIDA** is Neon Law Navigator's agent. In [Google Gemini Enterprise](https://cloud.google.com/gemini-enterprise) you
+tag `@AIDA` and ask, in plain English, to work with the firm's data — look someone up, add a client, start a retainer —
+with no install and no CLI.
 
-## Tool registry
+## Use @AIDA in Google Gemini Enterprise
 
-Today, by design:
+A lawyer adds AIDA once through Gemini Enterprise's "Add AIDA" connector, then talks to her in the ordinary chat box.
+Every request is plain language: AIDA works out which of her tools answers it, runs that tool against the same database
+the portal reads, and replies. You never name a tool or write code.
 
-| Name | What it does |
-| --- | --- |
-| `aida_create_person` | Insert a new person (unique name + email). |
-| `aida_show_person` | Fuzzy-find people by case-insensitive name / email substring. |
-| `aida_list_jurisdictions` | List every jurisdiction (US states, federal, foreign). |
-| `aida_create_notation` | Start a conversational notation from a template; returns the first question. |
-| `aida_answer_notation` | Submit one answer; returns next question or `status: "complete"`. |
-| `aida_validate_notation` | Lint markdown without persisting; returns `clean` + `violations`. |
+### What you can ask
 
-The source of truth is [`src/tools/mod.rs`](src/tools/mod.rs) — specifically `list_tools()` (what `tools/list`
-advertises) and the `match` arm in `call_tool` (what `tools/call` dispatches).
+Some of what you can ask for today — phrase it however you like; the examples are just illustrative:
 
-### The `aida_` prefix is required
+| Ask for… | Example prompt | What AIDA does |
+| --- | --- | --- |
+| Add a person | "Add Maya Patel, maya@example.com, to the CRM." | Creates the person record. |
+| Look someone up | "Show me everyone with a neonlaw.com email." | Finds matching people. |
+| List jurisdictions | "What states can we organize an entity in?" | Lists every jurisdiction. |
+| Start a notation | "Start a retainer for maya@example.com." | Begins the questionnaire. |
+| Answer a notation | (AIDA asks the next question; you answer in chat) | Records the answer, asks the next. |
+| Check a notation body | "Validate this markdown notation." | Lints it and reports problems. |
 
-Every tool name MUST start with `aida_` — multi-server MCP clients (Gemini Enterprise's Custom MCP Server, LibreChat,
-Claude Desktop) surface tools from every connected server in one flat list, and the prefix is what keeps AIDA tools
-grouped and free of name collisions. The prefix lives in `tools::REQUIRED_PREFIX` and is enforced by a generic unit test
-(`every_tool_name_starts_with_aida_prefix`) that iterates over whatever `list_tools()` returns — so a new tool that
-forgets the prefix fails `cargo test -p mcp` without anyone having to remember to update an explicit allow-list.
+### AIDA confirms before she acts
 
-## Conversational notation: `aida_create_notation` + `aida_answer_notation`
+- **Reads happen right away; changes wait for your yes.** A lookup runs immediately. Anything that writes data or
+  reaches a client — adding a person, sending a welcome email, starting a retainer — pauses for a one-tap **yes/no**
+  first, because a licensed person has to authorize a client-facing act. Reply `yes` to go ahead or `no` to cancel.
+- **If something fails, AIDA says why.** The reason comes back in the chat, so you can fix the input and ask again
+  instead of staring at a blank non-result.
 
-These two tools form one pattern: the LLM asks the user the questionnaire questions in chat; the server owns the state
-machine. Per call the server returns either the next question to ask (with `status: "needs_answer"` and a
-`next_question` object holding `code`, `prompt`, and `answer_type`) or `status: "complete"` once the questionnaire
-reaches END.
+## Under the hood
 
-1. **Start.** Call `aida_create_notation` with `template_code` (e.g. `onboarding__retainer`). The server creates the
-   Notation, starts the questionnaire runtime, and returns the first question.
-2. **Loop.** For each `next_question`, ask the user using the server's `prompt` verbatim, then call
-   `aida_answer_notation` with `notation_id`, `question_code` (from the most recent `next_question`), and the user's
-   `value`. Repeat until `status: "complete"`.
-3. **Hand off.** Once complete, the post-intake workflow is the caller's next move; this surface only owns the
-   questionnaire half.
+*For the technically minded.* AIDA is reached the same way on any host that speaks the protocols — **A2A first, then
+MCP**, over one tool catalog. Gemini Enterprise's "Add AIDA" connector is one such host.
 
-Acting principal: when the MCP boundary is enforced (production Google OAuth populates a verified email), the server
-uses that email to resolve the respondent and IGNORES any `person_email` argument. In pass-through mode (KIND / local
-dev), `person_email` is required on `aida_create_notation`.
+**A2A (Agent2Agent).** A host learns about AIDA from her public **agent card** at `GET /api/aida.json` — name, skills,
+transport, security schemes — then sends each chat message as a JSON-RPC `message/send` to `POST /api/aida/rpc`,
+authenticated with the same Google Workspace identity that signs into the portal. No new identity provider, no per-tool
+setup.
 
-## Shape
+**MCP (Model Context Protocol).** The catalog also speaks [MCP](https://modelcontextprotocol.io/) at `POST /mcp`, and
+[`web::a2a`](../web/src/a2a.rs) bridges the two so A2A and MCP share one registry
+([`src/tools/mod.rs`](src/tools/mod.rs)). Every tool name carries the `aida_` prefix so it stays grouped in a
+multi-server client. Both endpoints sit on the `web` pod behind the same auth stack (Google OAuth → OPA), on the same
+Cloud SQL connection the public site uses.
 
-`mcp` is a **library crate**. There is no `mcp` binary. The production deployment merges [`build_router`] into the `web`
-axum router so `/mcp` rides on the same Pod and the same Cloud SQL connection as the public site.
+### How a query runs — two model calls
 
-In production the endpoint is `POST https://www.neonlaw.com/mcp`, gated by `web::google_oauth` — every request must
-carry a Google OAuth bearer token whose `aud`/`azp` is allowlisted in `GOOGLE_OAUTH_CLIENT_IDS`, where the token has
-`email_verified: true` and an email ending in the `GOOGLE_OAUTH_REQUIRED_HD` Workspace domain. The OPA middleware
-(`require_policy`) is also in the chain, picking up the synthesized session and applying the same `staff`-role rule that
-it uses for `/portal`. See [docs/gemini-enterprise-mcp.md](../docs/gemini-enterprise-mcp.md) for the full Gemini
-Enterprise registration runbook.
+Behind a single plain-English ask are **two** model calls around one tool run. The first decides *which* tool to call;
+AIDA runs it (the query against Cloud SQL); the second turns the result into the answer you read. The router is Vertex
+AI Gemini Flash in production (a `NullRouter` in local dev points callers at the `metadata.skill` backdoor instead).
 
-## Smoke-test against the in-cluster `web`
+```mermaid
+sequenceDiagram
+    actor Lawyer
+    participant GE as Gemini Enterprise
+    participant AIDA as AIDA (/api/aida/rpc)
+    participant LLM as Vertex AI Gemini Flash
+    participant DB as Navigator (Cloud SQL)
 
-```bash
-# Port-forward web → localhost, then hit /mcp directly. KIND /
-# local dev: GOOGLE_OAUTH_CLIENT_IDS is unset, so google_oauth is
-# a pass-through and require_auth gates on a Bearer JWT instead.
-kubectl -n navigator port-forward svc/web 3001:3001 &
-curl -s http://localhost:3001/mcp \
-  -H 'authorization: Bearer <test-JWT>' \
-  -H 'content-type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+    Lawyer->>GE: "@AIDA show me everyone with a neonlaw.com email"
+    GE->>AIDA: message/send (free-form text)
+
+    rect rgb(235, 244, 255)
+    note over AIDA,LLM: LLM call 1 — pick the tool
+    AIDA->>LLM: user text + tool catalog
+    LLM-->>AIDA: call aida_show_person { email: "neonlaw.com" }
+    end
+
+    AIDA->>DB: run the query
+    DB-->>AIDA: matching rows
+
+    rect rgb(235, 255, 240)
+    note over AIDA,LLM: LLM call 2 — answer from the result
+    AIDA->>LLM: tool result fed back into history
+    LLM-->>AIDA: natural-language answer
+    end
+
+    AIDA-->>GE: Task completed (answer artifact)
+    GE-->>Lawyer: rendered answer
 ```
 
-The transport is MCP's Streamable HTTP shape — a single `POST /mcp` that accepts JSON-RPC envelopes. Streamable-HTTP MCP
-clients (Gemini Enterprise's Custom MCP Server data store, LibreChat, Claude Desktop) all configure it the same way.
-
-## What's next
-
-Tools live under `src/tools/`; adding one is a `pub mod` plus a match arm in `call_tool` and an entry in `list_tools()`.
-The `aida_` prefix is mandatory — see "The `aida_` prefix is required" above. Keep the surface narrow — the design bet
-is "many small, obviously-safe tools" rather than a general-purpose database adapter.
+For a request that changes data the first call still picks the tool, but AIDA returns an `input-required` task and waits
+for your `yes` before the tool runs — the confirmation gate described in
+[aida-a2a-interaction.md](../docs/aida-a2a-interaction.md). The one-time wiring (agent card, OAuth, registration) lives
+in [gemini-enterprise-mcp.md](../docs/gemini-enterprise-mcp.md).

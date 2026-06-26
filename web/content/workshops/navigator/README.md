@@ -244,7 +244,7 @@ The same CLI forms a real Nevada LLC end to end — no browser — and downloads
 State packet**:
 
 ```bash
-navigator login https://your-firm.example
+navigator login --host https://your-firm.example
 navigator matter open --template onboarding__nest --client-email libra@example.com
 navigator intake answer <notation-id>
 navigator notation status <notation-id>

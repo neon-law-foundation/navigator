@@ -291,8 +291,8 @@ terminal. It authenticates like `gcloud auth login` and lands a short-lived (~8h
 
 ```bash
 cargo install --path cli          # installs `navigator` on your PATH
-# …or skip installing — the bin/navigator wrapper builds + runs it on first call:
-export PATH="$PWD/bin:$PATH"       # then just call `navigator`
+# …or skip installing — run it straight from the source tree:
+cargo run -p cli -- login --host www.your-domain.example   # `cargo run -p cli -- <args>` == `navigator <args>`
 ```
 
 ---
