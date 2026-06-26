@@ -99,11 +99,17 @@ so a run on June 25, 2026 at 2 p.m. publishes `26.06.25.14` instead of overwriti
 `navigator-workflows-service`) and the five CronJob trigger images (`navigator-*-trigger`) — to **ghcr.io** tagged with
 that release version plus `latest`. In parallel with image publishing, it builds the public `navigator` CLI and
 `navigator-lsp` binaries on native Linux, macOS, and Windows runners, records GitHub artifact attestations for the
-downloadable archives, and attaches those six archives to the GitHub Release for that version. On success it posts a
-**"ready to deploy"** message to the engineering Slack channel (the prod ops incoming webhook,
-`secrets.SLACK_WEBHOOK_URL`, synced from Doppler), tagging Nick with the exact `power-push` command to roll the new
-images to prod; a failure on any stage posts a separate alert to the same channel, also tagging Nick. The images are
-published, **not** rolled out — see [Publish vs. roll out](#publish-vs-roll-out) below.
+downloadable archives, and attaches those six archives to the GitHub Release for that version. Once the Release is up, a
+`homebrew-tap` job cross-pollinates the public
+[neon-law-foundation/homebrew-tap](https://github.com/neon-law-foundation/homebrew-tap) repo: it recomputes the macOS
+checksums and rewrites the `navigator` / `navigator-lsp` formulae to the new release version, then pushes them with the
+gitops PAT `secrets.GHCR_CLEANUP_PAT` (which must carry `contents:write` on the homebrew-tap repo) so that invoking
+`brew install neon-law-foundation/tap/navigator` always tracks the latest build. The published formulae are
+Apple-Silicon only, matching the single macOS binary the release builds. On success it posts a **"ready to deploy"**
+message to the engineering Slack channel (the prod ops incoming webhook, `secrets.SLACK_WEBHOOK_URL`, synced from
+Doppler), tagging Nick with the exact `power-push` command to roll the new images to prod; a failure on any stage posts
+a separate alert to the same channel, also tagging Nick. The images are published, **not** rolled out — see [Publish vs.
+roll out](#publish-vs-roll-out) below.
 
 ### Maintenance flow — `cleanup.yml`
 

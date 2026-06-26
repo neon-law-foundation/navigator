@@ -110,7 +110,7 @@ pub use workshops::{WorkshopIndex, WorkshopMaterial};
 use std::path::Path;
 use std::sync::Arc;
 
-use axum::extract::{FromRef, Path as AxumPath, State};
+use axum::extract::{FromRef, Path as AxumPath, Query, State};
 use axum::http::{header, HeaderName, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
@@ -133,6 +133,8 @@ const X_REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
 /// conservative default until we add content-hashed filenames; bump
 /// to `immutable` once asset paths are fingerprinted.
 const STATIC_CACHE_CONTROL: HeaderValue = HeaderValue::from_static("public, max-age=3600");
+
+const SHOW_TELL_EVENTS_PER_PAGE: usize = 5;
 
 /// `Strict-Transport-Security` value — two years with
 /// `includeSubDomains` and `preload`, making the site eligible for
@@ -789,6 +791,10 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
                 get(legacy_event_ics_redirect),
             )
             .route("/foundation/nebula", get(nebula_landing))
+            .route(
+                "/foundation/nebula/show-and-tell",
+                get(nebula_show_tell_index),
+            )
             .route("/foundation/nebula/{category}/{slug}", get(nebula_material))
             .route(
                 "/foundation/nebula/{category}/{slug}/step/{step}",
@@ -924,12 +930,33 @@ fn format_blog_date(date: chrono::NaiveDate) -> String {
     date.format("%B %-d, %Y").to_string()
 }
 
-fn format_event_datetime_range(start: chrono::NaiveDateTime, end: chrono::NaiveDateTime) -> String {
+fn format_event_datetime_range(
+    start: chrono::NaiveDateTime,
+    end: chrono::NaiveDateTime,
+    timezone: &str,
+) -> String {
     format!(
-        "{}-{} Pacific",
+        "{}-{} {}",
         start.format("%B %-d, %Y, %-I:%M %p"),
-        end.format("%-I:%M %p")
+        end.format("%-I:%M %p"),
+        timezone_label(timezone)
     )
+}
+
+fn timezone_label(timezone: &str) -> &str {
+    match timezone {
+        "America/Los_Angeles" => "Pacific",
+        "America/Denver" => "Mountain",
+        "America/Chicago" => "Central",
+        "America/New_York" => "Eastern",
+        _ => timezone,
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, serde::Deserialize)]
+struct ShowTellPagination {
+    upcoming_page: Option<usize>,
+    past_page: Option<usize>,
 }
 
 /// `GET /blog` — the firm blog index, newest post first.
@@ -2119,7 +2146,7 @@ fn render_nebula_landing(
         .map(|event| {
             (
                 format!("{NEBULA_BASE}/show-and-tell/{}", event.public_slug),
-                format_event_datetime_range(event.starts_at, event.ends_at),
+                format_event_datetime_range(event.starts_at, event.ends_at, &event.timezone),
                 event.location_name.clone(),
             )
         })
@@ -2154,6 +2181,149 @@ fn legacy_event_destination(events: &EventIndex, slug: &str) -> Option<String> {
         .get_public(slug)
         .or_else(|| events.get(slug))
         .map(|event| format!("{NEBULA_BASE}/show-and-tell/{}", event.public_slug))
+}
+
+struct EventCardMeta {
+    detail_href: String,
+    calendar_href: String,
+    time: String,
+    place: String,
+    image_alt: String,
+}
+
+fn event_card_meta(event: &Event) -> EventCardMeta {
+    let detail_href = format!("{NEBULA_BASE}/show-and-tell/{}", event.public_slug);
+    EventCardMeta {
+        calendar_href: format!("{detail_href}/calendar.ics"),
+        detail_href,
+        time: format_event_datetime_range(event.starts_at, event.ends_at, &event.timezone),
+        place: event.location_name.clone(),
+        image_alt: event
+            .image_alt
+            .clone()
+            .unwrap_or_else(|| format!("{} event image", event.title)),
+    }
+}
+
+fn total_pages(total: usize) -> usize {
+    total.div_ceil(SHOW_TELL_EVENTS_PER_PAGE).max(1)
+}
+
+fn clamped_page(requested: Option<usize>, total: usize) -> usize {
+    requested.unwrap_or(1).clamp(1, total_pages(total))
+}
+
+fn event_page_slice<'a>(events: &[&'a Event], page: usize) -> Vec<&'a Event> {
+    let start = (page - 1) * SHOW_TELL_EVENTS_PER_PAGE;
+    events
+        .iter()
+        .skip(start)
+        .take(SHOW_TELL_EVENTS_PER_PAGE)
+        .copied()
+        .collect()
+}
+
+fn show_tell_page_href(upcoming_page: usize, past_page: usize) -> String {
+    format!("{NEBULA_BASE}/show-and-tell?upcoming_page={upcoming_page}&past_page={past_page}")
+}
+
+fn event_pager<'a>(
+    current_page: usize,
+    total: usize,
+    previous_href: Option<&'a str>,
+    next_href: Option<&'a str>,
+) -> workshop_views::EventPager<'a> {
+    workshop_views::EventPager {
+        previous_href,
+        next_href,
+        current_page,
+        total_pages: total_pages(total),
+    }
+}
+
+async fn nebula_show_tell_index(
+    State(events): State<EventIndex>,
+    MaybeAuth(auth): MaybeAuth,
+    Query(pagination): Query<ShowTellPagination>,
+) -> Markup {
+    let today = chrono::Local::now().date_naive();
+    render_nebula_show_tell_index(&events, auth, today, pagination)
+}
+
+fn render_nebula_show_tell_index(
+    events: &EventIndex,
+    auth: views::AuthState,
+    today: chrono::NaiveDate,
+    pagination: ShowTellPagination,
+) -> Markup {
+    let upcoming = events.upcoming(today);
+    let past = events.past(today);
+    let upcoming_page = clamped_page(pagination.upcoming_page, upcoming.len());
+    let past_page = clamped_page(pagination.past_page, past.len());
+    let upcoming_page_events = event_page_slice(&upcoming, upcoming_page);
+    let past_page_events = event_page_slice(&past, past_page);
+    let upcoming_meta: Vec<_> = upcoming_page_events
+        .iter()
+        .map(|event| event_card_meta(event))
+        .collect();
+    let past_meta: Vec<_> = past_page_events
+        .iter()
+        .map(|event| event_card_meta(event))
+        .collect();
+    let upcoming_items: Vec<_> = upcoming_page_events
+        .iter()
+        .zip(&upcoming_meta)
+        .map(|(event, meta)| workshop_views::EventListItem {
+            detail_href: &meta.detail_href,
+            calendar_href: &meta.calendar_href,
+            title: &event.title,
+            time: &meta.time,
+            place: &meta.place,
+            description: &event.description,
+            invite_link: &event.external_event_url,
+            image_url: event.image_url.as_deref(),
+            image_alt: &meta.image_alt,
+        })
+        .collect();
+    let past_items: Vec<_> = past_page_events
+        .iter()
+        .zip(&past_meta)
+        .map(|(event, meta)| workshop_views::EventListItem {
+            detail_href: &meta.detail_href,
+            calendar_href: &meta.calendar_href,
+            title: &event.title,
+            time: &meta.time,
+            place: &meta.place,
+            description: &event.description,
+            invite_link: &event.external_event_url,
+            image_url: event.image_url.as_deref(),
+            image_alt: &meta.image_alt,
+        })
+        .collect();
+    let upcoming_prev =
+        (upcoming_page > 1).then(|| show_tell_page_href(upcoming_page - 1, past_page));
+    let upcoming_next = (upcoming_page < total_pages(upcoming.len()))
+        .then(|| show_tell_page_href(upcoming_page + 1, past_page));
+    let past_prev = (past_page > 1).then(|| show_tell_page_href(upcoming_page, past_page - 1));
+    let past_next = (past_page < total_pages(past.len()))
+        .then(|| show_tell_page_href(upcoming_page, past_page + 1));
+    let page = workshop_views::ShowTellIndex {
+        upcoming: &upcoming_items,
+        past: &past_items,
+        upcoming_pager: event_pager(
+            upcoming_page,
+            upcoming.len(),
+            upcoming_prev.as_deref(),
+            upcoming_next.as_deref(),
+        ),
+        past_pager: event_pager(
+            past_page,
+            past.len(),
+            past_prev.as_deref(),
+            past_next.as_deref(),
+        ),
+    };
+    workshop_views::show_tell_index(&page, auth)
 }
 
 async fn legacy_event_redirect(
@@ -2312,7 +2482,7 @@ async fn nebula_material(
 fn nebula_show_tell(events: &EventIndex, auth: views::AuthState, slug: &str) -> impl IntoResponse {
     match events.get_public(slug) {
         Some(event) => {
-            let time = format_event_datetime_range(event.starts_at, event.ends_at);
+            let time = format_event_datetime_range(event.starts_at, event.ends_at, &event.timezone);
             let place = format!("{}, {}", event.location_name, event.location_address);
             let ics_url = format!(
                 "{NEBULA_BASE}/show-and-tell/{}/calendar.ics",

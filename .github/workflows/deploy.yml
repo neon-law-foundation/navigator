@@ -619,6 +619,117 @@ jobs:
           generate_release_notes: true
           files: dist/*
 
+  # ---------- Stage 2c: cross-pollinate the Homebrew tap ----------
+  # After the macOS binaries are attached to the GitHub Release, refresh the two
+  # formulae in the public `neon-law-foundation/homebrew-tap` repo so
+  # `brew install neon-law-foundation/tap/navigator` (and `navigator-lsp`) always
+  # resolve to the current release build. The formula `url` points at the public
+  # Navigator Release asset; the `sha256` is computed here from the very artifact
+  # the Release carries (downloaded from this run, not re-fetched). This is the
+  # daily auto-publish — there is no manual tap release.
+  #
+  # Pushed with GHCR_CLEANUP_PAT — a gitops PAT (Doppler `navigator-gitops`, synced
+  # to repo secrets) in the same automation family as the ghcr retention sweep;
+  # it must have `contents:write` selected on the homebrew-tap repo. arm64-only,
+  # matching the single Apple-Silicon macOS binary `release-binaries-build` makes.
+  homebrew-tap:
+    name: cross-pollinate Homebrew tap
+    needs: [release-binaries-publish, release-version]
+    if: github.repository == 'neon-law-foundation/Navigator' && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: download macOS release binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: release-binaries-macos
+          path: dist
+      - name: checkout homebrew tap
+        uses: actions/checkout@v7
+        with:
+          repository: neon-law-foundation/homebrew-tap
+          token: ${{ secrets.GHCR_CLEANUP_PAT }}
+          path: homebrew-tap
+      - name: render formulae with new version + checksums
+        env:
+          TAG: ${{ needs.release-version.outputs.tag }}
+          REPO: ${{ github.repository }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          base="${SERVER}/${REPO}/releases/download/${TAG}"
+          cli_tar="navigator-${TAG}-macos.tar.gz"
+          lsp_tar="navigator-lsp-${TAG}-macos.tar.gz"
+          cli_sha="$(sha256sum "dist/${cli_tar}" | cut -d' ' -f1)"
+          lsp_sha="$(sha256sum "dist/${lsp_tar}" | cut -d' ' -f1)"
+          mkdir -p homebrew-tap/Formula
+
+          cat > homebrew-tap/Formula/navigator.rb <<EOF
+          class Navigator < Formula
+            desc "Neon Law Navigator CLI for reliable legal workflows"
+            homepage "https://github.com/neon-law-foundation/Navigator"
+            url "${base}/${cli_tar}"
+            version "${TAG}"
+            sha256 "${cli_sha}"
+            license any_of: ["Apache-2.0", "MIT"]
+
+            # Built only for Apple Silicon macOS (see deploy.yml release-binaries-build).
+            depends_on arch: :arm64
+            depends_on :macos
+
+            def install
+              bin.install "navigator"
+            end
+
+            test do
+              system bin/"navigator", "--version"
+            end
+          end
+          EOF
+
+          cat > homebrew-tap/Formula/navigator-lsp.rb <<EOF
+          class NavigatorLsp < Formula
+            desc "Neon Law Navigator LSP server for notation templates"
+            homepage "https://github.com/neon-law-foundation/Navigator"
+            url "${base}/${lsp_tar}"
+            version "${TAG}"
+            sha256 "${lsp_sha}"
+            license any_of: ["Apache-2.0", "MIT"]
+
+            # Built only for Apple Silicon macOS (see deploy.yml release-binaries-build).
+            depends_on arch: :arm64
+            depends_on :macos
+
+            def install
+              bin.install "navigator-lsp"
+            end
+
+            test do
+              # navigator-lsp speaks LSP over stdio; empty stdin reaches EOF and it
+              # exits cleanly with no output.
+              assert_empty pipe_output("#{bin}/navigator-lsp", "")
+            end
+          end
+          EOF
+      - name: commit and push if changed
+        working-directory: homebrew-tap
+        env:
+          TAG: ${{ needs.release-version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/navigator.rb Formula/navigator-lsp.rb
+          if git diff --cached --quiet; then
+              echo "Homebrew tap already current for ${TAG}"
+              exit 0
+          fi
+          git commit -m "navigator ${TAG}: bump formula urls + checksums"
+          git push
+
   # ---------- Stage 3: post the "ready to deploy" hand-off to Slack ----------
   # Sent only after images and downloadable binaries are published. Posts to the
   # engineering channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL,
@@ -684,7 +795,7 @@ jobs:
   # content.
   notify-failure:
     name: slack — alert engineering on failure
-    needs: [release-version, build, integration, publish, release-binaries-build, release-binaries-publish, notify]
+    needs: [release-version, build, integration, publish, release-binaries-build, release-binaries-publish, homebrew-tap, notify]
     # Tag/manual only: a failed `kind-ci/**` branch iteration is expected churn
     # and must not page engineering — only a failed publishable deploy does.
     if: failure() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
