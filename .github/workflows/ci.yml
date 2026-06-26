@@ -145,38 +145,3 @@ jobs:
         continue-on-error: true
         run: |
           "${SCCACHE_PATH:-sccache}" --show-stats
-
-  enable-automerge:
-    name: enable PR auto-merge
-    needs: rust
-    # Request auto-merge exactly ONCE per PR — only when it is opened or a draft
-    # is marked ready for review, NOT on `synchronize`. Re-running on every push
-    # would re-enable auto-merge after a human deliberately disabled it to hold
-    # the PR. `gh pr merge --auto` only *requests* the merge; GitHub still holds
-    # the PR until the required checks above (the `rust` job) pass, so gating the
-    # request to the open event loses nothing — the tests still gate the merge.
-    if: >
-      (github.event.action == 'opened' || github.event.action == 'ready_for_review') &&
-      github.event.pull_request.draft == false &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: enable auto-merge for current PR
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-        run: |
-          auto_merge_enabled="$(
-              gh pr view "${PR_URL}" \
-                  --json autoMergeRequest \
-                  --jq '.autoMergeRequest != null'
-          )"
-          if [ "${auto_merge_enabled}" = "true" ]; then
-              echo "Auto-merge is already enabled for ${PR_URL}."
-              exit 0
-          fi
-
-          gh pr merge --auto --squash "${PR_URL}"
