@@ -16,13 +16,13 @@ mod glossary;
 mod import;
 mod intake;
 mod list;
-mod live_transcription;
 mod login;
 mod lsp_publish;
 mod palette;
 mod project;
 mod remote;
 mod scaffold;
+mod transcribe;
 
 use devx::brand::BrandCmd;
 use devx::{DnsCmd, GcpCmd, RestateCmd};
@@ -300,10 +300,46 @@ enum Command {
         #[arg(long)]
         jurisdiction: String,
     },
-    /// Local live-transcript experiments for Inquiry Coverage.
-    LiveTranscription {
-        #[command(subcommand)]
-        action: LiveTranscriptionAction,
+    /// Transcribe a recording (or replay a transcript) into Inquiry
+    /// Coverage JSON for a notation template questionnaire.
+    ///
+    /// This is the offline/upload path; real-time streaming ("live")
+    /// transcription is a separate `web` feature, not a CLI command.
+    Transcribe {
+        /// Template markdown file whose `questionnaire:` becomes the
+        /// Inquiry Set. Required — pass `--template` or set
+        /// `NAVIGATOR_NOTATION_TEMPLATE`.
+        #[arg(long, env = "NAVIGATOR_NOTATION_TEMPLATE")]
+        template: PathBuf,
+        /// Plain-text transcript to replay without calling speech-to-text.
+        #[arg(long, conflicts_with = "audio")]
+        transcript: Option<PathBuf>,
+        /// Audio file to transcribe. By default this uses the `fake`
+        /// backend (no cloud call); pass `--speech-backend google` to
+        /// transcribe with real Google Speech-to-Text. Any common format
+        /// works (m4a/AAC, mp3, flac, wav, ogg) — it is decoded locally.
+        #[arg(long, conflicts_with = "transcript")]
+        audio: Option<PathBuf>,
+        /// Speech backend for `--audio`: `fake` (default, deterministic,
+        /// no cloud call) or `google` (real Speech-to-Text — needs a
+        /// project and credentials). Real cloud is opt-in.
+        #[arg(long, env = "NAVIGATOR_SPEECH_BACKEND", default_value = "fake")]
+        speech_backend: String,
+        /// Google Cloud project for Speech-to-Text.
+        #[arg(long, env = "GOOGLE_CLOUD_PROJECT")]
+        google_project: Option<String>,
+        /// Google Speech-to-Text v2 location.
+        #[arg(long, default_value = "global")]
+        google_location: String,
+        /// BCP-47 language code for the audio.
+        #[arg(long, default_value = "en-US")]
+        google_language: String,
+        /// Google Speech-to-Text recognition model.
+        #[arg(long, default_value = "latest_long")]
+        google_model: String,
+        /// Pretty-print the JSON output.
+        #[arg(long)]
+        pretty: bool,
     },
 
     // ── Local-development + deploy orchestration ──────────────────────
@@ -987,48 +1023,6 @@ enum ListSubject {
     Letters,
 }
 
-#[derive(Subcommand)]
-enum LiveTranscriptionAction {
-    /// Transcribe an audio file or replay a transcript file, then emit
-    /// Inquiry Coverage JSON for a notation template questionnaire.
-    #[command(alias = "cover")]
-    Demo {
-        /// Template markdown file whose `questionnaire:` becomes the
-        /// Inquiry Set. Required — pass `--template` or set
-        /// `NAVIGATOR_NOTATION_TEMPLATE`.
-        #[arg(long, env = "NAVIGATOR_NOTATION_TEMPLATE")]
-        template: PathBuf,
-        /// Plain-text transcript to replay without calling speech-to-text.
-        #[arg(long, conflicts_with = "audio")]
-        transcript: Option<PathBuf>,
-        /// Audio file to transcribe. By default this uses the `fake`
-        /// backend (no cloud call); pass `--speech-backend google` to
-        /// transcribe with real Google Speech-to-Text.
-        #[arg(long, conflicts_with = "transcript")]
-        audio: Option<PathBuf>,
-        /// Speech backend for `--audio`: `fake` (default, deterministic,
-        /// no cloud call) or `google` (real Speech-to-Text — needs a
-        /// project and credentials). Real cloud is opt-in.
-        #[arg(long, env = "NAVIGATOR_SPEECH_BACKEND", default_value = "fake")]
-        speech_backend: String,
-        /// Google Cloud project for Speech-to-Text.
-        #[arg(long, env = "GOOGLE_CLOUD_PROJECT")]
-        google_project: Option<String>,
-        /// Google Speech-to-Text v2 location.
-        #[arg(long, default_value = "global")]
-        google_location: String,
-        /// BCP-47 language code for the audio.
-        #[arg(long, default_value = "en-US")]
-        google_language: String,
-        /// Google Speech-to-Text recognition model.
-        #[arg(long, default_value = "latest_long")]
-        google_model: String,
-        /// Pretty-print the JSON output.
-        #[arg(long)]
-        pretty: bool,
-    },
-}
-
 #[allow(clippy::too_many_lines)] // one flat dispatch match; splitting it hurts readability
 fn main() -> ExitCode {
     // `.env` is picked up before `clap` reads its `env = "..."`
@@ -1113,7 +1107,27 @@ fn main() -> ExitCode {
             &category,
             &jurisdiction,
         ),
-        Command::LiveTranscription { action } => runtime().block_on(run_live_transcription(action)),
+        Command::Transcribe {
+            template,
+            transcript,
+            audio,
+            speech_backend,
+            google_project,
+            google_location,
+            google_language,
+            google_model,
+            pretty,
+        } => runtime().block_on(run_transcribe(transcribe::CoverArgs {
+            template,
+            transcript,
+            audio,
+            speech_backend,
+            google_project,
+            google_location,
+            google_language,
+            google_model,
+            pretty,
+        })),
         // Local-development + deploy orchestration (collapsed in from the
         // former `devx` binary). The whole group routes through one handler.
         c @ (Command::StartDevServer
@@ -1161,37 +1175,11 @@ fn devx_result(result: anyhow::Result<()>) -> ExitCode {
     }
 }
 
-async fn run_live_transcription(action: LiveTranscriptionAction) -> ExitCode {
-    let result = match action {
-        LiveTranscriptionAction::Demo {
-            template,
-            transcript,
-            audio,
-            speech_backend,
-            google_project,
-            google_location,
-            google_language,
-            google_model,
-            pretty,
-        } => {
-            live_transcription::cover(live_transcription::CoverArgs {
-                template,
-                transcript,
-                audio,
-                speech_backend,
-                google_project,
-                google_location,
-                google_language,
-                google_model,
-                pretty,
-            })
-            .await
-        }
-    };
-    match result {
+async fn run_transcribe(args: transcribe::CoverArgs) -> ExitCode {
+    match transcribe::cover(args).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("navigator: live-transcription: {e:?}");
+            eprintln!("navigator: transcribe: {e:?}");
             ExitCode::from(2)
         }
     }

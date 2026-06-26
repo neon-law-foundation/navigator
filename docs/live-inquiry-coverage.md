@@ -122,7 +122,7 @@ Notation workflow remains the authority for document generation, staff review, c
 The first executable slice is deliberately local and staff/developer-facing:
 
 ```bash
-cargo run -p cli -- live-transcription demo \
+cargo run -p cli -- transcribe \
   --template notation_templates/engagements/estate.md \
   --transcript /tmp/northstar-sitting.txt \
   --pretty
@@ -141,7 +141,7 @@ public Brooklyn Bridge sample:
 ```bash
 doppler run --project navigator --config dev -- \
   env NAVIGATOR_RUN_LIVE_SPEECH_E2E=1 \
-  cargo test -p cli --test live_transcription_google_e2e -- --nocapture
+  cargo test -p cli --test transcribe_google_e2e -- --nocapture
 ```
 
 If that opted-in run returns Google `SERVICE_DISABLED`, enable Cloud Speech-to-Text API on the Doppler-provided
