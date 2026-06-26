@@ -1,13 +1,43 @@
+# Fully automatic merge of green PRs into `main` — no label, no manual
+# `@Mergifyio queue`. Mergify's declarative auto-merge does the work: any
+# non-draft PR that satisfies the `merge_protections` success_conditions below
+# is auto-queued, rebased onto `main`, retested in the queue, and squash-merged.
+# (The older path — a CI-applied `automerge` label feeding a `pull_request_rules`
+# `queue` action — did not auto-enqueue: Mergify left PRs at "Merge queue is
+# ready, use @Mergifyio queue" without ever queueing them. `auto_merge_conditions`
+# removes that manual step entirely.)
+
 queue_rules:
   - name: default
-    queue_conditions:
-      - base = main
-      - -draft
     merge_method: squash
     # main enforces required_linear_history, so the queue must rebase a stale PR
     # onto main (a merge-commit update would be rejected) to clear the strict
     # "branches up to date" check before the squash merge.
     update_method: rebase
+
+merge_protections_settings:
+  # Auto-merge every NON-DRAFT PR that satisfies the merge protections below.
+  # This is the trigger: with at least one merge_protections rule defined, each
+  # PR matching these conditions whose success_conditions pass is queued and
+  # merged with no human action. `-draft` restricts the audience to ready PRs
+  # (GitHub refuses to merge a draft anyway — this keeps Mergify from queuing
+  # one and is the explicit guard the prior `queue_conditions` carried). `base =
+  # main` keeps the scope to main-targeting PRs — the other half of what the
+  # prior `queue_conditions` carried — so a PR against any other base is never
+  # auto-merged here.
+  auto_merge_conditions:
+    - base = main
+    - -draft
+
+merge_protections:
+  - name: main-required-gates
+    if:
+      - base = main
+    success_conditions:
+      # Both gates must hold before a PR auto-merges: the full Rust test gate is
+      # green, and every review thread (Greptile, CodeRabbit, human) is resolved.
+      - "#review-threads-unresolved = 0"
+      - "check-success = @github-actions/cargo test (workspace)"
 
 pull_request_rules:
   - name: rebase main PRs when the base branch moves
@@ -17,29 +47,3 @@ pull_request_rules:
       - "#commits-behind > 0"
     actions:
       rebase:
-
-  # CI adds the `automerge` label as its final step once the whole gate is green
-  # (see .github/workflows/ci.yml). That label is the queue trigger, so a PR
-  # enters the queue automatically the moment CI passes — no manual
-  # `@Mergifyio queue`. `check-success` is kept as a belt-and-suspenders guard:
-  # even if the label is applied by hand before CI is green, Mergify still holds
-  # the PR out of the queue until the test job succeeds, and drops it back out
-  # the instant a new push turns that check non-green.
-  - name: queue main PRs once CI labels them ready
-    conditions:
-      - base = main
-      - -draft
-      - "label = automerge"
-      - "#review-threads-unresolved = 0"
-      - "check-success = @github-actions/cargo test (workspace)"
-    actions:
-      queue:
-        name: default
-
-merge_protections:
-  - name: main-required-gates
-    if:
-      - base = main
-    success_conditions:
-      - "#review-threads-unresolved = 0"
-      - "check-success = @github-actions/cargo test (workspace)"
