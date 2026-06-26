@@ -32,6 +32,8 @@ pub struct Event {
     pub location_address: String,
     pub external_event_provider: String,
     pub external_event_url: String,
+    pub image_url: Option<String>,
+    pub image_alt: Option<String>,
     pub video_url: Option<String>,
     pub recap_url: Option<String>,
 }
@@ -68,6 +70,29 @@ impl EventIndex {
     pub fn get_public(&self, slug: &str) -> Option<&Event> {
         self.events.iter().find(|event| event.public_slug == slug)
     }
+
+    #[must_use]
+    pub fn upcoming(&self, today: NaiveDate) -> Vec<&Event> {
+        self.events
+            .iter()
+            .filter(|event| event.date >= today)
+            .collect()
+    }
+
+    #[must_use]
+    pub fn past(&self, today: NaiveDate) -> Vec<&Event> {
+        let mut events: Vec<_> = self
+            .events
+            .iter()
+            .filter(|event| event.date < today)
+            .collect();
+        events.sort_by(|a, b| {
+            b.starts_at
+                .cmp(&a.starts_at)
+                .then_with(|| a.slug.cmp(&b.slug))
+        });
+        events
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -89,8 +114,16 @@ struct EventFrontmatter {
     timezone: String,
     location_name: String,
     location_address: String,
+    #[serde(default)]
+    invite_link: Option<String>,
+    #[serde(default)]
     external_event_provider: String,
+    #[serde(default)]
     external_event_url: String,
+    #[serde(default)]
+    image_url: Option<String>,
+    #[serde(default)]
+    image_alt: Option<String>,
     #[serde(default)]
     video_url: Option<String>,
     #[serde(default)]
@@ -185,23 +218,29 @@ fn parse_event(
             message: "timezone is required".to_string(),
         });
     }
-    // Events are currently Pacific-only because the first programming is
-    // Seattle-based. When events expand to other regions, this guard and
-    // the matching VTIMEZONE emitter should become a small timezone registry.
-    if fields.timezone != "America/Los_Angeles" {
+    if !is_supported_timezone(&fields.timezone) {
         return Err(EventLoadError::Invalid {
             path: path.to_string(),
-            message: "events must use America/Los_Angeles for Pacific time".to_string(),
+            message: format!("unsupported timezone `{}`", fields.timezone),
         });
     }
     require_non_empty(&fields.location_name, path, "location_name")?;
     require_non_empty(&fields.location_address, path, "location_address")?;
-    require_non_empty(
-        &fields.external_event_provider,
-        path,
-        "external_event_provider",
-    )?;
-    require_non_empty(&fields.external_event_url, path, "external_event_url")?;
+    let invite_link = fields
+        .invite_link
+        .as_deref()
+        .map(str::trim)
+        .filter(|url| !url.is_empty())
+        .map_or_else(
+            || fields.external_event_url.trim().to_string(),
+            ToOwned::to_owned,
+        );
+    require_non_empty(&invite_link, path, "invite_link")?;
+    let external_event_provider = if fields.external_event_provider.trim().is_empty() {
+        "luma".to_string()
+    } else {
+        fields.external_event_provider
+    };
     let public_slug = fields
         .public_slug
         .as_deref()
@@ -230,8 +269,10 @@ fn parse_event(
         timezone: fields.timezone,
         location_name: fields.location_name,
         location_address: fields.location_address,
-        external_event_provider: fields.external_event_provider,
-        external_event_url: fields.external_event_url,
+        external_event_provider,
+        external_event_url: invite_link,
+        image_url: fields.image_url.filter(|url| !url.trim().is_empty()),
+        image_alt: fields.image_alt.filter(|alt| !alt.trim().is_empty()),
         video_url: fields.video_url.filter(|url| !url.trim().is_empty()),
         recap_url: fields.recap_url.filter(|url| !url.trim().is_empty()),
     })
@@ -330,8 +371,75 @@ fn vtimezone_lines(timezone: &str) -> Vec<String> {
             "END:STANDARD".to_string(),
             "END:VTIMEZONE".to_string(),
         ],
+        "America/Denver" => vec![
+            "BEGIN:VTIMEZONE".to_string(),
+            "TZID:America/Denver".to_string(),
+            "X-LIC-LOCATION:America/Denver".to_string(),
+            "BEGIN:DAYLIGHT".to_string(),
+            "TZOFFSETFROM:-0700".to_string(),
+            "TZOFFSETTO:-0600".to_string(),
+            "TZNAME:MDT".to_string(),
+            "DTSTART:19700308T020000".to_string(),
+            "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU".to_string(),
+            "END:DAYLIGHT".to_string(),
+            "BEGIN:STANDARD".to_string(),
+            "TZOFFSETFROM:-0600".to_string(),
+            "TZOFFSETTO:-0700".to_string(),
+            "TZNAME:MST".to_string(),
+            "DTSTART:19701101T020000".to_string(),
+            "RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU".to_string(),
+            "END:STANDARD".to_string(),
+            "END:VTIMEZONE".to_string(),
+        ],
+        "America/Chicago" => vec![
+            "BEGIN:VTIMEZONE".to_string(),
+            "TZID:America/Chicago".to_string(),
+            "X-LIC-LOCATION:America/Chicago".to_string(),
+            "BEGIN:DAYLIGHT".to_string(),
+            "TZOFFSETFROM:-0600".to_string(),
+            "TZOFFSETTO:-0500".to_string(),
+            "TZNAME:CDT".to_string(),
+            "DTSTART:19700308T020000".to_string(),
+            "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU".to_string(),
+            "END:DAYLIGHT".to_string(),
+            "BEGIN:STANDARD".to_string(),
+            "TZOFFSETFROM:-0500".to_string(),
+            "TZOFFSETTO:-0600".to_string(),
+            "TZNAME:CST".to_string(),
+            "DTSTART:19701101T020000".to_string(),
+            "RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU".to_string(),
+            "END:STANDARD".to_string(),
+            "END:VTIMEZONE".to_string(),
+        ],
+        "America/New_York" => vec![
+            "BEGIN:VTIMEZONE".to_string(),
+            "TZID:America/New_York".to_string(),
+            "X-LIC-LOCATION:America/New_York".to_string(),
+            "BEGIN:DAYLIGHT".to_string(),
+            "TZOFFSETFROM:-0500".to_string(),
+            "TZOFFSETTO:-0400".to_string(),
+            "TZNAME:EDT".to_string(),
+            "DTSTART:19700308T020000".to_string(),
+            "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU".to_string(),
+            "END:DAYLIGHT".to_string(),
+            "BEGIN:STANDARD".to_string(),
+            "TZOFFSETFROM:-0400".to_string(),
+            "TZOFFSETTO:-0500".to_string(),
+            "TZNAME:EST".to_string(),
+            "DTSTART:19701101T020000".to_string(),
+            "RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU".to_string(),
+            "END:STANDARD".to_string(),
+            "END:VTIMEZONE".to_string(),
+        ],
         _ => Vec::new(),
     }
+}
+
+fn is_supported_timezone(timezone: &str) -> bool {
+    matches!(
+        timezone,
+        "America/Los_Angeles" | "America/Denver" | "America/Chicago" | "America/New_York"
+    )
 }
 
 fn ics_escape(value: &str) -> String {
@@ -372,7 +480,7 @@ fn require_non_empty(value: &str, path: &str, field: &str) -> Result<(), EventLo
 
 #[cfg(test)]
 mod tests {
-    use super::{load_dir, parse_event_filename};
+    use super::{load_dir, parse_event_filename, Event, EventIndex};
     use chrono::{Datelike, NaiveDate, TimeZone, Timelike, Utc, Weekday};
     use std::fs;
     use tempfile::TempDir;
@@ -395,6 +503,10 @@ mod tests {
         assert_eq!(event.timezone, "America/Los_Angeles");
         assert_eq!(event.external_event_provider, "luma");
         assert_eq!(event.external_event_url, "https://luma.com/k26256ut");
+        assert_eq!(
+            event.image_url.as_deref(),
+            Some("/public/events/nebula-show-and-tell/nlf-lawyers-seattle.png")
+        );
         assert!(event
             .body_html
             .contains("agentic workflows mean for lawyers"));
@@ -469,7 +581,7 @@ timezone: America/Los_Angeles\n\
 location_name: Room\n\
 location_address: Seattle\n\
 external_event_provider: luma\n\
-external_event_url: https://luma.com/k26256ut\n\
+invite_link: https://luma.com/k26256ut\n\
 ---\n\nBody.\n",
         )
         .unwrap();
@@ -494,7 +606,7 @@ timezone: America/Los_Angeles\n\
 location_name: \"\"\n\
 location_address: Seattle\n\
 external_event_provider: luma\n\
-external_event_url: https://luma.com/k26256ut\n\
+invite_link: https://luma.com/k26256ut\n\
 ---\n\nBody.\n",
         )
         .unwrap();
@@ -518,8 +630,7 @@ ends_at: \"2026-07-02T15:00:00\"\n\
 timezone: America/Los_Angeles\n\
 location_name: Room\n\
 location_address: Seattle\n\
-external_event_provider: luma\n\
-external_event_url: https://luma.com/k26256ut\n\
+invite_link: https://luma.com/k26256ut\n\
 ---\n\nBody.\n",
         )
         .unwrap();
@@ -530,7 +641,7 @@ external_event_url: https://luma.com/k26256ut\n\
     }
 
     #[test]
-    fn load_dir_rejects_non_pacific_timezone() {
+    fn load_dir_rejects_unsupported_timezone() {
         let dir = TempDir::new().unwrap();
         fs::write(
             dir.path().join("20260702_bad.md"),
@@ -542,15 +653,14 @@ ends_at: \"2026-07-02T15:00:00\"\n\
 timezone: UTC\n\
 location_name: Room\n\
 location_address: Seattle\n\
-external_event_provider: luma\n\
-external_event_url: https://luma.com/k26256ut\n\
+invite_link: https://luma.com/k26256ut\n\
 ---\n\nBody.\n",
         )
         .unwrap();
         let err = load_dir(dir.path()).unwrap_err().to_string();
         assert!(
-            err.contains("America/Los_Angeles"),
-            "expected Pacific timezone error, got: {err}"
+            err.contains("unsupported timezone"),
+            "expected unsupported timezone error, got: {err}"
         );
     }
 
@@ -559,5 +669,64 @@ external_event_url: https://luma.com/k26256ut\n\
         let (date, slug) = parse_event_filename("20260702_seattle_agentic").unwrap();
         assert_eq!(date, NaiveDate::from_ymd_opt(2026, 7, 2).unwrap());
         assert_eq!(slug, "seattle-agentic");
+    }
+
+    #[test]
+    fn event_index_splits_upcoming_and_past_from_today() {
+        let ix = EventIndex::new(vec![
+            Event {
+                slug: "past".into(),
+                public_slug: "past".into(),
+                date: NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+                title: "Past".into(),
+                description: String::new(),
+                body_html: String::new(),
+                starts_at: NaiveDate::from_ymd_opt(2026, 7, 1)
+                    .unwrap()
+                    .and_hms_opt(18, 0, 0)
+                    .unwrap(),
+                ends_at: NaiveDate::from_ymd_opt(2026, 7, 1)
+                    .unwrap()
+                    .and_hms_opt(20, 0, 0)
+                    .unwrap(),
+                timezone: "America/Los_Angeles".into(),
+                location_name: String::new(),
+                location_address: String::new(),
+                external_event_provider: "luma".into(),
+                external_event_url: "https://luma.com/past".into(),
+                image_url: None,
+                image_alt: None,
+                video_url: None,
+                recap_url: None,
+            },
+            Event {
+                slug: "today".into(),
+                public_slug: "today".into(),
+                date: NaiveDate::from_ymd_opt(2026, 7, 2).unwrap(),
+                title: "Today".into(),
+                description: String::new(),
+                body_html: String::new(),
+                starts_at: NaiveDate::from_ymd_opt(2026, 7, 2)
+                    .unwrap()
+                    .and_hms_opt(18, 0, 0)
+                    .unwrap(),
+                ends_at: NaiveDate::from_ymd_opt(2026, 7, 2)
+                    .unwrap()
+                    .and_hms_opt(20, 0, 0)
+                    .unwrap(),
+                timezone: "America/Los_Angeles".into(),
+                location_name: String::new(),
+                location_address: String::new(),
+                external_event_provider: "luma".into(),
+                external_event_url: "https://luma.com/today".into(),
+                image_url: None,
+                image_alt: None,
+                video_url: None,
+                recap_url: None,
+            },
+        ]);
+        let today = NaiveDate::from_ymd_opt(2026, 7, 2).unwrap();
+        assert_eq!(ix.upcoming(today)[0].slug, "today");
+        assert_eq!(ix.past(today)[0].slug, "past");
     }
 }

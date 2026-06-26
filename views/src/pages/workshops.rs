@@ -52,6 +52,33 @@ pub struct EventCard<'a> {
     pub description: &'a str,
 }
 
+/// One show-and-tell on the paginated event index.
+pub struct EventListItem<'a> {
+    pub detail_href: &'a str,
+    pub calendar_href: &'a str,
+    pub title: &'a str,
+    pub time: &'a str,
+    pub place: &'a str,
+    pub description: &'a str,
+    pub invite_link: &'a str,
+    pub image_url: Option<&'a str>,
+    pub image_alt: &'a str,
+}
+
+pub struct EventPager<'a> {
+    pub previous_href: Option<&'a str>,
+    pub next_href: Option<&'a str>,
+    pub current_page: usize,
+    pub total_pages: usize,
+}
+
+pub struct ShowTellIndex<'a> {
+    pub upcoming: &'a [EventListItem<'a>],
+    pub past: &'a [EventListItem<'a>],
+    pub upcoming_pager: EventPager<'a>,
+    pub past_pager: EventPager<'a>,
+}
+
 /// A Nebula show-and-tell detail page.
 pub struct ShowTellDetail<'a> {
     pub title: &'a str,
@@ -246,6 +273,9 @@ pub fn landing_in(
                                 }
                             }
                         }
+                        p {
+                            a href="/foundation/nebula/show-and-tell" { "View all show-and-tells" }
+                        }
                     }
                     p.workshops-more."fst-italic"."text-body-secondary" { (more) }
                 }
@@ -279,15 +309,136 @@ fn material_card(c: &MaterialCard<'_>) -> Markup {
 }
 
 #[must_use]
+pub fn show_tell_index(index: &ShowTellIndex<'_>, auth: AuthState) -> Markup {
+    let body = html! {
+        section.show-tell-index {
+            header.nebula-hero."position-relative"."overflow-hidden"."mb-5" {
+                div.nebula-hero-media aria-hidden="true" {
+                    (assets::picture("lantana", "100vw", Priority::Eager))
+                }
+                div.nebula-hero-copy."position-relative"."py-5"."px-4"."px-lg-5" {
+                    p."text-uppercase"."small"."fw-semibold"."mb-2" { "Neon Law Foundation" }
+                    h1 { "Show-and-tell events" }
+                    p.lede."mb-0" {
+                        "Practical Nebula gatherings for lawyers and legal professionals building with AI, workflows, \
+                         and Neon Law Navigator."
+                    }
+                }
+            }
+
+            div."d-flex"."align-items-end"."justify-content-between"."gap-3"."flex-wrap"."mb-3" {
+                div {
+                    h2."mb-1" { "Upcoming" }
+                    p."text-body-secondary"."mb-0" { "Today forward, nearest first." }
+                }
+            }
+            @if index.upcoming.is_empty() {
+                p.empty { "No upcoming show-and-tells are scheduled yet." }
+            } @else {
+                div.show-tell-grid."mb-4" {
+                    @for event in index.upcoming {
+                        (event_list_card(event))
+                    }
+                }
+                (event_pagination(&index.upcoming_pager))
+            }
+
+            div."d-flex"."align-items-end"."justify-content-between"."gap-3"."flex-wrap"."mt-5"."mb-3" {
+                div {
+                    h2."mb-1" { "Past" }
+                    p."text-body-secondary"."mb-0" { "Earlier gatherings, newest first." }
+                }
+            }
+            @if index.past.is_empty() {
+                p.empty { "No past show-and-tells yet." }
+            } @else {
+                div.show-tell-grid."mb-4" {
+                    @for event in index.past {
+                        (event_list_card(event))
+                    }
+                }
+                (event_pagination(&index.past_pager))
+            }
+        }
+    };
+    let layout = PageLayout::new("Nebula show-and-tell events")
+        .with_description(
+            "Upcoming and past Nebula show-and-tell events from the Neon Law Foundation.",
+        )
+        .with_brand(*FOUNDATION_BRAND)
+        .with_auth(auth)
+        .with_canonical_path("/foundation/nebula/show-and-tell");
+    match assets::preload_href("lantana") {
+        Some(href) => layout.with_preload_image(&href).render(&body),
+        None => layout.render(&body),
+    }
+}
+
+fn event_list_card(event: &EventListItem<'_>) -> Markup {
+    html! {
+        article.show-tell-card {
+            @if let Some(image_url) = event.image_url {
+                a.show-tell-card-media href=(event.detail_href) {
+                    img src=(image_url) alt=(event.image_alt) loading="lazy" decoding="async";
+                }
+            }
+            div.show-tell-card-body {
+                p.workshop-audience."text-uppercase"."small"."fw-semibold"."text-body-secondary"."mb-1" {
+                    (event.time) " · " (event.place)
+                }
+                h3 { a href=(event.detail_href) { (event.title) } }
+                p { (event.description) }
+                div."d-flex"."flex-wrap"."gap-2" {
+                    a.btn.btn-primary.btn-sm href=(event.invite_link) {
+                        (luma_logo())
+                        span { "RSVP on Luma" }
+                    }
+                    a.btn.btn-outline-secondary.btn-sm href=(event.calendar_href) {
+                        i."bi"."bi-calendar-plus" aria-hidden="true" {}
+                        span."ms-1" { "Calendar" }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn event_pagination(pager: &EventPager<'_>) -> Markup {
+    if pager.total_pages <= 1 {
+        return html! {};
+    }
+    html! {
+        nav."d-flex"."align-items-center"."gap-2" aria-label="Event pagination" {
+            @if let Some(href) = pager.previous_href {
+                a.btn.btn-outline-secondary.btn-sm href=(href) { "Previous" }
+            } @else {
+                span.btn.btn-outline-secondary.btn-sm.disabled aria-disabled="true" { "Previous" }
+            }
+            span."small"."text-body-secondary" {
+                "Page " (pager.current_page) " of " (pager.total_pages)
+            }
+            @if let Some(href) = pager.next_href {
+                a.btn.btn-outline-secondary.btn-sm href=(href) { "Next" }
+            } @else {
+                span.btn.btn-outline-secondary.btn-sm.disabled aria-disabled="true" { "Next" }
+            }
+        }
+    }
+}
+
+#[must_use]
 pub fn show_tell(event: &ShowTellDetail<'_>, auth: AuthState) -> Markup {
     let body = html! {
         article.blog-post style="max-width: 65ch; margin-inline: auto;" {
-            p { a href="/foundation/nebula" { "← Nebula" } }
+            p { a href="/foundation/nebula/show-and-tell" { "Back to show-and-tell events" } }
             h1 { (event.title) }
             p.blog-date { small { (event.time) " · " (event.place) } }
             p {
                 a.btn.btn-primary href=(event.external_event_url) {
-                    "RSVP on " (provider_label(event.external_event_provider))
+                    @if event.external_event_provider.eq_ignore_ascii_case("luma") {
+                        (luma_logo())
+                    }
+                    span { "RSVP on " (provider_label(event.external_event_provider)) }
                 }
                 " "
                 a.btn.btn-outline-secondary href=(event.ics_url) { "Add to calendar" }
@@ -315,6 +466,12 @@ fn provider_label(provider: &str) -> &str {
         "Luma"
     } else {
         "event page"
+    }
+}
+
+fn luma_logo() -> Markup {
+    html! {
+        img.luma-logo src="/public/logos/luma.svg" alt="" aria-hidden="true" loading="lazy" decoding="async";
     }
 }
 
