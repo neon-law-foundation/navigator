@@ -249,8 +249,8 @@ async fn foundation_mission_links_training_to_the_workshop_not_the_repo() {
         assert_eq!(
             body.matches("href=\"https://github.com/neon-law-foundation/navigator\"")
                 .count(),
-            1,
-            "{uri} should keep only the opening repository link",
+            2,
+            "{uri} should keep the opening repository link plus the shared footer CTA",
         );
     }
 }

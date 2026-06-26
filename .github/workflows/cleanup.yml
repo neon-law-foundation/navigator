@@ -35,7 +35,7 @@ jobs:
     # Deliberately NOT continue-on-error: a real failure should fail the job so
     # `cleanup-failed` can page Nick — this is alerted housekeeping, not silent
     # best-effort.
-    if: github.repository == 'neon-law-foundation/Navigator'
+    if: github.repository == 'neon-law-foundation/navigator'
     runs-on: ubuntu-latest
     # A handful of ghcr API calls — cap it so a hung request can't keep the run
     # open until the job-level default times out.
@@ -103,7 +103,7 @@ jobs:
   notify-cleanup:
     name: slack — ghcr cleanup ran
     needs: cleanup
-    if: github.repository == 'neon-law-foundation/Navigator' && needs.cleanup.result == 'success'
+    if: github.repository == 'neon-law-foundation/navigator' && needs.cleanup.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -138,7 +138,7 @@ jobs:
     # Same pattern as deploy.yml's notify-failure: post to the engineering
     # channel via the prod ops webhook (SLACK_WEBHOOK_URL, synced from Doppler)
     # and tag Nick.
-    if: failure() && github.repository == 'neon-law-foundation/Navigator'
+    if: failure() && github.repository == 'neon-law-foundation/navigator'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

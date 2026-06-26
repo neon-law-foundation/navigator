@@ -374,7 +374,7 @@ Neon Law Navigator is open source under MIT OR Apache-2.0 — the same permissiv
 argued for. The ask: open the repository, read the code, push on it, and — if the work earns it — **star it**.
 
 > Read the code and star it:
-  **[github.com/neon-law-foundation/Navigator](https://github.com/neon-law-foundation/Navigator)** — and read the
+  **[github.com/neon-law-foundation/navigator](https://github.com/neon-law-foundation/navigator)** — and read the
   [Foundation mission](/foundation/mission) for why any of this matters.
 
 ---
