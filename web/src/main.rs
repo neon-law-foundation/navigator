@@ -111,6 +111,33 @@ async fn main() -> anyhow::Result<()> {
     let events = web::events::load_dir(&events_dir).context("loading events")?;
     tracing::info!(count = events.events().len(), ?events_dir, "loaded events");
 
+    // Reconcile the markdown events into the `events` table: the files are the
+    // source of truth, so new files are inserted, existing rows are updated in
+    // place (their registrations preserved), and rows whose file is gone are
+    // hard-deleted (data minimization — we keep no event we no longer publish).
+    let event_sync_inputs: Vec<store::events::EventSyncInput> = events
+        .events()
+        .iter()
+        .map(|e| store::events::EventSyncInput {
+            slug: e.slug.clone(),
+            public_slug: e.public_slug.clone(),
+            event_type: store::events::EventType::ShowAndTell,
+            starts_at: e.starts_at,
+            ends_at: e.ends_at,
+            timezone: e.timezone.clone(),
+            draft: e.draft,
+        })
+        .collect();
+    let event_sync = store::events::sync_from_markdown(&db, &event_sync_inputs)
+        .await
+        .context("syncing events to database")?;
+    tracing::info!(
+        created = event_sync.created,
+        updated = event_sync.updated,
+        deleted = event_sync.deleted,
+        "synced events to database"
+    );
+
     let foundation_dir = std::env::var("NAVIGATOR_FOUNDATION_DIR").map_or_else(
         |_| PathBuf::from(web::DEFAULT_FOUNDATION_DIR),
         PathBuf::from,

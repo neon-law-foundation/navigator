@@ -60,7 +60,6 @@ pub struct EventListItem<'a> {
     pub time: &'a str,
     pub place: &'a str,
     pub description: &'a str,
-    pub invite_link: &'a str,
     pub image_url: Option<&'a str>,
     pub image_alt: &'a str,
 }
@@ -85,8 +84,13 @@ pub struct ShowTellDetail<'a> {
     pub description: &'a str,
     pub time: &'a str,
     pub place: &'a str,
-    pub external_event_provider: &'a str,
-    pub external_event_url: &'a str,
+    /// Whether the event is still upcoming — registration only shows for
+    /// events that have not happened yet.
+    pub upcoming: bool,
+    /// POST target for the on-page registration form.
+    pub register_action: &'a str,
+    /// Double-submit CSRF token for the registration form.
+    pub csrf_token: &'a str,
     pub ics_url: &'a str,
     pub body_html: &'a str,
     pub video_url: Option<&'a str>,
@@ -392,9 +396,8 @@ fn event_list_card(event: &EventListItem<'_>) -> Markup {
                 h3 { a href=(event.detail_href) { (event.title) } }
                 p { (event.description) }
                 div."d-flex"."flex-wrap"."gap-2" {
-                    a.btn.btn-primary.btn-sm href=(event.invite_link) {
-                        (luma_logo())
-                        span { "RSVP on Luma" }
+                    a.btn.btn-primary.btn-sm href=(event.detail_href) {
+                        span { "Register" }
                     }
                     a.btn.btn-outline-secondary.btn-sm href=(event.calendar_href) {
                         i."bi"."bi-calendar-plus" aria-hidden="true" {}
@@ -436,15 +439,22 @@ pub fn show_tell(event: &ShowTellDetail<'_>, auth: AuthState) -> Markup {
             p { a href="/foundation/nebula/show-and-tell" { "Back to show-and-tell events" } }
             h1 { (event.title) }
             p.blog-date { small { (event.time) " · " (event.place) } }
-            p {
-                a.btn.btn-primary href=(event.external_event_url) {
-                    @if event.external_event_provider.eq_ignore_ascii_case("luma") {
-                        (luma_logo())
-                    }
-                    span { "RSVP on " (provider_label(event.external_event_provider)) }
+            @if event.upcoming {
+                form.show-tell-register."d-flex"."flex-wrap"."gap-2"."align-items-center"
+                    method="post" action=(event.register_action) {
+                    input type="hidden" name="csrf_token" value=(event.csrf_token);
+                    label."visually-hidden" for="register-email" { "Email address" }
+                    input."form-control" type="email" id="register-email" name="email"
+                        placeholder="you@example.com" required maxlength="254"
+                        autocomplete="email" style="max-width: 22rem;";
+                    button.btn.btn-primary type="submit" { "Register" }
                 }
-                " "
-                a.btn.btn-outline-secondary href=(event.ics_url) { "Add to calendar" }
+                p."small"."text-body-secondary"."mt-2" {
+                    "We'll only use your email to send you the details for this show-and-tell."
+                }
+                p { a.btn.btn-outline-secondary href=(event.ics_url) { "Add to calendar" } }
+            } @else {
+                p { a.btn.btn-outline-secondary href=(event.ics_url) { "Add to calendar" } }
             }
             (PreEscaped(event.body_html))
             @if let Some(video_url) = event.video_url {
@@ -464,18 +474,31 @@ pub fn show_tell(event: &ShowTellDetail<'_>, auth: AuthState) -> Markup {
         .render(&body)
 }
 
-fn provider_label(provider: &str) -> &str {
-    if provider.eq_ignore_ascii_case("luma") {
-        "Luma"
-    } else {
-        "event page"
-    }
-}
-
-fn luma_logo() -> Markup {
-    html! {
-        img.luma-logo src="/public/logos/luma.svg" alt="" aria-hidden="true" loading="lazy" decoding="async";
-    }
+/// Confirmation page shown after a visitor registers for a show-and-tell.
+/// Neutral copy regardless of whether the email was new or already on the
+/// list, so the endpoint is not an address-enumeration oracle.
+#[must_use]
+pub fn show_tell_registered(
+    title: &str,
+    detail_href: &str,
+    ics_url: &str,
+    auth: AuthState,
+) -> Markup {
+    let body = html! {
+        article.blog-post style="max-width: 65ch; margin-inline: auto;" {
+            h1 { "You're registered" }
+            p { "Thanks for registering for " strong { (title) } ". We'll email you the details." }
+            p {
+                a.btn.btn-outline-secondary href=(ics_url) { "Add to calendar" }
+                " "
+                a href=(detail_href) { "Back to the event" }
+            }
+        }
+    };
+    PageLayout::new("Registered")
+        .with_brand(*FOUNDATION_BRAND)
+        .with_auth(auth)
+        .render(&body)
 }
 
 #[must_use]

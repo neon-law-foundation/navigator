@@ -811,6 +811,18 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
                 "/foundation/nebula/show-and-tell/{slug}/calendar.ics",
                 get(nebula_show_tell_ics),
             )
+            // POST-only: register for a show-and-tell. A stray GET lands the
+            // visitor back on the event page where the form lives.
+            .route(
+                "/foundation/nebula/show-and-tell/{slug}/register",
+                axum::routing::post(nebula_show_tell_register).get(
+                    |AxumPath(slug): AxumPath<String>| async move {
+                        axum::response::Redirect::to(&format!(
+                            "/foundation/nebula/show-and-tell/{slug}"
+                        ))
+                    },
+                ),
+            )
             // POST-only: the certificate request. A stray GET lands the
             // learner back on the light table where the form lives.
             .route(
@@ -2077,7 +2089,7 @@ fn render_nebula_landing(
             (
                 format!("{NEBULA_BASE}/show-and-tell/{}", event.public_slug),
                 format_event_datetime_range(event.starts_at, event.ends_at, &event.timezone),
-                event.location_name.clone(),
+                event.place(),
             )
         })
         .collect();
@@ -2145,7 +2157,7 @@ fn event_card_meta(event: &Event) -> EventCardMeta {
         calendar_href: format!("{detail_href}/calendar.ics"),
         detail_href,
         time: format_event_datetime_range(event.starts_at, event.ends_at, &event.timezone),
-        place: event.location_name.clone(),
+        place: event.place(),
         image_alt: event
             .image_alt
             .clone()
@@ -2228,7 +2240,6 @@ fn render_nebula_show_tell_index(
             time: &meta.time,
             place: &meta.place,
             description: &event.description,
-            invite_link: &event.external_event_url,
             image_url: event.image_url.as_deref(),
             image_alt: &meta.image_alt,
         })
@@ -2243,7 +2254,6 @@ fn render_nebula_show_tell_index(
             time: &meta.time,
             place: &meta.place,
             description: &event.description,
-            invite_link: &event.external_event_url,
             image_url: event.image_url.as_deref(),
             image_alt: &meta.image_alt,
         })
@@ -2384,24 +2394,24 @@ async fn llms_txt(
 }
 
 async fn nebula_material(
-    State(workshops): State<WorkshopIndex>,
-    State(events): State<EventIndex>,
+    State(app): State<AppState>,
     MaybeAuth(auth): MaybeAuth,
+    cookies: tower_cookies::Cookies,
     AxumPath((category, slug)): AxumPath<(String, String)>,
 ) -> impl IntoResponse {
     if category == "show-and-tell" {
-        return nebula_show_tell(&events, auth, &slug).into_response();
+        return nebula_show_tell(&app, &cookies, auth, &slug).into_response();
     }
     // `…/{slug}.md` is the raw-Markdown twin of `…/{slug}`. matchit
     // captures the whole `readme.md` segment into `slug`, so we branch
     // on the suffix here rather than registering a second route.
     if let Some(stem) = slug.strip_suffix(".md") {
-        return match workshops.find_in_category(&category, stem) {
+        return match app.workshops.find_in_category(&category, stem) {
             Some(m) => markdown_response(&m.raw_markdown).into_response(),
             None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
         };
     }
-    if let Some(m) = workshops.find_in_category(&category, &slug) {
+    if let Some(m) = app.workshops.find_in_category(&category, &slug) {
         let steps = step_summaries(m);
         let material_base = nebula_material_base(&m.category);
         let md_href = format!("{material_base}/{}.md", m.slug);
@@ -2427,15 +2437,40 @@ async fn nebula_material(
     }
 }
 
-fn nebula_show_tell(events: &EventIndex, auth: views::AuthState, slug: &str) -> impl IntoResponse {
-    match events.get_public(slug) {
+/// Dedicated double-submit CSRF cookie for the show-and-tell registration
+/// form. Distinct from the certificate cookie so the two forms never
+/// clobber each other across tabs.
+const NEBULA_REGISTER_CSRF_COOKIE_NAME: &str = "navigator_nebula_register_csrf";
+
+fn nebula_show_tell(
+    app: &AppState,
+    cookies: &tower_cookies::Cookies,
+    auth: views::AuthState,
+    slug: &str,
+) -> impl IntoResponse {
+    match app.events.get_public(slug) {
         Some(event) => {
             let time = format_event_datetime_range(event.starts_at, event.ends_at, &event.timezone);
-            let place = format!("{}, {}", event.location_name, event.location_address);
+            let place = event.place();
             let ics_url = format!(
                 "{NEBULA_BASE}/show-and-tell/{}/calendar.ics",
                 event.public_slug
             );
+            let register_action =
+                format!("{NEBULA_BASE}/show-and-tell/{}/register", event.public_slug);
+            let upcoming = event.date >= chrono::Local::now().date_naive();
+            // Only mint a CSRF token (and set its cookie) when the form is
+            // actually rendered — i.e. for an upcoming event.
+            let csrf = if upcoming {
+                crate::password_reset::mint_csrf_with(
+                    &app.sessions,
+                    secure_cookies(app),
+                    cookies,
+                    NEBULA_REGISTER_CSRF_COOKIE_NAME,
+                )
+            } else {
+                String::new()
+            };
             (
                 StatusCode::OK,
                 workshop_views::show_tell(
@@ -2444,8 +2479,9 @@ fn nebula_show_tell(events: &EventIndex, auth: views::AuthState, slug: &str) -> 
                         description: &event.description,
                         time: &time,
                         place: &place,
-                        external_event_provider: &event.external_event_provider,
-                        external_event_url: &event.external_event_url,
+                        upcoming,
+                        register_action: &register_action,
+                        csrf_token: &csrf,
                         ics_url: &ics_url,
                         body_html: &event.body_html,
                         video_url: event.video_url.as_deref(),
@@ -2458,6 +2494,69 @@ fn nebula_show_tell(events: &EventIndex, auth: views::AuthState, slug: &str) -> 
         }
         None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
     }
+}
+
+/// Form body for the show-and-tell registration (`POST …/{slug}/register`).
+#[derive(serde::Deserialize)]
+struct RegisterForm {
+    email: String,
+    #[serde(default)]
+    csrf_token: String,
+}
+
+/// `POST …/{slug}/register` — a visitor registers for an upcoming
+/// show-and-tell. Validates the double-submit CSRF token, then records
+/// only the email against the event (data minimization). The reply is the
+/// same neutral confirmation whether the email was new or already on the
+/// list, so the endpoint is not an address-enumeration oracle.
+async fn nebula_show_tell_register(
+    State(app): State<AppState>,
+    MaybeAuth(auth): MaybeAuth,
+    cookies: tower_cookies::Cookies,
+    AxumPath(slug): AxumPath<String>,
+    axum::extract::Form(form): axum::extract::Form<RegisterForm>,
+) -> impl IntoResponse {
+    // Resolve the (published) event first so a draft or unknown slug 404s
+    // before we touch CSRF or the database.
+    let Some(event) = app.events.get_public(&slug) else {
+        return (StatusCode::NOT_FOUND, views::not_found_page()).into_response();
+    };
+    if !crate::password_reset::verify_csrf_with(
+        &app.sessions,
+        &cookies,
+        &form.csrf_token,
+        NEBULA_REGISTER_CSRF_COOKIE_NAME,
+    ) {
+        return (StatusCode::BAD_REQUEST, "invalid or missing CSRF token").into_response();
+    }
+    cookies.add(crate::oauth::expired_cookie(
+        NEBULA_REGISTER_CSRF_COOKIE_NAME,
+    ));
+
+    let email = form.email.trim();
+    if !email.contains('@') || email.len() > 254 {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Please enter a valid email address.",
+        )
+            .into_response();
+    }
+
+    let detail_href = format!("{NEBULA_BASE}/show-and-tell/{}", event.public_slug);
+    let ics_url = format!("{detail_href}/calendar.ics");
+    match store::events::register(&app.db, &event.public_slug, email).await {
+        Ok(_) => {}
+        Err(e) => {
+            // Logged, never surfaced — the reply stays neutral. Instrument
+            // the event + outcome only, never the registrant (trust boundary).
+            tracing::warn!(error = %e, event = %event.public_slug, "event registration failed");
+        }
+    }
+    (
+        StatusCode::OK,
+        workshop_views::show_tell_registered(&event.title, &detail_href, &ics_url, auth),
+    )
+        .into_response()
 }
 
 async fn nebula_show_tell_ics(
@@ -2894,8 +2993,8 @@ mod nebula_landing_tests {
             timezone: "America/Los_Angeles".into(),
             location_name: "Room".into(),
             location_address: "City".into(),
-            external_event_provider: "luma".into(),
-            external_event_url: format!("https://luma.com/{slug}"),
+            meeting_url: None,
+            draft: false,
             image_url: None,
             image_alt: None,
             video_url: None,

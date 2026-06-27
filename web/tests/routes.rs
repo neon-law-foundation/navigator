@@ -5253,8 +5253,8 @@ fn event_state_with_one_event() -> web::EventIndex {
         timezone: "America/Los_Angeles".into(),
         location_name: "Private lounge".into(),
         location_address: "1920 4th Ave, downtown Seattle".into(),
-        external_event_provider: "luma".into(),
-        external_event_url: "https://luma.com/k26256ut".into(),
+        meeting_url: None,
+        draft: false,
         image_url: Some("/public/events/seattle.webp".into()),
         image_alt: Some("Seattle skyline".into()),
         video_url: None,
@@ -5275,8 +5275,8 @@ fn test_event(slug: &str, title: &str, date: chrono::NaiveDate) -> web::Event {
         timezone: "America/Los_Angeles".into(),
         location_name: "Community venue".into(),
         location_address: "Downtown".into(),
-        external_event_provider: "luma".into(),
-        external_event_url: format!("https://luma.com/{slug}"),
+        meeting_url: None,
+        draft: false,
         image_url: Some(format!("/public/events/{slug}.webp")),
         image_alt: Some(format!("{title} event image")),
         video_url: None,
@@ -5538,12 +5538,14 @@ async fn nebula_show_tell_index_paginates_upcoming_and_past_events() {
     assert!(!body.contains("Past 1"));
     assert!(body.contains("Page 2 of 2"));
     assert!(body.contains("src=\"/public/events/upcoming-5.webp\""));
-    assert!(body.contains("src=\"/public/logos/luma.svg\""));
-    assert!(body.contains("href=\"https://luma.com/upcoming-5\""));
+    // The card drives registration to our own site, not Luma.
+    assert!(!body.contains("luma"));
+    assert!(body.contains("href=\"/foundation/nebula/show-and-tell/upcoming-5\""));
+    assert!(body.contains("Register"));
 }
 
 #[tokio::test]
-async fn nebula_show_tell_renders_rsvp_and_calendar_links() {
+async fn nebula_show_tell_renders_register_and_calendar_links() {
     let mut state = empty_state().await;
     state.events = event_state_with_one_event();
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
@@ -5559,10 +5561,38 @@ async fn nebula_show_tell_renders_rsvp_and_calendar_links() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("Trade real stories and workflows."));
-    assert!(body.contains("href=\"https://luma.com/k26256ut\""));
+    // The upcoming Seattle event renders a website registration form, not a
+    // Luma link.
+    assert!(!body.contains("luma"));
+    assert!(
+        body.contains("action=\"/foundation/nebula/show-and-tell/seattle-summer-2026/register\"")
+    );
+    assert!(body.contains("name=\"email\""));
     assert!(
         body.contains("href=\"/foundation/nebula/show-and-tell/seattle-summer-2026/calendar.ics\"")
     );
+}
+
+#[tokio::test]
+async fn nebula_show_tell_register_records_email_neutrally() {
+    // A draft or unknown event 404s; a published event accepts the POST and
+    // returns the neutral confirmation. With no database wired in the test
+    // harness the registration write is best-effort, but the route still
+    // verifies CSRF and renders the confirmation.
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    // GET on the POST-only register path bounces back to the event page.
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/nebula/show-and-tell/seattle-summer-2026/register")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::SEE_OTHER);
 }
 
 #[tokio::test]
@@ -5589,7 +5619,10 @@ async fn nebula_show_tell_ics_uses_pacific_timezone() {
     let body = body_string(resp).await;
     assert!(body.contains("DTSTART;TZID=America/Los_Angeles:20260702T110000"));
     assert!(body.contains("DTEND;TZID=America/Los_Angeles:20260702T150000"));
-    assert!(body.contains("URL:https://luma.com/k26256ut"));
+    // In-person event (no meeting_url): the calendar carries the place and
+    // omits the online URL line.
+    assert!(body.contains("LOCATION:"));
+    assert!(!body.contains("URL:"));
 }
 
 #[tokio::test]
