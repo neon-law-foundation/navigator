@@ -2516,6 +2516,8 @@ async fn nebula_show_tell_register(
     AxumPath(slug): AxumPath<String>,
     axum::extract::Form(form): axum::extract::Form<RegisterForm>,
 ) -> impl IntoResponse {
+    use store::events::RegisterOutcome::{AlreadyRegistered, EventNotFound, Registered};
+
     // Resolve the (published) event first so a draft or unknown slug 404s
     // before we touch CSRF or the database.
     let Some(event) = app.events.get_public(&slug) else {
@@ -2545,14 +2547,31 @@ async fn nebula_show_tell_register(
     let detail_href = format!("{NEBULA_BASE}/show-and-tell/{}", event.public_slug);
     let ics_url = format!("{detail_href}/calendar.ics");
     match store::events::register(&app.db, &event.public_slug, email).await {
-        // Both Ok arms (Registered / AlreadyRegistered / EventNotFound) wrote
-        // through to a consistent state, so the reply stays neutral and the
-        // confirmation page is honest.
-        Ok(_) => (
+        // A real write happened (new email) or the email was already on the
+        // list — either way the stored state is consistent, so the reply stays
+        // neutral and the confirmation page is honest.
+        Ok(Registered | AlreadyRegistered) => (
             StatusCode::OK,
             workshop_views::show_tell_registered(&event.title, &detail_href, &ics_url, auth),
         )
             .into_response(),
+        // The in-memory index served a published event (we 404 unknown/draft
+        // slugs above), yet the store found no published row — the markdown
+        // index and the DB have diverged (row hard-deleted or draft flipped
+        // after boot). Nothing was stored, so never paint a confirmation:
+        // surface the same generic 500 as a write failure and warn (event +
+        // outcome only, never the registrant — trust boundary).
+        Ok(EventNotFound) => {
+            tracing::warn!(
+                event = %event.public_slug,
+                "event registration: index/DB divergence, no published row"
+            );
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Something went wrong saving your registration — please try again.",
+            )
+                .into_response()
+        }
         Err(e) => {
             // A DbErr means *nothing was stored* — never paint a "you're
             // registered" confirmation over a failed write. Surface a generic

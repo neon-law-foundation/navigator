@@ -5671,6 +5671,44 @@ async fn nebula_show_tell_register_db_failure_returns_500_not_confirmation() {
 }
 
 #[tokio::test]
+async fn nebula_show_tell_register_index_db_divergence_returns_500_not_confirmation() {
+    // The in-memory markdown index serves a published event, but the DB has no
+    // published row for that slug (row hard-deleted or draft flipped after
+    // boot). The store returns `EventNotFound`; nothing was stored, so the
+    // handler must NOT paint a "you're registered" confirmation — it returns a
+    // 500 just like a write failure.
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+
+    let (cookie, token) = fetch_register_csrf(&app, "seattle-summer-2026").await;
+
+    // No `events` row was ever inserted for this slug, so the atomic UPDATE
+    // affects zero rows and the disambiguating lookup returns `EventNotFound`.
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/foundation/nebula/show-and-tell/seattle-summer-2026/register")
+                .header(header::COOKIE, cookie)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from(format!(
+                    "email=ada%40example.com&csrf_token={token}"
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = body_string(resp).await;
+    assert!(
+        !body.contains("registered"),
+        "an index/DB divergence must not render the registration confirmation, got: {body}"
+    );
+}
+
+#[tokio::test]
 async fn nebula_show_tell_ics_uses_pacific_timezone() {
     let mut state = empty_state().await;
     state.events = event_state_with_one_event();
