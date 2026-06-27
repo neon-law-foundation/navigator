@@ -173,9 +173,10 @@ itself alive right now?* A silent `Archives` is ambiguous (engine down, or just 
 no database, no object storage, no third-party API — so a green run can only mean the engine accepted an invocation,
 journaled step one, and ran step two to completion. It fires **every six hours** (`0 */6 * * *` UTC), keyed on the UTC
 date + hour so the four daily runs each get a distinct workflow key (a date-only key would dedupe three of four into
-no-ops). Each run posts firm ops a **"Where to look"** notice to the engineering Slack channel carrying the exact
-Restate Cloud + GCP console links and the kubectl/curl chain below — so the same notice that confirms health onboards
-whoever debugs its *absence*. (Ops notices go to Slack only; the duplicate email was dropped once Slack proved itself.)
+no-ops). Each run posts firm ops a **single line** to the engineering Slack channel — a heart glyph, `Durable execution
+OK`, and the beat timestamp — straight through the Slack notifier with no email framing. The recurring message stays a
+terse liveness ping; the operator runbook for debugging a *missing* beat is the chain below, not the message itself.
+(Ops notices go to Slack only; the duplicate email was dropped once Slack proved itself.)
 
 The signal that matters most is the missing one: **a six-hour window with no heartbeat notice in Slack means the engine
 may be down** — walk the chain below. Like every new service, `Heartbeat` is invisible at the ingress until the
