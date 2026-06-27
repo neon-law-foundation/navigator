@@ -1,14 +1,17 @@
 //! Filesystem-backed [`StorageService`](crate::StorageService).
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use crate::{StorageError, StorageService, StoredObject};
+
+static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Filesystem-backed storage. Object bytes live at `root/<key>.bin`;
 /// content type at `root/<key>.ctype`.
@@ -143,11 +146,28 @@ async fn write_bytes(path: &Path, key: &str, bytes: &[u8]) -> Result<(), Storage
                 source: e,
             })?;
     }
-    let mut f = fs::File::create(path).await.map_err(|e| StorageError::Io {
+    let tmp = path.with_extension(format!(
+        "tmp-{}-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |duration| duration.as_nanos()),
+        TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
+    let mut f = fs::File::create(&tmp).await.map_err(|e| StorageError::Io {
         key: key.to_string(),
         source: e,
     })?;
     f.write_all(bytes).await.map_err(|e| StorageError::Io {
+        key: key.to_string(),
+        source: e,
+    })?;
+    f.flush().await.map_err(|e| StorageError::Io {
+        key: key.to_string(),
+        source: e,
+    })?;
+    drop(f);
+    fs::rename(&tmp, path).await.map_err(|e| StorageError::Io {
         key: key.to_string(),
         source: e,
     })?;
@@ -197,6 +217,19 @@ mod tests {
         assert_eq!(got.bytes, b"hello");
         assert_eq!(got.content_type, "text/plain");
         assert_eq!(got.key, "abc");
+    }
+
+    #[tokio::test]
+    async fn put_replaces_existing_object_with_complete_bytes() {
+        let (s, _dir) = fs().await;
+        s.put("abc", b"old body", "text/plain").await.unwrap();
+        s.put("abc", b"new complete body", "text/markdown")
+            .await
+            .unwrap();
+
+        let got = s.get("abc").await.unwrap();
+        assert_eq!(got.bytes, b"new complete body");
+        assert_eq!(got.content_type, "text/markdown");
     }
 
     #[tokio::test]

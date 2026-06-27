@@ -84,6 +84,12 @@ image = { version = "0.25", default-features = false, features = ["jpeg"] }
 webp = "0.3"
 ravif = { version = "0.13", default-features = false }
 rgb = "0.8"
+# Pure-Rust audio decoding for the `live-transcription` CLI. Symphonia
+# probes the container and decodes m4a/AAC, ALAC, MP3, FLAC, WAV, OGG, etc.
+# to PCM, so any common recording can be sent to Google Speech-to-Text as
+# LINEAR16 without the user pre-converting. `all` turns on every bundled
+# format + codec. MPL-2.0 (file-level copyleft; does not affect our code).
+symphonia = { version = "0.5", features = ["all"] }
 base64 = "0.22"
 hmac = "0.13"
 jsonwebtoken = { version = "10", default-features = false, features = ["use_pem", "rust_crypto"] }

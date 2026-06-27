@@ -132,14 +132,14 @@ const FIRM_NAV: &[NavLink] = &[
 
 const FOUNDATION_NAV: &[NavLink] = &[
     NavLink::leaf("Firm", "/"),
-    // The Foundation publishes the open-source Neon Law Navigator, Notations,
-    // Nimbus installs, and Nebula sharing programs:
-    // "Neon Law Navigator" (the software: the LSP, CLI, MCP, and web app, each its
+    // The Foundation publishes Navigator, Notations, Nimbus installs, and
+    // Nebula sharing programs:
+    // "Navigator" (the software: the LSP, CLI, MCP, and web app, each its
     // own package page under the `/foundation/navigator` hub), "Notations"
     // (the legal blueprints), "Nimbus" (white-label installs), and
     // "Nebula" (workshops, show-and-tells, and presentations). No
     // "Learn" catch-all dropdown.
-    NavLink::leaf("Neon Law Navigator", "/foundation/navigator"),
+    NavLink::leaf("Navigator", "/foundation/navigator"),
     NavLink::leaf("Notations", "/foundation/notations"),
     NavLink::leaf("Nimbus", "/foundation/nimbus"),
     NavLink::leaf("Nebula", "/foundation/nebula"),
@@ -224,7 +224,7 @@ pub fn foundation_email() -> &'static str {
 /// Foundation-owned source.
 #[must_use]
 pub const fn foundation_github_url() -> &'static str {
-    "https://github.com/neon-law-foundation/Navigator"
+    "https://github.com/neon-law-foundation/navigator"
 }
 
 /// The firm's legal-advice disclaimer, shown in the footer of every
@@ -406,13 +406,7 @@ mod tests {
         // Notations, Nimbus, and Nebula.
         assert_eq!(
             labels,
-            [
-                "Firm",
-                "Neon Law Navigator",
-                "Notations",
-                "Nimbus",
-                "Nebula"
-            ]
+            ["Firm", "Navigator", "Notations", "Nimbus", "Nebula"]
         );
         assert_eq!(FOUNDATION_BRAND.nav[0].href, "/");
         assert!(
@@ -423,13 +417,13 @@ mod tests {
 
     #[test]
     fn foundation_nav_navigator_points_at_the_package_hub() {
-        // "Neon Law Navigator" is a flat top-level leaf at the hub that fans out to
+        // "Navigator" is a flat top-level leaf at the hub that fans out to
         // the per-package pages (lsp / cli / mcp / web).
         let navigator = FOUNDATION_BRAND
             .nav
             .iter()
-            .find(|n| n.label == "Neon Law Navigator")
-            .expect("Neon Law Navigator leaf present");
+            .find(|n| n.label == "Navigator")
+            .expect("Navigator leaf present");
         assert!(!navigator.is_dropdown());
         assert_eq!(navigator.href, "/foundation/navigator");
     }

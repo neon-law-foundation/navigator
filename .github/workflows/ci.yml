@@ -25,7 +25,18 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
+  # GitHub's native merge queue. When a PR is queued, GitHub builds a temporary
+  # `gh-readonly-queue/main/...` ref = latest `main` rebased + this PR (batch
+  # size 1, so exactly one PR per group) and fires `merge_group`. The same
+  # `cargo test (workspace)` job below then runs against that REBASED commit —
+  # the exact tree that will land on `main` — so the full suite re-runs on every
+  # rebase, not only on the PR branch. Without this trigger the queue's required
+  # check never reports and merges hang. See docs/gitops.md.
+  merge_group:
 
+# Default every job to read-only; the one job that needs more (enable-automerge)
+# requests pull-requests:write at the job level, so the test job never runs with
+# write access — including on merge_group events.
 permissions:
   contents: read
 
@@ -146,25 +157,28 @@ jobs:
         run: |
           "${SCCACHE_PATH:-sccache}" --show-stats
 
+  # Turn on GitHub auto-merge once per PR, on open / ready-for-review only (never
+  # on `synchronize`, so a human who deliberately disabled it isn't overridden on
+  # the next push, and never on `merge_group`). With the merge queue configured
+  # on `main`, enabling auto-merge is what enqueues the PR the moment its gate is
+  # green and threads are resolved — no manual "Merge when ready", no babysitting.
+  # `gh pr merge --auto` only *requests* it; GitHub still holds the PR out of the
+  # queue until the required `cargo test (workspace)` check passes. The fork guard
+  # skips PRs from forks, whose GITHUB_TOKEN is read-only.
   enable-automerge:
     name: enable PR auto-merge
-    needs: rust
-    # Request auto-merge exactly ONCE per PR — only when it is opened or a draft
-    # is marked ready for review, NOT on `synchronize`. Re-running on every push
-    # would re-enable auto-merge after a human deliberately disabled it to hold
-    # the PR. `gh pr merge --auto` only *requests* the merge; GitHub still holds
-    # the PR until the required checks above (the `rust` job) pass, so gating the
-    # request to the open event loses nothing — the tests still gate the merge.
+    # Only this job needs write; the test job stays contents:read (above).
+    permissions:
+      contents: read
+      pull-requests: write
     if: >
+      github.event_name == 'pull_request' &&
       (github.event.action == 'opened' || github.event.action == 'ready_for_review') &&
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
-      - name: enable auto-merge for current PR
+      - name: request auto-merge
         env:
           GH_TOKEN: ${{ github.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -175,8 +189,7 @@ jobs:
                   --jq '.autoMergeRequest != null'
           )"
           if [ "${auto_merge_enabled}" = "true" ]; then
-              echo "Auto-merge is already enabled for ${PR_URL}."
+              echo "auto-merge already enabled; nothing to do."
               exit 0
           fi
-
           gh pr merge --auto --squash "${PR_URL}"

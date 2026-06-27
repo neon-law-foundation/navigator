@@ -217,7 +217,7 @@ async fn new_service_detail_pages_render_with_their_marketing_copy() {
     // confirm it returns 200 with its headline + representative fee marker.
     for (path, needle, fee_marker) in [
         ("/services/node", "recorded on-chain", "$44"),
-        ("/services/newleaf", "uncontested divorce", "$555"),
+        ("/services/newleaf", "prenup or uncontested divorce", "$555"),
         ("/services/namesake", "filed with the USPTO", "$777"),
         ("/services/nucleus", "Nevada fund", "$8,888"),
         (
@@ -264,6 +264,10 @@ async fn spanish_catalog_renders_at_es_services() {
     // Spanish chrome, real DB prices.
     assert!(body.contains("Servicios"), "Spanish heading");
     assert!(body.contains("$44"));
+    assert!(
+        body.contains("acuerdo prenupcial o divorcio de mutuo acuerdo"),
+        "Spanish Newleaf card includes both service options"
+    );
     // The Spanish service links are `/es`-prefixed.
     assert!(body.contains("href=\"/es/services/nautilus\""));
 }

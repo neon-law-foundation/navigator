@@ -1,6 +1,6 @@
 //! Local-only E2E for the default (`fake`) speech backend.
 //!
-//! Unlike the Google E2E ([`live_transcription_google_e2e`]), this test makes
+//! Unlike the Google E2E ([`transcribe_google_e2e`]), this test makes
 //! NO cloud call and needs no credentials or opt-in env var: it exercises the
 //! `--audio` path with the default `fake` backend, which transcribes from a
 //! sidecar `<audio>.txt` file. This is the behavior a developer gets locally
@@ -44,8 +44,7 @@ questionnaire:
     let assert = Command::cargo_bin("navigator")
         .expect("navigator binary")
         .args([
-            "live-transcription",
-            "demo",
+            "transcribe",
             "--audio",
             audio_path.to_str().expect("audio path utf8"),
             "--template",

@@ -4,7 +4,7 @@
 //! This is intentionally opt-in and self-skips green unless
 //! `NAVIGATOR_RUN_LIVE_SPEECH_E2E=1` is set. It downloads Google's public
 //! Brooklyn Bridge speech sample, runs the actual `navigator` binary through
-//! the `live-transcription demo --audio` command, and asserts that Google STT
+//! the `transcribe --audio` command, and asserts that Google STT
 //! returns the expected transcript text in the coverage JSON.
 //!
 //! Run locally with Doppler dev secrets and Application Default Credentials:
@@ -12,7 +12,7 @@
 //! ```bash
 //! doppler run --project navigator --config dev -- \
 //!   env NAVIGATOR_RUN_LIVE_SPEECH_E2E=1 \
-//!   cargo test -p cli --test live_transcription_google_e2e -- --nocapture
+//!   cargo test -p cli --test transcribe_google_e2e -- --nocapture
 //! ```
 //!
 //! Required env:
@@ -90,8 +90,7 @@ questionnaire:
     let assert = Command::cargo_bin("navigator")
         .expect("navigator binary")
         .args([
-            "live-transcription",
-            "demo",
+            "transcribe",
             "--audio",
             audio_path.to_str().expect("audio path utf8"),
             "--template",
