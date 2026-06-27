@@ -46,12 +46,14 @@ async fn main() -> anyhow::Result<()> {
         "workflows-service email backend"
     );
 
-    // Internal ops notifications (Heartbeat, Archives, Statutes, BillingCanary,
-    // BillingDigest) deliver to a Slack incoming webhook on the engineering
-    // channel — where engineers watch — and no longer also go out as email: a
-    // recurring liveness signal is easy to lose in an inbox, so the duplicate
-    // ops email was dropped once Slack proved reliable. `ops_delivery` routes
-    // each rendered ops notice to Slack via the `EmailService` seam (no mail).
+    // Internal ops notifications deliver to a Slack incoming webhook on the
+    // engineering channel — where engineers watch — and no longer also go out
+    // as email: a recurring liveness signal is easy to lose in an inbox, so the
+    // duplicate ops email was dropped once Slack proved reliable. Two paths to
+    // the same `notifier`: `Archives`, `Statutes`, `BillingCanary`, and
+    // `BillingDigest` render an ops notice and route it to Slack through the
+    // `EmailService` seam (`ops_delivery`, no mail); `Heartbeat` posts its
+    // one-line ping straight to the `notifier` (no email framing to render).
     // Client-facing services (Notation, RecurringBilling invoices) keep the
     // plain `email` backend — pushing client content into chat would cross the
     // firm's no-content trust boundary.
