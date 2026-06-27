@@ -786,15 +786,25 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A src/lib.rs Cargo.toml Cargo.lock extension.toml
           if git diff --cached --quiet; then
-              echo "zed-navigator-lsp already current for ${EXT_VER}"
-              exit 0
+              echo "zed-navigator-lsp source already current for ${EXT_VER}"
+          else
+              git commit -m "navigator-lsp ${EXT_VER}: sync extension source + bump version"
+              git push
           fi
-          git commit -m "navigator-lsp ${EXT_VER}: sync extension source + bump version"
-          git push
           # The v* tag triggers zed-navigator-lsp's own release.yml, which opens
-          # the version-bump PR to the zed-industries/extensions registry.
-          git tag "v${EXT_VER}"
-          git push origin "v${EXT_VER}"
+          # the version-bump PR to the zed-industries/extensions registry. Ensure
+          # the tag exists on the remote independently of whether the source
+          # commit changed: if a prior run pushed the source but the tag push
+          # then failed (network blip, partial failure), the source-already-
+          # current path above would otherwise never re-attempt the tag, and the
+          # Zed registry would silently miss this release. Pushing only when the
+          # remote tag is absent also makes a full re-run idempotent.
+          if git ls-remote --exit-code --tags origin "refs/tags/v${EXT_VER}" >/dev/null 2>&1; then
+              echo "tag v${EXT_VER} already on remote — nothing to push"
+          else
+              git tag -f "v${EXT_VER}"
+              git push origin "v${EXT_VER}"
+          fi
 
   # ---------- Stage 3: post the "ready to deploy" hand-off to Slack ----------
   # Sent only after images and downloadable binaries are published. Posts to the

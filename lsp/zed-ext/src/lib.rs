@@ -135,7 +135,14 @@ impl zed::Extension for NavigatorLsp {
             // A `navigator-lsp` already on PATH (contributors, `cargo install`)
             // wins over a download — no network, and it tracks their checkout.
             path
-        } else if let Some(path) = self.cached_binary_path.clone() {
+        } else if let Some(path) = self
+            .cached_binary_path
+            .clone()
+            .filter(|path| std::fs::metadata(path).is_ok_and(|stat| stat.is_file()))
+        {
+            // Re-check the cached path is still on disk: if it was pruned or the
+            // cache cleared mid-session, fall through to a fresh download rather
+            // than handing Zed a stale path that fails to spawn until restart.
             path
         } else {
             self.download_binary(language_server_id)?
