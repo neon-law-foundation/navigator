@@ -290,6 +290,20 @@ mod tests {
     }
 
     #[test]
+    fn going_all_in_on_rust_leads_with_the_gcs_backed_ferris_nlf_art() {
+        let ix = load_dir(std::path::Path::new(crate::DEFAULT_BLOG_DIR)).unwrap();
+        let post = ix
+            .get("going-all-in-on-rust")
+            .expect("going-all-in-on-rust post loads");
+        assert!(
+            post.body_html
+                .contains("src=\"/public/img/going-all-in-on-rust/ferris-rust-logo-nlf.png\""),
+            "the Rust post should lead with the GCS-backed Ferris/NLF artwork, got: {}",
+            post.body_html
+        );
+    }
+
+    #[test]
     fn load_dir_returns_empty_index_when_directory_missing() {
         let ix = load_dir(std::path::Path::new("/no/such/blog/dir/xyz")).unwrap();
         assert!(ix.is_empty());

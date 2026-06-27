@@ -3,11 +3,7 @@ title: Going All-In on Rust
 description: Why Neon Law Foundation chose one language for fast, safe, local-first access-to-justice software.
 ---
 
-_Nick is a lawyer for Neon Law and volunteer for the Neon Law Foundation_.
-
-![Ferris painted in Neon Law Foundation colors](img/going-all-in-on-rust/ferris-rust-logo-nlf-handpainted.png)
-
-Friends,
+![Ferris, the Rust logo, and the Neon Law Foundation banner](img/going-all-in-on-rust/ferris-rust-logo-nlf.png)
 
 We are going all-in on Rust.
 
