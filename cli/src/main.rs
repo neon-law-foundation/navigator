@@ -1713,8 +1713,11 @@ fn run_render(
         }
     };
 
-    // Gate on validation: only a clean notation template renders. Use
-    // the same DB-free classified rule set as `validate`.
+    // Gate on validation: render only when there are no blocking
+    // (Error-severity) violations. Use the same DB-free classified rule
+    // set as `validate`. Yellow advisories (e.g. N112, "step allowed but
+    // not built yet" — which every staff_review gate earns) are printed
+    // but must not block rendering, mirroring `validate` / `import`.
     let source = rules::SourceFile {
         path: file.to_path_buf(),
         contents: contents.clone(),
@@ -1724,14 +1727,14 @@ fn run_render(
             .iter()
             .flat_map(|r| r.lint(&source))
             .collect();
+    let (error_count, _) = severity_counts(&violations);
     if !violations.is_empty() {
         for v in &violations {
             print_violation(&v.path.display().to_string(), v.line, v.code, &v.message);
         }
-        eprintln!(
-            "navigator: {} validation violation(s); not rendering",
-            violations.len()
-        );
+    }
+    if error_count > 0 {
+        eprintln!("navigator: {error_count} validation error(s); not rendering");
         return ExitCode::from(1);
     }
 
