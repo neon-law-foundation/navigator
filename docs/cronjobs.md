@@ -39,9 +39,11 @@ Everything is Rust and env-driven — no per-deployment value is baked into a co
 1. **A Rust binary** — a new workspace crate, a `[[bin]]` on an existing crate, or a `cli` subcommand (Rust-only; see
    `CLAUDE.md`). Flavor A is a thin "POST and exit"; flavor B does the work and exits non-zero on failure so the Job is
    marked failed.
-2. **An image** — servers from `images/Dockerfile.<name>`; triggers from the shared `images/Dockerfile.trigger`
-   `cargo run -p cli -- image-<name>`. CI (`deploy.yml`) publishes it to `ghcr.io/<owner>/navigator-<name>` tagged
-   `YY.MM.DD` (the release date) + `latest`; the GKE nodes pull it anonymously (the packages are public).
+2. **An image** — servers from `images/Dockerfile.<name>`; triggers from the shared `images/Dockerfile.trigger` (one
+   `--build-arg CRATE=`/`BIN=` row). CI (`deploy.yml`) builds and publishes it to `ghcr.io/<owner>/navigator-<name>`
+   tagged `YY.MM.DD` (the release date) + `latest`; the GKE nodes pull it anonymously (the packages are public). The
+   workspace no longer ships per-image `cargo run -p cli -- image-<name>` build commands — CI owns image builds, and the
+   local KIND loop **pulls** the published images (`navigator deploy` / `worktree-env --demo`).
 3. **A manifest** under [`examples/deploy/k8s/exports/`](../examples/deploy/k8s/exports/) with placeholders
    (`YOUR_PROJECT_ID`, the image tag, any ingress URL), namespace `navigator`. Render real values at apply time; keep
    the committed file generic.
@@ -126,8 +128,9 @@ end-to-end after deploy.
    otherwise self-contained batch (B).
 2. Write the Rust binary; **make a re-run safe** — the schedule is at-least-once, and a failed run just runs again next
    period. Exit non-zero on failure so the Job is marked failed and shows in history.
-3. Add a server `images/Dockerfile.<name>` (or a `--build-arg CRATE=` row for a trigger) and the
-   `navigator image-<name>` build target, and add the image to `deploy.yml`'s publish matrix so CI pushes it to ghcr.io.
+3. Add a server `images/Dockerfile.<name>` (or a `--build-arg CRATE=`/`BIN=` row for a trigger), and add the image to
+   `deploy.yml`'s publish matrix so CI builds and pushes it to ghcr.io. (There is no per-image CLI build command; CI
+   owns image builds.)
 4. Add `cron-<name>.yaml` under `examples/deploy/k8s/exports/` with placeholders, namespace `navigator`, a UTC schedule
    with a Pacific comment.
 5. Once CI has published the image, render the manifest to the `YY.MM.DD` tag and apply (above). For flavor A, also

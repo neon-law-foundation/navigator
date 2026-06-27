@@ -25,7 +25,7 @@ mod scaffold;
 mod transcribe;
 
 use devx::brand::BrandCmd;
-use devx::{DnsCmd, GcpCmd, RestateCmd};
+use devx::{DnsCmd, GcpCmd, RestateCmd, WorktreeEnvCmd};
 
 /// The version `navigator --version` / `-V` reports.
 ///
@@ -387,63 +387,21 @@ enum Command {
     /// Delete the KIND cluster. Does not touch the local Docker
     /// images or the host port-forward state file.
     KindDown,
-    /// Build the `navigator-web` Docker image (`docker build -t
-    /// navigator-web:dev .`). Reads `images/Dockerfile.web`.
-    Image,
-    /// Build the `navigator-workflows-service` worker image (reads
-    /// `images/Dockerfile.workflows-service`).
-    ImageWorkflowsService,
-    /// Build the `navigator-archives-trigger` image from the shared
-    /// `images/Dockerfile.trigger` (`--build-arg CRATE=archives`). The
-    /// nightly `CronJob` at
-    /// `examples/deploy/k8s/exports/cron-archives-trigger.yaml` runs this to
-    /// start one `Archives` workflow invocation; the workflow itself is
-    /// hosted by the `workflows-service` worker.
-    ImageArchivesTrigger,
-    /// Build the `navigator-statutes-trigger` image from the shared
-    /// `images/Dockerfile.trigger` (`--build-arg CRATE=statutes`). The
-    /// weekly `CronJob` at
-    /// `examples/deploy/k8s/exports/cron-statutes-trigger.yaml` runs this to
-    /// start one `Statutes` workflow invocation, which scrapes the
-    /// practice-relevant NRS chapters into Postgres for the public
-    /// `/statutes` reference and emails a summary.
-    ImageStatutesTrigger,
-    /// Build the `navigator-billing-canary-trigger` image from the shared
-    /// `images/Dockerfile.trigger` (`--build-arg CRATE=billing-workflows`).
-    /// Its `CronJob` starts one `BillingCanary` workflow invocation; the
-    /// workflow is hosted by the `workflows-service` worker.
-    ImageBillingCanaryTrigger,
-    /// Build the `navigator-reconcile-invoices-trigger` image from the
-    /// shared `images/Dockerfile.trigger` (`--build-arg CRATE=billing-workflows
-    /// --build-arg BIN=reconcile-trigger`). Its nightly `CronJob` at
-    /// `examples/deploy/k8s/exports/cron-reconcile-invoices-trigger.yaml`
-    /// starts one `ReconcileInvoices` workflow invocation, which folds Xero's
-    /// paid status back onto the `xero_invoices` mirror.
-    ImageReconcileInvoicesTrigger,
-    /// Build the `navigator-recurring-billing-trigger` image from the
-    /// shared `images/Dockerfile.trigger` (`--build-arg CRATE=billing-workflows
-    /// --build-arg BIN=recurring-trigger`). Its daily `CronJob` at
-    /// `examples/deploy/k8s/exports/cron-recurring-trigger.yaml` starts one
-    /// `RecurringBilling` workflow invocation, which raises a Xero invoice
-    /// per active subscription per month (Nexus, Nautilus).
-    ImageRecurringBillingTrigger,
-    /// Build the `navigator-heartbeat-trigger` image from the shared
-    /// `images/Dockerfile.trigger` (`--build-arg CRATE=workflows-service
-    /// --build-arg BIN=heartbeat-trigger`). Its six-hourly `CronJob` at
-    /// `examples/deploy/k8s/exports/cron-heartbeat-trigger.yaml` starts one
-    /// `Heartbeat` workflow invocation — the durable-execution liveness canary
-    /// that depends on nothing and emails firm ops a "Where to look" report.
-    ImageHeartbeatTrigger,
-    /// Build the `navigator-billing-digest-trigger` image from the shared
-    /// `images/Dockerfile.trigger` (`--build-arg CRATE=billing-workflows
-    /// --build-arg BIN=billing-digest-trigger`). Its daily `CronJob` at
-    /// `examples/deploy/k8s/exports/cron-billing-digest-trigger.yaml` starts one
-    /// `BillingDigest` workflow invocation — the daily GCP-cost email reporting
-    /// gross/credits/net by service and the real cost when trial credits expire.
-    ImageBillingDigestTrigger,
-    /// Build both images, `kind load` them, then
+    /// Per-worktree isolated dev environment — stand up (or tear down) an
+    /// environment scoped to the current git worktree so multiple
+    /// worktrees run in parallel without colliding on database or web
+    /// port. The default mode shares the KIND dependency cluster and gives
+    /// each worktree its own Postgres database (`navigator_<slug>`) and
+    /// host `web` port; `--demo` runs the full stack in-cluster from
+    /// published ghcr images. Wired into Codex's per-worktree Setup
+    /// (`worktree-env up`) and Cleanup (`worktree-env down`) scripts.
+    #[command(subcommand)]
+    WorktreeEnv(WorktreeEnvCmd),
+    /// Pull both published ghcr images, `kind load` them, then
     /// `kubectl apply -k k8s/overlays/kind` — the full stack
-    /// including navigator-web. CI-shaped path: ends with the
+    /// including navigator-web. CI publishes the images; this no longer
+    /// builds them. Pin a release with `NAVIGATOR_IMAGE_TAG`, else the
+    /// latest published `YY.MM.DD` tag is pulled. Ends with the
     /// navigator-web rollout settling.
     Deploy,
     /// `kubectl delete namespace navigator`. Removes every Neon Law Navigator
@@ -1158,15 +1116,7 @@ fn main() -> ExitCode {
         | Command::Status
         | Command::KindUp
         | Command::KindDown
-        | Command::Image
-        | Command::ImageWorkflowsService
-        | Command::ImageArchivesTrigger
-        | Command::ImageStatutesTrigger
-        | Command::ImageBillingCanaryTrigger
-        | Command::ImageReconcileInvoicesTrigger
-        | Command::ImageRecurringBillingTrigger
-        | Command::ImageHeartbeatTrigger
-        | Command::ImageBillingDigestTrigger
+        | Command::WorktreeEnv(_)
         | Command::Deploy
         | Command::Undeploy
         | Command::E2e

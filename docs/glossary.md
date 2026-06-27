@@ -199,12 +199,15 @@ Subcommands:
   for the host to run.
 - `down` — kill port-forwards and delete the KIND cluster. `env`, `status` — print the env file / show whether
   port-forwards are alive. `kind-up`, `kind-down` — just the cluster + ingress + Operator (no application manifests).
-  `deploy` — full in-cluster stack including `navigator-web`. The CI-shaped path: idempotently sets the cluster up,
-  builds both images, `kind load`s, applies every manifest, waits for the navigator-web rollout.
-- `undeploy` — `kubectl delete namespace navigator`. `image`, `image-workflows-service` — build one image at a time.
-  `e2e` — smoke-test the deployed stack (rollouts, `/health`, OPA decisions, seed counts). `grant-staff` — pre-seed the
-  Staff demo user with the `staff` role for the browser e2e. `power-push` — one-shot ship to prod (build + push both
-  images, bundle, roll out, re-register). `logs` — tail navigator-web logs.
+  `deploy` — full in-cluster stack including `navigator-web`. Idempotently sets the cluster up, **pulls** both published
+  ghcr images (`NAVIGATOR_IMAGE_TAG` or the latest `YY.MM.DD`), retags them to `:dev`, `kind load`s, applies every
+  manifest, waits for the navigator-web rollout. CI builds the images; the local loop no longer builds them.
+- `undeploy` — `kubectl delete namespace navigator`. `worktree-env up/down/status` — stand up (or tear down) a
+  per-worktree dev environment (its own `navigator_<slug>` database + host `web` port on the shared deps; `--demo` for
+  the full in-cluster stack from ghcr), wired into Codex's Setup/Cleanup scripts. `e2e` — smoke-test the deployed stack
+  (rollouts, `/health`, OPA decisions, seed counts). `grant-staff` — pre-seed the Staff demo user with the `staff` role
+  for the browser e2e. `power-push` — one-shot ship to prod (roll both published images, re-register). `logs` — tail
+  navigator-web logs.
 
 The workspace has no Makefile — the `navigator` CLI is the only entry point.
 

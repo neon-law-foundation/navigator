@@ -51,7 +51,7 @@ self-skip when absent; run them with `doppler run -- cargo test …`.
 The machine-bound deploy is no different: prefix the deploy commands in [`cloud-operations.md`](cloud-operations.md)
 with `doppler run --` instead of sourcing `.env`, and the deploy-targeting vars (`NAVIGATOR_GCP_PROJECT_ID`,
 `NAVIGATOR_GCP_LOCATION`, `NAVIGATOR_GKE_CLUSTER_NAME`, `NAVIGATOR_PRIMARY_DOMAIN`) are injected from the `dev` config —
-e.g. `doppler run -- bash -c 'cargo run --release -p cli -- image'`. With Doppler configured, `.env` is optional and
+e.g. `doppler run -- bash -c 'cargo run --release -p cli -- deploy'`. With Doppler configured, `.env` is optional and
 fully derivable (`doppler secrets download …` above); the OSS docs keep a `source .env` path for forks that don't use
 Doppler.
 

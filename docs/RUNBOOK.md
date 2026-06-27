@@ -59,7 +59,7 @@ kubectl get nodes
 # Expect: navigator-control-plane Ready, navigator-worker Ready
 ```
 
-## 2. Build the image + deploy everything (🔧 you run)
+## 2. Pull the published images + deploy everything (🔧 you run)
 
 ```bash
 cargo run --release -p cli -- deploy
@@ -67,10 +67,14 @@ cargo run --release -p cli -- deploy
 
 What this does:
 
-1. `docker build -t navigator-web:dev -f images/Dockerfile.web .` — two-stage build; ~2 min cold, ~30 s warm.
-2. `kind load docker-image navigator-web:dev --name navigator` — pushes the image into the cluster's local registry.
-3. `kubectl apply -f k8s/namespace.yaml` + every per-component subdirectory under `k8s/`.
-4. `kubectl --namespace navigator rollout status deployment/navigator-web --timeout=300s`.
+1. Resolve the `YY.MM.DD` ghcr tag to pull — `NAVIGATOR_IMAGE_TAG` if set, else the latest published tag.
+2. `docker pull ghcr.io/<owner>/navigator-web:<tag>` then retag it to `navigator-web:dev` (the name the manifests
+   reference), and the same for `navigator-workflows-service`. CI (`deploy.yml`) builds and publishes these images; the
+   local loop no longer builds them — pin a known-good release with `NAVIGATOR_IMAGE_TAG=YY.MM.DD` for a reproducible
+   demo.
+3. `kind load docker-image navigator-web:dev --name navigator` — pushes the pulled image into the cluster.
+4. `kubectl apply -k k8s/overlays/kind` — the full stack including `navigator-web`.
+5. `kubectl --namespace navigator rollout status deployment/navigator-web --timeout=300s`.
 
 Expected final line:
 
@@ -290,8 +294,9 @@ The `set -a` block exports every `KEY=VALUE` line in `.devx/env` into your shell
 with `DATABASE_URL` pointing at the in-cluster Postgres via the forwarded port, OAuth pointing at Keycloak on `:30080`,
 OPA on `:8181`, fake-gcs on `:30443`.
 
-The Keycloak realm in `k8s/overlays/kind/deps/keycloak.yaml` whitelists `http://localhost:3001/auth/callback` alongside
-the existing `:8080` redirect URI, so the OIDC flow works in either deploy mode without realm edits.
+The Keycloak realm in `k8s/overlays/kind/deps/keycloak.yaml` whitelists `http://localhost:3001/auth/callback`, the
+`:8080` ingress redirect URI, and a `http://localhost:*/auth/callback` wildcard, so the OIDC flow works in either deploy
+mode — and on any per-worktree `web` port (section 7c) — without realm edits.
 
 ### Open in Chrome
 
@@ -369,7 +374,48 @@ docker run --rm -it \
 
 `--network host` is what lets the browser on the host reach the port-forwards started inside the container.
 
-## 7c. Running the test suite
+## 7c. One environment per git worktree (Codex / parallel agents)
+
+When several agents (or you, across several Codex worktrees) work in parallel, each worktree needs its **own** running
+app without colliding on the database or the `web` port. `navigator worktree-env` provides that on top of the section-7b
+fast loop: the KIND dependency tier stays the **one shared persistent fixture**, while each worktree gets only its own
+Postgres database (`navigator_<slug>`, from the sanitized branch name) and its own host `web` port — a base of `3001`
+plus a stable per-slug offset.
+
+```bash
+# In the worktree (cwd = the worktree root):
+cargo run -p cli -- worktree-env up      # create navigator_<slug>, migrate it, write .devx/env
+set -a; source .devx/env; set +a
+cargo run -p web                         # listens on this worktree's own port (e.g. :3042)
+
+cargo run -p cli -- worktree-env status  # slug, mode, database, port, reachability
+cargo run -p cli -- worktree-env down    # drop navigator_<slug>; leaves the shared deps untouched
+```
+
+`up` brings the shared deps up automatically if they aren't already (otherwise it reuses them — only the first worktree
+pays the cluster-creation cost). It is idempotent and keeps the same port across re-runs, so the OAuth redirect URI
+stays stable; the realm whitelists `http://localhost:*/auth/callback`, so OIDC login works on any per-worktree port.
+`down` is idempotent and **never** kills the shared port-forwards or cluster — other worktrees depend on them; use
+`navigator down` for the full teardown.
+
+**Codex wiring.** In the Codex environment's **Setup script** (runs at worktree creation) and **Cleanup script** (runs
+before worktree cleanup):
+
+```bash
+# Setup script
+cargo run -p cli -- worktree-env up   --path "$CODEX_WORKTREE_PATH"
+# Cleanup script
+cargo run -p cli -- worktree-env down --path "$CODEX_WORKTREE_PATH"
+```
+
+`web` still needs the Doppler-only secrets (`SENDGRID_EVENTS_SECRET`, `SENDGRID_EVENTS_PUBLIC_KEY`, `DOCUSIGN_HMAC_KEY`)
+to boot — run it under `doppler run …` or with a gitignored stub `.env`, exactly as the section-7b loop does.
+
+**Full-stack demo.** To show the product running entirely in KIND from the published ghcr images (no host `web`), use
+`cargo run -p cli -- worktree-env up --demo` (optionally `--tag YY.MM.DD` to pin a release). This delegates to
+`navigator deploy`; it is a single in-cluster stack, reached through the ingress at <http://localhost:8080>.
+
+## 7d. Running the test suite
 
 `cargo test` needs exactly one Postgres for the whole run — never one per test binary. Two ways to get it:
 
