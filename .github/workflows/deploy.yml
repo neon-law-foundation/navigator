@@ -740,11 +740,13 @@ jobs:
   # Sent only after images and downloadable binaries are published. Posts to the
   # engineering channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL,
   # synced from Doppler) — the same channel and webhook the failure guard below
-  # uses. Unlike a silent FYI, this tags Nick and carries the exact `power-push`
-  # command, because the prod roll is a deliberate manual step (docs/gitops.md):
-  # the images are on the shelf, and a human rolls them. The one rule still
-  # binds: identifiers and counts, never content — the body carries the tag, the
-  # run URL, and the roll command, nothing client-bearing.
+  # uses. Unlike a silent FYI, this tags Nick and carries the exact roll
+  # commands — install the version-tagged CLI from the Homebrew tap this run
+  # published, then `power-push` with it — because the prod roll is a deliberate
+  # manual step (docs/gitops.md): the images are on the shelf, and a human rolls
+  # them. The one rule still binds: identifiers and counts, never content — the
+  # body carries the tag, the run URL, and the roll commands, nothing
+  # client-bearing.
   notify:
     name: slack ready-to-deploy hand-off
     needs: [publish, release-binaries-publish, release-version]
@@ -771,11 +773,15 @@ jobs:
               exit 1
           fi
           # Concise hand-off: tag the on-call, state the build is ready, and hand
-          # over the exact roll command (escaped backticks → literal Slack code
-          # span). The prod roll is a deliberate manual step — see docs/gitops.md.
+          # over the exact roll commands (escaped backticks → literal Slack code
+          # spans). Install the same version-tagged CLI this run published to the
+          # Homebrew tap, then roll with it — so the binary doing the deploy is the
+          # ${TAG} build, not an ad-hoc `cargo run` off whatever's checked out. The
+          # prod roll is a deliberate manual step — see docs/gitops.md.
           TEXT=":rocket: Neon Law Navigator ${TAG} is built and published to ghcr, with CLI/LSP downloads attached to the GitHub Release — ready to deploy. ${SLACK_OPS_MENTION}
-          Roll it to prod:
-          \`doppler run --project navigator --config prd -- cargo run --release -p cli -- power-push --tag ${TAG}\`
+          Install the ${TAG} CLI, then roll it to prod:
+          \`brew update && brew upgrade neon-law-foundation/tap/navigator || brew install neon-law-foundation/tap/navigator\`
+          \`doppler run --project navigator --config prd -- navigator power-push --tag ${TAG}\`
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
           code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
