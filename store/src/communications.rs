@@ -12,9 +12,8 @@
 //! oldest→newest, the way the conversation view renders it.
 //!
 //! Channel-specific fidelity (a comment's anchor, an email's headers) lives
-//! in satellites that FK back to the row this returns — see the design in
-//! `prompts/project-communications-ingestion.md`. Privilege is enforced one
-//! layer up (`web::access::can_see_project`); this module never widens a
+//! in satellites that FK back to the row this returns. Privilege is enforced
+//! one layer up (`web::access::can_see_project`); this module never widens a
 //! query past `project_id`.
 
 use std::sync::Arc;

@@ -12,7 +12,6 @@
 /.devx/
 /navigator.sqlite
 /navigator.sqlite.stale.*
-/prompts/
 /.claude/scheduled_tasks.lock
 # Local-only secret drop (Slack app creds, etc.) — values live in Doppler.
 /.slack.txt

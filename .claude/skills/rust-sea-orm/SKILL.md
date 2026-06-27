@@ -9,7 +9,7 @@ description: >
 
 # SeaORM 1.x patterns in the navigator workspace
 
-Driver is `sqlx` with `runtime-tokio-rustls`. Only `sqlx-postgres` is enabled — the SQLite backend was removed in the SQLite cutover (see `prompts/sqlite-removal-cutover.md`). Tests spin up a real Postgres via `testcontainers` (`store::test_support::pg`).
+Driver is `sqlx` with `runtime-tokio-rustls`. Only `sqlx-postgres` is enabled — the SQLite backend was removed in the SQLite cutover. Tests spin up a real Postgres via `testcontainers` (`store::test_support::pg`).
 
 ## Entities
 

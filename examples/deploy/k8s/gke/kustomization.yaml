@@ -5,14 +5,13 @@ kind: Kustomization
 # `YOUR_PROJECT_ID:us-west4:navigator-prod`. The directory is the
 # source of truth for what `kubectl apply -k` should produce; Config
 # Sync is NOT currently reconciling it because the repo isn't
-# pushed to a remote yet (see `prompts/git-remote-and-ci-wif.md`).
+# pushed to a remote yet.
 #
 # Hardcoded for the `YOUR_PROJECT_ID` GCP project. Re-renaming for
-# another project means search-and-replace; see
-# `prompts/devx-gcp-setup-fixes.md` for the (deferred) plan to
-# templatize.
+# another project means search-and-replace; templatizing it is a
+# deferred follow-up.
 #
-# Things deliberately NOT in this overlay (each has a prompt):
+# Things deliberately NOT in this overlay:
 # - Config Connector CRs (IAMPolicyMember, LoggingLogSink,
 #   GKEBackupBackupPlan, CertificateManagerCertificate*) — Config
 #   Connector isn't reconciling on this cluster's GKE version. The

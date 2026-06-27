@@ -5,9 +5,9 @@
 //!
 //! There is one workshop on the public surface today — "Using the
 //! Neon Law Navigator to Rapidly Solve Legal Outcomes." Earlier work
-//! ("Claude Code + Twelve Zodiac Lawyers") lives under `prompts/`
-//! and is not on the public surface. See the AIDA + engineer council
-//! review on 2026-05-26 for the rationale.
+//! ("Claude Code + Twelve Zodiac Lawyers") is not on the public
+//! surface. See the AIDA + engineer council review on 2026-05-26 for
+//! the rationale.
 //!
 //! The classroom flow exists for distracted learners: each `##`
 //! section is its own URL, so a lawyer who steps away mid-class

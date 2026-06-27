@@ -145,11 +145,13 @@ catalog. → [`docs/aida-a2a-interaction.md`](docs/aida-a2a-interaction.md),
 - `README.md` — workspace overview, install, demo. `cli/README.md` — per-subcommand reference. `k8s/` — KIND manifests.
   `notation_templates/` — notation templates. `store/seeds/` — canonical reference-data YAML.
 
-## Local-only convention: `prompts/`
+## Planning lives in GitHub issues
 
-The gitignored `prompts/` directory holds draft briefs and multi-session kickoff texts, named by topic. **Future
-sessions won't see these** unless the user pastes them back — the hand-off is the prompt text, not repo state. **Do not
-commit prompts.** If a prompt encodes a decision worth keeping, lift it into code, a doc, or the glossary.
+Planning — design briefs, multi-session kickoffs, the working notes behind a change — lives in **GitHub issues**, not a
+local folder. An issue is visible to the whole team and to every future session (a worktree starts from the issue, not
+from leftover local state), so reference the issue by number in the branch, the PR, and any commit that needs the
+context. When an issue encodes a decision worth keeping past the work, lift it into code, a doc, or the glossary — the
+issue is the working space, the repo is the durable record.
 
 ## Agent environment notes
 
