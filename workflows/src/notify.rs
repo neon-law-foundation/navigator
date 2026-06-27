@@ -21,9 +21,11 @@
 //!   and sends no mail at all.
 //!
 //! **The load-bearing boundary:** [`SlackOpsDelivery`] must back **only**
-//! internal/operations services — `Heartbeat`, `Archives`, `Statutes`,
-//! `BillingCanary`, `BillingDigest`. Those carry no client, matter, or PII
-//! data (their recipients are env-pinned to firm ops). It must **never** back
+//! internal/operations services — `Archives`, `Statutes`, `BillingCanary`,
+//! `BillingDigest`. (`Heartbeat` is also Slack-only but posts to the
+//! [`Notifier`] directly — it has no email framing to render.) Those carry no
+//! client, matter, or PII data (their recipients are env-pinned to firm ops).
+//! It must **never** back
 //! a client-facing email service (`Notation`, `RecurringBilling` invoices):
 //! pushing client content into a chat channel would cross the firm's trust
 //! boundary, violating the standing no-content rule (see the `observability`
