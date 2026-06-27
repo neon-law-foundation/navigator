@@ -5595,6 +5595,81 @@ async fn nebula_show_tell_register_records_email_neutrally() {
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
 }
 
+/// Drive `GET …/show-and-tell/{slug}` and return `(cookie_pair, csrf_token)`
+/// for a valid double-submit POST to the registration route.
+async fn fetch_register_csrf(app: &axum::Router, slug: &str) -> (String, String) {
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/foundation/nebula/show-and-tell/{slug}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let set_cookie = resp
+        .headers()
+        .get_all(axum::http::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find(|c| c.starts_with("navigator_nebula_register_csrf="))
+        .expect("detail page sets the register CSRF cookie")
+        .to_string();
+    let cookie_pair = set_cookie.split(';').next().unwrap().to_string();
+    let body = body_string(resp).await;
+    let marker = "name=\"csrf_token\" value=\"";
+    let start = body.find(marker).expect("csrf hidden field present") + marker.len();
+    let token = body[start..].split('"').next().unwrap().to_string();
+    (cookie_pair, token)
+}
+
+#[tokio::test]
+async fn nebula_show_tell_register_db_failure_returns_500_not_confirmation() {
+    // A failed registration write must NOT paint a "you're registered"
+    // confirmation over a row that was never stored. Drop the events table so
+    // the store call returns a DbErr, then prove the handler surfaces a 500
+    // with no confirmation copy.
+    use sea_orm::ConnectionTrait;
+
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let db = state.db.clone();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+
+    let (cookie, token) = fetch_register_csrf(&app, "seattle-summer-2026").await;
+
+    // Force the store write to fail: with no `events` relation the atomic
+    // UPDATE errors instead of returning an Ok outcome.
+    db.execute_unprepared("DROP TABLE events")
+        .await
+        .expect("drop events table");
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/foundation/nebula/show-and-tell/seattle-summer-2026/register")
+                .header(header::COOKIE, cookie)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from(format!(
+                    "email=ada%40example.com&csrf_token={token}"
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = body_string(resp).await;
+    // The neutral confirmation headline must never appear on a failed write.
+    assert!(
+        !body.contains("registered"),
+        "a failed write must not render the registration confirmation, got: {body}"
+    );
+}
+
 #[tokio::test]
 async fn nebula_show_tell_ics_uses_pacific_timezone() {
     let mut state = empty_state().await;

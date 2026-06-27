@@ -2545,18 +2545,27 @@ async fn nebula_show_tell_register(
     let detail_href = format!("{NEBULA_BASE}/show-and-tell/{}", event.public_slug);
     let ics_url = format!("{detail_href}/calendar.ics");
     match store::events::register(&app.db, &event.public_slug, email).await {
-        Ok(_) => {}
+        // Both Ok arms (Registered / AlreadyRegistered / EventNotFound) wrote
+        // through to a consistent state, so the reply stays neutral and the
+        // confirmation page is honest.
+        Ok(_) => (
+            StatusCode::OK,
+            workshop_views::show_tell_registered(&event.title, &detail_href, &ics_url, auth),
+        )
+            .into_response(),
         Err(e) => {
-            // Logged, never surfaced — the reply stays neutral. Instrument
-            // the event + outcome only, never the registrant (trust boundary).
+            // A DbErr means *nothing was stored* — never paint a "you're
+            // registered" confirmation over a failed write. Surface a generic
+            // 500 so the visitor can retry. Instrument the event + outcome
+            // only, never the registrant (trust boundary).
             tracing::warn!(error = %e, event = %event.public_slug, "event registration failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Something went wrong saving your registration — please try again.",
+            )
+                .into_response()
         }
     }
-    (
-        StatusCode::OK,
-        workshop_views::show_tell_registered(&event.title, &detail_href, &ics_url, auth),
-    )
-        .into_response()
 }
 
 async fn nebula_show_tell_ics(
