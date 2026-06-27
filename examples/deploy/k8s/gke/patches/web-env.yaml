@@ -14,8 +14,8 @@
 # optionally SENDGRID_FROM_EMAIL) come in via `envFrom` from the
 # `navigator-web-secrets` Kubernetes Secret. That Secret is
 # currently maintained out-of-band via `kubectl create secret
-# generic` — see `prompts/csi-driver-secrets-sync.md` for the plan
-# to sync it from Secret Manager. The same Secret is also
+# generic`; syncing it from Secret Manager is a deferred follow-up.
+# The same Secret is also
 # `envFrom`'d by the `workflows-service` Deployment so the
 # `email_send__welcome` worker handler picks up SendGrid without
 # a parallel secret to maintain.

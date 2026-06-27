@@ -7,8 +7,7 @@
 //! comment anchor in [`super::document_comment`], the RFC headers in the
 //! email tables. The `channel` column is the discriminator; adding
 //! `sms_inbound`/`sms_outbound` later needs a new literal, not a new
-//! column. See [`crate::communications`] for the ingest + query helpers
-//! and `prompts/project-communications-ingestion.md` for the design.
+//! column. See [`crate::communications`] for the ingest + query helpers.
 //!
 //! Privilege is structural: every row is project-scoped client
 //! communication, so reads are gated by `project_id`, never surfaced

@@ -10,8 +10,7 @@
 //!
 //! Postgres is the only supported backend (Cloud SQL in prod,
 //! in-cluster Postgres in KIND). The previous SQLite variant +
-//! `APP_ENV` selector are gone — see the SQLite cutover plan at
-//! `prompts/sqlite-removal-cutover.md` for the why.
+//! `APP_ENV` selector are gone.
 
 use thiserror::Error;
 

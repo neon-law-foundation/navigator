@@ -6,7 +6,6 @@
 //! distinct normalized text ever observed for a section, written only by
 //! `INSERT`. "Current" is the latest revision, derived at read time —
 //! there is deliberately no `observed_until` interval to keep in sync.
-//! See `prompts/nrs-statute-scraper-design.md`.
 
 use sea_orm_migration::prelude::*;
 
