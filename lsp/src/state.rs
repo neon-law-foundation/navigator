@@ -173,31 +173,127 @@ impl Server {
         actions
     }
 
-    /// Hover at `position`: if any violation's range covers that
-    /// byte offset, return the rule description + the violation
-    /// message.
+    /// Hover at `position`. Two complementary sources:
+    ///
+    /// 1. **Workflow step doc** — when the cursor is on a state name in a
+    ///    template's `workflow:` block, show what that step actually does
+    ///    (from the `rules::workflow_steps` catalog), the way hovering a
+    ///    function shows its doc.
+    /// 2. **Violation** — if any violation's range covers the byte, show
+    ///    the rule description + message.
+    ///
+    /// When both apply (e.g. hovering `staff_review`, which has both a
+    /// catalog entry and an N112 advisory), the step doc comes first,
+    /// then the violation below a rule.
     pub fn hover(&self, uri: &Uri, position: lsp_types::Position) -> Option<Hover> {
         let text = self.documents.get(uri)?;
         let path = uri_to_path(uri);
-        let (_file, violations) = lint_buffer(path, text.clone());
         let byte = position_to_byte(text, position)?;
-        let v = violations
+
+        let step = workflow_step_hover(text, byte);
+        let (_file, violations) = lint_buffer(path, text.clone());
+        let violation = violations
             .iter()
-            .find(|v| v.range.start <= byte && byte <= v.range.end)?;
-        let body = format!(
-            "**{}** — {}\n\n{}",
-            v.code,
-            rules::description_for_code(v.code),
-            v.message,
-        );
+            .find(|v| v.range.start <= byte && byte <= v.range.end);
+
+        let (range, body) = match (step, violation) {
+            (Some((range, doc)), Some(v)) => (
+                range,
+                format!(
+                    "{doc}\n\n---\n\n**{}** — {}\n\n{}",
+                    v.code,
+                    rules::description_for_code(v.code),
+                    v.message,
+                ),
+            ),
+            (Some((range, doc)), None) => (range, doc),
+            (None, Some(v)) => (
+                v.range.clone(),
+                format!(
+                    "**{}** — {}\n\n{}",
+                    v.code,
+                    rules::description_for_code(v.code),
+                    v.message,
+                ),
+            ),
+            (None, None) => return None,
+        };
         Some(Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::Markdown,
                 value: body,
             }),
-            range: Some(range_to_lsp_range(text, &v.range)),
+            range: Some(range_to_lsp_range(text, &range)),
         })
     }
+}
+
+/// Hover doc for a workflow step, when `byte` falls on a state name
+/// inside a template's `workflow:` block. Returns the token's byte range
+/// and the markdown body (`**prefix** — status\n\nsummary`), or `None`
+/// when the cursor isn't on a known step in that block.
+fn workflow_step_hover(text: &str, byte: usize) -> Option<(std::ops::Range<usize>, String)> {
+    if !in_workflow_block(text, byte) {
+        return None;
+    }
+    let range = identifier_at(text, byte)?;
+    let step = rules::lookup_workflow_step(&text[range.clone()])?;
+    let body = format!(
+        "**{}** — {}\n\n{}",
+        step.prefix,
+        step.status.label(),
+        step.summary,
+    );
+    Some((range, body))
+}
+
+/// The maximal `[A-Za-z0-9_]` run covering `byte` (a state name is one
+/// such token). `None` if the byte isn't on a word character.
+fn identifier_at(text: &str, byte: usize) -> Option<std::ops::Range<usize>> {
+    let bytes = text.as_bytes();
+    let is_word = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let mut start = byte.min(bytes.len());
+    let mut end = start;
+    while end < bytes.len() && is_word(bytes[end]) {
+        end += 1;
+    }
+    while start > 0 && is_word(bytes[start - 1]) {
+        start -= 1;
+    }
+    (start != end).then_some(start..end)
+}
+
+/// True when `byte` lies on an indented line inside the frontmatter's
+/// top-level `workflow:` block — so a question code or a body word that
+/// happens to share a step name doesn't get a workflow-step hover.
+fn in_workflow_block(text: &str, byte: usize) -> bool {
+    if !text.starts_with("---\n") {
+        return false;
+    }
+    let fm_start = 4;
+    let Some(rel_end) = text[fm_start..].find("\n---") else {
+        return false;
+    };
+    let fm_end = fm_start + rel_end;
+    if byte < fm_start || byte >= fm_end {
+        return false;
+    }
+    let mut in_block = false;
+    let mut offset = fm_start;
+    for line in text[fm_start..fm_end].split_inclusive('\n') {
+        let line_end = offset + line.len();
+        let indented = line.starts_with([' ', '\t']);
+        if !indented && line.trim_end().ends_with(':') {
+            // A top-level key resets the block: we're in it only under
+            // `workflow:` itself.
+            in_block = line.trim_end() == "workflow:";
+        }
+        if byte >= offset && byte < line_end {
+            return in_block && indented;
+        }
+        offset = line_end;
+    }
+    false
 }
 
 fn intersects(a: &lsp_types::Range, b: &lsp_types::Range) -> bool {
@@ -507,5 +603,62 @@ mod tests {
             )
             .is_none());
         let _ = uri;
+    }
+
+    // A minimal notation template whose `workflow:` block names two
+    // steps. Line numbers (0-indexed) used by the hover tests below:
+    //   5  `  document_open__pdf:`
+    //   7  `  staff_review:`
+    const WORKFLOW_FIXTURE: &str = "---\n\
+title: T\n\
+workflow:\n  \
+  BEGIN:\n    \
+    created: document_open__pdf\n  \
+  document_open__pdf:\n    \
+    persisted: staff_review\n  \
+  staff_review:\n    \
+    approved: END\n  \
+  END: {}\n\
+---\n\nBody.\n";
+
+    fn hover_markup(server: &Server, uri: &Uri, line: u32, character: u32) -> Option<String> {
+        match server.hover(uri, Position { line, character })?.contents {
+            lsp_types::HoverContents::Markup(m) => Some(m.value),
+            _ => panic!("expected markup hover"),
+        }
+    }
+
+    #[test]
+    fn hover_over_a_workflow_step_shows_what_it_does() {
+        let mut server = Server::new();
+        open(&mut server, "file:///wf.md", WORKFLOW_FIXTURE);
+        let uri = Uri::from_str("file:///wf.md").unwrap();
+        // Line 5 `  document_open__pdf:`, inside the token.
+        let v = hover_markup(&server, &uri, 5, 6).expect("step hover");
+        assert!(v.contains("document_open"), "got: {v}");
+        assert!(v.contains("Implemented"), "should show status, got: {v}");
+        assert!(v.contains("PDF"), "should describe what it does, got: {v}");
+    }
+
+    #[test]
+    fn hover_over_staff_review_shows_step_doc_and_the_n112_advisory() {
+        let mut server = Server::new();
+        open(&mut server, "file:///wf.md", WORKFLOW_FIXTURE);
+        let uri = Uri::from_str("file:///wf.md").unwrap();
+        // Line 7 `  staff_review:`, inside the token.
+        let v = hover_markup(&server, &uri, 7, 5).expect("step hover");
+        assert!(v.contains("staff_review"), "got: {v}");
+        assert!(v.contains("attorney"), "step summary, got: {v}");
+        // staff_review also carries the yellow N112 advisory — both show.
+        assert!(v.contains("N112"), "should also surface N112, got: {v}");
+    }
+
+    #[test]
+    fn hover_over_a_non_step_token_in_the_workflow_block_is_none() {
+        let mut server = Server::new();
+        open(&mut server, "file:///wf.md", WORKFLOW_FIXTURE);
+        let uri = Uri::from_str("file:///wf.md").unwrap();
+        // Line 3 `  BEGIN:` — a marker, not a catalog step, no violation.
+        assert!(hover_markup(&server, &uri, 3, 3).is_none());
     }
 }

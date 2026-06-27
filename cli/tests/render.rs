@@ -128,6 +128,33 @@ fn answer_substitutes_a_placeholder() {
 }
 
 #[test]
+fn renders_despite_a_non_blocking_advisory() {
+    // The `VALID` fixture's mandatory `staff_review` gate earns the
+    // yellow N112 "not built yet" advisory — a Warning, not an Error.
+    // Rendering must not be blocked by it (it is, however, still printed
+    // so the author sees it), mirroring `validate` / `import`.
+    let work = TempDir::new().unwrap();
+    let src = write(&work, "demand.md", VALID);
+    let out = work.path().join("demand.pdf");
+    let result = render(&[src.as_os_str(), "--out".as_ref(), out.as_os_str()]);
+    assert!(
+        result.status.success(),
+        "a Warning-only template must still render, stderr: {}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    assert!(
+        stdout.contains("N112"),
+        "the advisory should still be surfaced, got stdout: {stdout}"
+    );
+    assert_eq!(
+        &fs::read(&out).unwrap()[..4],
+        b"%PDF",
+        "output is not a PDF"
+    );
+}
+
+#[test]
 fn refuses_a_template_that_fails_validation() {
     let work = TempDir::new().unwrap();
     // Drop the required `code:` field (N108) — still classifies as a
@@ -142,7 +169,7 @@ fn refuses_a_template_that_fails_validation() {
     );
     let stderr = String::from_utf8_lossy(&result.stderr);
     assert!(
-        stderr.contains("validation violation"),
+        stderr.contains("validation error"),
         "expected a validation refusal, got: {stderr}"
     );
     assert!(!out.exists(), "no PDF should be written on refusal");

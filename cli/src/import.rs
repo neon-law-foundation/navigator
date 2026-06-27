@@ -86,7 +86,14 @@ pub async fn import_directory(
             .iter()
             .flat_map(|r| r.lint(&file))
             .collect();
-        if !file_violations.is_empty() {
+        // Only blocking (Error-severity) violations skip a file. Yellow
+        // advisories like N112 ("step allowed but not built yet") apply
+        // to nearly every template's staff_review gate and must not stop
+        // it from importing.
+        let has_errors = file_violations
+            .iter()
+            .any(|v| rules::severity_for_code(v.code) == rules::Severity::Error);
+        if has_errors {
             report.files_skipped_due_to_violations += 1;
             report.violations.extend(file_violations);
             continue;

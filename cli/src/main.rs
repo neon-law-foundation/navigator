@@ -1665,18 +1665,21 @@ async fn run_validate(
     for v in &report.violations {
         print_violation(&v.path.display().to_string(), v.line, v.code, &v.message);
     }
+    let (error_count, warning_count) = severity_counts(&report.violations);
     println!(
         "{}",
         palette::dim(format!(
-            "Scanned {} file(s), found {} violation(s)",
+            "Scanned {} file(s), found {error_count} error(s), {warning_count} warning(s)",
             report.files_scanned,
-            report.violations.len()
         ))
     );
-    if report.is_clean() {
-        ExitCode::SUCCESS
-    } else {
+    // Fail the gate on Error-severity violations only; Warning-severity
+    // advisories (e.g. a step that's allowed but not built yet) are
+    // printed above but do not make `validate` exit nonzero.
+    if report.has_errors() {
         ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
     }
 }
 
@@ -1710,8 +1713,11 @@ fn run_render(
         }
     };
 
-    // Gate on validation: only a clean notation template renders. Use
-    // the same DB-free classified rule set as `validate`.
+    // Gate on validation: render only when there are no blocking
+    // (Error-severity) violations. Use the same DB-free classified rule
+    // set as `validate`. Yellow advisories (e.g. N112, "step allowed but
+    // not built yet" — which every staff_review gate earns) are printed
+    // but must not block rendering, mirroring `validate` / `import`.
     let source = rules::SourceFile {
         path: file.to_path_buf(),
         contents: contents.clone(),
@@ -1721,14 +1727,14 @@ fn run_render(
             .iter()
             .flat_map(|r| r.lint(&source))
             .collect();
+    let (error_count, _) = severity_counts(&violations);
     if !violations.is_empty() {
         for v in &violations {
             print_violation(&v.path.display().to_string(), v.line, v.code, &v.message);
         }
-        eprintln!(
-            "navigator: {} validation violation(s); not rendering",
-            violations.len()
-        );
+    }
+    if error_count > 0 {
+        eprintln!("navigator: {error_count} validation error(s); not rendering");
         return ExitCode::from(1);
     }
 
@@ -1897,6 +1903,17 @@ fn fix_directory(
 /// Render a single rule violation: path/line in dim cyan-700, rule
 /// code in cyan-500, message in default. Shared by validate and
 /// import so both subcommands have the same look.
+/// Split a violation list into `(error_count, warning_count)` by each
+/// code's [`rules::Severity`]. Used for the `validate` summary line so
+/// blocking errors and "not built yet" advisories are tallied apart.
+fn severity_counts(violations: &[rules::Violation]) -> (usize, usize) {
+    let errors = violations
+        .iter()
+        .filter(|v| rules::severity_for_code(v.code) == rules::Severity::Error)
+        .count();
+    (errors, violations.len() - errors)
+}
+
 fn print_violation(path: &str, line: usize, code: &str, message: &str) {
     println!(
         "{} {}: {}",
