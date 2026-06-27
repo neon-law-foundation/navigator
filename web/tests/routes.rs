@@ -625,6 +625,11 @@ async fn navigator_serves_the_sovereign_software_hub_under_foundation_brand() {
     // Trademarks anchor (the notations page cross-links it).
     assert!(body.contains("cargo run -p cli -- start-dev-server"));
     assert!(body.contains("href=\"/docs/glossary#project\""));
+    // The "everything else → GitHub blob" rewrite branch, end-to-end: the
+    // README's LICENSE-APACHE link resolves to the GitHub source.
+    assert!(body.contains(
+        "href=\"https://github.com/neon-law-foundation/navigator/blob/main/LICENSE-APACHE\""
+    ));
     assert!(body.contains("id=\"trademarks\""));
 }
 
