@@ -40,11 +40,12 @@ One worker pod hosts every service; new workflows bind onto the same endpoint, n
 `workflows_service::registry` (guarded by tests). Today: the `notation` virtual object plus the durable workflows
 `Archives`, `Statutes`, `Heartbeat`, `BillingCanary`, `MatterCloseInvoice`, `RecurringBilling`, `ReconcileInvoices`.
 
-**Heartbeat** is the liveness canary: a two-step (beat → notify), zero-dependency workflow that posts firm ops a Slack
-notice **every 6 hours** with the Restate + GCP links and the kubectl chain to debug a missing beat. A six-hour gap with
-no heartbeat notice in Slack is the alarm. After any worker deploy, the heartbeat's first notice is also the proof that
-re-registration happened. (Ops notices go to Slack only — the duplicate ops email was dropped once Slack proved
-reliable; client-facing email still goes out over SendGrid.)
+**Heartbeat** is the liveness canary: a two-step (beat → notify), zero-dependency workflow that posts firm ops a
+**one-line** Slack notice **every 6 hours** (a heart glyph + `Durable execution OK` + the beat timestamp), straight
+through the Slack notifier with no email framing. A six-hour gap with no heartbeat notice in Slack is the alarm; the
+runbook to debug a missing beat is this skill, not the message. After any worker deploy, the heartbeat's first notice is
+also the proof that re-registration happened. (Ops notices go to Slack only — the duplicate ops email was dropped once
+Slack proved reliable; client-facing email still goes out over SendGrid.)
 
 ## Three ways a workflow starts
 
