@@ -25,7 +25,7 @@ use maud::{html, Markup};
 
 use crate::brand::{foundation_github_url, FOUNDATION_BRAND};
 use crate::markdown::render_with_link_rewrite;
-use crate::{AuthState, PageLayout};
+use crate::{AuthState, Locale, PageLayout};
 
 /// The workspace README, baked in at compile time. Resolved against the
 /// `views` crate manifest dir, so it points at the workspace-root file.
@@ -36,9 +36,20 @@ const REPO_BLOB_BASE: &str = "https://github.com/neon-law-foundation/navigator/b
 
 #[must_use]
 pub fn render(auth: AuthState) -> Markup {
+    render_in(auth, Locale::En)
+}
+
+/// Render the hub in `locale`. The hero and sovereign-software copy are
+/// transcreated (Tier-A marketing prose — see [`docs/i18n.md`]); the package
+/// strip and the README body below stay English (the README is an
+/// English-only artifact by the English-first invariant). Both locales carry
+/// the canonical path so the layout emits the `hreflang` pair and the navbar
+/// language switcher.
+#[must_use]
+pub fn render_in(auth: AuthState, locale: Locale) -> Markup {
     let body = html! {
-        (hero())
-        (sovereign_software())
+        (hero(locale))
+        (sovereign_software(locale))
         (packages())
         // Under the strip: the README, unless a package tab is selected
         // (which happens on the per-package pages, not the hub).
@@ -46,20 +57,47 @@ pub fn render(auth: AuthState) -> Markup {
             (render_with_link_rewrite(README, rewrite_link))
         }
     };
-    PageLayout::new("Neon Law Navigator")
-        .with_description(
+    let description = match locale {
+        Locale::En => {
             "Neon Law Navigator is sovereign legal software from the Neon Law \
              Foundation — open source under Apache-2.0 or MIT, built to self-host \
-             so your data stays in your own cloud.",
-        )
+             so your data stays in your own cloud."
+        }
+        Locale::Es => {
+            "Neon Law Navigator es software legal soberano de la Neon Law \
+             Foundation: código abierto bajo Apache-2.0 o MIT, hecho para \
+             autoalojarse para que tus datos se queden en tu propia nube."
+        }
+    };
+    PageLayout::new("Neon Law Navigator")
+        .with_description(description)
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
+        .with_locale(locale)
+        .with_canonical_path("/foundation/navigator")
         .render(&body)
 }
 
 /// The logo banner: the Foundation mark, the product wordmark, the
-/// Sovereign Software tagline, and the GitHub call to action.
-fn hero() -> Markup {
+/// Sovereign Software tagline, and the GitHub call to action. The wordmark
+/// and brand mark are proper nouns — identical in every locale.
+fn hero(locale: Locale) -> Markup {
+    let (tagline, subtitle, cta) = match locale {
+        Locale::En => (
+            "Sovereign legal software you can run yourself.",
+            "An open-source operating system for a modern law practice — versioned \
+             legal templates, durable workflows, attorney-reviewed automation, and \
+             agent-accessible tooling.",
+            "View on GitHub",
+        ),
+        Locale::Es => (
+            "Software legal soberano que tú mismo operas.",
+            "Un sistema operativo de código abierto para la práctica legal moderna: \
+             plantillas legales versionadas, flujos de trabajo duraderos, automatización \
+             revisada por abogados y herramientas accesibles para agentes.",
+            "Ver en GitHub",
+        ),
+    };
     html! {
         section."text-center"."bg-body-tertiary"."rounded-3"."p-5"."mb-5" {
             img."mb-3"
@@ -68,16 +106,14 @@ fn hero() -> Markup {
                 width="72"
                 height="72";
             h1."display-4"."fw-bold"."mb-2" { "Neon Law Navigator" }
-            p."lead"."mb-2" { "Sovereign legal software you can run yourself." }
+            p."lead"."mb-2" { (tagline) }
             p."mx-auto"."mb-4"."text-body-secondary" style="max-width: 44rem;" {
-                "An open-source operating system for a modern law practice — versioned \
-                 legal templates, durable workflows, attorney-reviewed automation, and \
-                 agent-accessible tooling."
+                (subtitle)
             }
             div."d-flex"."justify-content-center" {
                 a."btn"."btn-primary"."btn-lg" href=(foundation_github_url()) {
                     i."bi bi-github me-2" aria-hidden="true" {}
-                    "View on GitHub"
+                    (cta)
                 }
             }
         }
@@ -85,24 +121,50 @@ fn hero() -> Markup {
 }
 
 /// The sovereign-software positioning — the headline idea, kept above the
-/// package strip. Two short paragraphs, no cards.
-fn sovereign_software() -> Markup {
+/// package strip. Two short paragraphs, no cards. Transcreated per locale;
+/// proper nouns (the cloud-native components) carry verbatim.
+fn sovereign_software(locale: Locale) -> Markup {
+    let heading = match locale {
+        Locale::En => "Your practice. Your data. Your cloud.",
+        Locale::Es => "Tu práctica. Tus datos. Tu nube.",
+    };
     html! {
         section."mb-5" id="sovereign-software" {
-            h2."mb-3" { "Your practice. Your data. Your cloud." }
-            p {
-                "Neon Law Navigator is sovereign software: predominantly open source \
-                 under Apache-2.0 or MIT, built to run on infrastructure you control. \
-                 Self-host it, and your client data stays where you put it."
-            }
-            p."mb-0" {
-                "Neon Law runs it on "
-                a href="https://cloud.google.com" { "Google Cloud" }
-                ". Because the stack is cloud-native open source — "
-                a href="https://kubernetes.io" { "Kubernetes" }
-                " for orchestration, Postgres for data, and licensable services like "
-                a href="https://restate.dev" { "Restate" }
-                " for durable execution — you can run the same system in your own cloud."
+            h2."mb-3" { (heading) }
+            @match locale {
+                Locale::En => {
+                    p {
+                        "Neon Law Navigator is sovereign software: predominantly open source \
+                         under Apache-2.0 or MIT, built to run on infrastructure you control. \
+                         Self-host it, and your client data stays where you put it."
+                    }
+                    p."mb-0" {
+                        "Neon Law runs it on "
+                        a href="https://cloud.google.com" { "Google Cloud" }
+                        ". Because the stack is cloud-native open source — "
+                        a href="https://kubernetes.io" { "Kubernetes" }
+                        " for orchestration, Postgres for data, and licensable services like "
+                        a href="https://restate.dev" { "Restate" }
+                        " for durable execution — you can run the same system in your own cloud."
+                    }
+                }
+                Locale::Es => {
+                    p {
+                        "Neon Law Navigator es software soberano: predominantemente de código \
+                         abierto bajo Apache-2.0 o MIT, hecho para ejecutarse en la infraestructura \
+                         que tú controlas. Alójalo tú mismo y los datos de tus clientes se quedan \
+                         donde tú los pongas."
+                    }
+                    p."mb-0" {
+                        "Neon Law lo ejecuta en "
+                        a href="https://cloud.google.com" { "Google Cloud" }
+                        ". Como la base es código abierto nativo de la nube — "
+                        a href="https://kubernetes.io" { "Kubernetes" }
+                        " para la orquestación, Postgres para los datos y servicios con licencia como "
+                        a href="https://restate.dev" { "Restate" }
+                        " para la ejecución duradera — puedes ejecutar el mismo sistema en tu propia nube."
+                    }
+                }
             }
         }
     }
@@ -169,9 +231,39 @@ fn with_anchor(base: &str, anchor: Option<&str>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{render, rewrite_link, README};
+    use super::{render, render_in, rewrite_link, README};
     use crate::brand::FOUNDATION_BRAND;
-    use crate::AuthState;
+    use crate::{AuthState, Locale};
+
+    #[test]
+    fn english_hub_offers_a_spanish_switcher() {
+        let html = render(AuthState::Anonymous).into_string();
+        // The page now declares a canonical path, so the layout pairs the
+        // twins and renders the one-tap switcher to the Spanish hub.
+        assert!(html.contains("hreflang=\"es\" href=\"/es/foundation/navigator\""));
+        assert!(
+            html.contains("language-switcher") && html.contains(">Español</a>"),
+            "English hub should offer a Spanish switcher: {html}"
+        );
+    }
+
+    #[test]
+    fn spanish_hub_transcreates_the_hero_and_pitch_but_keeps_the_readme_english() {
+        let html = render_in(AuthState::Anonymous, Locale::Es).into_string();
+        // Spanish shell.
+        assert!(html.contains("<html lang=\"es\""), "got: {html}");
+        // Transcreated hero + sovereign copy.
+        assert!(html.contains("Software legal soberano que tú mismo operas."));
+        assert!(html.contains(">Tu práctica. Tus datos. Tu nube.</h2>"));
+        assert!(html.contains("predominantemente de código abierto bajo Apache-2.0 o MIT"));
+        assert!(html.contains("Ver en GitHub"));
+        // Proper nouns carry verbatim.
+        assert!(html.contains("Kubernetes") && html.contains("Restate"));
+        // The README body below stays English (English-only artifact).
+        assert!(html.contains("cargo run -p cli -- start-dev-server"));
+        // The switcher points back to the English hub.
+        assert!(html.contains("hreflang=\"en\" href=\"/foundation/navigator\""));
+    }
 
     #[test]
     fn navigator_renders_under_the_foundation_brand() {
