@@ -5,8 +5,7 @@
 //! Rows are only ever **inserted** — never updated, never deleted — so
 //! "immutable" is a structural guarantee rather than a claim. "Current"
 //! is the row with the greatest `observed_at` for a given `statute_id`;
-//! there is no stored end-of-interval to keep in sync. See
-//! `prompts/nrs-statute-scraper-design.md`.
+//! there is no stored end-of-interval to keep in sync.
 
 use sea_orm::entity::prelude::*;
 use serde::Serialize;

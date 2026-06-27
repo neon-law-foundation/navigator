@@ -51,6 +51,7 @@ use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 
+use super::ghcr;
 use super::{env_string, require_auth, require_tools, run, workspace_root};
 
 /// In-cluster Deployment + container names. These are workspace
@@ -60,11 +61,6 @@ const WEB_DEPLOYMENT: &str = "navigator-web";
 const WEB_CONTAINER: &str = "web";
 const WORKFLOWS_DEPLOYMENT: &str = "workflows-service";
 const WORKFLOWS_CONTAINER: &str = "worker";
-
-/// The canonical ghcr owner. The default when `NAVIGATOR_GHCR_OWNER` is
-/// unset — a fork overrides it via that env var rather than editing this
-/// constant, keeping the white-label seam intact.
-const DEFAULT_GHCR_OWNER: &str = "neon-law-foundation";
 
 /// Every per-deployment value `power-push` reads, resolved once from
 /// the environment. Required values bail when unset (fail fast — never
@@ -120,9 +116,7 @@ impl PowerPushConfig {
         // ghcr image names are lowercase; lowercase the owner so a
         // mixed-case org (e.g. `Neon-Law-Foundation`) still resolves.
         // Defaults to the canonical org; a fork overrides via env.
-        let ghcr_owner = optional_env("NAVIGATOR_GHCR_OWNER")
-            .unwrap_or_else(|| DEFAULT_GHCR_OWNER.to_string())
-            .to_ascii_lowercase();
+        let ghcr_owner = ghcr::owner_from_env();
         let primary_domain = required_env("NAVIGATOR_PRIMARY_DOMAIN")?;
         let namespace = env_string("NAVIGATOR_K8S_NAMESPACE", "navigator");
         let secret_name = env_string("NAVIGATOR_WEB_SECRET_NAME", "navigator-web-secrets");
@@ -371,7 +365,7 @@ fn roll(cfg: &PowerPushConfig, opts: &PowerPushOpts) -> Result<()> {
     //    latest published tag on ghcr. Both deployments get the SAME tag.
     let tag = match &opts.tag {
         Some(t) => {
-            validate_release_tag(t)?;
+            ghcr::validate_release_tag(t)?;
             t.clone()
         }
         None => resolve_latest_tag(cfg, dry_run)?,
@@ -394,8 +388,8 @@ fn roll(cfg: &PowerPushConfig, opts: &PowerPushOpts) -> Result<()> {
     //     Skipped only in dry-run, where `resolve_latest_tag` returns a
     //     placeholder with nothing to verify against.
     if !dry_run {
-        ensure_tag_published(&cfg.ghcr_owner, "navigator-web", &tag)?;
-        ensure_tag_published(&cfg.ghcr_owner, "navigator-workflows-service", &tag)?;
+        ghcr::ensure_tag_published(&cfg.ghcr_owner, "navigator-web", &tag)?;
+        ghcr::ensure_tag_published(&cfg.ghcr_owner, "navigator-workflows-service", &tag)?;
     }
 
     // 3. Sync the manifest (only when an overlay is configured).
@@ -485,7 +479,7 @@ fn pin_cronjob_images(cfg: &PowerPushConfig, tag: &str, dry_run: bool) -> Result
             }
             let base = image.rsplit_once(':').map_or(image, |(b, _)| b);
             let short = base.strip_prefix(&prefix).unwrap_or(base);
-            if ghcr_tag_exists(&cfg.ghcr_owner, short, tag) {
+            if ghcr::tag_exists(&cfg.ghcr_owner, short, tag) {
                 let target = format!("{base}:{tag}");
                 exec(
                     false,
@@ -507,44 +501,11 @@ fn pin_cronjob_images(cfg: &PowerPushConfig, tag: &str, dry_run: bool) -> Result
     Ok(())
 }
 
-/// True when `tag` is the `YY.MM.DD` release shape — three dot-separated
-/// two-digit groups (e.g. `26.06.23`) — with an optional `.HH` fourth
-/// group for an ad-hoc same-day release (e.g. `26.06.25.14`).
-#[must_use]
-pub fn is_release_tag(tag: &str) -> bool {
-    let parts: Vec<&str> = tag.split('.').collect();
-    (parts.len() == 3 || parts.len() == 4)
-        && parts
-            .iter()
-            .all(|p| p.len() == 2 && p.bytes().all(|b| b.is_ascii_digit()))
-}
-
-/// Reject a `--tag` that is not a `YY.MM.DD[.HH]` release tag — rolling a
-/// `latest` or a `ci-<sha>` tag onto a workload is exactly the
-/// un-auditable deploy we forbid.
-fn validate_release_tag(tag: &str) -> Result<()> {
-    if is_release_tag(tag) {
-        Ok(())
-    } else {
-        bail!(
-            "--tag must be a YY.MM.DD release tag, optionally with an .HH suffix for an ad-hoc same-day release (e.g. 26.06.23 or 26.06.25.14), got `{tag}`"
-        );
-    }
-}
-
-/// The newest `YY.MM.DD[.HH]` tag in `tags`. Zero-padded `YY.MM.DD` sorts
-/// lexicographically the same as chronologically, and an `.HH` ad-hoc
-/// suffix (e.g. `26.06.25.14`) sorts after the bare same-day tag it
-/// extends, so `max` is the latest. Non-release tags (`latest`,
-/// `ci-<sha>`) are ignored.
-#[must_use]
-pub fn pick_latest_release_tag(tags: &[String]) -> Option<String> {
-    tags.iter().filter(|t| is_release_tag(t)).max().cloned()
-}
-
 /// Resolve the latest published `YY.MM.DD[.HH]` tag from ghcr. In
 /// `--dry-run` we don't touch the network — print a placeholder so the
-/// planned `set image` commands still render.
+/// planned `set image` commands still render. Delegates the real
+/// resolution to the shared [`ghcr`] module so power-push, `deploy`, and
+/// `worktree-env --demo` all pick the same tag the same way.
 fn resolve_latest_tag(cfg: &PowerPushConfig, dry_run: bool) -> Result<String> {
     if dry_run {
         eprintln!(
@@ -553,90 +514,7 @@ fn resolve_latest_tag(cfg: &PowerPushConfig, dry_run: bool) -> Result<String> {
         );
         return Ok("<latest-ghcr-tag>".to_string());
     }
-    let tags = fetch_ghcr_tags(&cfg.ghcr_owner, "navigator-web")?;
-    pick_latest_release_tag(&tags).ok_or_else(|| {
-        anyhow::anyhow!(
-            "no YY.MM.DD[.HH] release tag on ghcr.io/{}/navigator-web — has the daily deploy published one yet?",
-            cfg.ghcr_owner
-        )
-    })
-}
-
-/// List a public ghcr package's tags anonymously: mint a pull-scoped
-/// token, then GET `/v2/<owner>/<image>/tags/list`. Public packages need
-/// no credential — the same path GKE's anonymous pulls take. Builds a
-/// private current-thread runtime so the rest of `power-push` stays sync.
-fn fetch_ghcr_tags(owner: &str, image: &str) -> Result<Vec<String>> {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .context("build tokio runtime for ghcr tag resolution")?;
-    let repo = format!("{owner}/{image}");
-    runtime.block_on(async move {
-        let client = reqwest::Client::new();
-        let token_url = format!("https://ghcr.io/token?scope=repository:{repo}:pull");
-        let token_body: serde_json::Value = client
-            .get(&token_url)
-            .send()
-            .await
-            .context("request ghcr pull token")?
-            .json()
-            .await
-            .context("parse ghcr token response")?;
-        let token = token_body
-            .get("token")
-            .and_then(serde_json::Value::as_str)
-            .context("ghcr token missing from response")?;
-        let list_url = format!("https://ghcr.io/v2/{repo}/tags/list");
-        let resp = client
-            .get(&list_url)
-            .bearer_auth(token)
-            .send()
-            .await
-            .context("request ghcr tags/list")?;
-        if !resp.status().is_success() {
-            bail!(
-                "ghcr tags/list for {repo} returned {} — is the package public?",
-                resp.status()
-            );
-        }
-        let body: serde_json::Value = resp.json().await.context("parse ghcr tags/list")?;
-        let tags = body
-            .get("tags")
-            .and_then(serde_json::Value::as_array)
-            .map(|a| {
-                a.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
-        Ok(tags)
-    })
-}
-
-/// Whether `tag` is published for `ghcr.io/<owner>/<image>`. Conservative
-/// on error: a failed lookup returns `false` (treat as "can't confirm →
-/// don't pin"), so it never green-lights a tag it couldn't verify.
-fn ghcr_tag_exists(owner: &str, image: &str, tag: &str) -> bool {
-    fetch_ghcr_tags(owner, image).is_ok_and(|tags| tags.iter().any(|t| t == tag))
-}
-
-/// Bail unless `tag` is published for `ghcr.io/<owner>/<image>`. Used to
-/// fail a roll fast — before any `kubectl set image` — when a service
-/// image is missing the requested tag (which would otherwise wedge the
-/// deployment in `ImagePullBackOff`). Distinguishes a lookup error (network)
-/// from an honestly-absent tag.
-fn ensure_tag_published(owner: &str, image: &str, tag: &str) -> Result<()> {
-    let tags = fetch_ghcr_tags(owner, image)
-        .with_context(|| format!("check ghcr.io/{owner}/{image}:{tag} is published"))?;
-    if tags.iter().any(|t| t == tag) {
-        Ok(())
-    } else {
-        bail!(
-            "ghcr.io/{owner}/{image}:{tag} is not published — power-push only rolls published \
-             tags. Publish it via the daily deploy (or pick a tag that exists) first."
-        );
-    }
+    ghcr::resolve_latest_tag(&cfg.ghcr_owner, "navigator-web")
 }
 
 /// 7a — `kubectl diff` (surface drift) then `kubectl apply` the
@@ -974,46 +852,6 @@ mod tests {
         assert_eq!(
             cfg.workflows_image("26.06.23"),
             "ghcr.io/neon-law-foundation/navigator-workflows-service:26.06.23"
-        );
-    }
-
-    #[test]
-    fn is_release_tag_accepts_yy_mm_dd_and_optional_hh() {
-        assert!(is_release_tag("26.06.23"));
-        assert!(is_release_tag("00.01.09"));
-        assert!(is_release_tag("26.06.25.14")); // ad-hoc same-day .HH suffix
-        assert!(is_release_tag("26.06.25.00"));
-        assert!(!is_release_tag("latest"));
-        assert!(!is_release_tag("ci-6a5f96a"));
-        assert!(!is_release_tag("2026.06.23")); // four-digit year
-        assert!(!is_release_tag("26.6.23")); // unpadded month
-        assert!(!is_release_tag("26.06")); // too few groups
-        assert!(!is_release_tag("26.06.25.4")); // unpadded hour
-        assert!(!is_release_tag("26.06.25.14.30")); // too many groups
-    }
-
-    #[test]
-    fn pick_latest_release_tag_takes_the_newest_and_ignores_non_releases() {
-        let tags = vec![
-            "latest".to_string(),
-            "26.06.10".to_string(),
-            "ci-deadbeef".to_string(),
-            "26.06.23".to_string(),
-            "26.05.31".to_string(),
-        ];
-        assert_eq!(pick_latest_release_tag(&tags), Some("26.06.23".to_string()));
-        // An ad-hoc `.HH` release sorts after the bare same-day tag.
-        assert_eq!(
-            pick_latest_release_tag(&[
-                "26.06.25".to_string(),
-                "26.06.25.14".to_string(),
-                "26.06.10".to_string(),
-            ]),
-            Some("26.06.25.14".to_string())
-        );
-        assert_eq!(
-            pick_latest_release_tag(&["latest".to_string(), "ci-x".to_string()]),
-            None
         );
     }
 

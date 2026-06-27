@@ -112,7 +112,6 @@ async fn ensure_cluster(
     // but didn't reliably reconcile on the GKE version we ended up
     // on. The cluster currently doesn't have either addon active;
     // IAM bindings are managed via direct `gcloud` calls instead.
-    // See `prompts/cloud-logging-sink.md` and `prompts/devx-gcp-setup-fixes.md`.
     let result = client
         .shell_out(
             "gcloud",

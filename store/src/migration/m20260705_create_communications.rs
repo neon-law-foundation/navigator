@@ -3,8 +3,7 @@
 //!
 //! One privileged conversation per matter, no matter which door a message
 //! came through: a client comment on a draft, an inbound email, the firm's
-//! reply, an internal note — and, in the near future, a text message. The
-//! brief is `prompts/project-communications-ingestion.md`.
+//! reply, an internal note — and, in the near future, a text message.
 //!
 //! This is **spine + satellites**, not single-table inheritance. The spine
 //! carries the fields every channel shares (project, channel discriminator,

@@ -10,7 +10,6 @@
 //! The model is **insert-only**: a section's text lives in append-only
 //! [`crate::entity::statute_revision`] rows that are never updated or
 //! deleted. "Current" is the revision with the greatest `observed_at`.
-//! See `prompts/nrs-statute-scraper-design.md`.
 
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,

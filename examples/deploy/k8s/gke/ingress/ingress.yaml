@@ -8,8 +8,7 @@
 #   silently drops HTTPS listeners with a Certificate Manager
 #   cert-map (option key, annotation form, and `spec.addresses`
 #   were all tried; the controller never provisioned a target HTTPS
-#   proxy). See `prompts/ipv6-gateway-investigation.md` for the
-#   investigation notes.
+#   proxy).
 # - The legacy Ingress + `ManagedCertificate` CRD has been working
 #   since GKE 1.13 and is well-trodden ground.
 #

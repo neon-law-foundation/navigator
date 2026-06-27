@@ -13,9 +13,7 @@
 //! we query. Mirroring the runtime's event type as an append log
 //! keeps the two layers coherent, preserves the full history for
 //! audit and debugging, and lets future event kinds (paused,
-//! resumed, errored) extend the schema additively. See the
-//! Council of Twelve session in
-//! `prompts/retainer-questionnaire-design.md`.
+//! resumed, errored) extend the schema additively.
 
 use sea_orm::entity::prelude::*;
 use sea_orm::{ActiveValue, ColumnTrait, ConnectionTrait, DbErr, QueryFilter, QueryOrder};

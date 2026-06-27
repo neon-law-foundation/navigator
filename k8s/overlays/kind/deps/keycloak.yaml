@@ -47,8 +47,8 @@ data:
           "protocol": "openid-connect",
           "publicClient": false,
           "secret": "navigator-web-secret",
-          "redirectUris": ["http://localhost:8080/auth/callback", "http://localhost:3001/auth/callback", "http://navigator-web/auth/callback"],
-          "webOrigins": ["http://localhost:8080", "http://localhost:3001", "http://navigator-web"],
+          "redirectUris": ["http://localhost:8080/auth/callback", "http://localhost:3001/auth/callback", "http://localhost:*/auth/callback", "http://navigator-web/auth/callback"],
+          "webOrigins": ["http://localhost:8080", "http://localhost:3001", "http://navigator-web", "+"],
           "directAccessGrantsEnabled": true,
           "standardFlowEnabled": true
         }
