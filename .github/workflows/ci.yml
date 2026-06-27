@@ -168,8 +168,10 @@ jobs:
   enable-automerge:
     name: enable PR auto-merge
     # Only this job needs write; the test job stays contents:read (above).
+    # `enablePullRequestAutoMerge` requires contents:write — pull-requests:write
+    # alone returns "Resource not accessible by integration".
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
     if: >
       github.event_name == 'pull_request' &&
@@ -192,4 +194,7 @@ jobs:
               echo "auto-merge already enabled; nothing to do."
               exit 0
           fi
-          gh pr merge --auto --squash "${PR_URL}"
+          # No merge strategy flag: the native merge queue on `main` owns the
+          # method, and passing --squash errors with "The merge strategy for
+          # main is set by the merge queue".
+          gh pr merge --auto "${PR_URL}"
