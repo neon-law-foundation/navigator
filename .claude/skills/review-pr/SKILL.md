@@ -277,7 +277,7 @@ reply and the handled ones are resolved. Call out anything still open and why.
   unless the branch has no PR or maps to several. The branch is the answer.
 - **Updating from `main` is part of the review.** When the branch is `BEHIND`, update it from `main` so the merge isn't
   blocked on staleness — but only ever the branch under review, never with a force-push.
-- **Reviews, doesn't open PRs.** Turning a dirty tree into a PR is [[create-pr]]; shipping to prod is [[power-push]].
-  This skill operates on an existing PR.
+- **Reviews, doesn't open PRs.** Turning a dirty tree into a PR is [[create-pr]]; shipping to prod is the prod-deploy
+  flow. This skill operates on an existing PR.
 - **Honors the gate.** Any fix you push clears `fmt` + `clippy` + `test` (+ markdown lint) and ships with its covering
   test, same as every other committing flow.

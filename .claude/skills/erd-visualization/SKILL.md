@@ -71,8 +71,7 @@ diff <(cargo run -p cli -- erd --format mermaid) /tmp/prod_mermaid.txt
 kill %1
 ```
 
-See [[postgres-in-kind]] for the local connection story and [[cloud-rest-endpoints]] for `cloud-sql-proxy
---auto-iam-authn`.
+See [[postgres-in-kind]] for the local connection story.
 
 ## Opening the SVG
 
