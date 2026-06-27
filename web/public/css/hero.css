@@ -259,8 +259,8 @@
 [data-bs-theme="light"] .hero-neon__btn-ghost:hover,
 [data-bs-theme="light"] .hero-neon__btn-ghost:focus {
   color: #ffffff;
-  background-color: #0891b2;
-  border-color: #0891b2;
+  background-color: #0e7490; /* cyan-700 — ~5.4:1 vs #fff, clears WCAG AA */
+  border-color: #0e7490;
 }
 
 /* Respect reduced-motion: freeze the grid, kill the flicker, drop the sweep. */
