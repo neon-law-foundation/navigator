@@ -199,9 +199,16 @@ async fn validate_notation(Json(req): Json<ValidateRequest>) -> Json<ValidateRes
             });
         }
     }
+    // `clean` means no *blocking* (Error-severity) violations. Yellow
+    // advisories like N112 ("step allowed but not built yet") are still
+    // returned in `violations` so the caller sees them, but they don't
+    // flip `clean` to false — mirroring `navigator validate`.
+    let clean = !violations
+        .iter()
+        .any(|v| rules::severity_for_code(v.code) == rules::Severity::Error);
     Json(ValidateResponse {
-        clean: violations.is_empty(),
         path,
+        clean,
         violations,
     })
 }

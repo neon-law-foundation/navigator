@@ -2103,7 +2103,20 @@ Body.\n";
     let body: serde_json::Value = serde_json::from_str(&body_string(resp).await).unwrap();
     assert_eq!(body["clean"], true, "expected clean, got: {body}");
     assert_eq!(body["path"], "notation.md");
-    assert_eq!(body["violations"].as_array().unwrap().len(), 0);
+    // Valid notation, no blocking errors — but its mandatory staff_review
+    // gate earns the yellow N112 "not built yet" advisory, returned
+    // without flipping `clean` to false.
+    let codes: Vec<&str> = body["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v["code"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        codes,
+        ["N112"],
+        "expected only the N112 advisory, got: {body}"
+    );
 }
 
 #[tokio::test]
