@@ -178,10 +178,11 @@ output land in `/tmp/navigator-screenshots/`, never the repo.
 ```
 
 Surfacing it for review (step 2) is the load-bearing part — a human (or the next agent) sees the change before it
-merges. Keep the capture in `/tmp`; **do not commit it or create an image-hosting branch.** If you want the image to
-render on the github.com PR page, drag-drop the `/tmp` file into the PR description or a comment in the web UI — GitHub
-hosts it as a user-attachment with zero repo pollution (there is no CLI for that upload, so it is a manual step). See
-[[web-preview]] §5–6 for the WebDriver+`gifski` recipe and the sharing rules.
+merges. Keep the capture in `/tmp`; **do not commit it or create an image-hosting branch.** To make the image actually
+render on the github.com PR page, embed it from the CLI with [[pr-image-upload]] — it uploads the `/tmp` capture to
+GitHub's `user-attachments` CDN and returns a real URL for the body (zero repo pollution, no drag-drop). Inside Cursor
+Cloud, skip that and use the artifact tags its PR tool resolves (see `CLAUDE.md`). See [[web-preview]] §5–6 for the
+WebDriver+`gifski` recipe and the sharing rules.
 
 ## Step 7 — Push and open the PR against `main`
 
@@ -192,7 +193,7 @@ gh pr create --base main --title "<headline>" --body "$(cat <<'EOF'
 - <one bullet per logical commit / concern>
 
 ## Screenshots
-- <describe what the capture shows; drag-drop the /tmp image here in the web UI if you want it to render>
+- <embed the capture with [[pr-image-upload]] (a real user-attachments URL), and describe what it shows>
 
 ## Test plan
 - <how it was verified: cargo test --workspace, KIND run, browser, etc.>
@@ -204,9 +205,9 @@ EOF
 
 The PR title is the headline for the whole change (often the dominant commit's subject). The body's Summary should read
 as one bullet per commit so a reviewer sees the grouping at a glance. The **Screenshots** section describes the visual
-from Step 6 (drop it only for a genuinely invisible change, and note why in the Test plan); drag-drop the actual image
-into the PR afterward if you want it rendered. The Test plan states what you actually ran — if you didn't run something,
-say so (the "no assumptions" rule from `CLAUDE.md`).
+from Step 6 (drop it only for a genuinely invisible change, and note why in the Test plan); embed the actual image with
+[[pr-image-upload]] so it renders on the PR page. The Test plan states what you actually ran — if you didn't run
+something, say so (the "no assumptions" rule from `CLAUDE.md`).
 
 ## Step 8 — Enable auto-merge and report
 
