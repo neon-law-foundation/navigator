@@ -75,10 +75,14 @@ pub struct ServiceContent<'a> {
     /// Curated gallery slug for the product photo (the `hero_image:`
     /// frontmatter key, e.g. `lake-tahoe`). `Some` rides the photo beneath
     /// the neon hero as a dimmed backdrop (via the `--ph-photo` custom
-    /// property) and preloads it for the LCP; `None` (a fallback page with
-    /// no marketing doc) renders the neon scene over its flat background.
-    /// Either way the body's leading `<h1>` is lifted into the hero tagline.
+    /// property) and preloads it for the LCP; `None` renders the scene over
+    /// its flat animated background. Either way the body's leading `<h1>` is
+    /// lifted into the hero tagline.
     pub hero_image: Option<&'a str>,
+    /// Optional product-specific animation variant. Only Nexus opts in
+    /// today; the shared hero remains the fallback for the rest of the
+    /// service line until each page gets its own treatment.
+    pub hero_variant: Option<&'a str>,
     /// Brand chrome for the page: `FIRM_BRAND` for `/services/*`,
     /// `FOUNDATION_BRAND` for a Foundation product page like
     /// `/foundation/nimbus`. `SiteBrand` is `Copy`.
@@ -153,14 +157,21 @@ pub fn render_in(
     // LCP preload meaningful. `preload_href` is the same fallback `.jpg` the
     // `<head>` preloads, so the backdrop reuses the already-fetched bytes.
     let photo_href = content.hero_image.and_then(assets::preload_href);
+    let hero_class = content.hero_variant.map_or_else(
+        || "product-hero".to_string(),
+        |variant| format!("product-hero product-hero--{variant}"),
+    );
     let body = html! {
         // 1. The neon product hero — the page's bold, rounded top band.
-        //    One cyan scene for every product (see `product-hero.css`).
-        section."product-hero" {
+        section class=(hero_class) {
             div."product-hero__bg" aria-hidden="true" {
                 @if let Some(href) = &photo_href {
                     div."product-hero__photo"
                         style=(format!("--ph-photo:url('{href}')")) {}
+                }
+                @if content.hero_variant == Some("nexus") {
+                    div."product-hero__honeycomb"."product-hero__honeycomb--back" {}
+                    div."product-hero__honeycomb"."product-hero__honeycomb--front" {}
                 }
                 div."product-hero__glow" {}
                 div."product-hero__grid" {}
@@ -244,6 +255,7 @@ mod tests {
             pricing: Vec::new(),
             pricing_cols: 3,
             hero_image: None,
+            hero_variant: None,
             brand: *FIRM_BRAND,
             cta_email: firm_email(),
             icon: None,
@@ -365,21 +377,14 @@ mod tests {
 
     #[test]
     fn renders_the_neon_product_hero_in_brand_cyan() {
-        // Every service page leads with the rounded neon hero: the single
+        // Every service page leads with the rounded neon hero: the default
         // brand-cyan `.product-hero` scene carrying the animated grid / glow /
-        // sweep layers, the product mark, and the brand title. There is only
-        // ever one hue — too many colours distract from the work.
+        // sweep layers, the product mark, and the brand title.
         let content = fixture("Neon Law Nexus", "<h1>A GC on retainer</h1><p>body</p>");
         let html = render(&content, crate::AuthState::Anonymous).into_string();
-        // The hero is the one cyan scene with its decorative layers — no
-        // per-product hue modifier class.
         assert!(
             html.contains("class=\"product-hero\""),
-            "hero should be the single cyan scene, got: {html}"
-        );
-        assert!(
-            !html.contains("product-hero--"),
-            "no per-product hue modifier should remain, got: {html}"
+            "hero should render the default cyan scene, got: {html}"
         );
         for layer in [
             "product-hero__glow",
@@ -400,6 +405,26 @@ mod tests {
             "brand title should headline the hero as the page h1, got: {html}"
         );
         assert_eq!(html.matches("<h1").count(), 1, "exactly one h1: {html}");
+    }
+
+    #[test]
+    fn nexus_can_wear_the_honeycomb_hero_without_a_photo() {
+        let mut content = fixture("Neon Law Nexus", "<h1>A GC on retainer</h1><p>body</p>");
+        content.hero_variant = Some("nexus");
+        let html = render(&content, crate::AuthState::Anonymous).into_string();
+        assert!(
+            html.contains("class=\"product-hero product-hero--nexus\""),
+            "Nexus should opt into its honeycomb hero class, got: {html}"
+        );
+        assert!(
+            html.contains("product-hero__honeycomb product-hero__honeycomb--back")
+                && html.contains("product-hero__honeycomb product-hero__honeycomb--front"),
+            "Nexus should render back and front honeycomb layers, got: {html}"
+        );
+        assert!(
+            !html.contains("product-hero__photo"),
+            "Nexus honeycomb should be able to render without a photo layer, got: {html}"
+        );
     }
 
     #[test]
