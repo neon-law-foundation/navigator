@@ -7,8 +7,8 @@ description: >
   session) and returns a real `https://github.com/user-attachments/assets/…` URL to drop into the body. Trigger as the
   embed half of [[create-pr]] Step 6 (after [[web-preview]] captures the visual), when a reviewer comment on a PR asks
   for a "live walkthrough"/screenshot during [[review-pr]], or any time you have a `/tmp` image that must appear in a
-  PR/issue body or comment. This is the LOCAL/`gh` path; inside Cursor Cloud the PR tool resolves `/tmp` paths itself, so
-  use its artifact tags there instead. Capture lives in [[web-preview]] §3/§5; this skill only hosts + embeds it.
+  PR/issue body or comment. This is the LOCAL/`gh` path; inside Cursor Cloud the PR tool resolves `/tmp` paths itself,
+  so use its artifact tags there instead. Capture lives in [[web-preview]] §3/§5; this skill only hosts + embeds it.
 ---
 
 # Embedding screenshots in a PR body from the CLI
@@ -39,8 +39,10 @@ command line — it shows up in `ps`).
 ```bash
 # 1. Capture to /tmp first (see web-preview §3 screenshot / §5 GIF) — never into the repo tree.
 # 2. Look at it yourself: Read the PNG/GIF so it renders inline, and confirm it shows the change.
-# 3. Upload — prints `![name](https://github.com/user-attachments/assets/<uuid>)`. Keep just the URL.
-URL=$(gh image /tmp/navigator-screenshots/page.png --repo <owner>/<repo> | sed -E 's/.*\((.*)\)/\1/')
+# 3. Upload — prints `![name](https://github.com/user-attachments/assets/<uuid>)`. Grab the URL directly
+#    (grep the user-attachments link, not the parens — robust if the tool also emits a progress/warning line).
+URL=$(gh image /tmp/navigator-screenshots/page.png --repo <owner>/<repo> \
+  | grep -oE 'https://github\.com/user-attachments/assets/[^)]+')
 
 # 4a. New PR: reference $URL in the body you pass to `gh pr create` (an <img> tag or ![alt]($URL)).
 # 4b. Existing PR: splice it into the current body and update.
