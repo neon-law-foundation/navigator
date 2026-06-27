@@ -39,6 +39,19 @@ impl LintReport {
     pub fn is_clean(&self) -> bool {
         self.violations.is_empty()
     }
+
+    /// True when at least one violation is [`crate::Severity::Error`].
+    ///
+    /// `navigator validate` fails the gate on this rather than on the
+    /// mere presence of any violation, so [`crate::Severity::Warning`]
+    /// advisories (e.g. "step not built yet") are reported without
+    /// failing the build.
+    #[must_use]
+    pub fn has_errors(&self) -> bool {
+        self.violations
+            .iter()
+            .any(|v| crate::severity_for_code(v.code) == crate::Severity::Error)
+    }
 }
 
 /// Decides whether a directory or file should be visited.
@@ -612,6 +625,42 @@ mod tests {
             .unwrap();
         assert_eq!(report.files_scanned, 0);
         assert!(report.is_clean());
+    }
+
+    #[test]
+    fn has_errors_ignores_warning_severity_violations() {
+        // A report carrying only a Warning-severity advisory (N112) is
+        // not clean, but must not fail the gate.
+        let report = super::LintReport {
+            files_scanned: 1,
+            violations: vec![crate::Violation {
+                code: "N112",
+                path: PathBuf::from("trust.md"),
+                line: 1,
+                range: 0..0,
+                message: "step not built yet".to_string(),
+            }],
+        };
+        assert!(
+            !report.is_clean(),
+            "a warning is still a reported violation"
+        );
+        assert!(!report.has_errors(), "a warning must not fail the gate");
+    }
+
+    #[test]
+    fn has_errors_is_true_when_an_error_violation_is_present() {
+        let report = super::LintReport {
+            files_scanned: 1,
+            violations: vec![crate::Violation {
+                code: "N104",
+                path: PathBuf::from("trust.md"),
+                line: 1,
+                range: 0..0,
+                message: "unknown step".to_string(),
+            }],
+        };
+        assert!(report.has_errors());
     }
 
     #[test]

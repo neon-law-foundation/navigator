@@ -1673,10 +1673,13 @@ async fn run_validate(
             report.violations.len()
         ))
     );
-    if report.is_clean() {
-        ExitCode::SUCCESS
-    } else {
+    // Fail the gate on Error-severity violations only; Warning-severity
+    // advisories (e.g. a step that's allowed but not built yet) are
+    // printed above but do not make `validate` exit nonzero.
+    if report.has_errors() {
         ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
     }
 }
 
