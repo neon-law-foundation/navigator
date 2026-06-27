@@ -52,6 +52,12 @@ doppler run --project navigator --config dev -- \
 `web` binds `:3001`. Watch the boot log for `web listening addr=0.0.0.0:3001`. If it exits with "production invariants
 violated", you skipped `doppler run`.
 
+**Per-worktree preview (parallel agents / Codex).** To preview several worktrees at once without colliding on `:3001`
+or the `navigator` database, run `cargo run -p cli -- worktree-env up` in each worktree first: it writes a `.devx/env`
+pointing `web` at that worktree's own port (`3001` + a stable per-slug offset) and its own `navigator_<slug>` database
+on the shared deps. Then source that `.devx/env` and run `web` exactly as above (it binds the per-worktree port). See
+`kind-local-dev` and `docs/RUNBOOK.md` §7c.
+
 #### OpenTelemetry (on by default)
 
 `navigator start-dev-server` stands up a Grafana **LGTM** pod (Loki/Grafana/Tempo/Prometheus + a bundled OTel Collector)
