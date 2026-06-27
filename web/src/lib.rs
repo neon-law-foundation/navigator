@@ -770,6 +770,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/es/services/nucleus", get(service_nucleus_es))
             .route("/es/services/pro-bono", get(service_pro_bono_es))
             .route("/es/foundation/nebula", get(nebula_landing_es))
+            .route("/es/foundation/navigator", get(navigator_es))
             // Nebula is the Foundation's sharing surface: workshops,
             // show-and-tells, and presentations.
             .route(
@@ -1046,6 +1047,12 @@ async fn foundation_contact(MaybeAuth(auth): MaybeAuth) -> Markup {
 /// over a strip that fans out to the per-package pages below.
 async fn navigator(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::navigator::render(auth)
+}
+
+/// `GET /es/foundation/navigator` — the Spanish twin of the hub: the hero
+/// and sovereign-software pitch transcreated, the README body kept English.
+async fn navigator_es(MaybeAuth(auth): MaybeAuth) -> Markup {
+    views::pages::navigator::render_in(auth, views::Locale::Es)
 }
 
 // Each per-package page (`/foundation/navigator/<pkg>`) renders that

@@ -592,7 +592,7 @@ async fn foundation_home_is_the_mission_statement() {
 }
 
 #[tokio::test]
-async fn navigator_serves_the_readme_under_foundation_brand() {
+async fn navigator_serves_the_sovereign_software_hub_under_foundation_brand() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -609,18 +609,57 @@ async fn navigator_serves_the_readme_under_foundation_brand() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("<title>Neon Law Foundation | Neon Law Navigator</title>"));
-    // The page is the README: its H1 and the getting-started command.
+    // The hero leads with the product wordmark and the sovereign tagline.
     assert!(body.contains(">Neon Law Navigator</h1>"));
-    assert!(body.contains("cargo run -p cli -- start-dev-server"));
-    // README links are retargeted onto site routes.
-    assert!(body.contains(
-        "href=\"/api/templates/united-states/nevada/state/business-associations/entity-formation\""
-    ));
-    assert!(body.contains("href=\"/docs/glossary#project\""));
-    // The hub fans out to the per-package pages.
+    assert!(body.contains("Sovereign legal software you can run yourself."));
+    // The pitch makes the open-source / self-host case under the customer-
+    // forward heading.
+    assert!(body.contains(">Your practice. Your data. Your cloud.</h2>"));
+    assert!(body.contains("predominantly open source under Apache-2.0 or MIT"));
+    // The hub fans out to the per-package pages (tab strip, none preselected).
+    assert!(body.contains("href=\"/foundation/navigator/lsp\""));
     assert!(body.contains("href=\"/foundation/navigator/cli\""));
     assert!(body.contains("href=\"/foundation/navigator/mcp\""));
     assert!(body.contains("href=\"/foundation/navigator/web\""));
+    // Under the strip: the README, with its links retargeted and its
+    // Trademarks anchor (the notations page cross-links it).
+    assert!(body.contains("cargo run -p cli -- start-dev-server"));
+    assert!(body.contains("href=\"/docs/glossary#project\""));
+    // The "everything else → GitHub blob" rewrite branch, end-to-end: the
+    // README's LICENSE-APACHE link resolves to the GitHub source.
+    assert!(body.contains(
+        "href=\"https://github.com/neon-law-foundation/navigator/blob/main/LICENSE-APACHE\""
+    ));
+    assert!(body.contains("id=\"trademarks\""));
+    // The English hub pairs with its Spanish twin.
+    assert!(body.contains("hreflang=\"es\" href=\"/es/foundation/navigator\""));
+}
+
+#[tokio::test]
+async fn navigator_es_serves_the_spanish_hub_with_an_english_readme() {
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/es/foundation/navigator")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    // Spanish shell + transcreated hero / sovereign copy.
+    assert!(body.contains("<html lang=\"es\""));
+    assert!(body.contains("Software legal soberano que tú mismo operas."));
+    assert!(body.contains(">Tu práctica. Tus datos. Tu nube.</h2>"));
+    // The README body below stays English by the English-first invariant.
+    assert!(body.contains("cargo run -p cli -- start-dev-server"));
+    // The switcher points back to the English twin.
+    assert!(body.contains("hreflang=\"en\" href=\"/foundation/navigator\""));
 }
 
 #[tokio::test]
