@@ -198,6 +198,7 @@ pub const ES_ENABLED_PATHS: &[&str] = &[
     "/",
     "/foundation",
     "/foundation/nebula",
+    "/foundation/navigator",
     "/services",
     "/services/nexus",
     "/services/nest",
