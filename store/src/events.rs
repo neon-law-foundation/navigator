@@ -150,33 +150,53 @@ pub enum RegisterOutcome {
 /// Only a published (`draft = false`) event accepts registration; a draft
 /// or missing event returns [`RegisterOutcome::EventNotFound`]. We store
 /// **only** the email (data minimization).
+///
+/// The append is a single atomic `UPDATE ... array_append(...) WHERE NOT
+/// (email = ANY(registrations))`. Postgres takes a row lock for the
+/// UPDATE, so concurrent registrations for different emails serialize
+/// (no lost update), and the `NOT … ANY` predicate is re-evaluated
+/// against the locked row, so a duplicate email is a no-op rather than a
+/// second copy — the dedup is in the predicate, not in application code.
 pub async fn register(
     db: &impl ConnectionTrait,
     public_slug: &str,
     email: &str,
 ) -> Result<RegisterOutcome, sea_orm::DbErr> {
-    let Some(existing) = event::Entity::find()
+    use sea_orm::sea_query::Expr;
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let result = event::Entity::update_many()
+        .col_expr(
+            event::Column::Registrations,
+            Expr::cust_with_values("array_append(registrations, $1)", [email]),
+        )
+        .col_expr(event::Column::UpdatedAt, Expr::value(now))
+        .filter(event::Column::PublicSlug.eq(public_slug))
+        .filter(event::Column::Draft.eq(false))
+        .filter(Expr::cust_with_values(
+            "NOT ($1 = ANY(registrations))",
+            [email],
+        ))
+        .exec(db)
+        .await?;
+
+    if result.rows_affected == 1 {
+        return Ok(RegisterOutcome::Registered);
+    }
+
+    // Zero rows updated: either the email was already registered, or there
+    // is no published event for this slug. One scoped lookup disambiguates.
+    let published_event_exists = event::Entity::find()
         .filter(event::Column::PublicSlug.eq(public_slug))
         .filter(event::Column::Draft.eq(false))
         .one(db)
         .await?
-    else {
-        return Ok(RegisterOutcome::EventNotFound);
-    };
-
-    if existing.registrations.iter().any(|e| e == email) {
-        return Ok(RegisterOutcome::AlreadyRegistered);
-    }
-
-    let mut registrations = existing.registrations.clone();
-    registrations.push(email.to_owned());
-
-    let mut active: event::ActiveModel = existing.into();
-    active.registrations = ActiveValue::Set(registrations);
-    active.updated_at = ActiveValue::NotSet;
-    active.update(db).await?;
-
-    Ok(RegisterOutcome::Registered)
+        .is_some();
+    Ok(if published_event_exists {
+        RegisterOutcome::AlreadyRegistered
+    } else {
+        RegisterOutcome::EventNotFound
+    })
 }
 
 #[cfg(test)]
