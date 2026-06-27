@@ -45,9 +45,11 @@ inherit this.
 > so a PR the default token enqueues never fires `merge_group`, the required `cargo test (workspace)` check never
 > reports, and the entry times out and is silently dropped — the PR sits "auto-merge enabled, CLEAN" forever (see
 > [community discussion #70310](https://github.com/orgs/community/discussions/70310)). A GitHub App token (or a PAT) is
-> the documented fix. The job is guarded on the App being configured: set the repo/org **variable**
-> `AUTOMERGE_APP_ID` and **secret** `AUTOMERGE_APP_PRIVATE_KEY` (from a GitHub App installed on the repo with
-> `contents: write` + `pull_requests: write`). Until both exist the step is skipped and the job falls back to
+> the documented fix. The job is guarded on the App being configured: set `AUTOMERGE_APP_ID` and
+> `AUTOMERGE_APP_PRIVATE_KEY` in the `navigator-gitops` Doppler config, which auto-syncs to GitHub Actions **secrets**
+> (this repo keeps no Actions *variables* — Doppler is the single source of truth, so the App ID is stored as a secret
+> too and hoisted to job-level `env` so the step `if` can gate on it). The App is installed on the repo with
+> `contents: write` + `pull_requests: write`. Until both exist the step is skipped and the job falls back to
 > `GITHUB_TOKEN` — which enables auto-merge but does not reliably enqueue, so the first PR after each fresh setup may
 > need a one-time manual nudge (`gh pr merge <n>` as a real user).
 
