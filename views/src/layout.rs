@@ -245,7 +245,7 @@ impl<'a> PageLayout<'a> {
                         nav.navbar.navbar-expand-lg."bg-body-tertiary" {
                             div.container-fluid {
                                 a.navbar-brand."d-flex"."align-items-center"."gap-2"
-                                    href="/"
+                                    href=(self.brand.home_href)
                                     aria-label=(format!("{} home", self.brand.site_name))
                                 {
                                     img src=(self.brand.logo_href)
@@ -740,6 +740,31 @@ mod tests {
         assert!(out.contains("<img src=\"/public/logo-firm.svg\""));
         let expected = format!("<strong>{}</strong>", FIRM_BRAND.site_name);
         assert!(out.contains(&expected), "header missing brand name: {out}");
+    }
+
+    #[test]
+    fn firm_navbar_brand_links_to_the_site_root() {
+        let out = render("Home", &html! { p { "x" } });
+        assert!(
+            out.contains("<a class=\"navbar-brand d-flex align-items-center gap-2\" href=\"/\""),
+            "firm navbar brand should link home to the site root, got: {out}"
+        );
+    }
+
+    #[test]
+    fn foundation_navbar_brand_links_to_the_foundation_hub() {
+        // The Foundation header's brand returns to the Foundation hub at
+        // `/foundation`, not the firm's site root.
+        let out = PageLayout::new("Mission")
+            .with_brand(*FOUNDATION_BRAND)
+            .render(&html! { p { "x" } })
+            .into_string();
+        assert!(
+            out.contains(
+                "<a class=\"navbar-brand d-flex align-items-center gap-2\" href=\"/foundation\""
+            ),
+            "foundation navbar brand should link home to /foundation, got: {out}"
+        );
     }
 
     #[test]

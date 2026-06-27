@@ -1,26 +1,32 @@
 /* Neon product hero — the top band of every `/services/<slug>` (and */
-/* `/foundation/nimbus`) page. It speaks the same synthwave language as the */
-/* firm landing hero (`hero.css`): a dark scene framed in the same rounded */
+/* `/foundation/nimbus`) page. It speaks the exact same synthwave language as */
+/* the firm landing hero (`hero.css`): a scene framed in the same rounded */
 /* border box, with a receding glowing grid floor, a horizon line, and a */
-/* slow light sweep — but it is *themed per product*. */
+/* slow light sweep. */
 /* */
-/* One engine, thirteen themes: the scene reads four custom properties for */
-/* its accent ramp (`--ph-accent` / `--ph-bright` / `--ph-deep` / `--ph-soft`) */
-/* plus an off-black `--ph-bg`, and each `.product-hero--<hue>` modifier just */
-/* sets that ramp. So a new product picks a hue, never a new keyframe. The */
-/* page's curated photo (`hero_image`) rides underneath as a dimmed backdrop */
-/* via `--ph-photo`, keeping the art and its LCP preload meaningful. */
+/* One engine, one hue — cyan, the brand colour. Every product page wears the */
+/* same scene so the catalogue reads as a single firm, not thirteen apps; too */
+/* many colours distract from the work. The accent ramp lives in four custom */
+/* properties (`--ph-accent` / `--ph-bright` / `--ph-deep` / `--ph-soft`) plus */
+/* a scene background `--ph-bg`, kept as variables so the keyframes never */
+/* hard-code a colour. The page's curated photo (`hero_image`) rides */
+/* underneath as a dimmed backdrop via `--ph-photo`, keeping the art and its */
+/* LCP preload meaningful. */
 /* */
-/* The scene is always dark — it does NOT invert in dark mode — and every */
-/* bit of motion is decorative, hidden from the a11y tree, and disabled */
-/* wholesale under prefers-reduced-motion (the access-to-justice restraint: */
-/* someone landing on the debt-collection page must never meet a strobe). */
+/* Like the home hero, the scene has TWO variants toggled by `data-bs-theme` */
+/* on <html> (resolved from the OS by color-scheme.js): the always-cyan */
+/* synthwave scene below (the dark base), and a "daylight blueprint" light */
+/* variant near the end — white paper, ink title, a faint cyan blueprint grid */
+/* — re-tinted to hold contrast on white. Every bit of motion is decorative, */
+/* hidden from the a11y tree, and disabled wholesale under */
+/* prefers-reduced-motion (the access-to-justice restraint: someone landing */
+/* on the debt-collection page must never meet a strobe). */
 
 .product-hero {
-  /* Cyan ramp by default; the `--<hue>` modifiers below override it. */
+  /* The brand cyan ramp — the only hue. Mirrors the home hero (`hero.css`). */
   --ph-accent: #22d3ee;
   --ph-bright: #67e8f9;
-  --ph-deep: #06b6d4;
+  --ph-deep: #0891b2;
   --ph-soft: #a5f3fc;
   --ph-bg: #05070e;
 
@@ -181,87 +187,6 @@
   color: color-mix(in srgb, var(--ph-soft) 88%, #fff);
 }
 
-/* ---- Per-product accent ramps. Each product picks one of these hues; the */
-/* engine above does the rest. Values are Tailwind 200/300/400/600 stops. -- */
-.product-hero--cyan {
-  --ph-accent: #22d3ee;
-  --ph-bright: #67e8f9;
-  --ph-deep: #0891b2;
-  --ph-soft: #a5f3fc;
-}
-.product-hero--emerald {
-  --ph-accent: #34d399;
-  --ph-bright: #6ee7b7;
-  --ph-deep: #059669;
-  --ph-soft: #a7f3d0;
-}
-.product-hero--magenta {
-  --ph-accent: #e879f9;
-  --ph-bright: #f0abfc;
-  --ph-deep: #c026d3;
-  --ph-soft: #f5d0fe;
-}
-.product-hero--amber {
-  --ph-accent: #fbbf24;
-  --ph-bright: #fcd34d;
-  --ph-deep: #d97706;
-  --ph-soft: #fde68a;
-}
-.product-hero--orange {
-  --ph-accent: #fb923c;
-  --ph-bright: #fdba74;
-  --ph-deep: #ea580c;
-  --ph-soft: #fed7aa;
-}
-.product-hero--crimson {
-  --ph-accent: #f87171;
-  --ph-bright: #fca5a5;
-  --ph-deep: #dc2626;
-  --ph-soft: #fecaca;
-}
-.product-hero--violet {
-  --ph-accent: #a78bfa;
-  --ph-bright: #c4b5fd;
-  --ph-deep: #7c3aed;
-  --ph-soft: #ddd6fe;
-}
-.product-hero--lime {
-  --ph-accent: #a3e635;
-  --ph-bright: #bef264;
-  --ph-deep: #65a30d;
-  --ph-soft: #d9f99d;
-}
-.product-hero--teal {
-  --ph-accent: #2dd4bf;
-  --ph-bright: #5eead4;
-  --ph-deep: #0d9488;
-  --ph-soft: #99f6e4;
-}
-.product-hero--gold {
-  --ph-accent: #facc15;
-  --ph-bright: #fde047;
-  --ph-deep: #ca8a04;
-  --ph-soft: #fef08a;
-}
-.product-hero--azure {
-  --ph-accent: #60a5fa;
-  --ph-bright: #93c5fd;
-  --ph-deep: #2563eb;
-  --ph-soft: #bfdbfe;
-}
-.product-hero--rose {
-  --ph-accent: #fb7185;
-  --ph-bright: #fda4af;
-  --ph-deep: #e11d48;
-  --ph-soft: #fecdd3;
-}
-.product-hero--sky {
-  --ph-accent: #38bdf8;
-  --ph-bright: #7dd3fc;
-  --ph-deep: #0284c7;
-  --ph-soft: #bae6fd;
-}
-
 @keyframes product-hero-scroll {
   from {
     background-position: 0 0;
@@ -315,6 +240,73 @@
   94% {
     opacity: 1;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* LIGHT variant — "daylight blueprint", the exact counterpart of the   */
+/* home hero's light scene (`hero.css`). Activated when color-scheme.js  */
+/* resolves <html data-bs-theme> to `light`. Everything is re-tinted for */
+/* white paper: an ink title on a soft cyan sky, a faint cyan blueprint   */
+/* grid receding to a crisp cyan horizon. The grid scroll, sweep, and     */
+/* icon pulse are reused as-is; only the title's neon flicker is dropped   */
+/* (it reads as a glitch on white). Darker cyans carry the accents so they */
+/* hold contrast against paper. */
+/* ------------------------------------------------------------------ */
+[data-bs-theme="light"] .product-hero {
+  /* White paper with a faint cyan wash falling from the top. */
+  --ph-bg: linear-gradient(180deg, #ecfeff 0%, #f8feff 38%, #ffffff 100%);
+  box-shadow: inset 0 0 0 1px rgba(8, 145, 178, 0.12);
+}
+
+/* Soft daylight glow at the horizon — sky-blue, not neon. */
+[data-bs-theme="light"] .product-hero__glow {
+  background: radial-gradient(
+    ellipse 78% 92% at 50% 0%,
+    rgba(34, 211, 238, 0.28),
+    rgba(8, 145, 178, 0.05) 58%,
+    transparent 74%
+  );
+}
+
+/* Blueprint grid — darker cyan ink lines so they read on white. */
+[data-bs-theme="light"] .product-hero__grid {
+  background-image:
+    linear-gradient(rgba(14, 116, 144, 0.28) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 116, 144, 0.28) 1px, transparent 1px);
+}
+
+/* Crisp cyan horizon with a softer, paper-friendly bloom. */
+[data-bs-theme="light"] .product-hero__horizon {
+  background: linear-gradient(90deg, transparent, #0891b2, #22d3ee, #0891b2, transparent);
+  box-shadow: 0 0 14px 2px rgba(8, 145, 178, 0.35);
+}
+
+/* A pale cyan light sweep instead of the bright neon one. */
+[data-bs-theme="light"] .product-hero__sweep {
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.2), transparent);
+}
+
+/* Deeper cyan product mark so the glyph reads on paper; keeps its pulse. */
+[data-bs-theme="light"] .product-hero__icon {
+  color: #0891b2;
+  filter:
+    drop-shadow(0 0 4px rgba(34, 211, 238, 0.45))
+    drop-shadow(0 0 12px rgba(8, 145, 178, 0.25));
+}
+
+/* Ink title with a gentle cyan halo — no flicker on white. */
+[data-bs-theme="light"] .product-hero__title {
+  color: #04161d;
+  text-shadow:
+    0 0 1px rgba(8, 145, 178, 0.35),
+    0 1px 0 rgba(8, 145, 178, 0.18),
+    0 0 18px rgba(34, 211, 238, 0.25);
+  animation: none;
+}
+
+/* Near-black tagline copy for readable body text on white. */
+[data-bs-theme="light"] .product-hero__tagline {
+  color: #0f242b;
 }
 
 /* Access-to-justice restraint: freeze the grid, kill the flicker + pulse, */

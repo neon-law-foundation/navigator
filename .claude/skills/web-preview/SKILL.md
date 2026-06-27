@@ -138,12 +138,12 @@ The capture lives in `/tmp` (e.g. `/tmp/navigator-screenshots/footer.gif`). Surf
 so it renders inline in the agent session — and describe what it shows in the PR body's **Screenshots** section.
 
 **Do NOT commit captures to the repo, and do NOT create an image-hosting branch.** For an image to *render* on the
-github.com PR page it must be hosted by GitHub, and the only clean way is GitHub's native **user-attachments** —
-drag-and-drop the file into the PR description or a comment box in the web UI. That hosts it at a
-`user-attachments`/`user-images` URL with zero repo pollution. There is **no CLI/API** for that upload, so it is a
-manual step: capture and review programmatically, then drag-drop if you want the image to persist on the PR page. Avoid
-the tempting `pr-assets` orphan-branch trick — it works, but leaves a stray binary-accumulating branch on the remote
-that someone has to remember to delete.
+github.com PR page it must be hosted by GitHub, and the only clean way is GitHub's native **user-attachments** (a
+`user-attachments`/`user-images` URL, zero repo pollution). GitHub ships no public API for that upload, but the
+[[pr-image-upload]] skill drives it from the CLI by replaying the browser upload flow with your github.com session — so
+you can embed the `/tmp` capture into the PR body yourself, no drag-drop required. Avoid the tempting `pr-assets`
+orphan-branch trick — it works, but leaves a stray binary-accumulating branch on the remote that someone has to
+remember to delete. (Inside Cursor Cloud, skip [[pr-image-upload]] and use the artifact tags its PR tool resolves.)
 
 ## CSP gotcha (front-end JS)
 

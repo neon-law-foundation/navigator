@@ -189,9 +189,12 @@ example:
 <img alt="Homepage without header" src="/opt/cursor/artifacts/homepage_no_header.webp" />
 ```
 
-The PR tool resolves these local paths into hosted links — that is the supported path, so reference `/tmp` directly and
-**never** self-host the binary on a remote git branch or commit it to the tree. If the artifact genuinely cannot be
-embedded, include the generated path and briefly explain why, but still produce the live walkthrough when practical.
+Inside **Cursor Cloud**, the PR tool resolves these local paths into hosted links — reference `/tmp` directly. In a
+**local / `gh` CLI** run there is no such resolver, so a raw `<img src="/tmp/…">` renders broken on github.com; embed
+the capture with the `pr-image-upload` skill instead (it drives `gh image` → GitHub's `user-attachments` CDN and returns
+a real URL for the body). Either way, **never** self-host the binary on a remote git branch or commit it to the tree. If
+the artifact genuinely cannot be embedded, include the generated path and briefly explain why, but still produce the
+live walkthrough when practical.
 
 ### Running the full `web` app end-to-end (extra setup)
 

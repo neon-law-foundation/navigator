@@ -1719,93 +1719,12 @@ fn render_service_with_testimonials(
             brand,
             cta_email,
             icon: page.icon,
-            accent: hero_accent_for(page.slug),
             testimonials,
         },
         auth,
         locale,
         canonical,
     )
-}
-
-/// Each product's signature neon-hero hue — one of the `product-hero--<hue>`
-/// accent ramps in `web/public/css/product-hero.css`. The catalog's thirteen
-/// pages share one animation engine, so a product is "themed" purely by the
-/// accent it picks here: cyan protection for Nautilus, a magenta network for
-/// Nexus, an emerald nest for Nest, and so on. An unknown slug falls back to
-/// the brand's cyan, so a new page is never un-themed.
-fn hero_accent_for(slug: &str) -> views::pages::service::ProductAccent {
-    use views::pages::service::ProductAccent::{
-        Amber, Azure, Crimson, Cyan, Emerald, Gold, Lime, Magenta, Orange, Rose, Sky, Teal, Violet,
-    };
-    match slug {
-        "nest" => Emerald,
-        "nexus" => Magenta,
-        "northstar" => Amber,
-        "node" => Lime,
-        "newleaf" => Teal,
-        "namesake" => Gold,
-        "nucleus" => Azure,
-        "nook" => Orange,
-        "nerd" => Violet,
-        "litigation" => Crimson,
-        "pro-bono" => Rose,
-        "nimbus" => Sky,
-        // Nautilus (debt-collection protection) and any new page: brand cyan.
-        _ => Cyan,
-    }
-}
-
-#[cfg(test)]
-mod hero_accent_tests {
-    use super::hero_accent_for;
-    use std::collections::HashSet;
-    use views::pages::service::ProductAccent;
-
-    #[test]
-    fn every_catalog_slug_gets_a_distinct_themed_accent() {
-        // Each seeded product carries its own signature hue so the thirteen
-        // pages read as distinct scenes; Nautilus + an unknown slug fall to
-        // the brand cyan.
-        let slugs = [
-            "nest",
-            "nexus",
-            "northstar",
-            "node",
-            "newleaf",
-            "namesake",
-            "nucleus",
-            "nook",
-            "nerd",
-            "litigation",
-            "pro-bono",
-            "nimbus",
-            "nautilus",
-        ];
-        let mut seen = HashSet::new();
-        for slug in slugs {
-            let accent = hero_accent_for(slug);
-            // The hue keyword the view interpolates into the
-            // `product-hero--<hue>` modifier class is a real, lowercase ramp.
-            let hue = accent.as_str();
-            assert!(
-                !hue.is_empty() && hue.chars().all(|c| c.is_ascii_lowercase()),
-                "{slug} should map to a lowercase hue keyword, got {hue:?}"
-            );
-            // Every catalog slug claims its own scene — no two collide.
-            assert!(
-                seen.insert(accent),
-                "{slug} reused the {hue:?} accent already taken by another slug"
-            );
-        }
-        assert_eq!(hero_accent_for("nautilus"), ProductAccent::Cyan);
-        assert_eq!(hero_accent_for("nexus"), ProductAccent::Magenta);
-        // An unknown slug is a compile-safe fall-back to the brand cyan.
-        assert_eq!(
-            hero_accent_for("definitely-not-a-product"),
-            ProductAccent::Cyan
-        );
-    }
 }
 
 fn testimonial_cards(
@@ -2147,8 +2066,12 @@ fn render_nebula_landing(
             benefit: &m.benefit,
         })
         .collect();
-    let show_tell_meta: Vec<(String, String, String)> = events
-        .events()
+    // The landing previews the soonest three upcoming show-and-tells plus the
+    // single most recent past one; the full paginated list lives behind the
+    // "View all show-and-tells" link.
+    let today = chrono::Local::now().date_naive();
+    let preview = landing_show_tell_preview(events, today);
+    let show_tell_meta: Vec<(String, String, String)> = preview
         .iter()
         .map(|event| {
             (
@@ -2158,8 +2081,7 @@ fn render_nebula_landing(
             )
         })
         .collect();
-    let event_cards: Vec<workshop_views::EventCard<'_>> = events
-        .events()
+    let event_cards: Vec<workshop_views::EventCard<'_>> = preview
         .iter()
         .zip(&show_tell_meta)
         .map(|(event, (href, time, place))| workshop_views::EventCard {
@@ -2177,6 +2099,25 @@ fn render_nebula_landing(
         auth,
         locale,
     )
+}
+
+/// How many upcoming show-and-tells the Nebula landing previews before the
+/// "View all show-and-tells" link.
+const LANDING_UPCOMING_PREVIEW: usize = 3;
+
+/// The show-and-tells the Nebula landing previews: the soonest
+/// [`LANDING_UPCOMING_PREVIEW`] upcoming gatherings (nearest first) plus the
+/// single most recent past one (so the section reads "what's next, and the
+/// last one we ran"). The full paginated history lives at the show-and-tell
+/// index.
+fn landing_show_tell_preview(events: &EventIndex, today: chrono::NaiveDate) -> Vec<&Event> {
+    let mut preview: Vec<&Event> = events
+        .upcoming(today)
+        .into_iter()
+        .take(LANDING_UPCOMING_PREVIEW)
+        .collect();
+    preview.extend(events.past(today).into_iter().next());
+    preview
 }
 
 async fn legacy_events_redirect() -> impl IntoResponse {
@@ -2932,5 +2873,68 @@ mod csp_tests {
         assert!(csp.contains("script-src 'self'"), "got: {csp}");
         assert!(!csp.contains("script-src 'self' https"), "got: {csp}");
         std::env::remove_var("NAVIGATOR_ASSET_BASE_URL");
+    }
+}
+
+#[cfg(test)]
+mod nebula_landing_tests {
+    use super::{landing_show_tell_preview, Event, EventIndex};
+    use chrono::NaiveDate;
+
+    fn event_on(slug: &str, date: NaiveDate) -> Event {
+        Event {
+            slug: slug.into(),
+            public_slug: slug.into(),
+            date,
+            title: slug.into(),
+            description: String::new(),
+            body_html: String::new(),
+            starts_at: date.and_hms_opt(18, 0, 0).unwrap(),
+            ends_at: date.and_hms_opt(20, 0, 0).unwrap(),
+            timezone: "America/Los_Angeles".into(),
+            location_name: "Room".into(),
+            location_address: "City".into(),
+            external_event_provider: "luma".into(),
+            external_event_url: format!("https://luma.com/{slug}"),
+            image_url: None,
+            image_alt: None,
+            video_url: None,
+            recap_url: None,
+        }
+    }
+
+    #[test]
+    fn landing_preview_takes_three_upcoming_and_one_recent_past() {
+        // Deliberately out of order; the preview must impose its own.
+        let ix = EventIndex::new(vec![
+            event_on("p-old", NaiveDate::from_ymd_opt(2026, 5, 1).unwrap()),
+            event_on("u4", NaiveDate::from_ymd_opt(2026, 7, 26).unwrap()),
+            event_on("p-recent", NaiveDate::from_ymd_opt(2026, 6, 20).unwrap()),
+            event_on("u1", NaiveDate::from_ymd_opt(2026, 7, 5).unwrap()),
+            event_on("u3", NaiveDate::from_ymd_opt(2026, 7, 19).unwrap()),
+            event_on("u2", NaiveDate::from_ymd_opt(2026, 7, 12).unwrap()),
+        ]);
+        let today = NaiveDate::from_ymd_opt(2026, 7, 1).unwrap();
+        let preview: Vec<_> = landing_show_tell_preview(&ix, today)
+            .iter()
+            .map(|e| e.slug.clone())
+            .collect();
+        // Soonest three upcoming (nearest first), then the single most recent
+        // past — never the older one, never a fourth upcoming.
+        assert_eq!(preview, vec!["u1", "u2", "u3", "p-recent"]);
+    }
+
+    #[test]
+    fn landing_preview_with_no_past_is_upcoming_only() {
+        let ix = EventIndex::new(vec![
+            event_on("u1", NaiveDate::from_ymd_opt(2026, 7, 5).unwrap()),
+            event_on("u2", NaiveDate::from_ymd_opt(2026, 7, 12).unwrap()),
+        ]);
+        let today = NaiveDate::from_ymd_opt(2026, 7, 1).unwrap();
+        let preview: Vec<_> = landing_show_tell_preview(&ix, today)
+            .iter()
+            .map(|e| e.slug.clone())
+            .collect();
+        assert_eq!(preview, vec!["u1", "u2"]);
     }
 }

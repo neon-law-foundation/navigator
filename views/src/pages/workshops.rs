@@ -200,14 +200,14 @@ pub fn landing_in(
     auth: AuthState,
     locale: Locale,
 ) -> Markup {
-    let (title, lede, more, workshops, presentations, events, empty) = match locale {
+    let (title, lede, more, workshops, presentations, show_and_tell, empty) = match locale {
         Locale::En => (
             LANDING_TITLE,
             LANDING_LEDE,
             LANDING_MORE,
             "Workshops",
             "Presentations",
-            "Events",
+            "Show-and-tell",
             "Nebula materials are still loading. Email ",
         ),
         Locale::Es => (
@@ -216,7 +216,7 @@ pub fn landing_in(
             LANDING_MORE_ES,
             "Talleres",
             "Presentaciones",
-            "Eventos",
+            "Muestras prácticas",
             "Los materiales de Nebula todavía se están cargando. Escriba a ",
         ),
     };
@@ -250,16 +250,11 @@ pub fn landing_in(
                             }
                         }
                     }
-                    @if !presentation_cards.is_empty() {
-                        h2 { (presentations) }
-                        ul.workshop-materials."list-unstyled"."mb-5" {
-                            @for c in presentation_cards {
-                                (material_card(c))
-                            }
-                        }
-                    }
                     @if !event_cards.is_empty() {
-                        h2 { (events) }
+                        h2 {
+                            i."bi"."bi-people-fill"."me-2" aria-hidden="true" {}
+                            (show_and_tell)
+                        }
                         ul.workshop-materials."list-unstyled"."mb-5" {
                             @for c in event_cards {
                                 li.workshop-material."mb-4" {
@@ -275,6 +270,14 @@ pub fn landing_in(
                         }
                         p {
                             a href="/foundation/nebula/show-and-tell" { "View all show-and-tells" }
+                        }
+                    }
+                    @if !presentation_cards.is_empty() {
+                        h2 { (presentations) }
+                        ul.workshop-materials."list-unstyled"."mb-5" {
+                            @for c in presentation_cards {
+                                (material_card(c))
+                            }
                         }
                     }
                     p.workshops-more."fst-italic"."text-body-secondary" { (more) }
@@ -933,7 +936,7 @@ mod tests {
         let presentations = vec![MaterialCard {
             href: "/foundation/nebula/presentations/rust-in-peace",
             title: "Rust in Peace",
-            audience: "For the curious",
+            audience: "For the hackers",
             benefit: "You walk out able to argue from real code.",
         }];
         let events = vec![EventCard {
@@ -952,9 +955,26 @@ mod tests {
         .into_string();
         assert!(html.contains(">Workshops</h2>"));
         assert!(html.contains(">Presentations</h2>"));
-        assert!(html.contains(">Events</h2>"));
+        // The show-and-tell section is labelled "Show-and-tell" (not "Events")
+        // and carries the people/meeting icon.
+        assert!(html.contains("Show-and-tell</h2>"));
+        assert!(html.contains("bi-people-fill"));
+        // Show-and-tell sits above Presentations and below Workshops.
+        let workshops_at = html.find(">Workshops</h2>").expect("workshops heading");
+        let show_tell_at = html
+            .find("Show-and-tell</h2>")
+            .expect("show-and-tell heading");
+        let presentations_at = html
+            .find(">Presentations</h2>")
+            .expect("presentations heading");
+        assert!(
+            workshops_at < show_tell_at && show_tell_at < presentations_at,
+            "order should be Workshops → Show-and-tell → Presentations: {html}"
+        );
         assert!(html.contains("href=\"/foundation/nebula/presentations/rust-in-peace\""));
         assert!(html.contains("href=\"/foundation/nebula/show-and-tell/seattle-summer-2026\""));
+        // The preview links out to the full paginated index.
+        assert!(html.contains("View all show-and-tells"));
     }
 
     #[test]
