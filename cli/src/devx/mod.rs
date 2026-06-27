@@ -355,7 +355,7 @@ pub fn dispatch(command: crate::Command) -> Result<()> {
             doctor::run(namespace.as_deref().unwrap_or(&cfg.namespace))
         }
         crate::Command::WorktreeEnv(cmd) => worktree_env::dispatch(cmd, &cfg),
-        crate::Command::Deploy => deploy(&cfg),
+        crate::Command::Deploy => deploy(&cfg, None),
         crate::Command::Undeploy => undeploy(&cfg),
         crate::Command::E2e => e2e::run_e2e(&cfg),
         crate::Command::GrantStaff => e2e::grant_staff(&cfg),
@@ -770,7 +770,7 @@ fn up(cfg: &KindConfig) -> Result<()> {
     // instead of building it on the host. `web` runs on the host via
     // `cargo run -p web`, so it needs no image here.
     let owner = ghcr::owner_from_env();
-    let tag = resolve_local_image_tag(&owner)?;
+    let tag = resolve_local_image_tag(&owner, None)?;
     pull_retag_load(
         &owner,
         "navigator-workflows-service",
@@ -861,9 +861,10 @@ fn kind_down_only(cfg: &KindConfig) -> Result<()> {
 /// Pulls both images at a resolved `YY.MM.DD` tag, retags + loads them
 /// into KIND, applies every manifest under `k8s/`, waits for the
 /// navigator-web rollout to settle. CI builds and publishes the images;
-/// this no longer builds them locally — pin a release with
-/// `NAVIGATOR_IMAGE_TAG`, else the latest published tag is pulled.
-fn deploy(cfg: &KindConfig) -> Result<()> {
+/// this no longer builds them locally. `tag_override` (e.g. `worktree-env
+/// --demo --tag`) pins the release; else `NAVIGATOR_IMAGE_TAG`, else the
+/// latest published tag is pulled.
+fn deploy(cfg: &KindConfig, tag_override: Option<&str>) -> Result<()> {
     require_tools(&["kind", "kubectl", "docker", "helm"])?;
     let root = workspace_root()?;
     // `kind_up_steps` is idempotent — safe to call when the cluster
@@ -871,7 +872,7 @@ fn deploy(cfg: &KindConfig) -> Result<()> {
     // invariants `deploy` relies on.
     kind_up_steps(&root, cfg)?;
     let owner = ghcr::owner_from_env();
-    let tag = resolve_local_image_tag(&owner)?;
+    let tag = resolve_local_image_tag(&owner, tag_override)?;
     // Fail fast before any apply if either service image is missing the
     // resolved tag — a missing image would wedge the rollout in
     // ImagePullBackOff.
@@ -1030,15 +1031,21 @@ fn kind_load_image_into_cluster(tag: &str, cfg: &KindConfig) -> Result<()> {
         .arg(&cfg.cluster))
 }
 
-/// Resolve the `YY.MM.DD` ghcr tag the local cluster should pull. An
-/// explicit `NAVIGATOR_IMAGE_TAG` wins — pin a demo to a known-good
-/// release; otherwise resolve the latest published tag from ghcr. CI
-/// builds and publishes the images (`deploy.yml`); the local loop no
-/// longer builds them, it pulls.
-fn resolve_local_image_tag(owner: &str) -> Result<String> {
-    if let Some(tag) = env::var("NAVIGATOR_IMAGE_TAG")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
+/// Resolve the `YY.MM.DD` ghcr tag the local cluster should pull, in
+/// precedence order: an explicit `override_tag` (e.g. `worktree-env
+/// --demo --tag`), then `NAVIGATOR_IMAGE_TAG`, then the latest published
+/// tag from ghcr. CI builds and publishes the images (`deploy.yml`); the
+/// local loop no longer builds them, it pulls.
+fn resolve_local_image_tag(owner: &str, override_tag: Option<&str>) -> Result<String> {
+    if let Some(tag) = override_tag
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            env::var("NAVIGATOR_IMAGE_TAG")
+                .ok()
+                .filter(|v| !v.trim().is_empty())
+        })
     {
         ghcr::validate_release_tag(&tag)?;
         return Ok(tag);

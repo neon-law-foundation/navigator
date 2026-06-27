@@ -161,7 +161,7 @@ fn up_dev(root: &Path, no_deps: bool, base_cfg: &KindConfig) -> Result<()> {
     // OAuth redirect URI stays stable; otherwise derive one and bump
     // past any live collision.
     let existing = read_descriptor(root);
-    let web_port = choose_web_port(&slug, existing.as_ref().and_then(WorktreeEnv::dev_port));
+    let web_port = choose_web_port(&slug, existing.as_ref().and_then(WorktreeEnv::dev_port))?;
 
     let maint = maintenance_url(base_cfg.postgres_port);
     let db_url = database_url(base_cfg.postgres_port, &db_name);
@@ -259,14 +259,13 @@ fn status(root: &Path, base_cfg: &KindConfig) {
 fn up_demo(root: &Path, tag: Option<&str>, base_cfg: &KindConfig) -> Result<()> {
     let slug = slug_for(root)?;
     eprintln!("==> worktree-env up (demo): full stack in KIND from ghcr (slug={slug})");
-    // `deploy` reads `NAVIGATOR_IMAGE_TAG` to pin a tag; honoring `--tag`
-    // means setting it for this process. Validate first so a bad tag
-    // fails before any cluster work.
+    // Validate `--tag` up front so a bad tag fails before any cluster
+    // work, then hand it to `deploy` as a parameter (no process-env
+    // mutation).
     if let Some(tag) = tag {
         super::ghcr::validate_release_tag(tag)?;
-        std::env::set_var("NAVIGATOR_IMAGE_TAG", tag);
     }
-    super::deploy(base_cfg)?;
+    super::deploy(base_cfg, tag)?;
     write_descriptor(
         root,
         &WorktreeEnv {
@@ -372,18 +371,28 @@ fn derived_web_port(slug: &str) -> u16 {
 /// Otherwise start from the slug-derived port and bump past any port that
 /// is currently listening (a rare hash collision with another worktree),
 /// staying within the span.
-fn choose_web_port(slug: &str, recorded: Option<u16>) -> u16 {
+fn choose_web_port(slug: &str, recorded: Option<u16>) -> Result<u16> {
     if let Some(p) = recorded {
-        return p;
+        return Ok(p);
     }
     let start = derived_web_port(slug);
     for i in 0..WEB_PORT_SPAN {
         let candidate = WEB_PORT_BASE + ((start - WEB_PORT_BASE + i) % WEB_PORT_SPAN);
         if !port_listening(candidate) {
-            return candidate;
+            return Ok(candidate);
         }
     }
-    start
+    // Every port in the span is occupied (≈WEB_PORT_SPAN parallel worktree
+    // webs). Fail loudly instead of recording a port we know can't bind —
+    // a recorded port is reused unconditionally on the next `up`, so a bad
+    // one would wedge the worktree until `.devx/worktree.json` is deleted.
+    bail!(
+        "all {} host ports in [{}..{}] are occupied — stop an unused worktree env \
+         (`worktree-env down`) or free a port, then re-run",
+        WEB_PORT_SPAN,
+        WEB_PORT_BASE,
+        WEB_PORT_BASE + WEB_PORT_SPAN - 1
+    )
 }
 
 // ---------- database operations (async via store/SeaORM) ----------
@@ -621,7 +630,17 @@ mod tests {
 
     #[test]
     fn choose_web_port_reuses_recorded() {
-        assert_eq!(choose_web_port("anything", Some(3042)), 3042);
+        // A recorded port is returned verbatim — no probing, no re-roll.
+        assert_eq!(choose_web_port("anything", Some(3042)).unwrap(), 3042);
+    }
+
+    #[test]
+    fn choose_web_port_derives_within_span_when_unrecorded() {
+        // With no recorded port it derives one (and probes for a free
+        // port) inside the span. At least one port in [3001, 3100] is
+        // free in the test environment, so this resolves rather than bails.
+        let p = choose_web_port("a-fresh-unrecorded-slug", None).unwrap();
+        assert!((WEB_PORT_BASE..WEB_PORT_BASE + WEB_PORT_SPAN).contains(&p));
     }
 
     #[test]
