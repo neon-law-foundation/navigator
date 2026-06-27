@@ -440,7 +440,9 @@ kubectl -n "${NS}" create job --from=cronjob/archives-trigger archives-trigger-m
 ## What this skill is NOT
 
 - It is **not** an image builder. Images come from GitHub's tag flow (`deploy.yml`); power-push only updates the
-  cluster. If you find yourself running `docker build` or `cargo run -p cli -- image`, you're off the path.
+  cluster. There is no local image-build command anymore — the `cargo run -p cli -- image*` subcommands were removed and
+  even the local KIND loop **pulls** the published ghcr images. If you find yourself running `docker build`, you're off
+  the path. (The ghcr tag-resolution helpers power-push uses now live in the shared `cli::devx::ghcr` module.)
 - It is **not** the way to get un-merged code to prod. Land it via a PR (`/create-pr`), let the tag flow build it, then
   roll.
 - It is **not** a partial roll. Always pin and roll out **both** `navigator-web` and `workflows-service` at the same

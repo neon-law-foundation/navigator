@@ -29,6 +29,8 @@ DATABASE_URL=postgres://navigator:navigator@127.0.0.1:15432/navigator
 
 `DATABASE_URL` is the only thing `store::DbConfig::from_env` reads — Postgres is the only supported backend (the SQLite fallback was removed in the cutover). See [[rust-sea-orm]] for the selector.
 
+This one server hosts more than the `navigator` database: `cargo run -p cli -- worktree-env up` creates a per-worktree `navigator_<slug>` database on the **same** `:15432` server (created + migrated via `store`), so parallel worktrees stay isolated without a second Postgres. `worktree-env down` runs `DROP DATABASE … WITH (FORCE)`. See [[kind-local-dev]] and `docs/RUNBOOK.md` §7c.
+
 ## Secrets
 
 - Dev credentials (`navigator` / `navigator`) live in `k8s/postgres/postgres.yaml` as a plain Secret. **This is fine because the cluster is local-only**; never copy this pattern into a manifest that targets a real cluster.

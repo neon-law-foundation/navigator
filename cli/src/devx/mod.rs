@@ -29,8 +29,12 @@ mod dns;
 mod doctor;
 mod e2e;
 mod gcp;
+mod ghcr;
 mod observability;
 mod power_push;
+mod worktree_env;
+
+pub use worktree_env::WorktreeEnvCmd;
 
 // KIND/local defaults. Each pairs with a `KindConfig` field and a
 // `NAVIGATOR_*` env var (see `KindConfig::from_env`). The constants are
@@ -71,16 +75,14 @@ const RESTATE_CLI_VERSION: &str = "1.7.0";
 // re-register silently no-ops (the 2026-06-10 ship symptom).
 pub(crate) const WORKFLOWS_PUBLIC_URL: &str = "https://workflows.example.com/";
 
-// Image tags KIND loads from the host's local Docker daemon.
+// Local `:dev` image tags KIND loads. CI publishes the real images to
+// ghcr (`YY.MM.DD`); `pull_retag_load` pulls one and retags it to the
+// `:dev` name the manifests reference, so the overlays stay unchanged.
+// The trigger images (archives/statutes/billing/heartbeat) are pulled
+// straight from ghcr by their CronJobs in prod and are never loaded into
+// the local cluster, so they need no local tag constant here.
 const WEB_IMAGE: &str = "navigator-web:dev";
 const WORKFLOWS_SERVICE_IMAGE: &str = "navigator-workflows-service:dev";
-const ARCHIVES_TRIGGER_IMAGE: &str = "navigator-archives-trigger:dev";
-const STATUTES_TRIGGER_IMAGE: &str = "navigator-statutes-trigger:dev";
-const BILLING_CANARY_TRIGGER_IMAGE: &str = "navigator-billing-canary-trigger:dev";
-const RECONCILE_INVOICES_TRIGGER_IMAGE: &str = "navigator-reconcile-invoices-trigger:dev";
-const RECURRING_BILLING_TRIGGER_IMAGE: &str = "navigator-recurring-billing-trigger:dev";
-const HEARTBEAT_TRIGGER_IMAGE: &str = "navigator-heartbeat-trigger:dev";
-const BILLING_DIGEST_TRIGGER_IMAGE: &str = "navigator-billing-digest-trigger:dev";
 
 // Kustomize overlay roots. `Up` applies the deps-only overlay (no
 // in-cluster `web`). `Deploy` applies the full overlay including
@@ -352,16 +354,8 @@ pub fn dispatch(command: crate::Command) -> Result<()> {
         crate::Command::Doctor { namespace } => {
             doctor::run(namespace.as_deref().unwrap_or(&cfg.namespace))
         }
-        cmd @ (crate::Command::Image
-        | crate::Command::ImageWorkflowsService
-        | crate::Command::ImageArchivesTrigger
-        | crate::Command::ImageStatutesTrigger
-        | crate::Command::ImageBillingCanaryTrigger
-        | crate::Command::ImageReconcileInvoicesTrigger
-        | crate::Command::ImageRecurringBillingTrigger
-        | crate::Command::ImageHeartbeatTrigger
-        | crate::Command::ImageBillingDigestTrigger) => build_named_image(&cmd),
-        crate::Command::Deploy => deploy(&cfg),
+        crate::Command::WorktreeEnv(cmd) => worktree_env::dispatch(cmd, &cfg),
+        crate::Command::Deploy => deploy(&cfg, None),
         crate::Command::Undeploy => undeploy(&cfg),
         crate::Command::E2e => e2e::run_e2e(&cfg),
         crate::Command::GrantStaff => e2e::grant_staff(&cfg),
@@ -435,55 +429,6 @@ pub fn dispatch(command: crate::Command) -> Result<()> {
         // `main` only routes the orchestration subset here; the notation /
         // live-site commands (validate, import, login, …) are handled there.
         _ => unreachable!("devx::dispatch received a non-orchestration command"),
-    }
-}
-
-/// Build the container image a `crate::Command::Image*` selects. The whole image set
-/// is small and deliberate (see `images/README.md`): `images/Dockerfile.web`
-/// and `images/Dockerfile.workflows-service` host the two long-running
-/// servers; the three `*-trigger` images all build from the one shared
-/// `images/Dockerfile.trigger`, selecting a crate's `trigger` bin via the
-/// `CRATE` build-arg — each is a thin `CronJob` entrypoint that POSTs to the
-/// Restate ingress and exits (the workflows themselves live in
-/// `workflows-service`, not in their own pods). Adding a workflow adds a
-/// `--build-arg` row here, never a new Dockerfile or always-on service.
-fn build_named_image(cmd: &crate::Command) -> Result<()> {
-    match cmd {
-        crate::Command::Image => build_image(WEB_IMAGE, "images/Dockerfile.web"),
-        crate::Command::ImageWorkflowsService => build_image(
-            WORKFLOWS_SERVICE_IMAGE,
-            "images/Dockerfile.workflows-service",
-        ),
-        crate::Command::ImageArchivesTrigger => {
-            build_trigger_image(ARCHIVES_TRIGGER_IMAGE, "archives")
-        }
-        crate::Command::ImageStatutesTrigger => {
-            build_trigger_image(STATUTES_TRIGGER_IMAGE, "statutes")
-        }
-        crate::Command::ImageBillingCanaryTrigger => {
-            build_trigger_image(BILLING_CANARY_TRIGGER_IMAGE, "billing-workflows")
-        }
-        crate::Command::ImageReconcileInvoicesTrigger => build_trigger_image_bin(
-            RECONCILE_INVOICES_TRIGGER_IMAGE,
-            "billing-workflows",
-            "reconcile-trigger",
-        ),
-        crate::Command::ImageRecurringBillingTrigger => build_trigger_image_bin(
-            RECURRING_BILLING_TRIGGER_IMAGE,
-            "billing-workflows",
-            "recurring-trigger",
-        ),
-        crate::Command::ImageHeartbeatTrigger => build_trigger_image_bin(
-            HEARTBEAT_TRIGGER_IMAGE,
-            "workflows-service",
-            "heartbeat-trigger",
-        ),
-        crate::Command::ImageBillingDigestTrigger => build_trigger_image_bin(
-            BILLING_DIGEST_TRIGGER_IMAGE,
-            "billing-workflows",
-            "billing-digest-trigger",
-        ),
-        _ => bail!("build_named_image called with a non-image command"),
     }
 }
 
@@ -821,12 +766,18 @@ fn up(cfg: &KindConfig) -> Result<()> {
     let state = StateDir::new(&root)?;
 
     kind_up_steps(&root, cfg)?;
-    build_image_at(
+    // The worker runs in-cluster; pull its published image from ghcr
+    // instead of building it on the host. `web` runs on the host via
+    // `cargo run -p web`, so it needs no image here.
+    let owner = ghcr::owner_from_env();
+    let tag = resolve_local_image_tag(&owner, None)?;
+    pull_retag_load(
+        &owner,
+        "navigator-workflows-service",
+        &tag,
         WORKFLOWS_SERVICE_IMAGE,
-        "images/Dockerfile.workflows-service",
-        &root,
+        cfg,
     )?;
-    kind_load_image_into_cluster(WORKFLOWS_SERVICE_IMAGE, cfg)?;
 
     eprintln!("==> applying dependency manifests (skipping k8s/base/web)");
     apply_kustomize(&root, &cfg.deps_overlay)?;
@@ -906,60 +857,35 @@ fn kind_down_only(cfg: &KindConfig) -> Result<()> {
     Ok(())
 }
 
-/// `devx image` / `devx image-workflows-service`: build one image
-/// from the workspace root context.
-fn build_image(tag: &str, dockerfile: &str) -> Result<()> {
-    require_tools(&["docker"])?;
-    let root = workspace_root()?;
-    build_image_at(tag, dockerfile, &root)
-}
-
-/// Build a `CronJob` trigger image from the shared `images/Dockerfile.trigger`,
-/// selecting which crate's `trigger` binary to compile via the `CRATE`
-/// build-arg (`archives`, `statutes`, `billing-workflows`).
-fn build_trigger_image(tag: &str, crate_name: &str) -> Result<()> {
-    require_tools(&["docker"])?;
-    let root = workspace_root()?;
-    build_image_at_with_args(
-        tag,
-        "images/Dockerfile.trigger",
-        &root,
-        &[("CRATE", crate_name)],
-    )
-}
-
-/// Build a trigger image selecting a non-default bin within the crate via
-/// the `BIN` build-arg — for `billing-workflows`, which ships both the
-/// default `trigger` (canary) and `reconcile-trigger`.
-fn build_trigger_image_bin(tag: &str, crate_name: &str, bin: &str) -> Result<()> {
-    require_tools(&["docker"])?;
-    let root = workspace_root()?;
-    build_image_at_with_args(
-        tag,
-        "images/Dockerfile.trigger",
-        &root,
-        &[("CRATE", crate_name), ("BIN", bin)],
-    )
-}
-
-/// `devx deploy`: full in-cluster stack. Builds both images, loads
-/// them into KIND, applies every manifest under `k8s/`, waits for
-/// the navigator-web rollout to settle.
-fn deploy(cfg: &KindConfig) -> Result<()> {
+/// `devx deploy`: full in-cluster stack from published ghcr images.
+/// Pulls both images at a resolved `YY.MM.DD` tag, retags + loads them
+/// into KIND, applies every manifest under `k8s/`, waits for the
+/// navigator-web rollout to settle. CI builds and publishes the images;
+/// this no longer builds them locally. `tag_override` (e.g. `worktree-env
+/// --demo --tag`) pins the release; else `NAVIGATOR_IMAGE_TAG`, else the
+/// latest published tag is pulled.
+fn deploy(cfg: &KindConfig, tag_override: Option<&str>) -> Result<()> {
     require_tools(&["kind", "kubectl", "docker", "helm"])?;
     let root = workspace_root()?;
     // `kind_up_steps` is idempotent — safe to call when the cluster
     // is already up. Establishes the Operator + nginx-ingress
     // invariants `deploy` relies on.
     kind_up_steps(&root, cfg)?;
-    build_image_at(WEB_IMAGE, "images/Dockerfile.web", &root)?;
-    build_image_at(
+    let owner = ghcr::owner_from_env();
+    let tag = resolve_local_image_tag(&owner, tag_override)?;
+    // Fail fast before any apply if either service image is missing the
+    // resolved tag — a missing image would wedge the rollout in
+    // ImagePullBackOff.
+    ghcr::ensure_tag_published(&owner, "navigator-web", &tag)?;
+    ghcr::ensure_tag_published(&owner, "navigator-workflows-service", &tag)?;
+    pull_retag_load(&owner, "navigator-web", &tag, WEB_IMAGE, cfg)?;
+    pull_retag_load(
+        &owner,
+        "navigator-workflows-service",
+        &tag,
         WORKFLOWS_SERVICE_IMAGE,
-        "images/Dockerfile.workflows-service",
-        &root,
+        cfg,
     )?;
-    kind_load_image_into_cluster(WEB_IMAGE, cfg)?;
-    kind_load_image_into_cluster(WORKFLOWS_SERVICE_IMAGE, cfg)?;
     apply_kustomize(&root, &cfg.full_overlay)?;
     eprintln!("==> waiting for navigator-web rollout");
     run(Command::new("kubectl")
@@ -1095,53 +1021,6 @@ fn kind_up_steps(root: &Path, cfg: &KindConfig) -> Result<()> {
         .arg("--all"))
 }
 
-fn build_image_at(tag: &str, dockerfile: &str, root: &Path) -> Result<()> {
-    build_image_at_with_args(tag, dockerfile, root, &[])
-}
-
-fn build_image_at_with_args(
-    tag: &str,
-    dockerfile: &str,
-    root: &Path,
-    build_args: &[(&str, &str)],
-) -> Result<()> {
-    // Local images (kind-loaded `web` / `workflows-service`, trigger
-    // images) build for the host arch: the Dockerfiles pick their musl
-    // target from BuildKit's TARGETARCH, so a native build yields an
-    // image that matches the (host-arch) KIND node — arm64 on an
-    // Apple-Silicon laptop, amd64 in CI.
-    build_image_at_platform(tag, dockerfile, root, build_args, None)
-}
-
-/// Like [`build_image_at_with_args`] but pins the Docker target platform.
-/// The prod ship path (`power-push`) passes `Some("linux/amd64")` so GKE
-/// Autopilot (amd64) always receives an amd64 image even when the ship
-/// runs from an arm64 (Apple-Silicon) laptop — without this, a host-arch
-/// build would push an arm64 image that prod can't exec.
-fn build_image_at_platform(
-    tag: &str,
-    dockerfile: &str,
-    root: &Path,
-    build_args: &[(&str, &str)],
-    platform: Option<&str>,
-) -> Result<()> {
-    eprintln!("==> building image {tag} (from {dockerfile})");
-    let mut cmd = Command::new("docker");
-    cmd.arg("build")
-        .arg("-t")
-        .arg(tag)
-        .arg("-f")
-        .arg(root.join(dockerfile));
-    if let Some(platform) = platform {
-        cmd.arg("--platform").arg(platform);
-    }
-    for (key, value) in build_args {
-        cmd.arg("--build-arg").arg(format!("{key}={value}"));
-    }
-    cmd.arg(root);
-    run(&mut cmd)
-}
-
 fn kind_load_image_into_cluster(tag: &str, cfg: &KindConfig) -> Result<()> {
     eprintln!("==> kind load docker-image {tag}");
     run(Command::new("kind")
@@ -1150,6 +1029,49 @@ fn kind_load_image_into_cluster(tag: &str, cfg: &KindConfig) -> Result<()> {
         .arg(tag)
         .arg("--name")
         .arg(&cfg.cluster))
+}
+
+/// Resolve the `YY.MM.DD` ghcr tag the local cluster should pull, in
+/// precedence order: an explicit `override_tag` (e.g. `worktree-env
+/// --demo --tag`), then `NAVIGATOR_IMAGE_TAG`, then the latest published
+/// tag from ghcr. CI builds and publishes the images (`deploy.yml`); the
+/// local loop no longer builds them, it pulls.
+fn resolve_local_image_tag(owner: &str, override_tag: Option<&str>) -> Result<String> {
+    if let Some(tag) = override_tag
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            env::var("NAVIGATOR_IMAGE_TAG")
+                .ok()
+                .filter(|v| !v.trim().is_empty())
+        })
+    {
+        ghcr::validate_release_tag(&tag)?;
+        return Ok(tag);
+    }
+    ghcr::resolve_latest_tag(owner, "navigator-web")
+}
+
+/// Pull a published ghcr image, retag it to the local `:dev` tag the KIND
+/// manifests reference, and load it into the cluster. Retagging (rather
+/// than rewriting every manifest to a ghcr ref) keeps the overlays
+/// byte-identical whether an image was historically built or is now
+/// pulled. `docker pull` selects the host-arch variant from the
+/// multi-arch manifest, so an Apple-Silicon laptop loads a native arm64
+/// image into its arm64 KIND node.
+fn pull_retag_load(
+    owner: &str,
+    image: &str,
+    tag: &str,
+    dev_tag: &str,
+    cfg: &KindConfig,
+) -> Result<()> {
+    let remote = ghcr::image_ref(owner, image, tag);
+    eprintln!("==> docker pull {remote}");
+    run(Command::new("docker").arg("pull").arg(&remote))?;
+    run(Command::new("docker").arg("tag").arg(&remote).arg(dev_tag))?;
+    kind_load_image_into_cluster(dev_tag, cfg)
 }
 
 /// Path to the `kind create cluster --config` file. At default
@@ -1308,6 +1230,15 @@ fn status(cfg: &KindConfig) {
 // ---------- helpers ----------
 
 fn render_env(cfg: &KindConfig) -> String {
+    render_env_for(cfg, "navigator", cfg.web_port)
+}
+
+/// Like [`render_env`] but parameterized by the Postgres database name and
+/// the host `web` port. The default dev loop uses the `navigator` database
+/// on `cfg.web_port`; `worktree-env` threads a per-worktree database
+/// (`navigator_<slug>`) and a per-worktree port through the same renderer
+/// so the two paths can never drift in how they wire `web` to the deps.
+fn render_env_for(cfg: &KindConfig, db_name: &str, web_port: u16) -> String {
     // NAVIGATOR_SEED_FILE is intentionally omitted: the canonical
     // seed lives in `store/seeds/*.yaml` as one file per entity,
     // not the single base.yaml the in-cluster Deployment `ConfigMap`
@@ -1326,11 +1257,11 @@ fn render_env(cfg: &KindConfig) -> String {
     // boot; the actual email backend defaults to CapturingEmail
     // because NAVIGATOR_EMAIL_BACKEND is unset.
     let lines: [(&str, String); 15] = [
-        ("PORT", cfg.web_port.to_string()),
+        ("PORT", web_port.to_string()),
         (
             "DATABASE_URL",
             format!(
-                "postgres://navigator:navigator@localhost:{}/navigator",
+                "postgres://navigator:navigator@localhost:{}/{db_name}",
                 cfg.postgres_port
             ),
         ),
@@ -1351,7 +1282,7 @@ fn render_env(cfg: &KindConfig) -> String {
         ("OAUTH_CLIENT_SECRET", "navigator-web-secret".into()),
         (
             "OAUTH_REDIRECT_URI",
-            format!("http://localhost:{}/auth/callback", cfg.web_port),
+            format!("http://localhost:{web_port}/auth/callback"),
         ),
         (
             "SESSION_SECRET",
