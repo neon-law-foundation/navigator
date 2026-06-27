@@ -37,6 +37,22 @@ inherit this.
    commit on `main`; write the PR title as the Conventional Commit you want in `main`'s history, since that title (not
    the branch's individual commits) is the squashed commit's subject.
 
+> **Auto-merge runs as a GitHub App, not `GITHUB_TOKEN`.** The `enable-automerge` job mints an installation token via
+> [`actions/create-github-app-token`](https://github.com/actions/create-github-app-token) and enables auto-merge with
+> that. This is deliberate: GitHub's docs state that "events triggered by the `GITHUB_TOKEN` will not create a new
+> workflow run"
+> ([Triggering a workflow](https://docs.github.com/en/actions/using-workflows/triggering-a-workflow)),
+> so a PR the default token enqueues never fires `merge_group`, the required `cargo test (workspace)` check never
+> reports, and the entry times out and is silently dropped — the PR sits "auto-merge enabled, CLEAN" forever (see
+> [community discussion #70310](https://github.com/orgs/community/discussions/70310)). A GitHub App token (or a PAT) is
+> the documented fix. The job is guarded on the App being configured: set `AUTOMERGE_APP_ID` and
+> `AUTOMERGE_APP_PRIVATE_KEY` in the `navigator-gitops` Doppler config, which auto-syncs to GitHub Actions **secrets**
+> (this repo keeps no Actions *variables* — Doppler is the single source of truth, so the App ID is stored as a secret
+> too and hoisted to job-level `env` so the step `if` can gate on it). The App is installed on the repo with
+> `contents: write` + `pull_requests: write`. Until both exist the step is skipped and the job falls back to
+> `GITHUB_TOKEN` — which enables auto-merge but does not reliably enqueue, so the first PR after each fresh setup may
+> need a one-time manual nudge (`gh pr merge <n>` as a real user).
+
 ### TDD and the pre-commit gate
 
 - Tests land in the **same commit** as the implementation they cover. When a PR changes Rust files or build/runtime
