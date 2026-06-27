@@ -60,6 +60,7 @@ pub mod m058;
 pub mod m059;
 pub mod m060;
 pub mod s102;
+pub mod workflow_steps;
 
 pub use f103::{is_pascal_case, is_snake_case, F103SnakeCaseFilename};
 pub use f104::F104FlowQuestionCodes;
@@ -116,6 +117,9 @@ pub use m058::M058BlanksAroundTables;
 pub use m059::M059DescriptiveLinkText;
 pub use m060::M060TableColumnStyle;
 pub use s102::S102LinePacking;
+pub use workflow_steps::{
+    is_allowed_prefix, lookup as lookup_workflow_step, StepStatus, WorkflowStep, WORKFLOW_STEPS,
+};
 
 pub use engine::{
     classify_source, code_uniqueness_violations, lint_source_classified,
