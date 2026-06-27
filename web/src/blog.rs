@@ -295,10 +295,34 @@ mod tests {
         let post = ix
             .get("going-all-in-on-rust")
             .expect("going-all-in-on-rust post loads");
+        let ferris_src = "src=\"/public/img/going-all-in-on-rust/ferris-rust-logo-nlf.png\"";
+        // "Leads with" is an ordering promise, not just presence: the Ferris
+        // art must be the FIRST image and sit ahead of the body prose, so a
+        // later-inserted image can't quietly displace it as the lead.
+        let first_img = post.body_html.find("<img").unwrap_or_else(|| {
+            panic!(
+                "the Rust post should render the Ferris/NLF artwork, got: {}",
+                post.body_html
+            )
+        });
+        // The first `<img` tag in the rendered body must be the Ferris art:
+        // its `src` falls before any subsequent image opens.
+        let next_img = post.body_html[first_img + 1..]
+            .find("<img")
+            .map_or(post.body_html.len(), |rel| first_img + 1 + rel);
+        let lead_img = &post.body_html[first_img..next_img];
         assert!(
+            lead_img.contains(ferris_src),
+            "the Ferris/NLF artwork must be the FIRST image, got: {}",
             post.body_html
-                .contains("src=\"/public/img/going-all-in-on-rust/ferris-rust-logo-nlf.png\""),
-            "the Rust post should lead with the GCS-backed Ferris/NLF artwork, got: {}",
+        );
+        let prose_at = post
+            .body_html
+            .find("We are going all-in on Rust")
+            .expect("post renders its opening line");
+        assert!(
+            first_img < prose_at,
+            "the Ferris/NLF artwork must lead, ahead of the body prose, got: {}",
             post.body_html
         );
     }
