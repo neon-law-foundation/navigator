@@ -175,9 +175,13 @@ allow if {
     input.session
 }
 
-# Public surface.
+# Public API documentation surfaces.
 allow if {
     input.path[0] == "openapi.json"
+}
+
+allow if {
+    input.path == ["api", "docs"]
 }
 ```
 
