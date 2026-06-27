@@ -157,6 +157,37 @@ jobs:
         run: |
           "${SCCACHE_PATH:-sccache}" --show-stats
 
+  # Compile the bundled Zed extension to wasm. It lives at `lsp/zed-ext/` and is
+  # deliberately NOT a workspace member (Zed builds it under its own toolchain to
+  # wasm32-wasip2), so `cargo test --workspace` in the `rust` job never touches
+  # it. Without this gate a `lib.rs` that doesn't compile would only surface in
+  # Zed's registry CI after `deploy.yml` already published it. Small crate, so
+  # fmt + clippy + build is fast.
+  zed-ext:
+    name: build zed extension (wasm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+          targets: wasm32-wasip2
+          components: rustfmt, clippy
+      - name: cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lsp/zed-ext
+          key: zed-ext
+      - name: cargo fmt --check
+        working-directory: lsp/zed-ext
+        run: cargo fmt --all -- --check
+      - name: cargo clippy (wasm32-wasip2)
+        working-directory: lsp/zed-ext
+        run: cargo clippy --release --target wasm32-wasip2 --all-targets -- -D warnings
+      - name: cargo build (wasm32-wasip2)
+        working-directory: lsp/zed-ext
+        run: cargo build --release --target wasm32-wasip2
+
   # Turn on GitHub auto-merge once per PR, on open / ready-for-review only (never
   # on `synchronize`, so a human who deliberately disabled it isn't overridden on
   # the next push, and never on `merge_group`). With the merge queue configured
