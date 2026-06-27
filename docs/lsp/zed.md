@@ -12,11 +12,10 @@ nothing else to install.
 3. Open any Markdown file — diagnostics appear as you type, and notation templates get the extra frontmatter rules on
    top.
 
-On first run the extension downloads the prebuilt `navigator-lsp` for your platform from the GitHub Release and caches
-it per version; later releases are picked up automatically. The prebuilt binaries today cover **Apple Silicon macOS**,
-**x86-64 Linux**, and **x86-64 Windows**. On any other platform (Intel Mac, ARM Linux) the extension reports a clear
-error — install the binary yourself ([below](#build-the-binary-yourself-contributors)) or point Zed at one with an
-explicit [settings path](#configuration).
+On first run the extension downloads the prebuilt `navigator-lsp` from the GitHub Release and caches it per version;
+later releases are picked up automatically. The prebuilt binary today is **Apple Silicon macOS** only. On any other
+platform the extension reports a clear error — install the binary yourself
+([below](#build-the-binary-yourself-contributors)) or point Zed at one with an explicit [settings path](#configuration).
 
 The rest of this page is for contributors and maintainers — building the binary by hand, sideloading the extension as a
 dev build, and the publishing pipeline.
