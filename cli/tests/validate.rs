@@ -36,7 +36,9 @@ fn validate_succeeds_on_clean_directory() {
         .arg(dir.path())
         .assert()
         .success()
-        .stdout(str::contains("Scanned 1 file(s), found 0 violation(s)"));
+        .stdout(str::contains(
+            "Scanned 1 file(s), found 0 error(s), 0 warning(s)",
+        ));
 }
 
 #[test]
@@ -90,7 +92,9 @@ fn validate_default_treats_code_only_frontmatter_as_markdown() {
         .arg(dir.path())
         .assert()
         .success()
-        .stdout(str::contains("Scanned 1 file(s), found 0 violation(s)"));
+        .stdout(str::contains(
+            "Scanned 1 file(s), found 0 error(s), 0 warning(s)",
+        ));
 }
 
 #[test]
@@ -128,7 +132,7 @@ fn workspace_root() -> PathBuf {
 }
 
 /// CI guard: every shipped example notation under `notation_templates/` must pass
-/// the *classified* (default-mode) validator with zero violations.
+/// the *classified* (default-mode) validator with zero blocking errors.
 ///
 /// Files under `notation_templates/` are always classified as notation templates,
 /// so this runs the full N-family (N101–N108) plus the markdown rules
@@ -137,6 +141,10 @@ fn workspace_root() -> PathBuf {
 /// a newly added one) drifts out of conformance. Keep the example
 /// notations conforming; do not loosen this test to make a bad template
 /// pass.
+///
+/// Yellow `N112` "not built yet" advisories (every template's
+/// `staff_review` gate earns one today) are warnings, not errors, so
+/// they are expected and do not fail the gate — assert on `0 error(s)`.
 #[test]
 fn every_template_notation_passes_classified_validation() {
     let templates = workspace_root().join("notation_templates");
@@ -150,7 +158,7 @@ fn every_template_notation_passes_classified_validation() {
         .arg(&templates)
         .assert()
         .success()
-        .stdout(str::contains("found 0 violation(s)"));
+        .stdout(str::contains("found 0 error(s)"));
 }
 
 /// Companion guard: the same notations must also pass under
@@ -166,7 +174,7 @@ fn every_template_notation_passes_markdown_only_validation() {
         .arg(&templates)
         .assert()
         .success()
-        .stdout(str::contains("found 0 violation(s)"));
+        .stdout(str::contains("found 0 error(s), 0 warning(s)"));
 }
 
 #[test]

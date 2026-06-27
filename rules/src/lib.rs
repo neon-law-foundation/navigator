@@ -12,6 +12,7 @@ pub mod f107;
 pub mod f108;
 pub mod f109;
 pub mod f110;
+pub mod f112;
 pub mod frontmatter;
 pub mod m001;
 pub mod m003;
@@ -59,6 +60,7 @@ pub mod m058;
 pub mod m059;
 pub mod m060;
 pub mod s102;
+pub mod workflow_steps;
 
 pub use f103::{is_pascal_case, is_snake_case, F103SnakeCaseFilename};
 pub use f104::F104FlowQuestionCodes;
@@ -68,6 +70,7 @@ pub use f107::F107SignaturePlaceholders;
 pub use f108::F108TemplateCodeRequired;
 pub use f109::F109OutputFormat;
 pub use f110::{F110JurisdictionPath, FORUMS, JURISDICTIONS, PRACTICE_AREAS};
+pub use f112::{workflow_step_not_built, F112WorkflowStepNotBuilt, WORKFLOW_STEPS_NOT_BUILT};
 pub use m001::M001HeadingIncrement;
 pub use m003::M003HeadingStyle;
 pub use m004::M004ULStyle;
@@ -114,6 +117,9 @@ pub use m058::M058BlanksAroundTables;
 pub use m059::M059DescriptiveLinkText;
 pub use m060::M060TableColumnStyle;
 pub use s102::S102LinePacking;
+pub use workflow_steps::{
+    is_allowed_prefix, lookup as lookup_workflow_step, StepStatus, WorkflowStep, WORKFLOW_STEPS,
+};
 
 pub use engine::{
     classify_source, code_uniqueness_violations, lint_source_classified,
@@ -227,6 +233,7 @@ pub fn description_for_code(code: &str) -> &'static str {
         "N109" => "Notation template `output:` must name a known render format",
         "N110" => "Notation template under a jurisdiction must encode it in the path",
         "N111" => "Notation template `code` must be unique across the tree",
+        "N112" => "Workflow step is allowed but its automation is not built yet",
         "M001" => "Heading levels must increment by one",
         "M003" => "Headings must use the ATX (`# Heading`) style",
         "M004" => "Unordered list markers must be consistent",
@@ -273,6 +280,41 @@ pub fn description_for_code(code: &str) -> &'static str {
         "M059" => "Link text must be descriptive (not `here`/`click`)",
         "M060" => "Table column styles must be consistent",
         _ => "Neon Law Navigator rule violation",
+    }
+}
+
+/// Whether a violation blocks the gate (`Error`) or merely advises
+/// (`Warning`).
+///
+/// `navigator validate` and CI fail on `Error`-severity violations and
+/// report `Warning`s without failing; `navigator-lsp` renders `Error`
+/// as a red squiggle and `Warning` as a yellow one. Severity is keyed
+/// off the rule code (a sibling of [`description_for_code`]) so the
+/// existing `Violation` constructors across the rule modules stay
+/// unchanged — adding a field would touch every one of them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Severity {
+    /// A blocking problem: fails `navigator validate`, red in the editor.
+    Error,
+    /// A non-blocking advisory: reported but does not fail the gate,
+    /// yellow in the editor. The "allowed but not built yet" signal.
+    Warning,
+}
+
+/// The [`Severity`] for a Neon Law Navigator rule code.
+///
+/// Every rule is [`Severity::Error`] — a violation blocks the gate —
+/// except the "not built yet" advisories (currently `N112`), which are
+/// [`Severity::Warning`]: they surface as a yellow squiggle and are
+/// reported by `navigator validate` without failing it. The `N112`
+/// *rule* (the emitter) lands in a later change; its severity and
+/// description are declared here first so the gate is severity-aware
+/// before anything emits a warning.
+#[must_use]
+pub fn severity_for_code(code: &str) -> Severity {
+    match code {
+        "N112" => Severity::Warning,
+        _ => Severity::Error,
     }
 }
 
@@ -493,6 +535,35 @@ mod tests {
         assert_eq!(
             description_for_code("XYZ"),
             "Neon Law Navigator rule violation"
+        );
+    }
+
+    #[test]
+    fn severity_defaults_to_error() {
+        use super::{severity_for_code, Severity};
+        // Every shipped rule blocks the gate by default.
+        assert_eq!(severity_for_code("N104"), Severity::Error);
+        assert_eq!(severity_for_code("M010"), Severity::Error);
+        assert_eq!(severity_for_code("S101"), Severity::Error);
+        // Unknown codes fall back to Error (fail closed).
+        assert_eq!(severity_for_code("XYZ"), Severity::Error);
+    }
+
+    #[test]
+    fn not_built_advisory_is_a_warning() {
+        use super::{severity_for_code, Severity};
+        // N112 is the "allowed but not built yet" advisory: yellow, not
+        // blocking. Its emitting rule lands later; the severity is
+        // declared here so the gate is severity-aware first.
+        assert_eq!(severity_for_code("N112"), Severity::Warning);
+    }
+
+    #[test]
+    fn n112_has_a_real_description() {
+        assert_ne!(
+            description_for_code("N112"),
+            "Neon Law Navigator rule violation",
+            "N112 must carry a human description for editor tooltips",
         );
     }
 

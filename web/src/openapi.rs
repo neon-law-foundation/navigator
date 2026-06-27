@@ -305,7 +305,9 @@ pub fn document_with_base(base: &str) -> Value {
               "violations": { "type": "array",
                               "items": { "$ref": "#/components/schemas/ValidationViolation" } }
             },
-            "example": { "path": "trust.md", "clean": true, "violations": [] }
+            "example": { "path": "trust.md", "clean": true,
+                         "violations": [ { "code": "N112", "line": 9,
+                           "message": "workflow step `staff_review` is allowed but its automation is not built yet (from state `staff_review`)" } ] }
           },
           "ValidationViolation": {
             "type": "object",
@@ -491,14 +493,18 @@ mod tests {
             path: std::path::PathBuf::from(path),
             contents: contents.to_string(),
         };
-        let codes: Vec<&str> = rules::navigator_default_rules()
+        let error_codes: Vec<&str> = rules::navigator_default_rules()
             .iter()
             .flat_map(|r| r.lint(&file))
+            .filter(|v| rules::severity_for_code(v.code) == rules::Severity::Error)
             .map(|v| v.code)
             .collect();
+        // The example must carry no *blocking* errors. Its mandatory
+        // staff_review gate earns the yellow N112 advisory, which is
+        // expected and non-blocking.
         assert!(
-            codes.is_empty(),
-            "OpenAPI ValidateRequest example must lint clean; got {codes:?}"
+            error_codes.is_empty(),
+            "OpenAPI ValidateRequest example must lint free of errors; got {error_codes:?}"
         );
     }
 

@@ -22,35 +22,6 @@ pub struct F104FlowQuestionCodes {
     valid_codes: HashSet<String>,
 }
 
-/// Canonical reusable workflow-step prefixes accepted in notation
-/// template `workflow:` maps.
-///
-/// This is intentionally a small registry, not a free-form namespace:
-/// Templates compose these step families instead of inventing a new
-/// state vocabulary per legal product. Keep this list aligned with
-/// `workflows::step::STEP_PREFIXES`.
-pub const VALID_WORKFLOW_STEP_PREFIXES: &[&str] = &[
-    "analysis",
-    "certified_mail",
-    "client_review",
-    "document_drafts",
-    "document_intake",
-    "document_open",
-    "e_filing",
-    "email_send",
-    "extract",
-    "filing",
-    "firm_signature",
-    "intake_persisted",
-    "mailroom_receive",
-    "mailroom_send",
-    "notarization",
-    "onchain",
-    "sent_for_signature",
-    "staff_review",
-    "witnesses",
-];
-
 impl F104FlowQuestionCodes {
     pub const CODE: &'static str = "N104";
 
@@ -179,11 +150,13 @@ impl F104FlowQuestionCodes {
     }
 }
 
+/// Whether `prefix` is an allowed workflow-step prefix. Delegates to the
+/// single source of truth, the [`crate::workflow_steps`] catalog (which
+/// also handles the `_signature` / `_signatures` suffix family), so the
+/// allow-list and the hover descriptions can never drift apart.
 #[must_use]
 pub fn valid_workflow_step_prefix(prefix: &str) -> bool {
-    VALID_WORKFLOW_STEP_PREFIXES.contains(&prefix)
-        || prefix.ends_with("_signature")
-        || prefix.ends_with("_signatures")
+    crate::workflow_steps::is_allowed_prefix(prefix)
 }
 
 fn violation(file: &SourceFile, message: impl Into<String>) -> Violation {
@@ -198,7 +171,7 @@ fn violation(file: &SourceFile, message: impl Into<String>) -> Violation {
 
 #[cfg(test)]
 mod tests {
-    use super::{valid_workflow_step_prefix, F104FlowQuestionCodes, VALID_WORKFLOW_STEP_PREFIXES};
+    use super::{valid_workflow_step_prefix, F104FlowQuestionCodes};
     use crate::{Rule, SourceFile};
     use std::path::PathBuf;
 
@@ -392,7 +365,11 @@ workflow:
     }
 
     #[test]
-    fn workflow_step_registry_stays_aligned_with_engine_prefixes() {
+    fn n104_accepts_every_engine_step_prefix() {
+        // N104's allow-list is the workflow_steps catalog, which the
+        // catalog's own drift test pins to workflows::step::STEP_PREFIXES.
+        // This guards the N104 entry point specifically, including the
+        // `_signature` suffix family.
         for (prefix, _) in workflows::step::STEP_PREFIXES {
             if *prefix == "_signature" {
                 assert!(
@@ -402,8 +379,8 @@ workflow:
                 continue;
             }
             assert!(
-                VALID_WORKFLOW_STEP_PREFIXES.contains(prefix),
-                "workflow engine prefix `{prefix}` is missing from N104 registry",
+                valid_workflow_step_prefix(prefix),
+                "workflow engine prefix `{prefix}` is not accepted by N104",
             );
         }
     }

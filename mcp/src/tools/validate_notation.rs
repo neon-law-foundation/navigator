@@ -34,9 +34,11 @@ pub fn descriptor() -> Value {
              `path` (used by filename-aware rules like N103 and to \
              label the response), and `markdown_only: true` to skip \
              the N-family notation-template rules (use this for plain \
-             prose). Returns `clean: true` with an empty `violations` \
-             array when the file passes, or `clean: false` with one \
-             entry per violation (`code`, `line`, `message`).",
+             prose). Returns `clean: true` when the file has no blocking \
+             errors, or `clean: false` otherwise; `violations` lists one \
+             entry per finding (`code`, `line`, `message`), including \
+             yellow advisories like N112 (\"step allowed but not built \
+             yet\") that do not affect `clean`.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -104,8 +106,12 @@ pub async fn call(arguments: &Value) -> Result<Value, ToolError> {
     };
 
     let mut violations: Vec<Value> = Vec::new();
+    let mut error_count = 0usize;
     for rule in &rule_set {
         for v in rule.lint(&file) {
+            if rules::severity_for_code(v.code) == rules::Severity::Error {
+                error_count += 1;
+            }
             violations.push(json!({
                 "code": v.code,
                 "line": v.line,
@@ -114,8 +120,12 @@ pub async fn call(arguments: &Value) -> Result<Value, ToolError> {
         }
     }
 
-    let clean = violations.is_empty();
-    let text = if clean {
+    // `clean` means no *blocking* errors. Yellow advisories (e.g. N112,
+    // "step allowed but not built yet" — which every staff_review gate
+    // earns) are still returned in `violations` but don't flip `clean`.
+    let clean = error_count == 0;
+    let warning_count = violations.len() - error_count;
+    let text = if violations.is_empty() {
         format!("`{path}` is clean: 0 violations.")
     } else {
         let preview = violations
@@ -132,8 +142,7 @@ pub async fn call(arguments: &Value) -> Result<Value, ToolError> {
             .join(", ");
         let suffix = if violations.len() > 5 { ", …" } else { "" };
         format!(
-            "`{path}` has {} violation(s): {preview}{suffix}",
-            violations.len()
+            "`{path}` has {error_count} error(s), {warning_count} warning(s): {preview}{suffix}"
         )
     };
 
@@ -177,7 +186,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn clean_notation_returns_clean_true_and_no_violations() {
+    async fn clean_notation_returns_clean_true_with_only_the_not_built_advisory() {
         // Minimal notation that satisfies every N-rule — copied from
         // the REST integration test so the two surfaces stay aligned.
         let contents = "---\n\
@@ -199,11 +208,21 @@ workflow:\n  \
 Body.\n";
         let result = call(&json!({ "contents": contents })).await.unwrap();
         let sc = &result["structuredContent"];
-        assert_eq!(sc["clean"], true, "expected clean, got: {sc}");
+        assert_eq!(sc["clean"], true, "expected clean (no errors), got: {sc}");
         assert_eq!(sc["path"], "notation.md");
-        assert_eq!(sc["violations"].as_array().unwrap().len(), 0);
-        let text = result["content"][0]["text"].as_str().unwrap();
-        assert!(text.contains("clean"), "got: {text}");
+        // The mandatory staff_review gate earns the yellow N112 advisory,
+        // returned without flipping `clean` to false.
+        let codes: Vec<&str> = sc["violations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v["code"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            codes,
+            ["N112"],
+            "expected only the N112 advisory, got: {sc}"
+        );
     }
 
     #[tokio::test]
