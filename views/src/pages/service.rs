@@ -58,61 +58,6 @@ fn cta_button(class: &str, label: &str, href: &str) -> Markup {
     }
 }
 
-/// The neon-hero accent ramp a product wears — each variant maps to one of
-/// the `product-hero--<hue>` modifier classes in `product-hero.css`. The web
-/// layer picks one per catalog slug (see `hero_accent_for`) so the thirteen
-/// pages each read as their own scene while sharing one animation engine.
-/// Being a closed enum makes an invalid hue a compile error rather than a
-/// silent fall-back to the base cyan defaults.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum ProductAccent {
-    /// Brand cyan — Nautilus (debt-collection protection) and the default
-    /// for any new or unmapped page.
-    #[default]
-    Cyan,
-    Emerald,
-    Magenta,
-    Amber,
-    Lime,
-    Teal,
-    Gold,
-    Azure,
-    Orange,
-    Violet,
-    Crimson,
-    Rose,
-    Sky,
-}
-
-impl ProductAccent {
-    /// The lowercase hue keyword interpolated into the `product-hero--<hue>`
-    /// modifier class.
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Cyan => "cyan",
-            Self::Emerald => "emerald",
-            Self::Magenta => "magenta",
-            Self::Amber => "amber",
-            Self::Lime => "lime",
-            Self::Teal => "teal",
-            Self::Gold => "gold",
-            Self::Azure => "azure",
-            Self::Orange => "orange",
-            Self::Violet => "violet",
-            Self::Crimson => "crimson",
-            Self::Rose => "rose",
-            Self::Sky => "sky",
-        }
-    }
-}
-
-impl std::fmt::Display for ProductAccent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
 pub struct ServiceContent<'a> {
     /// Used both for the `<title>` and as the page heading hook —
     /// callers supply the body markdown that includes its own
@@ -152,13 +97,6 @@ pub struct ServiceContent<'a> {
     /// dropdown; with the dropdown gone, each page keeps its own mark.
     /// `None` renders no icon (the Foundation product pages).
     pub icon: Option<&'a str>,
-    /// Accent ramp for the neon product hero — one of the
-    /// [`ProductAccent`] variants, each a `product-hero--<hue>` modifier in
-    /// `product-hero.css`. The web layer maps each product's slug to a
-    /// signature hue so the catalog's thirteen pages each read as their own
-    /// scene while sharing one animation engine. Defaults to
-    /// [`ProductAccent::Cyan`].
-    pub accent: ProductAccent,
     /// Public testimonials selected by the web layer for this service's
     /// product code. Empty keeps the page on the no-proof path.
     pub testimonials: &'a [TestimonialCard<'a>],
@@ -215,10 +153,10 @@ pub fn render_in(
     // LCP preload meaningful. `preload_href` is the same fallback `.jpg` the
     // `<head>` preloads, so the backdrop reuses the already-fetched bytes.
     let photo_href = content.hero_image.and_then(assets::preload_href);
-    let hero_class = format!("product-hero product-hero--{}", content.accent);
     let body = html! {
         // 1. The neon product hero — the page's bold, rounded top band.
-        section class=(hero_class) {
+        //    One cyan scene for every product (see `product-hero.css`).
+        section."product-hero" {
             div."product-hero__bg" aria-hidden="true" {
                 @if let Some(href) = &photo_href {
                     div."product-hero__photo"
@@ -295,7 +233,7 @@ pub fn render_in(
 
 #[cfg(test)]
 mod tests {
-    use super::{render, PricingCard, ProductAccent, ServiceContent};
+    use super::{render, PricingCard, ServiceContent};
     use crate::brand::{firm_email, FIRM_BRAND, FOUNDATION_BRAND};
 
     fn fixture<'a>(title: &'a str, body: &'a str) -> ServiceContent<'a> {
@@ -309,7 +247,6 @@ mod tests {
             brand: *FIRM_BRAND,
             cta_email: firm_email(),
             icon: None,
-            accent: ProductAccent::Cyan,
             testimonials: &[],
         }
     }
@@ -427,17 +364,22 @@ mod tests {
     }
 
     #[test]
-    fn renders_the_neon_product_hero_with_its_accent() {
-        // Every service page leads with the rounded neon hero: the
-        // accent-themed `.product-hero` scene carrying the animated grid /
-        // glow / sweep layers, the product mark, and the brand title.
-        let mut content = fixture("Neon Law Nexus", "<h1>A GC on retainer</h1><p>body</p>");
-        content.accent = ProductAccent::Magenta;
+    fn renders_the_neon_product_hero_in_brand_cyan() {
+        // Every service page leads with the rounded neon hero: the single
+        // brand-cyan `.product-hero` scene carrying the animated grid / glow /
+        // sweep layers, the product mark, and the brand title. There is only
+        // ever one hue — too many colours distract from the work.
+        let content = fixture("Neon Law Nexus", "<h1>A GC on retainer</h1><p>body</p>");
         let html = render(&content, crate::AuthState::Anonymous).into_string();
-        // The hero is the accent-themed scene with its decorative layers.
+        // The hero is the one cyan scene with its decorative layers — no
+        // per-product hue modifier class.
         assert!(
-            html.contains("class=\"product-hero product-hero--magenta\""),
-            "hero should carry its per-product accent modifier, got: {html}"
+            html.contains("class=\"product-hero\""),
+            "hero should be the single cyan scene, got: {html}"
+        );
+        assert!(
+            !html.contains("product-hero--"),
+            "no per-product hue modifier should remain, got: {html}"
         );
         for layer in [
             "product-hero__glow",

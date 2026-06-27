@@ -1719,93 +1719,12 @@ fn render_service_with_testimonials(
             brand,
             cta_email,
             icon: page.icon,
-            accent: hero_accent_for(page.slug),
             testimonials,
         },
         auth,
         locale,
         canonical,
     )
-}
-
-/// Each product's signature neon-hero hue — one of the `product-hero--<hue>`
-/// accent ramps in `web/public/css/product-hero.css`. The catalog's thirteen
-/// pages share one animation engine, so a product is "themed" purely by the
-/// accent it picks here: cyan protection for Nautilus, a magenta network for
-/// Nexus, an emerald nest for Nest, and so on. An unknown slug falls back to
-/// the brand's cyan, so a new page is never un-themed.
-fn hero_accent_for(slug: &str) -> views::pages::service::ProductAccent {
-    use views::pages::service::ProductAccent::{
-        Amber, Azure, Crimson, Cyan, Emerald, Gold, Lime, Magenta, Orange, Rose, Sky, Teal, Violet,
-    };
-    match slug {
-        "nest" => Emerald,
-        "nexus" => Magenta,
-        "northstar" => Amber,
-        "node" => Lime,
-        "newleaf" => Teal,
-        "namesake" => Gold,
-        "nucleus" => Azure,
-        "nook" => Orange,
-        "nerd" => Violet,
-        "litigation" => Crimson,
-        "pro-bono" => Rose,
-        "nimbus" => Sky,
-        // Nautilus (debt-collection protection) and any new page: brand cyan.
-        _ => Cyan,
-    }
-}
-
-#[cfg(test)]
-mod hero_accent_tests {
-    use super::hero_accent_for;
-    use std::collections::HashSet;
-    use views::pages::service::ProductAccent;
-
-    #[test]
-    fn every_catalog_slug_gets_a_distinct_themed_accent() {
-        // Each seeded product carries its own signature hue so the thirteen
-        // pages read as distinct scenes; Nautilus + an unknown slug fall to
-        // the brand cyan.
-        let slugs = [
-            "nest",
-            "nexus",
-            "northstar",
-            "node",
-            "newleaf",
-            "namesake",
-            "nucleus",
-            "nook",
-            "nerd",
-            "litigation",
-            "pro-bono",
-            "nimbus",
-            "nautilus",
-        ];
-        let mut seen = HashSet::new();
-        for slug in slugs {
-            let accent = hero_accent_for(slug);
-            // The hue keyword the view interpolates into the
-            // `product-hero--<hue>` modifier class is a real, lowercase ramp.
-            let hue = accent.as_str();
-            assert!(
-                !hue.is_empty() && hue.chars().all(|c| c.is_ascii_lowercase()),
-                "{slug} should map to a lowercase hue keyword, got {hue:?}"
-            );
-            // Every catalog slug claims its own scene — no two collide.
-            assert!(
-                seen.insert(accent),
-                "{slug} reused the {hue:?} accent already taken by another slug"
-            );
-        }
-        assert_eq!(hero_accent_for("nautilus"), ProductAccent::Cyan);
-        assert_eq!(hero_accent_for("nexus"), ProductAccent::Magenta);
-        // An unknown slug is a compile-safe fall-back to the brand cyan.
-        assert_eq!(
-            hero_accent_for("definitely-not-a-product"),
-            ProductAccent::Cyan
-        );
-    }
 }
 
 fn testimonial_cards(
