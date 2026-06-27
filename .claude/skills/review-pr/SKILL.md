@@ -156,6 +156,9 @@ Make sure you're on the PR branch (`git switch <headRefName>`), then fix exactly
   real code path produces).
 - Honor the workspace gate before committing (`cargo fmt`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `cargo test`), plus [[markdown-lint]] on any `.md`. See [[create-pr]] for the full gate.
+- If a comment asks for a **live walkthrough / screenshot** (a common bot finding on a UI change), capture the changed
+  states ([[web-preview]]) and embed them in the PR body with [[pr-image-upload]] — the embedded image is the fix; then
+  reply + resolve in Step 8. This needs no code commit, so it can land even on a docs/UI PR with no Rust changes.
 - Commit on the branch as a Conventional Commit referencing the finding, and push so CI re-runs:
 
 ```bash
