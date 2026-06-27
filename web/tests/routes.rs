@@ -1091,6 +1091,11 @@ async fn services_nexus_uses_marketing_doc_when_present() {
     assert!(body.contains("2 of 10 filled"));
     assert!(body.contains("$5,000"));
     assert!(body.contains("Two-business-day response on everything you send us"));
+    assert!(body.contains("product-hero product-hero--nexus"));
+    assert!(body.contains("product-hero__honeycomb product-hero__honeycomb--back"));
+    assert!(body.contains("product-hero__honeycomb product-hero__honeycomb--front"));
+    assert!(!body.contains("product-hero__photo"));
+    assert!(!body.contains("rel=\"preload\" as=\"image\""));
 }
 
 #[tokio::test]

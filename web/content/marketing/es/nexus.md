@@ -1,7 +1,6 @@
 ---
 title: "Neon Law Nexus"
 slug: nexus
-hero_image: bengaluru-skyline
 description: >
   Neon Law Nexus es asesoría jurídica general fraccionada como servicio para empresas en crecimiento, sin facturación
   por hora ni por asunto.

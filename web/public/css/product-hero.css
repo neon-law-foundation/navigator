@@ -75,6 +75,57 @@
   mask-image: linear-gradient(to bottom, #000 0%, transparent 92%);
 }
 
+.product-hero__honeycomb {
+  position: absolute;
+  inset: -18%;
+  opacity: 0;
+  background-image:
+    linear-gradient(30deg, var(--ph-honey-line) 12%, transparent 12.5%, transparent 87%, var(--ph-honey-line) 87.5%, var(--ph-honey-line)),
+    linear-gradient(150deg, var(--ph-honey-line) 12%, transparent 12.5%, transparent 87%, var(--ph-honey-line) 87.5%, var(--ph-honey-line)),
+    linear-gradient(30deg, var(--ph-honey-line) 12%, transparent 12.5%, transparent 87%, var(--ph-honey-line) 87.5%, var(--ph-honey-line)),
+    linear-gradient(150deg, var(--ph-honey-line) 12%, transparent 12.5%, transparent 87%, var(--ph-honey-line) 87.5%, var(--ph-honey-line)),
+    linear-gradient(60deg, var(--ph-honey-fill) 25%, transparent 25.5%, transparent 75%, var(--ph-honey-fill) 75%, var(--ph-honey-fill)),
+    linear-gradient(60deg, var(--ph-honey-fill) 25%, transparent 25.5%, transparent 75%, var(--ph-honey-fill) 75%, var(--ph-honey-fill));
+  background-position:
+    0 0,
+    0 0,
+    48px 84px,
+    48px 84px,
+    0 0,
+    48px 84px;
+  background-size: 96px 168px;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--ph-accent) 24%, transparent));
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 18%, transparent 78%);
+  mask-image: radial-gradient(ellipse at center, #000 18%, transparent 78%);
+}
+
+.product-hero__honeycomb--back {
+  top: -26%;
+  bottom: 18%;
+  opacity: 0.36;
+  transform: rotate(-8deg) scale(0.86);
+  animation: product-hero-honey-back 18s linear infinite;
+}
+
+.product-hero__honeycomb--front {
+  top: 34%;
+  bottom: -34%;
+  opacity: 0.68;
+  background-size: 126px 220px;
+  background-position:
+    0 0,
+    0 0,
+    63px 110px,
+    63px 110px,
+    0 0,
+    63px 110px;
+  transform: perspective(460px) rotateX(58deg) rotateZ(2deg) scale(1.14);
+  transform-origin: 50% 12%;
+  animation: product-hero-honey-front 7.5s linear infinite;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 72%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 72%, transparent);
+}
+
 /* The accent glow rising from the horizon. */
 .product-hero__glow {
   position: absolute;
@@ -210,6 +261,48 @@
   }
 }
 
+@keyframes product-hero-honey-back {
+  from {
+    background-position:
+      0 0,
+      0 0,
+      48px 84px,
+      48px 84px,
+      0 0,
+      48px 84px;
+  }
+  to {
+    background-position:
+      96px 168px,
+      96px 168px,
+      144px 252px,
+      144px 252px,
+      96px 168px,
+      144px 252px;
+  }
+}
+
+@keyframes product-hero-honey-front {
+  from {
+    background-position:
+      0 0,
+      0 0,
+      63px 110px,
+      63px 110px,
+      0 0,
+      63px 110px;
+  }
+  to {
+    background-position:
+      -126px 220px,
+      -126px 220px,
+      -63px 330px,
+      -63px 330px,
+      -126px 220px,
+      -63px 330px;
+  }
+}
+
 @keyframes product-hero-pulse {
   0%,
   100% {
@@ -240,6 +333,33 @@
   94% {
     opacity: 1;
   }
+}
+
+.product-hero--nexus {
+  --ph-bg:
+    radial-gradient(circle at 50% 46%, rgba(34, 211, 238, 0.14), transparent 34%),
+    linear-gradient(180deg, #05070e 0%, #061923 56%, #041118 100%);
+  --ph-honey-line: color-mix(in srgb, var(--ph-bright) 62%, transparent);
+  --ph-honey-fill: color-mix(in srgb, var(--ph-deep) 12%, transparent);
+}
+
+.product-hero--nexus .product-hero__glow {
+  top: 32%;
+  background: radial-gradient(
+    ellipse 74% 86% at 50% 38%,
+    color-mix(in srgb, var(--ph-accent) 28%, transparent),
+    color-mix(in srgb, var(--ph-deep) 8%, transparent) 56%,
+    transparent 78%
+  );
+}
+
+.product-hero--nexus .product-hero__grid {
+  display: none;
+}
+
+.product-hero--nexus .product-hero__horizon {
+  top: 67%;
+  opacity: 0.52;
 }
 
 /* ------------------------------------------------------------------ */
@@ -309,10 +429,34 @@
   color: #0f242b;
 }
 
+[data-bs-theme="light"] .product-hero--nexus {
+  --ph-bg:
+    radial-gradient(circle at 50% 42%, rgba(34, 211, 238, 0.14), transparent 36%),
+    linear-gradient(180deg, #ecfeff 0%, #f8feff 42%, #ffffff 100%);
+  --ph-honey-line: rgba(14, 116, 144, 0.38);
+  --ph-honey-fill: rgba(34, 211, 238, 0.075);
+  box-shadow: inset 0 0 0 1px rgba(8, 145, 178, 0.16);
+}
+
+[data-bs-theme="light"] .product-hero--nexus .product-hero__glow {
+  background: radial-gradient(
+    ellipse 74% 86% at 50% 38%,
+    rgba(34, 211, 238, 0.22),
+    rgba(8, 145, 178, 0.05) 58%,
+    transparent 78%
+  );
+}
+
+[data-bs-theme="light"] .product-hero--nexus .product-hero__horizon {
+  background: linear-gradient(90deg, transparent, #0891b2, #22d3ee, #0891b2, transparent);
+  box-shadow: 0 0 14px 2px rgba(8, 145, 178, 0.24);
+}
+
 /* Access-to-justice restraint: freeze the grid, kill the flicker + pulse, */
 /* drop the sweep. The scene becomes a still, dignified neon banner. */
 @media (prefers-reduced-motion: reduce) {
   .product-hero__grid,
+  .product-hero__honeycomb,
   .product-hero__title,
   .product-hero__icon {
     animation: none;
