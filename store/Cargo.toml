@@ -23,7 +23,11 @@ async-trait.workspace = true
 chrono.workspace = true
 cloud.workspace = true
 petgraph.workspace = true
-sea-orm.workspace = true
+# `with-chrono` maps the `events` table's `starts_at` / `ends_at`
+# `timestamp` columns to `chrono::NaiveDateTime`; `postgres-array`
+# maps `events.registrations` (`text[]`) to `Vec<String>`. Both are
+# additive on top of the workspace feature set.
+sea-orm = { workspace = true, features = ["with-chrono", "postgres-array"] }
 sea-orm-migration.workspace = true
 serde.workspace = true
 serde_json.workspace = true
