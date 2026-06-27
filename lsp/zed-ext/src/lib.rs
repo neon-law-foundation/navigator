@@ -1,25 +1,117 @@
 // Zed extension that registers `navigator-lsp` for Markdown buffers.
 //
-// The binary is resolved in three steps, most specific first:
+// The server binary is resolved most-specific first:
 //   1. an explicit user override in Zed settings —
 //        "lsp": { "navigator-lsp": { "binary": { "path": "...", "arguments": [...] } } }
-//   2. else `navigator-lsp` found on the worktree's PATH (`cargo install
+//   2. else a `navigator-lsp` already on the worktree's PATH (`cargo install
 //      --path lsp`, or any copy on $PATH);
-//   3. else the bare name, left for the OS to resolve.
+//   3. else the matching prebuilt binary downloaded from the latest
+//      `neon-law-foundation/navigator` GitHub Release and cached per version,
+//      so a marketplace install is self-contained — the user installs the
+//      extension and gets the official LSP with no extra steps.
 //
-// Built with `zed_extension_api`; targets `wasm32-wasip1`.
+// Built with `zed_extension_api`; targets `wasm32-wasip2`.
 
 use zed_extension_api::{
-    self as zed, settings::LspSettings, Command, LanguageServerId, Result, Worktree,
+    self as zed, current_platform, download_file, latest_github_release, make_file_executable,
+    set_language_server_installation_status, settings::LspSettings, Architecture, Command,
+    DownloadedFileType, GithubReleaseOptions, LanguageServerId,
+    LanguageServerInstallationStatus as Status, Os, Result, Worktree,
 };
 
 const SERVER_NAME: &str = "navigator-lsp";
 
-struct NavigatorLsp;
+/// The public repository whose Releases carry the prebuilt `navigator-lsp`
+/// binaries (`navigator-lsp-<tag>-<platform>.tar.gz` / `.zip`, attached by
+/// `deploy.yml`). Forks point this at their own repository.
+const RELEASE_REPO: &str = "neon-law-foundation/navigator";
+
+struct NavigatorLsp {
+    /// Cached path to the downloaded binary, so a re-resolve within one Zed
+    /// session doesn't re-hit GitHub once a version is on disk.
+    cached_binary_path: Option<String>,
+}
+
+impl NavigatorLsp {
+    /// Resolve the server binary, downloading the matching Release asset when
+    /// it isn't already present.
+    fn download_binary(&mut self, language_server_id: &LanguageServerId) -> Result<String> {
+        // Apple Silicon macOS is the only platform with a prebuilt binary for
+        // now; everything else gets a clear, actionable error. `macos` matches
+        // deploy.yml's `navigator-lsp-<tag>-macos.tar.gz` asset name.
+        let (os, arch) = current_platform();
+        match (os, arch) {
+            (Os::Mac, Architecture::Aarch64) => {}
+            _ => {
+                return Err(format!(
+                    "navigator-lsp ships a prebuilt binary only for Apple Silicon macOS right now \
+                     (got {os:?}/{arch:?}). Install it on your $PATH (`cargo install --path lsp`) \
+                     or set lsp.navigator-lsp.binary.path in your Zed settings."
+                ));
+            }
+        }
+
+        set_language_server_installation_status(language_server_id, &Status::CheckingForUpdate);
+        let release = latest_github_release(
+            RELEASE_REPO,
+            GithubReleaseOptions {
+                require_assets: true,
+                pre_release: false,
+            },
+        )?;
+
+        let asset_name = format!("navigator-lsp-{}-macos.tar.gz", release.version);
+        let version_dir = format!("navigator-lsp-{}", release.version);
+        let binary_path = format!("{version_dir}/{SERVER_NAME}");
+
+        // Already downloaded for this release — reuse it, so a re-resolve after
+        // a Zed restart doesn't re-fetch.
+        if std::fs::metadata(&binary_path).is_ok_and(|stat| stat.is_file()) {
+            self.cached_binary_path = Some(binary_path.clone());
+            set_language_server_installation_status(language_server_id, &Status::None);
+            return Ok(binary_path);
+        }
+
+        let asset = release
+            .assets
+            .iter()
+            .find(|asset| asset.name == asset_name)
+            .ok_or_else(|| format!("no `{asset_name}` asset on the {} release", release.version))?;
+
+        set_language_server_installation_status(language_server_id, &Status::Downloading);
+        // The tarball holds a single `navigator-lsp`; extract it into the
+        // per-version directory, then mark it runnable.
+        download_file(
+            &asset.download_url,
+            &version_dir,
+            DownloadedFileType::GzipTar,
+        )
+        .map_err(|err| format!("failed to download {asset_name}: {err}"))?;
+        make_file_executable(&binary_path)
+            .map_err(|err| format!("failed to make {binary_path} executable: {err}"))?;
+
+        // Prune older version directories so the cache doesn't grow unbounded.
+        if let Ok(entries) = std::fs::read_dir(".") {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                let name = name.to_string_lossy();
+                if name.starts_with("navigator-lsp-") && name != version_dir {
+                    std::fs::remove_dir_all(entry.path()).ok();
+                }
+            }
+        }
+
+        self.cached_binary_path = Some(binary_path.clone());
+        set_language_server_installation_status(language_server_id, &Status::None);
+        Ok(binary_path)
+    }
+}
 
 impl zed::Extension for NavigatorLsp {
     fn new() -> Self {
-        Self
+        Self {
+            cached_binary_path: None,
+        }
     }
 
     fn language_server_command(
@@ -27,24 +119,38 @@ impl zed::Extension for NavigatorLsp {
         language_server_id: &LanguageServerId,
         worktree: &Worktree,
     ) -> Result<Command> {
-        // A user `binary` override (path + optional arguments) wins over
-        // PATH discovery. Missing settings are not an error — they just
-        // mean "fall back to PATH."
-        let binary = LspSettings::for_worktree(language_server_id.as_ref(), worktree)
-            .ok()
-            .and_then(|settings| settings.binary);
-
-        let command = binary
+        // A user `binary` override (path + optional arguments) wins over every
+        // form of discovery. Missing settings are not an error — they just mean
+        // "fall back to PATH, then the downloaded binary."
+        let lsp_settings = LspSettings::for_worktree(language_server_id.as_ref(), worktree).ok();
+        let binary = lsp_settings.and_then(|settings| settings.binary);
+        let user_args = binary
             .as_ref()
-            .and_then(|b| b.path.clone())
-            .or_else(|| worktree.which(SERVER_NAME))
-            .unwrap_or_else(|| SERVER_NAME.to_string());
+            .and_then(|b| b.arguments.clone())
+            .unwrap_or_default();
 
-        let args = binary.and_then(|b| b.arguments).unwrap_or_default();
+        let command = if let Some(path) = binary.as_ref().and_then(|b| b.path.clone()) {
+            path
+        } else if let Some(path) = worktree.which(SERVER_NAME) {
+            // A `navigator-lsp` already on PATH (contributors, `cargo install`)
+            // wins over a download — no network, and it tracks their checkout.
+            path
+        } else if let Some(path) = self
+            .cached_binary_path
+            .clone()
+            .filter(|path| std::fs::metadata(path).is_ok_and(|stat| stat.is_file()))
+        {
+            // Re-check the cached path is still on disk: if it was pruned or the
+            // cache cleared mid-session, fall through to a fresh download rather
+            // than handing Zed a stale path that fails to spawn until restart.
+            path
+        } else {
+            self.download_binary(language_server_id)?
+        };
 
         Ok(Command {
             command,
-            args,
+            args: user_args,
             env: worktree.shell_env(),
         })
     }

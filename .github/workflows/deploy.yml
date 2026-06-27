@@ -626,13 +626,17 @@ jobs:
           files: dist/*
 
   # ---------- Stage 2c: cross-pollinate the Homebrew tap ----------
-  # After the macOS binaries are attached to the GitHub Release, refresh the two
-  # formulae in the public `neon-law-foundation/homebrew-tap` repo so
-  # `brew install neon-law-foundation/tap/navigator` (and `navigator-lsp`) always
-  # resolve to the current release build. The formula `url` points at the public
-  # Navigator Release asset; the `sha256` is computed here from the very artifact
-  # the Release carries (downloaded from this run, not re-fetched). This is the
-  # daily auto-publish — there is no manual tap release.
+  # After the macOS binaries are attached to the GitHub Release, refresh the
+  # `navigator` CLI formula in the public `neon-law-foundation/homebrew-tap` repo
+  # so `brew install neon-law-foundation/tap/navigator` always resolves to the
+  # current release build. The formula `url` points at the public Navigator
+  # Release asset; the `sha256` is computed here from the very artifact the
+  # Release carries (downloaded from this run, not re-fetched). This is the daily
+  # auto-publish — there is no manual tap release.
+  #
+  # The editor LSP no longer ships through Homebrew: `navigator-lsp` is published
+  # as a Zed extension (Stage 2d below), which downloads the matching Release
+  # binary itself. The CLI stays on Homebrew; the LSP belongs in the editor store.
   #
   # Pushed with GHCR_CLEANUP_PAT — a gitops PAT (Doppler `navigator-gitops`, synced
   # to repo secrets) in the same automation family as the ghcr retention sweep;
@@ -668,9 +672,7 @@ jobs:
           set -euo pipefail
           base="${SERVER}/${REPO}/releases/download/${TAG}"
           cli_tar="navigator-${TAG}-macos.tar.gz"
-          lsp_tar="navigator-lsp-${TAG}-macos.tar.gz"
           cli_sha="$(sha256sum "dist/${cli_tar}" | cut -d' ' -f1)"
-          lsp_sha="$(sha256sum "dist/${lsp_tar}" | cut -d' ' -f1)"
           mkdir -p homebrew-tap/Formula
 
           cat > homebrew-tap/Formula/navigator.rb <<EOF
@@ -696,30 +698,10 @@ jobs:
           end
           EOF
 
-          cat > homebrew-tap/Formula/navigator-lsp.rb <<EOF
-          class NavigatorLsp < Formula
-            desc "Neon Law Navigator LSP server for notation templates"
-            homepage "https://github.com/neon-law-foundation/navigator"
-            url "${base}/${lsp_tar}"
-            version "${TAG}"
-            sha256 "${lsp_sha}"
-            license any_of: ["Apache-2.0", "MIT"]
-
-            # Built only for Apple Silicon macOS (see deploy.yml release-binaries-build).
-            depends_on arch: :arm64
-            depends_on :macos
-
-            def install
-              bin.install "navigator-lsp"
-            end
-
-            test do
-              # navigator-lsp speaks LSP over stdio; empty stdin reaches EOF and it
-              # exits cleanly with no output.
-              assert_empty pipe_output("#{bin}/navigator-lsp", "")
-            end
-          end
-          EOF
+          # Retire the old LSP formula: the LSP now ships as a Zed extension, so a
+          # stale navigator-lsp.rb left in the tap would keep resolving to an old
+          # build. Remove it on the first run after this change; a no-op after.
+          rm -f homebrew-tap/Formula/navigator-lsp.rb
       - name: commit and push if changed
         working-directory: homebrew-tap
         env:
@@ -728,13 +710,101 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/navigator.rb Formula/navigator-lsp.rb
+          git add -A Formula/navigator.rb Formula/navigator-lsp.rb
           if git diff --cached --quiet; then
               echo "Homebrew tap already current for ${TAG}"
               exit 0
           fi
-          git commit -m "navigator ${TAG}: bump formula urls + checksums"
+          git commit -m "navigator ${TAG}: bump CLI formula; drop LSP (now a Zed extension)"
           git push
+
+  # ---------- Stage 2d: cross-pollinate the Zed extension ----------
+  # The editor counterpart to the Homebrew tap. After the LSP binaries are
+  # attached to the GitHub Release, sync the bundled extension source from
+  # `lsp/zed-ext/` (the in-repo source of truth) into the public
+  # `neon-law-foundation/zed-navigator-lsp` repo and stamp the release version
+  # into its `extension.toml`. That repo is the git submodule registered with
+  # `zed-industries/extensions`; its own `release.yml` (triggered by the `v*`
+  # tag pushed here) opens the version-bump PR to the Zed registry. The compiled
+  # extension downloads the matching `navigator-lsp` Release binary itself, so a
+  # marketplace install is self-contained.
+  #
+  # Tag pushes only — NOT workflow_dispatch. The extension version is the date
+  # tag normalized to semver (`26.06.27` → `26.6.27`); a manual dispatch's extra
+  # hour digit can't be expressed as a strictly-increasing semver under a pure
+  # date scheme, so manual builds publish images/binaries but skip the Zed bump.
+  #
+  # Pushed with GHCR_CLEANUP_PAT (Doppler `navigator-gitops`, the same gitops PAT
+  # family as the Homebrew tap and ghcr sweep); it must have `contents:write`
+  # selected on the zed-navigator-lsp repo.
+  zed-extension:
+    name: cross-pollinate Zed extension
+    needs: [release-binaries-publish, release-version]
+    if: github.repository == 'neon-law-foundation/navigator' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: checkout navigator (extension source of truth)
+        uses: actions/checkout@v7
+        with:
+          path: navigator
+      - name: checkout zed-navigator-lsp
+        uses: actions/checkout@v7
+        with:
+          repository: neon-law-foundation/zed-navigator-lsp
+          token: ${{ secrets.GHCR_CLEANUP_PAT }}
+          path: zed-navigator-lsp
+      - name: sync extension source + stamp version
+        env:
+          TAG: ${{ needs.release-version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # Normalize the YY.MM.DD release tag to a valid semver: strip the
+          # leading zeros semver forbids (06 → 6). Date tags stay monotonic.
+          IFS='.' read -r y m d _ <<< "${TAG}"
+          VER="$((10#$y)).$((10#$m)).$((10#$d))"
+          echo "extension version: ${VER}"
+          echo "EXT_VER=${VER}" >> "$GITHUB_ENV"
+
+          src="navigator/lsp/zed-ext"
+          dst="zed-navigator-lsp"
+          # Generated files: the Rust extension + its lockfile, copied verbatim.
+          mkdir -p "${dst}/src"
+          cp "${src}/src/lib.rs" "${dst}/src/lib.rs"
+          cp "${src}/Cargo.toml" "${dst}/Cargo.toml"
+          cp "${src}/Cargo.lock" "${dst}/Cargo.lock"
+          # extension.toml: copy, then stamp the release version onto its line.
+          sed -E "s/^version = \".*\"/version = \"${VER}\"/" \
+              "${src}/extension.toml" > "${dst}/extension.toml"
+      - name: commit, push, and tag if changed
+        working-directory: zed-navigator-lsp
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A src/lib.rs Cargo.toml Cargo.lock extension.toml
+          if git diff --cached --quiet; then
+              echo "zed-navigator-lsp source already current for ${EXT_VER}"
+          else
+              git commit -m "navigator-lsp ${EXT_VER}: sync extension source + bump version"
+              git push
+          fi
+          # The v* tag triggers zed-navigator-lsp's own release.yml, which opens
+          # the version-bump PR to the zed-industries/extensions registry. Ensure
+          # the tag exists on the remote independently of whether the source
+          # commit changed: if a prior run pushed the source but the tag push
+          # then failed (network blip, partial failure), the source-already-
+          # current path above would otherwise never re-attempt the tag, and the
+          # Zed registry would silently miss this release. Pushing only when the
+          # remote tag is absent also makes a full re-run idempotent.
+          if git ls-remote --exit-code --tags origin "refs/tags/v${EXT_VER}" >/dev/null 2>&1; then
+              echo "tag v${EXT_VER} already on remote — nothing to push"
+          else
+              git tag -f "v${EXT_VER}"
+              git push origin "v${EXT_VER}"
+          fi
 
   # ---------- Stage 3: post the "ready to deploy" hand-off to Slack ----------
   # Sent only after images and downloadable binaries are published. Posts to the
@@ -812,7 +882,7 @@ jobs:
   # content.
   notify-failure:
     name: slack — alert engineering on failure
-    needs: [release-version, build, integration, publish, release-binaries-build, release-binaries-publish, homebrew-tap, notify]
+    needs: [release-version, build, integration, publish, release-binaries-build, release-binaries-publish, homebrew-tap, zed-extension, notify]
     # Tag/manual only: a failed `kind-ci/**` branch iteration is expected churn
     # and must not page engineering — only a failed publishable deploy does.
     if: failure() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
