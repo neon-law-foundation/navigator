@@ -31,7 +31,6 @@ plethora of automations that save time, and we see its impact in scaling legal s
 On Apple Silicon macOS, install the `navigator` CLI and the `navigator-lsp` language server from our Homebrew tap:
 
 ```bash
-brew tap neon-law-foundation/tap
 brew install neon-law-foundation/tap/navigator
 brew install neon-law-foundation/tap/navigator-lsp
 ```
