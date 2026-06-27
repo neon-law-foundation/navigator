@@ -37,6 +37,11 @@ use std::sync::LazyLock;
 pub struct SiteBrand {
     pub site_name: &'static str,
     pub tagline: &'static str,
+    /// Landing path the navbar brand (logo + wordmark) links back to.
+    /// The firm's home is the site root `/`; the Foundation's home is
+    /// its own hub at `/foundation`, so its header returns there rather
+    /// than to the firm's root.
+    pub home_href: &'static str,
     /// One-line postal address rendered in the footer. Differs per
     /// entity (the firm and the Foundation share a street but hold
     /// distinct private-mailbox suites). Overridable via env so an OSS
@@ -279,6 +284,7 @@ pub static FIRM_BRAND: LazyLock<SiteBrand> = LazyLock::new(|| {
     let firm_name_overridden = matches!(env::var("NAVIGATOR_BRAND_FIRM"), Ok(v) if !v.is_empty());
     SiteBrand {
         site_name: name,
+        home_href: "/",
         tagline: "A small firm built for access to justice.",
         postal_address: env_or_static(
             "NAVIGATOR_FIRM_ADDRESS",
@@ -302,6 +308,7 @@ pub static FOUNDATION_BRAND: LazyLock<SiteBrand> = LazyLock::new(|| {
     let name = env_or_static("NAVIGATOR_BRAND_FOUNDATION", "Neon Law Foundation");
     SiteBrand {
         site_name: name,
+        home_href: "/foundation",
         tagline: "Open-source access to justice and attorney AI training.",
         postal_address: env_or_static(
             "NAVIGATOR_FOUNDATION_ADDRESS",
