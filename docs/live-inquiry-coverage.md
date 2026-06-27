@@ -122,16 +122,18 @@ Notation workflow remains the authority for document generation, staff review, c
 The first executable slice is deliberately local and staff/developer-facing:
 
 ```bash
-cargo run -p cli -- live-transcription demo \
+cargo run -p cli -- transcribe \
+  --template notation_templates/engagements/estate.md \
   --transcript /tmp/northstar-sitting.txt \
   --pretty
 ```
 
-That command is a thin shell over the shared `live-inquiry` crate: it reads a Template markdown file (defaulting to
-`templates/onboarding/estate.md`), normalizes its `questionnaire:` into an Inquiry Set, segments the transcript text,
-and emits JSON Coverage Findings with `evidence_segment_ids` and follow-up prompts. Passing `--audio <file>` calls the
-Google Speech-to-Text v2 provider in `cloud` using Application Default Credentials and `GOOGLE_CLOUD_PROJECT` /
-`GCLOUD_PROJECT` / Doppler's `NAVIGATOR_GCP_PROJECT_ID` (or `--google-project`) before running the same coverage pass.
+That command is a thin shell over the shared `live-inquiry` crate: it reads a Template markdown file (required — pass
+`--template` or set `NAVIGATOR_NOTATION_TEMPLATE`), normalizes its `questionnaire:` into an Inquiry Set, segments the
+transcript text, and emits JSON Coverage Findings with `evidence_segment_ids` and follow-up prompts. Passing audio via
+`--audio <file>` calls the Google Speech-to-Text v2 provider in `cloud` using Application Default Credentials and
+`GOOGLE_CLOUD_PROJECT` / `GCLOUD_PROJECT` / Doppler's `NAVIGATOR_GCP_PROJECT_ID` (or `--google-project`) before running
+the same coverage pass.
 
 The live transcription path has an opt-in E2E that uses Doppler dev secrets and Google Speech-to-Text against Google's
 public Brooklyn Bridge sample:
@@ -139,7 +141,7 @@ public Brooklyn Bridge sample:
 ```bash
 doppler run --project navigator --config dev -- \
   env NAVIGATOR_RUN_LIVE_SPEECH_E2E=1 \
-  cargo test -p cli --test live_transcription_google_e2e -- --nocapture
+  cargo test -p cli --test transcribe_google_e2e -- --nocapture
 ```
 
 If that opted-in run returns Google `SERVICE_DISABLED`, enable Cloud Speech-to-Text API on the Doppler-provided
