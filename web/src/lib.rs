@@ -1717,6 +1717,11 @@ fn render_service_with_testimonials(
     // Optional `hero_image:` frontmatter slug turns the page into a split
     // hero (see `views::pages::service`). Absent → the body renders flat.
     let hero_image = doc.and_then(|d| d.metadata.get("hero_image").map(String::as_str));
+    // Optional `hero_scene: clouds` frontmatter swaps the hero's moving grid
+    // floor for a soft drifting cloud field (Nimbus, the cloud install).
+    let hero_clouds = doc
+        .and_then(|d| d.metadata.get("hero_scene"))
+        .is_some_and(|v| v == "clouds");
     // Brand the page from its surface: the firm chrome + inbox for
     // `/services/*`, the Foundation chrome + inbox for a Foundation
     // product. A Foundation product is English-only, so it omits the
@@ -1743,6 +1748,7 @@ fn render_service_with_testimonials(
             pricing_cols,
             hero_image,
             hero_variant: page.hero_variant,
+            hero_clouds,
             brand,
             cta_email,
             icon: page.icon,

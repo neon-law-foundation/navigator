@@ -159,6 +159,43 @@
   mask-image: linear-gradient(to bottom, transparent, #000 32%, #000);
 }
 
+/* Soft drifting cloud field — the alternate hero floor (Nimbus, the cloud */
+/* install). Same cyan ramp as the grid, but rendered as low-opacity, heavily */
+/* blurred puffs that drift slowly across the lower scene rather than a hard */
+/* line grid. Two planes (the element + its `::before`) drift in opposite */
+/* directions at different speeds for a gentle parallax; both are kept very */
+/* transparent so the title, glow, and horizon stay dominant. */
+.product-hero__clouds {
+  position: absolute;
+  left: -20%;
+  right: -20%;
+  top: 26%;
+  bottom: 0;
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(40% 58% at 20% 66%, color-mix(in srgb, var(--ph-soft) 22%, transparent), transparent 70%),
+    radial-gradient(34% 50% at 50% 56%, color-mix(in srgb, var(--ph-bright) 18%, transparent), transparent 70%),
+    radial-gradient(44% 64% at 80% 72%, color-mix(in srgb, var(--ph-accent) 16%, transparent), transparent 72%);
+  filter: blur(14px);
+  animation: product-hero-drift 30s ease-in-out infinite alternate;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000);
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000);
+}
+
+/* A second, larger, slower cloud plane behind the first for depth. */
+.product-hero__clouds::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  background-image:
+    radial-gradient(38% 52% at 12% 84%, color-mix(in srgb, var(--ph-soft) 15%, transparent), transparent 72%),
+    radial-gradient(48% 62% at 62% 88%, color-mix(in srgb, var(--ph-bright) 13%, transparent), transparent 72%),
+    radial-gradient(36% 48% at 90% 78%, color-mix(in srgb, var(--ph-accent) 13%, transparent), transparent 72%);
+  filter: blur(22px);
+  animation: product-hero-drift-slow 46s ease-in-out infinite alternate;
+}
+
 /* The glowing horizon line where the grid meets the sky. */
 .product-hero__horizon {
   position: absolute;
@@ -244,6 +281,26 @@
   }
   to {
     background-position: 0 64px;
+  }
+}
+
+/* The two cloud planes drift gently in opposite directions (paired with */
+/* `alternate`, so each eases back and forth rather than snapping). */
+@keyframes product-hero-drift {
+  from {
+    transform: translate3d(-3%, 0, 0);
+  }
+  to {
+    transform: translate3d(3%, 0, 0);
+  }
+}
+
+@keyframes product-hero-drift-slow {
+  from {
+    transform: translate3d(4%, 0, 0);
+  }
+  to {
+    transform: translate3d(-4%, 0, 0);
   }
 }
 
@@ -395,6 +452,22 @@
     linear-gradient(90deg, rgba(14, 116, 144, 0.28) 1px, transparent 1px);
 }
 
+/* Cloud field on paper — deeper cyan puffs at low alpha so they read as a */
+/* faint daylight haze on white rather than washing out. */
+[data-bs-theme="light"] .product-hero__clouds {
+  background-image:
+    radial-gradient(40% 58% at 20% 66%, rgba(8, 145, 178, 0.14), transparent 70%),
+    radial-gradient(34% 50% at 50% 56%, rgba(34, 211, 238, 0.13), transparent 70%),
+    radial-gradient(44% 64% at 80% 72%, rgba(14, 116, 144, 0.12), transparent 72%);
+}
+
+[data-bs-theme="light"] .product-hero__clouds::before {
+  background-image:
+    radial-gradient(38% 52% at 12% 84%, rgba(8, 145, 178, 0.1), transparent 72%),
+    radial-gradient(48% 62% at 62% 88%, rgba(34, 211, 238, 0.1), transparent 72%),
+    radial-gradient(36% 48% at 90% 78%, rgba(14, 116, 144, 0.09), transparent 72%);
+}
+
 /* Crisp cyan horizon with a softer, paper-friendly bloom. */
 [data-bs-theme="light"] .product-hero__horizon {
   background: linear-gradient(90deg, transparent, #0891b2, #22d3ee, #0891b2, transparent);
@@ -457,6 +530,8 @@
 @media (prefers-reduced-motion: reduce) {
   .product-hero__grid,
   .product-hero__honeycomb,
+  .product-hero__clouds,
+  .product-hero__clouds::before,
   .product-hero__title,
   .product-hero__icon {
     animation: none;

@@ -83,6 +83,11 @@ pub struct ServiceContent<'a> {
     /// today; the shared hero remains the fallback for the rest of the
     /// service line until each page gets its own treatment.
     pub hero_variant: Option<&'a str>,
+    /// Swap the receding synthwave grid floor for a drifting field of soft,
+    /// very transparent clouds in the same brand cyan (the `hero_scene:
+    /// clouds` frontmatter key). `false` keeps the default moving grid; only
+    /// the Foundation's Nimbus page — a cloud install — opts in.
+    pub hero_clouds: bool,
     /// Brand chrome for the page: `FIRM_BRAND` for `/services/*`,
     /// `FOUNDATION_BRAND` for a Foundation product page like
     /// `/foundation/nimbus`. `SiteBrand` is `Copy`.
@@ -174,7 +179,14 @@ pub fn render_in(
                     div."product-hero__honeycomb"."product-hero__honeycomb--front" {}
                 }
                 div."product-hero__glow" {}
-                div."product-hero__grid" {}
+                // The receding grid floor is the default scene; a page can
+                // opt into a drifting cloud field instead (Nimbus, the cloud
+                // install) — same cyan, soft and very transparent.
+                @if content.hero_clouds {
+                    div."product-hero__clouds" {}
+                } @else {
+                    div."product-hero__grid" {}
+                }
                 div."product-hero__horizon" {}
                 div."product-hero__sweep" {}
             }
@@ -256,6 +268,7 @@ mod tests {
             pricing_cols: 3,
             hero_image: None,
             hero_variant: None,
+            hero_clouds: false,
             brand: *FIRM_BRAND,
             cta_email: firm_email(),
             icon: None,
@@ -425,6 +438,35 @@ mod tests {
             !html.contains("product-hero__photo"),
             "Nexus honeycomb should be able to render without a photo layer, got: {html}"
         );
+    }
+
+    #[test]
+    fn hero_clouds_swaps_the_grid_floor_for_a_drifting_cloud_field() {
+        // A page that opts into `hero_clouds` (Nimbus, the cloud install)
+        // renders the soft drifting cloud layer in place of the receding
+        // synthwave grid — same scene, same cyan, just clouds for the floor.
+        let mut content = fixture("Neon Law Foundation Nimbus", "<h1>Clouds</h1><p>body</p>");
+        content.hero_clouds = true;
+        let html = render(&content, crate::AuthState::Anonymous).into_string();
+        assert!(
+            html.contains("product-hero__clouds"),
+            "cloud scene should render the drifting cloud layer, got: {html}"
+        );
+        assert!(
+            !html.contains("product-hero__grid"),
+            "cloud scene must drop the moving grid floor, got: {html}"
+        );
+        // The rest of the neon scene is unchanged — glow, horizon, sweep.
+        for layer in [
+            "product-hero__glow",
+            "product-hero__horizon",
+            "product-hero__sweep",
+        ] {
+            assert!(
+                html.contains(layer),
+                "cloud scene should keep the {layer} layer, got: {html}"
+            );
+        }
     }
 
     #[test]

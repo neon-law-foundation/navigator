@@ -5,6 +5,7 @@ description: >
   Neon Law Foundation Nimbus installs Neon Law Navigator on your cloud in two weeks, trains your team, and hands you the
   keys. $11,111 flat, with discounts for legal aid centers.
 pricing_cols: 1
+hero_scene: clouds
 pricing:
   - title: "Neon Law Foundation Nimbus"
     price: "$11,111"
@@ -18,7 +19,7 @@ pricing:
     cta_label: "Email about Nimbus"
     cta_href: "mailto:support@neonlaw.org"
     featured: true
-    featured_label: "$11,111 flat"
+    featured_label: "Once, flat"
   - title: "Legal aid centers"
     price: "Discounted"
     blurb: "Closing the justice gap is the Foundation's mission — so legal aid centers pay less."
