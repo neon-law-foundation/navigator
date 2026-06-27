@@ -3,7 +3,7 @@
 //!
 //! This is an *advisory* ([`crate::Severity::Warning`], yellow in the
 //! editor), not a blocker: the step is a legitimate member of the
-//! workflow-step catalog ([`crate::f104::VALID_WORKFLOW_STEP_PREFIXES`]),
+//! workflow-step catalog ([`crate::workflow_steps::WORKFLOW_STEPS`]),
 //! but the firm has not yet built the automation behind it, so a
 //! notation that uses it advances only as far as the human gate. The
 //! companion red error is `N104` (a step that isn't in the catalog at
@@ -12,8 +12,8 @@
 //! The not-built set is [`WORKFLOW_STEPS_NOT_BUILT`]. As each step's
 //! automation lands, drop it from that list and the yellow squiggle
 //! disappears; when a new allowed-but-stubbed step is introduced, add
-//! it. Today the only allowed workflow step is `staff_review`, and its
-//! automation is not built, so it is the sole entry.
+//! it. Today the only *not-built* allowed step is `staff_review`, so it
+//! is the sole entry.
 
 use std::collections::BTreeMap;
 
@@ -22,7 +22,7 @@ use serde::Deserialize;
 use crate::{frontmatter, line_byte_range, Rule, SourceFile, Violation};
 
 /// Workflow-step prefixes that are allowed (in
-/// [`crate::f104::VALID_WORKFLOW_STEP_PREFIXES`]) but whose automation
+/// [`crate::workflow_steps::WORKFLOW_STEPS`]) but whose automation
 /// is not built yet. A `workflow:` state on one of these prefixes earns
 /// a yellow `N112` advisory.
 pub const WORKFLOW_STEPS_NOT_BUILT: &[&str] = &["staff_review"];
