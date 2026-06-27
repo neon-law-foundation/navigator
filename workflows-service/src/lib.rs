@@ -12,8 +12,7 @@
 //! discovers and dispatches into.
 //!
 //! See `docs/glossary.md` (Workflow Runtime, Restate, Durable
-//! execution) and `prompts/retainer-questionnaire-design.md` for
-//! the architectural arc.
+//! execution) for the architectural arc.
 
 pub mod email_config;
 pub mod heartbeat;

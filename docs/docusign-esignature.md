@@ -214,4 +214,3 @@ not copy; set up the production environment separately:
 
 - [`third-party-integrations.md`](third-party-integrations.md) — the two-account, env-file convention this follows.
   [`.env.example`](../.env.example) — the canonical per-variable reference (JWT-grant preferred, static fallback).
-  `prompts/esignature-e2e-and-production.md` — the build-out kickoff (gitignored; the durable decisions live here).

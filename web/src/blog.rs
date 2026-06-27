@@ -290,6 +290,44 @@ mod tests {
     }
 
     #[test]
+    fn going_all_in_on_rust_leads_with_the_gcs_backed_ferris_nlf_art() {
+        let ix = load_dir(std::path::Path::new(crate::DEFAULT_BLOG_DIR)).unwrap();
+        let post = ix
+            .get("going-all-in-on-rust")
+            .expect("going-all-in-on-rust post loads");
+        let ferris_src = "src=\"/public/img/going-all-in-on-rust/ferris-rust-logo-nlf.png\"";
+        // "Leads with" is an ordering promise, not just presence: the Ferris
+        // art must be the FIRST image and sit ahead of the body prose, so a
+        // later-inserted image can't quietly displace it as the lead.
+        let first_img = post.body_html.find("<img").unwrap_or_else(|| {
+            panic!(
+                "the Rust post should render the Ferris/NLF artwork, got: {}",
+                post.body_html
+            )
+        });
+        // The first `<img` tag in the rendered body must be the Ferris art:
+        // its `src` falls before any subsequent image opens.
+        let next_img = post.body_html[first_img + 1..]
+            .find("<img")
+            .map_or(post.body_html.len(), |rel| first_img + 1 + rel);
+        let lead_img = &post.body_html[first_img..next_img];
+        assert!(
+            lead_img.contains(ferris_src),
+            "the Ferris/NLF artwork must be the FIRST image, got: {}",
+            post.body_html
+        );
+        let prose_at = post
+            .body_html
+            .find("We are going all-in on Rust")
+            .expect("post renders its opening line");
+        assert!(
+            first_img < prose_at,
+            "the Ferris/NLF artwork must lead, ahead of the body prose, got: {}",
+            post.body_html
+        );
+    }
+
+    #[test]
     fn load_dir_returns_empty_index_when_directory_missing() {
         let ix = load_dir(std::path::Path::new("/no/such/blog/dir/xyz")).unwrap();
         assert!(ix.is_empty());

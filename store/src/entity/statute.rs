@@ -5,8 +5,7 @@
 //! `chapter`, `section`), the official-source link, a `status` flag,
 //! and bookkeeping dates. The text itself lives in append-only
 //! [`super::statute_revision`] rows; "current" is the latest revision,
-//! derived at read time, never stored here. See
-//! `prompts/nrs-statute-scraper-design.md` (the insert-only model).
+//! derived at read time, never stored here (the insert-only model).
 
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

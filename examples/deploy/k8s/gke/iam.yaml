@@ -11,9 +11,9 @@
 # `--addons=ConfigConnector` cluster flag didn't reliably stand the
 # controller up on this cluster's GKE version. Rather than chase
 # that, we accept the operational tax of running the bindings
-# out-of-band. See `prompts/cloud-logging-sink.md` and the
-# IAMPolicyMember examples that used to live here in git history
-# (commit 6b0ad75) for how it WOULD look with CC reconciling.
+# out-of-band. The IAMPolicyMember examples that used to live here
+# in git history (commit 6b0ad75) show how it WOULD look with CC
+# reconciling.
 apiVersion: v1
 kind: ServiceAccount
 metadata:

@@ -14,7 +14,7 @@ publish.workspace = true
 # `workflows-service` worker and started by the thin `trigger` CronJob —
 # the same shape as `archives`. The `statutes-sync` bin remains as a
 # self-contained manual/dev entrypoint that runs the scrape without the
-# broker. See prompts/nrs-statute-scraper-design.md.
+# broker.
 [lib]
 name = "statutes"
 path = "src/lib.rs"
