@@ -749,7 +749,12 @@ jobs:
   # client-bearing.
   notify:
     name: slack ready-to-deploy hand-off
-    needs: [publish, release-binaries-publish, release-version]
+    # homebrew-tap is in the list because the hand-off tells the operator to
+    # `brew upgrade` the tap-published CLI and roll with it — so the message must
+    # not post until the tap formula commit for ${TAG} has landed, or a prompt
+    # operator could brew-upgrade to the previous release and deploy the wrong
+    # binary.
+    needs: [publish, release-binaries-publish, release-version, homebrew-tap]
     # Tag/manual only (publish is already gated; stated here too so a branch run
     # never posts a deploy report).
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
