@@ -32,6 +32,13 @@ pub enum DocumentKind {
     /// A Neon Law Navigator notation Template: the static blueprint that declares
     /// a questionnaire/workflow and becomes a running Notation later.
     NotationTemplate,
+    /// A public event (show-and-tell): dated markdown under
+    /// `web/content/events/` whose frontmatter declares a `starts_at`
+    /// timestamp. An event never declares a questionnaire/workflow, and a
+    /// notation template never declares a timestamp — see [`E002`].
+    ///
+    /// [`E002`]: crate::E002EventTemplateExclusive
+    Event,
 }
 
 impl LintReport {
@@ -372,22 +379,22 @@ pub fn code_uniqueness_violations(
 #[must_use]
 pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
     use crate::{
-        F101FrontmatterTitle, F102RespondentType, F103SnakeCaseFilename, F104FlowQuestionCodes,
-        F105ConfidentialRequired, F106StaffReviewRequired, F107SignaturePlaceholders,
-        F108TemplateCodeRequired, F109OutputFormat, F110JurisdictionPath, F112WorkflowStepNotBuilt,
-        M001HeadingIncrement, M003HeadingStyle, M004ULStyle, M005ListIndent, M007ULIndent,
-        M009NoTrailingSpaces, M010NoHardTabs, M011NoReversedLinks, M012NoMultipleBlanks,
-        M018NoMissingSpaceATX, M019NoMultipleSpaceATX, M020NoMissingSpaceClosedATX,
-        M021NoMultipleSpaceClosedATX, M022BlanksAroundHeadings, M023HeadingStartLeft,
-        M024NoDuplicateHeading, M026NoTrailingPunctuation, M027NoMultipleSpaceBlockquote,
-        M028NoBlanksBlockquote, M029OLPrefix, M030ListMarkerSpace, M031BlanksAroundFences,
-        M032BlanksAroundLists, M034NoBareUrls, M035HRStyle, M037NoSpaceInEmphasis,
-        M038NoSpaceInCode, M039NoSpaceInLinks, M040FencedCodeLanguage, M042NoEmptyLinks,
-        M045NoAltText, M046CodeBlockStyle, M047SingleTrailingNewline, M048CodeFenceStyle,
-        M049EmphasisStyle, M050StrongStyle, M051LinkFragments, M052ReferenceLinksImages,
-        M053LinkImageReferenceDefinitions, M054LinkImageStyle, M055TablePipeStyle,
-        M056TableColumnCount, M058BlanksAroundTables, M059DescriptiveLinkText,
-        M060TableColumnStyle, S101LineLength,
+        E002EventTemplateExclusive, F101FrontmatterTitle, F102RespondentType,
+        F103SnakeCaseFilename, F104FlowQuestionCodes, F105ConfidentialRequired,
+        F106StaffReviewRequired, F107SignaturePlaceholders, F108TemplateCodeRequired,
+        F109OutputFormat, F110JurisdictionPath, F112WorkflowStepNotBuilt, M001HeadingIncrement,
+        M003HeadingStyle, M004ULStyle, M005ListIndent, M007ULIndent, M009NoTrailingSpaces,
+        M010NoHardTabs, M011NoReversedLinks, M012NoMultipleBlanks, M018NoMissingSpaceATX,
+        M019NoMultipleSpaceATX, M020NoMissingSpaceClosedATX, M021NoMultipleSpaceClosedATX,
+        M022BlanksAroundHeadings, M023HeadingStartLeft, M024NoDuplicateHeading,
+        M026NoTrailingPunctuation, M027NoMultipleSpaceBlockquote, M028NoBlanksBlockquote,
+        M029OLPrefix, M030ListMarkerSpace, M031BlanksAroundFences, M032BlanksAroundLists,
+        M034NoBareUrls, M035HRStyle, M037NoSpaceInEmphasis, M038NoSpaceInCode, M039NoSpaceInLinks,
+        M040FencedCodeLanguage, M042NoEmptyLinks, M045NoAltText, M046CodeBlockStyle,
+        M047SingleTrailingNewline, M048CodeFenceStyle, M049EmphasisStyle, M050StrongStyle,
+        M051LinkFragments, M052ReferenceLinksImages, M053LinkImageReferenceDefinitions,
+        M054LinkImageStyle, M055TablePipeStyle, M056TableColumnCount, M058BlanksAroundTables,
+        M059DescriptiveLinkText, M060TableColumnStyle, S101LineLength,
     };
     vec![
         Box::new(S101LineLength::default()),
@@ -402,6 +409,10 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
         Box::new(F109OutputFormat),
         Box::new(F110JurisdictionPath),
         Box::new(F112WorkflowStepNotBuilt),
+        // Mutual exclusivity runs on templates too: a template that wrongly
+        // declares a `starts_at` timestamp is flagged here (the event side
+        // is enforced by `navigator_event_rules`).
+        Box::new(E002EventTemplateExclusive),
         Box::new(M001HeadingIncrement),
         Box::new(M003HeadingStyle),
         Box::new(M004ULStyle),
@@ -478,9 +489,12 @@ pub fn navigator_default_rules_with_codes(valid_codes: &[String]) -> Vec<Box<dyn
 /// reflowed to the limit.
 #[must_use]
 pub fn navigator_markdown_only_rules() -> Vec<Box<dyn Rule>> {
+    // Drop both the N-family (notation) and the E-family (event) rules:
+    // plain prose is neither a template nor an event. The event rules are
+    // re-added explicitly by `navigator_event_rules`.
     let mut rules: Vec<Box<dyn Rule>> = navigator_default_rules()
         .into_iter()
-        .filter(|r| !r.code().starts_with('N'))
+        .filter(|r| !r.code().starts_with('N') && !r.code().starts_with('E'))
         .collect();
     // Place S102 right after S101 so the two line-length rules sit
     // next to each other.
@@ -492,15 +506,42 @@ pub fn navigator_markdown_only_rules() -> Vec<Box<dyn Rule>> {
     rules
 }
 
+/// The rule set for a public event (show-and-tell) markdown file.
+///
+/// Events get the prose Markdown rules (so headings, links, and the
+/// 120-character budget are still enforced on the body) plus the
+/// E-family event-contract rules. They deliberately do *not* get the
+/// N-family notation rules — an event is not a template.
+#[must_use]
+pub fn navigator_event_rules() -> Vec<Box<dyn Rule>> {
+    use crate::{E001EventTimestamp, E002EventTemplateExclusive, E003EventLocationOrMeeting};
+    let mut rules = navigator_markdown_only_rules();
+    rules.push(Box::new(E001EventTimestamp));
+    rules.push(Box::new(E002EventTemplateExclusive));
+    rules.push(Box::new(E003EventLocationOrMeeting));
+    rules
+}
+
 /// Classify a source file before choosing its validation rule set.
 ///
 /// `code:` alone is deliberately not enough to make a file a notation
 /// template: content systems can also use stable codes. The notation
 /// markers are the machine declarations (`questionnaire:`/`workflow:`),
 /// plus the canonical `notation_templates/` tree from the glossary.
+///
+/// Events take precedence: a `starts_at` timestamp marks an event, even
+/// if the file also (wrongly) declares a questionnaire/workflow — the
+/// mutual-exclusivity rule [`E002`] then flags the conflict instead of
+/// the file silently linting as a template.
+///
+/// [`E002`]: crate::E002EventTemplateExclusive
 #[must_use]
 pub fn classify_source(file: &SourceFile) -> DocumentKind {
-    if path_is_notation_template(&file.path) || frontmatter_has_notation_machine(&file.contents) {
+    if frontmatter_has_event_machine(&file.contents) {
+        DocumentKind::Event
+    } else if path_is_notation_template(&file.path)
+        || frontmatter_has_notation_machine(&file.contents)
+    {
         DocumentKind::NotationTemplate
     } else {
         DocumentKind::Markdown
@@ -520,6 +561,7 @@ pub fn navigator_classified_rules_with_codes(
     match classify_source(file) {
         DocumentKind::Markdown => navigator_markdown_only_rules(),
         DocumentKind::NotationTemplate => navigator_default_rules_with_codes(valid_codes),
+        DocumentKind::Event => navigator_event_rules(),
     }
 }
 
@@ -557,6 +599,16 @@ fn frontmatter_has_notation_machine(contents: &str) -> bool {
         return false;
     };
     mapping_has_key(&map, "questionnaire") || mapping_has_key(&map, "workflow")
+}
+
+fn frontmatter_has_event_machine(contents: &str) -> bool {
+    let Some(fm) = crate::frontmatter::extract(contents) else {
+        return false;
+    };
+    let Ok(Value::Mapping(map)) = serde_yaml::from_str::<Value>(fm) else {
+        return false;
+    };
+    mapping_has_key(&map, "starts_at")
 }
 
 fn mapping_has_key(map: &serde_yaml::Mapping, key: &str) -> bool {
@@ -718,11 +770,11 @@ mod tests {
     /// silently reorders or drops a rule.
     const EXPECTED_DEFAULT_RULE_CODES: &[&str] = &[
         "S101", "N101", "N102", "N103", "N104", "N105", "N106", "N107", "N108", "N109", "N110",
-        "N112", "M001", "M003", "M004", "M005", "M007", "M009", "M010", "M011", "M012", "M018",
-        "M019", "M020", "M021", "M022", "M023", "M024", "M026", "M027", "M028", "M029", "M030",
-        "M031", "M032", "M034", "M035", "M037", "M038", "M039", "M040", "M042", "M045", "M046",
-        "M047", "M048", "M049", "M050", "M051", "M052", "M053", "M054", "M055", "M056", "M058",
-        "M059", "M060",
+        "N112", "E002", "M001", "M003", "M004", "M005", "M007", "M009", "M010", "M011", "M012",
+        "M018", "M019", "M020", "M021", "M022", "M023", "M024", "M026", "M027", "M028", "M029",
+        "M030", "M031", "M032", "M034", "M035", "M037", "M038", "M039", "M040", "M042", "M045",
+        "M046", "M047", "M048", "M049", "M050", "M051", "M052", "M053", "M054", "M055", "M056",
+        "M058", "M059", "M060",
     ];
 
     #[test]
@@ -743,11 +795,13 @@ mod tests {
             .map(|r| r.code())
             .collect();
         assert!(codes.iter().all(|c| !c.starts_with('N')));
+        // The markdown-only set drops the event family too.
+        assert!(codes.iter().all(|c| !c.starts_with('E')));
         // S102 sits right after S101.
         let mut expected: Vec<&str> = EXPECTED_DEFAULT_RULE_CODES
             .iter()
             .copied()
-            .filter(|c| !c.starts_with('N'))
+            .filter(|c| !c.starts_with('N') && !c.starts_with('E'))
             .collect();
         let pos = expected.iter().position(|c| *c == "S101").unwrap() + 1;
         expected.insert(pos, "S102");
@@ -784,6 +838,60 @@ mod tests {
     fn classifier_treats_templates_tree_as_notation_template() {
         let file = source("notation_templates/trust/draft.md", "Plain body.\n");
         assert_eq!(classify_source(&file), DocumentKind::NotationTemplate);
+    }
+
+    #[test]
+    fn classifier_treats_timestamp_as_event() {
+        let file = source(
+            "web/content/events/20260702_seattle.md",
+            "---\ntitle: Seattle\nstarts_at: \"2026-07-02T11:00:00\"\ntimezone: America/Los_Angeles\n---\n\nBody.\n",
+        );
+        assert_eq!(classify_source(&file), DocumentKind::Event);
+    }
+
+    #[test]
+    fn event_classification_wins_over_template_when_both_markers_present() {
+        // A file with both a timestamp and a questionnaire classifies as an
+        // Event (timestamp takes precedence); E002 then flags the conflict
+        // rather than the file silently linting as a template.
+        let file = source(
+            "web/content/events/20260702_bad.md",
+            "---\nstarts_at: \"2026-07-02T11:00:00\"\nquestionnaire:\n  BEGIN:\n    _: END\n---\n",
+        );
+        assert_eq!(classify_source(&file), DocumentKind::Event);
+        let codes: Vec<&str> = lint_source_classified(&file)
+            .iter()
+            .map(|v| v.code)
+            .collect();
+        assert!(codes.contains(&"E002"), "expected E002, got {codes:?}");
+    }
+
+    #[test]
+    fn event_rules_apply_e_family_not_n_family() {
+        // An event missing its timezone trips E001 but never an N-rule.
+        let file = source(
+            "web/content/events/20260702_x.md",
+            "---\ntitle: X\nstarts_at: \"2026-07-02T11:00:00\"\nlocation_address: Somewhere\n---\n\nBody.\n",
+        );
+        let codes: Vec<&str> = lint_source_classified(&file)
+            .iter()
+            .map(|v| v.code)
+            .collect();
+        assert!(codes.contains(&"E001"), "expected E001, got {codes:?}");
+        assert!(codes.iter().all(|c| !c.starts_with('N')));
+    }
+
+    #[test]
+    fn template_with_timestamp_trips_e002() {
+        let file = source(
+            "notation_templates/trust/draft.md",
+            "---\ntitle: T\ncode: x\nworkflow:\n  BEGIN:\n    a: END\nstarts_at: \"2026-07-02T11:00:00\"\n---\n",
+        );
+        let codes: Vec<&str> = lint_source_classified(&file)
+            .iter()
+            .map(|v| v.code)
+            .collect();
+        assert!(codes.contains(&"E002"), "expected E002, got {codes:?}");
     }
 
     #[test]
