@@ -1665,12 +1665,12 @@ async fn run_validate(
     for v in &report.violations {
         print_violation(&v.path.display().to_string(), v.line, v.code, &v.message);
     }
+    let (error_count, warning_count) = severity_counts(&report.violations);
     println!(
         "{}",
         palette::dim(format!(
-            "Scanned {} file(s), found {} violation(s)",
+            "Scanned {} file(s), found {error_count} error(s), {warning_count} warning(s)",
             report.files_scanned,
-            report.violations.len()
         ))
     );
     // Fail the gate on Error-severity violations only; Warning-severity
@@ -1900,6 +1900,17 @@ fn fix_directory(
 /// Render a single rule violation: path/line in dim cyan-700, rule
 /// code in cyan-500, message in default. Shared by validate and
 /// import so both subcommands have the same look.
+/// Split a violation list into `(error_count, warning_count)` by each
+/// code's [`rules::Severity`]. Used for the `validate` summary line so
+/// blocking errors and "not built yet" advisories are tallied apart.
+fn severity_counts(violations: &[rules::Violation]) -> (usize, usize) {
+    let errors = violations
+        .iter()
+        .filter(|v| rules::severity_for_code(v.code) == rules::Severity::Error)
+        .count();
+    (errors, violations.len() - errors)
+}
+
 fn print_violation(path: &str, line: usize, code: &str, message: &str) {
     println!(
         "{} {}: {}",
