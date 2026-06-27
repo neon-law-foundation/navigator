@@ -59,9 +59,10 @@ When a dirty tree is ready to land:
 7. For any change to public or portal UI, **always** capture a live screenshot from the running app — boot `web`
    against the persistent KIND deps (the fixture is usually already up; see
    [`RUNBOOK.md`](RUNBOOK.md#7b-fast-loop--web-on-the-host-deps-in-kind)) and capture with headless Chrome. Save it
-   under `/tmp/navigator-screenshots/` and embed it in the PR **description** with `<img src="/tmp/...">`. Do not
-   self-host the artifact on a remote branch; the PR tooling resolves the local path. Rendering tests are not a
-   substitute for seeing the page served.
+   under `/tmp/navigator-screenshots/` and embed it in the PR **description**. In Cursor Cloud the PR tool resolves a
+   `<img src="/tmp/...">` path; in a local / `gh` run it does not, so embed via the `pr-image-upload` skill (`gh image`
+   → GitHub `user-attachments`) to get a URL that renders. Do not self-host the artifact on a remote branch or commit it
+   to the tree. Rendering tests are not a substitute for seeing the page served.
 8. Push and open a PR against `main`; GitHub's merge queue lands it after the required checks pass (CI enables
    auto-merge on open, which enqueues the PR).
 9. Clean up task-owned local resources before ending the session. See [Resource cleanup](#resource-cleanup).

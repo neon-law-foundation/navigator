@@ -78,7 +78,7 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
              justice: deterministic workflows from law — statute to Cucumber feature to template \
              to notation — dissected one modular, attorney-gated step at a time, with every code \
              slide an exact copy of the shipped repository kept honest by a grounding test.",
-        audience: "For the curious",
+        audience: "For the hackers",
         benefit: "You walk out able to argue, from the real code, why a reviewed and repeatable \
                   workflow beats prompting an LLM. Every slide is an exact copy of the shipped \
                   repository — a build test fails if one drifts — so you react to the real \

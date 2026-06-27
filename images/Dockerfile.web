@@ -108,6 +108,7 @@ ENV NAVIGATOR_PUBLIC_DIR=/app/public \
     NAVIGATOR_WORKSHOPS_DIR=/app/content/workshops \
     NAVIGATOR_MARKETING_DIR=/app/content/marketing \
     NAVIGATOR_ABOUT_DIR=/app/content/about \
+    NAVIGATOR_EVENTS_DIR=/app/content/events \
     APP_ENV=production \
     PORT=3001
 
