@@ -592,7 +592,7 @@ async fn foundation_home_is_the_mission_statement() {
 }
 
 #[tokio::test]
-async fn navigator_serves_the_readme_under_foundation_brand() {
+async fn navigator_serves_the_sovereign_software_hub_under_foundation_brand() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -609,18 +609,23 @@ async fn navigator_serves_the_readme_under_foundation_brand() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("<title>Neon Law Foundation | Neon Law Navigator</title>"));
-    // The page is the README: its H1 and the getting-started command.
+    // The hero leads with the product wordmark and the sovereign tagline.
     assert!(body.contains(">Neon Law Navigator</h1>"));
-    assert!(body.contains("cargo run -p cli -- start-dev-server"));
-    // README links are retargeted onto site routes.
-    assert!(body.contains(
-        "href=\"/api/templates/united-states/nevada/state/business-associations/entity-formation\""
-    ));
-    assert!(body.contains("href=\"/docs/glossary#project\""));
-    // The hub fans out to the per-package pages.
+    assert!(body.contains("Sovereign legal software you can run yourself."));
+    // The pitch makes the open-source / self-host case under the customer-
+    // forward heading.
+    assert!(body.contains(">Your practice. Your data. Your cloud.</h2>"));
+    assert!(body.contains("predominantly open source under Apache-2.0 or MIT"));
+    // The hub fans out to the per-package pages (tab strip, none preselected).
+    assert!(body.contains("href=\"/foundation/navigator/lsp\""));
     assert!(body.contains("href=\"/foundation/navigator/cli\""));
     assert!(body.contains("href=\"/foundation/navigator/mcp\""));
     assert!(body.contains("href=\"/foundation/navigator/web\""));
+    // Under the strip: the README, with its links retargeted and its
+    // Trademarks anchor (the notations page cross-links it).
+    assert!(body.contains("cargo run -p cli -- start-dev-server"));
+    assert!(body.contains("href=\"/docs/glossary#project\""));
+    assert!(body.contains("id=\"trademarks\""));
 }
 
 #[tokio::test]

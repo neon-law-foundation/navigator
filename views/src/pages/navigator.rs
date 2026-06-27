@@ -1,10 +1,18 @@
-//! `/navigator` — the repository README, rendered on the site.
+#![allow(clippy::doc_markdown)]
+//! `/foundation/navigator` — the Neon Law Navigator hub.
 //!
-//! Foundation-branded. The body is the workspace `README.md`, baked in at
-//! compile time with `include_str!`, so `neonlaw.com/navigator` is a
-//! byte-for-byte copy of the project's front page. Repo-relative links —
-//! written so they resolve for a git reader — are retargeted by
-//! [`rewrite_link`] so they also resolve on the web:
+//! Foundation-branded landing page for the open-source project. Top to
+//! bottom: a logo banner, the sovereign-software positioning ("Your
+//! practice. Your data. Your cloud."), the cross-package strip (LSP / CLI /
+//! MCP / Web), and — under the strip — the workspace `README.md`. The strip
+//! acts as a tab row: nothing is selected on the hub, so the hub shows the
+//! README; each per-package page selects its own tab and renders that
+//! crate's README instead ([`crate::pages::package`]).
+//!
+//! The README is baked in at compile time with `include_str!`. Its
+//! repo-relative links — written so they resolve for a git reader — are
+//! retargeted by [`rewrite_link`] so they also resolve on the web (the
+//! per-package pages reuse the same retargeting):
 //!
 //! - a top-level `docs/<name>.md` → the published `/docs/<name>` route;
 //! - a `notation_templates/**/*.md` link → the raw `/api/templates/**`
@@ -15,13 +23,12 @@
 
 use maud::{html, Markup};
 
-use crate::brand::FOUNDATION_BRAND;
+use crate::brand::{foundation_github_url, FOUNDATION_BRAND};
 use crate::markdown::render_with_link_rewrite;
 use crate::{AuthState, PageLayout};
 
-/// The repository README, baked in at compile time — the page is an exact
-/// copy of this file. Resolved against the `views` crate manifest dir, so
-/// it points at the workspace-root `README.md`.
+/// The workspace README, baked in at compile time. Resolved against the
+/// `views` crate manifest dir, so it points at the workspace-root file.
 const README: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../README.md"));
 
 /// GitHub blob root for repo-relative links with no on-site route.
@@ -30,21 +37,86 @@ const REPO_BLOB_BASE: &str = "https://github.com/neon-law-foundation/navigator/b
 #[must_use]
 pub fn render(auth: AuthState) -> Markup {
     let body = html! {
-        // The hub fans out to the per-package pages (LSP / CLI / MCP /
-        // Web) before the long-form README overview.
-        (crate::pages::package::package_strip(None))
+        (hero())
+        (sovereign_software())
+        (packages())
+        // Under the strip: the README, unless a package tab is selected
+        // (which happens on the per-package pages, not the hub).
         article.docs-article {
             (render_with_link_rewrite(README, rewrite_link))
         }
     };
     PageLayout::new("Neon Law Navigator")
         .with_description(
-            "Neon Law Navigator — open source legal software from the Neon Law \
-             Foundation that helps lawyers finish more legal projects.",
+            "Neon Law Navigator is sovereign legal software from the Neon Law \
+             Foundation — open source under Apache-2.0 or MIT, built to self-host \
+             so your data stays in your own cloud.",
         )
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
         .render(&body)
+}
+
+/// The logo banner: the Foundation mark, the product wordmark, the
+/// Sovereign Software tagline, and the GitHub call to action.
+fn hero() -> Markup {
+    html! {
+        section."text-center"."bg-body-tertiary"."rounded-3"."p-5"."mb-5" {
+            img."mb-3"
+                src=(FOUNDATION_BRAND.logo_href)
+                alt=(format!("{} logo", FOUNDATION_BRAND.site_name))
+                width="72"
+                height="72";
+            h1."display-4"."fw-bold"."mb-2" { "Neon Law Navigator" }
+            p."lead"."mb-2" { "Sovereign legal software you can run yourself." }
+            p."mx-auto"."mb-4"."text-body-secondary" style="max-width: 44rem;" {
+                "An open-source operating system for a modern law practice — versioned \
+                 legal templates, durable workflows, attorney-reviewed automation, and \
+                 agent-accessible tooling."
+            }
+            div."d-flex"."justify-content-center" {
+                a."btn"."btn-primary"."btn-lg" href=(foundation_github_url()) {
+                    i."bi bi-github me-2" aria-hidden="true" {}
+                    "View on GitHub"
+                }
+            }
+        }
+    }
+}
+
+/// The sovereign-software positioning — the headline idea, kept above the
+/// package strip. Two short paragraphs, no cards.
+fn sovereign_software() -> Markup {
+    html! {
+        section."mb-5" id="sovereign-software" {
+            h2."mb-3" { "Your practice. Your data. Your cloud." }
+            p {
+                "Neon Law Navigator is sovereign software: predominantly open source \
+                 under Apache-2.0 or MIT, built to run on infrastructure you control. \
+                 Self-host it, and your client data stays where you put it."
+            }
+            p."mb-0" {
+                "Neon Law runs it on "
+                a href="https://cloud.google.com" { "Google Cloud" }
+                ". Because the stack is cloud-native open source — "
+                a href="https://kubernetes.io" { "Kubernetes" }
+                " for orchestration, Postgres for data, and licensable services like "
+                a href="https://restate.dev" { "Restate" }
+                " for durable execution — you can run the same system in your own cloud."
+            }
+        }
+    }
+}
+
+/// The cross-package strip — the tab row above the README. Nothing is
+/// selected on the hub, so the hub renders the README; selecting a tab
+/// navigates to that package's page.
+fn packages() -> Markup {
+    html! {
+        section."mb-4" {
+            (crate::pages::package::package_strip(None))
+        }
+    }
 }
 
 /// Retarget one README link so it resolves on the website. See the module
@@ -102,27 +174,115 @@ mod tests {
     use crate::AuthState;
 
     #[test]
-    fn navigator_renders_the_readme_under_foundation_brand() {
+    fn navigator_renders_under_the_foundation_brand() {
         let html = render(AuthState::Anonymous).into_string();
         assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(html.contains(&format!(
             "<title>{} | Neon Law Navigator</title>",
             FOUNDATION_BRAND.site_name
         )));
-        // The README's own H1 is the page heading — proof it's the README.
-        // (Headings carry a stamped slug id, so match on the text + close.)
+        // The hero leads with the product wordmark as the page H1.
         assert!(
             html.contains(">Neon Law Navigator</h1>"),
-            "expected the README heading on the page: {html}"
+            "expected the product wordmark as the page heading: {html}"
         );
     }
 
     #[test]
-    fn navigator_is_an_exact_copy_of_the_readme() {
-        // The baked constant is literally the repository README; the
-        // include path must resolve to the workspace-root file.
+    fn hero_is_a_logo_banner_with_one_github_cta() {
+        let html = render(AuthState::Anonymous).into_string();
+        // The Foundation mark rides the banner as an <img>.
+        assert!(
+            html.contains(&format!("src=\"{}\"", FOUNDATION_BRAND.logo_href)),
+            "hero should show the Foundation logo: {html}"
+        );
+        assert!(html.contains("Sovereign legal software you can run yourself."));
+        // One call to action: GitHub. No How-it-works button.
+        assert!(html.contains("View on GitHub"));
+        assert!(!html.contains("href=\"#how-it-works\""));
+    }
+
+    #[test]
+    fn sovereign_text_makes_the_self_host_case_without_cards() {
+        let html = render(AuthState::Anonymous).into_string();
+        // The customer-forward heading; "sovereign" stays the idea in the
+        // body, not the visible label.
+        assert!(
+            html.contains(">Your practice. Your data. Your cloud.</h2>"),
+            "got: {html}"
+        );
+        // The load-bearing claims live in the two paragraphs.
+        assert!(html.contains("predominantly open source under Apache-2.0 or MIT"));
+        assert!(html.contains("your client data stays where you put it"));
+        assert!(html.contains("run the same system in your own cloud"));
+        assert!(html.contains("Kubernetes"));
+        assert!(html.contains("Restate"));
+        // The three-card row is gone.
+        assert!(
+            !html.contains(">Self-hosted</h3>") && !html.contains(">Your cloud</h3>"),
+            "the pillar cards should be removed: {html}"
+        );
+    }
+
+    #[test]
+    fn strip_then_readme_with_no_package_preselected() {
+        let html = render(AuthState::Anonymous).into_string();
+        // The tab strip links every package…
+        assert!(html.contains("aria-label=\"Neon Law Navigator packages\""));
+        for href in [
+            "/foundation/navigator/lsp",
+            "/foundation/navigator/cli",
+            "/foundation/navigator/mcp",
+            "/foundation/navigator/web",
+        ] {
+            assert!(
+                html.contains(&format!("href=\"{href}\"")),
+                "missing {href}: {html}"
+            );
+        }
+        // …but nothing is preselected on the hub (no active card).
+        assert!(
+            !html.contains("border-primary") && !html.contains("aria-current=\"page\""),
+            "the hub should not preselect a package: {html}"
+        );
+        // The README renders under the strip: its getting-started command and
+        // its Trademarks anchor (the notations page cross-links it).
+        assert!(html.contains("cargo run -p cli -- start-dev-server"));
+        assert!(html.contains("id=\"trademarks\""));
+        // The strip sits above the README body.
+        let strip = html
+            .find("aria-label=\"Neon Law Navigator packages\"")
+            .expect("package strip");
+        let readme = html.find("start-dev-server").expect("readme body");
+        assert!(strip < readme, "strip should sit above the README: {html}");
+    }
+
+    #[test]
+    fn readme_links_are_retargeted_for_the_web() {
+        let html = render(AuthState::Anonymous).into_string();
+        // A top-level doc link maps to its published route; a template link
+        // maps to the raw template API.
+        assert!(html.contains("href=\"/docs/glossary#project\""));
+        assert!(html.contains(
+            "href=\"/api/templates/united-states/nevada/state/business-associations/entity-formation\""
+        ));
+    }
+
+    #[test]
+    fn navigator_is_baked_from_the_workspace_readme() {
         assert!(README.starts_with("# Neon Law Navigator"));
         assert!(README.contains("## License"));
+        // The README carries no standalone Sovereign Software section — the
+        // hub surfaces that pitch above the strip, so the README would only
+        // duplicate it.
+        assert!(!README.contains("## Sovereign Software"));
+    }
+
+    #[test]
+    fn navigator_description_meta_is_emitted() {
+        let html = render(AuthState::Anonymous).into_string();
+        assert!(html.contains("name=\"description\""));
+        assert!(html.contains("sovereign legal software"));
     }
 
     #[test]
@@ -184,35 +344,5 @@ mod tests {
         );
         assert_eq!(rewrite_link("#trademarks"), "#trademarks");
         assert_eq!(rewrite_link("https://zed.dev"), "https://zed.dev");
-    }
-
-    #[test]
-    fn rendered_page_carries_rewritten_hrefs() {
-        let html = render(AuthState::Anonymous).into_string();
-        assert!(
-            html.contains("href=\"/docs/glossary#project\""),
-            "glossary link should resolve to the site route"
-        );
-        assert!(
-            html.contains(
-                "href=\"/api/templates/united-states/nevada/state/business-associations/entity-formation\""
-            ),
-            "template link should resolve to the raw API"
-        );
-        assert!(
-            html.contains(
-                "href=\"https://github.com/neon-law-foundation/navigator/blob/main/LICENSE-APACHE\""
-            ),
-            "license link should resolve to the GitHub source"
-        );
-        // The in-page Trademarks anchor needs a matching heading id.
-        assert!(html.contains("id=\"trademarks\""));
-    }
-
-    #[test]
-    fn navigator_description_meta_is_emitted() {
-        let html = render(AuthState::Anonymous).into_string();
-        assert!(html.contains("name=\"description\""));
-        assert!(html.contains("open source legal software"));
     }
 }
