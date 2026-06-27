@@ -100,6 +100,9 @@ pub struct ServiceContent<'a> {
     /// Public testimonials selected by the web layer for this service's
     /// product code. Empty keeps the page on the no-proof path.
     pub testimonials: &'a [TestimonialCard<'a>],
+    /// Optional referral terminal surfaced for campaign links.
+    /// `Some(href)` renders the modal and uses `href` as the clear exit.
+    pub referral_terminal_close_href: Option<&'a str>,
 }
 
 /// Render a service page in English (no declared twin).
@@ -197,6 +200,9 @@ pub fn render_in(
                 (cta_button("btn btn-primary btn-lg", footer_label, footer_href))
             }
         }
+        @if let Some(close_href) = content.referral_terminal_close_href {
+            (referral_terminal(close_href, locale))
+        }
     };
     // The browser `<title>` on a firm `/services` page brands once, then
     // names the catalog and the bare product: "Neon Law | Services | Nest"
@@ -231,6 +237,65 @@ pub fn render_in(
     }
 }
 
+fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
+    let (title, prompt, input_label, placeholder, submit) = match locale {
+        Locale::En => (
+            "1337 Lawyers terminal",
+            "Yo. Need something? Follow the white rabbit.",
+            "Tell us what you need",
+            "Type here...",
+            "Enter",
+        ),
+        Locale::Es => (
+            "Terminal de 1337 Lawyers",
+            "Oye. Necesitas ayuda? Sigue al conejo blanco.",
+            "Cuente que necesita",
+            "Escriba aqui...",
+            "Entrar",
+        ),
+    };
+    html! {
+        section."lawyers-terminal-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lawyers-terminal-title" {
+            div."lawyers-terminal" {
+                header."lawyers-terminal__bar" {
+                    div."lawyers-terminal__lights" aria-hidden="true" {
+                        span."lawyers-terminal__light"."lawyers-terminal__light--red" {}
+                        span."lawyers-terminal__light"."lawyers-terminal__light--yellow" {}
+                        span."lawyers-terminal__light"."lawyers-terminal__light--green" {}
+                    }
+                    p id="lawyers-terminal-title" { (title) }
+                    a."lawyers-terminal__close"
+                        href=(close_href)
+                        aria-label="Close referral terminal" {
+                        "X"
+                    }
+                }
+                div."lawyers-terminal__screen" {
+                    p."lawyers-terminal__line" { "wake up, neo..." }
+                    p."lawyers-terminal__line" { "the matrix has you." }
+                    p."lawyers-terminal__line"."lawyers-terminal__line--hot" { (prompt) }
+                    form."lawyers-terminal__form" method="get" action="/contact" {
+                        input type="hidden" name="source" value="1337lawyers";
+                        label for="lawyers-terminal-input" { (input_label) }
+                        div."lawyers-terminal__prompt" {
+                            span aria-hidden="true" { ">" }
+                            input id="lawyers-terminal-input"
+                                name="message"
+                                type="text"
+                                autocomplete="off"
+                                placeholder=(placeholder);
+                            button type="submit" { (submit) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{render, PricingCard, ServiceContent};
@@ -248,6 +313,7 @@ mod tests {
             cta_email: firm_email(),
             icon: None,
             testimonials: &[],
+            referral_terminal_close_href: None,
         }
     }
 
@@ -568,6 +634,35 @@ mod tests {
         assert!(
             !html.contains("mailto:support@neonlaw.com"),
             "firm CTA no longer emails the inbox: {html}"
+        );
+    }
+
+    #[test]
+    fn referral_terminal_renders_only_when_close_href_is_present() {
+        let mut content = fixture("1337 Lawyers", "<p>body</p>");
+        let plain = render(&content, crate::AuthState::Anonymous).into_string();
+        assert!(
+            !plain.contains("lawyers-terminal-modal"),
+            "ordinary service pages should not render the campaign modal: {plain}"
+        );
+
+        content.referral_terminal_close_href = Some("/services/litigation");
+        let html = render(&content, crate::AuthState::Anonymous).into_string();
+        assert!(
+            html.contains("class=\"lawyers-terminal-modal\"")
+                && html.contains("role=\"dialog\"")
+                && html.contains("Yo. Need something? Follow the white rabbit."),
+            "campaign modal should render as an accessible dialog, got: {html}"
+        );
+        assert!(
+            html.contains("href=\"/services/litigation\"")
+                && html.contains("aria-label=\"Close referral terminal\""),
+            "modal must offer a clear exit that drops the ref param, got: {html}"
+        );
+        assert!(
+            html.contains("name=\"source\" value=\"1337lawyers\"")
+                && html.contains("name=\"message\""),
+            "terminal prompt should collect the visitor's message, got: {html}"
         );
     }
 
