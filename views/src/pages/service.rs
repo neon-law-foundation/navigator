@@ -272,14 +272,14 @@ fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
     let (title, prompt, cta_label, subject) = match locale {
         Locale::En => (
             "1337 Lawyers terminal",
-            "Yo. Need something? Follow the white rabbit.",
-            "Follow the white rabbit",
+            "> Need to fight for your rights? Follow the white rabbit.",
+            "Follow 🐰",
             "Litigation%20inquiry%20(1337lawyers)",
         ),
         Locale::Es => (
             "Terminal de 1337 Lawyers",
-            "Oye. ¿Necesitas ayuda? Sigue al conejo blanco.",
-            "Sigue al conejo blanco",
+            "> ¿Necesitas luchar por tus derechos? Sigue al conejo blanco.",
+            "Sigue 🐰",
             "Consulta%20de%20litigio%20(1337lawyers)",
         ),
     };
@@ -311,11 +311,10 @@ fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
                     }
                 }
                 div."lawyers-terminal__screen" {
-                    p."lawyers-terminal__line" { "wake up, neo..." }
-                    p."lawyers-terminal__line" { "the matrix has you." }
+                    p."lawyers-terminal__line" { "> wake up..." }
+                    p."lawyers-terminal__line" { "> the matrix has you." }
                     p."lawyers-terminal__line"."lawyers-terminal__line--hot" { (prompt) }
                     div."lawyers-terminal__prompt" {
-                        span aria-hidden="true" { ">" }
                         a."lawyers-terminal__cta" href=(cta_href) { (cta_label) }
                     }
                 }
@@ -729,8 +728,15 @@ mod tests {
                 && html.contains("role=\"dialog\"")
                 && html.contains("tabindex=\"-1\"")
                 && html.contains("class=\"modal-backdrop fade show lawyers-terminal-backdrop\"")
-                && html.contains("Yo. Need something? Follow the white rabbit."),
+                && html.contains("&gt; Need to fight for your rights? Follow the white rabbit."),
             "campaign modal should render as an accessible dialog, got: {html}"
+        );
+        assert!(
+            html.contains("&gt; wake up...")
+                && html.contains("&gt; the matrix has you.")
+                && html.contains("Follow 🐰")
+                && !html.contains("lawyers-terminal__prompt\"><span"),
+            "terminal copy and CTA should match the campaign ask, got: {html}"
         );
         assert!(
             html.contains("href=\"/services/litigation\"")

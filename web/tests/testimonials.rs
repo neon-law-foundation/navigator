@@ -109,6 +109,14 @@ async fn referral_campaign_renders_modal_overlay_and_local_javascript() {
         "campaign link must render an open modal overlay, got: {body}"
     );
     assert!(
+        body.contains("&gt; wake up...")
+            && body.contains("&gt; the matrix has you.")
+            && body.contains("&gt; Need to fight for your rights? Follow the white rabbit.")
+            && body.contains("Follow 🐰")
+            && !body.contains("lawyers-terminal__prompt\"><span"),
+        "campaign modal copy should match the referral prompt, got: {body}"
+    );
+    assert!(
         body.contains("script defer src=\"/public/js/bootstrap.bundle.min.js\"")
             && body.contains("script defer src=\"/public/js/htmx.min.js\"")
             && body.contains("script defer src=\"/public/js/alpine.min.js\""),
