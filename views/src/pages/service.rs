@@ -272,21 +272,22 @@ fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
     let (title, prompt, cta_label, subject) = match locale {
         Locale::En => (
             "1337 Lawyers terminal",
-            "Yo. Need something? Follow the white rabbit.",
-            "Follow the white rabbit",
+            "> Need to fight for your rights? Follow the white rabbit.",
+            "Follow 🐰",
             "Litigation%20inquiry%20(1337lawyers)",
         ),
         Locale::Es => (
             "Terminal de 1337 Lawyers",
-            "Oye. ¿Necesitas ayuda? Sigue al conejo blanco.",
-            "Sigue al conejo blanco",
+            "> ¿Necesitas luchar por tus derechos? Sigue al conejo blanco.",
+            "Sigue 🐰",
             "Consulta%20de%20litigio%20(1337lawyers)",
         ),
     };
     let cta_href = format!("mailto:{}?subject={subject}", crate::brand::firm_email());
     html! {
-        section."lawyers-terminal-modal"
+        section.modal.fade.show."d-block"."lawyers-terminal-modal"
             role="dialog"
+            tabindex="-1"
             aria-modal="true"
             aria-labelledby="lawyers-terminal-title" {
             div."lawyers-terminal" {
@@ -310,23 +311,24 @@ fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
                     }
                 }
                 div."lawyers-terminal__screen" {
-                    p."lawyers-terminal__line" { "wake up, neo..." }
-                    p."lawyers-terminal__line" { "the matrix has you." }
+                    p."lawyers-terminal__line" { "> wake up..." }
+                    p."lawyers-terminal__line" { "> the matrix has you." }
                     p."lawyers-terminal__line"."lawyers-terminal__line--hot" { (prompt) }
                     div."lawyers-terminal__prompt" {
-                        span aria-hidden="true" { ">" }
                         a."lawyers-terminal__cta" href=(cta_href) { (cta_label) }
                     }
                 }
             }
         }
+        div."modal-backdrop".fade.show."lawyers-terminal-backdrop" {}
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{render, PricingCard, ServiceContent};
+    use super::{render, render_in, PricingCard, ServiceContent};
     use crate::brand::{firm_email, FIRM_BRAND, FOUNDATION_BRAND};
+    use crate::Locale;
 
     fn fixture<'a>(title: &'a str, body: &'a str) -> ServiceContent<'a> {
         ServiceContent {
@@ -723,10 +725,19 @@ mod tests {
         content.referral_terminal_close_href = Some("/services/litigation");
         let html = render(&content, crate::AuthState::Anonymous).into_string();
         assert!(
-            html.contains("class=\"lawyers-terminal-modal\"")
+            html.contains("class=\"modal fade show d-block lawyers-terminal-modal\"")
                 && html.contains("role=\"dialog\"")
-                && html.contains("Yo. Need something? Follow the white rabbit."),
+                && html.contains("tabindex=\"-1\"")
+                && html.contains("class=\"modal-backdrop fade show lawyers-terminal-backdrop\"")
+                && html.contains("&gt; Need to fight for your rights? Follow the white rabbit."),
             "campaign modal should render as an accessible dialog, got: {html}"
+        );
+        assert!(
+            html.contains("&gt; wake up...")
+                && html.contains("&gt; the matrix has you.")
+                && html.contains("Follow 🐰")
+                && !html.contains("lawyers-terminal__prompt\"><span"),
+            "terminal copy and CTA should match the campaign ask, got: {html}"
         );
         assert!(
             html.contains("href=\"/services/litigation\"")
@@ -745,6 +756,20 @@ mod tests {
         assert!(
             !html.contains("method=\"get\"") && !html.contains("action=\"/contact\""),
             "terminal must not POST/GET the visitor's words to a route, got: {html}"
+        );
+
+        let spanish = render_in(
+            &content,
+            crate::AuthState::Anonymous,
+            Locale::Es,
+            Some("/services/litigation"),
+        )
+        .into_string();
+        assert!(
+            spanish.contains("&gt; ¿Necesitas luchar por tus derechos? Sigue al conejo blanco.")
+                && spanish.contains("Sigue 🐰")
+                && spanish.contains("subject=Consulta%20de%20litigio%20(1337lawyers)"),
+            "Spanish campaign modal should carry localized copy and subject, got: {spanish}"
         );
     }
 
