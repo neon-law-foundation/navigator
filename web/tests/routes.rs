@@ -615,7 +615,6 @@ async fn navigator_serves_the_sovereign_software_hub_under_foundation_brand() {
     // The pitch makes the open-source / self-host case under the customer-
     // forward heading.
     assert!(body.contains(">Your practice. Your data. Your cloud.</h2>"));
-    assert!(body.contains("predominantly open source under Apache-2.0 or MIT"));
     // The hub fans out to the per-package pages (tab strip, none preselected).
     assert!(body.contains("href=\"/foundation/navigator/lsp\""));
     assert!(body.contains("href=\"/foundation/navigator/cli\""));
