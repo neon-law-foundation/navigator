@@ -48,7 +48,8 @@ The live-site commands need no local database — they are an authenticated HTTP
 | `logout` / `whoami` | (local) | Forget / inspect the stored token; `whoami` does the expiry math locally. |
 | `projects list` | `GET /portal/projects.csv` | Rendered as a table, or `--json`. |
 | `project open` | `POST /portal/projects` | Open a matter **and** send a retainer in one action; parks at review. |
-| `matter open` | `POST /portal/admin/retainers/new` | Open a questionnaire-driven matter; parks at question one. |
+| `notation create` | `POST /portal/admin/retainers/new` | Create a questionnaire-driven Notation; parks at q1. |
+| `matter open` | `POST /portal/admin/retainers/new` | Deprecated alias for `notation create`. |
 | `intake answer` | `GET`/`POST …/step` | Walk the questionnaire (interactive or `--answer`/`--person`). |
 | `retainer clause` | `…/clauses` | `add` / `edit` / `list` the per-matter clauses spliced into the retainer. |
 | `retainer approve` | `POST …/approve-send` | Renders + parks the PDF at `document_open__retainer_pdf`; no envelope. |
@@ -89,25 +90,32 @@ navigator logout
 `--host` is optional after a single `login` (the sole stored host is used); pass it to pick between prod, staging, and a
 local `http://localhost:8080` KIND run, each keyed separately in the credential file.
 
-Opening a matter — `project create`, `project open`, or `matter open` — first runs the conflict check before any row is
-written. The CLI is non-interactive, so **any** finding (a hard adverse block or a softer review item) refuses the open;
-resolve it in the portal, where authorized staff can review and acknowledge the findings, then retry. The graph itself
-is documented in the [glossary](../docs/glossary.md#conflict-check-graph).
+Opening a matter — `project create`, `project open`, or `notation create` — first runs the conflict check before any row
+is written. The deprecated `matter open` alias runs the same path. The CLI is non-interactive, so **any** finding (a
+hard adverse block or a softer review item) refuses the open; resolve it in the portal, where authorized staff can
+review and acknowledge the findings, then retry. The graph itself is documented in the
+[glossary](../docs/glossary.md#conflict-check-graph).
 
 ## Forming an LLC from the CLI
 
-A person can form a Nevada LLC end to end without opening a browser. `matter open` starts a questionnaire-driven
-`onboarding__*` matter (distinct from `project open`, which opens a matter *and* sends a retainer); `intake answer` then
-walks the questionnaire one question at a time over the same `/portal/admin/notations/:id/step` route the browser POSTs.
-The CLI reads each question's prompt, `answer_type`, and (for a `radio`) its choices from that route's `?format=json`
-branch — it never scrapes HTML — and posts a `people_list` answer as the widget's `p{row}_{part}` fields.
+A person can form a Nevada LLC end to end without opening a browser. `notation create` starts a questionnaire-driven
+`onboarding__*` Notation (distinct from `project open`, which opens a matter *and* sends a retainer); `intake answer`
+then walks the questionnaire one question at a time over the same `/portal/admin/notations/:id/step` route the browser
+POSTs. The deprecated `matter open` command remains as an alias for older automation. The CLI reads each question's
+prompt, `answer_type`, and (for a `radio`) its choices from that route's `?format=json` branch — it never scrapes HTML —
+and posts a `people_list` answer as the widget's `p{row}_{part}` fields.
+
+`notation create` currently resolves the shared bundled/template-example catalog. When the real project-scoped custom
+notation path lands, short custom template codes must be created with `--project <project-code>` so Navigator resolves
+the template inside that Project; omit `--project` for bundled/template-example catalog templates such as
+`nv__llc_formation`.
 
 In interactive mode `intake answer` shows one prompt per question — a `radio` lists its choices, and a `people_list` is
 entered row by row (a blank name ends the rows).
 
 ```bash
 navigator login --host http://localhost:8080
-navigator matter open --template nv__llc_formation --client-email libra@example.com
+navigator notation create nv__llc_formation --client-email libra@example.com
 navigator intake answer <notation-id>
 navigator notation status <notation-id>
 navigator notation approve <notation-id>

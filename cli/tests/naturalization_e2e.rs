@@ -3,7 +3,7 @@
 //! N-400 intake entirely through the `navigator` CLI binary, driven against
 //! an in-process `web` app on a loopback port.
 //!
-//! This is the CLI demo path for the immigration workflow — `matter open`
+//! This is the CLI demo path for the immigration workflow — `notation create`
 //! → `intake answer` (the twelve `us__naturalization` questions) →
 //! `notation status` → `notation approve` → `notation document` — proving
 //! the applicant's answers render into the N-400 intake-summary PDF and the
@@ -149,12 +149,12 @@ async fn run_cli_stdin(creds: &Path, args: &[&str], stdin: &str) -> (bool, Strin
     (out.status.success(), format!("{stdout}\n{stderr}"))
 }
 
-/// Pull the notation UUID out of `matter open`'s stdout.
+/// Pull the notation UUID out of `notation create`'s stdout.
 fn notation_id_from(stdout: &str) -> Uuid {
     stdout
         .split_whitespace()
         .find_map(|tok| Uuid::parse_str(tok.trim()).ok())
-        .unwrap_or_else(|| panic!("no notation id in matter-open output:\n{stdout}"))
+        .unwrap_or_else(|| panic!("no notation id in notation-create output:\n{stdout}"))
 }
 
 /// Assert the downloaded artifact is the rendered N-400 intake-summary PDF.
@@ -175,18 +175,17 @@ async fn naturalization_intake_through_the_cli_with_answer_flags() {
     let (ok, out) = run_cli(
         &creds,
         &[
-            "matter",
-            "open",
+            "notation",
+            "create",
             "--host",
             &base,
-            "--template",
             "us__naturalization",
             "--client-email",
             "maria@example.com",
         ],
     )
     .await;
-    assert!(ok, "matter open failed:\n{out}");
+    assert!(ok, "notation create failed:\n{out}");
     let id = notation_id_from(&out).to_string();
 
     // 2. Answer all twelve N-400 questions non-interactively.
@@ -243,18 +242,17 @@ async fn naturalization_intake_through_the_interactive_cli_walk() {
     let (ok, out) = run_cli(
         &creds,
         &[
-            "matter",
-            "open",
+            "notation",
+            "create",
             "--host",
             &base,
-            "--template",
             "us__naturalization",
             "--client-email",
             "maria@example.com",
         ],
     )
     .await;
-    assert!(ok, "matter open failed:\n{out}");
+    assert!(ok, "notation create failed:\n{out}");
     let id = notation_id_from(&out).to_string();
 
     // Scripted stdin: the twelve scalar answers, one per line.

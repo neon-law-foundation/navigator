@@ -10,6 +10,7 @@
 //! | --- | --- |
 //! | `projects list` | `GET /portal/projects.csv` |
 //! | `project open`   | `POST /portal/projects` (303 → review URL) |
+//! | `notation create`  | `POST /portal/admin/retainers/new` |
 //! | `retainer approve` | `POST /portal/admin/notations/:id/approve-send` |
 //! | `retainer send`    | `POST /portal/admin/notations/:id/send` |
 //! | `notation status`  | `GET /portal/admin/notations/:id/review?format=json` |
@@ -464,15 +465,26 @@ pub async fn coupons_list(host: Option<&str>, json: bool) -> ExitCode {
     .await
 }
 
-/// `navigator matter open --template … --client-email …` — open a
-/// questionnaire-driven matter (an `onboarding__*` formation) through the
-/// walker entry the browser uses (`POST /portal/admin/retainers/new`) and
-/// surface the notation id. Unlike `project open` — which opens a matter
-/// *and* sends a retainer in one action, parking at `staff_review` — this
-/// leaves the questionnaire ready to walk from the terminal with
-/// `intake answer`.
-pub async fn matter_walk_open(host: Option<&str>, template: &str, client_email: &str) -> ExitCode {
+/// `navigator notation create <template-code> --client-email …` — create a
+/// questionnaire-driven notation through the walker entry the browser uses
+/// (`POST /portal/admin/retainers/new`) and surface the notation id. Unlike
+/// `project open` — which opens a matter *and* sends a retainer in one
+/// action, parking at `staff_review` — this leaves the questionnaire ready
+/// to walk from the terminal with `intake answer`.
+pub async fn notation_create(
+    host: Option<&str>,
+    template: &str,
+    client_email: &str,
+    project: Option<&str>,
+) -> ExitCode {
     run(async {
+        if let Some(project) = project {
+            return Err(anyhow!(
+                "project-scoped notation creation is not available through this live-site route yet. \
+                 Omit `--project` for bundled/template-example catalog templates, or use the future \
+                 project-scoped path with `--project {project}` once it lands."
+            ));
+        }
         let (base, token) = resolve(host)?;
         // No-redirect client so we read the 303 `Location` (the step URL)
         // rather than following it into the walker's HTML.
@@ -493,10 +505,10 @@ pub async fn matter_walk_open(host: Option<&str>, template: &str, client_email: 
         let status = resp.status();
         if status.as_u16() != 303 {
             // The walker re-renders its form (200) on a bad email/template;
-            // anything but the redirect means no matter was opened.
+            // anything but the redirect means no notation was created.
             let body = resp.text().await.unwrap_or_default();
             return Err(anyhow!(
-                "matter open did not start the questionnaire (status {status}). \
+                "notation create did not start the questionnaire (status {status}). \
                  The server reported: {}",
                 first_line(&body),
             ));
@@ -512,7 +524,7 @@ pub async fn matter_walk_open(host: Option<&str>, template: &str, client_email: 
             .trim_end_matches("/step");
         println!(
             "{} {}",
-            palette::dim("opened matter; questionnaire ready — notation"),
+            palette::dim("created notation; questionnaire ready — notation"),
             palette::highlight(notation_id),
         );
         println!(
@@ -524,6 +536,19 @@ pub async fn matter_walk_open(host: Option<&str>, template: &str, client_email: 
         Ok(())
     })
     .await
+}
+
+/// Deprecated compatibility path for `navigator matter open --template …
+/// --client-email …`.
+pub async fn matter_walk_open(host: Option<&str>, template: &str, client_email: &str) -> ExitCode {
+    eprintln!(
+        "{}",
+        palette::dim(
+            "deprecated: `navigator matter open --template ...` is an alias; \
+             use `navigator notation create <template-code> --client-email ...`"
+        )
+    );
+    notation_create(host, template, client_email, None).await
 }
 
 /// `navigator intake answer <id>` — walk the notation's questionnaire one
