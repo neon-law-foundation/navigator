@@ -216,4 +216,55 @@ mod tests {
         ));
         assert!(v.iter().any(|v| v.message.contains("filename stem")));
     }
+
+    #[test]
+    fn flags_unknown_jurisdiction() {
+        let v = F110JurisdictionPath.lint(&at(
+            "notation_templates/neon_law/nest/retainer.md",
+            "title: T\ncode: nest__retainer\njurisdiction: TX",
+        ));
+        assert_eq!(v[0].code, "N110");
+        assert!(v[0].message.contains("Unknown jurisdiction `TX`"));
+    }
+
+    #[test]
+    fn flags_form_template_without_government_origin_url() {
+        let v = F110JurisdictionPath.lint(&at(
+            "notation_templates/forms/united_states/nevada/state/nv__llc_formation.md",
+            "title: T\ncode: nv__llc_formation\njurisdiction: NV\norigin_url: http://example.com",
+        ));
+        assert!(v
+            .iter()
+            .any(|v| v.message.contains("government `origin_url:`")));
+    }
+
+    #[test]
+    fn flags_form_code_missing_jurisdiction_prefix() {
+        let v = F110JurisdictionPath.lint(&at(
+            "notation_templates/forms/united_states/nevada/state/llc_formation.md",
+            "title: T\ncode: llc_formation\njurisdiction: NV\norigin_url: https://www.nvsos.gov/forms",
+        ));
+        assert!(v.iter().any(|v| v
+            .message
+            .contains("must start with jurisdiction prefix `nv__`")));
+    }
+
+    #[test]
+    fn flags_missing_frontmatter() {
+        let v = F110JurisdictionPath.lint(&SourceFile {
+            path: PathBuf::from("notation_templates/neon_law/nest/retainer.md"),
+            contents: "no frontmatter here\n".to_string(),
+        });
+        assert_eq!(v[0].code, "N110");
+        assert!(v[0].message.contains("Missing frontmatter"));
+    }
+
+    #[test]
+    fn skips_the_catalog_readme() {
+        let v = F110JurisdictionPath.lint(&SourceFile {
+            path: PathBuf::from("notation_templates/README.md"),
+            contents: "# Notation templates\n\nNo frontmatter, and that is fine.\n".to_string(),
+        });
+        assert!(v.is_empty(), "{v:?}");
+    }
 }
