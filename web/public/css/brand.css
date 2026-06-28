@@ -152,8 +152,8 @@
 }
 
 .show-tell-card {
-  display: grid;
-  grid-template-columns: 11rem 1fr;
+  display: flex;
+  align-items: stretch;
   overflow: hidden;
   border: 1px solid var(--bs-border-color);
   border-radius: var(--bs-border-radius);
@@ -162,8 +162,8 @@
 
 .show-tell-card-media {
   display: block;
+  flex: 0 0 clamp(8.5rem, 18vw, 13rem);
   overflow: hidden;
-  min-height: 8rem;
   background: var(--bs-secondary-bg);
 }
 
@@ -175,24 +175,15 @@
 
 /* An event with no image: the body spans the full card width. */
 .show-tell-card-body:only-child {
-  grid-column: 1 / -1;
-}
-
-/* On narrow screens stack the thumbnail above the text. */
-@media (max-width: 575.98px) {
-  .show-tell-card {
-    grid-template-columns: 1fr;
-  }
-
-  .show-tell-card-media {
-    aspect-ratio: 16 / 9;
-    min-height: 0;
-  }
+  flex-basis: 100%;
 }
 
 .show-tell-card-body {
   display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
   flex-direction: column;
+  justify-content: center;
   gap: 0.25rem;
   padding: 1rem;
 }
@@ -212,6 +203,14 @@
 }
 
 @media (max-width: 575.98px) {
+  .show-tell-card-media {
+    display: none;
+  }
+
+  .show-tell-card-body {
+    padding: 0.875rem;
+  }
+
   .nebula-hero {
     min-height: 26rem;
   }
