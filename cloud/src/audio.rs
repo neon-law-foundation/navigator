@@ -15,13 +15,14 @@
 use std::fs::File;
 use std::path::Path;
 
-use symphonia::core::audio::{AudioBufferRef, SampleBuffer};
-use symphonia::core::codecs::DecoderOptions;
+use symphonia::core::audio::GenericAudioBufferRef;
+use symphonia::core::codecs::audio::{AudioDecoderOptions, CODEC_ID_NULL_AUDIO};
+use symphonia::core::codecs::CodecParameters;
 use symphonia::core::errors::Error as SymphoniaError;
+use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
 use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
 use thiserror::Error;
 
 /// A decoded recording: interleaved-free 16-bit mono PCM and its sample rate.
@@ -73,43 +74,46 @@ pub fn decode_to_mono_pcm16(path: &Path) -> Result<DecodedAudio, AudioError> {
         hint.with_extension(ext);
     }
 
-    let probed = symphonia::default::get_probe().format(
+    let mut format = symphonia::default::get_probe().probe(
         &hint,
         stream,
-        &FormatOptions::default(),
-        &MetadataOptions::default(),
+        FormatOptions::default(),
+        MetadataOptions::default(),
     )?;
-    let mut format = probed.format;
 
-    let track = format
+    let (track_id, codec_params, mut sample_rate) = format
         .tracks()
         .iter()
-        .find(|t| t.codec_params.codec != symphonia::core::codecs::CODEC_TYPE_NULL)
+        .find_map(|track| match &track.codec_params {
+            Some(CodecParameters::Audio(params)) if params.codec != CODEC_ID_NULL_AUDIO => {
+                Some((track.id, params.clone(), params.sample_rate.unwrap_or(0)))
+            }
+            _ => None,
+        })
         .ok_or(AudioError::NoTrack)?;
-    let track_id = track.id;
-    let mut decoder =
-        symphonia::default::get_codecs().make(&track.codec_params, &DecoderOptions::default())?;
-    let mut sample_rate = track.codec_params.sample_rate.unwrap_or(0);
+    let mut decoder = symphonia::default::get_codecs()
+        .make_audio_decoder(&codec_params, &AudioDecoderOptions::default())?;
 
     let mut samples: Vec<i16> = Vec::new();
     loop {
         let packet = match format.next_packet() {
-            Ok(packet) => packet,
+            Ok(Some(packet)) => packet,
+            Ok(None) => break,
             // Clean end of stream: Symphonia signals EOF as an io error.
             Err(SymphoniaError::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
                 break;
             }
             Err(e) => return Err(e.into()),
         };
-        if packet.track_id() != track_id {
+        if packet.track_id != track_id {
             continue;
         }
         match decoder.decode(&packet) {
             Ok(audio_buf) => {
                 if sample_rate == 0 {
-                    sample_rate = audio_buf.spec().rate;
+                    sample_rate = audio_buf.spec().rate();
                 }
-                append_mono_i16(audio_buf, &mut samples);
+                append_mono_i16(&audio_buf, &mut samples);
             }
             // A recoverable decode hiccup: skip the packet, keep going.
             Err(SymphoniaError::DecodeError(_)) => {}
@@ -130,17 +134,14 @@ pub fn decode_to_mono_pcm16(path: &Path) -> Result<DecodedAudio, AudioError> {
 }
 
 /// Convert one decoded buffer to mono `i16` and append it to `out`.
-fn append_mono_i16(decoded: AudioBufferRef<'_>, out: &mut Vec<i16>) {
-    let spec = *decoded.spec();
-    let capacity = decoded.capacity() as u64;
-    let channels = spec.channels.count().max(1);
+fn append_mono_i16(decoded: &GenericAudioBufferRef<'_>, out: &mut Vec<i16>) {
+    let channels = decoded.spec().channels().count().max(1);
 
-    let mut buf = SampleBuffer::<i16>::new(capacity, spec);
-    buf.copy_interleaved_ref(decoded);
-    let interleaved = buf.samples();
+    let mut interleaved = Vec::with_capacity(decoded.samples_interleaved());
+    decoded.copy_to_vec_interleaved::<i16>(&mut interleaved);
 
     if channels == 1 {
-        out.extend_from_slice(interleaved);
+        out.extend_from_slice(&interleaved);
         return;
     }
     let divisor = i32::try_from(channels).unwrap_or(1).max(1);
