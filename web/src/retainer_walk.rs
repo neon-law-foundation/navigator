@@ -2183,7 +2183,10 @@ async fn render_context_from_answers(
     let mut values_by_code: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for a in answers {
         if let Some(code) = code_by_id.get(&a.question_id) {
-            values_by_code.entry(code.clone()).or_default().push(a.value);
+            values_by_code
+                .entry(code.clone())
+                .or_default()
+                .push(a.value);
         }
     }
     // The bare canonical key resolves to the latest answer — both for a
@@ -2472,7 +2475,8 @@ workflow:
         add_template_state_aliases(&mut ctx, &values_by_code, &template_row, body);
 
         assert_eq!(
-            ctx.get("custom_text__mission_statement").map(String::as_str),
+            ctx.get("custom_text__mission_statement")
+                .map(String::as_str),
             Some("Expand legal access"),
             "first typed state must keep its own answer, not the latest"
         );
@@ -2524,7 +2528,8 @@ workflow:
         add_template_state_aliases(&mut ctx, &values_by_code, &template_row, body);
 
         assert_eq!(
-            ctx.get("custom_text__mission_statement").map(String::as_str),
+            ctx.get("custom_text__mission_statement")
+                .map(String::as_str),
             Some("Final answer")
         );
     }
