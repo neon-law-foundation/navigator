@@ -30,7 +30,7 @@ pub struct StartWalk<'a> {
 pub fn start_walk(form: &StartWalk<'_>) -> Markup {
     // A matter opens on an onboarding template; the dropdown is the
     // canonical picker so staff choose "Neon Law Nest" rather than typing
-    // `onboarding__nest`. Default the selection to the retainer.
+    // `onboarding__retainer_nest`. Default the selection to the retainer.
     let selected = if form.retainer_template_code.is_empty() {
         "onboarding__retainer"
     } else {

@@ -6,7 +6,7 @@
 //! walker auto-drives, and the worker-shaped runtime that records the USCIS
 //! filing, advances the biometrics / interview / oath milestones, and files
 //! the issued Certificate of Naturalization (Form N-550) into the matter.
-//! The `naturalization__federal` template body renders the N-400 intake
+//! The `us__naturalization` template body renders the N-400 intake
 //! summary; the questionnaire + workflow it carries are the contract here.
 
 // Cucumber's step-attribute macros require `async fn`, so assertion

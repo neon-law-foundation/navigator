@@ -216,7 +216,7 @@ enum Command {
         #[command(subcommand)]
         action: AssetsAction,
     },
-    /// Vendored government forms (`notation_templates/forms/` + FORMS.toml).
+    /// Vendored government forms (`notation_templates/forms/`).
     Forms {
         #[command(subcommand)]
         action: FormsAction,
@@ -559,9 +559,8 @@ enum AssetsAction {
 #[derive(Subcommand)]
 enum FormsAction {
     /// Push every vendored blank (the `forms` registry bundled from
-    /// `notation_templates/forms/`) to the assets bucket at its FORMS.toml
-    /// `object_path`. Idempotent — existing keys are skipped, since a
-    /// form revision is immutable (a refresh lands at a new path).
+    /// `notation_templates/forms/`) to the assets bucket at the matching
+    /// object path. Idempotent — existing keys are skipped.
     /// Auth is ADC; the emulator endpoint is honored via
     /// `NAVIGATOR_STORAGE_ENDPOINT`.
     Sync {
@@ -719,7 +718,7 @@ enum MatterAction {
     Open {
         #[command(flatten)]
         host: HostOpt,
-        /// Onboarding template code, e.g. `onboarding__nest` (Nevada LLC).
+        /// Template code, e.g. `nv__llc_formation` (Nevada LLC).
         #[arg(long)]
         template: String,
         /// Client email — the matter's bound client (signer).

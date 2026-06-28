@@ -11,7 +11,7 @@
 use std::collections::BTreeMap;
 
 fn llc_bytes() -> &'static [u8] {
-    forms::get("nv_sos__llc_formation")
+    forms::get("nv__llc_formation")
         .expect("registry loads")
         .expect("LLC packet vendored")
         .bytes
@@ -106,14 +106,14 @@ fn all_three_packets_parse_and_expose_an_acroform() {
         // An empty fill is a parse + AcroForm-locate pass over the real
         // bytes — XFA or a parse regression fails here.
         pdf::fill_acroform(form.bytes, &BTreeMap::new())
-            .unwrap_or_else(|e| panic!("{}: {e}", form.meta.form_code));
+            .unwrap_or_else(|e| panic!("{}: {e}", form.meta.code));
     }
 }
 
 #[test]
 fn every_mapped_field_name_exists_in_the_vendored_bytes() {
     for form in forms::registry().expect("registry loads") {
-        let map = forms::field_map(&form.meta.form_code)
+        let map = forms::field_map(form.meta.code)
             .expect("map parses")
             .expect("every vendored form has a map");
         let names = pdf::field_names(form.bytes).expect("field names readable");
@@ -122,7 +122,7 @@ fn every_mapped_field_name_exists_in_the_vendored_bytes() {
                 names.iter().any(|n| n == &rule.name),
                 "{}: mapped field `{}` does not exist in the vendored bytes — \
                  the map was guessed or the form was re-vendored without updating it",
-                form.meta.form_code,
+                form.meta.code,
                 rule.name
             );
         }
@@ -176,7 +176,7 @@ fn llc_map_round_trips_through_the_real_packet() {
     .into_iter()
     .map(|(k, v)| (k.to_string(), v))
     .collect();
-    round_trip("nv_sos__llc_formation", &answers);
+    round_trip("nv__llc_formation", &answers);
 }
 
 #[test]
@@ -192,7 +192,7 @@ fn corp_map_round_trips_through_the_real_packet() {
     .into_iter()
     .map(|(k, v)| (k.to_string(), v))
     .collect();
-    round_trip("nv_sos__profit_corp_formation", &answers);
+    round_trip("nv__profit_corp_formation", &answers);
 }
 
 #[test]
@@ -205,7 +205,7 @@ fn business_trust_map_round_trips_through_the_real_packet() {
     .into_iter()
     .map(|(k, v)| (k.to_string(), v))
     .collect();
-    round_trip("nv_sos__business_trust_formation", &answers);
+    round_trip("nv__business_trust_formation", &answers);
 }
 
 #[test]
@@ -221,7 +221,7 @@ fn single_member_llc_leaves_empty_slots_and_their_titles_blank() {
     .into_iter()
     .map(|(k, v)| (k.to_string(), v))
     .collect();
-    let map = forms::field_map("nv_sos__llc_formation").unwrap().unwrap();
+    let map = forms::field_map("nv__llc_formation").unwrap().unwrap();
     let resolved = forms::resolve(&map, &answers).unwrap();
     assert_eq!(resolved["Title"], "Managing Member");
     assert!(

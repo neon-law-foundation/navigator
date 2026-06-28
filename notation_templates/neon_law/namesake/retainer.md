@@ -2,6 +2,7 @@
 title: Namesake Engagement Agreement
 respondent_type: person_and_entity
 code: onboarding__retainer_namesake
+jurisdiction: US
 confidential: true
 questionnaire:
   BEGIN:

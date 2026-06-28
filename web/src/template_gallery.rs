@@ -86,7 +86,7 @@ macro_rules! template {
 /// then the two Nevada-specific nonprofit filings, each loudly labeled.
 const MANIFEST: &[ManifestEntry] = &[
     template!(
-        "united_states/federal/irs/taxation/form990_annual_report",
+        "forms/united_states/federal/irs/us__form_990",
         Jurisdiction::Federal,
         "The annual information return every tax-exempt organization files \
          with the IRS (IRC §6033) — the year's revenue, governance, and \
@@ -94,14 +94,14 @@ const MANIFEST: &[ManifestEntry] = &[
          incorporated."
     ),
     template!(
-        "united_states/nevada/state/business_associations/nonprofit_501c3_formation",
+        "forms/united_states/nevada/state/nv__nonprofit_501c3_formation",
         Jurisdiction::Nevada,
         "Articles of incorporation that form a Nevada nonprofit and set it up \
          to seek 501(c)(3) status — mission, founding board, and registered \
          agent. Written for Nevada filings."
     ),
     template!(
-        "united_states/nevada/state/business_associations/charitable_solicitation_registration",
+        "forms/united_states/nevada/state/nv__charitable_solicitation_registration",
         Jurisdiction::Nevada,
         "The registration a charity files with the Nevada Secretary of State \
          before soliciting donations in the state. Written for Nevada; other \
@@ -115,7 +115,7 @@ const MANIFEST: &[ManifestEntry] = &[
 pub struct GalleryTemplate {
     /// Template path under `notation_templates/`, without `.md`.
     pub path: &'static str,
-    /// File stem (`form990_annual_report`), shown in the download name.
+    /// File stem (`us__form_990`), shown in the download name.
     pub name: &'static str,
     /// Human title, parsed from the template's frontmatter `title`.
     pub title: String,
@@ -130,7 +130,7 @@ pub struct GalleryTemplate {
 }
 
 impl GalleryTemplate {
-    /// Download filename, e.g. `form990_annual_report.md`.
+    /// Download filename, e.g. `us__form_990.md`.
     #[must_use]
     pub fn download_filename(&self) -> String {
         format!("{}.md", self.name)
@@ -230,15 +230,15 @@ pub fn legacy_alias(path: &str) -> Option<&'static str> {
     [
         (
             "nonprofit/form990_annual_report",
-            "united_states/federal/irs/taxation/form990_annual_report",
+            "forms/united_states/federal/irs/us__form_990",
         ),
         (
             "nonprofit/nevada_501c3_formation",
-            "united_states/nevada/state/business_associations/nonprofit_501c3_formation",
+            "forms/united_states/nevada/state/nv__nonprofit_501c3_formation",
         ),
         (
             "nonprofit/nevada_charitable_solicitation_registration",
-            "united_states/nevada/state/business_associations/charitable_solicitation_registration",
+            "forms/united_states/nevada/state/nv__charitable_solicitation_registration",
         ),
     ]
     .into_iter()
@@ -283,24 +283,23 @@ mod tests {
     #[test]
     fn gallery_leads_with_the_federal_form_990() {
         let first = &gallery()[0];
-        assert_eq!(first.name, "form990_annual_report");
+        assert_eq!(first.name, "us__form_990");
         assert_eq!(first.jurisdiction, Jurisdiction::Federal);
     }
 
     #[test]
     fn title_is_parsed_from_each_template_frontmatter() {
-        let t =
-            find_path("united_states/federal/irs/taxation/form990_annual_report").expect("listed");
+        let t = find_path("forms/united_states/federal/irs/us__form_990").expect("listed");
         assert!(t.title.contains("Form 990"), "got title {:?}", t.title);
     }
 
     #[test]
     fn find_resolves_the_kebab_url_form_to_the_underscore_stem() {
-        let kebab = find_path("united-states/federal/irs/taxation/form990-annual-report")
-            .expect("kebab form resolves");
-        let underscore = find_path("united_states/federal/irs/taxation/form990_annual_report")
-            .expect("stem form resolves");
-        assert_eq!(kebab.name, "form990_annual_report");
+        let kebab =
+            find_path("forms/united-states/federal/irs/us--form-990").expect("kebab form resolves");
+        let underscore =
+            find_path("forms/united_states/federal/irs/us__form_990").expect("stem form resolves");
+        assert_eq!(kebab.name, "us__form_990");
         assert_eq!(kebab.name, underscore.name);
     }
 
@@ -308,7 +307,7 @@ mod tests {
     fn legacy_gallery_paths_resolve_to_the_deep_tree() {
         assert_eq!(
             legacy_alias("nonprofit/form990-annual-report"),
-            Some("united_states/federal/irs/taxation/form990_annual_report")
+            Some("forms/united_states/federal/irs/us__form_990")
         );
         assert!(find("nonprofit", "form990_annual_report").is_some());
     }
@@ -333,9 +332,9 @@ mod tests {
 
     #[test]
     fn served_frontmatter_excludes_the_template_body() {
-        let t = find_path("united_states/federal/irs/taxation/form990_annual_report").unwrap();
+        let t = find_path("forms/united_states/federal/irs/us__form_990").unwrap();
         let fm = t.frontmatter();
-        assert!(fm.contains("code: form_990__annual_report"));
+        assert!(fm.contains("code: us__form_990"));
         assert!(!fm.contains("# IRS Form 990"));
     }
 }

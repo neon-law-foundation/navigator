@@ -12,7 +12,7 @@ Feature: Neon Law Nautilus correspondence workflows
   failing scenario.
 
   Scenario: Notice of representation intake walks client → collector → consent → END
-    Given the bundled template "united_states/federal/internal/debt_relief/notice_of_representation.md"
+    Given the bundled template "neon_law/nautilus/notice_of_representation.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                 | to                   |
       | BEGIN                | client_name          |
@@ -24,7 +24,7 @@ Feature: Neon Law Nautilus correspondence workflows
       | consent_to_represent | END                  |
 
   Scenario: Notice of representation renders, is attorney-reviewed, then mailed
-    Given the bundled template "united_states/federal/internal/debt_relief/notice_of_representation.md"
+    Given the bundled template "neon_law/nautilus/notice_of_representation.md"
     Then every workflow state resolves to a StepKind
     And the workflow gates every outbound letter behind attorney review
 
@@ -45,7 +45,7 @@ Feature: Neon Law Nautilus correspondence workflows
     Then it is routed to "StaffReview"
 
   Scenario: Debt validation intake walks debt → creditor → dispute → END
-    Given the bundled template "united_states/federal/internal/debt_relief/debt_validation.md"
+    Given the bundled template "neon_law/nautilus/debt_validation.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from              | to                |
       | BEGIN             | client_name       |
@@ -56,7 +56,7 @@ Feature: Neon Law Nautilus correspondence workflows
       | disputed_reason   | END               |
 
   Scenario: Debt validation letter is attorney-reviewed before it is mailed
-    Given the bundled template "united_states/federal/internal/debt_relief/debt_validation.md"
+    Given the bundled template "neon_law/nautilus/debt_validation.md"
     Then every workflow state resolves to a StepKind
     And the workflow gates every outbound letter behind attorney review
 
@@ -76,7 +76,7 @@ Feature: Neon Law Nautilus correspondence workflows
     Then a possible FDCPA violation is flagged for attorney review
 
   Scenario: Cease-communication letter is attorney-reviewed before it is mailed
-    Given the bundled template "united_states/federal/internal/debt_relief/cease_communication.md"
+    Given the bundled template "neon_law/nautilus/cease_communication.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from        | to             |
       | BEGIN       | client_name    |
@@ -89,7 +89,7 @@ Feature: Neon Law Nautilus correspondence workflows
     Then the cease-communication disclaimer says it does not erase the debt
 
   Scenario: FCRA dispute intake walks bureau → tradeline → error → END
-    Given the bundled template "united_states/federal/internal/debt_relief/fcra_dispute.md"
+    Given the bundled template "neon_law/nautilus/fcra_dispute.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from         | to           |
       | BEGIN        | client_name  |
@@ -110,7 +110,7 @@ Feature: Neon Law Nautilus correspondence workflows
       | We verified the item as accurate; it remains on your report. | VerifiedUnchanged |
 
   Scenario: Settlement intake walks target → terms → authorization → END
-    Given the bundled template "united_states/federal/internal/debt_relief/settlement_letter.md"
+    Given the bundled template "neon_law/nautilus/settlement_letter.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                | to                  |
       | BEGIN               | client_name         |
@@ -121,7 +121,7 @@ Feature: Neon Law Nautilus correspondence workflows
       | client_authorization| END                 |
 
   Scenario: Settlement is client-authorized and attorney-reviewed before it is mailed
-    Given the bundled template "united_states/federal/internal/debt_relief/settlement_letter.md"
+    Given the bundled template "neon_law/nautilus/settlement_letter.md"
     Then every workflow state resolves to a StepKind
     And the workflow gates every outbound letter behind attorney review
 

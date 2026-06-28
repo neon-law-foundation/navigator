@@ -15,11 +15,12 @@ respondent is, what the document is titled. It asks nothing on its own. Until a 
 [Notation](#notation)), it is inert — a file on disk, useful for linting and preview, but no questions have been asked
 and no workflow has run.
 
-Identified by a stable `code` like `llc-california` or `onboarding-retainer`.
+Identified by a stable `code` like `nv__llc_formation`, `ca__llc_operating_agreement`, or `onboarding__retainer_nest`.
 
 - Schema: [`store::entity::template`](../store/src/entity/template.rs) Files:
-  [`notation_templates/`](../notation_templates/) — `category/snake_case_name.md`, e.g.
-  `notation_templates/united_states/nevada/internal/trusts_and_estates/trust.md`.
+  [`notation_templates/`](../notation_templates/) — exactly two top-level shelves:
+  `forms/<country>/<jurisdiction>/<office>/<code>.md` for government forms, and `neon_law/<product>/<document>.md` for
+  Neon Law product work.
 
 > **Storage.** The markdown body lives in [`cloud::StorageService`](../cloud/) like every other artifact: the
   `templates.body` TEXT column is gone; `templates.blob_id` references a [Blob](glossary.md#blob) holding the bytes.
@@ -32,8 +33,14 @@ Identified by a stable `code` like `llc-california` or `onboarding-retainer`.
   `list`, the admin surface) and resolved only under that Project;
   [`store::templates::resolve`](../store/src/templates.rs) prefers the caller's Project, falling back to the shared row.
   Two partial unique indexes on `code` enforce the rule. The shared index keeps workspace-shared codes globally unique
-  (`llc__california`, `onboarding__retainer`); the per-Project index on `project_id` and `code` lets each Project reuse
-  short codes (`amendment`, `consent`) without colliding with another Project's.
+  (`ca__llc_operating_agreement`, `onboarding__retainer`); the per-Project index on `project_id` and `code` lets each
+  Project reuse short codes (`amendment`, `consent`) without colliding with another Project's.
+
+> **Jurisdiction.** Every Template declares a `jurisdiction:` code that resolves to
+  [`store/seeds/Jurisdiction.yaml`](../store/seeds/Jurisdiction.yaml). Government form templates also encode the
+  jurisdiction in their `code`: `NV` maps to `nv__...`, `US` maps to `us__...`, and the markdown filename stem must
+  match that code. The government provenance URL is `origin_url`, not a checked-in checksum or revision field; git
+  tracks the vendored bytes.
 
 ## Notation
 
@@ -42,8 +49,8 @@ respondent — a [Project](glossary.md#project), and optionally an [Entity](glos
 `state` such as `draft`, `staff_review`, or `signed`.
 
 > **Client English.** A Notation in the context of its Project is what clients call an
-  **[Engagement](glossary.md#engagement--retainer)** (or a **Retainer**, when the bound Template is the onboarding
-  retainer). The schema noun is `Notation`; the marketing noun is Engagement.
+  **[Engagement](glossary.md#engagement--retainer)** (or a **Retainer**, when the bound Template is a retainer). The
+  schema noun is `Notation`; the marketing noun is Engagement.
 
 The Questions the Template declared are *asked* here; the [Answers](#answer) the respondent gives are stored against
 this Notation; the workflow runs against this Notation. Where a Template is static, a Notation has a lifetime — born

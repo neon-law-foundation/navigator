@@ -6,8 +6,8 @@
 //! Both sit inside the `/portal` auth + policy stack — the OPA rule
 //! admits any authenticated person, since the blanks are public
 //! records — and the bytes come from the bundled registry, so the
-//! download is exactly what the provenance ledger pins, with no
-//! bucket round-trip.
+//! download is exactly what the repository carries, with no bucket
+//! round-trip.
 
 use axum::extract::Path;
 use axum::http::{header, StatusCode};
@@ -25,12 +25,10 @@ pub async fn index_get() -> Response {
     let rows: Vec<views::pages::portal::forms::FormRow> = forms
         .iter()
         .map(|f| views::pages::portal::forms::FormRow {
-            form_code: f.meta.form_code.clone(),
-            name: f.meta.name.clone(),
-            authority: f.meta.authority.clone(),
-            revision: f.meta.revision.clone(),
-            retrieved: f.meta.retrieved.clone(),
-            source_url: f.meta.source_url.clone(),
+            code: f.meta.code.to_string(),
+            title: f.meta.title.to_string(),
+            jurisdiction: f.meta.jurisdiction.to_string(),
+            origin_url: f.meta.origin_url.to_string(),
         })
         .collect();
     views::pages::portal::forms::index(&rows).into_response()
@@ -55,10 +53,7 @@ pub async fn download_get(Path(file): Path<String>) -> Response {
             (header::CONTENT_TYPE, "application/pdf".to_string()),
             (
                 header::CONTENT_DISPOSITION,
-                format!(
-                    "attachment; filename=\"{}-{}.pdf\"",
-                    form.meta.form_code, form.meta.revision
-                ),
+                format!("attachment; filename=\"{}.pdf\"", form.meta.code),
             ),
         ],
         form.bytes,
@@ -74,19 +69,19 @@ mod tests {
 
     #[tokio::test]
     async fn downloads_a_vendored_blank_as_pdf() {
-        let resp = download_get(Path("nv_sos__llc_formation.pdf".into())).await;
+        let resp = download_get(Path("nv__llc_formation.pdf".into())).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let headers = resp.headers();
         assert_eq!(headers["content-type"], "application/pdf");
         assert!(headers["content-disposition"]
             .to_str()
             .unwrap()
-            .contains("nv_sos__llc_formation-2023-08.pdf"));
+            .contains("nv__llc_formation.pdf"));
     }
 
     #[tokio::test]
     async fn unknown_codes_and_non_pdf_paths_404() {
-        for file in ["nv_sos__annual_list.pdf", "nv_sos__llc_formation", "x.exe"] {
+        for file in ["nv__annual_list.pdf", "nv__llc_formation", "x.exe"] {
             let resp = download_get(Path(file.into())).await;
             assert_eq!(resp.status(), StatusCode::NOT_FOUND, "{file}");
         }

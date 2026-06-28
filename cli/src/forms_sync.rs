@@ -2,18 +2,17 @@
 //! to the public assets bucket.
 //!
 //! The repo's `notation_templates/forms/` tree (bundled into the `forms`
-//! registry) is the canonical copy; the bucket carries a serving copy
-//! at each ledger `object_path` so the website and external readers
-//! can fetch blanks without the binary. Idempotent: a key whose bytes
-//! already exist is skipped (`StorageService::exists`), and revisions
-//! are append-only — a re-vendor lands at a new path, old bytes stay.
+//! registry) is the canonical copy; the bucket carries a serving copy at
+//! the same path. Idempotent: a key whose bytes already exist is skipped
+//! (`StorageService::exists`), and refreshes land at new paths when the
+//! form code changes.
 
 use std::process::ExitCode;
 
 use cloud::{GcsStorage, GcsStorageConfig, StorageService};
 
-/// Long-lived cache: a vendored form revision is immutable (a refresh
-/// gets a new `object_path`), so downstream caches may hold it.
+/// Long-lived cache: a vendored form object is immutable, so downstream
+/// caches may hold it.
 const FORM_CACHE_CONTROL: &str = "public, max-age=604800";
 
 /// Entry point for `cli forms sync`. `bucket` defaults to the
@@ -67,9 +66,8 @@ pub fn run_sync(bucket: Option<String>) -> ExitCode {
     })
 }
 
-/// Upload every registry form to its ledger `object_path`, skipping
-/// keys that already exist (revisions are immutable, so presence is
-/// sufficient). Returns `(uploaded, skipped)`.
+/// Upload every registry form to its object path, skipping keys that
+/// already exist. Returns `(uploaded, skipped)`.
 async fn sync(storage: &dyn StorageService) -> anyhow::Result<(usize, usize)> {
     let forms = forms::registry()?;
     let (mut uploaded, mut skipped) = (0, 0);

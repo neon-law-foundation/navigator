@@ -210,14 +210,14 @@ mod tests {
     fn detail_shows_frontmatter_disclaimer_download_and_cta() {
         let d = TemplateDetail {
             card: card(),
-            frontmatter: "title: IRS Form 990\ncode: form_990__annual_report",
+            frontmatter: "title: IRS Form 990\ncode: us__form_990",
             download_href:
                 "/templates/united-states/federal/irs/taxation/form990-annual-report/download",
             start_matter_href: "/contact",
         };
         let html = detail(&d, AuthState::Anonymous).into_string();
         // The notation format payload.
-        assert!(html.contains("code: form_990__annual_report"));
+        assert!(html.contains("code: us__form_990"));
         // The disclaimer.
         assert!(html.contains("does not create an attorney"));
         // The raw download link is the kebab-cased route…

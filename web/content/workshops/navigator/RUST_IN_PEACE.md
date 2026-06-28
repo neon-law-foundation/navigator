@@ -125,7 +125,7 @@ From `features/tests/features/nest_formation.feature`:
 
 ```gherkin
   Scenario: From intake to a stamped Secretary-of-State filing
-    When the firm opens the "onboarding__nest" matter for the client
+    When the firm opens the "nv__llc_formation" matter for the client
     And the founder answers the formation questionnaire:
       | value                  |
       | Libra                  |
@@ -153,7 +153,7 @@ against a real Postgres on every `cargo test`. The feature is the contract; the 
 The template is one markdown file whose frontmatter is the machine-readable half of our notation format: a questionnaire
 graph (what we ask) and a workflow graph (what we do). The Nest questionnaire is seven answers, in order.
 
-From `notation_templates/united_states/nevada/state/business_associations/entity_formation.md`:
+From `notation_templates/forms/united_states/nevada/state/nv__llc_formation.md`:
 
 ```yaml
 questionnaire:
@@ -179,7 +179,7 @@ questionnaire:
 And here is the workflow — the LLC formation dissected into small, named, modular steps. Each state is a noun in our
 glossary; each transition is a signal some handler fires. This graph *is* the product.
 
-From `notation_templates/united_states/nevada/state/business_associations/entity_formation.md`:
+From `notation_templates/forms/united_states/nevada/state/nv__llc_formation.md`:
 
 ```yaml
 workflow:

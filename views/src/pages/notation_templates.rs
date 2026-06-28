@@ -86,7 +86,7 @@ mod tests {
         assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(html.contains("<title>Neon Law Foundation | Notations</title>"));
         assert!(html.contains(">Notation</h1>"));
-        assert!(html.contains("Every file is markdown with a YAML frontmatter block"));
+        assert!(html.contains("Every template has YAML frontmatter"));
     }
 
     #[test]
@@ -115,20 +115,20 @@ mod tests {
     #[test]
     fn template_links_map_to_the_raw_api() {
         assert_eq!(
-            rewrite_link("united_states/nevada/state/business_associations/entity_formation.md"),
-            "/api/templates/united-states/nevada/state/business-associations/entity-formation"
+            rewrite_link("forms/united_states/nevada/state/nv__llc_formation.md"),
+            "/api/templates/forms/united-states/nevada/state/nv--llc-formation"
         );
         assert_eq!(
-            rewrite_link("united_states/nevada/state/business_associations/annual_report.md"),
-            "/api/templates/united-states/nevada/state/business-associations/annual-report"
+            rewrite_link("forms/united_states/nevada/state/nv__annual_report.md"),
+            "/api/templates/forms/united-states/nevada/state/nv--annual-report"
         );
     }
 
     #[test]
     fn other_relative_links_point_at_the_github_source() {
         assert_eq!(
-            rewrite_link("forms/FORMS.toml"),
-            "https://github.com/neon-law-foundation/navigator/blob/main/notation_templates/forms/FORMS.toml"
+            rewrite_link("forms/united_states/nevada/state/nv__llc_formation.fields.toml"),
+            "https://github.com/neon-law-foundation/navigator/blob/main/notation_templates/forms/united_states/nevada/state/nv__llc_formation.fields.toml"
         );
     }
 }

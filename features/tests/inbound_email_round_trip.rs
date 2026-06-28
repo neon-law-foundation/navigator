@@ -98,11 +98,11 @@ async fn seed_client(world: &mut EmailWorld, name: String, email: String) {
     let project_id = matter(&journey.db, person.id, "Aries open matter").await;
     // A real matter notation to @link the thread to.
     let template = entity::template::Entity::find()
-        .filter(entity::template::Column::Code.eq("onboarding__nest"))
+        .filter(entity::template::Column::Code.eq("onboarding__retainer_nest"))
         .one(&journey.db)
         .await
         .unwrap()
-        .expect("onboarding__nest seeded");
+        .expect("onboarding__retainer_nest seeded");
     let notation_id = entity::notation::ActiveModel {
         template_id: ActiveValue::Set(template.id),
         person_id: ActiveValue::Set(person.id),

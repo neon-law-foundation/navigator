@@ -15,12 +15,19 @@ their [Matter](docs/glossary.md#matter). Every project contains a git repository
 templates](docs/notation.md#templates) which frequently use terms from our [glossary](docs/glossary.md). Notation
 templates are markdown documents that define the intake questions and workflows required to solve legal problems.
 
-For example, the [Nevada
-entity-formation](notation_templates/united_states/nevada/state/business_associations/entity_formation.md) notation
-template defines the questions required for filling out an entity formation, the workflows that are required, and where
-that data is used in the notation template body. When you work with your client, you create a
+For example, the [Nevada entity-formation](notation_templates/forms/united_states/nevada/state/nv__llc_formation.md)
+notation template defines the questions required for filling out an entity formation, the workflows that are required,
+and where that data is used in the notation template body. When you work with your client, you create a
 [notation](docs/notation.md#notations) from a notation template. For coders, a notation is a workflow executed with a
 durable execution engine.
+
+Notation templates live on two shelves. [`notation_templates/forms/`](notation_templates/forms/) mirrors the public
+assets bucket for government forms (`forms/united_states/nevada/state/nv__llc_formation.pdf`), and each sibling `.md`
+declares the jurisdiction-first form code plus the government `origin_url`.
+[`notation_templates/neon_law/`](notation_templates/neon_law/) holds the firm's product work: product retainers,
+engagement letters, product-specific documents, and shared closing letters. Start with [notation
+authoring](docs/notation-authoring.md) and the [`notation_templates` README](notation_templates/README.md) before adding
+a template.
 
 We encourage writing notation templates with [Zed](https://zed.dev) and our [LSP](docs/lsp/README.md). It's different
 from Word, but once you get used to it, you may find it as productive as we do. Treating legal text like code opens a

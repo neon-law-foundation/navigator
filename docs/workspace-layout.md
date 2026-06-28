@@ -18,7 +18,7 @@ cloud        lib   — storage trait + GCS/Fs backends
 live-inquiry lib   — provider-agnostic transcript segments, Inquiry normalization, and Coverage Findings for live-coverage demos/runtime
 mcp          lib   — MCP server merged into `web` at /mcp (Claude / LibreChat / Cursor)
 features     lib   — Cucumber-rust BDD suite (`cargo test -p features`)
-forms        lib   — vendored government forms registry (FORMS.toml ledger + bundled canonical PDFs)
+forms        lib   — vendored government forms registry (bucket-shaped paths + bundled canonical PDFs)
 lsp          bin   `navigator-lsp` — LSP server: rule diagnostics + source.fixAll
 pdf          lib   — Typst-backed PDF rendering (Noto Serif firm typeface); persists via `cloud`
 archives     lib   — nightly Postgres→Parquet snapshot Restate workflow + diagnostic email

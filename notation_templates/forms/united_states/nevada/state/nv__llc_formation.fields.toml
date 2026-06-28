@@ -1,0 +1,323 @@
+# Field map for the NV SoS LLC Formation Packet (NRS 86, rev 2023-08).
+#
+# Every `name` below is the exact AcroForm `/T` from a dump of the
+# vendored bytes — see the vendor-gov-forms skill (canonical example on
+# disk, no guessing). OmniForm names are hostile (`undefined`, `City_5`)
+# and are reproduced byte-for-byte; the guard test fails if a re-vendor
+# renames one. Customer Order / ePayment card fields are deliberately
+# unmapped: payment data never flows through the questionnaire. The
+# Registered Agent Acceptance page (packet p6) is a staff-side artifact
+# and stays unmapped too.
+#
+# Known quirk: the Initial List slot-1 `City` and `State` fields share
+# their widgets with the ePayment Checklist (kid pages [5, 10]), so
+# filling them would also print onto the payment form. They stay
+# unmapped; staff completes slot 1's city/state during review.
+
+form_code = "nv__llc_formation"
+
+# ---- Articles of Organization (packet pages 2-3) ----
+
+[[field]] # Filing under NRS 86: domestic Limited-Liability Company.
+name = "formation_1"
+literal = "NRS 86"
+
+[[field]]
+name = "1 Name of Entity If foreign name in home jurisdiction"
+question = "entity_name"
+
+[[field]]
+name = "Name of Registered Agent"
+question = "registered_agent"
+
+[[field]] # 5. Management — checked when manager-managed.
+name = "managers_a"
+question = "management_structure"
+checked_when = "managers"
+on_state = "managers"
+
+[[field]] # 5. Management — checked when member-managed.
+name = "managers_b"
+question = "management_structure"
+checked_when = "members"
+on_state = "members"
+
+# 6. Name and Address of each Manager / Managing Member — three slots.
+
+[[field]]
+name = "Name3"
+question = "managing_members"
+row = 0
+part = "name"
+
+[[field]] # OmniForm named slot 1's street address field `undefined`.
+name = "undefined"
+question = "managing_members"
+row = 0
+part = "street"
+
+[[field]]
+name = "City_33"
+question = "managing_members"
+row = 0
+part = "city"
+
+[[field]]
+name = "State3"
+question = "managing_members"
+row = 0
+part = "state"
+
+[[field]]
+name = "ZipPostal Code3"
+question = "managing_members"
+row = 0
+part = "zip"
+
+[[field]]
+name = "Country3"
+question = "managing_members"
+row = 0
+part = "country"
+
+[[field]]
+name = "Name_24"
+question = "managing_members"
+row = 1
+part = "name"
+
+[[field]]
+name = "Street Address_24"
+question = "managing_members"
+row = 1
+part = "street"
+
+[[field]]
+name = "City_44"
+question = "managing_members"
+row = 1
+part = "city"
+
+[[field]]
+name = "State_24"
+question = "managing_members"
+row = 1
+part = "state"
+
+[[field]]
+name = "ZipPostal Code_24"
+question = "managing_members"
+row = 1
+part = "zip"
+
+[[field]]
+name = "Country_24"
+question = "managing_members"
+row = 1
+part = "country"
+
+[[field]]
+name = "Name_34"
+question = "managing_members"
+row = 2
+part = "name"
+
+[[field]]
+name = "Street Address_3"
+question = "managing_members"
+row = 2
+part = "street"
+
+[[field]]
+name = "City_5"
+question = "managing_members"
+row = 2
+part = "city"
+
+[[field]]
+name = "State_35"
+question = "managing_members"
+row = 2
+part = "state"
+
+[[field]]
+name = "ZipPostal Code_35"
+question = "managing_members"
+row = 2
+part = "zip"
+
+[[field]]
+name = "Country_34"
+question = "managing_members"
+row = 2
+part = "country"
+
+# 12. Name, Address and Signature of the Organizer. In this flow the
+# first listed manager / managing member acts as the organizer; the
+# attorney confirms at staff review before anything is signed or filed.
+
+[[field]] # OmniForm swallowed the perjury notice into the organizer name field's /T.
+name = "knowingly offer any false or forged instrument for filing in the Office of the Secretary of State"
+question = "managing_members"
+row = 0
+part = "name"
+
+[[field]]
+name = "Address6"
+question = "managing_members"
+row = 0
+part = "street"
+
+[[field]]
+name = "City_6"
+question = "managing_members"
+row = 0
+part = "city"
+
+[[field]]
+name = "State_46"
+question = "managing_members"
+row = 0
+part = "state"
+
+[[field]]
+name = "ZipPostal Code_4"
+question = "managing_members"
+row = 0
+part = "zip"
+
+[[field]]
+name = "Country_46"
+question = "managing_members"
+row = 0
+part = "country"
+
+# ---- Initial List & State Business License (packet pages 4-5) ----
+
+[[field]]
+name = "NAME OF ENTITY"
+question = "entity_name"
+
+[[field]] # Entity type: Limited-Liability Company.
+name = "entityType_2"
+literal = "Limited-Liability Company"
+
+# Officer slots — for an LLC these are the managers / managing members.
+# Slot 1's `City` / `State` are unmapped (shared widget, see header).
+
+[[field]]
+name = "Title"
+question = "management_structure"
+value_map = { managers = "Manager", members = "Managing Member" }
+present_in = "managing_members"
+row_present = 0
+
+[[field]]
+name = "Name"
+question = "managing_members"
+row = 0
+part = "name"
+
+[[field]]
+name = "Address"
+question = "managing_members"
+row = 0
+part = "street"
+
+[[field]]
+name = "ZipPostal Code"
+question = "managing_members"
+row = 0
+part = "zip"
+
+[[field]]
+name = "Country"
+question = "managing_members"
+row = 0
+part = "country"
+
+[[field]]
+name = "Title_2"
+question = "management_structure"
+value_map = { managers = "Manager", members = "Managing Member" }
+present_in = "managing_members"
+row_present = 1
+
+[[field]]
+name = "Name_2"
+question = "managing_members"
+row = 1
+part = "name"
+
+[[field]]
+name = "Address_2"
+question = "managing_members"
+row = 1
+part = "street"
+
+[[field]]
+name = "City_2"
+question = "managing_members"
+row = 1
+part = "city"
+
+[[field]]
+name = "State_2"
+question = "managing_members"
+row = 1
+part = "state"
+
+[[field]]
+name = "ZipPostal Code_2"
+question = "managing_members"
+row = 1
+part = "zip"
+
+[[field]]
+name = "Country_2"
+question = "managing_members"
+row = 1
+part = "country"
+
+[[field]]
+name = "Title_3"
+question = "management_structure"
+value_map = { managers = "Manager", members = "Managing Member" }
+present_in = "managing_members"
+row_present = 2
+
+[[field]]
+name = "Name_3"
+question = "managing_members"
+row = 2
+part = "name"
+
+[[field]]
+name = "Address_3"
+question = "managing_members"
+row = 2
+part = "street"
+
+[[field]]
+name = "City_3"
+question = "managing_members"
+row = 2
+part = "city"
+
+[[field]]
+name = "State_3"
+question = "managing_members"
+row = 2
+part = "state"
+
+[[field]]
+name = "ZipPostal Code_3"
+question = "managing_members"
+row = 2
+part = "zip"
+
+[[field]]
+name = "Country_3"
+question = "managing_members"
+row = 2
+part = "country"

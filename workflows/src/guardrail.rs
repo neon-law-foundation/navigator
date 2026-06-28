@@ -349,7 +349,7 @@ END: {}
         for code in [
             "onboarding__retainer",
             "onboarding__estate",
-            "onboarding__nest",
+            "onboarding__retainer_nest",
             "onboarding__nexus",
         ] {
             let yaml = crate::bundled_spec_yaml(code)

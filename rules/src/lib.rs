@@ -75,7 +75,7 @@ pub use f106::F106StaffReviewRequired;
 pub use f107::F107SignaturePlaceholders;
 pub use f108::F108TemplateCodeRequired;
 pub use f109::F109OutputFormat;
-pub use f110::{F110JurisdictionPath, FORUMS, JURISDICTIONS, PRACTICE_AREAS};
+pub use f110::{F110JurisdictionPath, JURISDICTIONS};
 pub use f112::{workflow_step_not_built, F112WorkflowStepNotBuilt, WORKFLOW_STEPS_NOT_BUILT};
 pub use m001::M001HeadingIncrement;
 pub use m003::M003HeadingStyle;
@@ -237,7 +237,7 @@ pub fn description_for_code(code: &str) -> &'static str {
         }
         "N108" => "Notation template must declare a stable `code`",
         "N109" => "Notation template `output:` must name a known render format",
-        "N110" => "Notation template under a jurisdiction must encode it in the path",
+        "N110" => "Notation template must live under neon_law/forms and declare jurisdiction",
         "N111" => "Notation template `code` must be unique across the tree",
         "N112" => "Workflow step is allowed but its automation is not built yet",
         "E001" => "Event must declare both a `starts_at` timestamp and a `timezone`",

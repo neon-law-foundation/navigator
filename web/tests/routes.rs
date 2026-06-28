@@ -681,7 +681,10 @@ async fn notations_serves_the_tree_readme_under_foundation_brand() {
     let body = body_string(resp).await;
     assert!(body.contains("<title>Neon Law Foundation | Notations</title>"));
     assert!(body.contains(">Notation</h1>"));
-    assert!(body.contains("Every file is markdown with a YAML frontmatter block"));
+    assert!(body.contains("The tree has exactly two top-level shelves"));
+    assert!(
+        body.contains("notation_templates/forms/united_states/nevada/state/nv__llc_formation.md")
+    );
     assert!(body.contains("href=\"/docs/notation\""));
     assert!(body.contains("href=\"/foundation/navigator#trademarks\""));
 }
@@ -765,7 +768,7 @@ async fn api_template_raw_serves_non_confidential_markdown_inline() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/api/templates/united-states/nevada/state/business-associations/entity-formation")
+                .uri("/api/templates/forms/united-states/nevada/state/nv--llc-formation")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -785,7 +788,7 @@ async fn api_template_raw_serves_non_confidential_markdown_inline() {
     let confidential = app
         .oneshot(
             Request::builder()
-                .uri("/api/templates/engagements/retainer")
+                .uri("/api/templates/neon-law/shared/retainer")
                 .body(Body::empty())
                 .unwrap(),
         )

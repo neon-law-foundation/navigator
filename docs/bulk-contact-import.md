@@ -61,9 +61,9 @@ Field notes:
 - **`people[].email`** is the unique upsert key. **`people[].organization`** must be a `key` from this same payload's
   `organizations`. **`people[].entity_role`** is the `person_entity_roles` link role; it defaults to `client_contact`.
 
-The `projects` block — opening the engagement Project with its onboarding / offboarding lifecycle — is deliberately not
-in version 1. Contacts land first; a Project is opened per real install later. The envelope is versioned so that block
-can be added without breaking callers.
+The `projects` block — opening the engagement Project with its retainer and closing-letter flow — is deliberately not in
+version 1. Contacts land first; a Project is opened per real install later. The envelope is versioned so that block can
+be added without breaking callers.
 
 ## Idempotency
 

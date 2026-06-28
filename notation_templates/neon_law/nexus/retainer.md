@@ -2,6 +2,7 @@
 title: Nexus Engagement Agreement
 respondent_type: person_and_entity
 code: onboarding__retainer_nexus
+jurisdiction: NV
 confidential: true
 questionnaire:
   BEGIN:

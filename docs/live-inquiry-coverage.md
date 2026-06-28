@@ -123,7 +123,7 @@ The first executable slice is deliberately local and staff/developer-facing:
 
 ```bash
 cargo run -p cli -- transcribe \
-  --template notation_templates/engagements/estate.md \
+  --template notation_templates/neon_law/northstar/estate_plan.md \
   --transcript /tmp/northstar-sitting.txt \
   --pretty
 ```

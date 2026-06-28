@@ -245,9 +245,10 @@ Client-English synonym for **[Notation](notation.md#notation) bound to a Project
 sells; under the hood, running an Engagement means creating a Notation, walking its Questionnaire, advancing its
 Workflow, and rendering its document.
 
-A **Retainer** is the same idea, narrowed: an Engagement whose bound Template is the onboarding retainer
-(`onboarding-retainer`). The `web::retainer_walk` walker, the [`docs/retainer_intake.md`](retainer_intake.md) state
-machine, and the firm's "signed retainer" disclaimer all refer to that specific Notation.
+A **Retainer** is the same idea, narrowed: an Engagement whose bound Template is one of the product or shared retainer
+templates (`onboarding__retainer`, `onboarding__retainer_nest`, etc.). The `web::retainer_walk` walker, the
+[`docs/retainer_intake.md`](retainer_intake.md) state machine, and the firm's "signed retainer" disclaimer all refer to
+that specific kind of Notation.
 
 The schema noun in both cases is `Notation`. Marketing copy
 ([`web/content/marketing/home.md`](../web/content/marketing/home.md),

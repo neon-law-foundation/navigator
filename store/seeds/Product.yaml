@@ -41,7 +41,7 @@ records:
     active: true
     xero_item_code: NEST
     account_code: "200"
-    matter_close_template_code: onboarding__nest
+    matter_close_template_code: nv__llc_formation
     retainer_template_code: onboarding__retainer_nest
   # Neon Law Nexus — fractional general counsel, $2,222/mo. A monthly
   # subscription, billed every period by the recurring-billing workflow —

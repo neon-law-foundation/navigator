@@ -1,8 +1,8 @@
 //! Field maps: questionnaire answers → `AcroForm` field values.
 //!
-//! Each vendored form carries a `<form_code>.fields.toml` beside the
-//! ledger, mapping the form's exact `/T` field names (derived from a
-//! dump of the vendored bytes — see the `vendor-gov-forms` skill: the
+//! Each vendored form carries a `<code>.fields.toml` beside the blank PDF,
+//! mapping the form's exact `/T` field names (derived from a
+//! dump of the vendored bytes — see the vendoring workflow: the
 //! canonical example is on disk, **no guessing**) to answer sources.
 //! Real government field names are hostile (`undefined`, `City_5`,
 //! `Name of Registered Agenl` — a typo printed in the official form),
@@ -39,10 +39,10 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-/// One vendored form's parsed `<form_code>.fields.toml`.
+/// One vendored form's parsed `<code>.fields.toml`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct FieldMap {
-    /// Must match the ledger's `form_code`.
+    /// Must match the form template `code`.
     pub form_code: String,
     /// The mapping rules, one per `AcroForm` field we fill.
     pub field: Vec<FieldRule>,
@@ -104,19 +104,21 @@ pub enum FieldMapError {
 /// The bundled field maps, keyed by `form_code`.
 const BUNDLED_MAPS: &[(&str, &str)] = &[
     (
-        "nv_sos__llc_formation",
-        include_str!("../../notation_templates/forms/nv_sos/nv_sos__llc_formation.fields.toml"),
-    ),
-    (
-        "nv_sos__profit_corp_formation",
+        "nv__llc_formation",
         include_str!(
-            "../../notation_templates/forms/nv_sos/nv_sos__profit_corp_formation.fields.toml"
+            "../../notation_templates/forms/united_states/nevada/state/nv__llc_formation.fields.toml"
         ),
     ),
     (
-        "nv_sos__business_trust_formation",
+        "nv__profit_corp_formation",
         include_str!(
-            "../../notation_templates/forms/nv_sos/nv_sos__business_trust_formation.fields.toml"
+            "../../notation_templates/forms/united_states/nevada/state/nv__profit_corp_formation.fields.toml"
+        ),
+    ),
+    (
+        "nv__business_trust_formation",
+        include_str!(
+            "../../notation_templates/forms/united_states/nevada/state/nv__business_trust_formation.fields.toml"
         ),
     ),
 ];
@@ -294,10 +296,10 @@ mod tests {
     #[test]
     fn every_bundled_form_has_a_parsing_field_map() {
         for form in crate::registry().expect("registry") {
-            let map = field_map(&form.meta.form_code)
+            let map = field_map(form.meta.code)
                 .expect("map parses")
                 .expect("map exists for every fill=acroform form");
-            assert_eq!(map.form_code, form.meta.form_code);
+            assert_eq!(map.form_code, form.meta.code);
             assert!(!map.field.is_empty());
         }
     }
@@ -430,7 +432,7 @@ mod tests {
     #[test]
     fn a_rule_with_both_sources_fails_validation() {
         let raw = r#"
-            form_code = "nv_sos__llc_formation"
+            form_code = "nv__llc_formation"
             [[field]]
             name = "X"
             question = "q"

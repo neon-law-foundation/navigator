@@ -2,6 +2,7 @@
 title: Closing Letter
 respondent_type: person_and_entity
 code: closing__letter
+jurisdiction: NV
 confidential: true
 questionnaire:
   BEGIN:

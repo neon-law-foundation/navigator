@@ -73,7 +73,7 @@ mod tests {
 
     async fn seed_notation(db: &crate::Db) -> uuid::Uuid {
         let tmpl = template::ActiveModel {
-            code: ActiveValue::Set("annual_report__nevada".into()),
+            code: ActiveValue::Set("nv__annual_report".into()),
             title: ActiveValue::Set("NV Annual Report".into()),
             respondent_type: ActiveValue::Set("entity".into()),
             ..Default::default()

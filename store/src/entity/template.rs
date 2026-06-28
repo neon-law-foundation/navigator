@@ -33,7 +33,7 @@ pub struct Model {
     /// the body is ingested. Read via [`crate::templates::body`].
     pub blob_id: Option<Uuid>,
     /// forms-registry code of the government form this template fills
-    /// (e.g. `nv_sos__llc_formation`), from the `form:` frontmatter
+    /// (e.g. `nv__llc_formation`), from the `form:` frontmatter
     /// key; `None` for Typst-rendered templates.
     pub form_code: Option<String>,
     pub inserted_at: String,

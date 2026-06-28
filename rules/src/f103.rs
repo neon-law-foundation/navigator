@@ -3,21 +3,17 @@
 //!
 //! Templates under `notation_templates/` catalogue domain documents (an
 //! LLC formation, a 501(c)(3) formation, a Nevada annual report).
-//! Each template's frontmatter `code` is already snake_case with a
-//! `__` category separator (`onboarding__retainer_nest`,
-//! `nonprofit__nevada_501c3_formation`). Naming the file in
-//! snake_case too lets a directory listing read like the codes it
-//! seeds — `retainer_nest.md`, `nevada_501c3_formation.md`,
-//! `form990_annual_report.md` — so the file on disk and the row it
-//! becomes in `templates` share one spelling.
+//! Each form template's frontmatter `code` uses a jurisdiction prefix
+//! followed by a `__` separator (`nv__llc_formation`). Naming the file
+//! with that same spelling lets the path, object-storage key, and row
+//! in `templates` share one code.
 //!
 //! A valid basename is lower-case ASCII letters and digits joined by
-//! single `_` separators: no leading, trailing, or doubled `_`, and
-//! no PascalCase, camelCase, kebab-case, or spaces. A digit run sits
-//! *inside* a token rather than getting its own separator — `form990`
-//! and `501c3` are each one token — so the names that read best
-//! (`form990_annual_report`, `nevada_501c3_formation`) are accepted as
-//! authored. The suggestion offered on a violation is a best-effort
+//! single `_` separators, with one optional `__` code separator. There
+//! is no leading, trailing, or repeated separator run, and no PascalCase,
+//! camelCase, kebab-case, or spaces. A digit run sits *inside* a token
+//! rather than getting its own separator — `form990` and `501c3` are each
+//! one token. The suggestion offered on a violation is a best-effort
 //! lower-snake rewrite, not necessarily the canonical authored name.
 //!
 //! Note: this convention is for `.md` content files. It is the
@@ -33,7 +29,8 @@
 //! - `MyDocument.md`        rejected (PascalCase)
 //! - `myDocument.md`        rejected (camelCase)
 //! - `my-document.md`       rejected (hyphens)
-//! - `my__document.md`      rejected (doubled underscore)
+//! - `nv__llc_formation.md` accepted (jurisdiction code separator)
+//! - `my___document.md`    rejected (repeated separator run)
 
 use crate::{line_byte_range, Rule, SourceFile, Violation};
 
@@ -68,12 +65,16 @@ impl Rule for F103SnakeCaseFilename {
 
 /// True when `name` is a well-formed snake_case basename: non-empty,
 /// only lower-case ASCII letters / digits / `_`, with no leading,
-/// trailing, or doubled underscore. Digits may appear anywhere inside
-/// a token (`form990`, `501c3`), so a digit run never needs its own
-/// separator.
+/// trailing, or repeated underscore run. One `__` code separator is
+/// allowed so form filenames can match codes like `nv__llc_formation`.
+/// Digits may appear anywhere inside a token (`form990`, `501c3`), so
+/// a digit run never needs its own separator.
 #[must_use]
 pub fn is_snake_case(name: &str) -> bool {
-    if name.is_empty() || name.starts_with('_') || name.ends_with('_') || name.contains("__") {
+    if name.is_empty() || name.starts_with('_') || name.ends_with('_') || name.contains("___") {
+        return false;
+    }
+    if name.matches("__").count() > 1 {
         return false;
     }
     name.chars()
@@ -169,6 +170,16 @@ mod tests {
     }
 
     #[test]
+    fn accepts_single_code_separator() {
+        assert!(F103SnakeCaseFilename
+            .lint(&file_named("nv__llc_formation.md"))
+            .is_empty());
+        assert!(F103SnakeCaseFilename
+            .lint(&file_named("us__form_990.md"))
+            .is_empty());
+    }
+
+    #[test]
     fn flags_pascal_case_filename_and_suggests_snake() {
         let v = F103SnakeCaseFilename.lint(&file_named("MyDocument.md"));
         assert_eq!(v.len(), 1);
@@ -191,10 +202,10 @@ mod tests {
     }
 
     #[test]
-    fn flags_doubled_and_edge_underscores() {
+    fn flags_repeated_and_edge_underscores() {
         assert_eq!(
             F103SnakeCaseFilename
-                .lint(&file_named("my__document.md"))
+                .lint(&file_named("my___document.md"))
                 .len(),
             1
         );
@@ -214,6 +225,7 @@ mod tests {
     fn is_snake_case_predicate_matches_expected_inputs() {
         assert!(is_snake_case("foo"));
         assert!(is_snake_case("foo_bar"));
+        assert!(is_snake_case("nv__llc_formation"));
         assert!(is_snake_case("form990_annual_report"));
         assert!(is_snake_case("nevada_501c3_formation"));
         assert!(!is_snake_case(""));
@@ -221,7 +233,8 @@ mod tests {
         assert!(!is_snake_case("fooBar"));
         assert!(!is_snake_case("foo-bar"));
         assert!(!is_snake_case("foo bar"));
-        assert!(!is_snake_case("foo__bar"));
+        assert!(!is_snake_case("foo__bar__baz"));
+        assert!(!is_snake_case("foo___bar"));
         assert!(!is_snake_case("_foo"));
         assert!(!is_snake_case("foo_"));
     }

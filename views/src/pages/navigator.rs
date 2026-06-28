@@ -356,7 +356,7 @@ mod tests {
         // maps to the raw template API.
         assert!(html.contains("href=\"/docs/glossary#project\""));
         assert!(html.contains(
-            "href=\"/api/templates/united-states/nevada/state/business-associations/entity-formation\""
+            "href=\"/api/templates/forms/united-states/nevada/state/nv--llc-formation\""
         ));
     }
 
@@ -398,19 +398,21 @@ mod tests {
     #[test]
     fn template_links_map_to_the_raw_api() {
         assert_eq!(
-            rewrite_link("notation_templates/united_states/nevada/state/business_associations/entity_formation.md"),
-            "/api/templates/united-states/nevada/state/business-associations/entity-formation"
+            rewrite_link(
+                "notation_templates/forms/united_states/nevada/state/nv__llc_formation.md"
+            ),
+            "/api/templates/forms/united-states/nevada/state/nv--llc-formation"
         );
         // Underscores in either segment become hyphens in the URL.
         assert_eq!(
-            rewrite_link(
-                "notation_templates/united_states/federal/irs/taxation/form990_annual_report.md"
-            ),
-            "/api/templates/united-states/federal/irs/taxation/form990-annual-report"
+            rewrite_link("notation_templates/forms/united_states/federal/irs/us__form_990.md"),
+            "/api/templates/forms/united-states/federal/irs/us--form-990"
         );
         assert_eq!(
-            rewrite_link("notation_templates/united_states/nevada/state/business_associations/annual_report.md"),
-            "/api/templates/united-states/nevada/state/business-associations/annual-report"
+            rewrite_link(
+                "notation_templates/forms/united_states/nevada/state/nv__annual_report.md"
+            ),
+            "/api/templates/forms/united-states/nevada/state/nv--annual-report"
         );
     }
 

@@ -20,7 +20,7 @@ Feature: Bundled-template workflow composition (LLC, trust, will)
   the parser's guardrails stay load-bearing.
 
   Scenario: California LLC questionnaire walks company → office → members → END
-    Given the bundled template "united_states/california/state/business_associations/llc.md"
+    Given the bundled template "neon_law/nest/ca__llc_operating_agreement.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                      | to                        |
       | BEGIN                     | entity__company           |
@@ -29,7 +29,7 @@ Feature: Bundled-template workflow composition (LLC, trust, will)
       | people__members           | END                       |
 
   Scenario: California LLC workflow walks member signatures → staff review → END
-    Given the bundled template "united_states/california/state/business_associations/llc.md"
+    Given the bundled template "neon_law/nest/ca__llc_operating_agreement.md"
     Then the workflow transitions, in BEGIN-first order, are:
       | from              | to                |
       | BEGIN             | member_signatures |
@@ -37,11 +37,11 @@ Feature: Bundled-template workflow composition (LLC, trust, will)
       | staff_review      | END               |
 
   Scenario: California LLC template with END stripped fails to parse
-    Given the bundled template "united_states/california/state/business_associations/llc.md" with the workflow END declaration removed
+    Given the bundled template "neon_law/nest/ca__llc_operating_agreement.md" with the workflow END declaration removed
     Then parsing the workflow spec returns a MissingEnd error
 
   Scenario: Nevada trust questionnaire walks trustee → property → END
-    Given the bundled template "united_states/nevada/internal/trusts_and_estates/trust.md"
+    Given the bundled template "neon_law/northstar/nv__generic_trust.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from          | to             |
       | BEGIN         | trustee_name   |
@@ -49,11 +49,11 @@ Feature: Bundled-template workflow composition (LLC, trust, will)
       | trust_property| END            |
 
   Scenario: Nevada trust template with END stripped fails to parse
-    Given the bundled template "united_states/nevada/internal/trusts_and_estates/trust.md" with the workflow END declaration removed
+    Given the bundled template "neon_law/northstar/nv__generic_trust.md" with the workflow END declaration removed
     Then parsing the workflow spec returns a MissingEnd error
 
   Scenario: Simple will questionnaire walks testator → executor → residuary → END
-    Given the bundled template "united_states/nevada/internal/trusts_and_estates/will.md"
+    Given the bundled template "neon_law/northstar/nv__simple_will.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                  | to                    |
       | BEGIN                 | testator_name         |
@@ -62,7 +62,7 @@ Feature: Bundled-template workflow composition (LLC, trust, will)
       | residuary_beneficiary | END                   |
 
   Scenario: Simple will workflow walks testator signature → witnesses → staff review → notarization → END
-    Given the bundled template "united_states/nevada/internal/trusts_and_estates/will.md"
+    Given the bundled template "neon_law/northstar/nv__simple_will.md"
     Then the workflow transitions, in BEGIN-first order, are:
       | from               | to                 |
       | BEGIN              | testator_signature |
@@ -72,5 +72,5 @@ Feature: Bundled-template workflow composition (LLC, trust, will)
       | notarization       | END                |
 
   Scenario: Simple will template with END stripped fails to parse
-    Given the bundled template "united_states/nevada/internal/trusts_and_estates/will.md" with the workflow END declaration removed
+    Given the bundled template "neon_law/northstar/nv__simple_will.md" with the workflow END declaration removed
     Then parsing the workflow spec returns a MissingEnd error

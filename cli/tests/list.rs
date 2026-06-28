@@ -102,7 +102,7 @@ async fn list_templates_prints_imported_titles() {
     for needle in [
         "trusts__nevada",
         "Nevada Trust",
-        "llc__california",
+        "ca__llc_operating_agreement",
         "California LLC Operating Agreement",
         "will__simple",
         "Simple Last Will and Testament",

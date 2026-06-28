@@ -107,7 +107,7 @@ entered row by row (a blank name ends the rows).
 
 ```bash
 navigator login --host http://localhost:8080
-navigator matter open --template onboarding__nest --client-email libra@example.com
+navigator matter open --template nv__llc_formation --client-email libra@example.com
 navigator intake answer <notation-id>
 navigator notation status <notation-id>
 navigator notation approve <notation-id>

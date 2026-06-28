@@ -105,15 +105,15 @@ async fn import_writes_each_fixture_template_and_question_to_postgres() {
     let templates = template::Entity::find().all(&s.db).await.unwrap();
     let codes: Vec<&str> = templates.iter().map(|t| t.code.as_str()).collect();
     assert!(codes.contains(&"trusts__nevada"));
-    assert!(codes.contains(&"llc__california"));
+    assert!(codes.contains(&"ca__llc_operating_agreement"));
     assert!(codes.contains(&"will__simple"));
     assert!(codes.contains(&"onboarding__retainer"));
-    assert!(codes.contains(&"dissolution__nevada"));
-    assert!(codes.contains(&"annual_report__nevada"));
-    assert!(codes.contains(&"nv_state_tax_filing__modified_business_tax"));
-    assert!(codes.contains(&"nonprofit_501c3_formation__nevada"));
-    assert!(codes.contains(&"form_990__annual_report"));
-    assert!(codes.contains(&"charitable_solicitation_registration__nevada"));
+    assert!(codes.contains(&"nv__dissolution"));
+    assert!(codes.contains(&"nv__annual_report"));
+    assert!(codes.contains(&"nv__modified_business_tax"));
+    assert!(codes.contains(&"nv__nonprofit_501c3_formation"));
+    assert!(codes.contains(&"us__form_990"));
+    assert!(codes.contains(&"nv__charitable_solicitation_registration"));
     assert!(codes.contains(&"closing__letter"));
 
     let questions = question::Entity::find().all(&s.db).await.unwrap();

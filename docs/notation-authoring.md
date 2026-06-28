@@ -14,15 +14,33 @@ through two state machines the Template declares. In client English a Notation-i
 **Retainer**). The Template *declares*; Restate *runs*. Everything below is about writing good Templates and growing
 what their workflows can do.
 
+## Where templates live
+
+Every template lives under exactly one of two shelves:
+
+- `notation_templates/forms/` — government form-backed templates. Paths mirror the public assets bucket, so
+  `notation_templates/forms/united_states/nevada/state/nv__llc_formation.md` corresponds to
+  `gs://<assets-bucket>/forms/united_states/nevada/state/nv__llc_formation.pdf`.
+- `notation_templates/neon_law/` — Neon Law product work: product retainers, engagement letters, product-specific
+  documents, and shared firm documents such as the closing letter.
+
+Every template declares `jurisdiction:` using a seeded jurisdiction code from `store/seeds/Jurisdiction.yaml`. Form
+templates are stricter: their filename stem, `code`, and `form` binding must match, and that code starts with the
+jurisdiction prefix (`nv__llc_formation`, `us__form_990`, `ca__...`). Product retainers may keep runtime codes such as
+`onboarding__retainer_nest` while living at author-friendly paths such as
+`notation_templates/neon_law/nest/retainer.md`.
+
 ## Anatomy of a template file
 
-Every template lives at `notation_templates/<category>/<snake_case_name>.md` and has two parts: YAML frontmatter (the
-contract) and a markdown body (the document, with `{{question_code}}` placeholders). Here is the shipped retainer's
-frontmatter (the real file wraps this block in `---` fences, then the prose body follows):
+Every template has two parts: YAML frontmatter (the contract) and a markdown body (the document, with
+`{{question_code}}` placeholders). Here is the shared retainer frontmatter from
+`notation_templates/neon_law/shared/retainer.md` (the real file wraps this block in `---` fences, then the prose body
+follows):
 
 ```yaml
 title: Retainer Agreement
 respondent_type: person_and_entity
+jurisdiction: US
 code: onboarding__retainer
 confidential: true
 questionnaire:            # the intake Q&A — what we ask the client
@@ -48,8 +66,11 @@ Frontmatter fields:
 
 - `title` — the human document title (N101 requires it non-empty).
 - `respondent_type` — one of `person`, `entity`, `person_and_entity` (N102).
-- `code` — the stable, unique identifier (`onboarding__retainer`, `trusts__nevada`); how every surface refers to it.
+- `jurisdiction` — a seeded jurisdiction code (`NV`, `CA`, `US`); required even for product templates.
+- `code` — the stable, unique identifier (`onboarding__retainer`, `nv__llc_formation`); how every surface refers to it.
 - `confidential` — an explicit `true`/`false` decision, never defaulted (N105).
+- `origin_url` — forms only; the HTTPS government page where the blank form can be obtained.
+- `form` — forms only; the bundled form code, matching `code` and the filename stem.
 - `questionnaire:` — the intake state machine: `BEGIN → question_code → … → END`. Each step's `_:` is the "answered"
   transition. State names are `<question_code>__<discriminator>`; the prefix before `__` must be a real Question `code`.
 - `workflow:` — the post-intake state machine: render, staff review, signature, filing. Transitions fire on named
@@ -68,10 +89,10 @@ Feature-first, so the composition is specified before the prose exists:
 1. **Write the composition `.feature` first.** Describe the matter as a sequence or branching graph of reusable workflow
    steps, using only Person / Entity nouns from [`glossary.md`](glossary.md). The feature is the product-level spec; the
    template satisfies it by composing already-known steps.
-2. **Write the template + questionnaire.** Create `notation_templates/<category>/<snake_case_name>.md` with the
-   frontmatter above. Declare the `questionnaire:` walk and the `workflow:` states. Body prose uses `{{question_code}}`
-   placeholders. If a questionnaire state uses a `custom_*__prompt_key` code, add a sibling `prompts:` map with that
-   English prompt key and the exact prompt to ask.
+2. **Write the template + questionnaire.** Create the markdown file under `notation_templates/forms/...` for a
+   government form or `notation_templates/neon_law/<product>/...` for a product template. Declare the `questionnaire:`
+   walk and the `workflow:` states. Body prose uses `{{question_code}}` placeholders. If a questionnaire state uses a
+   `custom_*__prompt_key` code, add a sibling `prompts:` map with that English prompt key and the exact prompt to ask.
 3. **Seed the questions.** Add each new question `code` to `store/seeds/Question.yaml` (prompt, `question_type`,
    help text). The questionnaire's state prefixes must resolve to these codes or N104 fails.
 4. **Declare the workflow YAML.** Compose the post-intake flow from the shared step registry (below) — never a one-off
@@ -98,7 +119,8 @@ all three call the same `rules` crate. A template that is clean on your laptop i
   filename; N104 both machines declare `BEGIN`, reach `END`, questionnaire states resolve to real Question codes, and
   workflow states resolve to known workflow-step prefixes; N105 `confidential` is an explicit bool; N106 the `workflow:`
   has a bare `staff_review` state (the suffix form `staff_review__for_grantor` does **not** satisfy it — the
-  human-review gate must be unconditional); N108 `code` is the stable Template identifier. N-family rules are
+  human-review gate must be unconditional); N108 `code` is the stable Template identifier; N110/N111/F110 enforce the
+  `forms/` or `neon_law/` shelf, seeded `jurisdiction`, and jurisdiction-first form codes. N-family rules are
   diagnostic-only: a human must resolve them, the tool will not auto-rewrite legal structure.
 - **M-family (markdown hygiene, ~50 rules).** Headings, lists, fences, tables, spacing. Most carry a safe autofix.
 - **S101 (line length).** 120 Unicode scalars per line, every `.md`. Frontmatter is linted too; folded YAML scalars let
@@ -116,7 +138,7 @@ cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path
 editor and CI can never disagree. Supported editors ship copy-paste configs under [`lsp/`](../lsp) docs: VS Code,
 Neovim, Helix, Emacs, Zed. The authoring loop for a non-engineer legal author:
 
-1. **Type.** Open `notation_templates/united_states/nevada/internal/trusts_and_estates/will.md` in your editor. Write
+1. **Type.** Open `notation_templates/neon_law/northstar/nv__simple_will.md` in your editor. Write
    legal prose and frontmatter — no proprietary tool, no markup beyond markdown.
 2. **Live diagnostics.** On every keystroke the LSP lints the buffer and shows squiggles: N101 if `title:` is missing,
    N104 if the questionnaire/workflow shape is broken or a questionnaire state is not in the canonical question seed

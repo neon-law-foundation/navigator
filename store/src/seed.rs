@@ -131,77 +131,73 @@ mod canonical {
     /// shipped catalog is bundled so a fresh cluster carries every
     /// template without an import pass.
     pub const TEMPLATE_RETAINER: &str =
-        include_str!("../../notation_templates/engagements/retainer.md");
+        include_str!("../../notation_templates/neon_law/shared/retainer.md");
     pub const TEMPLATE_CLOSING_LETTER: &str =
         include_str!("../../notation_templates/neon_law/shared/closing_letter.md");
-    pub const TEMPLATE_ANNUAL_REPORT_NV: &str =
-        include_str!("../../notation_templates/united_states/nevada/state/business_associations/annual_report.md");
+    pub const TEMPLATE_ANNUAL_REPORT_NV: &str = include_str!(
+        "../../notation_templates/forms/united_states/nevada/state/nv__annual_report.md"
+    );
     pub const TEMPLATE_DISSOLUTION_NV: &str = include_str!(
-        "../../notation_templates/united_states/nevada/state/business_associations/dissolution.md"
+        "../../notation_templates/forms/united_states/nevada/state/nv__dissolution.md"
     );
-    pub const TEMPLATE_LLC_CA: &str = include_str!(
-        "../../notation_templates/united_states/california/state/business_associations/llc.md"
-    );
-    pub const TEMPLATE_FORM990: &str = include_str!(
-        "../../notation_templates/united_states/federal/irs/taxation/form990_annual_report.md"
-    );
+    pub const TEMPLATE_LLC_CA: &str =
+        include_str!("../../notation_templates/neon_law/nest/ca__llc_operating_agreement.md");
+    pub const TEMPLATE_FORM990: &str =
+        include_str!("../../notation_templates/forms/united_states/federal/irs/us__form_990.md");
     pub const TEMPLATE_NONPROFIT_501C3_NV: &str =
-        include_str!("../../notation_templates/united_states/nevada/state/business_associations/nonprofit_501c3_formation.md");
+        include_str!("../../notation_templates/forms/united_states/nevada/state/nv__nonprofit_501c3_formation.md");
     pub const TEMPLATE_CHARITABLE_SOLICITATION_NV: &str = include_str!(
-        "../../notation_templates/united_states/nevada/state/business_associations/charitable_solicitation_registration.md"
+        "../../notation_templates/forms/united_states/nevada/state/nv__charitable_solicitation_registration.md"
     );
     pub const TEMPLATE_NV_MBT: &str = include_str!(
-        "../../notation_templates/united_states/nevada/state/taxation/modified_business_tax.md"
+        "../../notation_templates/forms/united_states/nevada/state/nv__modified_business_tax.md"
     );
-    pub const TEMPLATE_TRUST_NV: &str = include_str!(
-        "../../notation_templates/united_states/nevada/internal/trusts_and_estates/trust.md"
-    );
-    pub const TEMPLATE_WILL_SIMPLE: &str = include_str!(
-        "../../notation_templates/united_states/nevada/internal/trusts_and_estates/will.md"
-    );
+    pub const TEMPLATE_TRUST_NV: &str =
+        include_str!("../../notation_templates/neon_law/northstar/nv__generic_trust.md");
+    pub const TEMPLATE_WILL_SIMPLE: &str =
+        include_str!("../../notation_templates/neon_law/northstar/nv__simple_will.md");
     pub const TEMPLATE_ESTATE: &str =
-        include_str!("../../notation_templates/engagements/estate.md");
+        include_str!("../../notation_templates/neon_law/northstar/estate_plan.md");
     // Northstar estate instrument stubs — the will, trust, and the two
     // directives the `document_drafts__estate` step renders from the
     // sitting's answers into one `review_documents` row each.
     pub const TEMPLATE_NORTHSTAR_WILL: &str =
-        include_str!("../../notation_templates/united_states/nevada/internal/trusts_and_estates/northstar_will.md");
+        include_str!("../../notation_templates/neon_law/northstar/nv__will.md");
     pub const TEMPLATE_NORTHSTAR_TRUST: &str =
-        include_str!("../../notation_templates/united_states/nevada/internal/trusts_and_estates/northstar_trust.md");
+        include_str!("../../notation_templates/neon_law/northstar/nv__trust.md");
     pub const TEMPLATE_NORTHSTAR_DIRECTIVE_HEALTH: &str =
-        include_str!("../../notation_templates/united_states/nevada/internal/trusts_and_estates/directive_health.md");
+        include_str!("../../notation_templates/neon_law/northstar/nv__directive_health.md");
     pub const TEMPLATE_NORTHSTAR_DIRECTIVE_FINANCIAL: &str =
-        include_str!("../../notation_templates/united_states/nevada/internal/trusts_and_estates/directive_financial.md");
-    pub const TEMPLATE_NEST_NV: &str = include_str!("../../notation_templates/united_states/nevada/state/business_associations/entity_formation.md");
-    pub const TEMPLATE_NEST_CORP_NV: &str =
-        include_str!("../../notation_templates/united_states/nevada/state/business_associations/profit_corp_formation.md");
-    pub const TEMPLATE_NEST_BUSINESS_TRUST_NV: &str =
-        include_str!("../../notation_templates/united_states/nevada/state/business_associations/business_trust_formation.md");
+        include_str!("../../notation_templates/neon_law/northstar/nv__directive_financial.md");
+    pub const TEMPLATE_NEST_NV: &str = include_str!(
+        "../../notation_templates/forms/united_states/nevada/state/nv__llc_formation.md"
+    );
+    pub const TEMPLATE_NEST_CORP_NV: &str = include_str!(
+        "../../notation_templates/forms/united_states/nevada/state/nv__profit_corp_formation.md"
+    );
+    pub const TEMPLATE_NEST_BUSINESS_TRUST_NV: &str = include_str!(
+        "../../notation_templates/forms/united_states/nevada/state/nv__business_trust_formation.md"
+    );
     pub const TEMPLATE_NEXUS: &str =
-        include_str!("../../notation_templates/united_states/nevada/internal/business_associations/fractional_gc.md");
-    pub const TEMPLATE_EMPLOYMENT_W2: &str = include_str!(
-        "../../notation_templates/united_states/nevada/internal/contracts/employment_agreement.md"
-    );
-    pub const TEMPLATE_CONTRACTOR_1099: &str = include_str!(
-        "../../notation_templates/united_states/nevada/internal/contracts/contractor_agreement.md"
-    );
+        include_str!("../../notation_templates/neon_law/nexus/fractional_gc.md");
+    pub const TEMPLATE_EMPLOYMENT_W2: &str =
+        include_str!("../../notation_templates/neon_law/nexus/nv__employment_agreement.md");
+    pub const TEMPLATE_CONTRACTOR_1099: &str =
+        include_str!("../../notation_templates/neon_law/nexus/nv__contractor_agreement.md");
     pub const TEMPLATE_CONTRACT_REVIEW: &str =
-        include_str!("../../notation_templates/services/contract_review.md");
+        include_str!("../../notation_templates/neon_law/nexus/contract_review.md");
     pub const TEMPLATE_NAUTILUS_CEASE: &str =
-        include_str!("../../notation_templates/united_states/federal/internal/debt_relief/cease_communication.md");
-    pub const TEMPLATE_NAUTILUS_DEBT_VALIDATION: &str = include_str!(
-        "../../notation_templates/united_states/federal/internal/debt_relief/debt_validation.md"
-    );
-    pub const TEMPLATE_NAUTILUS_FCRA: &str = include_str!(
-        "../../notation_templates/united_states/federal/internal/debt_relief/fcra_dispute.md"
-    );
+        include_str!("../../notation_templates/neon_law/nautilus/cease_communication.md");
+    pub const TEMPLATE_NAUTILUS_DEBT_VALIDATION: &str =
+        include_str!("../../notation_templates/neon_law/nautilus/debt_validation.md");
+    pub const TEMPLATE_NAUTILUS_FCRA: &str =
+        include_str!("../../notation_templates/neon_law/nautilus/fcra_dispute.md");
     pub const TEMPLATE_NAUTILUS_NOTICE: &str =
-        include_str!("../../notation_templates/united_states/federal/internal/debt_relief/notice_of_representation.md");
-    pub const TEMPLATE_NAUTILUS_SETTLEMENT: &str = include_str!(
-        "../../notation_templates/united_states/federal/internal/debt_relief/settlement_letter.md"
-    );
+        include_str!("../../notation_templates/neon_law/nautilus/notice_of_representation.md");
+    pub const TEMPLATE_NAUTILUS_SETTLEMENT: &str =
+        include_str!("../../notation_templates/neon_law/nautilus/settlement_letter.md");
     pub const TEMPLATE_NATURALIZATION: &str = include_str!(
-        "../../notation_templates/united_states/federal/internal/immigration/naturalization.md"
+        "../../notation_templates/forms/united_states/federal/uscis/us__naturalization.md"
     );
     // Service-specific retainers — one engagement agreement per product.
     // Each carries the shared JAMS arbitration + `support@` clauses
@@ -288,7 +284,7 @@ struct TemplateFrontmatter {
     title: String,
     respondent_type: String,
     /// forms-registry code of the government form this template fills
-    /// (`form: nv_sos__llc_formation`); absent for Typst-rendered
+    /// (`form: nv__llc_formation`); absent for Typst-rendered
     /// templates.
     #[serde(default)]
     form: Option<String>,
@@ -317,87 +313,114 @@ async fn seed_templates(
     report: &mut SeedReport,
 ) -> anyhow::Result<()> {
     for (label, md) in [
-        ("engagements/retainer.md", canonical::TEMPLATE_RETAINER),
-        ("neon_law/shared/closing_letter.md", canonical::TEMPLATE_CLOSING_LETTER),
+        ("neon_law/shared/retainer.md", canonical::TEMPLATE_RETAINER),
         (
-            "united_states/nevada/state/business_associations/annual_report.md",
+            "neon_law/shared/closing_letter.md",
+            canonical::TEMPLATE_CLOSING_LETTER,
+        ),
+        (
+            "forms/united_states/nevada/state/nv__annual_report.md",
             canonical::TEMPLATE_ANNUAL_REPORT_NV,
         ),
-        ("united_states/nevada/state/business_associations/dissolution.md", canonical::TEMPLATE_DISSOLUTION_NV),
-        ("united_states/california/state/business_associations/llc.md", canonical::TEMPLATE_LLC_CA),
         (
-            "united_states/federal/irs/taxation/form990_annual_report.md",
+            "forms/united_states/nevada/state/nv__dissolution.md",
+            canonical::TEMPLATE_DISSOLUTION_NV,
+        ),
+        (
+            "neon_law/nest/ca__llc_operating_agreement.md",
+            canonical::TEMPLATE_LLC_CA,
+        ),
+        (
+            "forms/united_states/federal/irs/us__form_990.md",
             canonical::TEMPLATE_FORM990,
         ),
         (
-            "united_states/nevada/state/business_associations/nonprofit_501c3_formation.md",
+            "forms/united_states/nevada/state/nv__nonprofit_501c3_formation.md",
             canonical::TEMPLATE_NONPROFIT_501C3_NV,
         ),
         (
-            "united_states/nevada/state/business_associations/charitable_solicitation_registration.md",
+            "forms/united_states/nevada/state/nv__charitable_solicitation_registration.md",
             canonical::TEMPLATE_CHARITABLE_SOLICITATION_NV,
         ),
         (
-            "united_states/nevada/state/taxation/modified_business_tax.md",
+            "forms/united_states/nevada/state/nv__modified_business_tax.md",
             canonical::TEMPLATE_NV_MBT,
         ),
-        ("united_states/nevada/internal/trusts_and_estates/trust.md", canonical::TEMPLATE_TRUST_NV),
-        ("united_states/nevada/internal/trusts_and_estates/will.md", canonical::TEMPLATE_WILL_SIMPLE),
-        ("engagements/estate.md", canonical::TEMPLATE_ESTATE),
-        ("united_states/nevada/internal/trusts_and_estates/northstar_will.md", canonical::TEMPLATE_NORTHSTAR_WILL),
-        ("united_states/nevada/internal/trusts_and_estates/northstar_trust.md", canonical::TEMPLATE_NORTHSTAR_TRUST),
         (
-            "united_states/nevada/internal/trusts_and_estates/directive_health.md",
+            "neon_law/northstar/nv__generic_trust.md",
+            canonical::TEMPLATE_TRUST_NV,
+        ),
+        (
+            "neon_law/northstar/nv__simple_will.md",
+            canonical::TEMPLATE_WILL_SIMPLE,
+        ),
+        (
+            "neon_law/northstar/estate_plan.md",
+            canonical::TEMPLATE_ESTATE,
+        ),
+        (
+            "neon_law/northstar/nv__will.md",
+            canonical::TEMPLATE_NORTHSTAR_WILL,
+        ),
+        (
+            "neon_law/northstar/nv__trust.md",
+            canonical::TEMPLATE_NORTHSTAR_TRUST,
+        ),
+        (
+            "neon_law/northstar/nv__directive_health.md",
             canonical::TEMPLATE_NORTHSTAR_DIRECTIVE_HEALTH,
         ),
         (
-            "united_states/nevada/internal/trusts_and_estates/directive_financial.md",
+            "neon_law/northstar/nv__directive_financial.md",
             canonical::TEMPLATE_NORTHSTAR_DIRECTIVE_FINANCIAL,
         ),
-        ("united_states/nevada/state/business_associations/entity_formation.md", canonical::TEMPLATE_NEST_NV),
         (
-            "united_states/nevada/state/business_associations/profit_corp_formation.md",
+            "forms/united_states/nevada/state/nv__llc_formation.md",
+            canonical::TEMPLATE_NEST_NV,
+        ),
+        (
+            "forms/united_states/nevada/state/nv__profit_corp_formation.md",
             canonical::TEMPLATE_NEST_CORP_NV,
         ),
         (
-            "united_states/nevada/state/business_associations/business_trust_formation.md",
+            "forms/united_states/nevada/state/nv__business_trust_formation.md",
             canonical::TEMPLATE_NEST_BUSINESS_TRUST_NV,
         ),
-        ("united_states/nevada/internal/business_associations/fractional_gc.md", canonical::TEMPLATE_NEXUS),
+        ("neon_law/nexus/fractional_gc.md", canonical::TEMPLATE_NEXUS),
         (
-            "united_states/nevada/internal/contracts/employment_agreement.md",
+            "neon_law/nexus/nv__employment_agreement.md",
             canonical::TEMPLATE_EMPLOYMENT_W2,
         ),
         (
-            "united_states/nevada/internal/contracts/contractor_agreement.md",
+            "neon_law/nexus/nv__contractor_agreement.md",
             canonical::TEMPLATE_CONTRACTOR_1099,
         ),
         (
-            "services/contract_review.md",
+            "neon_law/nexus/contract_review.md",
             canonical::TEMPLATE_CONTRACT_REVIEW,
         ),
         (
-            "united_states/federal/internal/debt_relief/cease_communication.md",
+            "neon_law/nautilus/cease_communication.md",
             canonical::TEMPLATE_NAUTILUS_CEASE,
         ),
         (
-            "united_states/federal/internal/debt_relief/debt_validation.md",
+            "neon_law/nautilus/debt_validation.md",
             canonical::TEMPLATE_NAUTILUS_DEBT_VALIDATION,
         ),
         (
-            "united_states/federal/internal/debt_relief/fcra_dispute.md",
+            "neon_law/nautilus/fcra_dispute.md",
             canonical::TEMPLATE_NAUTILUS_FCRA,
         ),
         (
-            "united_states/federal/internal/debt_relief/notice_of_representation.md",
+            "neon_law/nautilus/notice_of_representation.md",
             canonical::TEMPLATE_NAUTILUS_NOTICE,
         ),
         (
-            "united_states/federal/internal/debt_relief/settlement_letter.md",
+            "neon_law/nautilus/settlement_letter.md",
             canonical::TEMPLATE_NAUTILUS_SETTLEMENT,
         ),
         (
-            "united_states/federal/internal/immigration/naturalization.md",
+            "forms/united_states/federal/uscis/us__naturalization.md",
             canonical::TEMPLATE_NATURALIZATION,
         ),
         (
@@ -1685,8 +1708,8 @@ mod tests {
             "closing__letter",
             "trusts__nevada",
             "will__simple",
-            "llc__california",
-            "form_990__annual_report",
+            "ca__llc_operating_agreement",
+            "us__form_990",
             "services__contract_review",
             "employment__nonprofit_w2",
             "contractor__nonprofit_1099",
@@ -1958,7 +1981,7 @@ mod tests {
     #[test]
     fn question_choices_reads_ordered_radio_choices_from_the_canonical_seed() {
         use super::question_choices;
-        // `management_structure` is the `onboarding__nest` radio; its
+        // `management_structure` is the `nv__llc_formation` radio; its
         // choices must come back in YAML order (members before managers),
         // value-keyed, so a terminal renders them like the web walker would.
         let choices = question_choices("management_structure");
