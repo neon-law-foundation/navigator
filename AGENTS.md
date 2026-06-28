@@ -38,11 +38,16 @@ acting on anything below, and keep the doc, not this file, authoritative.
 
 ## How to work
 
-- **Lead with the two GitOps actions.** Every codebase task is either **create a PR** or **review/update an existing
-  PR**. Everything else — prepare, Markdown lint, Restate, legal workflow authoring, Rust conventions, cloud operations,
-  and council review — is supporting context inside one of those actions. Start with
-  [`docs/agent-workflows.md`](docs/agent-workflows.md), then follow [`docs/index.md`](docs/index.md) to the narrowest
-  source.
+- **Every task is an issue, a PR, or a review.** The agent does exactly three things, and every codebase task is one of
+  them: (1) **groom an issue** — read a GitHub issue from its first comment forward, follow how the ask evolved, then
+  comment the extra plan detail the work needs, so a future worktree starts from the issue and not from leftover local
+  state; (2) **create a PR** — actuate that issue into code in a dedicated worktree through test-driven steps, then open
+  the PR; (3) **review a PR** — pull a PR number into a local worktree and resolve every reviewer comment iteratively,
+  making the authorized code changes and pushing them back. Everything else — Markdown lint, Restate, legal-workflow
+  authoring, Rust conventions, and council review — is supporting context inside one of those three, never a fourth
+  action. Production and host operations (prod deploy, prod-db access, disk/Docker maintenance, dependency bumps) sit
+  outside this loop and stay propose-only. Start with [`docs/agent-workflows.md`](docs/agent-workflows.md), then follow
+  [`docs/index.md`](docs/index.md) to the narrowest source.
 - **Use the KIND loop for full-stack local testing, then clean it up.** `cargo run --release -p cli -- start-dev-server`
   brings up Postgres, Keycloak, fake-gcs, OPA, Restate, and Grafana LGTM in KIND and writes `.devx/env`. Run `web`
   **under Doppler with `.devx/env` sourced after** (the KIND wiring must win) — `web` crash-loops on `.devx/env` alone
@@ -68,6 +73,11 @@ acting on anything below, and keep the doc, not this file, authoritative.
   to `15432:5432`, `grant-staff`, and the CI env vars `NAV_BASE_URL` + `DATABASE_URL` + `NAV_REQUIRE_HARNESS=1`) and run
   `cargo test -p web --test browser_e2e`. Only *production* or *irreversible* cloud actions (`gcloud`, `power-push`, a
   real `deploy` to prod) stay propose-only — print the exact command and let the user prefix it with `!`.
+- **Run `web` and every supporting service on a unique port.** Never bind to a shared default and assume it is free — a
+  second worktree or session will collide on it. `navigator worktree-env up` already derives a per-worktree `web` port
+  (`WEB_PORT_BASE` 3001 + a hash of the worktree slug, in `cli/src/devx/worktree_env.rs`); prefer it, and pick a unique
+  port the same way for anything you start by hand (`web`, chromedriver, a Postgres port-forward, the OIDC / OPA /
+  storage deps). Record the ports you chose so the rest of the task — and the next agent — can find them.
 - **Scratch output never lands in the working tree.** Screenshots and any throwaway file go under `/tmp` (e.g.
   `/tmp/navigator-screenshots/`, `mkdir -p` first), never the repo. Committed visual artifacts (e.g. `docs/erd.svg`) are
   the exception.
@@ -145,13 +155,15 @@ catalog. → [`docs/aida-a2a-interaction.md`](docs/aida-a2a-interaction.md),
 - `README.md` — workspace overview, install, demo. `cli/README.md` — per-subcommand reference. `k8s/` — KIND manifests.
   `notation_templates/` — notation templates. `store/seeds/` — canonical reference-data YAML.
 
-## Planning lives in GitHub issues
+## Planning lives in GitHub issues — action 1, groom an issue
 
-Planning — design briefs, multi-session kickoffs, the working notes behind a change — lives in **GitHub issues**, not a
-local folder. An issue is visible to the whole team and to every future session (a worktree starts from the issue, not
-from leftover local state), so reference the issue by number in the branch, the PR, and any commit that needs the
-context. When an issue encodes a decision worth keeping past the work, lift it into code, a doc, or the glossary — the
-issue is the working space, the repo is the durable record.
+Grooming an issue is the agent's first action: read the issue from its opening comment forward, follow how the ask
+evolved, and comment the extra plan detail — scope, the test-driven steps, the files in blast radius — that a future
+worktree will start from. Planning — design briefs, multi-session kickoffs, the working notes behind a change — lives in
+**GitHub issues**, not a local folder. An issue is visible to the whole team and to every future session (a worktree
+starts from the issue, not from leftover local state), so reference the issue by number in the branch, the PR, and any
+commit that needs the context. When an issue encodes a decision worth keeping past the work, lift it into code, a doc,
+or the glossary — the issue is the working space, the repo is the durable record.
 
 ## Agent environment notes
 

@@ -8,7 +8,7 @@ description: >
   committed), pushes, opens the PR with `gh pr create`, and enables auto-merge. Trigger when the user says "/create-pr",
   "create a PR", "open a pull request", "commit and PR these changes", "group these into commits and ship them", or has
   a dirty working tree they want landed. This is the COMMIT-GROUPING + PR front door; the build-and-deploy-to-prod flow
-  is the separate [[power-push]] skill (run /create-pr first, let it merge, then power-push from `main`). Honors the
+  is a separate prod-deploy flow (run /create-pr first, let it merge, then `power-push` from `main`). Honors the
   workspace gate (`cargo fmt` + `clippy` + `cargo test`, plus markdown lint on any `.md`) before the first commit.
 ---
 
@@ -17,7 +17,8 @@ description: >
 The job: take whatever is sitting in the working tree and land it as a well-formed pull request — **not** one giant
 commit, but a small set of logically-grouped Conventional Commits, each with its own blast radius, on a topic branch,
 opened against `main` with auto-merge enabled. This skill owns the path from *dirty tree* to *PR exists and is set to
-merge*. It does **not** build images or deploy — that is [[power-push]], which runs from `main` after this PR lands.
+merge*. It does **not** build images or deploy — that is the prod-deploy flow, which runs from `main` after this PR
+lands.
 
 This is the canonical branch → PR → auto-merge flow from `CLAUDE.md`, made into one entry point. `main` is merge-only:
 it advances solely through PRs. You never commit to `main` directly and you never babysit the merge — GitHub squash-
@@ -68,7 +69,7 @@ Heuristics for "same commit":
 Heuristics for "split apart" (different blast radius → different commit):
 
 - **Crate bump vs. vendored-asset swap** — a `Cargo.lock` change and a minified-JS change verify differently; never the
-  same commit (this is exactly why [[update]] keeps them separate).
+  same commit.
 - **Refactor vs. behavior change** — a rename/move with no behavior change is its own commit, so the diff that *does*
   change behavior stays small and legible.
 - **Unrelated fixes** — two bugs in two subsystems are two commits even if you found them in one sitting.
@@ -221,8 +222,8 @@ green. Report the PR URL and the commit grouping you landed; do not wait around 
 
 ## Boundaries
 
-- **Stops at "PR open + auto-merge on."** Building/pushing images and rolling out to prod is [[power-push]], run from
-  `main` after this PR merges. `/create-pr` never deploys.
+- **Stops at "PR open + auto-merge on."** Building/pushing images and rolling out to prod is the prod-deploy flow, run
+  from `main` after this PR merges. `/create-pr` never deploys.
 - **One PR.** This skill groups changes into commits **within a single PR**. Splitting work across *multiple* PRs is a
   sequencing decision — surface it (a [[council]] "one bundle or three?" call) rather than guessing.
 - **Never touches `main` directly** and never force-pushes a shared branch.
