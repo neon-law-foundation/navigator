@@ -76,7 +76,9 @@ pub fn render(auth: AuthState) -> Markup {
                         }
                     }
                     dt { "GitHub" }
-                    dd { a href=(github) { (github) } }
+                    dd {
+                        (ExternalLink::new(github).render(html! { (github) }))
+                    }
                 }
             }
         }
