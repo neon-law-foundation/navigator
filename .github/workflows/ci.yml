@@ -233,6 +233,12 @@ jobs:
       # config, which syncs to Actions secrets) this step is skipped and the next
       # step falls back to GITHUB_TOKEN (today's behavior — no worse, and forks
       # without the App still pass).
+      #
+      # Dependabot caveat: a Dependabot-opened PR runs this job with the separate
+      # *Dependabot* secret store, where `AUTOMERGE_APP_ID` is empty unless the App
+      # secrets are mirrored there too — so this step is skipped, the GITHUB_TOKEN
+      # fallback never enqueues, and the bump PR sits "auto-merge enabled, CLEAN"
+      # forever. Mirror both secrets into the Dependabot store. See docs/gitops.md.
       - name: mint app token
         id: app-token
         if: env.AUTOMERGE_APP_ID != ''

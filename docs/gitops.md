@@ -53,6 +53,31 @@ inherit this.
 > `GITHUB_TOKEN` — which enables auto-merge but does not reliably enqueue, so the first PR after each fresh setup may
 > need a one-time manual nudge (`gh pr merge <n>` as a real user).
 
+**Dependabot PRs read a *separate* secret store — mirror the App secrets there too.** GitHub runs a Dependabot-opened
+PR's workflow with the **Dependabot** secret store, not the Actions one, so `AUTOMERGE_APP_ID` resolves to empty on
+those runs even though it is set for Actions. The `mint app token` step is then skipped, the job falls back to
+`GITHUB_TOKEN`, and the dependency-bump PR enables auto-merge but never enqueues — it sits "auto-merge enabled, CLEAN"
+forever, exactly the failure above. The Doppler → GitHub integration syncs only the **Actions** scope, so the fix is a
+one-time manual mirror of both values into the Dependabot store (recurring only when the App private key rotates; the
+App ID never changes):
+
+```bash
+gh secret set AUTOMERGE_APP_ID --app dependabot --body "$(doppler secrets get AUTOMERGE_APP_ID \
+  --plain --project navigator --config navigator-gitops)"
+doppler secrets get AUTOMERGE_APP_PRIVATE_KEY --plain --project navigator --config navigator-gitops \
+  | gh secret set AUTOMERGE_APP_PRIVATE_KEY --app dependabot
+```
+
+Until that mirror exists, an already-open dependency PR needs a one-time manual enqueue as a real user. `gh pr merge <n>
+--auto` is a no-op when auto-merge is already on, so force entry with the GraphQL mutation instead:
+
+```bash
+id=$(gh api graphql -f query='query{repository(owner:"neon-law-foundation",name:"navigator")
+  {pullRequest(number:NNN){id}}}' --jq '.data.repository.pullRequest.id')
+gh api graphql -f query="mutation{enqueuePullRequest(input:{pullRequestId:\"$id\"})
+  {mergeQueueEntry{position state}}}"
+```
+
 ### TDD and the pre-commit gate
 
 - Tests land in the **same commit** as the implementation they cover. When a PR changes Rust files or build/runtime
