@@ -39,6 +39,35 @@ const JUSTICE_GAP_STATS: &[JusticeGapStat] = &[
     },
 ];
 
+#[must_use]
+fn justice_gap_stats_section() -> Markup {
+    html! {
+        section."mb-5" {
+            div."row"."row-cols-1"."row-cols-md-3"."g-4" {
+                @for stat in JUSTICE_GAP_STATS {
+                    div."col" {
+                        div."card"."h-100"."border-0"."shadow-sm" {
+                            div."card-body" {
+                                p."display-6"."fw-bold"."text-primary"."mb-2" { (stat.figure) }
+                                p."card-text"."mb-0" { (stat.claim) }
+                            }
+                            div."card-footer"."bg-transparent"."border-0"."small"."text-body-secondary" {
+                                @if let Some(url) = stat.source_url {
+                                    (ExternalLink::new(url)
+                                        .with_class("link-secondary")
+                                        .render(html! { (stat.source) }))
+                                } @else {
+                                    (stat.source)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Render `/` in English. The layout supplies the surrounding chrome and
 /// the firm brand by default.
 #[must_use]
@@ -96,29 +125,7 @@ pub fn render_in(auth: AuthState, locale: Locale, testimonials: &[TestimonialCar
             testimonials,
         ))
 
-        section."mb-5" {
-            div."row"."row-cols-1"."row-cols-md-3"."g-4" {
-                @for stat in JUSTICE_GAP_STATS {
-                    div."col" {
-                        div."card"."h-100"."border-0"."shadow-sm" {
-                            div."card-body" {
-                                p."display-6"."fw-bold"."text-primary"."mb-2" { (stat.figure) }
-                                p."card-text"."mb-0" { (stat.claim) }
-                            }
-                            div."card-footer"."bg-transparent"."border-0"."small"."text-body-secondary" {
-                                @if let Some(url) = stat.source_url {
-                                    (ExternalLink::new(url)
-                                        .with_class("link-secondary")
-                                        .render(html! { (stat.source) }))
-                                } @else {
-                                    (stat.source)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        (justice_gap_stats_section())
 
         section."mb-5" {
             div."row"."g-4"."align-items-start" {
