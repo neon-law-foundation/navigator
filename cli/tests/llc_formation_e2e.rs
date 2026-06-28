@@ -3,7 +3,7 @@
 //! binary, driven against an in-process `web` app on a loopback port.
 //!
 //! This proves the formation flow through the **CLI surface** the prompt
-//! specifies — `matter open` → `intake answer` (the seven `onboarding__nest`
+//! specifies — `matter open` → `intake answer` (the seven `nv__llc_formation`
 //! questions, including a `people_list` row) → `notation status` →
 //! `notation approve` → `notation document` — and asserts with
 //! `pdf::read_field_value` that the downloaded bytes are the official
@@ -178,7 +178,7 @@ async fn forms_an_llc_through_the_cli_with_answer_flags() {
             "--host",
             &base,
             "--template",
-            "onboarding__nest",
+            "nv__llc_formation",
             "--client-email",
             "libra@example.com",
         ],
@@ -266,7 +266,7 @@ async fn forms_an_llc_through_the_interactive_cli_walk() {
             "--host",
             &base,
             "--template",
-            "onboarding__nest",
+            "nv__llc_formation",
             "--client-email",
             "libra@example.com",
         ],

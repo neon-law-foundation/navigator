@@ -5,7 +5,7 @@
 //! crossing three surfaces — the admin intake walker (real HTTP), the
 //! post-intake signing workflow the walker auto-drives, and the
 //! worker-shaped runtime that records the Secretary-of-State filing once
-//! the client has signed. The `onboarding__nest` template body is a stub;
+//! the client has signed. The `nv__llc_formation` template body is a stub;
 //! the questionnaire + workflow it carries are the contract under test.
 
 // Cucumber's step-attribute macros require `async fn`, so assertion

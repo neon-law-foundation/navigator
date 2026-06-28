@@ -4,7 +4,7 @@
 //! (`GET …/step?format=json`), the idempotent approve, and the
 //! template-neutral document download (`…/documents/document`).
 //!
-//! It walks the `onboarding__nest` (Nevada LLC) questionnaire over real
+//! It walks the `nv__llc_formation` (Nevada LLC) questionnaire over real
 //! HTTP with an admin `SessionData` bearer — the same blob the CLI
 //! presents — so the JSON contract the CLI parses is pinned here, fast,
 //! without spawning the binary (the binary round-trip lives in
@@ -132,7 +132,7 @@ async fn nest_walker_json_step_and_document_download_drive_the_formation() {
         &bearer,
         "/portal/admin/retainers/new",
         format!(
-            "client_email={}&retainer_template_code=onboarding__nest",
+            "client_email={}&retainer_template_code=nv__llc_formation",
             enc("libra@example.com"),
         ),
     )

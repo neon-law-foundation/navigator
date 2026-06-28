@@ -72,11 +72,11 @@ new handler — the spec just needs the retainer's shape: an `intake_persisted__
 
 Signed templates today:
 
-- **`onboarding__retainer`** — the engagement letter; client signs, firm countersigns. **`trusts__nevada`** — the Nevada
-  revocable trust instrument; the settlor signs as `client`, the attorney countersigns as `firm`. The trust instrument
-  is valid e-signed (NRS 163.008 — no witnesses or notary required), but any deed funding **real property** into the
-  trust must be notarized and recorded as a separate step; the template states this caveat and the deed is **not**
-  e-signed here.
+- **`onboarding__retainer` / `onboarding__retainer_*`** — product retainers; client signs, firm countersigns.
+- **`nv__trust`** — the Nevada revocable trust instrument; the settlor signs as `client`, the attorney countersigns as
+  `firm`. The trust instrument is valid e-signed (NRS 163.008 — no witnesses or notary required), but any deed funding
+  **real property** into the trust must be notarized and recorded as a separate step; the template states this caveat
+  and the deed is **not** e-signed here.
 
 Deliberately **not** e-signed: `will__simple` (Nevada wills need two attesting witnesses + a notarized self-proving
 affidavit, NRS 133.040/133.050, or the NRS 133.085 qualified-custodian path) keeps its in-person `testator_signature` →

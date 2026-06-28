@@ -53,7 +53,7 @@ pub fn descriptor() -> Value {
                     "type": "string",
                     "description":
                         "Stable template code, e.g. `onboarding__retainer`, \
-                         `llc__california`. Required."
+                         `ca__llc_operating_agreement`. Required."
                 },
                 "person_email": {
                     "type": "string",

@@ -923,7 +923,7 @@ mod tests {
     #[tokio::test]
     async fn custom_question_uses_template_prompt_override() {
         let db = db().await;
-        seed_template(&db, "dissolution__nevada", "Dissolution").await;
+        seed_template(&db, "nv__dissolution", "Dissolution").await;
         seed_question(&db, "custom_text").await;
         let person_id = seed_person(&db, "libra@example.com").await;
         let runtime = InMemoryRuntime::new();
@@ -932,7 +932,7 @@ mod tests {
             &db,
             &runtime,
             None,
-            "dissolution__nevada",
+            "nv__dissolution",
             person_id,
             seed_project(&db).await,
             None,

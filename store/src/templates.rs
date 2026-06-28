@@ -169,9 +169,9 @@ mod tests {
     #[tokio::test]
     async fn two_shared_templates_with_the_same_code_collide() {
         let db = crate::test_support::pg().await;
-        insert_template(&db, "llc__california", None).await;
+        insert_template(&db, "ca__llc_operating_agreement", None).await;
         let err = template::ActiveModel {
-            code: ActiveValue::Set("llc__california".into()),
+            code: ActiveValue::Set("ca__llc_operating_agreement".into()),
             title: ActiveValue::Set("dup".into()),
             respondent_type: ActiveValue::Set("entity".into()),
             project_id: ActiveValue::Set(None),

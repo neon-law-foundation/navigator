@@ -1016,11 +1016,12 @@ Body.
         );
         write(
             dir.path(),
-            "notation_templates/united_states/nevada/internal/trusts_and_estates/trust.md",
+            "notation_templates/neon_law/northstar/nv__generic_trust.md",
             r"---
 title: Nevada Trust
 respondent_type: entity
 code: trusts__nevada
+jurisdiction: NV
 confidential: true
 questionnaire:
   BEGIN:

@@ -13,7 +13,7 @@ Feature: Profit corporation and business trust formations on the official packet
     And a client named "Libra" <libra@example.com>
 
   Scenario: A profit corporation forms on the official SoS packet
-    When the firm opens the "onboarding__nest_corp" matter for the client
+    When the firm opens the "nv__profit_corp_formation" matter for the client
     And the founder answers the formation questionnaire:
       | value |
       | Libra |
@@ -31,7 +31,7 @@ Feature: Profit corporation and business trust formations on the official packet
     And a filing was recorded with the "Nevada Secretary of State"
 
   Scenario: A business trust forms on the official SoS packet
-    When the firm opens the "onboarding__nest_business_trust" matter for the client
+    When the firm opens the "nv__business_trust_formation" matter for the client
     And the founder answers the formation questionnaire:
       | value |
       | Libra |

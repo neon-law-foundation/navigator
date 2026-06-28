@@ -245,7 +245,7 @@ State packet**:
 
 ```bash
 navigator login --host https://your-firm.example
-navigator matter open --template onboarding__nest --client-email libra@example.com
+navigator matter open --template nv__llc_formation --client-email libra@example.com
 navigator intake answer <notation-id>
 navigator notation status <notation-id>
 navigator notation approve <notation-id>
@@ -255,7 +255,7 @@ navigator notation document <notation-id> --out llc.pdf
 ---
 
 You open a questionnaire-driven matter, answer the formation questions at the terminal, and download the same artifact a
-browser walk produces — the one you review before the staff-gated filing. `matter open` starts the `onboarding__nest`
+browser walk produces — the one you review before the staff-gated filing. `matter open` starts the `nv__llc_formation`
 matter and prints its notation id. `intake answer` then walks the formation questionnaire one question at a time — the
 entity name, the registered agent, whether the company is member-managed or manager-managed, and the managing members
 entered row by row (a blank name ends the list). Answer it interactively, or script it with repeated `--answer` and

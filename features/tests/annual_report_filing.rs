@@ -1,6 +1,6 @@
 //! Cucumber runner for `features/annual_report_filing.feature`.
 //!
-//! Drives the bundled `annual_report__nevada` workflow end-to-end
+//! Drives the bundled `nv__annual_report` workflow end-to-end
 //! through the in-process `DispatchingRuntime` (the same dispatch path
 //! the dev binary uses, here with a database attached so the
 //! compliance step can record a `filings` row): BEGIN → staff_review →
@@ -23,11 +23,11 @@ use workflows::{
     MachineKind, StateMachineRuntime, WorkflowSpec,
 };
 
-const TEMPLATE_CODE: &str = "annual_report__nevada";
+const TEMPLATE_CODE: &str = "nv__annual_report";
 
 fn annual_report_spec() -> WorkflowSpec {
     workflows::workflow_spec_from_yaml(workflows::bundled_spec_yaml(TEMPLATE_CODE).unwrap())
-        .expect("annual_report__nevada workflow block parses")
+        .expect("nv__annual_report workflow block parses")
 }
 
 #[derive(Default, World)]

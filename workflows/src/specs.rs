@@ -11,11 +11,12 @@
 //! pins against).
 //!
 //! Adding a new workflow: drop a notation template under
-//! `notation_templates/<category>/<name>.md`, write the same `workflow:` +
-//! `questionnaire:` blocks into `workflows/specs/<code>.yaml`, and
-//! add the file to [`BUNDLED_SPEC_YAML`] below. The coherence test
-//! in `workflows/tests/spec_coherence.rs` catches any drift between
-//! the two sources.
+//! `notation_templates/forms/...` or `notation_templates/neon_law/...`,
+//! write the same `workflow:` + `questionnaire:` blocks into
+//! `workflows/specs/<code>.yaml`, and add the file to
+//! [`BUNDLED_SPEC_YAML`] below. The coherence test in
+//! `workflows/tests/spec_coherence.rs` catches any drift between the two
+//! sources.
 
 use std::collections::BTreeMap;
 
@@ -28,11 +29,12 @@ use crate::spec::{QuestionnaireSpec, WorkflowSpec, WorkflowSpecError};
 /// the integrity / coherence tests; the workflow spec itself now
 /// loads from [`RETAINER_INTAKE_SPEC_YAML`].
 pub const RETAINER_INTAKE_TEMPLATE: &str =
-    include_str!("../../notation_templates/engagements/retainer.md");
+    include_str!("../../notation_templates/neon_law/shared/retainer.md");
 
 /// Standalone YAML carrying both `questionnaire:` and `workflow:`
 /// blocks for the retainer intake template.
 pub const RETAINER_INTAKE_SPEC_YAML: &str = include_str!("../specs/onboarding__retainer.yaml");
+pub const NEST_RETAINER_SPEC_YAML: &str = include_str!("../specs/onboarding__retainer_nest.yaml");
 
 /// Welcome-email workflow spec. Lives outside [`BUNDLED_SPEC_YAML`]
 /// because the welcome flow is a notification, not a legal-document
@@ -68,21 +70,22 @@ pub fn workshop_certificate_spec() -> WorkflowSpec {
 /// reaching into the filesystem.
 pub const BUNDLED_SPEC_YAML: &[(&str, &str)] = &[
     ("onboarding__retainer", RETAINER_INTAKE_SPEC_YAML),
+    ("onboarding__retainer_nest", NEST_RETAINER_SPEC_YAML),
     (
         "onboarding__estate",
         include_str!("../specs/onboarding__estate.yaml"),
     ),
     (
-        "onboarding__nest",
-        include_str!("../specs/onboarding__nest.yaml"),
+        "nv__llc_formation",
+        include_str!("../specs/nv__llc_formation.yaml"),
     ),
     (
-        "onboarding__nest_corp",
-        include_str!("../specs/onboarding__nest_corp.yaml"),
+        "nv__profit_corp_formation",
+        include_str!("../specs/nv__profit_corp_formation.yaml"),
     ),
     (
-        "onboarding__nest_business_trust",
-        include_str!("../specs/onboarding__nest_business_trust.yaml"),
+        "nv__business_trust_formation",
+        include_str!("../specs/nv__business_trust_formation.yaml"),
     ),
     (
         "onboarding__nexus",
@@ -93,8 +96,8 @@ pub const BUNDLED_SPEC_YAML: &[(&str, &str)] = &[
         include_str!("../specs/closing__letter.yaml"),
     ),
     (
-        "llc__california",
-        include_str!("../specs/llc__california.yaml"),
+        "ca__llc_operating_agreement",
+        include_str!("../specs/ca__llc_operating_agreement.yaml"),
     ),
     (
         "trusts__nevada",
@@ -102,28 +105,25 @@ pub const BUNDLED_SPEC_YAML: &[(&str, &str)] = &[
     ),
     ("will__simple", include_str!("../specs/will__simple.yaml")),
     (
-        "dissolution__nevada",
-        include_str!("../specs/dissolution__nevada.yaml"),
+        "nv__dissolution",
+        include_str!("../specs/nv__dissolution.yaml"),
     ),
     (
-        "annual_report__nevada",
-        include_str!("../specs/annual_report__nevada.yaml"),
+        "nv__annual_report",
+        include_str!("../specs/nv__annual_report.yaml"),
     ),
     (
-        "nv_state_tax_filing__modified_business_tax",
-        include_str!("../specs/nv_state_tax_filing__modified_business_tax.yaml"),
+        "nv__modified_business_tax",
+        include_str!("../specs/nv__modified_business_tax.yaml"),
     ),
     (
-        "nonprofit_501c3_formation__nevada",
-        include_str!("../specs/nonprofit_501c3_formation__nevada.yaml"),
+        "nv__nonprofit_501c3_formation",
+        include_str!("../specs/nv__nonprofit_501c3_formation.yaml"),
     ),
+    ("us__form_990", include_str!("../specs/us__form_990.yaml")),
     (
-        "form_990__annual_report",
-        include_str!("../specs/form_990__annual_report.yaml"),
-    ),
-    (
-        "charitable_solicitation_registration__nevada",
-        include_str!("../specs/charitable_solicitation_registration__nevada.yaml"),
+        "nv__charitable_solicitation_registration",
+        include_str!("../specs/nv__charitable_solicitation_registration.yaml"),
     ),
     (
         "nautilus__notice_of_representation",
@@ -150,8 +150,8 @@ pub const BUNDLED_SPEC_YAML: &[(&str, &str)] = &[
         include_str!("../specs/services__contract_review.yaml"),
     ),
     (
-        "naturalization__federal",
-        include_str!("../specs/naturalization__federal.yaml"),
+        "us__naturalization",
+        include_str!("../specs/us__naturalization.yaml"),
     ),
 ];
 
@@ -323,19 +323,20 @@ mod tests {
     fn bundled_spec_yaml_resolves_every_known_code() {
         for code in [
             "onboarding__retainer",
+            "onboarding__retainer_nest",
             "onboarding__estate",
-            "onboarding__nest",
+            "nv__llc_formation",
             "onboarding__nexus",
             "closing__letter",
-            "llc__california",
+            "ca__llc_operating_agreement",
             "trusts__nevada",
             "will__simple",
-            "dissolution__nevada",
-            "annual_report__nevada",
-            "nv_state_tax_filing__modified_business_tax",
-            "nonprofit_501c3_formation__nevada",
-            "form_990__annual_report",
-            "charitable_solicitation_registration__nevada",
+            "nv__dissolution",
+            "nv__annual_report",
+            "nv__modified_business_tax",
+            "nv__nonprofit_501c3_formation",
+            "us__form_990",
+            "nv__charitable_solicitation_registration",
         ] {
             assert!(
                 bundled_spec_yaml(code).is_some(),

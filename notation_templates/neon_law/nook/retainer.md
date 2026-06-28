@@ -2,6 +2,7 @@
 title: Nook Engagement Agreement
 respondent_type: person_and_entity
 code: onboarding__retainer_nook
+jurisdiction: NV
 confidential: true
 questionnaire:
   BEGIN:

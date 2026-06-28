@@ -176,7 +176,7 @@ mod tests {
             "Northstar estate close fee"
         );
         assert_eq!(
-            matter_close_fee_cents(&db, "onboarding__nest")
+            matter_close_fee_cents(&db, "nv__llc_formation")
                 .await
                 .unwrap(),
             Some(111_100),

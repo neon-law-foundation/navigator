@@ -1,60 +1,42 @@
 //! Vendored government forms — the bundled registry behind
 //! `notation_templates/forms/`.
 //!
-//! Every official form we fill and file is vendored from its canonical
-//! source (the issuing authority's own domain) and pinned in
-//! `notation_templates/forms/FORMS.toml` by printed revision and SHA-256 — see the
-//! `vendor-gov-forms` skill for the acquisition discipline. This crate
-//! bundles the ledger and the PDF bytes into the binary (`include_str!` /
-//! `include_bytes!`) so every consumer — the walker building an
-//! [`Acroform` document payload], the web download routes, the `cli forms
-//! sync` uploader, the guard tests — reads the same bytes the repo
-//! committed, with no network or bucket dependency.
-//!
-//! [`Acroform` document payload]: https://docs.rs/workflows
-//!
-//! The guard test (`forms/tests/vendored_forms.rs`) recomputes each
-//! `sha256` from the bundled bytes and cross-checks the on-disk file, so
-//! ledger, bundle, and working tree cannot drift apart silently.
+//! Each canonical blank PDF lives under the same path it uses in the
+//! public assets bucket: `notation_templates/<object_path>`. The sibling
+//! markdown template is the catalog card, and this crate embeds the PDF
+//! bytes so runtime form filling never depends on a network read.
 
 pub mod fieldmap;
 
 pub use fieldmap::{field_map, resolve, FieldMap, FieldMapError, FieldRule};
 
-use serde::Deserialize;
-
-/// The parsed `FORMS.toml` ledger entry for one vendored form revision.
-#[derive(Debug, Clone, Deserialize)]
+/// Metadata for one vendored government form.
+#[derive(Debug, Clone)]
 pub struct FormMeta {
-    /// The issuing government office, e.g. `Nevada Secretary of State`.
-    pub authority: String,
-    /// Human label, as the authority titles the form.
-    pub name: String,
-    /// Stable id; templates and field maps reference this.
-    pub form_code: String,
-    /// The revision date printed on the form itself (newest page).
-    pub revision: String,
-    /// The canonical page the bytes were downloaded from.
-    pub source_url: String,
-    /// The day we pulled the bytes (ISO date).
-    pub retrieved: String,
-    /// SHA-256 of the PDF bytes, enforced by the guard test.
-    pub sha256: String,
-    /// How the form is filled: `acroform` | `overlay` | `none`.
-    pub fill: String,
-    /// Path in the assets bucket; the repo path is `notation_templates/` + this.
-    pub object_path: String,
-    /// Acquisition caveats, if any.
-    #[serde(default)]
-    pub note: Option<String>,
+    /// Stable form/template code. For forms, this is jurisdiction-first:
+    /// `nv__llc_formation`, `us__form_990`, etc.
+    pub code: &'static str,
+    /// Jurisdiction code from `store/seeds/Jurisdiction.yaml`.
+    pub jurisdiction: &'static str,
+    /// Human title from the sibling markdown template.
+    pub title: &'static str,
+    /// Canonical government page where the blank can be obtained.
+    pub origin_url: &'static str,
+    /// Path in the public assets bucket and, with `notation_templates/`
+    /// prepended, in the repo.
+    pub object_path: &'static str,
 }
 
-#[derive(Debug, Deserialize)]
-struct Ledger {
-    form: Vec<FormMeta>,
+impl FormMeta {
+    /// Compatibility accessor while callers migrate from the old
+    /// `form_code` vocabulary to plain `code`.
+    #[must_use]
+    pub fn form_code(&self) -> &'static str {
+        self.code
+    }
 }
 
-/// One vendored form: its ledger entry plus the bundled PDF bytes.
+/// One vendored form: metadata plus bundled PDF bytes.
 #[derive(Debug, Clone)]
 pub struct Form {
     pub meta: FormMeta,
@@ -64,71 +46,69 @@ pub struct Form {
 /// Errors loading the bundled registry.
 #[derive(Debug, thiserror::Error)]
 pub enum FormsError {
-    #[error("parse FORMS.toml: {0}")]
-    Ledger(#[from] toml::de::Error),
-    #[error("ledger entry `{0}` has no bundled bytes — add it to BUNDLED")]
-    MissingBytes(String),
-    #[error("bundled bytes for `{0}` have no ledger entry — add it to FORMS.toml")]
-    MissingLedgerEntry(String),
+    #[error("forms registry unavailable")]
+    Unavailable,
 }
 
-const LEDGER_TOML: &str = include_str!("../../notation_templates/forms/FORMS.toml");
+const NV_SOS_FORMS_URL: &str =
+    "https://www.nvsos.gov/businesses/commercial-recordings/forms-fees/all-business-forms";
 
-/// The bundled PDF bytes, keyed by `form_code`. One row per ledger entry;
-/// the guard test fails if the two ever disagree.
-const BUNDLED: &[(&str, &[u8])] = &[
-    (
-        "nv_sos__llc_formation",
-        include_bytes!("../../notation_templates/forms/nv_sos/nv_sos__llc_formation-2023-08.pdf"),
-    ),
-    (
-        "nv_sos__profit_corp_formation",
-        include_bytes!(
-            "../../notation_templates/forms/nv_sos/nv_sos__profit_corp_formation-2024-05.pdf"
+const BUNDLED: &[Form] = &[
+    Form {
+        meta: FormMeta {
+            code: "nv__llc_formation",
+            jurisdiction: "NV",
+            title: "Nevada LLC Formation",
+            origin_url: NV_SOS_FORMS_URL,
+            object_path: "forms/united_states/nevada/state/nv__llc_formation.pdf",
+        },
+        bytes: include_bytes!(
+            "../../notation_templates/forms/united_states/nevada/state/nv__llc_formation.pdf"
         ),
-    ),
-    (
-        "nv_sos__business_trust_formation",
-        include_bytes!(
-            "../../notation_templates/forms/nv_sos/nv_sos__business_trust_formation-2023-08.pdf"
+    },
+    Form {
+        meta: FormMeta {
+            code: "nv__profit_corp_formation",
+            jurisdiction: "NV",
+            title: "Nevada Profit Corporation Formation",
+            origin_url: NV_SOS_FORMS_URL,
+            object_path: "forms/united_states/nevada/state/nv__profit_corp_formation.pdf",
+        },
+        bytes: include_bytes!(
+            "../../notation_templates/forms/united_states/nevada/state/nv__profit_corp_formation.pdf"
         ),
-    ),
+    },
+    Form {
+        meta: FormMeta {
+            code: "nv__business_trust_formation",
+            jurisdiction: "NV",
+            title: "Nevada Business Trust Formation",
+            origin_url: NV_SOS_FORMS_URL,
+            object_path: "forms/united_states/nevada/state/nv__business_trust_formation.pdf",
+        },
+        bytes: include_bytes!(
+            "../../notation_templates/forms/united_states/nevada/state/nv__business_trust_formation.pdf"
+        ),
+    },
 ];
 
-/// Parse the bundled ledger and join each entry to its bundled bytes.
+/// Return the bundled form registry.
 ///
 /// # Errors
 ///
-/// [`FormsError`] when the ledger fails to parse or the ledger and
-/// [`BUNDLED`] disagree in either direction — a vendoring half-done.
+/// This currently cannot fail; the `Result` keeps the public seam stable
+/// for callers that already propagate registry errors.
 pub fn registry() -> Result<Vec<Form>, FormsError> {
-    let ledger: Ledger = toml::from_str(LEDGER_TOML)?;
-    let mut forms = Vec::with_capacity(ledger.form.len());
-    for meta in ledger.form {
-        let bytes = BUNDLED
-            .iter()
-            .find(|(code, _)| *code == meta.form_code)
-            .map(|(_, bytes)| *bytes)
-            .ok_or_else(|| FormsError::MissingBytes(meta.form_code.clone()))?;
-        forms.push(Form { meta, bytes });
-    }
-    for (code, _) in BUNDLED {
-        if !forms.iter().any(|f| f.meta.form_code == *code) {
-            return Err(FormsError::MissingLedgerEntry((*code).to_string()));
-        }
-    }
-    Ok(forms)
+    Ok(BUNDLED.to_vec())
 }
 
-/// Look up one vendored form by its stable `form_code`.
+/// Look up one vendored form by its stable `code`.
 ///
 /// # Errors
 ///
 /// Propagates [`registry`] errors; `Ok(None)` when the code is unknown.
-pub fn get(form_code: &str) -> Result<Option<Form>, FormsError> {
-    Ok(registry()?
-        .into_iter()
-        .find(|f| f.meta.form_code == form_code))
+pub fn get(code: &str) -> Result<Option<Form>, FormsError> {
+    Ok(registry()?.into_iter().find(|f| f.meta.code == code))
 }
 
 #[cfg(test)]
@@ -136,25 +116,23 @@ mod tests {
     use super::{get, registry};
 
     #[test]
-    fn registry_joins_every_ledger_entry_to_bytes() {
-        let forms = registry().expect("ledger parses and joins");
+    fn registry_embeds_every_pdf() {
+        let forms = registry().expect("registry loads");
         assert_eq!(forms.len(), 3);
         for form in &forms {
             assert!(
                 form.bytes.starts_with(b"%PDF"),
                 "{} bundled bytes are not a PDF",
-                form.meta.form_code
+                form.meta.code
             );
+            assert!(form.meta.object_path.ends_with(".pdf"));
+            assert!(form.meta.object_path.starts_with("forms/united_states/"));
         }
     }
 
     #[test]
     fn get_finds_known_and_misses_unknown() {
-        assert!(get("nv_sos__llc_formation")
-            .expect("registry loads")
-            .is_some());
-        assert!(get("nv_sos__annual_list")
-            .expect("registry loads")
-            .is_none());
+        assert!(get("nv__llc_formation").expect("registry loads").is_some());
+        assert!(get("nv__annual_list").expect("registry loads").is_none());
     }
 }

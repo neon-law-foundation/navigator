@@ -4,7 +4,7 @@
 //! an in-process `web` app on a loopback port.
 //!
 //! This is the CLI demo path for the immigration workflow — `matter open`
-//! → `intake answer` (the twelve `naturalization__federal` questions) →
+//! → `intake answer` (the twelve `us__naturalization` questions) →
 //! `notation status` → `notation approve` → `notation document` — proving
 //! the applicant's answers render into the N-400 intake-summary PDF and the
 //! matter parks at the signature wait, all through the binary.
@@ -49,7 +49,7 @@ const ANSWERS: [&str; 12] = [
 ];
 
 /// Build the seeded app with the same wiring `features::journey` uses —
-/// canonical templates (including `naturalization__federal`), FsStorage, a
+/// canonical templates (including `us__naturalization`), FsStorage, a
 /// `DispatchingRuntime` that renders + dispatches in-process, and a
 /// `StubSignatureProvider`. Auth is ENFORCED (HS256) so the CLI's
 /// `Authorization: Bearer <SessionData>` is exercised for real.
@@ -180,7 +180,7 @@ async fn naturalization_intake_through_the_cli_with_answer_flags() {
             "--host",
             &base,
             "--template",
-            "naturalization__federal",
+            "us__naturalization",
             "--client-email",
             "maria@example.com",
         ],
@@ -248,7 +248,7 @@ async fn naturalization_intake_through_the_interactive_cli_walk() {
             "--host",
             &base,
             "--template",
-            "naturalization__federal",
+            "us__naturalization",
             "--client-email",
             "maria@example.com",
         ],

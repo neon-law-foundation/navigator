@@ -114,21 +114,20 @@ fn every_flag_the_section_prints_appears_in_the_commands_help() {
 
 #[test]
 fn the_template_code_the_section_names_is_a_real_seeded_template() {
-    // `onboarding__nest` must be a real template code, or `matter open
-    // --template onboarding__nest` (and the screenshot in the prose) is a
+    // `nv__llc_formation` must be a real template code, or `matter open
+    // --template nv__llc_formation` (and the screenshot in the prose) is a
     // dead command.
     let section = llc_section();
     assert!(
-        section.contains("onboarding__nest"),
-        "the workshop must name the `onboarding__nest` template",
+        section.contains("nv__llc_formation"),
+        "the workshop must name the `nv__llc_formation` template",
     );
-    let template = repo_file(
-        "notation_templates/united_states/nevada/state/business_associations/entity_formation.md",
-    );
+    let template =
+        repo_file("notation_templates/forms/united_states/nevada/state/nv__llc_formation.md");
     assert!(
-        template.contains("code: onboarding__nest"),
-        "`notation_templates/united_states/nevada/state/business_associations/entity_formation.md` no longer declares `code: onboarding__nest` — \
-         the workshop's `--template onboarding__nest` is now a dead command",
+        template.contains("code: nv__llc_formation"),
+        "`notation_templates/forms/united_states/nevada/state/nv__llc_formation.md` no longer declares `code: nv__llc_formation` — \
+         the workshop's `--template nv__llc_formation` is now a dead command",
     );
 }
 
@@ -147,10 +146,10 @@ fn the_staff_gated_filing_promise_holds_in_the_workflow() {
         section.to_lowercase().contains("never files"),
         "the workshop must keep the 'Neon Law Navigator never files for you' promise",
     );
-    let spec = repo_file("workflows/specs/onboarding__nest.yaml");
+    let spec = repo_file("workflows/specs/nv__llc_formation.yaml");
     assert!(
         spec.contains("filing__nv_sos"),
-        "`onboarding__nest.yaml` no longer reaches `filing__nv_sos` — the workshop's \
+        "`nv__llc_formation.yaml` no longer reaches `filing__nv_sos` — the workshop's \
          staff-gated-filing promise has drifted from the workflow",
     );
 }

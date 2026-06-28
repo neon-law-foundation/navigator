@@ -63,21 +63,20 @@ async fn gallery_index_renders_for_an_anonymous_visitor() {
 async fn template_detail_has_frontmatter_disclaimer_and_start_a_matter_cta() {
     let resp = get(
         empty_state().await,
-        "/templates/united-states/federal/irs/taxation/form990-annual-report",
+        "/templates/forms/united-states/federal/irs/us--form-990",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     // The notation format itself — the rendered frontmatter.
-    assert!(body.contains("code: form_990__annual_report"));
+    assert!(body.contains("code: us__form_990"));
     // The UPL disclaimer partial.
     assert!(body.contains("does not create an attorney"));
     // A download must not be a dead end.
     assert!(body.contains("Start a matter"));
     assert!(body.contains("href=\"/contact\""));
     // And the raw-download link — kebab-cased, like every asset URL.
-    assert!(body
-        .contains("/templates/united-states/federal/irs/taxation/form990-annual-report/download"));
+    assert!(body.contains("/templates/forms/united-states/federal/irs/us--form-990/download"));
 }
 
 #[tokio::test]
@@ -87,7 +86,7 @@ async fn template_underscore_url_redirects_to_kebab() {
     // hyphenated home.
     let resp = get(
         empty_state().await,
-        "/templates/united_states/federal/irs/taxation/form990_annual_report",
+        "/templates/forms/united_states/federal/irs/us__form_990",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
@@ -95,13 +94,13 @@ async fn template_underscore_url_redirects_to_kebab() {
         resp.headers()
             .get(axum::http::header::LOCATION)
             .and_then(|v| v.to_str().ok()),
-        Some("/templates/united-states/federal/irs/taxation/form990-annual-report"),
+        Some("/templates/forms/united-states/federal/irs/us--form-990"),
     );
 
     // The download route redirects too, preserving the trailing segment.
     let resp = get(
         empty_state().await,
-        "/templates/united_states/federal/irs/taxation/form990_annual_report/download",
+        "/templates/forms/united_states/federal/irs/us__form_990/download",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
@@ -109,7 +108,7 @@ async fn template_underscore_url_redirects_to_kebab() {
         resp.headers()
             .get(axum::http::header::LOCATION)
             .and_then(|v| v.to_str().ok()),
-        Some("/templates/united-states/federal/irs/taxation/form990-annual-report/download"),
+        Some("/templates/forms/united-states/federal/irs/us--form-990/download"),
     );
 }
 
@@ -125,7 +124,7 @@ async fn legacy_gallery_url_redirects_to_deep_taxonomy_path() {
         resp.headers()
             .get(axum::http::header::LOCATION)
             .and_then(|v| v.to_str().ok()),
-        Some("/templates/united-states/federal/irs/taxation/form990-annual-report"),
+        Some("/templates/forms/united-states/federal/irs/us--form-990"),
     );
 }
 
@@ -133,7 +132,7 @@ async fn legacy_gallery_url_redirects_to_deep_taxonomy_path() {
 async fn template_downloads_verbatim_markdown_as_an_attachment() {
     let resp = get(
         empty_state().await,
-        "/templates/united-states/federal/irs/taxation/form990-annual-report/download",
+        "/templates/forms/united-states/federal/irs/us--form-990/download",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -149,14 +148,13 @@ async fn template_downloads_verbatim_markdown_as_an_attachment() {
         resp.headers()
             .get(axum::http::header::CONTENT_DISPOSITION)
             .unwrap(),
-        "attachment; filename=\"form990_annual_report.md\""
+        "attachment; filename=\"us__form_990.md\""
     );
     let body = body_string(resp).await;
     // Verbatim bytes: the same source the git reader sees, frontmatter
     // fence and all.
-    let source = include_str!(
-        "../../notation_templates/united_states/federal/irs/taxation/form990_annual_report.md"
-    );
+    let source =
+        include_str!("../../notation_templates/forms/united_states/federal/irs/us__form_990.md");
     assert_eq!(body, source);
 }
 
@@ -164,12 +162,12 @@ async fn template_downloads_verbatim_markdown_as_an_attachment() {
 async fn confidential_template_404s_rather_than_leaking() {
     // Retainer is `confidential: true` and not on the allow-list. The
     // route must 404 — never serve it by guessing the path.
-    let resp = get(empty_state().await, "/templates/engagements/retainer").await;
+    let resp = get(empty_state().await, "/templates/neon-law/shared/retainer").await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
     let resp = get(
         empty_state().await,
-        "/templates/engagements/retainer/download",
+        "/templates/neon-law/shared/retainer/download",
     )
     .await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);

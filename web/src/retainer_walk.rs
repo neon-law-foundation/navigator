@@ -1374,17 +1374,19 @@ async fn acroform_payload(
         .ok_or_else(|| form_err("no field map vendored for this form".into()))?;
     let fields = forms::resolve(&map, ctx).map_err(|e| form_err(e.to_string()))?;
 
-    // `templates/` here is the documents-bucket key namespace, NOT a repo
-    // path — it is deliberately independent of the `notation_templates/`
-    // source folder. Renaming it would orphan blanks already uploaded to
-    // production object storage; leave it as-is.
-    let blank_form_key = format!("templates/{}", form.meta.object_path);
-    if !state.storage.exists(&blank_form_key).await? {
+    let blank_form_key = form.meta.object_path.to_string();
+    let legacy_blank_form_key = format!("templates/{}", form.meta.object_path);
+    let blank_form_key = if state.storage.exists(&blank_form_key).await? {
+        blank_form_key
+    } else if state.storage.exists(&legacy_blank_form_key).await? {
+        legacy_blank_form_key
+    } else {
         state
             .storage
             .put(&blank_form_key, form.bytes, "application/pdf")
             .await?;
-    }
+        blank_form_key
+    };
     serde_json::to_string(&workflows::DocumentPayload::Acroform {
         storage_key: document_pdf_storage_key(notation_id),
         blank_form_key,

@@ -8,7 +8,7 @@ Feature: Naturalization, end to end (Form N-400 → Certificate of Naturalizatio
   of Naturalization (Form N-550), the lifelong proof of citizenship that
   ends the matter.
 
-  The naturalization__federal template binds the intake questionnaire and
+  The us__naturalization template binds the intake questionnaire and
   the workflow. The rendered N-400 intake summary is the artifact she signs;
   the workflow records the USCIS filing and files the issued certificate
   into the matter.
@@ -18,7 +18,7 @@ Feature: Naturalization, end to end (Form N-400 → Certificate of Naturalizatio
     And a client named "Maria Santos" <maria@example.com>
 
   Scenario: From N-400 intake to the Certificate of Naturalization
-    When the firm opens the "naturalization__federal" matter for the client
+    When the firm opens the "us__naturalization" matter for the client
     And the applicant answers the naturalization questionnaire:
       | value             |
       | Maria Santos      |

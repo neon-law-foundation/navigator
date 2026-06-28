@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn render_emits_readme_under_foundation_brand_with_rewritten_links() {
-        let readme = "# CLI\n\nSee [the glossary](docs/glossary.md) and [a template](notation_templates/united_states/nevada/state/business_associations/entity_formation.md).\n";
+        let readme = "# CLI\n\nSee [the glossary](docs/glossary.md) and [a template](notation_templates/forms/united_states/nevada/state/nv__llc_formation.md).\n";
         let html = render(
             "Neon Law Navigator CLI",
             "The navigator operator CLI.",
@@ -341,7 +341,7 @@ mod tests {
         assert!(html.contains("href=\"/docs/glossary\""), "got: {html}");
         assert!(
             html.contains(
-                "href=\"/api/templates/united-states/nevada/state/business-associations/entity-formation\""
+                "href=\"/api/templates/forms/united-states/nevada/state/nv--llc-formation\""
             ),
             "got: {html}"
         );

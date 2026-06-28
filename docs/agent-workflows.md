@@ -120,7 +120,7 @@ Use this path when adding a new matter type or extending a template's workflow. 
 one-off router handler when a template + questionnaire + workflow can express the matter.
 
 1. Write the composition `.feature` first in `features/tests/features/`.
-2. Create or edit the template in `notation_templates/<category>/<snake_case_name>.md`.
+2. Create or edit the template under `notation_templates/forms/...` or `notation_templates/neon_law/<product>/...`.
 3. Add new questions to `store/seeds/Question.yaml`.
 4. Compose the workflow from documented step prefixes in [`notation-authoring.md`](notation-authoring.md).
 5. Add reusable `StepKind` and dispatch code only when the existing step registry cannot express the work.

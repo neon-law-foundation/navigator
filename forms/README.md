@@ -2,19 +2,24 @@
 
 Vendored government forms — the bundled registry behind `notation_templates/forms/`.
 
-Every official form Neon Law Navigator fills and files is vendored from its canonical source (the issuing authority's
-own domain, e.g. `nvsos.gov`) and pinned in
-[`notation_templates/forms/FORMS.toml`](../notation_templates/forms/FORMS.toml) by printed revision and SHA-256. This
-crate bundles the ledger and the PDF bytes into the binary so every consumer — the workflow walker building an AcroForm
-document payload, the web download routes, the `cli forms sync` uploader — reads the same bytes the repo committed, with
-no network or bucket dependency.
+Every official form Neon Law Navigator fills is stored under the same path it uses in the public assets bucket. For
+example:
 
-The acquisition discipline (canonical source only, no Wayback or mirrors, canonical example on disk before any field
-map, one commit per refresh) lives in the `vendor-gov-forms` skill. The guard test (`tests/vendored_forms.rs`)
-recomputes each `sha256` from the bundled bytes and cross-checks the on-disk file, so the ledger, the bundle, and the
-working tree cannot drift apart silently.
+```text
+notation_templates/forms/united_states/nevada/state/nv__llc_formation.pdf
+```
+
+syncs to:
+
+```text
+gs://<assets-bucket>/forms/united_states/nevada/state/nv__llc_formation.pdf
+```
+
+The sibling markdown template is the catalog card (`code`, `jurisdiction`, `origin_url`, questionnaire, workflow), and
+the sibling `.fields.toml` maps questionnaire answers onto the PDF's AcroForm field names.
 
 ## API
 
-- `forms::registry()` — every vendored form: ledger metadata + `&'static [u8]` PDF bytes. `forms::get(form_code)` — one
-  form by its stable `form_code` (e.g. `nv_sos__llc_formation`).
+- `forms::registry()` — every bundled form: metadata + `&'static [u8]` PDF bytes.
+- `forms::get(code)` — one form by its stable code, e.g. `nv__llc_formation`.
+- `forms::field_map(code)` — the sibling field map, when the form is fillable.
