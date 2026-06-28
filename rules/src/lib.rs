@@ -3,6 +3,9 @@
 //! Downstream consumers (the `cli` binary) build a
 //! [`RuleEngine`] from a set of rules and run it over a directory.
 
+pub mod e001;
+pub mod e002;
+pub mod e003;
 pub mod engine;
 pub mod f103;
 pub mod f104;
@@ -62,6 +65,9 @@ pub mod m060;
 pub mod s102;
 pub mod workflow_steps;
 
+pub use e001::E001EventTimestamp;
+pub use e002::E002EventTemplateExclusive;
+pub use e003::E003EventLocationOrMeeting;
 pub use f103::{is_pascal_case, is_snake_case, F103SnakeCaseFilename};
 pub use f104::F104FlowQuestionCodes;
 pub use f105::F105ConfidentialRequired;
@@ -124,8 +130,8 @@ pub use workflow_steps::{
 pub use engine::{
     classify_source, code_uniqueness_violations, lint_source_classified,
     navigator_classified_rules, navigator_classified_rules_with_codes, navigator_default_rules,
-    navigator_default_rules_with_codes, navigator_markdown_only_rules, ClassifiedRuleEngine,
-    DefaultFileFilter, DocumentKind, FileFilter, LintReport, RuleEngine,
+    navigator_default_rules_with_codes, navigator_event_rules, navigator_markdown_only_rules,
+    ClassifiedRuleEngine, DefaultFileFilter, DocumentKind, FileFilter, LintReport, RuleEngine,
 };
 
 use std::ops::Range;
@@ -234,6 +240,9 @@ pub fn description_for_code(code: &str) -> &'static str {
         "N110" => "Notation template under a jurisdiction must encode it in the path",
         "N111" => "Notation template `code` must be unique across the tree",
         "N112" => "Workflow step is allowed but its automation is not built yet",
+        "E001" => "Event must declare both a `starts_at` timestamp and a `timezone`",
+        "E002" => "A file is either an event or a notation template, never both",
+        "E003" => "Event must declare a `location_address` or a `meeting_url`",
         "M001" => "Heading levels must increment by one",
         "M003" => "Headings must use the ATX (`# Heading`) style",
         "M004" => "Unordered list markers must be consistent",

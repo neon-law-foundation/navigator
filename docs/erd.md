@@ -191,6 +191,19 @@ erDiagram
         TEXT inserted_at
         TEXT updated_at
     }
+    events {
+        UUID id PK
+        TEXT slug
+        TEXT public_slug
+        TEXT event_type
+        TIMESTAMP WITHOUT TIME ZONE starts_at
+        TIMESTAMP WITHOUT TIME ZONE ends_at
+        TEXT timezone
+        BOOLEAN draft
+        ARRAY registrations
+        TEXT inserted_at
+        TEXT updated_at
+    }
     expunge_records {
         UUID id PK
         UUID project_id FK

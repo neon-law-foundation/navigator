@@ -5258,8 +5258,8 @@ fn event_state_with_one_event() -> web::EventIndex {
         timezone: "America/Los_Angeles".into(),
         location_name: "Private lounge".into(),
         location_address: "1920 4th Ave, downtown Seattle".into(),
-        external_event_provider: "luma".into(),
-        external_event_url: "https://luma.com/k26256ut".into(),
+        meeting_url: None,
+        draft: false,
         image_url: Some("/public/events/seattle.webp".into()),
         image_alt: Some("Seattle skyline".into()),
         video_url: None,
@@ -5280,8 +5280,8 @@ fn test_event(slug: &str, title: &str, date: chrono::NaiveDate) -> web::Event {
         timezone: "America/Los_Angeles".into(),
         location_name: "Community venue".into(),
         location_address: "Downtown".into(),
-        external_event_provider: "luma".into(),
-        external_event_url: format!("https://luma.com/{slug}"),
+        meeting_url: None,
+        draft: false,
         image_url: Some(format!("/public/events/{slug}.webp")),
         image_alt: Some(format!("{title} event image")),
         video_url: None,
@@ -5543,12 +5543,14 @@ async fn nebula_show_tell_index_paginates_upcoming_and_past_events() {
     assert!(!body.contains("Past 1"));
     assert!(body.contains("Page 2 of 2"));
     assert!(body.contains("src=\"/public/events/upcoming-5.webp\""));
-    assert!(body.contains("src=\"/public/logos/luma.svg\""));
-    assert!(body.contains("href=\"https://luma.com/upcoming-5\""));
+    // The card drives registration to our own site, not Luma.
+    assert!(!body.contains("luma"));
+    assert!(body.contains("href=\"/foundation/nebula/show-and-tell/upcoming-5\""));
+    assert!(body.contains("Register"));
 }
 
 #[tokio::test]
-async fn nebula_show_tell_renders_rsvp_and_calendar_links() {
+async fn nebula_show_tell_renders_register_and_calendar_links() {
     let mut state = empty_state().await;
     state.events = event_state_with_one_event();
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
@@ -5564,9 +5566,150 @@ async fn nebula_show_tell_renders_rsvp_and_calendar_links() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("Trade real stories and workflows."));
-    assert!(body.contains("href=\"https://luma.com/k26256ut\""));
+    // The upcoming Seattle event renders a website registration form, not a
+    // Luma link.
+    assert!(!body.contains("luma"));
+    assert!(
+        body.contains("action=\"/foundation/nebula/show-and-tell/seattle-summer-2026/register\"")
+    );
+    assert!(body.contains("name=\"email\""));
     assert!(
         body.contains("href=\"/foundation/nebula/show-and-tell/seattle-summer-2026/calendar.ics\"")
+    );
+}
+
+#[tokio::test]
+async fn nebula_show_tell_register_records_email_neutrally() {
+    // A draft or unknown event 404s; a published event accepts the POST and
+    // returns the neutral confirmation. With no database wired in the test
+    // harness the registration write is best-effort, but the route still
+    // verifies CSRF and renders the confirmation.
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    // GET on the POST-only register path bounces back to the event page.
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/nebula/show-and-tell/seattle-summer-2026/register")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::SEE_OTHER);
+}
+
+/// Drive `GET …/show-and-tell/{slug}` and return `(cookie_pair, csrf_token)`
+/// for a valid double-submit POST to the registration route.
+async fn fetch_register_csrf(app: &axum::Router, slug: &str) -> (String, String) {
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/foundation/nebula/show-and-tell/{slug}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let set_cookie = resp
+        .headers()
+        .get_all(axum::http::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find(|c| c.starts_with("navigator_nebula_register_csrf="))
+        .expect("detail page sets the register CSRF cookie")
+        .to_string();
+    let cookie_pair = set_cookie.split(';').next().unwrap().to_string();
+    let body = body_string(resp).await;
+    let marker = "name=\"csrf_token\" value=\"";
+    let start = body.find(marker).expect("csrf hidden field present") + marker.len();
+    let token = body[start..].split('"').next().unwrap().to_string();
+    (cookie_pair, token)
+}
+
+#[tokio::test]
+async fn nebula_show_tell_register_db_failure_returns_500_not_confirmation() {
+    // A failed registration write must NOT paint a "you're registered"
+    // confirmation over a row that was never stored. Drop the events table so
+    // the store call returns a DbErr, then prove the handler surfaces a 500
+    // with no confirmation copy.
+    use sea_orm::ConnectionTrait;
+
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let db = state.db.clone();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+
+    let (cookie, token) = fetch_register_csrf(&app, "seattle-summer-2026").await;
+
+    // Force the store write to fail: with no `events` relation the atomic
+    // UPDATE errors instead of returning an Ok outcome.
+    db.execute_unprepared("DROP TABLE events")
+        .await
+        .expect("drop events table");
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/foundation/nebula/show-and-tell/seattle-summer-2026/register")
+                .header(header::COOKIE, cookie)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from(format!(
+                    "email=ada%40example.com&csrf_token={token}"
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = body_string(resp).await;
+    // The neutral confirmation headline must never appear on a failed write.
+    assert!(
+        !body.contains("registered"),
+        "a failed write must not render the registration confirmation, got: {body}"
+    );
+}
+
+#[tokio::test]
+async fn nebula_show_tell_register_index_db_divergence_returns_500_not_confirmation() {
+    // The in-memory markdown index serves a published event, but the DB has no
+    // published row for that slug (row hard-deleted or draft flipped after
+    // boot). The store returns `EventNotFound`; nothing was stored, so the
+    // handler must NOT paint a "you're registered" confirmation — it returns a
+    // 500 just like a write failure.
+    let mut state = empty_state().await;
+    state.events = event_state_with_one_event();
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+
+    let (cookie, token) = fetch_register_csrf(&app, "seattle-summer-2026").await;
+
+    // No `events` row was ever inserted for this slug, so the atomic UPDATE
+    // affects zero rows and the disambiguating lookup returns `EventNotFound`.
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/foundation/nebula/show-and-tell/seattle-summer-2026/register")
+                .header(header::COOKIE, cookie)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from(format!(
+                    "email=ada%40example.com&csrf_token={token}"
+                )))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    let body = body_string(resp).await;
+    assert!(
+        !body.contains("registered"),
+        "an index/DB divergence must not render the registration confirmation, got: {body}"
     );
 }
 
@@ -5594,7 +5737,10 @@ async fn nebula_show_tell_ics_uses_pacific_timezone() {
     let body = body_string(resp).await;
     assert!(body.contains("DTSTART;TZID=America/Los_Angeles:20260702T110000"));
     assert!(body.contains("DTEND;TZID=America/Los_Angeles:20260702T150000"));
-    assert!(body.contains("URL:https://luma.com/k26256ut"));
+    // In-person event (no meeting_url): the calendar carries the place and
+    // omits the online URL line.
+    assert!(body.contains("LOCATION:"));
+    assert!(!body.contains("URL:"));
 }
 
 #[tokio::test]

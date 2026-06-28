@@ -3,13 +3,12 @@ title: "Reno Nebula Show and Tell"
 description: >
   A Reno gathering for lawyers to share legal AI workflows, demos, prompts, review habits, and practical guardrails.
 public_slug: reno-summer-2026
+draft: true
 starts_at: "2026-07-17T11:00:00"
 ends_at: "2026-07-17T15:00:00"
 timezone: America/Los_Angeles
 location_name: Reno venue to be announced
 location_address: Reno, Nevada
-external_event_provider: luma
-invite_link: https://luma.com/neon-law-nebula-reno
 image_url: /public/events/nebula-show-and-tell/nlf-lawyers-reno.png
 image_alt: Lawyers gathered in Reno with a Neon Law Foundation flag
 video_url:

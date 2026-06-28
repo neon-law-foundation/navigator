@@ -3,13 +3,12 @@ title: "Washington, DC Nebula Show and Tell"
 description: >
   A Washington, DC gathering for public-interest, private-practice, and policy-minded legal professionals using AI.
 public_slug: washington-dc-summer-2026
+draft: true
 starts_at: "2026-08-10T11:00:00"
 ends_at: "2026-08-10T15:00:00"
 timezone: America/New_York
 location_name: Washington, DC venue to be announced
 location_address: Washington, DC
-external_event_provider: luma
-invite_link: https://luma.com/neon-law-nebula-washington-dc
 image_url: /public/events/nebula-show-and-tell/nlf-lawyers-washington-dc.png
 image_alt: Lawyers gathered in Washington, DC with a Neon Law Foundation flag
 video_url:

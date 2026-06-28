@@ -3,13 +3,12 @@ title: "St. Louis Nebula Show and Tell"
 description: >
   A St. Louis gathering for legal AI demos, workflow sharing, peer review, and practical professional guardrails.
 public_slug: st-louis-summer-2026
+draft: true
 starts_at: "2026-07-31T11:00:00"
 ends_at: "2026-07-31T15:00:00"
 timezone: America/Chicago
 location_name: St. Louis venue to be announced
 location_address: St. Louis, Missouri
-external_event_provider: luma
-invite_link: https://luma.com/neon-law-nebula-st-louis
 image_url: /public/events/nebula-show-and-tell/nlf-lawyers-st-louis.png
 image_alt: Lawyers gathered in St. Louis with a Neon Law Foundation flag
 video_url:

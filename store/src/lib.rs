@@ -20,6 +20,7 @@ pub mod documents;
 pub mod email_conversations;
 pub mod email_tokens;
 pub mod entity;
+pub mod events;
 pub mod expunge_records;
 pub mod expunge_requests;
 pub mod filings;

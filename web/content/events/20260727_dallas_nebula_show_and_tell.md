@@ -3,13 +3,12 @@ title: "Dallas Nebula Show and Tell"
 description: >
   A Dallas gathering for practical legal AI demos, workflow sharing, peer review, and responsible adoption habits.
 public_slug: dallas-summer-2026
+draft: true
 starts_at: "2026-07-27T11:00:00"
 ends_at: "2026-07-27T15:00:00"
 timezone: America/Chicago
 location_name: Dallas venue to be announced
 location_address: Dallas, Texas
-external_event_provider: luma
-invite_link: https://luma.com/neon-law-nebula-dallas
 image_url: /public/events/nebula-show-and-tell/nlf-lawyers-dallas.png
 image_alt: Lawyers gathered in Dallas with a Neon Law Foundation flag
 video_url:
