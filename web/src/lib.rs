@@ -972,6 +972,18 @@ struct ShowTellPagination {
     past_page: Option<usize>,
 }
 
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+struct ReferralQuery {
+    #[serde(default, rename = "ref")]
+    referral: Option<String>,
+}
+
+impl ReferralQuery {
+    fn is_1337lawyers(&self) -> bool {
+        self.referral.as_deref() == Some("1337lawyers")
+    }
+}
+
 /// `GET /blog` — the firm blog index, newest post first.
 async fn blog_index(State(blog): State<BlogIndex>, MaybeAuth(auth): MaybeAuth) -> Markup {
     let dates: Vec<String> = blog
@@ -1529,8 +1541,15 @@ async fn service_nest(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NEST, a.0, views::Locale::En)
 }
 async fn service_nexus(s: State<MarketingIndex>, State(db): State<Db>, a: MaybeAuth) -> Markup {
-    render_service_with_product_testimonials(&s.0, &db, &SERVICE_NEXUS, a.0, views::Locale::En)
-        .await
+    render_service_with_product_testimonials(
+        &s.0,
+        &db,
+        &SERVICE_NEXUS,
+        a.0,
+        views::Locale::En,
+        false,
+    )
+    .await
 }
 async fn service_nautilus(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NAUTILUS, a.0, views::Locale::En)
@@ -1541,10 +1560,18 @@ async fn service_nook(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
 async fn service_litigation(
     s: State<MarketingIndex>,
     State(db): State<Db>,
+    Query(q): Query<ReferralQuery>,
     a: MaybeAuth,
 ) -> Markup {
-    render_service_with_product_testimonials(&s.0, &db, &SERVICE_LITIGATION, a.0, views::Locale::En)
-        .await
+    render_service_with_product_testimonials(
+        &s.0,
+        &db,
+        &SERVICE_LITIGATION,
+        a.0,
+        views::Locale::En,
+        q.is_1337lawyers(),
+    )
+    .await
 }
 async fn service_nerd(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NERD, a.0, views::Locale::En)
@@ -1581,8 +1608,15 @@ async fn service_nest_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NEST, a.0, views::Locale::Es)
 }
 async fn service_nexus_es(s: State<MarketingIndex>, State(db): State<Db>, a: MaybeAuth) -> Markup {
-    render_service_with_product_testimonials(&s.0, &db, &SERVICE_NEXUS, a.0, views::Locale::Es)
-        .await
+    render_service_with_product_testimonials(
+        &s.0,
+        &db,
+        &SERVICE_NEXUS,
+        a.0,
+        views::Locale::Es,
+        false,
+    )
+    .await
 }
 async fn service_nautilus_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NAUTILUS, a.0, views::Locale::Es)
@@ -1593,10 +1627,18 @@ async fn service_nook_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
 async fn service_litigation_es(
     s: State<MarketingIndex>,
     State(db): State<Db>,
+    Query(q): Query<ReferralQuery>,
     a: MaybeAuth,
 ) -> Markup {
-    render_service_with_product_testimonials(&s.0, &db, &SERVICE_LITIGATION, a.0, views::Locale::Es)
-        .await
+    render_service_with_product_testimonials(
+        &s.0,
+        &db,
+        &SERVICE_LITIGATION,
+        a.0,
+        views::Locale::Es,
+        q.is_1337lawyers(),
+    )
+    .await
 }
 async fn service_nerd_es(s: State<MarketingIndex>, a: MaybeAuth) -> Markup {
     render_service(&s.0, &SERVICE_NERD, a.0, views::Locale::Es)
@@ -1627,7 +1669,7 @@ fn render_service(
     auth: views::AuthState,
     locale: views::Locale,
 ) -> Markup {
-    render_service_with_testimonials(marketing, page, auth, locale, &[])
+    render_service_with_testimonials(marketing, page, auth, locale, &[], false)
 }
 
 async fn render_service_with_product_testimonials(
@@ -1636,12 +1678,20 @@ async fn render_service_with_product_testimonials(
     page: &ServicePage,
     auth: views::AuthState,
     locale: views::Locale,
+    show_referral_terminal: bool,
 ) -> Markup {
     let testimonials = store::testimonials::published_for_product(db, page.slug, 2)
         .await
         .unwrap_or_default();
     let cards = testimonial_cards(&testimonials);
-    render_service_with_testimonials(marketing, page, auth, locale, &cards)
+    render_service_with_testimonials(
+        marketing,
+        page,
+        auth,
+        locale,
+        &cards,
+        show_referral_terminal,
+    )
 }
 
 fn render_service_with_testimonials(
@@ -1650,6 +1700,7 @@ fn render_service_with_testimonials(
     auth: views::AuthState,
     locale: views::Locale,
     testimonials: &[views::components::TestimonialCard<'_>],
+    show_referral_terminal: bool,
 ) -> Markup {
     // Brand-driven fallback description used when the marketing
     // markdown doesn't ship a copy for this service slug. Leaked
@@ -1739,6 +1790,8 @@ fn render_service_with_testimonials(
             None,
         ),
     };
+    let referral_terminal_close_href =
+        show_referral_terminal.then(|| views::i18n::localize_href(page.canonical_path, locale));
     views::pages::service::render_in(
         &views::pages::service::ServiceContent {
             title,
@@ -1753,6 +1806,7 @@ fn render_service_with_testimonials(
             cta_email,
             icon: page.icon,
             testimonials,
+            referral_terminal_close_href: referral_terminal_close_href.as_deref(),
         },
         auth,
         locale,
@@ -1800,7 +1854,7 @@ fn product_label(code: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod testimonial_label_tests {
-    use super::product_label;
+    use super::{product_label, ReferralQuery};
 
     #[test]
     fn product_label_covers_the_seeded_catalog() {
@@ -1820,6 +1874,19 @@ mod testimonial_label_tests {
             assert!(product_label(code).is_some(), "{code} should have a label");
         }
         assert_eq!(product_label("unknown"), None);
+    }
+
+    #[test]
+    fn referral_query_only_matches_the_1337lawyers_campaign() {
+        assert!(ReferralQuery {
+            referral: Some("1337lawyers".into())
+        }
+        .is_1337lawyers());
+        assert!(!ReferralQuery {
+            referral: Some("other".into())
+        }
+        .is_1337lawyers());
+        assert!(!ReferralQuery::default().is_1337lawyers());
     }
 }
 

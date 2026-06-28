@@ -109,6 +109,9 @@ pub struct ServiceContent<'a> {
     /// Public testimonials selected by the web layer for this service's
     /// product code. Empty keeps the page on the no-proof path.
     pub testimonials: &'a [TestimonialCard<'a>],
+    /// Optional referral terminal surfaced for campaign links.
+    /// `Some(href)` renders the modal and uses `href` as the clear exit.
+    pub referral_terminal_close_href: Option<&'a str>,
 }
 
 /// Render a service page in English (no declared twin).
@@ -220,6 +223,9 @@ pub fn render_in(
                 (cta_button("btn btn-primary btn-lg", footer_label, footer_href))
             }
         }
+        @if let Some(close_href) = content.referral_terminal_close_href {
+            (referral_terminal(close_href, locale))
+        }
     };
     // The browser `<title>` on a firm `/services` page brands once, then
     // names the catalog and the bare product: "Neon Law | Services | Nest"
@@ -254,6 +260,67 @@ pub fn render_in(
     }
 }
 
+fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
+    // The terminal hands off by email, the firm's actual intake model
+    // (see the `/contact` card): a `mailto:` carries the campaign source
+    // in the subject so the attribution survives without putting the
+    // visitor's words into a query string, our access logs, or a
+    // `Referer` header. `subject` is pre-percent-encoded (spaces → `%20`)
+    // since `views` pulls in no URL-encoding crate.
+    let (title, prompt, cta_label, subject) = match locale {
+        Locale::En => (
+            "1337 Lawyers terminal",
+            "Yo. Need something? Follow the white rabbit.",
+            "Follow the white rabbit",
+            "Litigation%20inquiry%20(1337lawyers)",
+        ),
+        Locale::Es => (
+            "Terminal de 1337 Lawyers",
+            "Oye. ¿Necesitas ayuda? Sigue al conejo blanco.",
+            "Sigue al conejo blanco",
+            "Consulta%20de%20litigio%20(1337lawyers)",
+        ),
+    };
+    let cta_href = format!("mailto:{}?subject={subject}", crate::brand::firm_email());
+    html! {
+        section."lawyers-terminal-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lawyers-terminal-title" {
+            div."lawyers-terminal" {
+                header."lawyers-terminal__bar" {
+                    div."lawyers-terminal__lights" aria-hidden="true" {
+                        span."lawyers-terminal__light"."lawyers-terminal__light--red" {}
+                        span."lawyers-terminal__light"."lawyers-terminal__light--yellow" {}
+                        span."lawyers-terminal__light"."lawyers-terminal__light--green" {}
+                    }
+                    p id="lawyers-terminal-title" { (title) }
+                    // `autofocus` moves focus into the dialog on load so
+                    // keyboard / screen-reader users land on the exit
+                    // first (WCAG 2.4.3). A real focus trap needs client
+                    // JS, which the `script-src 'self'` CSP forbids inline
+                    // and is disproportionate for a campaign overlay.
+                    a."lawyers-terminal__close"
+                        href=(close_href)
+                        autofocus
+                        aria-label="Close referral terminal" {
+                        "X"
+                    }
+                }
+                div."lawyers-terminal__screen" {
+                    p."lawyers-terminal__line" { "wake up, neo..." }
+                    p."lawyers-terminal__line" { "the matrix has you." }
+                    p."lawyers-terminal__line"."lawyers-terminal__line--hot" { (prompt) }
+                    div."lawyers-terminal__prompt" {
+                        span aria-hidden="true" { ">" }
+                        a."lawyers-terminal__cta" href=(cta_href) { (cta_label) }
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{render, PricingCard, ServiceContent};
@@ -273,6 +340,7 @@ mod tests {
             cta_email: firm_email(),
             icon: None,
             testimonials: &[],
+            referral_terminal_close_href: None,
         }
     }
 
@@ -635,6 +703,43 @@ mod tests {
         assert!(
             !html.contains("mailto:support@neonlaw.com"),
             "firm CTA no longer emails the inbox: {html}"
+        );
+    }
+
+    #[test]
+    fn referral_terminal_renders_only_when_close_href_is_present() {
+        let mut content = fixture("1337 Lawyers", "<p>body</p>");
+        let plain = render(&content, crate::AuthState::Anonymous).into_string();
+        assert!(
+            !plain.contains("lawyers-terminal-modal"),
+            "ordinary service pages should not render the campaign modal: {plain}"
+        );
+
+        content.referral_terminal_close_href = Some("/services/litigation");
+        let html = render(&content, crate::AuthState::Anonymous).into_string();
+        assert!(
+            html.contains("class=\"lawyers-terminal-modal\"")
+                && html.contains("role=\"dialog\"")
+                && html.contains("Yo. Need something? Follow the white rabbit."),
+            "campaign modal should render as an accessible dialog, got: {html}"
+        );
+        assert!(
+            html.contains("href=\"/services/litigation\"")
+                && html.contains("aria-label=\"Close referral terminal\"")
+                && html.contains("autofocus"),
+            "modal must offer a clear, focused exit that drops the ref param, got: {html}"
+        );
+        // The hand-off is a `mailto:` anchor carrying the campaign source
+        // in the subject — never a GET form that would leak the visitor's
+        // words into the URL, our logs, or a `Referer` header.
+        assert!(
+            html.contains("href=\"mailto:")
+                && html.contains("subject=Litigation%20inquiry%20(1337lawyers)"),
+            "terminal must hand off by mailto with the campaign source, got: {html}"
+        );
+        assert!(
+            !html.contains("method=\"get\"") && !html.contains("action=\"/contact\""),
+            "terminal must not POST/GET the visitor's words to a route, got: {html}"
         );
     }
 

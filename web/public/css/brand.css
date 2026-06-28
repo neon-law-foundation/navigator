@@ -369,6 +369,197 @@
   background: #67e8f9;
 }
 
+/* Campaign-only Matrix-style terminal for /services/litigation?ref=1337lawyers. */
+.lawyers-terminal-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: clamp(0.75rem, 3vw, 2rem);
+  background:
+    linear-gradient(rgba(0, 10, 7, 0.86), rgba(0, 10, 7, 0.82)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(52, 211, 153, 0.06) 0 1px,
+      transparent 1px 3rem
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(52, 211, 153, 0.04) 0 1px,
+      transparent 1px 2.4rem
+    );
+  color: #d1fae5;
+}
+
+.lawyers-terminal {
+  width: min(100%, 64rem);
+  max-height: min(82vh, 44rem);
+  overflow: auto;
+  border: 1px solid rgba(110, 231, 183, 0.7);
+  border-radius: var(--bs-border-radius-lg);
+  background:
+    linear-gradient(rgba(1, 22, 16, 0.86), rgba(0, 7, 5, 0.92)),
+    repeating-linear-gradient(
+      180deg,
+      rgba(209, 250, 229, 0.04) 0 1px,
+      transparent 1px 4px
+    );
+  box-shadow:
+    0 0 0 1px rgba(16, 185, 129, 0.26),
+    0 0 3rem rgba(16, 185, 129, 0.4),
+    0 1.5rem 4rem rgba(0, 0, 0, 0.72);
+  font-family: var(--bs-font-monospace);
+}
+
+.lawyers-terminal__bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  min-height: 3.75rem;
+  padding: 0.7rem 0.75rem 0.7rem 1rem;
+  border-bottom: 1px solid rgba(110, 231, 183, 0.38);
+  background: rgba(0, 10, 7, 0.96);
+}
+
+.lawyers-terminal__bar p {
+  margin: 0;
+  overflow: hidden;
+  color: #bbf7d0;
+  font-size: 0.95rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lawyers-terminal__lights {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.lawyers-terminal__light {
+  width: 0.78rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+.lawyers-terminal__light--red {
+  background: #ef4444;
+}
+
+.lawyers-terminal__light--yellow {
+  background: #facc15;
+}
+
+.lawyers-terminal__light--green {
+  background: #22c55e;
+}
+
+.lawyers-terminal__close {
+  display: inline-grid;
+  place-items: center;
+  width: 3rem;
+  aspect-ratio: 1;
+  border: 2px solid #f8fafc;
+  border-radius: 50%;
+  color: #fff;
+  background: #b91c1c;
+  font-family: var(--bs-font-sans-serif);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: 0 0 1rem rgba(248, 113, 113, 0.55);
+}
+
+.lawyers-terminal__close:hover,
+.lawyers-terminal__close:focus-visible {
+  color: #fff;
+  background: #dc2626;
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+.lawyers-terminal__screen {
+  display: grid;
+  gap: 0.65rem;
+  padding: clamp(1rem, 4vw, 2.5rem);
+  font-size: clamp(1rem, 1.8vw, 1.35rem);
+  text-shadow: 0 0 0.75rem rgba(74, 222, 128, 0.58);
+}
+
+.lawyers-terminal__line {
+  margin: 0;
+  color: #86efac;
+}
+
+.lawyers-terminal__line::before {
+  content: "> ";
+  color: #22c55e;
+}
+
+.lawyers-terminal__line--hot {
+  color: #f0fdf4;
+  font-size: clamp(1.35rem, 3vw, 2.25rem);
+  font-weight: 700;
+}
+
+.lawyers-terminal__prompt {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: clamp(0.75rem, 2vw, 1.5rem);
+  padding: 0.7rem;
+  border: 1px solid #4ade80;
+  border-radius: var(--bs-border-radius);
+  background: rgba(5, 46, 22, 0.92);
+  box-shadow:
+    inset 0 0 1.2rem rgba(34, 197, 94, 0.22),
+    0 0 1.4rem rgba(34, 197, 94, 0.28);
+}
+
+.lawyers-terminal__prompt span {
+  color: #bbf7d0;
+  font-weight: 800;
+}
+
+.lawyers-terminal__cta {
+  padding: 0.5rem 1rem;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--bs-border-radius-sm);
+  color: #052e16;
+  background: #86efac;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+}
+
+.lawyers-terminal__cta:hover,
+.lawyers-terminal__cta:focus-visible {
+  color: #052e16;
+  background: #bbf7d0;
+  outline: 3px solid #f0fdf4;
+  outline-offset: 2px;
+}
+
+@media (max-width: 575.98px) {
+  .lawyers-terminal {
+    max-height: 88vh;
+  }
+
+  .lawyers-terminal__bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .lawyers-terminal__lights {
+    display: none;
+  }
+}
+
 /* Content images arrive from markdown as bare <img> with no responsive */
 /* class, so at intrinsic size they overflow the column. Cap every */
 /* in-prose image at the column (= footer/container) width, let it scale */
