@@ -17,6 +17,8 @@ use web::{
     AppState, AuthConfig, CanonicalHost, MarketingIndex, SessionStore, WorkshopIndex,
     WorkshopMaterial,
 };
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockServer, ResponseTemplate};
 
 async fn in_memory_db() -> Db {
     pg().await
@@ -67,6 +69,13 @@ async fn empty_state_with_auth(auth: AuthConfig) -> AppState {
 async fn empty_state_with_canonical_host(host: CanonicalHost) -> AppState {
     AppState {
         canonical_host: host,
+        ..web::test_support::app_state(in_memory_db().await).await
+    }
+}
+
+async fn empty_state_with_policy(policy: web::policy::PolicyClient) -> AppState {
+    AppState {
+        policy,
         ..web::test_support::app_state(in_memory_db().await).await
     }
 }
@@ -3258,6 +3267,82 @@ async fn api_docs_serves_swagger_ui_shell_with_csp() {
     assert!(
         body.contains("/openapi.json") || body.contains("init.js"),
         "init.js (which references /openapi.json) must be loaded"
+    );
+}
+
+#[tokio::test]
+async fn swagger_ui_marks_try_it_out_requests() {
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/public/swagger-ui/init.js")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(
+        body.contains("requestInterceptor"),
+        "Swagger UI must intercept Try it out requests"
+    );
+    assert!(
+        body.contains("X-Navigator-Swagger-UI"),
+        "Swagger UI must tag API calls so anonymous denials render as warnings"
+    );
+}
+
+#[tokio::test]
+async fn unauthenticated_swagger_api_call_gets_warning_payload() {
+    let opa = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/data/navigator/authz/allow"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "result": false
+        })))
+        .mount(&opa)
+        .await;
+
+    let app = web::build_router(
+        empty_state_with_policy(web::policy::PolicyClient::new(opa.uri())).await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/people")
+                .header("X-Navigator-Swagger-UI", "1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    let auth = resp
+        .headers()
+        .get(header::WWW_AUTHENTICATE)
+        .expect("401 should advertise the Navigator session challenge")
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        auth.contains("NavigatorSession"),
+        "unexpected WWW-Authenticate header: {auth}"
+    );
+    let body: serde_json::Value = serde_json::from_str(&body_string(resp).await).unwrap();
+    assert_eq!(body["error"], "unauthenticated");
+    assert_eq!(body["login"], "/auth/login?return_to=/api/docs");
+    assert!(
+        body["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("Sign in")),
+        "warning should tell the user how to proceed: {body}"
     );
 }
 
