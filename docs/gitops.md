@@ -115,10 +115,12 @@ the same day. The nightly path keeps the plain calendar tag. A manual dispatch d
 so a run on June 25, 2026 at 2 p.m. publishes `26.06.25.14` instead of overwriting `26.06.25`. Either path runs the full
 **KIND integration** suite, then builds and pushes every image — the two service images (`navigator-web`,
 `navigator-workflows-service`) and the five CronJob trigger images (`navigator-*-trigger`) — to **ghcr.io** tagged with
-that release version plus `latest`. In parallel with image publishing, it builds the public `navigator` CLI and
-`navigator-lsp` binaries on native Linux, macOS, and Windows runners, records GitHub artifact attestations for the
-downloadable archives, and attaches those six archives to the GitHub Release for that version. Once the Release is up, a
-`homebrew-tap` job cross-pollinates the public
+that release version plus `latest`. The service images publish as linux/amd64 + linux/arm64 manifest lists from native
+runners, so Apple-Silicon KIND pulls do not rely on emulation; the trigger images stay amd64-only because their CronJobs
+are rare local paths and their shared Dockerfile is x86_64-pinned. In parallel with image publishing, it builds the
+public `navigator` CLI and `navigator-lsp` binaries on native Linux, macOS, and Windows runners, records GitHub artifact
+attestations for the downloadable archives, and attaches those six archives to the GitHub Release for that version. Once
+the Release is up, a `homebrew-tap` job cross-pollinates the public
 [neon-law-foundation/homebrew-tap](https://github.com/neon-law-foundation/homebrew-tap) repo: it recomputes the macOS
 checksums and rewrites the `navigator` / `navigator-lsp` formulae to the new release version, then pushes them with the
 gitops PAT `secrets.GHCR_CLEANUP_PAT` (which must carry `contents:write` on the homebrew-tap repo) so that invoking
