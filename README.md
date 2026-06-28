@@ -47,8 +47,8 @@ tap and its formulae live at [neon-law-foundation/homebrew-tap](https://github.c
 
 The `navigator-lsp` language server is **not** on the tap. It ships as a published Zed extension: install **Navigator
 LSP** from Zed's extension marketplace (`zed: extensions` → search **Navigator LSP** → **Install**) and it pulls the
-matching `navigator-lsp` binary from the latest GitHub Release automatically. Other editors, and building the binary by
-hand, are covered in the [LSP docs](docs/lsp/README.md).
+matching `navigator-lsp` binary from the latest GitHub Release automatically. Building the binary from source — and
+pointing any other LSP-aware editor at it — is covered in the [LSP docs](docs/lsp/README.md).
 
 ## Getting started
 
