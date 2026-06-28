@@ -377,6 +377,7 @@
 /* Campaign-only Matrix-style terminal for /services/litigation?ref=1337lawyers. */
 .lawyers-terminal-modal {
   z-index: 1100;
+  /* Overrides Bootstrap's .d-block utility so the server-open modal centers. */
   display: grid !important;
   place-items: center;
   padding: clamp(0.75rem, 3vw, 2rem);

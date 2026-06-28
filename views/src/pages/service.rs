@@ -326,8 +326,9 @@ fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
 
 #[cfg(test)]
 mod tests {
-    use super::{render, PricingCard, ServiceContent};
+    use super::{render, render_in, PricingCard, ServiceContent};
     use crate::brand::{firm_email, FIRM_BRAND, FOUNDATION_BRAND};
+    use crate::Locale;
 
     fn fixture<'a>(title: &'a str, body: &'a str) -> ServiceContent<'a> {
         ServiceContent {
@@ -755,6 +756,20 @@ mod tests {
         assert!(
             !html.contains("method=\"get\"") && !html.contains("action=\"/contact\""),
             "terminal must not POST/GET the visitor's words to a route, got: {html}"
+        );
+
+        let spanish = render_in(
+            &content,
+            crate::AuthState::Anonymous,
+            Locale::Es,
+            Some("/services/litigation"),
+        )
+        .into_string();
+        assert!(
+            spanish.contains("&gt; ¿Necesitas luchar por tus derechos? Sigue al conejo blanco.")
+                && spanish.contains("Sigue 🐰")
+                && spanish.contains("subject=Consulta%20de%20litigio%20(1337lawyers)"),
+            "Spanish campaign modal should carry localized copy and subject, got: {spanish}"
         );
     }
 
