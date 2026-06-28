@@ -29,30 +29,20 @@ attorney and recorded on the Solana blockchain so anyone you authorize can verif
 
 [[pricing]]
 
-**How it works.** Tell us the fact you need attested and send the records that support it. A licensed attorney reviews
-what you provide and, if your records support the fact, prepares a signed attestation. We then write one Solana
-transaction that binds three things: the Firm's wallet, your wallet, and a cryptographic hash of the signed attestation.
-The hash proves the exact document existed and was attested by us; the document itself stays private with you.
+Try Node when a fact needs more than a screenshot and less than a courtroom. Sometimes the question is simple: did a
+licensed attorney review the records you gave and attest that they support the statement you need to make?
 
-**What we check — and what we don't.** A Node attestation rests **solely on the information and documents you provide**.
-We confirm that your records support the stated fact as of the date we record it. We do **not** independently
-investigate, audit, or cross-reference your records against outside sources — so the attestation is only as good as what
-you give us, and you are responsible for the truth and completeness of it.
+You tell us the fact and send the records. If those records support it, a licensed attorney prepares a signed
+attestation. We then write one Solana transaction that binds our wallet, your wallet, and a cryptographic hash of the
+signed document. The document stays private with you; the hash proves the exact document existed.
 
-**What $44 covers.** One attorney attestation and its on-chain record — a flat fee for each attestation. Solana network
-fees are passed through at cost. An attestation speaks as of the date we record it; if a fact changes, you can request a
-fresh one.
+The boundary is part of the product. A Node attestation rests **solely on the information and documents you provide**.
+We do not independently investigate, audit, or cross-reference outside sources. You remain responsible for truth and
+completeness.
 
-**Where Node fits.** Node is verification and recordkeeping — not investment, tax, or securities advice, and not an
-opinion on the merits of any deal or token. We publish only the facts you give informed consent to publish.
+The $44 fee covers one attorney attestation and its on-chain record, with Solana network fees passed through at cost. It
+is verification and recordkeeping, not investment, tax, securities, or deal advice.
 
-**Engagement letter governs.** A written engagement letter signed before we start states the exact fact to be attested,
-the $44 per-attestation fee, and how either of us can end the representation. Before that letter goes out we run a
-conflict check against every current and former matter at the firm. If the check shows we cannot properly take your
-matter, we tell you promptly and refer you to counsel who also use the Neon Law Navigator. There are no referral fees
-between Neon Law and any firm we refer matters to.
-
-## Start a Node attestation
-
-Email **[support@neonlaw.com](mailto:support@neonlaw.com)** with a short note about the fact you need attested. We
-respond within one business day with the engagement letter and the records we will need.
+A written engagement letter states the exact fact to be attested, the per-attestation fee, and the terms for ending the
+work. If you need a fact made durable, email **[support@neonlaw.com](mailto:support@neonlaw.com)** with the fact and the
+records behind it.

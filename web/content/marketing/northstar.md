@@ -27,29 +27,21 @@ leave them. From that sitting we prepare your will, your trust, and your health 
 
 [[pricing]]
 
-**How it works.** We sit down and record one conversation. From it we draft your documents, and a licensed attorney
-reviews every one. You then read and comment on each document online — take the time you need — and nothing is final
-until you have seen it and signed it.
+Try Northstar if estate planning has lived too long in the drawer marked "later." The work is not really about paper. It
+is about naming the people you love, the decisions you do not want to leave to chance, and the story your documents
+should tell when you are not in the room to explain it.
 
-**One fee.** $3,333 covers the sitting, the drafting, the attorney review, and your online review. It is paid once.
+We start with one recorded sitting. You talk; we listen for the legal facts inside ordinary life. From that conversation
+we prepare your will, trust, and directives. A licensed attorney reviews every document, and you read and comment online
+before anything is final.
 
-**Priced to where you live.** Everyone should be able to plan for life after death, so Northstar is the one Neon Law
-service priced to local purchasing power: the $3,333 anchor adjusts by a published cost-of-living factor for your
-country, asking the same share of local income wherever you are. Tell us where you live in your intake and we quote your
-adjusted fee before any engagement letter is signed.
+The fee is paid once. The $3,333 anchor covers the sitting, drafting, attorney review, and your online review. Because
+death does not belong only to wealthy ZIP codes, Northstar is priced to local purchasing power: tell us where you live,
+and we quote the adjusted fee before any engagement letter is signed.
 
-**For people, not companies.** Northstar plans what you leave the people you love — your will, your trust, and your
-directives.
+Northstar is for people, not companies. A written engagement letter states the exact scope, the fee, any out-of-scope
+rate, and the terms for ending the work. Before it goes out, we run a conflict check. If we cannot properly represent
+you, we say so promptly and refer you to counsel without any referral fee.
 
-**Engagement letter governs.** A written engagement letter signed before we start states the exact scope, the fee, any
-out-of-scope rate, and the disengagement terms. Before that letter goes out we run a conflict check against every
-current and former matter at the firm — estate plans touch spouses, families, and family businesses, and we cannot
-represent a business and an individual whose interests are adverse to each other. If the check shows we cannot properly
-take your matter, we tell you promptly and refer you to counsel who also use the Neon Law Navigator and are committed to
-improving access to justice with our software. There are no referral fees between Neon Law and any firm we refer cases
-to.
-
-## Book your sitting
-
-Email **[support@neonlaw.com](mailto:support@neonlaw.com)** and we respond within one business day with a date and a
-short intake.
+If you are ready to turn "later" into a plan, email **[support@neonlaw.com](mailto:support@neonlaw.com)**. We respond
+within one business day with a date and a short intake.

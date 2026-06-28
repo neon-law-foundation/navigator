@@ -28,36 +28,22 @@ licensed attorney, in the loop on every matter, for one flat monthly fee.
 
 [[pricing]]
 
-**One plan. One price. Everything but litigation.** $2,222 a month, no tiers, no per-matter billing. Send it over and
-it's off your plate.
+Try Nexus when legal work has become the desk every hard thing lands on. The contract, the privacy question, the cloud
+bill, the security questionnaire, the investor request — none of it should wait until it becomes a crisis.
 
-It has two fences, stated plainly:
+Nexus is one plan and one price: $2,222 a month, no tiers, no per-matter billing, and everything in scope except
+litigation. Send it over, and it is no longer yours to carry alone.
 
-- **Litigation is separate.** The flat retainer covers transactional work; if a matter goes to court, our litigation
-  practice — [1337 Lawyers](/services/litigation) — takes high-stakes technology disputes.
-- **California, Nevada, and Washington.** We solve matters under the law of the three states we're admitted in, and
-  bring in local counsel when a question lives elsewhere.
+This is built for software and emerging-technology companies that are building, hiring, and raising. We handle
+contracts, entity work, privacy, compliance, readiness for SOC 2 or HIPAA, and the operational questions that sit next
+to the legal ones. If you incorporate your C corp in Nevada with us, cap-table management comes with the plan: options,
+SAFEs, notes, priced rounds, and a clean record for diligence.
 
-**For companies that are scaling.** This plan is built for software and emerging-technology companies that are building,
-hiring, and raising — the custom contracts, negotiated agreements, and financings that come with growth. A passive
-entity that just holds real estate or an investment is [Neon Law Nest](/services/nest).
+The fences matter. We practice in California, Nevada, and Washington, and bring in local counsel when a question lives
+elsewhere. Litigation is separate; when a matter goes to court, [1337 Lawyers](/services/litigation) takes high-stakes
+technology disputes.
 
-**Cap-table management, included when you incorporate in Nevada.** Incorporate your C corp in Nevada with us — Nevada
-over Delaware, with no state corporate income tax — and cap-table management comes with your $2,222 at no extra cost:
-the option pool, your SAFEs and notes, each priced round, and a clean record your next investor can diligence. Already
-on a Delaware stack? We're still your counsel on everything else; cap-table management is the piece that comes with
-incorporating here.
-
-**Readiness, not certification.** When you need to be ready for a SOC 2 or HIPAA audit, we prepare your environment and
-quarterback the independent CPA firm that issues the attestation. We are your readiness counsel, not your auditor.
-
-**A two-business-day response.** Send us anything in scope and you hear back within two business days — a commitment
-about our turnaround, not a promise about a deal's outcome.
-
-**Engagement letter governs.** A written engagement letter signed before we start states the exact scope, the fixed fee,
-the response commitment, and the disengagement terms.
-
-## Start the conversation
-
-Email **[support@neonlaw.com](mailto:support@neonlaw.com)** with your company name, where you operate, and a paragraph
-on what's on your plate. We respond within two business days.
+A written engagement letter states the exact scope, the fixed fee, the two-business-day response commitment, and the
+terms for ending the work. If you want a legal bench that understands the company you are actually building, email
+**[support@neonlaw.com](mailto:support@neonlaw.com)** with your company name, where you operate, and what is on your
+plate.

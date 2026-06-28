@@ -31,21 +31,17 @@ part, done by a licensed attorney for one flat fee.
 
 [[pricing]]
 
-**How it works.** Tell us the terms you have agreed on. A licensed attorney drafts the purchase agreement to reflect
-them, prepares the deed and the closing documents, and walks both the buyer and the seller through signing. We
-coordinate the closing and the settlement of funds and record the deed with the county so the transfer is on the public
-record.
+Try Nook when the deal is already real. You found the buyer or the seller. You agreed on the price, the date, and what
+stays with the property. What you need now is not a broker's sales process; it is a clean legal closing.
 
-**Who we represent.** You choose. We can represent you as the buyer, represent you as the seller, or — when both of you
-want one firm to handle the whole closing — represent the two of you together. When we represent only one side, the
-other party is not our client, and we tell them so and suggest they consider their own counsel. When we represent both,
-we do it only with each of you giving informed consent in writing, because one firm holding both sides means we cannot
-take one of you against the other. If a real dispute opens up between you over the terms, the joint representation ends
-and each of you gets independent counsel — and we will say so plainly.
+Tell us the terms. A licensed attorney drafts the purchase agreement, prepares the deed and closing documents, walks the
+signing, coordinates funds, and records the deed with the county. The public record should match the deal you actually
+made.
 
-**What $9,999 covers.** Drafting the purchase agreement, preparing the deed and closing documents, coordinating the
-closing and settlement, and recording the deed — one flat legal fee, paid once when the matter closes. County recording
-fees and any transfer tax are billed at cost on top of the flat fee.
+You choose whom we represent. We can represent the buyer, the seller, or both sides together when both of you give
+informed consent in writing. If we represent one side, we say so to the other. If we represent both and a real dispute
+opens between you, the joint representation ends and each of you gets independent counsel.
 
-**Where Nook fits.** Nook is for a sale the parties have already agreed on, with no broker on either side. It is not a
-listing service and not a negotiation — the deal is yours; the contract and the closing are ours.
+The $9,999 fee covers the agreement, deed, closing documents, settlement coordination, and recording work. County
+recording fees and any transfer tax pass through at cost. Nook is for a sale already agreed on, with no broker on either
+side: the deal is yours; the contract and the closing are ours.

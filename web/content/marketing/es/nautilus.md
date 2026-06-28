@@ -29,35 +29,22 @@ bajo la ley federal, una vez que un cobrador lo sabe, tiene que tratar con nosot
 
 [[pricing]]
 
-**Cómo funciona.** Usted nos envía el correo de cobranza y los nombres de quienes llaman. Escribimos a cada cobrador con
-un aviso de que usted está representado, y a partir de ahí les respondemos: una carta de validación de deuda que los
-obliga a probar que la deuda es real y suya, una carta de disputa cuando el monto o el registro están mal, una carta de
-cese de contacto donde la ley lo permite, y una disputa ante el buró de crédito cuando una deuda se reporta de forma
-incorrecta. Un abogado con licencia lee y firma cada carta antes de que salga, y usted puede ver cada una y los plazos
-que estamos vigilando.
+Pruebe Nautilus cuando el teléfono no deja de sonar y cada sobre parece una amenaza. La cobranza funciona mejor para los
+cobradores cuando usted está solo con ella. No tiene que estarlo.
 
-**Qué cubren los $66 al mes.** Representarle en las comunicaciones de cobranza de deudas y escribir las cartas de
-arriba. Es una tarifa legal fija. No cambia según cuánto deba, y **nunca nos quedamos con un porcentaje de su deuda**
-—el número sigue siendo $66 ya sea que su saldo sea de $500 o de $50,000.
+Usted nos envía el correo y los nombres de quienes llaman. Notificamos a cada cobrador que usted está representado, y
+luego respondemos amparados en sus derechos: validación cuando deben probar la deuda, cartas de disputa cuando el
+registro está mal, cartas de cese de contacto donde la ley lo permite y disputas de crédito cuando una deuda se reporta
+incorrectamente. Un abogado con licencia lee y firma cada carta antes de que salga.
 
-**Hasta dónde llega Nautilus.** Nautilus es la correspondencia y el trabajo de derechos que vienen antes de un tribunal
-—no el tribunal mismo. Nuestra firma sí litiga ciertas disputas tecnológicas de alto impacto a través de [1337
-Lawyers](/es/services/litigation), pero una demanda por cobro de deudas o un reclamo propio contra un cobrador que
-infringió la ley queda fuera de esa especialidad: cuando su asunto pertenece a un tribunal, lo decimos con franqueza y
-le conectamos con un abogado litigante que lo tome. Y si la respuesta honesta para su situación es la bancarrota, se lo
-decimos y le indicamos un abogado que las tramita.
+La tarifa es de $66 al mes. Es una tarifa legal fija por comunicaciones de cobranza y las cartas anteriores. No sube con
+el tamaño del saldo, y **nunca nos quedamos con un porcentaje de su deuda**.
 
-**La carta de encargo rige.** Una carta de encargo por escrito, firmada antes de empezar, establece el alcance exacto,
-la tarifa mensual de $66, cualquier tarifa fuera de alcance y cómo cualquiera de las dos partes puede terminar la
-representación. Antes de enviar esa carta, verificamos conflictos de interés contra todos los asuntos actuales y
-anteriores de la firma —también representamos a empresas, y no podemos representar a una empresa y a una persona cuyos
-intereses sean adversos entre sí. Si la verificación muestra que no podemos tomar su asunto debidamente, se lo decimos
-con prontitud y le referimos a abogados que también usan el Neon Law Navigator y están comprometidos con mejorar el
-acceso a la justicia con nuestro software. No existen honorarios por referencia entre Neon Law y ningún despacho al que
-refiramos casos. Nautilus no garantiza ningún resultado en particular, y no borra las deudas que usted debe —se asegura
-de que sus derechos se usen y de que quienes cobran traten con su abogado.
+Nautilus no promete que una deuda desaparezca. Es correspondencia y trabajo de derechos antes de un tribunal. Si le
+demandan, si un cobrador infringió la ley o si la bancarrota es la respuesta honesta, lo decimos con claridad y le
+conectamos con abogados que hacen ese trabajo.
 
-## Comience Nautilus
-
-Escriba a **[support@neonlaw.com](mailto:support@neonlaw.com)** con una nota breve sobre quién le está contactando.
-Respondemos en un día hábil con la carta de encargo y las primeras cartas que enviaremos en su nombre.
+Una carta de encargo escrita establece el alcance exacto, la tarifa mensual, cualquier tarifa fuera de alcance y los
+términos para terminar la representación. Antes de enviarla, verificamos conflictos. Si quiere que los cobradores traten
+con su abogado en vez de con su mesa de cocina, escriba a **[support@neonlaw.com](mailto:support@neonlaw.com)** con una
+nota breve sobre quién le contacta.

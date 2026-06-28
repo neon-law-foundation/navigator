@@ -27,32 +27,22 @@ A partir de esa sesión preparamos su testamento, su fideicomiso y sus directiva
 
 [[pricing]]
 
-**Cómo funciona.** Nos sentamos y grabamos una conversación. A partir de ella redactamos sus documentos, y un abogado
-con licencia revisa cada uno. Luego usted lee y comenta cada documento en línea —tómese el tiempo que necesite— y nada
-es definitivo hasta que lo haya visto y firmado.
+Pruebe Northstar si la planificación patrimonial lleva demasiado tiempo en el cajón de "después". El trabajo no trata
+realmente de papeles. Trata de nombrar a las personas que ama, las decisiones que no quiere dejar al azar y la historia
+que sus documentos deben contar cuando usted no esté en la sala para explicarla.
 
-**Una sola tarifa.** $3,333 cubre la sesión, la redacción, la revisión del abogado y su revisión en línea. Se paga una
-sola vez.
+Empezamos con una sesión grabada. Usted habla; nosotros escuchamos los hechos legales dentro de la vida cotidiana. A
+partir de esa conversación preparamos su testamento, fideicomiso y directivas. Un abogado con licencia revisa cada
+documento, y usted lee y comenta en línea antes de que algo sea definitivo.
 
-**Con un precio acorde a donde vive.** Northstar es el único servicio de Neon Law que se ofrece a un precio de paridad
-de poder adquisitivo (PPA). Todos deberían poder planear la vida después de la muerte —no solo los acaudalados—, así que
-el anclaje de $3,333 se indexa a un factor de conversión de PPA publicado para su país, de modo que la tarifa pida la
-misma proporción del poder adquisitivo local dondequiera que usted esté. Indíquenos dónde vive en su registro inicial y
-le cotizamos su tarifa ajustada por PPA antes de firmar cualquier carta de encargo.
+La tarifa se paga una sola vez. El anclaje de $3,333 cubre la sesión, la redacción, la revisión del abogado y su
+revisión en línea. Como la muerte no pertenece solo a los códigos postales ricos, Northstar se ajusta al poder
+adquisitivo local: díganos dónde vive y cotizamos la tarifa ajustada antes de firmar cualquier carta de encargo.
 
-**Para personas, no para empresas.** Northstar planifica lo que usted deja a las personas que ama —su testamento, su
-fideicomiso y sus directivas. Si lo que desea es una empresa para resguardar un activo, como una LLC para un alquiler o
-una inversión, eso es el [Neon Law Nest](/es/services/nest).
+Northstar es para personas, no para empresas. Una carta de encargo escrita establece el alcance exacto, la tarifa,
+cualquier tarifa fuera de alcance y los términos para terminar el trabajo. Antes de enviarla, verificamos conflictos. Si
+no podemos representarle debidamente, se lo decimos con prontitud y le referimos a otro abogado sin honorarios por
+referencia.
 
-**La carta de encargo rige.** Una carta de encargo por escrito, firmada antes de empezar, establece el alcance exacto,
-la tarifa, cualquier tarifa fuera de alcance y los términos de terminación. Antes de enviar esa carta, verificamos
-conflictos de interés contra todos los asuntos actuales y anteriores de la firma —los planes patrimoniales tocan a
-cónyuges, familias y empresas familiares, y no podemos representar a una empresa y a una persona cuyos intereses sean
-adversos entre sí. Si la verificación muestra que no podemos tomar su asunto debidamente, se lo decimos con prontitud y
-le referimos a abogados que también usan el Neon Law Navigator y están comprometidos con mejorar el acceso a la justicia
-con nuestro software. No existen honorarios por referencia entre Neon Law y ningún despacho al que refiramos casos.
-
-## Reserve su sesión
-
-Escriba a **[support@neonlaw.com](mailto:support@neonlaw.com)** y respondemos en un día hábil con una fecha y un breve
-registro inicial.
+Si está listo para convertir "después" en un plan, escriba a **[support@neonlaw.com](mailto:support@neonlaw.com)**.
+Respondemos en un día hábil con una fecha y un breve registro inicial.

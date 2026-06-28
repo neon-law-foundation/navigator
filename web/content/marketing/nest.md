@@ -29,26 +29,22 @@ files your Washoe County license, and puts a lawyer on its routine legal work.
 
 [[pricing]]
 
-**An LLC, or not.** Most clients form a Nevada LLC (NRS Chapter 86), but the same fee stands up a nonprofit corporation
-(NRS Chapter 82) or another simple entity when that's the right shape. We write the operating agreement or bylaws to
-match what the entity holds.
+Try Nest when the thing you own deserves a clean legal home. A rental, an investment, a small nonprofit, or one
+single-purpose venture should not require a maze of hourly calls before it can stand upright.
 
-**One scope, one fee.** The $1,111 covers comprehensive formation and the routine, non-litigation paperwork a
-single-purpose entity needs — the filings, the operating agreement, the registered agent, and the everyday legal
-questions of holding an asset — and it renews each year to keep the entity in good standing. A scaling software or
-emerging-technology company, with employees, investors, a cap table, and negotiated contracts, is [Neon Law
-Nexus](/services/nexus), our fractional general counsel.
+We form the Nevada entity, write the operating agreement or bylaws, serve as registered agent, file the Washoe County
+license, and give the entity a Reno business address, mailbox, and coworking desk. Most clients choose a Nevada LLC, but
+the same fee can stand up a nonprofit corporation or another simple form when that is the right shape.
 
-**Your Reno base.** Your business address, mailbox, and coworking desk are at Ridgeview Mail Center on Mae Anne Ave in
-Reno: [ridgeviewmailcenter.com](https://www.ridgeviewmailcenter.com/).
+The point is steadiness: one scope, one yearly fee, and routine non-litigation legal work for the entity that holds the
+asset. If you are building a scaling software or emerging-technology company with employees, investors, a cap table, and
+negotiated contracts, that is [Neon Law Nexus](/services/nexus), not Nest.
 
-When a matter goes to court, [1337 Lawyers](/services/litigation) is our litigation practice: we take high-stakes
-technology disputes ourselves and refer the rest to trial counsel we trust.
+Your Reno base is Ridgeview Mail Center on Mae Anne Ave:
+[ridgeviewmailcenter.com](https://www.ridgeviewmailcenter.com/). If a matter goes to court, [1337
+Lawyers](/services/litigation) is our litigation practice for high-stakes technology disputes; for other fights, we help
+point you to trial counsel we trust.
 
-**Engagement letter governs.** A written engagement letter signed before we start states the exact scope, what the
-yearly fee covers, any out-of-scope rate, and the disengagement terms.
-
-## Get started
-
-Email **[support@neonlaw.com](mailto:support@neonlaw.com)** and we respond within one business day with next steps and a
-calendar link.
+A written engagement letter states the exact scope, what the yearly fee covers, any out-of-scope rate, and the terms for
+ending the work. If you want the entity handled without pretending it is a venture-backed company, email
+**[support@neonlaw.com](mailto:support@neonlaw.com)**. We respond within one business day.

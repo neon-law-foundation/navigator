@@ -27,23 +27,19 @@ management entities and prepares the documents that govern them.
 
 [[pricing]]
 
-**How it works.** Tell us the shape of the fund you want to raise. A licensed attorney forms the fund and the
-general-partner entity in Nevada, prepares the formation and governance documents, and walks you through what each one
-does before you sign.
+Try Nucleus when the fund is no longer just an idea in a deck. Formation is not glamour work, but it is load-bearing:
+the entities, authority, and governance have to be right before the money arrives.
 
-**What $8,888 covers.** Forming the fund entities and the formation document work — one flat legal fee, paid once.
-Nevada filing fees and any registered-agent charges are passed through at cost.
+Tell us the shape of the fund you want to raise. A licensed attorney forms the Nevada fund and its general-partner
+entity, prepares the formation and governance documents, and walks you through what each one does before you sign.
 
-**Where Nucleus fits.** Nucleus is entity formation and governance, not a securities offering and not investment advice.
-Raising from investors, negotiating subscription terms, and ongoing fund administration are each their own engagement;
-when your matter reaches one, we say so plainly and quote it separately.
+The $8,888 fee covers the fund entities and formation document work, paid once. Nevada filing fees and registered-agent
+charges pass through at cost.
 
-**The fund is the client.** Once formed, the fund and its general-partner entity — not you personally, and not any
-investor — are the Firm's client. Before we start we run a conflict check against every current and former matter at the
-firm. If we cannot properly take your matter, we tell you promptly and refer you to counsel who also use the platform.
-There are no referral fees between Neon Law and any firm we refer matters to.
+Nucleus is formation and governance. It is not a securities offering, investment advice, subscription negotiation, or
+ongoing fund administration. When the work moves into one of those lanes, we say so plainly and quote it separately.
 
-## Start a Nucleus formation
-
-Email **[support@neonlaw.com](mailto:support@neonlaw.com)** with a short note about the fund you want to raise. We
-respond within one business day with the engagement letter and the information we will need.
+Once formed, the fund and its general-partner entity are the firm's clients, not you personally and not any investor.
+Before we start, we run a conflict check. If we cannot properly take the matter, we tell you promptly and refer you to
+counsel without any referral fee. If the fund is ready to stand up, email
+**[support@neonlaw.com](mailto:support@neonlaw.com)** with a short note about what you want to raise.
