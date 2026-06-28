@@ -6,9 +6,12 @@ name: deploy
 #
 #   1. integration — build both service images, stand up KIND, run the full
 #      e2e + interop + browser/accessibility suite against the live cluster.
-#   2. publish     — only if integration is green, push all images (the two
-#      service images + the five CronJob trigger images) to ghcr.io tagged
-#      with the release date + `latest`; concurrently build CLI/LSP binaries
+#   2. publish     — only if integration is green, push all images to ghcr.io
+#      tagged with the release date + `latest`. The two service images go
+#      through `publish-service-arch` (native per-arch builds) +
+#      `publish-service-manifest` (multi-arch manifest lists); the five CronJob
+#      trigger images go through `publish-triggers` (amd64-only). Concurrently,
+#      build CLI/LSP binaries
 #      for Linux, macOS, and Windows and attach them to the GitHub Release.
 #   3. notify      — post a "ready to deploy" hand-off to the engineering Slack
 #      channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from
@@ -31,13 +34,13 @@ on:
     tags:
       - "[0-9][0-9].[0-9][0-9].[0-9][0-9]"
     # CI-iteration seam. Pushing a branch named `kind-ci/**` runs ONLY the
-    # KIND integration job below — publish/notify/notify-failure are all
-    # gated on a tag ref, so a branch run pushes no images, sends no email,
-    # and posts no Slack. This lets a change to *this workflow* (or the KIND
-    # wiring it exercises) be proven green on a branch before it's tagged into
-    # the nightly deploy, without cutting a throwaway `YY.MM.DD` tag. Not a
-    # fourth workflow — same deploy.yml, just an extra trigger on the one job
-    # that needs pre-tag iteration.
+    # KIND integration job below — the publish-* jobs, notify, and
+    # notify-failure are all gated on a tag ref, so a branch run pushes no
+    # images, sends no email, and posts no Slack. This lets a change to *this
+    # workflow* (or the KIND wiring it exercises) be proven green on a branch
+    # before it's tagged into the nightly deploy, without cutting a throwaway
+    # `YY.MM.DD` tag. Not a fourth workflow — same deploy.yml, just an extra
+    # trigger on the one job that needs pre-tag iteration.
     branches:
       - "kind-ci/**"
   workflow_dispatch:
@@ -122,10 +125,13 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ steps.ref.outputs.ref }}
-          # Same gha cache scope the publish job reads, so a tag run's
-          # publish rebuild stays a near-no-op.
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          # This job runs on ubuntu-latest (amd64), so it warms the same
+          # amd64-scoped cache the `publish-service-arch` amd64 leg reads —
+          # a tag run's amd64 service rebuild stays a near-no-op. The arm64
+          # leg has no warm cache here (build is amd64-only) and self-warms
+          # its own scope on first release.
+          cache-from: type=gha,scope=${{ matrix.image }}-amd64
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-amd64
 
   # ---------- Stage 1: KIND end-to-end integration ----------
   integration:
@@ -627,9 +633,9 @@ jobs:
   # Runs after the same KIND integration gate as image publishing, then builds
   # the two user-facing executables on native hosted runners. This makes the
   # tag's GitHub Release carry six downloads: `navigator` and `navigator-lsp`
-  # for Linux, macOS, and Windows. It is deliberately parallel with `publish`;
-  # these artifacts are for people, while `publish` pushes the container images
-  # prod will run.
+  # for Linux, macOS, and Windows. It is deliberately parallel with the image
+  # publish jobs; these artifacts are for people, while the publish-* jobs push
+  # the container images prod will run.
   release-binaries-build:
     name: build release binaries (${{ matrix.platform }})
     needs: [integration, release-version]
@@ -980,10 +986,11 @@ jobs:
           echo "Deploy report posted to engineering Slack"
 
   # ---------- Failure guard: alert the engineering Slack channel ----------
-  # Fires whenever ANY of integration/publish/notify fails (failure() is true
-  # if any needed job — or its upstream — failed, even when later jobs were
-  # skipped as a result). Posts to the engineering channel via the prod ops
-  # incoming webhook (SLACK_WEBHOOK_URL, synced from Doppler) and tags Nick —
+  # Fires whenever ANY of integration / the publish-* jobs / notify fails
+  # (failure() is true if any needed job — or its upstream — failed, even when
+  # later jobs were skipped as a result). Posts to the engineering channel via
+  # the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from Doppler) and
+  # tags Nick —
   # the @-mention is what separates this paging alert from the un-tagged
   # success report above. Like that report: tag + run URL only, never client
   # content.
