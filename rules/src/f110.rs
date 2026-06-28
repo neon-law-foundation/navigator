@@ -30,9 +30,9 @@
 //! convention cannot quietly rot.
 //!
 //! Files that are **not** under a known jurisdiction root are skipped:
-//! the operational branch (`engagements/`, `correspondence/`, `filings/`,
-//! `services/`) and the brand quarantine (`neon_law/`) carry no
-//! jurisdiction segment, so `N110` says nothing about them. Snake-case of
+//! the operational branch (`engagements/`, `filings/`, `services/`) and
+//! the brand quarantine (`neon_law/`) carry no jurisdiction segment, so
+//! `N110` says nothing about them. Snake-case of
 //! the filename itself is `N103`'s job; this rule owns the directory
 //! grammar.
 
@@ -278,7 +278,6 @@ mod tests {
         // Not under a jurisdiction root — the rule says nothing.
         for p in [
             "notation_templates/engagements/retainer.md",
-            "notation_templates/correspondence/closing_letter.md",
             "notation_templates/filings/nevada/modified_business_tax.md",
             "notation_templates/services/contract_review.md",
         ] {
@@ -288,9 +287,14 @@ mod tests {
 
     #[test]
     fn skips_brand_quarantine() {
-        // `neon_law/` carries no jurisdiction segment.
-        let v = F110JurisdictionPath.lint(&at("notation_templates/neon_law/nautilus/retainer.md"));
-        assert!(v.is_empty(), "{v:?}");
+        // `neon_law/` carries no jurisdiction segment — neither a product
+        // folder nor the cross-product `shared/` bin.
+        for p in [
+            "notation_templates/neon_law/nautilus/retainer.md",
+            "notation_templates/neon_law/shared/closing_letter.md",
+        ] {
+            assert!(F110JurisdictionPath.lint(&at(p)).is_empty(), "{p}");
+        }
     }
 
     #[test]
