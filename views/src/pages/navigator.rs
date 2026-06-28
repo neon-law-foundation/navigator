@@ -134,8 +134,7 @@ fn sovereign_software(locale: Locale) -> Markup {
             @match locale {
                 Locale::En => {
                     p {
-                        "Neon Law Navigator is sovereign software: predominantly open source \
-                         under Apache-2.0 or MIT, built to run on infrastructure you control. \
+                        "Neon Law Navigator is sovereign software, built to run on infrastructure you control. \
                          Self-host it, and your client data stays where you put it."
                     }
                     p."mb-0" {
@@ -150,10 +149,9 @@ fn sovereign_software(locale: Locale) -> Markup {
                 }
                 Locale::Es => {
                     p {
-                        "Neon Law Navigator es software soberano: predominantemente de código \
-                         abierto bajo Apache-2.0 o MIT, hecho para ejecutarse en la infraestructura \
-                         que tú controlas. Alójalo tú mismo y los datos de tus clientes se quedan \
-                         donde tú los pongas."
+                        "Neon Law Navigator es software soberano, hecho para ejecutarse en la \
+                         infraestructura que tú controlas. Alójalo tú mismo y los datos de tus \
+                         clientes se quedan donde tú los pongas."
                     }
                     p."mb-0" {
                         "Neon Law lo ejecuta en "
@@ -255,7 +253,7 @@ mod tests {
         // Transcreated hero + sovereign copy.
         assert!(html.contains("Software legal soberano que tú mismo operas."));
         assert!(html.contains(">Tu práctica. Tus datos. Tu nube.</h2>"));
-        assert!(html.contains("predominantemente de código abierto bajo Apache-2.0 o MIT"));
+        assert!(html.contains("Neon Law Navigator es software soberano, hecho para ejecutarse"));
         assert!(html.contains("Ver en GitHub"));
         // Proper nouns carry verbatim.
         assert!(html.contains("Kubernetes") && html.contains("Restate"));
@@ -304,7 +302,6 @@ mod tests {
             "got: {html}"
         );
         // The load-bearing claims live in the two paragraphs.
-        assert!(html.contains("predominantly open source under Apache-2.0 or MIT"));
         assert!(html.contains("your client data stays where you put it"));
         assert!(html.contains("run the same system in your own cloud"));
         assert!(html.contains("Kubernetes"));
