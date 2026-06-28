@@ -791,15 +791,24 @@ fn dump_rollout_diagnostics(cfg: &ShipConfig, deployment: &str) {
         .arg("-o")
         .arg("wide")
         .status();
-    // kubectl has no `--tail` for events, so tail the time-sorted stream.
+    // kubectl has no `--tail` for events, so capture the time-sorted
+    // stream and tail it in Rust — no `sh -c`, so cfg.context/namespace
+    // are passed as argv (never interpolated into a shell string) and
+    // stay safe even when a fork's NAVIGATOR_GKE_CONTEXT carries
+    // whitespace or shell metacharacters.
     eprintln!("--- recent events (last 25) ---");
-    let _ = Command::new("sh")
-        .arg("-c")
-        .arg(format!(
-            "kubectl --context {} -n {} get events --sort-by=.lastTimestamp | tail -25",
-            cfg.context, cfg.namespace
-        ))
-        .status();
+    if let Ok(out) = kubectl(cfg)
+        .arg("get")
+        .arg("events")
+        .arg("--sort-by=.lastTimestamp")
+        .output()
+    {
+        let text = String::from_utf8_lossy(&out.stdout);
+        let lines: Vec<&str> = text.lines().collect();
+        for line in &lines[lines.len().saturating_sub(25)..] {
+            eprintln!("{line}");
+        }
+    }
     eprintln!("--- recent logs: deployment/{deployment} (last 80 lines) ---");
     let _ = kubectl(cfg)
         .arg("logs")
