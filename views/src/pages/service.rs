@@ -249,22 +249,27 @@ pub fn render_in(
 }
 
 fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
-    let (title, prompt, input_label, placeholder, submit) = match locale {
+    // The terminal hands off by email, the firm's actual intake model
+    // (see the `/contact` card): a `mailto:` carries the campaign source
+    // in the subject so the attribution survives without putting the
+    // visitor's words into a query string, our access logs, or a
+    // `Referer` header. `subject` is pre-percent-encoded (spaces → `%20`)
+    // since `views` pulls in no URL-encoding crate.
+    let (title, prompt, cta_label, subject) = match locale {
         Locale::En => (
             "1337 Lawyers terminal",
             "Yo. Need something? Follow the white rabbit.",
-            "Tell us what you need",
-            "Type here...",
-            "Enter",
+            "Follow the white rabbit",
+            "Litigation%20inquiry%20(1337lawyers)",
         ),
         Locale::Es => (
             "Terminal de 1337 Lawyers",
-            "Oye. Necesitas ayuda? Sigue al conejo blanco.",
-            "Cuente que necesita",
-            "Escriba aqui...",
-            "Entrar",
+            "Oye. ¿Necesitas ayuda? Sigue al conejo blanco.",
+            "Sigue al conejo blanco",
+            "Consulta%20de%20litigio%20(1337lawyers)",
         ),
     };
+    let cta_href = format!("mailto:{}?subject={subject}", crate::brand::firm_email());
     html! {
         section."lawyers-terminal-modal"
             role="dialog"
@@ -278,8 +283,14 @@ fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
                         span."lawyers-terminal__light"."lawyers-terminal__light--green" {}
                     }
                     p id="lawyers-terminal-title" { (title) }
+                    // `autofocus` moves focus into the dialog on load so
+                    // keyboard / screen-reader users land on the exit
+                    // first (WCAG 2.4.3). A real focus trap needs client
+                    // JS, which the `script-src 'self'` CSP forbids inline
+                    // and is disproportionate for a campaign overlay.
                     a."lawyers-terminal__close"
                         href=(close_href)
+                        autofocus
                         aria-label="Close referral terminal" {
                         "X"
                     }
@@ -288,18 +299,9 @@ fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
                     p."lawyers-terminal__line" { "wake up, neo..." }
                     p."lawyers-terminal__line" { "the matrix has you." }
                     p."lawyers-terminal__line"."lawyers-terminal__line--hot" { (prompt) }
-                    form."lawyers-terminal__form" method="get" action="/contact" {
-                        input type="hidden" name="source" value="1337lawyers";
-                        label for="lawyers-terminal-input" { (input_label) }
-                        div."lawyers-terminal__prompt" {
-                            span aria-hidden="true" { ">" }
-                            input id="lawyers-terminal-input"
-                                name="message"
-                                type="text"
-                                autocomplete="off"
-                                placeholder=(placeholder);
-                            button type="submit" { (submit) }
-                        }
+                    div."lawyers-terminal__prompt" {
+                        span aria-hidden="true" { ">" }
+                        a."lawyers-terminal__cta" href=(cta_href) { (cta_label) }
                     }
                 }
             }
@@ -681,13 +683,21 @@ mod tests {
         );
         assert!(
             html.contains("href=\"/services/litigation\"")
-                && html.contains("aria-label=\"Close referral terminal\""),
-            "modal must offer a clear exit that drops the ref param, got: {html}"
+                && html.contains("aria-label=\"Close referral terminal\"")
+                && html.contains("autofocus"),
+            "modal must offer a clear, focused exit that drops the ref param, got: {html}"
+        );
+        // The hand-off is a `mailto:` anchor carrying the campaign source
+        // in the subject — never a GET form that would leak the visitor's
+        // words into the URL, our logs, or a `Referer` header.
+        assert!(
+            html.contains("href=\"mailto:")
+                && html.contains("subject=Litigation%20inquiry%20(1337lawyers)"),
+            "terminal must hand off by mailto with the campaign source, got: {html}"
         );
         assert!(
-            html.contains("name=\"source\" value=\"1337lawyers\"")
-                && html.contains("name=\"message\""),
-            "terminal prompt should collect the visitor's message, got: {html}"
+            !html.contains("method=\"get\"") && !html.contains("action=\"/contact\""),
+            "terminal must not POST/GET the visitor's words to a route, got: {html}"
         );
     }
 

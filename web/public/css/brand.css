@@ -507,23 +507,12 @@
   font-weight: 700;
 }
 
-.lawyers-terminal__form {
-  display: grid;
-  gap: 0.55rem;
-  margin-top: clamp(0.75rem, 2vw, 1.5rem);
-}
-
-.lawyers-terminal__form label {
-  color: #bbf7d0;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-}
-
 .lawyers-terminal__prompt {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.7rem;
+  margin-top: clamp(0.75rem, 2vw, 1.5rem);
   padding: 0.7rem;
   border: 1px solid #4ade80;
   border-radius: var(--bs-border-radius);
@@ -538,30 +527,20 @@
   font-weight: 800;
 }
 
-.lawyers-terminal__prompt input {
-  min-width: 0;
-  border: 0;
-  color: #f0fdf4;
-  background: transparent;
-  caret-color: #86efac;
-  outline: 0;
-}
-
-.lawyers-terminal__prompt input::placeholder {
-  color: rgba(220, 252, 231, 0.64);
-}
-
-.lawyers-terminal__prompt button {
+.lawyers-terminal__cta {
+  padding: 0.5rem 1rem;
   border: 1px solid #bbf7d0;
   border-radius: var(--bs-border-radius-sm);
-  padding: 0.45rem 0.8rem;
   color: #052e16;
   background: #86efac;
   font-weight: 800;
+  text-align: center;
+  text-decoration: none;
 }
 
-.lawyers-terminal__prompt button:hover,
-.lawyers-terminal__prompt button:focus-visible {
+.lawyers-terminal__cta:hover,
+.lawyers-terminal__cta:focus-visible {
+  color: #052e16;
   background: #bbf7d0;
   outline: 3px solid #f0fdf4;
   outline-offset: 2px;
@@ -578,14 +557,6 @@
 
   .lawyers-terminal__lights {
     display: none;
-  }
-
-  .lawyers-terminal__prompt {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .lawyers-terminal__prompt button {
-    grid-column: 1 / -1;
   }
 }
 
