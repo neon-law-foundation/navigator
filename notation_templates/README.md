@@ -60,8 +60,7 @@ they live in their own branch:
 
 - `engagements/` — engagement / onboarding letters and intake (retainers, the estate-planning intake, fractional-GC
   onboarding).
-- `correspondence/` — client and third-party letters (a generic closing letter and other one-off correspondence).
-  `filings/` — government compliance filings that are not tied to a single jurisdiction-and-practice-area. Tax filings
+- `filings/` — government compliance filings that are not tied to a single jurisdiction-and-practice-area. Tax filings
   that *are* (Nevada Modified Business Tax, IRS Form 990) live in the substantive tree under `.../taxation/`, coded by
   their forum (`state`, `irs`).
 - `services/` — service-delivery work products (contract review).
@@ -77,11 +76,14 @@ parallel to `united_states/`, so the brand is quarantined in one place instead o
 
 Inside the quarantine, each product gets **its own folder, one level deep**, holding that product's engagement letter
 (and any future product-specific templates). The product name lives in the folder, so the file is named by document type
-— `retainer.md` — not repeated in the filename:
+— `retainer.md` — not repeated in the filename. The one folder that is **not** a product is `shared/`, which holds brand
+templates used across the whole product family rather than tied to a single product — the matter-closing letter
+(`closing_letter.md`) that ends any Neon Law engagement lives there:
 
 ```text
 notation_templates/
 └── neon_law/
+    ├── shared/closing_letter.md
     ├── nautilus/retainer.md
     ├── nest/retainer.md
     ├── nexus/retainer.md
@@ -89,8 +91,9 @@ notation_templates/
     └── …                       # node, nook, nerd, newleaf, namesake, nucleus, litigation
 ```
 
-The retainer's identity is still its `code` (`onboarding__retainer_nautilus`), not its path, so a product's engagement
-letter is renamed or moved without touching the workflows, seeds, or Product rows that reference it.
+The template's identity is still its `code` (`onboarding__retainer_nautilus`, `closing__letter`), not its path, so a
+product's engagement letter — or the shared closing letter — is renamed or moved without touching the workflows, seeds,
+or Product rows that reference it.
 
 These files are shared publicly so you can read and learn from them, **but they are not yours to use as-is.** **"Neon
 Law"** is a registered trademark of Shook Law PLLC (U.S. Reg. No. 6,325,650) — see the [Trademarks note in the root
