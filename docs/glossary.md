@@ -611,6 +611,135 @@ One named position in a Workflow Spec (e.g. `intake_persisted`, `staff_review`, 
 carry the current state as a string. State names use the `<prefix>__<discriminator>` form so the runtime can pick the
 right [Actor Class](#actor-class) per state.
 
+## Analysis
+
+The workflow prefix `analysis` is a system wait state for review-in matters: the web app performs the contract analysis,
+persists the findings, and signals the workflow when `analysis_ready` is available. See
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Certified Mail
+
+The workflow prefix `certified_mail` records a staff-driven outbound certified-mail submission. It is an outbound
+submission step and must sit behind [Staff Review](#staff-review). See
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Client Review
+
+The workflow prefix `client_review` lets the respondent review and approve attorney-approved drafts before a later
+signature or closing step. See [`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Document Drafts
+
+The workflow prefix `document_drafts` is a system wait state for web-rendered review-document rows, used by workflows
+that generate multiple client-reviewable instruments. See
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Document Intake
+
+The workflow prefix `document_intake` files an inbound artifact, such as a transcript or executed PDF, into the matter
+through the shared document-ingestion path. See
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Document Open
+
+The workflow prefix `document_open` renders a template body into a Blob-backed document for the Project. See
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## E-Filing
+
+The workflow prefix `e_filing` records an electronic government filing. It is an outbound submission step and must sit
+behind [Staff Review](#staff-review). See
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Email Send
+
+The workflow prefix `email_send` renders and sends a bundled outbound email template through the configured email
+service. See [`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Extract
+
+The workflow prefix `extract` is a system wait state for structured-data extraction from a previously ingested artifact.
+See [`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Filing
+
+The workflow prefix `filing` records a named government filing. It is an outbound submission step and must sit behind
+[Staff Review](#staff-review). See the
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) guide and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Firm Signature
+
+The workflow prefix `firm_signature` records a staff-side signature, usually the firm's countersignature or closing
+signature. See [`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Intake Persisted
+
+The workflow prefix `intake_persisted` is a system wait state after questionnaire answers have been written and before
+post-intake workflow work begins. See [`retainer_intake.md`](retainer_intake.md#post-intake-workflow) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Mailroom Receive
+
+The workflow prefix `mailroom_receive` records staff receipt of physical mail. See
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Mailroom Send
+
+The workflow prefix `mailroom_send` records staff sending physical mail. See
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Notarization
+
+The workflow prefix `notarization` records a respondent signing or refusing in front of a notary. See
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## On-Chain Record
+
+The workflow prefix `onchain` records an attorney attestation in the durable attestation table and, when configured,
+through the chain backend. See [`solana-attestation.md`](solana-attestation.md) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Sent for Signature
+
+The workflow prefix `sent_for_signature` is a system wait state for an outbound e-signature request; a provider webhook
+or equivalent signal advances it. See [`docusign-esignature.md`](docusign-esignature.md) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Signature
+
+The workflow suffix family `_signature` / `_signatures`, plus the `witnesses` prefix, records respondent-side signing.
+See [`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Staff Review
+
+The workflow prefix `staff_review` is the mandatory human attorney/staff gate before a document is sent for binding
+signature, certified mail, e-filing, or another outbound submission. See
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition),
+[`workflows::guardrail`](../workflows/src/guardrail.rs), and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
+## Witnesses
+
+The workflow prefix `witnesses` records respondent-side witness signatures and resolves through the same Signature step
+kind as `_signature` / `_signatures`. See
+[`notation-authoring.md`](notation-authoring.md#changing-the-workflow-composition) and
+[`workflows::step::STEP_PREFIXES`](../workflows/src/step.rs).
+
 ## Step
 
 A unit of work executed by the runtime when entering a State. Today every Step is `system`-driven. The shipped workflow

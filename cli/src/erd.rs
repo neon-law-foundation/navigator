@@ -1,4 +1,4 @@
-// `navigator erd` — introspect the migrated schema in Postgres and
+// `navigator docs erd` — introspect the migrated schema in Postgres and
 // emit a Mermaid `erDiagram` block on stdout. The output renders
 // directly in GitHub markdown and any Mermaid-aware viewer.
 //
