@@ -125,7 +125,9 @@ mod tests {
                 "{} bundled bytes are not a PDF",
                 form.meta.code
             );
-            assert!(form.meta.object_path.ends_with(".pdf"));
+            assert!(std::path::Path::new(form.meta.object_path)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("pdf")));
             assert!(form.meta.object_path.starts_with("forms/united_states/"));
         }
     }

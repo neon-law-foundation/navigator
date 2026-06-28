@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn every_bundled_form_has_a_parsing_field_map() {
         for form in crate::registry().expect("registry") {
-            let map = field_map(&form.meta.code)
+            let map = field_map(form.meta.code)
                 .expect("map parses")
                 .expect("map exists for every fill=acroform form");
             assert_eq!(map.form_code, form.meta.code);

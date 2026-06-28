@@ -122,9 +122,8 @@ impl Rule for F110JurisdictionPath {
         };
 
         if *first == "forms" {
-            if frontmatter::field(fm, "origin_url")
-                .filter(|url| url.starts_with("https://") && url.contains(".gov"))
-                .is_none()
+            if !frontmatter::field(fm, "origin_url")
+                .is_some_and(|url| url.starts_with("https://") && url.contains(".gov"))
             {
                 violations.push(Self::violation(
                     file,

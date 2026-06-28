@@ -113,7 +113,7 @@ fn all_three_packets_parse_and_expose_an_acroform() {
 #[test]
 fn every_mapped_field_name_exists_in_the_vendored_bytes() {
     for form in forms::registry().expect("registry loads") {
-        let map = forms::field_map(&form.meta.code)
+        let map = forms::field_map(form.meta.code)
             .expect("map parses")
             .expect("every vendored form has a map");
         let names = pdf::field_names(form.bytes).expect("field names readable");
