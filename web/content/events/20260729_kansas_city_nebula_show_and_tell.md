@@ -3,13 +3,12 @@ title: "Kansas City Nebula Show and Tell"
 description: >
   A Kansas City stop for lawyers and legal professionals to share AI workflows, demos, prompts, and review patterns.
 public_slug: kansas-city-summer-2026
+draft: true
 starts_at: "2026-07-29T11:00:00"
 ends_at: "2026-07-29T15:00:00"
 timezone: America/Chicago
 location_name: Kansas City venue to be announced
 location_address: Kansas City, Missouri
-external_event_provider: luma
-invite_link: https://luma.com/neon-law-nebula-kansas-city
 image_url: /public/events/nebula-show-and-tell/nlf-lawyers-kansas-city.png
 image_alt: Lawyers gathered in Kansas City with a Neon Law Foundation flag
 video_url:

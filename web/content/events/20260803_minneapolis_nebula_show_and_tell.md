@@ -4,13 +4,12 @@ description: >
   A Minneapolis session for legal AI workflow demos, practical review habits, and peer discussion about responsible
   adoption.
 public_slug: minneapolis-summer-2026
+draft: true
 starts_at: "2026-08-03T11:00:00"
 ends_at: "2026-08-03T15:00:00"
 timezone: America/Chicago
 location_name: Minneapolis venue to be announced
 location_address: Minneapolis, Minnesota
-external_event_provider: luma
-invite_link: https://luma.com/neon-law-nebula-minneapolis
 image_url: /public/events/nebula-show-and-tell/nlf-lawyers-minneapolis.png
 image_alt: Lawyers gathered in Minneapolis with a Neon Law Foundation flag
 video_url:

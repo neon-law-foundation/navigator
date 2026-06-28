@@ -4,13 +4,12 @@ description: >
   A Boston gathering for lawyers and legal professionals to share AI workflow demos, prompts, tools, and review
   patterns.
 public_slug: boston-summer-2026
+draft: true
 starts_at: "2026-08-17T11:00:00"
 ends_at: "2026-08-17T15:00:00"
 timezone: America/New_York
 location_name: Boston venue to be announced
 location_address: Boston, Massachusetts
-external_event_provider: luma
-invite_link: https://luma.com/neon-law-nebula-boston
 image_url: /public/events/nebula-show-and-tell/nlf-lawyers-boston.png
 image_alt: Lawyers gathered in Boston with a Neon Law Foundation flag
 video_url:

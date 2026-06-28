@@ -1,7 +1,6 @@
 ---
 title: "Neon Law Nexus"
 slug: nexus
-hero_image: bengaluru-skyline
 description: >
   Neon Law Nexus is fractional general counsel as a service for scaling companies, with no hourly or per-matter billing.
 pricing:

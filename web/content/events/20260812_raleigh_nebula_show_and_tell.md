@@ -3,13 +3,12 @@ title: "Raleigh Nebula Show and Tell"
 description: >
   A Raleigh gathering for practical legal AI demos, workflow sharing, peer review, and responsible adoption habits.
 public_slug: raleigh-summer-2026
+draft: true
 starts_at: "2026-08-12T11:00:00"
 ends_at: "2026-08-12T15:00:00"
 timezone: America/New_York
 location_name: Raleigh venue to be announced
 location_address: Raleigh, North Carolina
-external_event_provider: luma
-invite_link: https://luma.com/neon-law-nebula-raleigh
 image_url: /public/events/nebula-show-and-tell/nlf-lawyers-raleigh.png
 image_alt: Lawyers gathered in Raleigh with a Neon Law Foundation flag
 video_url:

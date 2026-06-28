@@ -3,13 +3,12 @@ title: "Philadelphia Nebula Show and Tell"
 description: >
   A Philadelphia stop for lawyers to share legal AI workflows, demos, prompts, review habits, and practical guardrails.
 public_slug: philadelphia-summer-2026
+draft: true
 starts_at: "2026-08-07T11:00:00"
 ends_at: "2026-08-07T15:00:00"
 timezone: America/New_York
 location_name: Philadelphia venue to be announced
 location_address: Philadelphia, Pennsylvania
-external_event_provider: luma
-invite_link: https://luma.com/neon-law-nebula-philadelphia
 image_url: /public/events/nebula-show-and-tell/nlf-lawyers-philadelphia.png
 image_alt: Lawyers gathered in Philadelphia with a Neon Law Foundation flag
 video_url:

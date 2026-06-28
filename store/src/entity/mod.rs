@@ -21,6 +21,7 @@ pub mod email_token;
 pub mod entity;
 pub mod entity_billing_profile;
 pub mod entity_type;
+pub mod event;
 pub mod expunge_record;
 pub mod expunge_request;
 pub mod filing;

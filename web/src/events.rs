@@ -28,14 +28,34 @@ pub struct Event {
     pub starts_at: NaiveDateTime,
     pub ends_at: NaiveDateTime,
     pub timezone: String,
+    /// Optional venue name. Empty for a purely-online show-and-tell.
     pub location_name: String,
+    /// Physical street address. Empty for a purely-online show-and-tell;
+    /// at least one of `location_address` or `meeting_url` is always set.
     pub location_address: String,
-    pub external_event_provider: String,
-    pub external_event_url: String,
+    /// Online join link (Google Meet / Zoom). `None` for in-person-only.
+    pub meeting_url: Option<String>,
+    /// Draft events are tracked (and synced to the database) but never
+    /// surfaced on a public page — they are not yet official.
+    pub draft: bool,
     pub image_url: Option<String>,
     pub image_alt: Option<String>,
     pub video_url: Option<String>,
     pub recap_url: Option<String>,
+}
+
+impl Event {
+    /// Human-readable place line: the physical address when present,
+    /// otherwise "Online" for a meeting-only event.
+    #[must_use]
+    pub fn place(&self) -> String {
+        match (self.location_name.trim(), self.location_address.trim()) {
+            ("", "") => "Online".to_string(),
+            (name, "") => name.to_string(),
+            ("", address) => address.to_string(),
+            (name, address) => format!("{name}, {address}"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -66,9 +86,13 @@ impl EventIndex {
         self.events.iter().find(|event| event.slug == slug)
     }
 
+    /// Look up a published event by its public slug. Draft events are
+    /// never resolvable publicly — they 404 like any unknown slug.
     #[must_use]
     pub fn get_public(&self, slug: &str) -> Option<&Event> {
-        self.events.iter().find(|event| event.public_slug == slug)
+        self.events
+            .iter()
+            .find(|event| !event.draft && event.public_slug == slug)
     }
 
     #[must_use]
@@ -76,7 +100,7 @@ impl EventIndex {
         let mut events: Vec<_> = self
             .events
             .iter()
-            .filter(|event| event.date >= today)
+            .filter(|event| !event.draft && event.date >= today)
             .collect();
         // Sort ascending (nearest first) so the "soonest upcoming" promise holds
         // regardless of insertion order — `EventIndex::new` carries no ordering
@@ -94,7 +118,7 @@ impl EventIndex {
         let mut events: Vec<_> = self
             .events
             .iter()
-            .filter(|event| event.date < today)
+            .filter(|event| !event.draft && event.date < today)
             .collect();
         events.sort_by(|a, b| {
             b.starts_at
@@ -119,17 +143,17 @@ struct EventFrontmatter {
     description: String,
     #[serde(default)]
     public_slug: Option<String>,
+    #[serde(default)]
+    draft: bool,
     starts_at: String,
     ends_at: String,
     timezone: String,
+    #[serde(default)]
     location_name: String,
+    #[serde(default)]
     location_address: String,
     #[serde(default)]
-    invite_link: Option<String>,
-    #[serde(default)]
-    external_event_provider: String,
-    #[serde(default)]
-    external_event_url: String,
+    meeting_url: Option<String>,
     #[serde(default)]
     image_url: Option<String>,
     #[serde(default)]
@@ -234,23 +258,20 @@ fn parse_event(
             message: format!("unsupported timezone `{}`", fields.timezone),
         });
     }
-    require_non_empty(&fields.location_name, path, "location_name")?;
-    require_non_empty(&fields.location_address, path, "location_address")?;
-    let invite_link = fields
-        .invite_link
+    let meeting_url = fields
+        .meeting_url
         .as_deref()
         .map(str::trim)
         .filter(|url| !url.is_empty())
-        .map_or_else(
-            || fields.external_event_url.trim().to_string(),
-            ToOwned::to_owned,
-        );
-    require_non_empty(&invite_link, path, "invite_link")?;
-    let external_event_provider = if fields.external_event_provider.trim().is_empty() {
-        "luma".to_string()
-    } else {
-        fields.external_event_provider
-    };
+        .map(ToOwned::to_owned);
+    // An event must say where to show up: a physical address or an online
+    // meeting link (or both, for a hybrid). This mirrors rule E003.
+    if fields.location_address.trim().is_empty() && meeting_url.is_none() {
+        return Err(EventLoadError::Invalid {
+            path: path.to_string(),
+            message: "event must declare a `location_address` or a `meeting_url`".to_string(),
+        });
+    }
     let public_slug = fields
         .public_slug
         .as_deref()
@@ -279,8 +300,8 @@ fn parse_event(
         timezone: fields.timezone,
         location_name: fields.location_name,
         location_address: fields.location_address,
-        external_event_provider,
-        external_event_url: invite_link,
+        meeting_url,
+        draft: fields.draft,
         image_url: fields.image_url.filter(|url| !url.trim().is_empty()),
         image_alt: fields.image_alt.filter(|alt| !alt.trim().is_empty()),
         video_url: fields.video_url.filter(|url| !url.trim().is_empty()),
@@ -339,14 +360,14 @@ impl Event {
             format!("DTEND;TZID={}:{}", self.timezone, ends),
             format!("SUMMARY:{}", ics_escape(&self.title)),
             format!("DESCRIPTION:{}", ics_escape(&self.description)),
-            format!(
-                "LOCATION:{}",
-                ics_escape(&format!(
-                    "{}, {}",
-                    self.location_name, self.location_address
-                ))
-            ),
-            format!("URL:{}", self.external_event_url),
+            format!("LOCATION:{}", ics_escape(&self.place())),
+        ]);
+        // The calendar URL is the online join link when there is one; an
+        // in-person-only event simply omits it.
+        if let Some(url) = self.meeting_url.as_deref() {
+            lines.push(format!("URL:{url}"));
+        }
+        lines.extend([
             "END:VEVENT".to_string(),
             "END:VCALENDAR".to_string(),
             String::new(),
@@ -511,8 +532,9 @@ mod tests {
         assert_eq!(event.starts_at.hour(), 11);
         assert_eq!(event.ends_at.hour(), 15);
         assert_eq!(event.timezone, "America/Los_Angeles");
-        assert_eq!(event.external_event_provider, "luma");
-        assert_eq!(event.external_event_url, "https://luma.com/k26256ut");
+        // Seattle is the one published bundled event (no `draft: true`).
+        assert!(!event.draft);
+        assert!(!event.location_address.is_empty());
         assert_eq!(
             event.image_url.as_deref(),
             Some("/public/events/nebula-show-and-tell/nlf-lawyers-seattle.png")
@@ -533,7 +555,22 @@ mod tests {
         assert!(ics.contains("RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU"));
         assert!(ics.contains("DTSTART;TZID=America/Los_Angeles:20260702T110000"));
         assert!(ics.contains("DTEND;TZID=America/Los_Angeles:20260702T150000"));
-        assert!(ics.contains("URL:https://luma.com/k26256ut"));
+        // Seattle is in-person only, so the calendar carries the physical
+        // place and omits the (online) URL line.
+        assert!(ics.contains("LOCATION:"));
+        assert!(!ics.contains("URL:"));
+    }
+
+    #[test]
+    fn ics_includes_url_for_online_event() {
+        let ix = load_dir(std::path::Path::new(crate::DEFAULT_EVENTS_DIR)).unwrap();
+        let mut event = ix
+            .get("seattle-agentic-workflows-for-lawyers")
+            .unwrap()
+            .clone();
+        event.meeting_url = Some("https://meet.example.com/nebula".to_string());
+        let ics = event.ics_with_dtstamp(Utc.with_ymd_and_hms(2026, 6, 24, 7, 8, 9).unwrap());
+        assert!(ics.contains("URL:https://meet.example.com/nebula"));
     }
 
     #[test]
@@ -590,8 +627,6 @@ ends_at: \"2026-07-02T15:00:00\"\n\
 timezone: America/Los_Angeles\n\
 location_name: Room\n\
 location_address: Seattle\n\
-external_event_provider: luma\n\
-invite_link: https://luma.com/k26256ut\n\
 ---\n\nBody.\n",
         )
         .unwrap();
@@ -603,7 +638,7 @@ invite_link: https://luma.com/k26256ut\n\
     }
 
     #[test]
-    fn load_dir_rejects_empty_location() {
+    fn load_dir_rejects_event_with_neither_location_nor_meeting() {
         let dir = TempDir::new().unwrap();
         fs::write(
             dir.path().join("20260702_bad.md"),
@@ -613,18 +648,68 @@ description: Bad event.\n\
 starts_at: \"2026-07-02T11:00:00\"\n\
 ends_at: \"2026-07-02T15:00:00\"\n\
 timezone: America/Los_Angeles\n\
-location_name: \"\"\n\
-location_address: Seattle\n\
-external_event_provider: luma\n\
-invite_link: https://luma.com/k26256ut\n\
+location_name: Room\n\
 ---\n\nBody.\n",
         )
         .unwrap();
         let err = load_dir(dir.path()).unwrap_err().to_string();
         assert!(
-            err.contains("location_name is required"),
-            "expected location_name error, got: {err}"
+            err.contains("location_address` or a `meeting_url"),
+            "expected location-or-meeting error, got: {err}"
         );
+    }
+
+    #[test]
+    fn load_dir_accepts_online_event_with_meeting_url_only() {
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join("20260702_online.md"),
+            "---\n\
+title: Online Show and Tell\n\
+description: A purely online gathering.\n\
+starts_at: \"2026-07-02T11:00:00\"\n\
+ends_at: \"2026-07-02T15:00:00\"\n\
+timezone: America/Los_Angeles\n\
+meeting_url: https://meet.example.com/nebula\n\
+---\n\nBody.\n",
+        )
+        .unwrap();
+        let ix = load_dir(dir.path()).unwrap();
+        let event = ix.get("online").unwrap();
+        assert_eq!(
+            event.meeting_url.as_deref(),
+            Some("https://meet.example.com/nebula")
+        );
+        assert_eq!(event.place(), "Online");
+    }
+
+    #[test]
+    fn drafts_are_hidden_from_public_accessors_but_kept_in_index() {
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join("20260702_secret.md"),
+            "---\n\
+title: Secret\n\
+description: Not yet official.\n\
+draft: true\n\
+starts_at: \"2026-07-02T11:00:00\"\n\
+ends_at: \"2026-07-02T15:00:00\"\n\
+timezone: America/Los_Angeles\n\
+location_address: Somewhere\n\
+---\n\nBody.\n",
+        )
+        .unwrap();
+        let ix = load_dir(dir.path()).unwrap();
+        // Tracked in the index (so it can sync to the database)...
+        assert_eq!(ix.events().len(), 1);
+        assert!(ix.get("secret").unwrap().draft);
+        // ...but invisible on every public surface.
+        assert!(ix.get_public("secret").is_none());
+        let today = NaiveDate::from_ymd_opt(2026, 7, 1).unwrap();
+        assert!(ix.upcoming(today).is_empty());
+        assert!(ix
+            .past(NaiveDate::from_ymd_opt(2026, 7, 3).unwrap())
+            .is_empty());
     }
 
     #[test]
@@ -640,7 +725,6 @@ ends_at: \"2026-07-02T15:00:00\"\n\
 timezone: America/Los_Angeles\n\
 location_name: Room\n\
 location_address: Seattle\n\
-invite_link: https://luma.com/k26256ut\n\
 ---\n\nBody.\n",
         )
         .unwrap();
@@ -663,7 +747,6 @@ ends_at: \"2026-07-02T15:00:00\"\n\
 timezone: UTC\n\
 location_name: Room\n\
 location_address: Seattle\n\
-invite_link: https://luma.com/k26256ut\n\
 ---\n\nBody.\n",
         )
         .unwrap();
@@ -702,8 +785,8 @@ invite_link: https://luma.com/k26256ut\n\
                 timezone: "America/Los_Angeles".into(),
                 location_name: String::new(),
                 location_address: String::new(),
-                external_event_provider: "luma".into(),
-                external_event_url: "https://luma.com/past".into(),
+                meeting_url: None,
+                draft: false,
                 image_url: None,
                 image_alt: None,
                 video_url: None,
@@ -727,8 +810,8 @@ invite_link: https://luma.com/k26256ut\n\
                 timezone: "America/Los_Angeles".into(),
                 location_name: String::new(),
                 location_address: String::new(),
-                external_event_provider: "luma".into(),
-                external_event_url: "https://luma.com/today".into(),
+                meeting_url: None,
+                draft: false,
                 image_url: None,
                 image_alt: None,
                 video_url: None,
@@ -753,8 +836,8 @@ invite_link: https://luma.com/k26256ut\n\
             timezone: "America/Los_Angeles".into(),
             location_name: String::new(),
             location_address: String::new(),
-            external_event_provider: "luma".into(),
-            external_event_url: format!("https://luma.com/{slug}"),
+            meeting_url: None,
+            draft: false,
             image_url: None,
             image_alt: None,
             video_url: None,

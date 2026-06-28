@@ -4,13 +4,12 @@ description: >
   A practical Portland gathering for lawyers and legal professionals to trade AI workflows, prompts, demos, and
   guardrails for legal practice.
 public_slug: portland-summer-2026
+draft: true
 starts_at: "2026-07-09T11:00:00"
 ends_at: "2026-07-09T15:00:00"
 timezone: America/Los_Angeles
 location_name: Portland venue to be announced
 location_address: Portland, Oregon
-external_event_provider: luma
-invite_link: https://luma.com/neon-law-nebula-portland
 image_url:
 image_alt:
 video_url:

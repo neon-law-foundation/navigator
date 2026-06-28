@@ -3,13 +3,12 @@ title: "Cleveland Nebula Show and Tell"
 description: >
   A Cleveland gathering for legal AI workflow demos, peer review, and responsible adoption patterns.
 public_slug: cleveland-summer-2026
+draft: true
 starts_at: "2026-08-05T11:00:00"
 ends_at: "2026-08-05T15:00:00"
 timezone: America/New_York
 location_name: Cleveland venue to be announced
 location_address: Cleveland, Ohio
-external_event_provider: luma
-invite_link: https://luma.com/neon-law-nebula-cleveland
 image_url: /public/events/nebula-show-and-tell/nlf-lawyers-cleveland.png
 image_alt: Lawyers gathered in Cleveland with a Neon Law Foundation flag
 video_url:
