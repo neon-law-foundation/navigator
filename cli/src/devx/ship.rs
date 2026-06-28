@@ -46,13 +46,12 @@
 //! covered by the `tests` module below.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
 use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 
 use super::ghcr;
-use super::{env_string, require_auth, require_tools, run, workspace_root};
+use super::{env_string, require_auth, require_tools, run};
 
 /// In-cluster Deployment + container names. These are workspace
 /// conventions (the GKE overlay names them); they are not per-deploy
@@ -61,6 +60,19 @@ const WEB_DEPLOYMENT: &str = "navigator-web";
 const WEB_CONTAINER: &str = "web";
 const WORKFLOWS_DEPLOYMENT: &str = "workflows-service";
 const WORKFLOWS_CONTAINER: &str = "worker";
+
+/// The `web` boot-invariant source, embedded at compile time. `ship`
+/// scrapes the required-secret keys from these `"<KEY> must be set"`
+/// literals (see [`required_secret_keys_with_triggers`]) to confirm the
+/// prod Secret satisfies the new binary before rolling. Embedding it with
+/// `include_str!` — instead of reading `web/src/config.rs` from a
+/// `workspace_root()` at runtime — is what lets a Homebrew-installed
+/// `navigator ship` run from ANY directory with no workspace checkout on
+/// disk (the historical "could not find workspace root containing
+/// Cargo.toml and k8s/" failure). CI builds the release binary from a full
+/// checkout, so the literal travels inside the binary and can never drift
+/// from the config the binary was built against.
+const REQUIRED_KEY_INVARIANTS_SRC: &str = include_str!("../../../web/src/config.rs");
 
 /// Every per-deployment value `ship` reads, resolved once from
 /// the environment. Required values bail when unset (fail fast — never
@@ -534,10 +546,10 @@ fn ensure_secret_invariants(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
         );
         return Ok(());
     }
-    let root = workspace_root()?;
-    let config_src = fs::read_to_string(root.join("web/src/config.rs"))
-        .context("read web/src/config.rs for the required-key invariants")?;
-    let parsed = required_secret_keys_with_triggers(&config_src);
+    // Scrape the boot invariants from the config source embedded at
+    // compile time — no `workspace_root()`, so this runs from any
+    // directory (a Homebrew `navigator ship` has no checkout on disk).
+    let parsed = required_secret_keys_with_triggers(REQUIRED_KEY_INVARIANTS_SRC);
 
     let mut satisfied = secret_data_keys(cfg)?;
     for deployment in [WEB_DEPLOYMENT, WORKFLOWS_DEPLOYMENT] {
@@ -652,8 +664,13 @@ fn smoke_check(cfg: &ShipConfig, dry_run: bool) {
         return;
     }
     // Confirm the public landing is non-empty by grepping a stable phrase.
+    // `--max-time` bounds the whole request so a stalled or unreachable
+    // host can't hang the ship after the rollout already succeeded.
     let phrase = "home";
-    match Command::new("curl").args(["-fsS", &url]).output() {
+    match Command::new("curl")
+        .args(["-fsS", "--max-time", "20", &url])
+        .output()
+    {
         Ok(out) if out.status.success() => {
             let body = String::from_utf8_lossy(&out.stdout).to_ascii_lowercase();
             if body.contains(phrase) {
@@ -729,19 +746,90 @@ fn kubectl_list_json(cfg: &ShipConfig, kind: &str) -> Result<serde_json::Value> 
         .with_context(|| format!("parse `kubectl get {kind} -o json`"))
 }
 
-/// Wait on both Deployments' rollouts at the given timeout.
+/// Wait on both Deployments' rollouts at the given timeout. On a rollout
+/// that fails or times out, dump pod/event/log diagnostics for the
+/// namespace before surfacing the error — so a wedged roll shows WHY
+/// (crash-loop, `ImagePullBackOff`, Pending on no capacity) on the spot,
+/// instead of a bare "timed out waiting for the condition". This is the
+/// operator-side mirror of `deploy.yml`'s "dump diagnostics on failure".
 fn wait_rollouts(cfg: &ShipConfig, dry_run: bool, timeout: &str) -> Result<()> {
     for deployment in [WEB_DEPLOYMENT, WORKFLOWS_DEPLOYMENT] {
-        exec(
+        let result = exec(
             dry_run,
             kubectl(cfg)
                 .arg("rollout")
                 .arg("status")
                 .arg(format!("deployment/{deployment}"))
                 .arg(format!("--timeout={timeout}")),
-        )?;
+        );
+        if let Err(err) = result {
+            if !dry_run {
+                dump_rollout_diagnostics(cfg, deployment);
+            }
+            return Err(err).with_context(|| {
+                format!("deployment/{deployment} did not become Ready within {timeout}")
+            });
+        }
     }
     Ok(())
+}
+
+/// Print pod status, recent events, and recent container logs for the
+/// namespace when a rollout wedges — the on-the-spot answer to "why is the
+/// deploy hanging?". Best-effort: each call ignores its own failure so a
+/// diagnostics gap never masks the real rollout error. Output streams
+/// straight to the operator's terminal (inherited stdio).
+fn dump_rollout_diagnostics(cfg: &ShipConfig, deployment: &str) {
+    eprintln!(
+        "\n==> deployment/{deployment} stalled — dumping diagnostics (namespace {})",
+        cfg.namespace
+    );
+    eprintln!("--- kubectl get pods ---");
+    let _ = kubectl(cfg)
+        .arg("get")
+        .arg("pods")
+        .arg("-o")
+        .arg("wide")
+        .status();
+    // kubectl has no `--tail` for events, so capture the time-sorted
+    // stream and tail it in Rust — no `sh -c`, so cfg.context/namespace
+    // are passed as argv (never interpolated into a shell string) and
+    // stay safe even when a fork's NAVIGATOR_GKE_CONTEXT carries
+    // whitespace or shell metacharacters.
+    eprintln!("--- recent events (last 25) ---");
+    if let Ok(out) = kubectl(cfg)
+        .arg("get")
+        .arg("events")
+        .arg("--sort-by=.lastTimestamp")
+        .output()
+    {
+        let text = String::from_utf8_lossy(&out.stdout);
+        let lines: Vec<&str> = text.lines().collect();
+        for line in &lines[lines.len().saturating_sub(25)..] {
+            eprintln!("{line}");
+        }
+    }
+    eprintln!("--- recent logs: deployment/{deployment} (last 80 lines) ---");
+    let _ = kubectl(cfg)
+        .arg("logs")
+        .arg(format!("deployment/{deployment}"))
+        .arg("--all-containers")
+        .arg("--tail=80")
+        .status();
+    // A crash-looped pod's fatal output is in the PREVIOUS container, not
+    // the one currently restarting — pull it too (no-op if not crashed).
+    eprintln!("--- previous (crashed) container logs, if any ---");
+    let _ = kubectl(cfg)
+        .arg("logs")
+        .arg(format!("deployment/{deployment}"))
+        .arg("--all-containers")
+        .arg("--previous")
+        .arg("--tail=40")
+        .status();
+    eprintln!(
+        "==> dig deeper: kubectl --context {} -n {} describe pods -l app={deployment}\n",
+        cfg.context, cfg.namespace
+    );
 }
 
 /// Confirm the resolved `kubectl` context exists before any prod call.
@@ -961,6 +1049,31 @@ mod tests {
             missing_keys(&effective_required_keys(&parsed, &with_jwks), &with_jwks),
             vec!["OIDC_AUDIENCE".to_string(), "OIDC_ISSUER".to_string()]
         );
+    }
+
+    #[test]
+    fn embedded_config_source_yields_real_prod_invariant_keys() {
+        // The bundled `web/src/config.rs` (compile-time `include_str!`) is
+        // what lets `ship` confirm the prod Secret from ANY directory — no
+        // `workspace_root()`, no checkout on disk. Parsing it must surface
+        // the real boot-required keys; an empty/garbled embed would silently
+        // skip the Secret check. Assert a few load-bearing keys are present.
+        let keys: BTreeSet<String> =
+            required_secret_keys_with_triggers(REQUIRED_KEY_INVARIANTS_SRC)
+                .into_iter()
+                .map(|(key, _trigger)| key)
+                .collect();
+        for expected in [
+            "RESTATE_BROKER_URL",
+            "SENDGRID_API_KEY",
+            "DOCUSIGN_HMAC_KEY",
+            "SESSION_SECRET",
+        ] {
+            assert!(
+                keys.contains(expected),
+                "embedded config invariants missing {expected}; parsed keys: {keys:?}"
+            );
+        }
     }
 
     #[test]

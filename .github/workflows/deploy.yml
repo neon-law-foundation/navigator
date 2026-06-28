@@ -848,14 +848,29 @@ jobs:
               exit 1
           fi
           # Concise hand-off: tag the on-call, state the build is ready, and hand
-          # over the exact roll commands (escaped backticks → literal Slack code
-          # spans). Install the same version-tagged CLI this run published to the
-          # Homebrew tap, then roll with it — so the binary doing the deploy is the
-          # ${TAG} build, not an ad-hoc `cargo run` off whatever's checked out. The
-          # prod roll is a deliberate manual step — see docs/gitops.md.
+          # over the exact roll sequence (escaped backticks → literal Slack code
+          # spans). Four numbered steps so the roll is copy-paste, in order:
+          #   1. authenticate — `ship` pins the prod GKE context (needs gcloud
+          #      creds) and re-registers the Restate worker (needs a live Restate
+          #      session / unexpired RESTATE_ADMIN_TOKEN); without these it bails
+          #      or silently no-ops the register.
+          #   2. install the EXACT ${TAG} CLI this run published to the Homebrew
+          #      tap — named explicitly so the operator deploys the ${TAG} build,
+          #      not an ad-hoc `cargo run` off whatever's checked out.
+          #   3. verify `navigator --version` actually reports ${TAG} before
+          #      rolling — closes the "brew resolved the previous formula" gap.
+          #   4. roll. `ship` bundles its own k8s/config invariants (include_str!),
+          #      so it runs from ANY directory — no Navigator checkout needed.
+          # The prod roll is a deliberate manual step — see docs/gitops.md.
           TEXT=":rocket: Neon Law Navigator ${TAG} is built and published to ghcr, with CLI/LSP downloads attached to the GitHub Release — ready to deploy. ${SLACK_OPS_MENTION}
-          Install the ${TAG} CLI, then roll it to prod:
+          Roll it to prod (runs from any directory):
+          1. Authenticate first — \`ship\` pins the prod GKE context and re-registers the Restate worker:
+          \`gcloud auth login\` then pull prod cluster creds (\`gcloud container clusters get-credentials …\`; \`ship\` prints the exact command if the context is missing), and confirm your Restate session is live (\`restate cloud login\`, or an unexpired RESTATE_ADMIN_TOKEN in Doppler prd).
+          2. Install the exact \`${TAG}\` CLI from the tap:
           \`brew update && brew upgrade neon-law-foundation/tap/navigator || brew install neon-law-foundation/tap/navigator\`
+          3. Confirm you have it — this must print \`${TAG}\`:
+          \`navigator --version\`
+          4. Roll:
           \`doppler run --project navigator --config prd -- navigator ship --tag ${TAG}\`
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
