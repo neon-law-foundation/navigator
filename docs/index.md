@@ -74,7 +74,7 @@ These are the terms agents most often need before making a decision. The full al
   [`multi-cloud.md`](multi-cloud.md) — AWS, Azure, and self-hosted sketches. [`observability.md`](observability.md) —
   logs, traces, metrics, and the no-content rule. [`durable-workflows.md`](durable-workflows.md) — Restate durable
   execution and operations. [`cronjobs.md`](cronjobs.md) — scheduled jobs.
-  [`deploy/gke-power-push-example.md`](deploy/gke-power-push-example.md) — deploy walkthrough example.
+  [`deploy/gke-ship-example.md`](deploy/gke-ship-example.md) — deploy walkthrough example.
 
 ## Legal workflows and documents
 

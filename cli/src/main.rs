@@ -452,15 +452,14 @@ enum Command {
     },
     /// One-shot "ship to prod" — the executable path documented in
     /// `docs/cloud-operations.md`. CI (`deploy.yml`) builds and publishes
-    /// the images to ghcr.io tagged `YY.MM.DD`; power-push only rolls the
-    /// cluster. Default flow: resolve the `YY.MM.DD` ghcr tag (latest
-    /// published, or `--tag`) → confirm the prod Secret satisfies the new
-    /// binary's boot invariants → roll out BOTH deployments at that tag →
-    /// pin every trigger `CronJob` to the same tag → re-register the worker
-    /// with Restate, so every navigator image ends in sync at one
-    /// `YY.MM.DD`. Reads every project / region / domain / cluster value
-    /// from `.env`; never builds images locally.
-    PowerPush {
+    /// the images to ghcr.io tagged `YY.MM.DD`; `ship` only rolls the
+    /// cluster. Flow: take the `--tag` `YY.MM.DD` ghcr tag → confirm the
+    /// prod Secret satisfies the new binary's boot invariants → roll out
+    /// BOTH deployments at that tag → pin every trigger `CronJob` to the
+    /// same tag → re-register the worker with Restate, so every navigator
+    /// image ends in sync at one `YY.MM.DD`. Reads every project / region /
+    /// domain / cluster value from `.env`; never builds images locally.
+    Ship {
         /// Print every command instead of running it.
         #[arg(long)]
         dry_run: bool,
@@ -469,9 +468,9 @@ enum Command {
         /// after rotating a key in the K8s Secret.
         #[arg(long)]
         restart_only: bool,
-        /// The `YY.MM.DD` ghcr tag to roll onto. Omit to roll the latest
-        /// published tag (resolved from ghcr). Both deployments are
-        /// pinned to the same tag — never a version skew.
+        /// The `YY.MM.DD` ghcr tag to roll onto. Required for a roll — name
+        /// the exact published release (both deployments pin to the same
+        /// tag, never a skew). Omit only with `--restart-only`.
         #[arg(long)]
         tag: Option<String>,
     },
@@ -493,7 +492,7 @@ enum Command {
     /// onto `navigator-web` + `workflows-service` so
     /// `OTEL_EXPORTER_OTLP_ENDPOINT` reaches `telemetry::init`. Idempotent;
     /// reads project/region/cluster/context from the environment. Run once
-    /// per cluster, then `power-push` (or rollout-restart) the binaries.
+    /// per cluster, then `ship` (or rollout-restart) the binaries.
     Observability {
         /// Print every command instead of running it.
         #[arg(long)]
@@ -1127,7 +1126,7 @@ fn main() -> ExitCode {
         | Command::Gcp(_)
         | Command::Restate(_)
         | Command::Doctor { .. }
-        | Command::PowerPush { .. }
+        | Command::Ship { .. }
         | Command::Dns(_)
         | Command::Rebrand(_)
         | Command::Observability { .. }) => devx_result(devx::dispatch(c)),

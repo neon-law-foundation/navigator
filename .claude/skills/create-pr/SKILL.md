@@ -8,7 +8,7 @@ description: >
   committed), pushes, opens the PR with `gh pr create`, and enables auto-merge. Trigger when the user says "/create-pr",
   "create a PR", "open a pull request", "commit and PR these changes", "group these into commits and ship them", or has
   a dirty working tree they want landed. This is the COMMIT-GROUPING + PR front door; the build-and-deploy-to-prod flow
-  is a separate prod-deploy flow (run /create-pr first, let it merge, then `power-push` from `main`). Honors the
+  is a separate prod-deploy flow (run /create-pr first, let it merge, then `ship` from `main`). Honors the
   workspace gate (`cargo fmt` + `clippy` + `cargo test`, plus markdown lint on any `.md`) before the first commit.
 ---
 

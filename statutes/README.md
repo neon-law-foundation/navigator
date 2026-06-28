@@ -25,7 +25,7 @@ Foundation-branded run summary) — hosted by the `workflows-service` worker and
 - `src/workflow.rs` — the two-step `Statutes` Restate workflow (scrape → email), bound by `workflows-service`.
 - `src/email.rs` — the Foundation-branded weekly run-summary email.
 - `src/bin/trigger.rs` — the `statutes-trigger` `CronJob` entrypoint, shipped as the `navigator-statutes-trigger`
-  image (see the [`power-push`](../docs/cloud-operations.md) trigger-image note).
+  image (see the [`ship`](../docs/cloud-operations.md) trigger-image note).
 - `src/bin/statutes_sync.rs` — a manual/dev entrypoint that runs the same scrape directly, without the broker.
 
 ## Getting started

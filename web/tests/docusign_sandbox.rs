@@ -20,7 +20,7 @@
 //! `NAVIGATOR_RUN_LIVE_SANDBOX=1` is set (and self-skips green otherwise,
 //! plus self-skips when no DocuSign JWT env is present). The explicit
 //! opt-in keeps it from firing a real envelope on any ambient-credentials
-//! `cargo test` — notably the power-push verify, which runs under Doppler
+//! `cargo test` — notably the ship verify, which runs under Doppler
 //! `prd` (a `na4.docusign.net` PRODUCTION base URL). Run locally with the
 //! sandbox vars set:
 //!
@@ -66,7 +66,7 @@ fn sandbox_or_canonical(sandbox_key: &str, canonical_key: &str) -> Option<String
 #[tokio::test]
 async fn sandbox_accepts_a_retainer_envelope_with_anchor_tabs() {
     // Live external API that can reach PRODUCTION DocuSign when canonical
-    // `DOCUSIGN_*` creds are ambient (the power-push verify runs under
+    // `DOCUSIGN_*` creds are ambient (the ship verify runs under
     // Doppler `prd`, whose base URL is `na4.docusign.net`). Opt in
     // explicitly so it never fires a real envelope on a normal test run —
     // only the dedicated nightly job and an on-demand run set the flag.

@@ -203,11 +203,11 @@ not copy; set up the production environment separately:
 2. **Prod secrets (Doppler `prd` → Secret Manager → `navigator-web-secrets`).** The identifiers
    (`DOCUSIGN_INTEGRATION_KEY`, `DOCUSIGN_USER_ID`, `DOCUSIGN_ACCOUNT_ID`, `DOCUSIGN_BASE_URL`, `DOCUSIGN_OAUTH_BASE`)
    are staged in `prd`; add the prod `DOCUSIGN_PRIVATE_KEY` and the `DOCUSIGN_HMAC_KEY` (replacing the placeholder). The
-   boot invariant rejects the placeholder in prod, so use the `power-push` pre-deploy Secret check.
+   boot invariant rejects the placeholder in prod, so use the `ship` pre-deploy Secret check.
 3. **DocuSign Connect (prod account).** Configure a webhook → `https://www.<domain>/webhook/esignature/<secret>`,
    subscribed to envelope **completed**, **declined**, **voided**, HMAC enabled with the **prod** key — a *different*
    key from demo, since Connect (and its HMAC key) is account-level.
-4. **Deploy + verify.** `power-push` (ships both images at HEAD), confirm the boot invariant passes, and round-trip a
+4. **Deploy + verify.** `ship` (ships both images at HEAD), confirm the boot invariant passes, and round-trip a
    real envelope through the prod webhook.
 
 ## Related
