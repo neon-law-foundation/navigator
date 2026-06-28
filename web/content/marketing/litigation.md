@@ -30,17 +30,15 @@ technology disputes — the matters where a software company's future turns on t
 
 [[pricing]]
 
-## Flat fee per phase
+Try 1337 Lawyers when the company is under attack and the outcome matters more than the noise around it. Litigation is
+expensive because uncertainty is expensive; our answer is to quote the fight one phase at a time.
 
 The name is a numeronym: **1337** reads as *l33t*, the hacker shorthand our clients grew up writing. The billing model
-is different: litigation is quoted as a flat fee per phase after the Phase 0 case assessment. There is no hourly meter
-and no surprise bill. We quote the phase before it begins, bill that phase in advance, and move one phase at a time.
+is plain: after a Phase 0 case assessment, we quote the next phase before it begins, bill that phase in advance, and
+move one phase at a time. There is no hourly meter and no surprise bill.
 
-We use AI to keep costs down, especially in discovery, where document review, e-discovery, deposition preparation, and
-evidence organization can otherwise consume the budget. That tooling is what makes fixed per-phase pricing possible and
-predictable.
-
-## The disputes we take
+We use AI where it actually helps: discovery, document review, deposition preparation, and evidence organization. The
+tooling does not replace judgment; it makes fixed per-phase pricing more predictable.
 
 Our litigation practice focuses on technology and the companies that build it:
 
@@ -48,8 +46,6 @@ Our litigation practice focuses on technology and the companies that build it:
 - Intellectual-property and trade-secret matters
 - Software, SaaS, and licensing-contract fights
 - Founder, equity, and ownership disputes
-
-## Litigation phases
 
 <div class="litigation-phases" aria-label="Litigation phase sequence">
   <section class="litigation-phase litigation-phase-0"><p class="phase-num">Phase 0</p><h3>Case Assessment</h3>
@@ -66,8 +62,6 @@ Our litigation practice focuses on technology and the companies that build it:
     <p>Separate quote, optional. Used only when the case needs post-trial or appellate work.</p></section>
 </div>
 
-## How phase pricing works
-
 You only pay for the phase you are in. Each phase fee is earned by completing that phase. It is not non-refundable. If a
 matter resolves mid-phase, the client receives a pro-rata refund of the unearned portion of the current phase. Completed
 phases are fully earned.
@@ -75,14 +69,10 @@ phases are fully earned.
 Each phase works for plaintiff or defense side. Phase 0 produces the first quote, and each later phase is quoted up
 front before that phase begins.
 
-## When we refer out
-
 We do not take every dispute. When a matter is outside our lane, conflicted, or beyond our capacity, we refer you to
 outside trial counsel we trust and make the introduction — pointing you to the right person is part of the job, never a
 way of turning you away.
 
-## Start the conversation
-
-Email **[support@neonlaw.com](mailto:support@neonlaw.com)** with a short description of the dispute. We respond within
-one business day. A written engagement letter signed before we start states the exact scope, the current phase fee, and
-the terms.
+If you need to know whether we can take the fight, email **[support@neonlaw.com](mailto:support@neonlaw.com)** with a
+short description of the dispute. We respond within one business day. A written engagement letter states the exact
+scope, the current phase fee, and the terms.

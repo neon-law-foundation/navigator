@@ -28,25 +28,20 @@ correspondence to register it.
 
 [[pricing]]
 
-**How it works.** Tell us the mark and the goods or services it covers. A licensed attorney prepares the application,
-files it in one class with the USPTO, and handles the routine prosecution — keeping you informed of the office actions
-and deadlines on your application along the way.
+Try Namesake when the name has started to matter. Customers recognize it. You have put work behind it. Now the public
+record should show that you are claiming it.
 
-**What $777 covers.** Preparing and filing your application in one class and the routine prosecution to registration —
-one flat legal fee. The USPTO filing fee for that class is passed through at cost, and each additional class is a
-separate flat fee.
+Tell us the mark and the goods or services it covers. A licensed attorney prepares the application, files it in one
+class with the USPTO, and handles routine prosecution to registration while keeping you informed of office actions and
+deadlines.
 
-**Where Namesake stops.** Whether a mark registers is the USPTO's decision, not ours. A substantive refusal, a
-third-party opposition, and the later maintenance and renewal filings are each their own engagement — when your matter
-reaches one of those, we say so plainly and quote it separately.
+The $777 fee covers one class and routine prosecution. The USPTO filing fee passes through at cost, and each additional
+class is a separate flat fee.
 
-**Engagement letter governs.** A written engagement letter signed before we start states the exact scope, the $777 fee
-for one class, the per-class fee for additional classes, and how either of us can end the representation. Before that
-letter goes out we run a conflict check against every current and former matter at the firm. If we cannot properly take
-your matter, we tell you promptly and refer you to counsel who also use the Neon Law Navigator. There are no referral
-fees between Neon Law and any firm we refer matters to.
+The honest boundary is simple: registration is the USPTO's decision, not ours. A substantive refusal, third-party
+opposition, later maintenance, or renewal filing is its own engagement. When your matter reaches one of those, we say so
+plainly and quote it separately.
 
-## Start a Namesake filing
-
-Email **[support@neonlaw.com](mailto:support@neonlaw.com)** with the mark and what it covers. We respond within one
-business day with the engagement letter and a quick clearance look.
+A written engagement letter states the exact scope, the one-class fee, the per-class fee for additions, and the terms
+for ending the work. If your name is ready for the register, email **[support@neonlaw.com](mailto:support@neonlaw.com)**
+with the mark and what it covers.

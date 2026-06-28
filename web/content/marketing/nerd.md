@@ -30,15 +30,12 @@ Lawyers](/services/litigation): where the litigators try the case, the nerd prov
 
 [[pricing]]
 
-## Neon Law Nerd — the expert who reads the code
+Try Nerd when the case depends on what the system really did. A log is not self-explanatory. Source code does not speak
+plain English. Someone has to read the machine, test the claim, and explain the result without dressing it up.
 
-We examine the software and the data and give an **independent** technical opinion — in a written report and, where the
-matter calls for it, in testimony by deposition or at trial. We bill at **$1,337 an hour**, the same rate as our
-litigation practice, against a written engagement letter. The fee is for the analysis and the time; it is **never
-contingent** on the conclusion we reach or on who prevails. That independence is the whole value of an expert, and we
-will not trade it away.
-
-## The disputes we examine
+We examine software and data and give an **independent** technical opinion in a written report and, when the matter
+calls for it, testimony by deposition or at trial. We bill at **$1,337 an hour** against a written engagement letter.
+The fee is for the analysis and the time; it is **never contingent** on the conclusion or outcome.
 
 Our expert work focuses on software and the data it touches:
 
@@ -47,20 +44,13 @@ Our expert work focuses on software and the data it touches:
 - Forensic examination of systems, logs, and digital evidence
 - Trade-secret and source-code-misappropriation matters
 
-## What you get, and how we say it
-
 We tell you candidly what the evidence and our analysis actually show — including when the facts do not support the
 position you hoped for. An expert offered by one side still owes the court candor, and a credible, independent opinion
 is what holds up under cross-examination. We do not guarantee any particular finding or result.
-
-## When we refer out
 
 We take only matters within our technical lane. When a question is outside our expertise, conflicted, or beyond our
 capacity, we tell you plainly and point you to another expert we trust — connecting you with the right person is part of
 the job, never a way of turning you away. The Firm neither pays nor accepts a referral fee.
 
-## Start the conversation
-
-Email **[support@neonlaw.com](mailto:support@neonlaw.com)** with a short description of the dispute and the technical
-question at its center. We respond within one business day. A written engagement letter signed before we start states
-the exact scope, the rate, and that the fee is not contingent on the outcome.
+If the case turns on the code, email **[support@neonlaw.com](mailto:support@neonlaw.com)** with a short description of
+the dispute and the technical question at its center. We respond within one business day.

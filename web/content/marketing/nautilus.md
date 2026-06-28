@@ -29,31 +29,22 @@ collector knows that, it has to deal with us, not you.
 
 [[pricing]]
 
-**How it works.** Forward us the collection mail and the names of who is calling. We tell each collector you are
-represented, then answer them under your rights: a debt-validation letter to make them prove the debt is real and yours,
-a dispute letter when the amount or the record is wrong, a cease-contact letter where the law allows it, and a
-credit-report dispute when a debt reports incorrectly. A licensed attorney reads and signs every letter before it goes
-out, and you can see each one and the deadlines we are tracking.
+Try Nautilus when the phone will not stop ringing and every envelope feels like a threat. Debt collection works best for
+collectors when you are alone with it. You do not have to be.
 
-**What $66 a month covers.** Representing you for debt-collection communications and writing the letters above — one
-flat legal fee. It never changes with how much you owe: **we never take a percentage of your debt**, and the number
-stays $66 whether your balance is $500 or $50,000.
+You send us the mail and the names of who is calling. We notify each collector that you are represented, then answer
+under your rights: validation when they must prove the debt, dispute letters when the record is wrong, cease-contact
+letters where the law allows, and credit-report disputes when a debt is reported incorrectly. A licensed attorney reads
+and signs every letter before it goes out.
 
-**Where Nautilus stops.** Nautilus is the correspondence and rights work that comes before a courtroom. A
-debt-collection lawsuit or an affirmative claim against a collector who broke the law belongs in court: when your matter
-does, we say so plainly and connect you with trial counsel who take it. And if the honest answer for your situation is
-bankruptcy, we tell you and point you to an attorney who files them.
+The fee is $66 a month. It is a flat legal fee for debt-collection communications and the letters above. It never rises
+with the size of the balance, and **we never take a percentage of your debt**.
 
-**Engagement letter governs.** A written engagement letter signed before we start states the exact scope, the $66
-monthly fee, any out-of-scope rate, and how either of us can end the representation. Before that letter goes out we run
-a conflict check against every current and former matter at the firm — we represent businesses too, and we cannot
-represent a business and an individual whose interests are adverse to each other. If the check shows we cannot properly
-take your matter, we tell you promptly and refer you to counsel who also use the Neon Law Navigator and are committed to
-improving access to justice with our software. There are no referral fees between Neon Law and any firm we refer cases
-to. Nautilus does not guarantee any particular result, and it does not erase debts you owe — it makes sure your rights
-are used and that the people collecting deal with your lawyer.
+Nautilus is not a promise that a debt disappears. It is correspondence and rights work before a courtroom. If you are
+sued or a collector broke the law, we connect you with trial counsel who take it. If bankruptcy is the honest answer, we
+say so.
 
-## Start Nautilus
-
-Email **[support@neonlaw.com](mailto:support@neonlaw.com)** with a short note about who is contacting you. We respond
-within one business day with the engagement letter and the first letters we will send on your behalf.
+A written engagement letter states the exact scope, the monthly fee, any out-of-scope rate, and the terms for ending the
+representation. Before it goes out, we run a conflict check. If you want collectors dealing with your lawyer instead of
+your kitchen table, email **[support@neonlaw.com](mailto:support@neonlaw.com)** with a short note about who is
+contacting you.

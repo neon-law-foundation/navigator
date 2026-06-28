@@ -30,40 +30,23 @@ fija.
 
 [[pricing]]
 
-**Un plan. Un precio. Todo salvo el litigio.** $2,222 al mes, sin niveles, sin facturación por asunto. Envíelo y se lo
-quitamos de encima.
+Pruebe Nexus cuando el trabajo legal se ha convertido en el escritorio donde cae todo lo difícil. El contrato, la
+pregunta de privacidad, la factura de la nube, el cuestionario de seguridad, la solicitud del inversionista: nada de eso
+debería esperar hasta volverse una crisis.
 
-Tiene dos límites, dicho con claridad:
+Nexus es un plan y un precio: $2,222 al mes, sin niveles, sin facturación por asunto y todo dentro del alcance salvo el
+litigio. Envíelo, y ya no tiene que cargarlo solo.
 
-- **El litigio es aparte.** La iguala fija cubre el trabajo transaccional; si un asunto va a un tribunal, nuestra
-  práctica de litigio —[1337 Lawyers](/es/services/litigation)— toma las disputas tecnológicas de alto riesgo.
-- **California, Nevada y Washington.** Resolvemos asuntos bajo la ley de los tres estados en los que estamos admitidos,
-  y sumamos a un abogado local cuando una pregunta vive en otro lugar.
+Está hecho para empresas de software y tecnología emergente que están construyendo, contratando y levantando capital.
+Manejamos contratos, entidad, privacidad, cumplimiento, preparación para SOC 2 o HIPAA y las preguntas operativas que
+viven junto a las legales. Si constituye su sociedad C en Nevada con nosotros, la gestión de la tabla de capitalización
+viene incluida: opciones, SAFE, pagarés, rondas con precio y un registro limpio para diligencia.
 
-**Para empresas que están escalando.** Este plan está hecho para empresas de software y tecnología emergente que están
-construyendo, contratando y levantando capital —no para una entidad pasiva que solo resguarda un activo. Si lo único que
-necesita es un vehículo para resguardar un inmueble o una inversión, eso es el [Neon Law Nest](/es/services/nest). Los
-contratos a medida, los acuerdos negociados y los financiamientos viven aquí; la constitución de rutina y el papeleo
-estándar de una entidad simple son Neon Law Nest.
+Los límites importan. Practicamos en California, Nevada y Washington, y sumamos abogado local cuando una pregunta vive
+en otro lugar. El litigio es aparte; cuando un asunto va a un tribunal, [1337 Lawyers](/es/services/litigation) toma las
+disputas tecnológicas de alto riesgo.
 
-**Gestión de la tabla de capitalización, incluida cuando se constituye en Nevada.** Constituya su sociedad C en Nevada
-con nosotros —Nevada por encima de Delaware, sin impuesto estatal sobre la renta corporativa— y la gestión de la tabla
-de capitalización viene con sus $2,222 sin costo adicional: el grupo de opciones, sus SAFE y pagarés, cada ronda con
-precio, y un registro limpio que su próximo inversionista pueda diligenciar. Es un servicio para sociedades C de Nevada,
-incluido cuando se constituye aquí. ¿Ya está sobre una estructura de Delaware? Seguimos siendo su asesor en todo lo
-demás —la gestión de la tabla de capitalización es la pieza que viene con constituirse en Nevada.
-
-**Preparación, no certificación.** Cuando necesite estar listo para una auditoría SOC 2 o HIPAA, preparamos su entorno y
-coordinamos a la firma de contadores independiente que emite la atestación. Somos su asesor de preparación, no su
-auditor.
-
-**Una respuesta en dos días hábiles.** Envíenos cualquier cosa dentro del alcance y tendrá respuesta en un plazo de dos
-días hábiles —un compromiso sobre nuestro tiempo de respuesta, no una promesa sobre el resultado de un negocio.
-
-**La carta de encargo rige.** Una carta de encargo por escrito, firmada antes de empezar, establece el alcance exacto,
-la tarifa fija, el compromiso de respuesta y los términos de terminación.
-
-## Inicie la conversación
-
-Escriba a **[support@neonlaw.com](mailto:support@neonlaw.com)** con el nombre de su empresa, dónde opera y un párrafo
-sobre lo que tiene entre manos. Respondemos en dos días hábiles.
+Una carta de encargo escrita establece el alcance exacto, la tarifa fija, el compromiso de respuesta en dos días hábiles
+y los términos para terminar el trabajo. Si quiere un equipo legal que entienda la empresa que realmente está
+construyendo, escriba a **[support@neonlaw.com](mailto:support@neonlaw.com)** con el nombre de la empresa, dónde opera y
+qué tiene entre manos.

@@ -271,6 +271,11 @@
   max-width: none;
 }
 
+.service-open-letter {
+  max-width: 65ch;
+  margin-inline: auto;
+}
+
 /* Litigation phase sequence. The cards use Tailwind's cyan scale while */
 /* keeping text/background pairs AA-safe: cyan-950 text through cyan-500 */
 /* and white only on cyan-700. */

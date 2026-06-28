@@ -30,18 +30,15 @@ alto riesgo —los asuntos donde el futuro de una empresa de software depende de
 
 [[pricing]]
 
-## Tarifa fija por fase
+Pruebe 1337 Lawyers cuando atacan a la empresa y el resultado importa más que el ruido alrededor. El litigio es caro
+porque la incertidumbre es cara; nuestra respuesta es cotizar la pelea una fase a la vez.
 
 El nombre es un numerónimo: **1337** se lee *l33t*, la jerga hacker con la que crecieron nuestros clientes. El modelo de
-facturación es diferente: el litigio se cotiza como tarifa fija por fase después de la evaluación de Fase 0. No hay
-contador por hora ni facturas sorpresa. Cotizamos la fase antes de que empiece, facturamos esa fase por adelantado, y
-avanzamos una fase a la vez.
+facturación es claro: después de una evaluación de Fase 0, cotizamos la siguiente fase antes de que empiece, facturamos
+esa fase por adelantado y avanzamos una fase a la vez. No hay contador por hora ni factura sorpresa.
 
-Usamos IA para mantener los costos bajos, especialmente en discovery, donde la revisión de documentos, e-discovery,
-deposiciones y organización de pruebas pueden consumir el presupuesto. Esa herramienta hace posible un precio fijo por
-fase y predecible.
-
-## Las disputas que tomamos
+Usamos IA donde de verdad ayuda: discovery, revisión de documentos, preparación de deposiciones y organización de
+pruebas. La herramienta no reemplaza el juicio; hace más predecible el precio fijo por fase.
 
 Nuestra práctica de litigio se concentra en la tecnología y las empresas que la construyen:
 
@@ -49,8 +46,6 @@ Nuestra práctica de litigio se concentra en la tecnología y las empresas que l
 - Asuntos de propiedad intelectual y secretos comerciales
 - Disputas de contratos de software, SaaS y licencias
 - Disputas societarias, de capital y de propiedad
-
-## Fases del litigio
 
 <div class="litigation-phases" aria-label="Secuencia de fases de litigio">
   <section class="litigation-phase litigation-phase-0"><p class="phase-num">Fase 0</p><h3>Evaluación del caso</h3>
@@ -67,8 +62,6 @@ Nuestra práctica de litigio se concentra en la tecnología y las empresas que l
     <p>Cotización separada, opcional. Se usa solo si el caso necesita trabajo posterior o apelación.</p></section>
 </div>
 
-## Cómo funciona el precio por fase
-
 Usted paga solo por la fase en la que está. Cada tarifa de fase se gana al completar esa fase. No es "no reembolsable".
 Si un asunto se resuelve a mitad de fase, el cliente recibe un reembolso pro-rata de la parte no ganada de la fase
 actual. Las fases completadas están plenamente ganadas.
@@ -76,14 +69,10 @@ actual. Las fases completadas están plenamente ganadas.
 Cada fase funciona para demandante o defensa. La Fase 0 produce la primera cotización, y cada fase posterior se cotiza
 por adelantado antes de que empiece esa fase.
 
-## Cuando referimos
-
 No tomamos toda disputa. Cuando un asunto está fuera de nuestra área, tiene conflicto o excede nuestra capacidad, le
 referimos a abogados litigantes de confianza y hacemos la presentación —indicarle a la persona correcta es parte del
 trabajo, nunca una manera de rechazarle.
 
-## Inicie la conversación
-
-Escriba a **[support@neonlaw.com](mailto:support@neonlaw.com)** con una breve descripción de la disputa. Respondemos en
-un día hábil. Una carta de encargo firmada antes de empezar establece el alcance exacto, la tarifa de la fase actual y
-los términos.
+Si necesita saber si podemos tomar la pelea, escriba a **[support@neonlaw.com](mailto:support@neonlaw.com)** con una
+breve descripción de la disputa. Respondemos en un día hábil. Una carta de encargo establece el alcance exacto, la
+tarifa de la fase actual y los términos.

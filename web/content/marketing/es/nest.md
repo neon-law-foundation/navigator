@@ -30,35 +30,25 @@ trabajo legal de rutina.
 
 [[pricing]]
 
-**Hecha para resguardar, no para escalar.** Este es el plan para una entidad simple y de propósito único —una LLC para
-una propiedad o una inversión, una sociedad tenedora de un solo activo, o una organización sin fines de lucro.
-¿Construye una empresa de software o tecnología emergente con empleados, inversionistas y una tabla de capitalización?
-Eso es [Neon Law Nexus](/es/services/nexus), no esto.
+Pruebe Nest cuando lo que posee merece una casa legal limpia. Un inmueble en alquiler, una inversión, una pequeña
+organización sin fines de lucro o una empresa de un solo propósito no debería requerir un laberinto de llamadas por hora
+para ponerse de pie.
 
-**Una LLC, o no.** La mayoría de los clientes constituyen una LLC de Nevada (NRS Capítulo 86), pero la misma tarifa
-levanta una corporación sin fines de lucro (NRS Capítulo 82) u otra entidad simple cuando esa es la forma correcta.
-Redactamos el acuerdo operativo o los estatutos para que coincidan con lo que la entidad resguarda.
+Constituimos la entidad de Nevada, redactamos el acuerdo operativo o los estatutos, actuamos como agente registrado,
+presentamos la licencia del condado de Washoe y damos a la entidad una dirección comercial en Reno, un buzón y un
+escritorio de coworking. La mayoría de los clientes elige una LLC de Nevada, pero la misma tarifa puede levantar una
+corporación sin fines de lucro u otra forma simple cuando esa sea la estructura correcta.
 
-**Trabajo estándar, tarifa fija — el trabajo a medida es Neon Law Nexus.** Los $1,111 cubren la constitución integral y
-el papeleo de rutina que necesita una entidad simple: el acuerdo operativo, las presentaciones, el agente registrado y
-las preguntas legales cotidianas que conlleva resguardar un activo. Los contratos negociados, los acuerdos a medida y
-los financiamientos son el trabajo de [Neon Law Nexus](/es/services/nexus), nuestra asesoría jurídica general
-fraccionada.
+El punto es la estabilidad: un alcance, una tarifa anual y trabajo legal rutinario no contencioso para la entidad que
+resguarda el activo. Si está construyendo una empresa de software o tecnología emergente con empleados, inversionistas,
+tabla de capitalización y contratos negociados, eso es [Neon Law Nexus](/es/services/nexus), no Nest.
 
-**Una tarifa, todo incluido.** Los $1,111 cubren la constitución, el acuerdo operativo, el agente registrado, las
-presentaciones estatales y del condado, la dirección en Reno y el escritorio de coworking, y su trabajo legal no
-contencioso durante el año. Se renueva cada año para mantener la entidad en regla.
+Su base en Reno es Ridgeview Mail Center, en Mae Anne Ave:
+[ridgeviewmailcenter.com](https://www.ridgeviewmailcenter.com/). Si un asunto va a un tribunal, [1337
+Lawyers](/es/services/litigation) es nuestra práctica de litigio para disputas tecnológicas de alto riesgo; para otras
+peleas, ayudamos a indicarle abogados litigantes de confianza.
 
-**Su base en Reno.** Su dirección comercial, su buzón y su escritorio de coworking están en Ridgeview Mail Center, en
-Mae Anne Ave, en Reno: [ridgeviewmailcenter.com](https://www.ridgeviewmailcenter.com/).
-
-Cuando un asunto va a un tribunal, [1337 Lawyers](/es/services/litigation) es nuestra práctica de litigio: tomamos las
-disputas tecnológicas de alto riesgo y referimos las demás a abogados litigantes de confianza.
-
-**La carta de encargo rige.** Una carta de encargo por escrito, firmada antes de empezar, establece el alcance exacto,
-lo que cubre la tarifa anual, cualquier tarifa fuera de alcance y los términos de terminación.
-
-## Comience
-
-Escriba a **[support@neonlaw.com](mailto:support@neonlaw.com)** y respondemos en un día hábil con los próximos pasos y
-un enlace para agendar.
+Una carta de encargo escrita establece el alcance exacto, lo que cubre la tarifa anual, cualquier tarifa fuera de
+alcance y los términos para terminar el trabajo. Si quiere que la entidad se maneje sin fingir que es una compañía
+financiada por venture capital, escriba a **[support@neonlaw.com](mailto:support@neonlaw.com)**. Respondemos en un día
+hábil.

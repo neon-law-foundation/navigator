@@ -195,8 +195,10 @@ pub fn render_in(
             @if !content.pricing.is_empty() {
                 div."mb-4"."mb-lg-5" { (cards()) }
             }
-            // 3. The short outline.
-            (PreEscaped(&prose))
+            // 3. The open letter, capped to a readable measure.
+            div.service-open-letter {
+                (PreEscaped(&prose))
+            }
             (testimonial_section(
                 "Client proof",
                 "Matter-linked testimonials approved for this service.",
@@ -359,14 +361,17 @@ mod tests {
     }
 
     #[test]
-    fn service_page_prose_carries_the_responsive_measure_class() {
-        // The prose column wears `.service-prose`; the reading measure
-        // now lives in brand.css (65ch on a phone, 78ch on desktop)
-        // rather than an inline cap, so the desktop page can run wider.
+    fn service_page_prose_carries_the_letter_measure_class() {
+        // The product card stays in the full service page flow; the prose
+        // underneath it is wrapped as an open letter and capped in CSS.
         let html = render(&fixture("X", "<p>x</p>"), crate::AuthState::Anonymous).into_string();
         assert!(
             html.contains("class=\"service-page service-prose\""),
             "service body should carry the responsive-measure class, got: {html}"
+        );
+        assert!(
+            html.contains("class=\"service-open-letter\""),
+            "post-card prose should carry the open-letter class, got: {html}"
         );
         // The old hard-coded inline cap is gone — the class owns it now.
         assert!(
