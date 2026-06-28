@@ -145,7 +145,7 @@ testcontainers = { version = "0.27", features = ["reusable-containers"] }
 testcontainers-modules = { version = "0.15", features = ["postgres"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "process"] }
 tower = { version = "0.5", features = ["util"] }
-tower-http = { version = "0.6", features = ["fs", "trace", "set-header", "request-id"] }
+tower-http = { version = "0.7", features = ["fs", "trace", "set-header", "request-id"] }
 tracing = "0.1"
 url = "2"
 # ZIP writer/reader for the client "download all my documents" export
