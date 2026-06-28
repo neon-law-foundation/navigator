@@ -1,13 +1,15 @@
 questionnaire:
   BEGIN:
-    _: mission_statement
-  mission_statement:
-    _: board_members
-  board_members:
+    _: custom_text__mission_statement
+  custom_text__mission_statement:
+    _: people__board_members
+  people__board_members:
     _: registered_agent
   registered_agent:
     _: END
   END: {}
+prompts:
+  mission_statement: What is the mission statement?
 workflow:
   BEGIN:
     _: board_signatures

@@ -128,7 +128,7 @@ pub use workflow_steps::{
 };
 
 pub use engine::{
-    classify_source, code_uniqueness_violations, lint_source_classified,
+    canonical_question_codes, classify_source, code_uniqueness_violations, lint_source_classified,
     navigator_classified_rules, navigator_classified_rules_with_codes, navigator_default_rules,
     navigator_default_rules_with_codes, navigator_event_rules, navigator_markdown_only_rules,
     ClassifiedRuleEngine, DefaultFileFilter, DocumentKind, FileFilter, LintReport, RuleEngine,

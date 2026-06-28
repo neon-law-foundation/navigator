@@ -70,7 +70,8 @@ Feature-first, so the composition is specified before the prose exists:
    template satisfies it by composing already-known steps.
 2. **Write the template + questionnaire.** Create `notation_templates/<category>/<snake_case_name>.md` with the
    frontmatter above. Declare the `questionnaire:` walk and the `workflow:` states. Body prose uses `{{question_code}}`
-   placeholders.
+   placeholders. If a questionnaire state uses a `custom_*__prompt_key` code, add a sibling `prompts:` map with that
+   English prompt key and the exact prompt to ask.
 3. **Seed the questions.** Add each new question `code` to `store/seeds/Question.yaml` (prompt, `question_type`,
    help text). The questionnaire's state prefixes must resolve to these codes or N104 fails.
 4. **Declare the workflow YAML.** Compose the post-intake flow from the shared step registry (below) — never a one-off
@@ -118,9 +119,8 @@ Neovim, Helix, Emacs, Zed. The authoring loop for a non-engineer legal author:
 1. **Type.** Open `notation_templates/united_states/nevada/internal/trusts_and_estates/will.md` in your editor. Write
    legal prose and frontmatter — no proprietary tool, no markup beyond markdown.
 2. **Live diagnostics.** On every keystroke the LSP lints the buffer and shows squiggles: N101 if `title:` is missing,
-   N104 if the questionnaire/workflow shape is broken, S101 past 120 chars, M-rules on shape. The CLI can add DB-backed
-   question-code checks when invoked with `--database-url`. Hover any squiggle for a plain-English explanation of the
-   rule.
+   N104 if the questionnaire/workflow shape is broken or a questionnaire state is not in the canonical question seed
+   list, S101 past 120 chars, M-rules on shape. Hover any squiggle for a plain-English explanation of the rule.
 3. **Fix-all on save.** `source.fixAll` rewrites every mechanical issue — tabs, trailing whitespace, blank-line spacing,
    heading spacing — automatically. What remains is the *semantic* work only a human can do (an unmade `confidential`
    decision, a workflow that never reaches `END`).

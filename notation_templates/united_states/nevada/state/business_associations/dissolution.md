@@ -5,12 +5,15 @@ code: dissolution__nevada
 confidential: false
 questionnaire:
   BEGIN:
-    _: dissolution_reason
-  dissolution_reason:
-    _: final_debts_settled
-  final_debts_settled:
+    _: custom_text__dissolution_reason
+  custom_text__dissolution_reason:
+    _: custom_yes_no__final_debts_settled
+  custom_yes_no__final_debts_settled:
     _: END
   END: {}
+prompts:
+  dissolution_reason: What is the dissolution reason?
+  final_debts_settled: Have all final debts been settled?
 workflow:
   BEGIN:
     _: member_signatures
@@ -24,6 +27,6 @@ workflow:
 ---
 
 Articles of Dissolution for `{{entity_name}}`, a Nevada limited liability company. The members have voted to dissolve
-the company for the following reason: `{{dissolution_reason}}`. All debts and obligations of the company have been
-settled or otherwise resolved per `{{final_debts_settled}}`. The company directs the Nevada Secretary of State to enter
-the dissolution in its records.
+the company for the following reason: `{{custom_text__dissolution_reason}}`. All debts and obligations of the company
+have been settled or otherwise resolved per `{{custom_yes_no__final_debts_settled}}`. The company directs the Nevada
+Secretary of State to enter the dissolution in its records.

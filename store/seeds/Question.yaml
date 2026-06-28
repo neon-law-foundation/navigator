@@ -13,6 +13,34 @@ records:
     prompt: What is the address for {{for_label}}?
     question_type: address
     help_text: Please enter all of the fields.
+  - code: entity
+    prompt: Which entity is {{for_label}}?
+    question_type: entity
+    help_text: Select the entity record this answer refers to.
+  - code: people
+    prompt: Who are the people for {{for_label}}?
+    question_type: people_list
+    help_text: List each person with the details needed for this document or filing.
+  - code: datetime
+    prompt: What date or time applies to {{for_label}}?
+    question_type: datetime
+    help_text: Enter the date, time, year, or filing period requested by the prompt.
+  - code: custom_text
+    prompt: What text should be added for {{for_label}}?
+    question_type: string
+    help_text: Use this only when the template needs a one-off text answer and no reusable question code fits.
+  - code: custom_yes_no
+    prompt: Is the answer yes or no for {{for_label}}?
+    question_type: yes_no
+    help_text: Use this only when the template needs a one-off yes/no answer and no reusable question code fits.
+  - code: custom_radio
+    prompt: Which option applies to {{for_label}}?
+    question_type: radio
+    help_text: Use this only when the template supplies a one-off set of choices and no reusable question code fits.
+  - code: custom_usd
+    prompt: What dollar amount applies to {{for_label}}?
+    question_type: custom_usd
+    help_text: Enter a U.S. dollar amount with two decimal places.
   - code: personal_ssn
     prompt: What is your Social Security Number?
     question_type: secret

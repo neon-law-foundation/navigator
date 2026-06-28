@@ -1,11 +1,13 @@
 questionnaire:
   BEGIN:
-    _: tax_year
-  tax_year:
-    _: gross_revenue
-  gross_revenue:
+    _: datetime__tax_year
+  datetime__tax_year:
+    _: custom_usd__gross_revenue
+  custom_usd__gross_revenue:
     _: END
   END: {}
+prompts:
+  gross_revenue: What is the gross revenue?
 workflow:
   BEGIN:
     _: member_signatures

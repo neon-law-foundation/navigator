@@ -16,6 +16,34 @@ records:
     locale: es
     prompt: ¿Cuál es su nombre?
     help_text: Incluya su nombre, segundo nombre y apellido.
+  - code: entity
+    locale: es
+    prompt: ¿Qué entidad corresponde a {{for_label}}?
+    help_text: Seleccione el registro de entidad al que se refiere esta respuesta.
+  - code: people
+    locale: es
+    prompt: ¿Quiénes son las personas para {{for_label}}?
+    help_text: Liste cada persona con los datos necesarios para este documento o trámite.
+  - code: datetime
+    locale: es
+    prompt: ¿Qué fecha u hora corresponde a {{for_label}}?
+    help_text: Ingrese la fecha, hora, año o período de presentación que solicita la pregunta.
+  - code: custom_text
+    locale: es
+    prompt: ¿Qué texto debe agregarse para {{for_label}}?
+    help_text: Use esto solo cuando la plantilla necesite una respuesta de texto única y no exista un código reutilizable.
+  - code: custom_yes_no
+    locale: es
+    prompt: ¿La respuesta es sí o no para {{for_label}}?
+    help_text: Use esto solo cuando la plantilla necesite una respuesta única de sí o no y no exista un código reutilizable.
+  - code: custom_radio
+    locale: es
+    prompt: ¿Qué opción corresponde a {{for_label}}?
+    help_text: Use esto solo cuando la plantilla tenga opciones únicas y no exista un código reutilizable.
+  - code: custom_usd
+    locale: es
+    prompt: ¿Qué cantidad en dólares corresponde a {{for_label}}?
+    help_text: Ingrese una cantidad en dólares estadounidenses con dos decimales.
   - code: client_name
     locale: es
     prompt: ¿Cuál es el nombre legal completo del cliente?

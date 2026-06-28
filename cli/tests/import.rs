@@ -122,7 +122,9 @@ async fn import_writes_each_fixture_template_and_question_to_postgres() {
     assert!(q_codes.contains(&"trustee_name"));
     assert!(q_codes.contains(&"trust_property"));
     // And from the LLC fixture.
-    assert!(q_codes.contains(&"company_name"));
+    assert!(q_codes.contains(&"entity"));
+    assert!(q_codes.contains(&"address"));
+    assert!(q_codes.contains(&"people"));
 }
 
 #[tokio::test]

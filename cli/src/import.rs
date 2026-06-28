@@ -15,7 +15,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use rules::{navigator_default_rules, DefaultFileFilter, FileFilter, Violation};
+use rules::{navigator_default_rules_with_codes, DefaultFileFilter, FileFilter, Violation};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
 };
@@ -66,7 +66,7 @@ pub async fn import_directory(
     dir: &Path,
 ) -> anyhow::Result<ImportReport> {
     let mut report = ImportReport::default();
-    let validation_rules = navigator_default_rules();
+    let validation_rules = navigator_default_rules_with_codes(&[]);
     let filter = DefaultFileFilter::default();
     for entry in WalkDir::new(dir).follow_links(false) {
         let entry = entry?;

@@ -1306,7 +1306,7 @@ async fn render_and_park(
         store::templates::body(&state.db, &state.storage, &template_row).await?;
     let clauses = store::notation_clauses::for_notation(&state.db, notation_id).await?;
     let template_body = store::notation_clauses::splice(&raw_template_body, &clauses);
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id).await?;
+    let ctx = render_context_from_answers(&state.db, notation_row.person_id, &template_row).await?;
 
     // Two rendering paths, declared by the template: a `form:` binding
     // fills the vendored government packet's AcroForm from the answers
@@ -1469,7 +1469,7 @@ async fn dispatch_signature(
         store::templates::body(&state.db, &state.storage, &template_row).await?;
     let clauses = store::notation_clauses::for_notation(&state.db, notation_id).await?;
     let template_body = store::notation_clauses::splice(&raw_template_body, &clauses);
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id).await?;
+    let ctx = render_context_from_answers(&state.db, notation_row.person_id, &template_row).await?;
     let (_typst_source, signature_fields) =
         crate::signature_render::expand_signatures(&substitute_template_body(&template_body, &ctx));
 
@@ -1730,7 +1730,7 @@ async fn render_assembled_document(
         store::templates::body(&state.db, &state.storage, &template_row).await?;
     let clauses = store::notation_clauses::for_notation(&state.db, notation_id).await?;
     let template_body = store::notation_clauses::splice(&raw_template_body, &clauses);
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id).await?;
+    let ctx = render_context_from_answers(&state.db, notation_row.person_id, &template_row).await?;
     Ok(views::notation::render_filled_in(&template_body, &ctx))
 }
 
@@ -1982,7 +1982,7 @@ async fn drive_closing_workflow(
         .await?
         .ok_or(WorkflowDriveError::TemplateMissing(notation_id))?;
     let template_body = store::templates::body(&state.db, &state.storage, &template_row).await?;
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id).await?;
+    let ctx = render_context_from_answers(&state.db, notation_row.person_id, &template_row).await?;
 
     // Staff review short-circuits to `approved` in the dev loop (a real
     // staff-review handler swaps in for prod). The `approved` signal
@@ -2129,6 +2129,7 @@ fn build_signature_manifest(
 async fn render_context_from_answers(
     db: &store::Db,
     person_id: Uuid,
+    template_row: &template::Model,
 ) -> Result<BTreeMap<String, String>, sea_orm::DbErr> {
     let answers = answer::Entity::find()
         .filter(answer::Column::PersonId.eq(person_id))
@@ -2155,7 +2156,38 @@ async fn render_context_from_answers(
             ctx.insert(code.clone(), a.value);
         }
     }
+    add_template_state_aliases(&mut ctx, template_row);
     Ok(ctx)
+}
+
+fn add_template_state_aliases(ctx: &mut BTreeMap<String, String>, template_row: &template::Model) {
+    let Some(yaml) = workflows::bundled_spec_yaml(&template_row.code) else {
+        return;
+    };
+    let Ok(spec) = workflows::questionnaire_spec_from_yaml(yaml) else {
+        return;
+    };
+    let states: Vec<String> = spec
+        .inner()
+        .states
+        .keys()
+        .filter_map(|state| {
+            let state = state.as_str();
+            if state == StateName::BEGIN || state == StateName::END {
+                None
+            } else {
+                Some(state.to_string())
+            }
+        })
+        .collect();
+    for state in states {
+        let prefix = state
+            .split_once("__")
+            .map_or(state.as_str(), |(prefix, _)| prefix);
+        if let Some(value) = ctx.get(prefix).cloned() {
+            ctx.entry(state).or_insert(value);
+        }
+    }
 }
 
 /// Stamp the e-signature provider's request id onto the notation so a

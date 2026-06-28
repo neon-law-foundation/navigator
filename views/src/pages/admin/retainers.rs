@@ -212,7 +212,20 @@ pub fn question_step(view: &QuestionStep<'_>) -> Markup {
             vec![Field::number(view.question_prompt, "value", prior).required()],
             None,
         ),
-        "bool" => (
+        "datetime" => (
+            vec![Field::input(view.question_prompt, "value", prior, "datetime-local").required()],
+            None,
+        ),
+        "custom_usd" => (
+            vec![Field::input(view.question_prompt, "value", prior, "number")
+                .prefix("$")
+                .step("0.01")
+                .placeholder("0.00")
+                .help("Enter dollars and cents, e.g. 1250.00.")
+                .required()],
+            None,
+        ),
+        "bool" | "yes_no" => (
             vec![Field::checkbox(
                 view.question_prompt,
                 "value",

@@ -1081,6 +1081,7 @@ struct ChoiceQuestionRec {
 /// so the choices a terminal shows are the same bytes the seed defines.
 #[must_use]
 pub fn question_choices(code: &str) -> Vec<(String, String)> {
+    let code = code.split_once("__").map_or(code, |(prefix, _)| prefix);
     let Ok(parsed) = serde_yaml::from_str::<Records<ChoiceQuestionRec>>(canonical::QUESTION) else {
         return Vec::new();
     };

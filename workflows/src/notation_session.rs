@@ -30,7 +30,8 @@ use store::Db;
 use crate::runtime::{StateMachineRuntime, WorkflowRuntimeError};
 use crate::spec::{MachineKind, QuestionnaireSpec, StateName, WorkflowSpecError};
 use crate::specs::{
-    bundled_spec_yaml, questionnaire_spec_from_template, questionnaire_spec_from_yaml,
+    bundled_spec_yaml, prompt_overrides_from_template, prompt_overrides_from_yaml,
+    questionnaire_spec_from_template, questionnaire_spec_from_yaml,
 };
 
 /// One question presented to the caller — the prompt, the answer
@@ -44,6 +45,12 @@ pub struct QuestionDescriptor {
     pub code: String,
     pub prompt: String,
     pub answer_type: String,
+}
+
+#[derive(Debug, Clone)]
+struct QuestionnaireDefinition {
+    spec: QuestionnaireSpec,
+    prompts: BTreeMap<String, String>,
 }
 
 /// Where the questionnaire is after a `start_notation` /
@@ -147,7 +154,7 @@ pub async fn start_notation(
         .await?
         .ok_or_else(|| NotationSessionError::TemplateNotFound(template_code.into()))?;
 
-    let spec = questionnaire_spec_for(db, storage, &template_row).await?;
+    let definition = questionnaire_definition_for(db, storage, &template_row).await?;
 
     let notation_id = notation::ActiveModel {
         template_id: ActiveValue::Set(template_row.id),
@@ -162,11 +169,15 @@ pub async fn start_notation(
     .id;
 
     runtime
-        .start(MachineKind::Questionnaire, notation_id, spec.inner())
+        .start(
+            MachineKind::Questionnaire,
+            notation_id,
+            definition.spec.inner(),
+        )
         .await?;
 
     let locale = resolve_locale(db, person_id).await?;
-    let next = first_step(db, &spec, &locale).await?;
+    let next = first_step(db, &definition, &locale).await?;
     Ok(StartOutcome { notation_id, next })
 }
 
@@ -179,13 +190,13 @@ pub async fn current_step(
     storage: Option<&Arc<dyn StorageService>>,
     notation_id: Uuid,
 ) -> Result<NextStep, NotationSessionError> {
-    let (notation_row, spec) = load_notation_and_spec(db, storage, notation_id).await?;
+    let (notation_row, definition) = load_notation_and_spec(db, storage, notation_id).await?;
     let locale = resolve_locale(db, notation_row.person_id).await?;
     let current_state = runtime
         .current_state(MachineKind::Questionnaire, notation_id)
         .await
         .unwrap_or_else(StateName::begin);
-    next_step_from(db, &spec, &current_state, &locale).await
+    next_step_from(db, &definition, &current_state, &locale).await
 }
 
 /// Persist one answer, advance the questionnaire, and return the
@@ -211,7 +222,7 @@ pub async fn answer_step(
     value: &str,
     author: AnswerAuthor<'_>,
 ) -> Result<NextStep, NotationSessionError> {
-    let (notation_row, spec) = load_notation_and_spec(db, storage, notation_id).await?;
+    let (notation_row, definition) = load_notation_and_spec(db, storage, notation_id).await?;
     let person_id = notation_row.person_id;
 
     let current_state = runtime
@@ -219,7 +230,8 @@ pub async fn answer_step(
         .await
         .unwrap_or_else(StateName::begin);
 
-    let expected = spec
+    let expected = definition
+        .spec
         .transitions_from(&current_state)
         .and_then(|t| t.lookup("_"))
         .cloned()
@@ -234,8 +246,9 @@ pub async fn answer_step(
         });
     }
 
+    let canonical_code = question_code_for_state(question_code);
     let question_row = question::Entity::find()
-        .filter(question::Column::Code.eq(question_code))
+        .filter(question::Column::Code.eq(canonical_code))
         .one(db)
         .await?
         .ok_or_else(|| NotationSessionError::QuestionNotSeeded(question_code.into()))?;
@@ -260,7 +273,11 @@ pub async fn answer_step(
     // `ctx.run` journal write — including stamping the answer
     // value as `payload`.
     runtime
-        .start(MachineKind::Questionnaire, notation_id, spec.inner())
+        .start(
+            MachineKind::Questionnaire,
+            notation_id,
+            definition.spec.inner(),
+        )
         .await?;
     runtime
         .signal(MachineKind::Questionnaire, notation_id, "_", Some(value))
@@ -269,7 +286,8 @@ pub async fn answer_step(
     // If the next transition would land at END, fire the final
     // signal so the machine actually reaches END before we report
     // completion.
-    let next_after = spec
+    let next_after = definition
+        .spec
         .transitions_from(&expected)
         .and_then(|t| t.lookup("_"))
         .cloned();
@@ -283,7 +301,7 @@ pub async fn answer_step(
     let next_state = next_after.ok_or(NotationSessionError::AlreadyComplete)?;
     let locale = resolve_locale(db, person_id).await?;
     Ok(NextStep::NeedsAnswer {
-        question: load_question(db, &next_state, &locale).await?,
+        question: load_question(db, &next_state, &locale, &definition.prompts).await?,
     })
 }
 
@@ -346,13 +364,17 @@ pub async fn client_intake_step(
     storage: Option<&Arc<dyn StorageService>>,
     notation_id: Uuid,
 ) -> Result<ClientIntakeStep, NotationSessionError> {
-    let (notation_row, spec) = load_notation_and_spec(db, storage, notation_id).await?;
+    let (notation_row, definition) = load_notation_and_spec(db, storage, notation_id).await?;
     let person_id = notation_row.person_id;
     let locale = resolve_locale(db, person_id).await?;
 
-    let codes = ordered_question_codes(&spec);
+    let codes = ordered_question_codes(&definition.spec);
+    let canonical_codes: Vec<String> = codes
+        .iter()
+        .map(|code| question_code_for_state(code).to_string())
+        .collect();
     let rows = question::Entity::find()
-        .filter(question::Column::Code.is_in(codes.clone()))
+        .filter(question::Column::Code.is_in(canonical_codes))
         .all(db)
         .await?;
     let by_code: BTreeMap<String, question::Model> =
@@ -365,7 +387,7 @@ pub async fn client_intake_step(
         .iter()
         .filter(|c| {
             by_code
-                .get(*c)
+                .get(question_code_for_state(c))
                 .is_some_and(|q| store::entity::question::is_client_facing(&q.audience))
         })
         .cloned()
@@ -392,13 +414,23 @@ pub async fn client_intake_step(
     }
 
     for (idx, code) in client_codes.iter().enumerate() {
-        if client_answered.contains(code) {
+        if client_answered.contains(code) || client_answered.contains(question_code_for_state(code))
+        {
             continue;
         }
-        let question = load_question(db, &StateName::from(code.as_str()), &locale).await?;
+        let question = load_question(
+            db,
+            &StateName::from(code.as_str()),
+            &locale,
+            &definition.prompts,
+        )
+        .await?;
         return Ok(ClientIntakeStep::NeedsAnswer {
             question,
-            prior_value: latest_value.get(code).cloned(),
+            prior_value: latest_value
+                .get(code)
+                .or_else(|| latest_value.get(question_code_for_state(code)))
+                .cloned(),
             position: idx + 1,
             total,
         });
@@ -418,8 +450,8 @@ pub async fn record_client_answer(
     value: &str,
     authored_by: Uuid,
 ) -> Result<(), NotationSessionError> {
-    let (notation_row, spec) = load_notation_and_spec(db, storage, notation_id).await?;
-    if !ordered_question_codes(&spec)
+    let (notation_row, definition) = load_notation_and_spec(db, storage, notation_id).await?;
+    if !ordered_question_codes(&definition.spec)
         .iter()
         .any(|c| c == question_code)
     {
@@ -427,8 +459,9 @@ pub async fn record_client_answer(
             question_code.into(),
         ));
     }
+    let canonical_code = question_code_for_state(question_code);
     let question_row = question::Entity::find()
-        .filter(question::Column::Code.eq(question_code))
+        .filter(question::Column::Code.eq(canonical_code))
         .one(db)
         .await?
         .ok_or_else(|| NotationSessionError::QuestionNotSeeded(question_code.into()))?;
@@ -454,7 +487,7 @@ async fn load_notation_and_spec(
     db: &Db,
     storage: Option<&Arc<dyn StorageService>>,
     notation_id: Uuid,
-) -> Result<(notation::Model, QuestionnaireSpec), NotationSessionError> {
+) -> Result<(notation::Model, QuestionnaireDefinition), NotationSessionError> {
     let notation_row = notation::Entity::find_by_id(notation_id)
         .one(db)
         .await?
@@ -463,8 +496,8 @@ async fn load_notation_and_spec(
         .one(db)
         .await?
         .ok_or(NotationSessionError::NotationNotFound(notation_id))?;
-    let spec = questionnaire_spec_for(db, storage, &template_row).await?;
-    Ok((notation_row, spec))
+    let definition = questionnaire_definition_for(db, storage, &template_row).await?;
+    Ok((notation_row, definition))
 }
 
 /// Resolve a template's questionnaire spec. Prefers the bundled
@@ -474,13 +507,16 @@ async fn load_notation_and_spec(
 /// no body in storage (or no `storage` handle supplied) cannot drive a
 /// questionnaire and surfaces
 /// [`NotationSessionError::TemplateHasNoQuestionnaire`].
-async fn questionnaire_spec_for(
+async fn questionnaire_definition_for(
     db: &Db,
     storage: Option<&Arc<dyn StorageService>>,
     template_row: &template::Model,
-) -> Result<QuestionnaireSpec, NotationSessionError> {
+) -> Result<QuestionnaireDefinition, NotationSessionError> {
     if let Some(yaml) = bundled_spec_yaml(&template_row.code) {
-        return Ok(questionnaire_spec_from_yaml(yaml)?);
+        return Ok(QuestionnaireDefinition {
+            spec: questionnaire_spec_from_yaml(yaml)?,
+            prompts: prompt_overrides_from_yaml(yaml)?,
+        });
     }
     let storage = storage.ok_or_else(|| {
         NotationSessionError::TemplateHasNoQuestionnaire(template_row.code.clone())
@@ -488,24 +524,28 @@ async fn questionnaire_spec_for(
     let body = store::templates::body(db, storage, template_row)
         .await
         .map_err(|_| NotationSessionError::TemplateHasNoQuestionnaire(template_row.code.clone()))?;
-    Ok(questionnaire_spec_from_template(&body)?)
+    Ok(QuestionnaireDefinition {
+        spec: questionnaire_spec_from_template(&body)?,
+        prompts: prompt_overrides_from_template(&body)?,
+    })
 }
 
 async fn first_step(
     db: &Db,
-    spec: &QuestionnaireSpec,
+    definition: &QuestionnaireDefinition,
     locale: &str,
 ) -> Result<NextStep, NotationSessionError> {
-    next_step_from(db, spec, &StateName::begin(), locale).await
+    next_step_from(db, definition, &StateName::begin(), locale).await
 }
 
 async fn next_step_from(
     db: &Db,
-    spec: &QuestionnaireSpec,
+    definition: &QuestionnaireDefinition,
     current_state: &StateName,
     locale: &str,
 ) -> Result<NextStep, NotationSessionError> {
-    let Some(next) = spec
+    let Some(next) = definition
+        .spec
         .transitions_from(current_state)
         .and_then(|t| t.lookup("_"))
         .cloned()
@@ -516,7 +556,7 @@ async fn next_step_from(
         return Ok(NextStep::QuestionnaireComplete);
     }
     Ok(NextStep::NeedsAnswer {
-        question: load_question(db, &next, locale).await?,
+        question: load_question(db, &next, locale, &definition.prompts).await?,
     })
 }
 
@@ -533,19 +573,54 @@ async fn load_question(
     db: &Db,
     state: &StateName,
     locale: &str,
+    prompts: &BTreeMap<String, String>,
 ) -> Result<QuestionDescriptor, NotationSessionError> {
+    let code = question_code_for_state(state.as_str());
     let row = question::Entity::find()
-        .filter(question::Column::Code.eq(state.as_str()))
+        .filter(question::Column::Code.eq(code))
         .one(db)
         .await?
         .ok_or_else(|| NotationSessionError::QuestionNotSeeded(state.0.clone()))?;
-    let prompt = localized_prompt(db, row.id, &row.prompt, locale).await?;
+    let prompt = if let Some(prompt) = prompt_override_for_state(prompts, state.as_str()) {
+        prompt.to_string()
+    } else {
+        localize_prompt_for_state(
+            &localized_prompt(db, row.id, &row.prompt, locale).await?,
+            state.as_str(),
+        )
+    };
     Ok(QuestionDescriptor {
         id: row.id,
-        code: row.code,
+        code: state.0.clone(),
         prompt,
         answer_type: row.answer_type,
     })
+}
+
+fn question_code_for_state(state: &str) -> &str {
+    state.split_once("__").map_or(state, |(code, _)| code)
+}
+
+fn prompt_override_for_state<'a>(
+    prompts: &'a BTreeMap<String, String>,
+    state: &str,
+) -> Option<&'a str> {
+    let (prefix, prompt_key) = state.split_once("__")?;
+    if prefix.starts_with("custom_") {
+        prompts.get(prompt_key).map(String::as_str)
+    } else {
+        None
+    }
+}
+
+fn localize_prompt_for_state(prompt: &str, state: &str) -> String {
+    let label = state
+        .split_once("__")
+        .map_or(state, |(_, label)| label)
+        .replace('_', " ");
+    prompt
+        .replace("{{for_label}}", &label)
+        .replace("{label}", &label)
 }
 
 /// Resolve the prompt for `locale`: the attorney-reviewed
@@ -622,9 +697,13 @@ mod tests {
         // The retainer template body is bundled via include_str!;
         // for tests we only need the row to exist with the
         // matching `code` so the spec lookup hits the bundled YAML.
+        seed_template(db, "onboarding__retainer", "Retainer").await;
+    }
+
+    async fn seed_template(db: &store::Db, code: &str, title: &str) {
         template::ActiveModel {
-            code: ActiveValue::Set("onboarding__retainer".into()),
-            title: ActiveValue::Set("Retainer".into()),
+            code: ActiveValue::Set(code.into()),
+            title: ActiveValue::Set(title.into()),
             respondent_type: ActiveValue::Set("person".into()),
             ..Default::default()
         }
@@ -819,6 +898,29 @@ mod tests {
         .unwrap();
         // seed_question sets the base prompt to "Prompt for client_name".
         assert_eq!(prompt_of(&outcome.next), "Prompt for client_name");
+    }
+
+    #[tokio::test]
+    async fn custom_question_uses_template_prompt_override() {
+        let db = db().await;
+        seed_template(&db, "dissolution__nevada", "Dissolution").await;
+        seed_question(&db, "custom_text").await;
+        let person_id = seed_person(&db, "libra@example.com").await;
+        let runtime = InMemoryRuntime::new();
+
+        let outcome = start_notation(
+            &db,
+            &runtime,
+            None,
+            "dissolution__nevada",
+            person_id,
+            seed_project(&db).await,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(prompt_of(&outcome.next), "What is the dissolution reason?");
     }
 
     #[tokio::test]

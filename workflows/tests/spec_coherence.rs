@@ -11,8 +11,9 @@
 use std::path::{Path, PathBuf};
 
 use workflows::{
-    questionnaire_spec_from_template, questionnaire_spec_from_yaml, workflow_spec_from_template,
-    workflow_spec_from_yaml, BUNDLED_SPEC_YAML,
+    prompt_overrides_from_template, prompt_overrides_from_yaml, questionnaire_spec_from_template,
+    questionnaire_spec_from_yaml, workflow_spec_from_template, workflow_spec_from_yaml,
+    BUNDLED_SPEC_YAML,
 };
 
 fn templates_root() -> PathBuf {
@@ -81,6 +82,17 @@ fn every_bundled_spec_yaml_matches_its_template_frontmatter() {
         assert_eq!(
             q_from_yaml, q_from_template,
             "questionnaire mismatch between standalone yaml and template frontmatter for `{code}`",
+        );
+
+        let prompts_from_yaml = prompt_overrides_from_yaml(yaml).unwrap_or_else(|e| {
+            panic!("standalone prompts yaml for `{code}` failed to parse: {e}")
+        });
+        let prompts_from_template = prompt_overrides_from_template(&markdown).unwrap_or_else(|e| {
+            panic!("template prompts frontmatter for `{code}` failed to parse: {e}")
+        });
+        assert_eq!(
+            prompts_from_yaml, prompts_from_template,
+            "prompts mismatch between standalone yaml and template frontmatter for `{code}`",
         );
     }
 }

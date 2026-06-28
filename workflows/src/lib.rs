@@ -75,10 +75,10 @@ pub use spec::{
     WorkflowSpecError,
 };
 pub use specs::{
-    bundled_spec_yaml, questionnaire_spec_from_template, questionnaire_spec_from_yaml,
-    retainer_intake_questionnaire, retainer_intake_spec, workflow_spec_from_template,
-    workflow_spec_from_yaml, BUNDLED_SPEC_YAML, RETAINER_INTAKE_SPEC_YAML,
-    RETAINER_INTAKE_TEMPLATE,
+    bundled_spec_yaml, prompt_overrides_from_template, prompt_overrides_from_yaml,
+    questionnaire_spec_from_template, questionnaire_spec_from_yaml, retainer_intake_questionnaire,
+    retainer_intake_spec, workflow_spec_from_template, workflow_spec_from_yaml, BUNDLED_SPEC_YAML,
+    RETAINER_INTAKE_SPEC_YAML, RETAINER_INTAKE_TEMPLATE,
 };
 pub use step::{step_kind_for, StepKind};
 pub use trigger::{start_workflow, TriggerError};
