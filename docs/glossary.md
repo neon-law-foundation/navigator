@@ -462,8 +462,9 @@ matter" gesture clones or browses that repo; the matter's history is tamper-evid
 
 Object-storage artifacts (rendered PDFs, signed documents, generated exports) live in
 `gs://YOUR_PROJECT_ID-assets/projects/{id}/` for machine reads, and the nightly Postgres→Parquet snapshots are immutable
-objects in GCS — so deleting a Project's database rows never deletes its archives. Google Drive is being demoted to an
-optional export mirror (the legacy `drive_folder_id`), not the system of record.
+objects in GCS — so deleting a Project's database rows never deletes its archives. Google Drive has been fully removed
+(the legacy `drive_folder_id` column, the `DriveSync` workflow, and the `cli drive` OAuth door are all gone); the
+per-Project git repository is the document system of record.
 
 - Schema: [`store::entity::project`](../store/src/entity/project.rs)
 
@@ -534,8 +535,10 @@ An external git repository the CLI's `navigator import` reads notation content f
 the URL hash and last imported commit SHA so re-imports are idempotent. One row per external source, shared across
 Projects.
 
-This is the *external imports* flavor — used by the CLI to pull template content into the workspace. **Per-Project
-storage is NOT a git repository** — it's the Project's Drive folder. See [Project](#project) for that mapping.
+This is the *external imports* flavor — used by the CLI to pull template content into the workspace. It is **distinct
+from** the per-Project document repository (the append-only git repo served by `web` that *is* a matter's document
+store, see [Project](#project) and [`git-project-repos.md`](git-project-repos.md)): the `git_repositories` table tracks
+outside sources the workspace reads notation *from*, not the matter repos the workspace itself hosts.
 
 - Schema: [`store::entity::git_repository`](../store/src/entity/git_repository.rs)
 

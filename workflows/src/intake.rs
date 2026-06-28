@@ -9,7 +9,7 @@
 //! `NotationService` in prod, the in-process [`crate::DispatchingRuntime`]
 //! in dev/tests) writes a content-addressed blob + `documents` row via
 //! the shared [`store::documents::ingest_bytes`] seam — the same write
-//! the e-sign, Drive, and inbound-email intake lanes use. One
+//! the e-sign and inbound-email intake lanes use. One
 //! abstraction, many instances:
 //!
 //! - **transcript** (Northstar estate) — the first instance. The sitting

@@ -1,7 +1,7 @@
 # `billing-canary-trigger` — daily trigger for the `BillingCanary` workflow.
 #
 # The workflow itself is hosted by the `workflows-service` worker (it binds
-# `BillingCanaryService` alongside `Notation`, `Archives`, and `DriveSync`
+# `BillingCanaryService` alongside `Notation`, `Archives`, and `Statutes`
 # — see `../workflows-service/`), so there is no separate billing pod. This
 # CronJob is the thin trigger: it POSTs to the Restate ingress to start one
 # invocation, then exits. Restate owns retries.

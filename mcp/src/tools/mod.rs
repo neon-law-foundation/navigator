@@ -58,8 +58,8 @@ pub const REQUIRED_PREFIX: &str = "aida_";
 
 /// Tools that only read. These run without a human confirmation step
 /// on the A2A surface. Everything NOT listed here is treated as
-/// side-effecting — it writes a row, sends mail, or mutates Drive — and
-/// the A2A confirmation gate pauses for explicit user approval before
+/// side-effecting — it writes a row, sends mail, or commits to a matter
+/// repo — and the A2A confirmation gate pauses for explicit user approval before
 /// it runs (the `input-required` task state). Defaulting to "needs
 /// confirmation" is deliberate: a newly-added tool is gated until
 /// someone consciously marks it read-only here, so we never ship a
@@ -75,8 +75,8 @@ const READ_ONLY_TOOLS: &[&str] = &[
     "aida_spawn_legal_council",
 ];
 
-/// Whether a tool mutates state — writes a row, sends an email, changes
-/// Drive — and therefore needs an explicit confirmation step before the
+/// Whether a tool mutates state — writes a row, sends an email, commits
+/// to a matter repo — and therefore needs an explicit confirmation step before the
 /// A2A surface runs it. Accepts either the prefixed MCP name
 /// (`aida_create_person`) or the unprefixed A2A skill id
 /// (`create_person`). Tools not listed in [`READ_ONLY_TOOLS`] default to

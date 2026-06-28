@@ -21,9 +21,10 @@ that.** Every Project becomes a real git repository because git gives us three t
   **Automation surface** — once "a matter is a repo," future automation (push-time notation linting, agent commits)
   composes on one well-understood primitive instead of a bespoke Drive API.
 
-`drive_folder_id` has since been **dropped** (migration `m20260713_drop_drive_folder_id_from_projects`), along with the
-`DriveSync` workflow and the `aida_drive_*` tools — the git repo is the per-Project document system of record. The
-`cloud::drive` OAuth door (`cli drive`) is kept only for ad-hoc browsing.
+Google Drive is **fully removed**. `drive_folder_id` was dropped (migration
+`m20260713_drop_drive_folder_id_from_projects`), along with the `DriveSync` workflow, the `aida_drive_*` tools, the
+`cloud::drive` REST client, and the `cli drive` OAuth door — the git repo is the per-Project document system of record,
+and you reach a matter by cloning its git URL (see below). Nothing in the dependency graph speaks to Drive any longer.
 
 ## Anchor decision
 
@@ -168,7 +169,7 @@ themselves do not live in a bucket.
 - A `git_access_tokens` table holds PATs: `id`, `person_id`, `project_id` (nullable = all the person's projects),
   `token_hash`, `scope` (`read` | `write`), `expires_at`, `inserted_at`/`updated_at`. Tokens are stored hashed; the
   plaintext is shown once at mint time.
-- **Backfill:** existing Project documents (today in Drive / GCS) become the **initial commit(s)** of each repo, with a
+- **Backfill:** existing Project documents (in GCS) become the **initial commit(s)** of each repo, with a
   one-time migration that preserves authorship and date metadata where the source records it (commit author = the
   `persons` identity who uploaded; commit date = the document's recorded date), so the initial history is faithful
   rather than a single "import" blob.

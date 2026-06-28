@@ -328,11 +328,6 @@ async fn main() -> anyhow::Result<()> {
         inbound_email_secret,
         email_events_secret,
         sendgrid_events_public_key,
-        // Drive sync starts disabled in `main` — the production
-        // wiring (Workload Identity service account + shared drive
-        // id) lands in a follow-up. Set to `None` so the "Sync from
-        // Drive" surfaces refuse cleanly rather than hand out a
-        // half-initialized accessor.
         bootstrap_admin_email: web::oauth::bootstrap_admin_email_from_env(),
         // Opt-in email/password sign-in via GCP Identity Platform; `None`
         // unless `NAVIGATOR_IDENTITY_PLATFORM_API_KEY` is set.

@@ -2,7 +2,7 @@
 
 Worker-side billing workflows — the Restate-durable orchestration that *uses* the `billing` provider seam. Hosted by the
 `workflows-service` Restate worker, which binds `BillingCanaryService` alongside the `Notation`, `Archives`, and
-`DriveSync` services: one endpoint, no separate billing pod.
+`Statutes` services: one endpoint, no separate billing pod.
 
 Where `billing` is the *what* (the provider abstraction), this crate is the *when/durably* (the worker flows that call
 it). It depends on **both** `billing` and `restate-sdk`, which is exactly why it is separate from the Restate-free

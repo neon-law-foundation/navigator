@@ -36,7 +36,7 @@ invent new role words**:
 | Entity               | LLC, Trust, Corporation, Foundation — the "business."   |
 | Person–Entity Role   | `manager`, `member`, `beneficiary`, `trustee`.          |
 | Jurisdiction         | `NV`, `CA`, `WA`, county codes, federal.                |
-| Project              | The matter itself; Notations and Persons hang off it. Every Project corresponds to one folder in the NeonLaw shared drive (`projects.drive_folder_id`). |
+| Project              | The matter itself; Notations and Persons hang off it. Each Project is its own append-only git repo (its document system of record). |
 
 A feature should describe **who** can do **what** to **which** matter, plus the happy path through the workflow.
 Authorization is `(Person role) × (Person–Project Role) × (route)` and is enforced by OPA — see the `opa-policy` skill —

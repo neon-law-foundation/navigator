@@ -11,43 +11,30 @@ GCP **provisioning** (VPC, Cloud SQL, GCS buckets, GKE Autopilot cluster) lives 
 [`cli::devx::gcp`](../cli/src/devx/gcp/) and is reached via `navigator gcp setup` — see
 [`cli/README.md`](../cli/README.md).
 
-## Google Drive — the per-Project archive
+## The per-Project archive is a git repository
 
-**Every Project corresponds to exactly one folder in the **NeonLaw** Google shared drive** (drive id
-`YOUR_DRIVE_FOLDER_ID`). The `projects.drive_folder_id` column points at it; the lawyer's "open the matter" gesture is
-to click `https://drive.google.com/drive/folders/{drive_folder_id}`.
+**Every Project is its own git repository — there is no Google Drive.** Each matter's documents live in one append-only
+git repo with a single `main` branch, served Rust-native from `web` over smart-HTTP; the commit log *is* the matter's
+audit trail. The lawyer's "open the matter" gesture is to clone the repo's git URL,
+`https://www.your-domain.example/projects/<project-id>.git`, authenticating with a short-lived, Project-scoped Personal
+Access Token `web` mints. The full durable design — transport, auth, append-only enforcement, governed expunge — is
+[`docs/git-project-repos.md`](../docs/git-project-repos.md).
 
-This is the human-facing archive. Object-storage artifacts (rendered PDFs, signed copies) are confidential client data,
-so they land in the **private** documents bucket `gs://YOUR_PROJECT_ID-documents/projects/{id}/` for machine reads,
-mirrored from Drive by the planned Drive→GCS sync — never in the public `-assets` bucket.
+GCS stays in the picture in exactly one place: as the **Git LFS object store** behind the [`StorageService`] trait.
+Large binary artifacts (rendered PDFs, signed copies, images) are routed to LFS by each repo's `.gitattributes` and land
+in the **private** documents bucket `gs://YOUR_PROJECT_ID-documents/` (the `FsStorage` backend in dev) — never in the
+public `-assets` bucket. The LFS pointer is committed in the pack; the object reconciles by its `oid` (sha256). The git
+repos themselves live on a POSIX volume, not a bucket (GCS is not a filesystem); see the durable design doc.
 
-### Three auth doors, one OAuth app
-
-Single Internal OAuth consent screen (app name "Neon Law Navigator", project `YOUR_PROJECT_ID`, User Type Internal)
-backs all three call paths so Workspace policy only has to allow one client.
-
-- **Browser UI** — Auth: Lawyer's existing Google session via `<a href="drive.google.com/…">`. Scopes: none server-side.
-  **CLI** — Auth: OAuth installed-app refresh token at `~/.config/navigator/drive_token.json`. Scopes: `drive.readonly`.
-  **Server (web, sync workflows)** — Auth: Service account
-  `navigator-drive-sync@YOUR_PROJECT_ID.iam.gserviceaccount.com`, added directly as Content Manager on the NeonLaw
-  shared drive. Scopes: `drive.readonly`.
-
-**Crucially: no domain-wide delegation, no impersonation, no bot mailbox.** The Workspace admin enables external-member
-sharing on the NeonLaw shared drive once and adds the service-account email as a member — that's the only admin action
-ever required.
-
-### REST, not SDK
-
-Drive calls use `reqwest` against the public REST API (`https://www.googleapis.com/drive/v3/...`), same pattern as
-[`cli/src/devx/gcp/`](../cli/src/devx/gcp/). No `google-cloud-drive` crate in the dependency graph. Spec-compliance over
-SDK lock-in, consistent with the rest of the workspace's GCP touchpoints.
+The legacy Google Drive ingest path (the `cli drive` OAuth door, the `cloud::drive` REST client, the `DriveSync`
+workflow, and the `projects.drive_folder_id` column) has been **removed** — git is the per-Project document system of
+record. No `google-cloud-drive` crate, and no `drive.readonly` OAuth app, is in the dependency graph.
 
 ### Ingestion audit trail
 
-A `documents` row is the canonical audit-trail record for one inbound artifact. The 1:1 mapping is *document ↔ Drive
-file revision id* (from `/drive/v3/files/{id}/revisions`), stored on `documents.source_revision_id`; the same column
-also holds the source identifier for non-Drive channels (Message-ID for email, sequence number for fax). The channel
-name lives on `documents.source` (`drive_sync`, `upload`, future: `email`, `fax`).
+A `documents` row is the canonical audit-trail record for one inbound artifact, and the matter repo's commit history is
+the durable record of every version. The channel name lives on `documents.source` (`upload`, `email`, …); rows tagged
+`drive_sync` predate the git pivot and are retained as historical provenance only.
 
 ## Getting started
 

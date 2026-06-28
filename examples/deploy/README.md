@@ -38,8 +38,6 @@ domain. The substitution table:
 - **`YOUR_OAUTH_CLIENT_ID_GEMINI`** — OAuth 2.0 client ID for the Gemini Enterprise data-store integration (if you
   wire it up). Drop this entry from `GOOGLE_OAUTH_CLIENT_IDS` if you don't use Gemini. Created when you enable the
   Gemini Enterprise connector.
-- **`YOUR_DRIVE_FOLDER_ID`** — Google Drive shared-drive ID used for per-Project archives. Open the shared drive;
-  the URL path segment after `folders/` is the ID.
 - **`your-domain.example`** — The hostname your deployment serves under, e.g. `app.acme.com`. From your DNS provider.
 - **`workflows.your-domain.example`** — Public ingress for the `workflows-service` worker that Restate Cloud dials.
   From your DNS provider.
@@ -56,7 +54,6 @@ find /tmp/my-overlay -type f \( -name '*.yaml' -o -name '*.yml' \) -print0 \
       -e 's|YOUR_PROJECT_NUMBER|987654321098|g' \
       -e 's|YOUR_OAUTH_CLIENT_ID_BROWSER|123-abcdef|g' \
       -e 's|YOUR_OAUTH_CLIENT_ID_GEMINI|456-ghijkl|g' \
-      -e 's|YOUR_DRIVE_FOLDER_ID|0ABCDEF1234567|g' \
       -e 's|your-domain.example|acme.com|g'
 kubectl apply -k /tmp/my-overlay
 ```
