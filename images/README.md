@@ -12,7 +12,7 @@ parameterized Dockerfile, and two standalone services.
 - **`Dockerfile.web`** → `navigator-web`. The `web` server (axum + SeaORM + maud): site, `/portal`, `/api`, `/mcp`, and
   git smart-HTTP. Build: `navigator image`.
 - **`Dockerfile.workflows-service`** → `navigator-workflows-service`. The Restate worker hosting **every** workflow
-  (`Notation`, `Archives`, `Statutes`, `BillingCanary`, `DriveSync`). Build: `navigator image-workflows-service`.
+  (`Notation`, `Archives`, `Statutes`, `BillingCanary`). Build: `navigator image-workflows-service`.
 
 ## CronJob triggers — one shared, parameterized Dockerfile
 

@@ -3,9 +3,10 @@
 //!
 //! The per-Project archive is now the append-only git repo served from
 //! `web` (`/projects/<id>.git`); Drive is no longer the address of
-//! record, so the column has no remaining reader. The OAuth "door" into
-//! `cloud::drive` (the `cli drive` login/ls commands) is unaffected —
-//! that talks to Drive directly and never reads this column.
+//! record, so the column has no remaining reader. (Google Drive was
+//! since removed entirely — the `cloud::drive` client and the `cli drive`
+//! login/ls commands are gone — but that came after this migration; this
+//! step only drops the column.)
 //!
 //! Pre-live clean slate: dropping the column loses no production data.
 //! The `down` re-adds it as a nullable text column (matching its

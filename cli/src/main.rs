@@ -6,7 +6,6 @@ use clap::{Parser, Subcommand};
 mod assets;
 mod credentials;
 mod devx;
-mod drive;
 mod erd;
 mod events;
 mod format;
@@ -237,14 +236,6 @@ enum Command {
     Git {
         #[command(subcommand)]
         action: GitAction,
-    },
-    /// Google Drive operations. `login` mints + persists a refresh
-    /// token at `~/.config/navigator/drive_token.json` via the
-    /// installed-app OAuth flow. `ls` lists shared drives (no args)
-    /// or the contents of a folder (`--drive <id> [--folder <id>]`).
-    Drive {
-        #[command(subcommand)]
-        action: DriveAction,
     },
     /// Authenticate to a live Neon Law Navigator site via a browser-loopback
     /// flow and store a short-lived (~8h) bearer token at
@@ -590,31 +581,6 @@ enum LspAction {
         /// client documents.
         #[arg(long, env = "NAVIGATOR_ASSETS_BUCKET")]
         bucket: Option<String>,
-    },
-}
-
-#[derive(Subcommand)]
-enum DriveAction {
-    /// Run the OAuth installed-app flow against Google's consent
-    /// screen. Reads the client config at
-    /// `~/.config/navigator/oauth_client.json`, opens a one-shot
-    /// loopback listener on `127.0.0.1:8888` (override with
-    /// `NAVIGATOR_DRIVE_CALLBACK_PORT`), and persists the resulting
-    /// refresh token to `~/.config/navigator/drive_token.json` with
-    /// `0o600`. Re-run to rotate.
-    Login,
-    /// List Drive contents. With no flags lists every shared drive
-    /// the authenticated identity can see. With `--drive <id>` lists
-    /// the root of that drive. Add `--folder <id>` to list a sub-
-    /// folder.
-    Ls {
-        /// Shared drive id (the `0…` value from `cli drive ls`).
-        #[arg(long)]
-        drive: Option<String>,
-        /// Folder id. When omitted alongside `--drive`, lists the
-        /// drive root (whose folder id equals the drive id).
-        #[arg(long)]
-        folder: Option<String>,
     },
 }
 
@@ -1082,7 +1048,6 @@ fn main() -> ExitCode {
         },
         Command::Project { action } => runtime().block_on(run_project(action)),
         Command::Git { action } => runtime().block_on(run_git_cmd(action)),
-        Command::Drive { action } => runtime().block_on(run_drive(action)),
         Command::Login { host } => runtime().block_on(login::run_login(&host)),
         Command::Logout { host } => login::run_logout(host.as_deref()),
         Command::Whoami { host } => login::run_whoami(host.as_deref()),
@@ -1365,15 +1330,6 @@ async fn run_project_create(
         Err(e) => {
             eprintln!("navigator: project create: {e}");
             ExitCode::from(2)
-        }
-    }
-}
-
-async fn run_drive(action: DriveAction) -> ExitCode {
-    match action {
-        DriveAction::Login => drive::run_login().await,
-        DriveAction::Ls { drive, folder } => {
-            drive::run_ls(drive.as_deref(), folder.as_deref()).await
         }
     }
 }

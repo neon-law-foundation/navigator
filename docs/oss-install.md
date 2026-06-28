@@ -114,7 +114,6 @@ find /tmp/my-overlay -type f \( -name '*.yaml' -o -name '*.yml' \) -print0 \
       -e 's|YOUR_PROJECT_NUMBER|987654321098|g' \
       -e 's|YOUR_OAUTH_CLIENT_ID_BROWSER|...|g' \
       -e 's|YOUR_OAUTH_CLIENT_ID_GEMINI|...|g' \
-      -e 's|YOUR_DRIVE_FOLDER_ID|...|g' \
       -e 's|your-domain.example|acme.com|g'
 ```
 

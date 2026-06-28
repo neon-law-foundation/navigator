@@ -288,11 +288,11 @@ silently dropped. Hierarchical (kids / dotted `/T`) field names remain out of sc
   with 200. The engagement terms are attorney-reviewed at `staff_review` *before* the document is sent, so signature
   receipt is a ministerial transition with no second human gate. Covered by a `.feature` (happy + forgery) and an
   end-to-end integration test through the real provider against a mocked endpoint.
-- **Google Drive per-project sync — removed.** The per-Project archive is the append-only git repo served from `web`
+- **Google Drive — fully removed.** The per-Project archive is the append-only git repo served from `web`
   (see [`git-project-repos.md`](git-project-repos.md)); the `projects.drive_folder_id` column, the `DriveSync` Restate
-  workflow, the `aida_drive_*` MCP tools, and the web/CLI sync surfaces have all been dropped. The `cloud::drive` OAuth
-  door (the `cli drive login` / `cli drive ls` installed-app flow) is kept for ad-hoc browsing, but Drive is no longer a
-  document-ingest surface.
+  workflow, the `aida_drive_*` MCP tools, the web/CLI sync surfaces, the `cloud::drive` REST client, and the `cli drive`
+  OAuth door (`login` / `ls`) have all been dropped. Drive is no longer a document-ingest surface, and nothing in the
+  dependency graph speaks to it — a matter is reached by cloning its git URL.
 
 ## Roadmap
 

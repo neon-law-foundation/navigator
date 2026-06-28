@@ -13,7 +13,7 @@ cli          bin   `navigator` — validate, import, import-contacts, seed, list
 web          bin   `web` — axum + SeaORM + maud; hosts both AIDA surfaces + git smart-HTTP + LFS
 views        lib   — maud HTML view components
 workflows    lib   — durable workflow primitives (Restate-shaped); `web` submits jobs to the broker
-workflows-service bin `workflows-service` — Restate worker; hosts the `Notation`, `Archives`, `DriveSync`, billing-canary services + journal; only `restate-sdk` consumer
+workflows-service bin `workflows-service` — Restate worker; hosts the `Notation`, `Archives`, `Statutes`, billing-canary services + journal; only `restate-sdk` consumer
 cloud        lib   — storage trait + GCS/Fs backends
 live-inquiry lib   — provider-agnostic transcript segments, Inquiry normalization, and Coverage Findings for live-coverage demos/runtime
 mcp          lib   — MCP server merged into `web` at /mcp (Claude / LibreChat / Cursor)
