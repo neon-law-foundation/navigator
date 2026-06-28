@@ -23,10 +23,10 @@ legal platform based on these three tenets:
 2. **Write legal documents like code**. When legal text is reasoned like code, we can leverage developer tooling like
    git, code editors, [LSPs](/foundation/navigator/lsp), [CLIs](/foundation/navigator/cli), and
    [MCPs](/foundation/navigator/mcp) to _deliver access to justice_.
-3. **Share what we learn through Nebula**. None of this matters if we aren't helping lawyers serve more clients. Nebula
-   is where we share workshops, show-and-tells, and presentations that help lawyers adopt the Neon Law Navigator and
-   tailor it to their practice to _increase access to justice_. If you're a legal aid organization, we'll provide free
-   training on [Neon Law Navigator][navigator-workshop].
+3. **Share what we learn**. None of this matters if we aren't helping lawyers serve more clients. We share workshops,
+   show-and-tells, and presentations that help lawyers adopt the Neon Law Navigator and tailor it to their practice to
+   _increase access to justice_. Learn more at [Neon Law Nebula](/foundation/nebula), our education and events portal.
+   If you're a legal aid organization, we'll provide free training on [Neon Law Navigator][navigator-workshop].
 
 [navigator-repo]: <https://github.com/neon-law-foundation/navigator>
 
