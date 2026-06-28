@@ -11,22 +11,32 @@ use crate::brand::{FIRM_BRAND, FOUNDATION_BRAND};
 use crate::components::{testimonial_section, ExternalLink, TestimonialCard};
 use crate::{i18n, AuthState, Locale, PageLayout};
 
-const JUSTICE_GAP_STATS: &[(&str, &str, &str)] = &[
-    (
-        "92%",
-        "of low-income Americans' civil legal problems get inadequate or no legal help",
-        "LSC Justice Gap Report, 2022",
-    ),
-    (
-        "5.1B",
-        "people worldwide lack meaningful access to justice",
-        "World Justice Project, 2023",
-    ),
-    (
-        "$0",
-        "to self-host Neon Law Navigator's rule engine, CLI, MCP server, and web app",
-        "Apache-2.0 / MIT",
-    ),
+struct JusticeGapStat {
+    figure: &'static str,
+    claim: &'static str,
+    source: &'static str,
+    source_url: Option<&'static str>,
+}
+
+const JUSTICE_GAP_STATS: &[JusticeGapStat] = &[
+    JusticeGapStat {
+        figure: "92%",
+        claim: "of low-income Americans' civil legal problems get inadequate or no legal help",
+        source: "LSC Justice Gap Report, 2022",
+        source_url: Some("https://justicegap.lsc.gov/the-report/"),
+    },
+    JusticeGapStat {
+        figure: "5.1B",
+        claim: "people worldwide lack meaningful access to justice",
+        source: "World Justice Project, 2023",
+        source_url: Some("https://worldjusticeproject.org/rule-of-law-index/global/2023/"),
+    },
+    JusticeGapStat {
+        figure: "$0",
+        claim: "to self-host Neon Law Navigator's rule engine, CLI, MCP server, and web app",
+        source: "Apache-2.0 / MIT",
+        source_url: None,
+    },
 ];
 
 /// Render `/` in English. The layout supplies the surrounding chrome and
@@ -88,15 +98,21 @@ pub fn render_in(auth: AuthState, locale: Locale, testimonials: &[TestimonialCar
 
         section."mb-5" {
             div."row"."row-cols-1"."row-cols-md-3"."g-4" {
-                @for (figure, claim, source) in JUSTICE_GAP_STATS {
+                @for stat in JUSTICE_GAP_STATS {
                     div."col" {
                         div."card"."h-100"."border-0"."shadow-sm" {
                             div."card-body" {
-                                p."display-6"."fw-bold"."text-primary"."mb-2" { (figure) }
-                                p."card-text"."mb-0" { (claim) }
+                                p."display-6"."fw-bold"."text-primary"."mb-2" { (stat.figure) }
+                                p."card-text"."mb-0" { (stat.claim) }
                             }
                             div."card-footer"."bg-transparent"."border-0"."small"."text-body-secondary" {
-                                (source)
+                                @if let Some(url) = stat.source_url {
+                                    (ExternalLink::new(url)
+                                        .with_class("link-secondary")
+                                        .render(html! { (stat.source) }))
+                                } @else {
+                                    (stat.source)
+                                }
                             }
                         }
                     }
@@ -189,8 +205,11 @@ mod tests {
         let html = render(crate::AuthState::Anonymous).into_string();
         assert!(html.contains(">92%</p>"));
         assert!(html.contains("LSC Justice Gap Report, 2022"));
+        assert!(html.contains("href=\"https://justicegap.lsc.gov/the-report/\""));
         assert!(html.contains(">5.1B</p>"));
         assert!(html.contains("World Justice Project, 2023"));
+        assert!(html
+            .contains("href=\"https://worldjusticeproject.org/rule-of-law-index/global/2023/\""));
         assert!(html.contains(">0</p>") || html.contains(">$0</p>"));
         assert!(
             html.contains("to self-host Neon Law Navigator"),
