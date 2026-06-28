@@ -143,6 +143,7 @@ const FIRST_PARTY_JS: &[&str] = &[
     "js/northstar-review.js",
     "js/collage-lightbox.js",
     "js/github-stars.js",
+    "js/workshop-progress.js",
     "swagger-ui/init.js",
 ];
 
