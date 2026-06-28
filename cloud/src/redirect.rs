@@ -19,11 +19,10 @@
 //! function over `(host, uri)` so it's trivially unit-testable.
 //! The axum wrapper in [`router`] turns `None` into 404.
 
-use axum::http::{StatusCode, Uri};
+use axum::http::{HeaderMap, StatusCode, Uri};
 use axum::response::Redirect;
 use axum::routing::any;
 use axum::Router;
-use axum_extra::extract::Host;
 
 const CHAT_TARGET: &str = "https://vertexaisearch.cloud.google.com/us/home/cid/1bf2ea37-8d10-473b-bd4d-f80428be4345?hl=en_US";
 
@@ -31,8 +30,16 @@ pub fn router() -> Router {
     Router::new().fallback(any(handler))
 }
 
-async fn handler(Host(host): Host, uri: Uri) -> Result<Redirect, StatusCode> {
-    redirect_target(&host, &uri)
+// `axum_extra::extract::Host` is deprecated (axum#3442 — it trusts
+// `X-Forwarded-Host` / `Forwarded`, a spoofing footgun); read the
+// `Host` header directly. This edge redirector sits behind GKE
+// ingress, so the request-line `Host` is the authority we canonicalize.
+async fn handler(headers: HeaderMap, uri: Uri) -> Result<Redirect, StatusCode> {
+    let host = headers
+        .get(axum::http::header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .ok_or(StatusCode::NOT_FOUND)?;
+    redirect_target(host, &uri)
         .map(|t| Redirect::permanent(&t))
         .ok_or(StatusCode::NOT_FOUND)
 }
