@@ -178,20 +178,9 @@
   flex-basis: 100%;
 }
 
-/* Keep the event-list thumbnail on the left even on phones, but let it
-   shrink enough that the copy still has room to wrap cleanly. */
-@media (max-width: 575.98px) {
-  .show-tell-card-media {
-    flex-basis: clamp(7rem, 32vw, 8.5rem);
-  }
-
-  .show-tell-card-body {
-    padding: 0.875rem;
-  }
-}
-
 .show-tell-card-body {
   display: flex;
+  flex: 1 1 auto;
   min-width: 0;
   flex-direction: column;
   justify-content: center;
@@ -214,6 +203,14 @@
 }
 
 @media (max-width: 575.98px) {
+  .show-tell-card-media {
+    display: none;
+  }
+
+  .show-tell-card-body {
+    padding: 0.875rem;
+  }
+
   .nebula-hero {
     min-height: 26rem;
   }
