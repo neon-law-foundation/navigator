@@ -2,20 +2,19 @@
 // clippy::doc_markdown; the names are not code identifiers.
 #![allow(clippy::doc_markdown)]
 
-//! Contact pages — `/contact` (firm) and `/foundation/contact`
-//! (foundation). The two share the rendering scaffold but differ in
-//! brand, email address, and the trailing GitHub link. The brand
-//! display name comes from [`FIRM_BRAND`] / [`FOUNDATION_BRAND`]
-//! (env-overridable); the email + GitHub URL come from env vars so a
-//! fork can route inbound mail to its own address without rewriting
-//! the page.
+//! Contact page — `/contact`. It gives visitors one place to reach the
+//! firm about matters and the Foundation about CLEs, open-source
+//! contributions, and partnerships. Brand names come from
+//! [`FIRM_BRAND`] / [`FOUNDATION_BRAND`] (env-overridable); emails and
+//! the GitHub URL come from env vars so a fork can route inbound mail
+//! without rewriting the page.
 
 use std::env;
 use std::sync::LazyLock;
 
 use maud::{html, Markup};
 
-use crate::brand::{foundation_github_url, SiteBrand, FIRM_BRAND, FOUNDATION_BRAND};
+use crate::brand::{foundation_github_url, FIRM_BRAND, FOUNDATION_BRAND};
 use crate::components::ExternalLink;
 use crate::{AuthState, PageLayout};
 
@@ -32,103 +31,73 @@ static FOUNDATION_CONTACT_EMAIL: LazyLock<String> = LazyLock::new(|| {
     env::var("NAVIGATOR_FOUNDATION_EMAIL").unwrap_or_else(|_| "support@neonlaw.org".into())
 });
 
-/// `/contact` — firm contact card. Routes a visitor to the firm's
-/// configured support address for a flat-fee quote.
+/// `/contact` — combined firm and Foundation contact page.
 #[must_use]
-pub fn render_firm(auth: AuthState) -> Markup {
-    let title = format!("Contact {}", FIRM_BRAND.site_name);
-    let intro = format!(
-        "Email {} with a short description of the matter — estate \
-         planning, corporate formation, ongoing services. We respond \
-         within one business day with a flat-fee quote and a calendar \
-         link.",
+pub fn render(auth: AuthState) -> Markup {
+    let title = "Contact";
+    let description = format!(
+        "Reach {} for legal matters or {} for CLEs, Neon Law Navigator, and partnerships.",
+        FIRM_BRAND.site_name, FOUNDATION_BRAND.site_name,
+    );
+    let firm_intro = format!(
+        "Email {} with a short description of the matter — estate planning, corporate \
+         formation, ongoing services. We respond within one business day with a flat-fee \
+         quote and a calendar link.",
         FIRM_BRAND.site_name,
     );
-    render(
-        &title,
-        "Get a flat-fee quote from the firm.",
-        *FIRM_BRAND,
-        &FIRM_CONTACT_EMAIL,
-        None,
-        &intro,
-        auth,
-    )
-}
-
-/// `/foundation/contact` — foundation contact card. Points at the
-/// configured foundation address and (optionally) a GitHub org.
-#[must_use]
-pub fn render_foundation(auth: AuthState) -> Markup {
-    let description = format!(
-        "Reach the {} about CLEs, Neon Law Navigator, or partnerships.",
-        FOUNDATION_BRAND.site_name,
-    );
-    let intro = "Email the foundation about CLE programming, contributions \
-         to the Neon Law Navigator open-source codebase, or partnership ideas \
-         with bar associations and legal-aid organizations."
-        .to_string();
-    let github = Some(("GitHub", foundation_github_url()));
-    render(
-        "Contact the Foundation",
-        &description,
-        *FOUNDATION_BRAND,
-        &FOUNDATION_CONTACT_EMAIL,
-        github,
-        &intro,
-        auth,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn render(
-    title: &str,
-    description: &str,
-    brand: SiteBrand,
-    email: &str,
-    github: Option<(&str, &str)>,
-    intro: &str,
-    auth: AuthState,
-) -> Markup {
+    let foundation_intro = "Email the foundation about CLE programming, contributions \
+         to the Neon Law Navigator open-source codebase, or partnership ideas with bar \
+         associations and legal-aid organizations.";
+    let github = foundation_github_url();
     let body = html! {
         article {
             h1 { (title) }
-            p { (intro) }
-            dl {
-                dt { "Email" }
-                dd { a href=(format!("mailto:{email}")) { (email) } }
-                @if let Some((label, href)) = github {
-                    dt { (label) }
-                    dd { a href=(href) { (href) } }
+            section {
+                h2 { (FIRM_BRAND.site_name) }
+                p { (firm_intro) }
+                dl {
+                    dt { "Email" }
+                    dd { a href=(format!("mailto:{}", &*FIRM_CONTACT_EMAIL)) { (&*FIRM_CONTACT_EMAIL) } }
                 }
-            }
-            // The firm's primary action is booking a flat-fee
-            // consultation on the calendar the intro promises; the
-            // Foundation card stays email-only. Off-site, so it routes
-            // through `ExternalLink` for the new-tab + OWASP `rel` pair.
-            @if brand.is_law_firm {
                 p {
                     (ExternalLink::new(crate::brand::consultation_url())
                         .with_class("btn btn-primary")
                         .render(html! { (crate::i18n::t(crate::Locale::En, "cta.consultation")) }))
                 }
             }
+            section {
+                h2 { (FOUNDATION_BRAND.site_name) }
+                p { (foundation_intro) }
+                dl {
+                    dt { "Email" }
+                    dd {
+                        a href=(format!("mailto:{}", &*FOUNDATION_CONTACT_EMAIL)) {
+                            (&*FOUNDATION_CONTACT_EMAIL)
+                        }
+                    }
+                    dt { "GitHub" }
+                    dd {
+                        (ExternalLink::new(github).render(html! { (github) }))
+                    }
+                }
+            }
         }
     };
     PageLayout::new("Contact")
-        .with_description(description)
-        .with_brand(brand)
+        .with_description(&description)
+        .with_brand(*FIRM_BRAND)
         .with_auth(auth)
         .render(&body)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{render_firm, render_foundation, FIRM_CONTACT_EMAIL, FOUNDATION_CONTACT_EMAIL};
+    use super::{render, FIRM_CONTACT_EMAIL, FOUNDATION_CONTACT_EMAIL};
     use crate::brand::{FIRM_BRAND, FOUNDATION_BRAND};
 
     #[test]
-    fn firm_contact_uses_firm_brand_and_email() {
-        let html = render_firm(crate::AuthState::Anonymous).into_string();
+    fn contact_uses_firm_brand_and_email() {
+        let html = render(crate::AuthState::Anonymous).into_string();
         let title = format!("<title>{} | Contact</title>", FIRM_BRAND.site_name);
         assert!(html.contains(&title), "got: {html}");
         let mailto = format!("mailto:{}", &*FIRM_CONTACT_EMAIL);
@@ -136,8 +105,8 @@ mod tests {
     }
 
     #[test]
-    fn firm_contact_offers_a_consultation_booking_button() {
-        let html = render_firm(crate::AuthState::Anonymous).into_string();
+    fn contact_offers_a_consultation_booking_button() {
+        let html = render(crate::AuthState::Anonymous).into_string();
         assert!(
             html.contains(&format!("href=\"{}\"", crate::brand::consultation_url())),
             "firm contact should book a consultation: {html}"
@@ -146,22 +115,21 @@ mod tests {
     }
 
     #[test]
-    fn foundation_contact_has_no_consultation_button() {
-        // The booking calendar is the firm's; the Foundation card stays
-        // email-only.
-        let html = render_foundation(crate::AuthState::Anonymous).into_string();
-        assert!(
-            !html.contains(crate::brand::consultation_url()),
-            "Foundation contact must not link the firm calendar: {html}"
-        );
+    fn foundation_section_uses_foundation_brand_and_email() {
+        let html = render(crate::AuthState::Anonymous).into_string();
+        assert!(html.contains(FOUNDATION_BRAND.site_name), "got: {html}");
+        let mailto = format!("mailto:{}", &*FOUNDATION_CONTACT_EMAIL);
+        assert!(html.contains(&mailto));
+        assert!(html.contains("github.com/neon-law-foundation"));
     }
 
     #[test]
-    fn foundation_contact_uses_foundation_brand_and_email() {
-        let html = render_foundation(crate::AuthState::Anonymous).into_string();
-        let title = format!("<title>{} | Contact</title>", FOUNDATION_BRAND.site_name);
-        assert!(html.contains(&title), "got: {html}");
-        let mailto = format!("mailto:{}", &*FOUNDATION_CONTACT_EMAIL);
-        assert!(html.contains(&mailto));
+    fn contact_has_one_consultation_button() {
+        let html = render(crate::AuthState::Anonymous).into_string();
+        let consultation_href = format!("href=\"{}\"", crate::brand::consultation_url());
+        assert!(
+            html.matches(&consultation_href).count() == 1,
+            "only the firm section should link the booking calendar: {html}"
+        );
     }
 }

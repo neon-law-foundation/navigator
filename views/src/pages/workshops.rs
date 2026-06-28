@@ -854,8 +854,8 @@ fn copy_markdown_button(md_href: &str) -> Markup {
 #[cfg(test)]
 mod tests {
     use super::{
-        landing, overview, step, EventCard, MaterialCard, MaterialOverview, StepSummary,
-        WorkshopStep, LANDING_TITLE,
+        landing, overview, show_tell_index, step, EventCard, EventListItem, EventPager,
+        MaterialCard, MaterialOverview, ShowTellIndex, StepSummary, WorkshopStep, LANDING_TITLE,
     };
     use crate::brand::{foundation_email, FOUNDATION_BRAND};
 
@@ -998,6 +998,52 @@ mod tests {
         assert!(html.contains("href=\"/foundation/nebula/show-and-tell/seattle-summer-2026\""));
         // The preview links out to the full paginated index.
         assert!(html.contains("View all show-and-tells"));
+    }
+
+    #[test]
+    fn show_tell_index_renders_media_before_event_body() {
+        let upcoming = vec![EventListItem {
+            detail_href: "/foundation/nebula/show-and-tell/seattle-summer-2026",
+            calendar_href: "/foundation/nebula/show-and-tell/seattle-summer-2026/calendar.ics",
+            title: "Seattle Show and Tell",
+            time: "July 2, 2026, 11:00 AM-3:00 PM Pacific",
+            place: "Private lounge",
+            description: "A practical AI workflow gathering.",
+            image_url: Some("/public/events/nebula-show-and-tell/nlf-lawyers-seattle.png"),
+            image_alt: "Lawyers gathering in Seattle",
+        }];
+        let past = Vec::new();
+        let upcoming_pager = EventPager {
+            previous_href: None,
+            next_href: None,
+            current_page: 1,
+            total_pages: 1,
+        };
+        let past_pager = EventPager {
+            previous_href: None,
+            next_href: None,
+            current_page: 1,
+            total_pages: 1,
+        };
+        let index = ShowTellIndex {
+            upcoming: &upcoming,
+            past: &past,
+            upcoming_pager,
+            past_pager,
+        };
+        let html = show_tell_index(&index, crate::AuthState::Anonymous).into_string();
+
+        assert!(html.contains("class=\"show-tell-card\""));
+        let media_at = html
+            .find("class=\"show-tell-card-media\"")
+            .expect("event card media link");
+        let body_at = html
+            .find("class=\"show-tell-card-body\"")
+            .expect("event card body");
+        assert!(
+            media_at < body_at,
+            "event cards should render the image rail before the body: {html}"
+        );
     }
 
     #[test]
