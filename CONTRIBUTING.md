@@ -1,6 +1,7 @@
 # Neon Law Foundation Contributor License and Feedback Agreement
 
-Welcome to our Contributor License and Feedback Agreement. Here's a quick breakdown of what's inside:
+We welcome your issues today, and we will welcome pull requests in the near future. Whichever you open, this agreement
+covers it — so here's a quick breakdown of what's inside:
 
 - You, the contributor, are entering into an agreement with Neon Law Foundation.
 - You're giving Neon Law Foundation permission to use and share your contributions, like original works or
