@@ -14,7 +14,7 @@ lopdf.workspace = true
 pulldown-cmark = { workspace = true, default-features = false }
 thiserror.workspace = true
 typst = "0.14"
-typst-pdf = "0.14"
+typst-pdf = "0.15"
 typst-as-lib = { version = "0.15", features = ["typst-kit-fonts", "typst-kit-embed-fonts"] }
 
 [dev-dependencies]
