@@ -76,7 +76,7 @@ pub fn render_index(content: &IndexContent<'_>, auth: AuthState) -> Markup {
                     li {
                         "Exemption application (IRS Form 1023) and supporting documents — "
                         "available on request through the "
-                        a href="/foundation/contact" { "Foundation contact page" }
+                        a href="/contact" { "contact page" }
                         " while we prepare the filing for publication here."
                     }
                     li {
@@ -134,7 +134,7 @@ pub fn render_index(content: &IndexContent<'_>, auth: AuthState) -> Markup {
 
             p.text-body-secondary {
                 "Looking for a record that isn't posted here? Request it through the "
-                a href="/foundation/contact" { "Foundation contact page" } "."
+                a href="/contact" { "contact page" } "."
             }
         }
     };
