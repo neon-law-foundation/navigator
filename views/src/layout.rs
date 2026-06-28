@@ -384,31 +384,29 @@ impl<'a> PageLayout<'a> {
                             // belong to BOTH organizations — the firm that runs
                             // on the software and the Foundation that publishes
                             // it open source.
+                            // Policy/nav links read in alphabetical order by
+                            // visible label so the row has one predictable scan
+                            // order. Every entry — Mission, the Foundation's free
+                            // Nevada Revised Statutes reference, the 501(c)(3)
+                            // Transparency disclosures, and the language switcher
+                            // — rides this one row with uniform short labels and
+                            // no separate trailing line. Each link emits its
+                            // separator AFTER it; Transparency is last and emits
+                            // none.
                             "© 2026 " (FIRM_BRAND.site_name) " & " (FOUNDATION_BRAND.site_name) " · "
-                            a.link-secondary href=(privacy_url()) { "Privacy" } " · "
-                            a.link-secondary href=(terms_url()) { "Terms" } " · "
-                            a.link-secondary href="/docs" { "Docs" } " · "
-                            a.link-secondary href="/design" { "Design" } " · "
                             a.link-secondary href="/api/docs" { "API" } " · "
-                            a.link-secondary href="/contact" { "Contact" } " · "
                             a.link-secondary href="/blog" { "Blog" } " · "
-                            // The mission statement and the Foundation's free
-                            // Nevada Revised Statutes reference ride the same link
-                            // row as every other policy link — uniform short
-                            // labels, no separate trailing line.
-                            a.link-secondary href="/foundation" { "Mission" } " · "
-                            // The Foundation's public 501(c)(3) disclosures
-                            // (determination letter, bylaws, board minutes).
-                            a.link-secondary href="/foundation/transparency" { "Transparency" } " · "
-                            a.link-secondary href="/statutes" { "Statutes" }
+                            a.link-secondary href="/contact" { "Contact" } " · "
+                            a.link-secondary href="/design" { "Design" } " · "
+                            a.link-secondary href="/docs" { "Docs" } " · "
                             // One-tap language switcher — only on pages with a
-                            // translated twin. Rides the same policy-link row as
-                            // Mission/Privacy/etc. (moved here from the navbar):
-                            // visible label is the TARGET language in its own
+                            // translated twin, so it slots into its alphabetical
+                            // spot (Español, between Docs and Mission) when
+                            // present and the row closes up cleanly when absent.
+                            // Visible label is the TARGET language in its own
                             // name; aria-label is in the current language.
                             @if let Some(path) = self.canonical_path {
                                 @let target = self.locale.switch_target();
-                                " · "
                                 a.link-secondary.language-switcher
                                     href=(i18n::localize_href(path, target))
                                     lang=(target.code())
@@ -417,7 +415,13 @@ impl<'a> PageLayout<'a> {
                                 {
                                     (target.endonym())
                                 }
+                                " · "
                             }
+                            a.link-secondary href="/foundation" { "Mission" } " · "
+                            a.link-secondary href=(privacy_url()) { "Privacy" } " · "
+                            a.link-secondary href="/statutes" { "Statutes" } " · "
+                            a.link-secondary href=(terms_url()) { "Terms" } " · "
+                            a.link-secondary href="/foundation/transparency" { "Transparency" }
                         }
                         // Bottom line: the Neon Law Navigator version and the repo-star
                         // CTA share one row, and a version ALWAYS shows. In a
@@ -1027,6 +1031,47 @@ mod tests {
                 !footer.contains("href=\"/events\""),
                 "{brand} footer should keep events nested under Nebula: {footer}"
             );
+        }
+    }
+
+    #[test]
+    fn footer_policy_links_are_alphabetized_including_the_language_switcher() {
+        use crate::i18n::Locale;
+        // The policy-link row reads in alphabetical order by visible label so
+        // there is one predictable scan order. The language switcher (Español)
+        // is a link in that row too, so it sorts into its alphabetical slot
+        // rather than always trailing. A canonical path makes the switcher
+        // render; without it the row is the same minus that one entry.
+        let out = PageLayout::new("Home")
+            .with_locale(Locale::En)
+            .with_canonical_path("/")
+            .render(&html! { p { "x" } })
+            .into_string();
+        let footer = footer_of(&out);
+        // Labels in the order they MUST appear (A→Z).
+        let order = [
+            ">API</a>",
+            ">Blog</a>",
+            ">Contact</a>",
+            ">Design</a>",
+            ">Docs</a>",
+            ">Español</a>",
+            ">Mission</a>",
+            ">Privacy</a>",
+            ">Statutes</a>",
+            ">Terms</a>",
+            ">Transparency</a>",
+        ];
+        let mut last = 0usize;
+        for label in order {
+            let at = footer
+                .find(label)
+                .unwrap_or_else(|| panic!("footer missing {label:?}: {footer}"));
+            assert!(
+                at >= last,
+                "footer link {label:?} is out of alphabetical order: {footer}"
+            );
+            last = at;
         }
     }
 
