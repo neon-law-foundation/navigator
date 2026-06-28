@@ -59,7 +59,7 @@ parquet = { version = "59", default-features = false, features = ["arrow", "snap
 # Postgres stays the source of truth; petgraph is a transient view built
 # from `relationship_edges` + `person_entity_roles` per check. See
 # docs/glossary.md#conflict-check-graph.
-petgraph = { version = "0.6", default-features = false }
+petgraph = { version = "0.8", default-features = false }
 # Google Cloud SDKs. `google-cloud-storage` is consumed only by the
 # `cloud` crate (which wraps it in the provider-agnostic
 # `StorageService` trait). `google-cloud-auth` + `google-cloud-token`
