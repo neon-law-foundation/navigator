@@ -41,7 +41,7 @@ assert_cmd = "2"
 async-trait = "0.1"
 axum = "0.8"
 # axum-extra: the `Host` extractor lives here in axum 0.8 (moved out of `axum::extract`).
-axum-extra = "0.10"
+axum-extra = "0.12"
 bytes = "1"
 # gzip codec — git smart-HTTP clients gzip the upload-pack RPC request body
 # (`Content-Encoding: gzip`); the transport in `web` decompresses it.
