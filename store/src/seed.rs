@@ -133,7 +133,7 @@ mod canonical {
     pub const TEMPLATE_RETAINER: &str =
         include_str!("../../notation_templates/engagements/retainer.md");
     pub const TEMPLATE_CLOSING_LETTER: &str =
-        include_str!("../../notation_templates/correspondence/closing_letter.md");
+        include_str!("../../notation_templates/neon_law/shared/closing_letter.md");
     pub const TEMPLATE_ANNUAL_REPORT_NV: &str =
         include_str!("../../notation_templates/united_states/nevada/state/business_associations/annual_report.md");
     pub const TEMPLATE_DISSOLUTION_NV: &str = include_str!(
@@ -318,7 +318,7 @@ async fn seed_templates(
 ) -> anyhow::Result<()> {
     for (label, md) in [
         ("engagements/retainer.md", canonical::TEMPLATE_RETAINER),
-        ("correspondence/closing_letter.md", canonical::TEMPLATE_CLOSING_LETTER),
+        ("neon_law/shared/closing_letter.md", canonical::TEMPLATE_CLOSING_LETTER),
         (
             "united_states/nevada/state/business_associations/annual_report.md",
             canonical::TEMPLATE_ANNUAL_REPORT_NV,
