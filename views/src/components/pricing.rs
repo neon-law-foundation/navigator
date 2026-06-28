@@ -1,12 +1,9 @@
 //! Bootstrap pricing / offer cards for the firm's service pages.
 //!
-//! Two shapes share one component:
-//!
-//! - **Tiered plans** (fractional-GC: Seed / Growth / Scale) — each
-//!   card carries a `cadence` (`/mo`), a feature list, and one card may
-//!   be `featured` to anchor the reader on the firm's recommended tier.
-//! - **Flat-fee menus** (estate, corporate) — `cadence` is `None`, the
-//!   feature list is usually empty, and no card is featured.
+//! Flat-fee cards share one visual treatment: the cyan header band and
+//! solid CTA formerly reserved for a featured tier. Some legacy content
+//! still sets `featured`; the renderer keeps the field for schema
+//! compatibility but no longer branches the card style on it.
 //!
 //! The data is borrowed view input; the owning strings live in the
 //! marketing content the `web` crate loads and maps onto these structs
@@ -37,22 +34,22 @@ pub struct PricingCard<'a> {
     pub features: Vec<&'a str>,
     pub cta_label: &'a str,
     pub cta_href: &'a str,
-    /// The anchor card — visually emphasized with a header band and a
-    /// solid CTA.
+    /// Legacy marker for the old tiered-plan treatment. Pricing cards
+    /// are all rendered with the highlighted flat-fee style now.
     pub featured: bool,
-    /// Label for the featured band (e.g. `"Recommended"`). Falls back
-    /// to `"Recommended"` when `featured` is set without a label.
+    /// Label for the cyan band (e.g. `"$3,333, once"`). Falls back to
+    /// the card price when omitted.
     pub featured_label: Option<&'a str>,
 }
 
 /// Render a responsive row of pricing cards.
 ///
-/// `cols_lg` is the desktop column count (3 for tiered plans, up to 4
-/// for flat-fee menus); the grid collapses to two columns on tablets
-/// and one on phones. `cols_lg == 1` is the explicit "stack them"
-/// request — one card per row at every breakpoint, never side-by-side
-/// (e.g. Nimbus's two offers). Cards are equal height regardless of how
-/// many feature bullets each carries.
+/// `cols_lg` is the desktop column count (up to 4 for flat-fee menus);
+/// the grid collapses to two columns on tablets and one on phones.
+/// `cols_lg == 1` is the explicit "stack them" request — one card per
+/// row at every breakpoint, never side-by-side (e.g. Nimbus's two
+/// offers). Cards are equal height regardless of how many feature
+/// bullets each carries.
 #[must_use]
 pub fn pricing_section(cards: &[PricingCard<'_>], cols_lg: u8) -> Markup {
     let row_class = if cols_lg <= 1 {
@@ -70,22 +67,13 @@ pub fn pricing_section(cards: &[PricingCard<'_>], cols_lg: u8) -> Markup {
 }
 
 fn card_markup(card: &PricingCard<'_>) -> Markup {
-    let card_class = if card.featured {
-        "card h-100 shadow-sm border-primary"
-    } else {
-        "card h-100 shadow-sm"
-    };
-    let cta_class = if card.featured {
-        "btn btn-primary w-100 mt-auto"
-    } else {
-        "btn btn-outline-primary w-100 mt-auto"
-    };
+    let band_label = card.featured_label.unwrap_or(card.price);
+    let card_class = "card h-100 shadow-sm border-primary";
+    let cta_class = "btn btn-primary w-100 mt-auto";
     html! {
         div class=(card_class) {
-            @if card.featured {
-                div."card-header"."bg-primary"."text-white"."text-center"."fw-semibold" {
-                    (card.featured_label.unwrap_or("Recommended"))
-                }
+            div."card-header"."bg-primary"."text-white"."text-center"."fw-semibold" {
+                (band_label)
             }
             div."card-body"."d-flex"."flex-column" {
                 h3."card-title"."h5"."mb-2" { (card.title) }
@@ -127,32 +115,32 @@ fn card_markup(card: &PricingCard<'_>) -> Markup {
 mod tests {
     use super::{pricing_section, PricingCard};
 
-    fn tier<'a>(title: &'a str, price: &'a str, featured: bool) -> PricingCard<'a> {
+    fn fee_card<'a>(title: &'a str, price: &'a str, featured: bool) -> PricingCard<'a> {
         PricingCard {
             title,
             price,
             cadence: Some("/mo"),
-            blurb: "For teams signing deals every week.",
-            features: vec!["20 contract reviews each month"],
-            cta_label: "Get your tier recommendation",
+            blurb: "Flat monthly counsel for operating the company.",
+            features: vec!["Priority support"],
+            cta_label: "Get started",
             cta_href: "mailto:support@neonlaw.com",
             featured,
-            featured_label: featured.then_some("Recommended"),
+            featured_label: featured.then_some("$2,222 a month, all in"),
         }
     }
 
     #[test]
     fn renders_one_card_per_entry_in_a_responsive_row() {
         let cards = [
-            tier("Seed", "$3,500", false),
-            tier("Growth", "$7,500", true),
-            tier("Scale", "$12,500", false),
+            fee_card("Northstar", "$3,333", false),
+            fee_card("Nexus", "$2,222", true),
+            fee_card("Nimbus", "$11,111", false),
         ];
         let html = pricing_section(&cards, 3).into_string();
         assert_eq!(html.matches("class=\"card h-100").count(), 3);
         assert!(html.contains("row-cols-lg-3"));
-        assert!(html.contains("Seed"));
-        assert!(html.contains("$12,500"));
+        assert!(html.contains("Northstar"));
+        assert!(html.contains("$11,111"));
     }
 
     #[test]
@@ -161,8 +149,8 @@ mod tests {
         // side-by-side: the row is a plain single column, with no
         // `row-cols-md-2` to break it into two on a tablet.
         let cards = [
-            tier("Nimbus", "$11,111", true),
-            tier("Legal aid", "Discounted", false),
+            fee_card("Nimbus", "$11,111", true),
+            fee_card("Legal aid", "Discounted", false),
         ];
         let html = pricing_section(&cards, 1).into_string();
         assert!(
@@ -177,21 +165,24 @@ mod tests {
     }
 
     #[test]
-    fn featured_card_gets_primary_band_and_solid_cta() {
-        let cards = [tier("Growth", "$7,500", true)];
+    fn every_card_gets_primary_band_and_solid_cta() {
+        let cards = [fee_card("Nexus", "$2,222", true)];
         let html = pricing_section(&cards, 3).into_string();
         assert!(html.contains("card h-100 shadow-sm border-primary"));
         assert!(html.contains("card-header"));
-        assert!(html.contains("Recommended"));
+        assert!(html.contains("$2,222 a month, all in"));
         assert!(html.contains("btn btn-primary"));
     }
 
     #[test]
-    fn unfeatured_card_uses_outline_cta_and_no_band() {
-        let cards = [tier("Seed", "$3,500", false)];
+    fn unfeatured_legacy_card_still_uses_highlighted_flat_fee_style() {
+        let cards = [fee_card("Northstar", "$3,333", false)];
         let html = pricing_section(&cards, 3).into_string();
-        assert!(html.contains("btn btn-outline-primary"));
-        assert!(!html.contains("card-header"));
+        assert!(html.contains("card h-100 shadow-sm border-primary"));
+        assert!(html.contains("card-header"));
+        assert!(html.contains("$3,333"));
+        assert!(html.contains("btn btn-primary"));
+        assert!(!html.contains("btn btn-outline-primary"));
     }
 
     #[test]
@@ -212,13 +203,14 @@ mod tests {
         assert!(html.contains("$500"));
         assert!(!html.contains("/mo"));
         assert!(!html.contains("<ul"));
+        assert!(html.contains("card-header bg-primary text-white text-center fw-semibold"));
     }
 
     #[test]
     fn renders_check_icon_per_feature() {
         let card = PricingCard {
             features: vec!["a", "b", "c"],
-            ..tier("Scale", "$12,500", false)
+            ..fee_card("Nexus", "$2,222", false)
         };
         let html = pricing_section(&[card], 3).into_string();
         assert_eq!(html.matches("bi-check-lg").count(), 3);

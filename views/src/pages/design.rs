@@ -236,35 +236,35 @@ fn cards_section() -> Markup {
 }
 
 fn pricing_cards_section() -> Markup {
-    // The richer pricing-tier card keeps its own component; show it here so
-    // the gallery covers both card shapes.
+    // The flat-fee card keeps its own component; show both one-time and
+    // recurring fees so the gallery covers the shared pricing treatment.
     let cards = [
         PricingCard {
-            title: "Starter",
-            price: "$0",
-            cadence: Some("/mo"),
-            blurb: "For trying things out.",
-            features: vec!["One project", "Community support"],
+            title: "Northstar",
+            price: "$3,333",
+            cadence: None,
+            blurb: "Launch a Delaware C-corp with clean founder paperwork.",
+            features: Vec::new(),
             cta_label: "Get started",
             cta_href: "#design",
             featured: false,
-            featured_label: None,
+            featured_label: Some("$3,333, once"),
         },
         PricingCard {
-            title: "Growth",
-            price: "$5,000",
-            cadence: Some("/mo"),
-            blurb: "The firm's recommended tier.",
+            title: "Nexus",
+            price: "$2,222",
+            cadence: Some("/month"),
+            blurb: "Flat monthly counsel for operating the company.",
             features: vec!["Unlimited projects", "Priority support"],
             cta_label: "Get started",
             cta_href: "#design",
             featured: true,
-            featured_label: Some("Recommended"),
+            featured_label: Some("$2,222 a month, all in"),
         },
     ];
     group(
         "Pricing cards",
-        "The featured tier gets the cyan band and a solid CTA.",
+        "Flat-fee cards use the cyan band and a solid CTA.",
         &pricing_section(&cards, 3),
     )
 }

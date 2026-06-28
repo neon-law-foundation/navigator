@@ -50,22 +50,25 @@ pub struct PricingCard {
     /// Headline number verbatim, including any range marker
     /// (`"from $1,000"`).
     pub price: String,
-    /// Billing cadence (`"/mo"`); omit for one-time flat fees.
+    /// Billing cadence (`"/mo"`); omit when the fee label already
+    /// carries the timing.
     #[serde(default)]
     pub cadence: Option<String>,
     /// One line answering "is this for someone like me?".
     #[serde(default)]
     pub blurb: String,
-    /// Inclusion bullets; empty for flat-fee menu cards.
+    /// Inclusion bullets; may be empty for simple flat-fee offers.
     #[serde(default)]
     pub features: Vec<String>,
     pub cta_label: String,
     pub cta_href: String,
-    /// The anchor card — emphasized with a header band and solid CTA.
+    /// Legacy marker from the old tiered-card treatment. The shared
+    /// renderer now gives every pricing card the highlighted flat-fee
+    /// treatment.
     #[serde(default)]
     pub featured: bool,
-    /// Label for the featured band (defaults to `"Recommended"`). No
-    /// "most popular" claims — they trip attorney-advertising rules.
+    /// Label for the cyan band. No "most popular" claims — they trip
+    /// attorney-advertising rules.
     #[serde(default)]
     pub featured_label: Option<String>,
 }
