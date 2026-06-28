@@ -206,8 +206,8 @@ Subcommands:
   per-worktree dev environment (its own `navigator_<slug>` database + host `web` port on the shared deps; `--demo` for
   the full in-cluster stack from ghcr), wired into Codex's Setup/Cleanup scripts. `e2e` — smoke-test the deployed stack
   (rollouts, `/health`, OPA decisions, seed counts). `grant-staff` — pre-seed the Staff demo user with the `staff` role
-  for the browser e2e. `power-push` — one-shot ship to prod (roll both published images, re-register). `logs` — tail
-  navigator-web logs.
+  for the browser e2e. `ship` — one-shot roll to prod (pin both deployments to a named `--tag`, re-register). `logs` —
+  tail navigator-web logs.
 
 The workspace has no Makefile — the `navigator` CLI is the only entry point.
 

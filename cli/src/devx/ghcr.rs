@@ -4,7 +4,7 @@
 //! public `ghcr.io` tagged `YY.MM.DD`. Three callers resolve and verify
 //! those tags and must do it identically, so the logic lives here once:
 //!
-//! - `power_push` — rolls **prod** onto a published tag.
+//! - `ship` — rolls **prod** onto a published tag.
 //! - `deploy` / `up` — pull the published images into the **local KIND**
 //!   cluster instead of building them on the host.
 //! - `worktree_env --demo` — pulls the full stack into a per-worktree

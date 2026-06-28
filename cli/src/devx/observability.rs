@@ -5,7 +5,7 @@
 //! [`examples/deploy/k8s/observability/README.md`]. Production is
 //! managed by direct `kubectl`/`gcloud` (no Config Sync, and the
 //! `navigator-otel-env` `ConfigMap` the deployment manifests `envFrom` is
-//! *not* part of any overlay `power-push` applies), so without this
+//! *not* part of any overlay `ship` applies), so without this
 //! command the collector never gets deployed and every binary's
 //! `OTEL_EXPORTER_OTLP_ENDPOINT` stays unset — telemetry silently never
 //! leaves the pod. `devx observability apply` closes that gap in one
@@ -24,11 +24,11 @@
 //!    `workflows-service` to `envFrom` the `navigator-otel-env` `ConfigMap`
 //!    so `OTEL_EXPORTER_OTLP_ENDPOINT` reaches `telemetry::init`. This is
 //!    a `kubectl patch` rather than an overlay edit because prod is
-//!    direct-`kubectl`-managed and `power-push` here is an image-only
+//!    direct-`kubectl`-managed and `ship` here is an image-only
 //!    push (no `NAVIGATOR_GKE_OVERLAY_DIR`).
 //!
 //! Everything per-deployment flows through the environment via the same
-//! [`PowerPushConfig`] `power-push` uses — there is no literal project
+//! [`ShipConfig`] `ship` uses — there is no literal project
 //! id, region, cluster, namespace, or context in this file.
 //!
 //! ## Testing
@@ -42,11 +42,11 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 
-use super::power_push::PowerPushConfig;
+use super::ship::ShipConfig;
 use super::{require_auth, require_tools, run};
 
 /// In-cluster Deployment + container names (workspace conventions, same
-/// as `power_push`). Each long-running binary gets the collector
+/// as `ship`). Each long-running binary gets the collector
 /// endpoint via `envFrom` the shared `ConfigMap`.
 const WEB_DEPLOYMENT: &str = "navigator-web";
 const WEB_CONTAINER: &str = "web";
@@ -94,7 +94,7 @@ pub struct ObservabilityOpts {
 
 /// Entry point for `Cmd::Observability`.
 pub fn run_observability(opts: ObservabilityOpts) -> Result<()> {
-    let cfg = PowerPushConfig::from_env()?;
+    let cfg = ShipConfig::from_env()?;
     require_tools(&["kubectl", "gcloud"])?;
     if !opts.dry_run {
         require_auth(&["gcloud"])?;
@@ -108,7 +108,7 @@ pub fn run_observability(opts: ObservabilityOpts) -> Result<()> {
     wire_binaries(&cfg, opts.dry_run)?;
     eprintln!(
         "==> observability ready. Roll the binaries so they pick up the endpoint \
-         (a `devx power-push` set-image, or `kubectl rollout restart`), then look for \
+         (a `devx ship` set-image, or `kubectl rollout restart`), then look for \
          traces in Cloud Trace + the `navigator.workflow.trigger.fired` metric."
     );
     Ok(())
@@ -118,7 +118,7 @@ pub fn run_observability(opts: ObservabilityOpts) -> Result<()> {
 /// telemetry-write roles, and is bound to the in-cluster KSA via Workload
 /// Identity. Every call is idempotent: the GSA is created only when absent
 /// (`describe` probe), and the IAM bindings are no-ops when already present.
-fn ensure_gsa_iam(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
+fn ensure_gsa_iam(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
     let gsa = gsa_email(&cfg.project_id);
     if gsa_exists(cfg, &gsa)? {
         eprintln!("==> GSA {gsa} already exists");
@@ -166,7 +166,7 @@ fn ensure_gsa_iam(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
 /// namespace). The collector config is in a `ConfigMap`, so a server-side
 /// apply can't catch a bad collector pipeline — the operator confirms the
 /// rollout settles afterward (this command waits on it).
-fn apply_manifests(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
+fn apply_manifests(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
     for (name, template) in [
         ("otel-collector.yaml", OTEL_COLLECTOR_YAML),
         ("collector-monitoring.yaml", COLLECTOR_MONITORING_YAML),
@@ -209,7 +209,7 @@ fn apply_manifests(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
 /// container `envFrom`s the `navigator-otel-env` `ConfigMap` (alongside the
 /// existing Secret). That supplies `OTEL_EXPORTER_OTLP_ENDPOINT`, which is
 /// what flips `telemetry::init` from stdout-only to JSON + OTLP export.
-fn wire_binaries(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
+fn wire_binaries(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
     for (deployment, container) in [
         (WEB_DEPLOYMENT, WEB_CONTAINER),
         (WORKFLOWS_DEPLOYMENT, WORKFLOWS_CONTAINER),
@@ -235,7 +235,7 @@ fn gsa_email(project_id: &str) -> String {
 /// True when the GSA already exists — `gcloud … describe` exits non-zero
 /// when it does not, which we map to "create it". Under `--dry-run` we
 /// assume absent so the create command is the one printed.
-fn gsa_exists(cfg: &PowerPushConfig, gsa: &str) -> Result<bool> {
+fn gsa_exists(cfg: &ShipConfig, gsa: &str) -> Result<bool> {
     let status = Command::new("gcloud")
         .args(["iam", "service-accounts", "describe", gsa])
         .arg(format!("--project={}", cfg.project_id))

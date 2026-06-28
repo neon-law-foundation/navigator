@@ -2874,7 +2874,7 @@ async fn nebula_certificate_submit(
 /// The headline field is `release`: the `YY.MM.DD` ghcr tag the daily
 /// `deploy.yml` published, baked into the image as `NAVIGATOR_RELEASE_TAG`.
 /// Under the ghcr model an image is pulled by that dated tag, so `release`
-/// is what a `power-push` rolls onto and what an operator pins — it is the
+/// is what a `ship` rolls onto and what an operator pins — it is the
 /// deploy's identity. The git fields stay alongside it for traceability:
 /// `images/Dockerfile.web` turns the `GIT_SHA`/`BUILD_TIME` build-args
 /// (set by CI to the released commit) into `NAVIGATOR_GIT_SHA` /

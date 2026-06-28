@@ -125,8 +125,8 @@ gitops PAT `secrets.GHCR_CLEANUP_PAT` (which must carry `contents:write` on the 
 `brew install neon-law-foundation/tap/navigator` always tracks the latest build. The published formulae are
 Apple-Silicon only, matching the single macOS binary the release builds. On success it posts a **"ready to deploy"**
 message to the engineering Slack channel (the prod ops incoming webhook, `secrets.SLACK_WEBHOOK_URL`, synced from
-Doppler), tagging Nick with the exact `power-push` command to roll the new images to prod; a failure on any stage posts
-a separate alert to the same channel, also tagging Nick. The images are published, **not** rolled out — see [Publish vs.
+Doppler), tagging Nick with the exact `ship` command to roll the new images to prod; a failure on any stage posts a
+separate alert to the same channel, also tagging Nick. The images are published, **not** rolled out — see [Publish vs.
 roll out](#publish-vs-roll-out) below.
 
 ### Maintenance flow — `cleanup.yml`
@@ -150,20 +150,20 @@ GCP credential, no cluster access, and no path to write to prod.
 ### The manual deploy
 
 When the **"ready to deploy"** Slack message lands (the green-deploy hand-off from `deploy.yml`), an operator rolls the
-published image onto the GKE cluster with `power-push` — this is the exact command the Slack message hands you, with the
-date filled in:
+published image onto the GKE cluster with `ship` — this is the exact command the Slack message hands you, with the date
+filled in:
 
 ```bash
 doppler run --project navigator --config prd -- \
-  cargo run --release -p cli -- power-push --tag YY.MM.DD
+  cargo run --release -p cli -- ship --tag YY.MM.DD
 ```
 
-`power-push` builds **nothing** — the images already exist from the tag flow. It resolves the published tag, confirms
-the prod Secret satisfies the new binary's boot invariants, pins **both** deployments (`navigator-web` and
-`workflows-service`) plus the trigger CronJobs to that tag, rolls them out together, and re-registers the worker with
-Restate. The full recipe — the pre-roll Secret check, the manifest-drift guard, and the no-rebuild restart path for a
-bare secret rotation — lives in [`cloud-operations.md`](cloud-operations.md). The cluster's pull-based, credential-free
-image delivery is documented in [`gke-prod.md`](gke-prod.md#trust-boundary).
+`ship` builds **nothing** — the images already exist from the tag flow. It takes the `--tag` you pass (it never guesses
+the latest), confirms the prod Secret satisfies the new binary's boot invariants, pins **both** deployments
+(`navigator-web` and `workflows-service`) plus the trigger CronJobs to that tag, rolls them out together, and
+re-registers the worker with Restate. The full recipe — the pre-roll Secret check, the manifest-drift guard, and the
+no-rebuild restart path for a bare secret rotation — lives in [`cloud-operations.md`](cloud-operations.md). The
+cluster's pull-based, credential-free image delivery is documented in [`gke-prod.md`](gke-prod.md#trust-boundary).
 
 Forks that run a GitOps controller (Config Sync, Argo CD, Flux) can let the controller reconcile the overlay instead of
-running `power-push` by hand; this repo's production roll is the manual `power-push` above.
+running `ship` by hand; this repo's production roll is the manual `ship` above.

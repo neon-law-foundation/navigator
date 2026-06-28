@@ -112,7 +112,7 @@ could replace this shell loop later; the loop is the source of truth until then.
 3. **Prod plumbing** — if it's a secret required in prod, add it to `secret-provider-class.yaml` (both blocks) and to
    `PROD_KEYS` above, then render. If it's a non-secret, add it to the `web-env.yaml` ConfigMap instead.
 4. **Boot invariant** — if the binary hard-requires it in prod (`web::config::enforce_prod_invariants`), the prod Secret
-   must carry it *before* the new image rolls or the pod crash-loops. `power-push` step 7b checks exactly this.
+   must carry it *before* the new image rolls or the pod crash-loops. `ship` step 7b checks exactly this.
 
 ## One-time `prd` backfill from the live cluster
 

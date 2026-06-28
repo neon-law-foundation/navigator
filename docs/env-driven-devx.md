@@ -9,7 +9,7 @@ env-driven surface, so one tool serves three audiences from one config file:
    today's exact behavior.
 2. **GCP dev** — the same operator runs `navigator gcp setup` / `deploy` against a real project, values from `.env`.
 3. **OSS / multi-cloud forks** — a fork plugs its own cluster, namespace, overlay, and ports into `.env` and runs the
-   same `navigator` CLI with no Rust edits, mirroring the `power-push` promise that "nothing is hard-coded."
+   same `navigator` CLI with no Rust edits, mirroring the `ship` promise that "nothing is hard-coded."
 
 The Council of Twelve review shaped this design; its findings are folded in below.
 

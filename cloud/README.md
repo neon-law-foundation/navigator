@@ -82,7 +82,7 @@ project id flows through `.env`. The five suffixes and who owns each:
 | Documents | `-documents` | Private client PDFs (`notations/<id>/…`) + `blobs/<sha>` | `NAVIGATOR_DOCUMENTS_BUCKET` |
 | Exports | `-exports` | Archives snapshots (Parquet / Iceberg) | `NAVIGATOR_STORAGE_BUCKET` |
 | Logs | `-logs` | Log sink (Nearline) | — (sink config) |
-| Source | `-source` | legacy git-bundle archive (power-push no longer writes it) | — (`gcloud storage cp`) |
+| Source | `-source` | legacy git-bundle archive (ship no longer writes it) | — (`gcloud storage cp`) |
 
 Every bucket except `-assets` is private. The `cloud` crate only ever opens the **documents** and **exports** buckets at
 runtime; assets is write-only via `cli assets upload`, and logs/source are managed outside the `StorageService` seam.
@@ -193,7 +193,7 @@ image for the nightly CronJob.
 
 ```bash
 # 1. Roll workflows-service onto the latest published image (it now hosts the
-#    Archives workflow). Use the power-push runbook; ensure the storage env
+#    Archives workflow). Use the ship runbook; ensure the storage env
 #    (NAVIGATOR_STORAGE_BUCKET=YOUR_PROJECT_ID-exports) is on the Deployment so
 #    the snapshot phase can write Parquet. Re-register with Restate after the roll.
 
