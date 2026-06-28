@@ -1244,9 +1244,15 @@ async fn foundation_nimbus_renders_the_install_product_under_foundation_brand() 
     // Foundation chrome + inbox, never the firm Services dropdown.
     assert!(body.contains("mailto:support@neonlaw.org"));
     assert!(!body.contains(">Services</summary>"));
-    // The flat fee and the legal-aid discount both surface as pricing cards.
+    // The flat fee and the legal-aid discount both surface as pricing cards;
+    // the featured band reads "Once, flat" (the fee is paid a single time).
     assert!(body.contains("$11,111"));
+    assert!(body.contains("Once, flat"));
     assert!(body.contains("Legal aid centers"));
+    // `hero_scene: clouds` swaps the hero's moving grid for the drifting
+    // cloud field (Nimbus, the cloud install) — and drops the grid layer.
+    assert!(body.contains("product-hero__clouds"));
+    assert!(!body.contains("product-hero__grid"));
     // English-only: no Spanish switcher pointing at a non-existent /es twin.
     assert!(!body.contains("href=\"/es/foundation/nimbus\""));
 }
