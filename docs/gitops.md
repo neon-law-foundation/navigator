@@ -52,6 +52,10 @@ inherit this.
 > `contents: write` + `pull_requests: write`. Until both exist the step is skipped and the job falls back to
 > `GITHUB_TOKEN` — which enables auto-merge but does not reliably enqueue, so the first PR after each fresh setup may
 > need a one-time manual nudge (`gh pr merge <n>` as a real user).
+>
+> One wrinkle: a Dependabot-opened PR runs with the **Dependabot** secret store, not the Actions one, so the same two
+> App secrets must also be set there or the bump PR enables auto-merge but never enqueues. NeonLaw mirrors them once;
+> forks consume the published GHCR image and never hit this.
 
 ### TDD and the pre-commit gate
 
