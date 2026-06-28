@@ -26,11 +26,11 @@ estos tres principios:
 2. **Escribir Markdown en lugar de Word**. Cuando el texto legal se razona como si fuera código, podemos aprovechar
    herramientas de desarrollo como git, editores de código, [LSP](/foundation/navigator/lsp),
    [CLI](/foundation/navigator/cli) y [MCP](/foundation/navigator/mcp) para *brindar acceso a la justicia*.
-3. **Compartir lo que aprendemos mediante Nebula**. Nada de esto importa si no ayudamos a los abogados a atender a más
-   clientes. Nebula es donde compartimos talleres, muestras prácticas y presentaciones para ayudar a los abogados a
-   adoptar el Neon Law Navigator y adaptarlo a su práctica, y así *aumentar el acceso a la justicia*. Si usted
-   representa a una organización de asistencia legal interesada, le ofreceremos capacitación gratuita sobre el uso de
-   [Neon Law Navigator][navigator-workshop].
+3. **Compartir lo que aprendemos**. Nada de esto importa si no ayudamos a los abogados a atender a más clientes.
+   Compartimos talleres, muestras prácticas y presentaciones para ayudar a los abogados a adoptar el Neon Law Navigator
+   y adaptarlo a su práctica, y así *aumentar el acceso a la justicia*. Conozca más en [Neon Law
+   Nebula](/foundation/nebula), nuestro portal de educación y eventos. Si usted representa a una organización de
+   asistencia legal interesada, le ofreceremos capacitación gratuita sobre [Neon Law Navigator][navigator-workshop].
 
 [navigator-repo]: <https://github.com/neon-law-foundation/navigator>
 
