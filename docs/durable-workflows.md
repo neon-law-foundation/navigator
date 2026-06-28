@@ -127,9 +127,9 @@ curl -s -X POST "$ADMIN/deployments" -H "Authorization: Bearer $TOK" \
 The `restate` CLI is configured for the env but may report "Unable to connect" to `:9070` even when the host is
 reachable; the admin REST API above works directly with the same SSO token.
 
-### How `power-push` re-registers (step 7d)
+### How `ship` re-registers (step 7d)
 
-After rolling both deployments, `power-push` re-registers the worker so any handler added since the last registration is
+After rolling both deployments, `ship` re-registers the worker so any handler added since the last registration is
 reachable. Two design points:
 
 - **It targets the real worker URL, not the placeholder.** The `navigator` CLI resolves the register target in

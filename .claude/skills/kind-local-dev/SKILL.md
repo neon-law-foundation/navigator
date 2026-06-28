@@ -79,7 +79,7 @@ The local loop **pulls** the images CI published to ghcr — it no longer builds
 
 - `docker pull ghcr.io/<owner>/navigator-web:<tag>` selects the host-arch variant; the resolved tag is
   `NAVIGATOR_IMAGE_TAG` if set, else the latest published `YY.MM.DD` (resolved via `devx::ghcr`, the same module
-  power-push uses).
+  ship uses).
 - The pulled image is **retagged to `navigator-web:dev`** — the name the manifests reference — so the overlays stay
   byte-identical whether an image was historically built or is now pulled.
 - `kind load docker-image navigator-web:dev --name navigator` pushes it into the cluster (KIND does **not** pull from a

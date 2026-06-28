@@ -280,9 +280,8 @@ curl -fsS https://www.your-domain.example/version   # {"release":"YY.MM.DD","com
 hand, and a `/version` endpoint whose `release` field is the very same `YY.MM.DD` the footer shows. A `200` on `/readyz`
 means the same stack our firm runs is now answering on your own cloud, and the `release` field — identical to the footer
 line — tells you which dated image landed, so every push is verifiable without shelling into a pod. (NeonLaw's own ship
-step is wrapped in a one-shot `power-push` helper that resolves the latest published tag and rolls both deployments onto
-it in a single command — handy, but NeonLaw-specific; the generic `kubectl apply` above is all the deploy actually
-requires.)
+step is wrapped in a one-shot `ship` helper that rolls both deployments onto a named published tag (you pass `--tag`) in
+a single command — handy, but NeonLaw-specific; the generic `kubectl apply` above is all the deploy actually requires.)
 
 ## Drive it from the CLI
 

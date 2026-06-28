@@ -9,7 +9,7 @@ The crate is split into a long-running worker and a thin trigger:
 - the `Archives` Restate service (`serve`) is compiled into and hosted by `workflows-service` — there is no separate
   archives pod;
 - `src/bin/trigger.rs` is the thin `trigger` binary the nightly `CronJob` runs to start one invocation, shipped as the
-  `navigator-archives-trigger` image (see the [`power-push`](../docs/cloud-operations.md) trigger-image note).
+  `navigator-archives-trigger` image (see the [`ship`](../docs/cloud-operations.md) trigger-image note).
 
 Each phase is a durable `ctx.run(...)` step, so Restate owns retries and partial-failure recovery.
 

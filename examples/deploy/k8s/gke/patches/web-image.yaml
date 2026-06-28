@@ -2,7 +2,7 @@
 # tag flow in `.github/workflows/deploy.yml` builds `main` HEAD and
 # publishes to `ghcr.io/neon-law-foundation/navigator-web:YY.MM.DD` (the
 # release date) + `latest`. Pin the dated `YY.MM.DD` tag here — never
-# `:latest` on a workload — and `navigator power-push` (or a hand-bump
+# `:latest` on a workload — and `navigator ship` (or a hand-bump
 # that Config Sync rolls forward on the next 15s tick) moves it. A fork
 # swaps `neon-law-foundation` for its own org; the public packages pull
 # anonymously, so no imagePullSecret is needed.

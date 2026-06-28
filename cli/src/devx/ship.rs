@@ -1,4 +1,4 @@
-//! `devx power-push` — one-shot "roll prod onto today's image".
+//! `devx ship` — one-shot "roll prod onto today's image".
 //!
 //! This is the deterministic, in-binary form of the production rollout
 //! path documented in `docs/cloud-operations.md`. That public doc keeps
@@ -6,7 +6,7 @@
 //! the executable that runs the steps so an operator types one command
 //! instead of pasting several shell blocks.
 //!
-//! **CI builds and publishes; power-push only rolls.** The daily
+//! **CI builds and publishes; ship only rolls.** The daily
 //! `deploy.yml` tag flow builds both images and publishes them to
 //! public `ghcr.io` tagged `YY.MM.DD`; this module never builds or
 //! pushes an image — it pins the running cluster to an
@@ -14,8 +14,8 @@
 //!
 //! Two flows, matching the documented rollout path:
 //!
-//! - **Roll** (default): resolve the `YY.MM.DD` ghcr tag to deploy (the
-//!   latest published, or `--tag`) → confirm the prod Secret satisfies
+//! - **Roll** (default): take the `YY.MM.DD` ghcr tag to deploy (required
+//!   `--tag`) → confirm the prod Secret satisfies
 //!   the new binary's boot invariants → roll out BOTH deployments at
 //!   that tag → re-register the worker with Restate. Both deployments
 //!   are pinned to the **same** tag — never a version skew.
@@ -26,11 +26,11 @@
 //!
 //! Everything that varies per deployment flows through `.env` — there
 //! is no literal project ID, region, domain, or ghcr owner in this file
-//! (same contract as `docs/env-driven-devx.md`). See [`PowerPushConfig::from_env`].
+//! (same contract as `docs/env-driven-devx.md`). See [`ShipConfig::from_env`].
 //!
 //! ## What this does NOT do
 //!
-//! - It never builds or pushes images. CI owns that; power-push rolls a
+//! - It never builds or pushes images. CI owns that; ship rolls a
 //!   tag CI already published. The public GitHub `YY.MM.DD` tag is the
 //!   source restore point, so there is no git-bundle archive step.
 //! - It never auto-patches a prod Secret. The invariant check *aborts*
@@ -42,8 +42,8 @@
 //!
 //! The shell-out orchestration needs a real cluster, so it isn't
 //! unit-tested. The pure pieces — env-driven config, the ghcr image-URL
-//! formulas, the latest-tag selector, the required-key parser, and the
-//! missing-key diff — are covered by the `tests` module below.
+//! formulas, the required-key parser, and the missing-key diff — are
+//! covered by the `tests` module below.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -62,12 +62,12 @@ const WEB_CONTAINER: &str = "web";
 const WORKFLOWS_DEPLOYMENT: &str = "workflows-service";
 const WORKFLOWS_CONTAINER: &str = "worker";
 
-/// Every per-deployment value `power-push` reads, resolved once from
+/// Every per-deployment value `ship` reads, resolved once from
 /// the environment. Required values bail when unset (fail fast — never
 /// substitute a project-internal default). Optional values fall back
 /// to a documented workspace default or to `None`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PowerPushConfig {
+pub struct ShipConfig {
     /// Target GCP project ID (`NAVIGATOR_GCP_PROJECT_ID`). Used to
     /// derive the `kubectl` context.
     pub project_id: String,
@@ -105,7 +105,7 @@ pub struct PowerPushConfig {
     pub context: String,
 }
 
-impl PowerPushConfig {
+impl ShipConfig {
     /// Resolve every value from the environment (`.env` is already
     /// loaded by `main()` via `dotenvy`). Bails on the first missing
     /// required var with a message naming it.
@@ -139,7 +139,7 @@ impl PowerPushConfig {
     }
 
     /// ghcr registry prefix — `ghcr.io/<owner>`. CI publishes every
-    /// image under this owner; power-push rolls the cluster onto them.
+    /// image under this owner; ship rolls the cluster onto them.
     #[must_use]
     pub fn registry(&self) -> String {
         format!("ghcr.io/{}", self.ghcr_owner)
@@ -187,7 +187,7 @@ fn derived_context(project_id: &str, location: &str, cluster: &str) -> String {
 fn required_env(key: &str) -> Result<String> {
     match std::env::var(key) {
         Ok(v) if !v.trim().is_empty() => Ok(v),
-        _ => bail!("{key} must be set in .env for `devx power-push`"),
+        _ => bail!("{key} must be set in .env for `devx ship`"),
     }
 }
 
@@ -297,22 +297,23 @@ pub fn missing_keys(required: &[String], satisfied: &BTreeSet<String>) -> Vec<St
 
 // ---------- orchestration (shell-out; not unit-tested) ----------
 
-/// Options parsed from the `devx power-push` flags.
+/// Options parsed from the `devx ship` flags.
 #[derive(Debug, Clone, Default)]
-pub struct PowerPushOpts {
+pub struct ShipOpts {
     /// Print every command instead of running it.
     pub dry_run: bool,
     /// No-rebuild path: just `kubectl rollout restart` both
     /// deployments (Secret-value rotation), then exit.
     pub restart_only: bool,
-    /// The `YY.MM.DD[.HH]` ghcr tag to roll onto. `None` resolves the
-    /// latest published tag from ghcr.
+    /// The `YY.MM.DD[.HH]` ghcr tag to roll onto. Required for a roll —
+    /// `None` is rejected (we never guess the latest tag); only the
+    /// `--restart-only` path, which changes no image, runs without it.
     pub tag: Option<String>,
 }
 
-/// Entry point for `Cmd::PowerPush`.
-pub fn run_power_push(opts: &PowerPushOpts) -> Result<()> {
-    let cfg = PowerPushConfig::from_env()?;
+/// Entry point for `Cmd::Ship`.
+pub fn run_ship(opts: &ShipOpts) -> Result<()> {
+    let cfg = ShipConfig::from_env()?;
     if opts.restart_only {
         return restart_only(&cfg, opts.dry_run);
     }
@@ -322,7 +323,7 @@ pub fn run_power_push(opts: &PowerPushOpts) -> Result<()> {
 /// The no-rebuild push: restart both deployments so the pods re-read a
 /// rotated Secret value. Pods cache `envFrom` at start and never
 /// reload, so a rotation is invisible until the pod is recreated.
-fn restart_only(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
+fn restart_only(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
     require_tools(&["kubectl"])?;
     require_auth(&["gcloud"])?;
     verify_context(cfg, dry_run)?;
@@ -349,7 +350,7 @@ fn restart_only(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
 /// invariants → pin BOTH deployments AND every trigger `CronJob` to that
 /// tag → wait → re-register the worker with Restate → smoke-check. No
 /// build, no push, no skew — every navigator image in sync at one tag.
-fn roll(cfg: &PowerPushConfig, opts: &PowerPushOpts) -> Result<()> {
+fn roll(cfg: &ShipConfig, opts: &ShipOpts) -> Result<()> {
     require_tools(&["kubectl"])?;
     // Authenticated, not just installed: gcloud carries the GKE
     // credentials the pinned kubectl context resolves against. Restate
@@ -361,15 +362,18 @@ fn roll(cfg: &PowerPushConfig, opts: &PowerPushOpts) -> Result<()> {
     // 1. Pre-flight — confirm the prod context resolves before any call.
     verify_context(cfg, dry_run)?;
 
-    // 2. Resolve the YY.MM.DD tag to roll: explicit `--tag`, else the
-    //    latest published tag on ghcr. Both deployments get the SAME tag.
-    let tag = match &opts.tag {
-        Some(t) => {
-            ghcr::validate_release_tag(t)?;
-            t.clone()
-        }
-        None => resolve_latest_tag(cfg, dry_run)?,
+    // 2. The YY.MM.DD[.HH] tag to roll — always an explicit `--tag`, so the
+    //    operator names the exact published release rather than letting the
+    //    roll guess. Both deployments get the SAME tag.
+    let Some(tag) = opts.tag.as_deref() else {
+        bail!(
+            "`--tag YY.MM.DD` is required: name the published release to roll onto. \
+             We never guess the latest tag; pass the tag from the deploy hand-off \
+             (or use `--restart-only` to re-read a rotated Secret without changing the image)."
+        );
     };
+    ghcr::validate_release_tag(tag)?;
+    let tag = tag.to_string();
     let web_remote = cfg.web_image(&tag);
     let workflows_remote = cfg.workflows_image(&tag);
     eprintln!(
@@ -379,14 +383,11 @@ fn roll(cfg: &PowerPushConfig, opts: &PowerPushOpts) -> Result<()> {
 
     // 2b. Fail fast if the two service images aren't actually published at
     //     this tag — pinning a deployment to a missing tag wedges it in
-    //     ImagePullBackOff. Verify on every live run, regardless of how the
-    //     tag was chosen: the auto-resolve path picks the latest tag from
-    //     navigator-web alone, so without this the workflows-service image is
-    //     never checked, and a partial CI publish (web tag lands, the
+    //     ImagePullBackOff. A partial CI publish (the web tag lands but the
     //     workflows-service publish leg fails — they run as a fail-fast:false
-    //     matrix) would still roll workflows-service onto a missing tag.
-    //     Skipped only in dry-run, where `resolve_latest_tag` returns a
-    //     placeholder with nothing to verify against.
+    //     matrix) would otherwise roll workflows-service onto a missing tag,
+    //     so verify BOTH images on every live run. Skipped in dry-run, which
+    //     makes no network calls.
     if !dry_run {
         ghcr::ensure_tag_published(&cfg.ghcr_owner, "navigator-web", &tag)?;
         ghcr::ensure_tag_published(&cfg.ghcr_owner, "navigator-workflows-service", &tag)?;
@@ -430,7 +431,7 @@ fn roll(cfg: &PowerPushConfig, opts: &PowerPushOpts) -> Result<()> {
     // 7. Smoke-check the public surface (best-effort).
     smoke_check(cfg, dry_run);
 
-    eprintln!("==> power-push complete: {tag} live in {}", cfg.project_id);
+    eprintln!("==> ship complete: {tag} live in {}", cfg.project_id);
     Ok(())
 }
 
@@ -441,7 +442,7 @@ fn roll(cfg: &PowerPushConfig, opts: &PowerPushOpts) -> Result<()> {
 /// re-pinned only after confirming `tag` is actually published for it;
 /// a trigger whose image hasn't published `tag` yet is skipped with a
 /// warning rather than wedged in `ImagePullBackOff`.
-fn pin_cronjob_images(cfg: &PowerPushConfig, tag: &str, dry_run: bool) -> Result<()> {
+fn pin_cronjob_images(cfg: &ShipConfig, tag: &str, dry_run: bool) -> Result<()> {
     let prefix = format!("{}/", cfg.registry());
     if dry_run {
         eprintln!("DRY-RUN: would re-pin every {prefix}navigator-* CronJob image to {tag}");
@@ -482,7 +483,7 @@ fn pin_cronjob_images(cfg: &PowerPushConfig, tag: &str, dry_run: bool) -> Result
             if ghcr::tag_exists(&cfg.ghcr_owner, short, tag) {
                 let target = format!("{base}:{tag}");
                 exec(
-                    false,
+                    dry_run,
                     kubectl(cfg)
                         .arg("set")
                         .arg("image")
@@ -501,26 +502,10 @@ fn pin_cronjob_images(cfg: &PowerPushConfig, tag: &str, dry_run: bool) -> Result
     Ok(())
 }
 
-/// Resolve the latest published `YY.MM.DD[.HH]` tag from ghcr. In
-/// `--dry-run` we don't touch the network — print a placeholder so the
-/// planned `set image` commands still render. Delegates the real
-/// resolution to the shared [`ghcr`] module so power-push, `deploy`, and
-/// `worktree-env --demo` all pick the same tag the same way.
-fn resolve_latest_tag(cfg: &PowerPushConfig, dry_run: bool) -> Result<String> {
-    if dry_run {
-        eprintln!(
-            "DRY-RUN: would resolve the latest YY.MM.DD[.HH] tag from ghcr.io/{}/navigator-web",
-            cfg.ghcr_owner
-        );
-        return Ok("<latest-ghcr-tag>".to_string());
-    }
-    ghcr::resolve_latest_tag(&cfg.ghcr_owner, "navigator-web")
-}
-
 /// 7a — `kubectl diff` (surface drift) then `kubectl apply` the
 /// overlay, only when `NAVIGATOR_GKE_OVERLAY_DIR` is set. On `GitOps`
 /// (no overlay dir) the controller reconciles continuously; skip.
-fn sync_overlay(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
+fn sync_overlay(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
     let Some(overlay) = cfg.overlay_dir.as_deref() else {
         eprintln!(
             "==> no NAVIGATOR_GKE_OVERLAY_DIR set; image-only push (skipping manifest apply)"
@@ -542,7 +527,7 @@ fn sync_overlay(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
 /// new pod at boot (`enforce_prod_invariants`), so catching it here
 /// beats a silently-stalled rollout. We never auto-patch: print the
 /// exact `kubectl patch` and stop.
-fn ensure_secret_invariants(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
+fn ensure_secret_invariants(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
     if dry_run {
         eprintln!(
             "DRY-RUN: would diff required keys (web/src/config.rs) vs Secret + Deployment env"
@@ -577,7 +562,7 @@ fn ensure_secret_invariants(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> 
         "the new binary requires keys absent from both the `{secret}` Secret and the \
          Deployment env: {missing:?}\n\
          A missing key crash-loops the new pod at boot. Add each (value never transits \
-         logs) before re-running power-push, e.g.:\n  \
+         logs) before re-running ship, e.g.:\n  \
          kubectl --context {ctx} -n {ns} patch secret {secret} --type=merge \\\n    \
          -p '{{\"stringData\":{{\"{first}\":\"<value>\"}}}}'\n\
          (Keys provided as deployment env — e.g. NAVIGATOR_OPA_URL — belong in the overlay \
@@ -590,7 +575,7 @@ fn ensure_secret_invariants(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> 
 }
 
 /// The data keys carried by the prod Secret.
-fn secret_data_keys(cfg: &PowerPushConfig) -> Result<BTreeSet<String>> {
+fn secret_data_keys(cfg: &ShipConfig) -> Result<BTreeSet<String>> {
     let json = kubectl_json(cfg, "secret", &cfg.secret_name)?;
     Ok(json
         .get("data")
@@ -600,7 +585,7 @@ fn secret_data_keys(cfg: &PowerPushConfig) -> Result<BTreeSet<String>> {
 }
 
 /// The env-var names declared by every container in a Deployment.
-fn deployment_env_names(cfg: &PowerPushConfig, deployment: &str) -> Result<BTreeSet<String>> {
+fn deployment_env_names(cfg: &ShipConfig, deployment: &str) -> Result<BTreeSet<String>> {
     let json = kubectl_json(cfg, "deployment", deployment)?;
     let mut names = BTreeSet::new();
     if let Some(containers) = json
@@ -624,7 +609,7 @@ fn deployment_env_names(cfg: &PowerPushConfig, deployment: &str) -> Result<BTree
 /// the last registration is reachable. Best-effort: a missing CLI or a
 /// registration error warns rather than failing the ship (forks not on
 /// Restate Cloud, expired SSO token, etc.).
-fn reregister(cfg: &PowerPushConfig, dry_run: bool) {
+fn reregister(cfg: &ShipConfig, dry_run: bool) {
     let url = cfg.workflows_url_resolved();
     if dry_run {
         eprintln!(
@@ -656,7 +641,7 @@ fn reregister(cfg: &PowerPushConfig, dry_run: bool) {
 
 /// 8 — curl the public landing and grep a fixed phrase. Best-effort:
 /// reports, never fails the ship.
-fn smoke_check(cfg: &PowerPushConfig, dry_run: bool) {
+fn smoke_check(cfg: &ShipConfig, dry_run: bool) {
     let url = format!("https://www.{}/", cfg.primary_domain);
     if dry_run {
         eprintln!("DRY-RUN: would smoke-check {url}");
@@ -690,7 +675,7 @@ fn smoke_check(cfg: &PowerPushConfig, dry_run: bool) {
 // ---------- small shared helpers ----------
 
 /// A `kubectl` invocation pinned to the prod context and namespace.
-fn kubectl(cfg: &PowerPushConfig) -> Command {
+fn kubectl(cfg: &ShipConfig) -> Command {
     let mut cmd = kubectl_ctx(cfg);
     cmd.arg("-n").arg(&cfg.namespace);
     cmd
@@ -698,14 +683,14 @@ fn kubectl(cfg: &PowerPushConfig) -> Command {
 
 /// A `kubectl` invocation pinned to the prod context only (for the
 /// kustomize `diff`/`apply`, which carry their own namespaces).
-fn kubectl_ctx(cfg: &PowerPushConfig) -> Command {
+fn kubectl_ctx(cfg: &ShipConfig) -> Command {
     let mut cmd = Command::new("kubectl");
     cmd.arg("--context").arg(&cfg.context);
     cmd
 }
 
 /// `kubectl get <kind> <name> -o json`, parsed.
-fn kubectl_json(cfg: &PowerPushConfig, kind: &str, name: &str) -> Result<serde_json::Value> {
+fn kubectl_json(cfg: &ShipConfig, kind: &str, name: &str) -> Result<serde_json::Value> {
     let out = kubectl(cfg)
         .arg("get")
         .arg(kind)
@@ -726,7 +711,7 @@ fn kubectl_json(cfg: &PowerPushConfig, kind: &str, name: &str) -> Result<serde_j
 
 /// `kubectl get <kind> -o json` for a whole collection (no name), parsed.
 /// The result is a `List` whose `items` array the caller walks.
-fn kubectl_list_json(cfg: &PowerPushConfig, kind: &str) -> Result<serde_json::Value> {
+fn kubectl_list_json(cfg: &ShipConfig, kind: &str) -> Result<serde_json::Value> {
     let out = kubectl(cfg)
         .arg("get")
         .arg(kind)
@@ -745,7 +730,7 @@ fn kubectl_list_json(cfg: &PowerPushConfig, kind: &str) -> Result<serde_json::Va
 }
 
 /// Wait on both Deployments' rollouts at the given timeout.
-fn wait_rollouts(cfg: &PowerPushConfig, dry_run: bool, timeout: &str) -> Result<()> {
+fn wait_rollouts(cfg: &ShipConfig, dry_run: bool, timeout: &str) -> Result<()> {
     for deployment in [WEB_DEPLOYMENT, WORKFLOWS_DEPLOYMENT] {
         exec(
             dry_run,
@@ -762,7 +747,7 @@ fn wait_rollouts(cfg: &PowerPushConfig, dry_run: bool, timeout: &str) -> Result<
 /// Confirm the resolved `kubectl` context exists before any prod call.
 /// A deterministic ship must not silently land on whatever context
 /// happens to be current.
-fn verify_context(cfg: &PowerPushConfig, dry_run: bool) -> Result<()> {
+fn verify_context(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
     if dry_run {
         eprintln!("DRY-RUN: would pin kubectl context → {}", cfg.context);
         return Ok(());
@@ -826,8 +811,8 @@ fn render_cmd(cmd: &Command) -> String {
 mod tests {
     use super::*;
 
-    fn sample_config() -> PowerPushConfig {
-        PowerPushConfig {
+    fn sample_config() -> ShipConfig {
+        ShipConfig {
             project_id: "my-org-prod".into(),
             location: "us-west4".into(),
             cluster: "navigator".into(),
@@ -861,7 +846,7 @@ mod tests {
         // explicit URL is not. The resolved URL must be the real
         // ingress derived from the domain, never the
         // `workflows.example.com` placeholder.
-        let cfg = PowerPushConfig {
+        let cfg = ShipConfig {
             primary_domain: "neonlaw.com".into(),
             workflows_url: None,
             ..sample_config()
@@ -874,7 +859,7 @@ mod tests {
 
     #[test]
     fn workflows_url_prefers_explicit_override() {
-        let cfg = PowerPushConfig {
+        let cfg = ShipConfig {
             workflows_url: Some("https://workflows.neonlaw.com/".into()),
             ..sample_config()
         };

@@ -14,9 +14,8 @@ SendGrid, Kubernetes, and `web::agent_router::AgentRouter`.
   [`test-database.md`](test-database.md).
 - **GCP REST setup** — source of truth: [`oss-install.md`](oss-install.md), this page, and
   `cli/src/devx/gcp/` module docs.
-- **GKE production** — source of truth: [`gke-prod.md`](gke-prod.md) and [`gitops.md`](gitops.md). **Power-push** —
-  source of truth: [`gke-prod.md`](gke-prod.md) and
-  [`deploy/gke-power-push-example.md`](deploy/gke-power-push-example.md).
+- **GKE production** — source of truth: [`gke-prod.md`](gke-prod.md) and [`gitops.md`](gitops.md). **Ship** — source of
+  truth: [`gke-prod.md`](gke-prod.md) and [`deploy/gke-ship-example.md`](deploy/gke-ship-example.md).
 - **GCP spend** — source of truth: this page. **Prod DB access** — source of truth: this page. **Observability/LGTM** —
   source of truth: [`observability.md`](observability.md) and [`durable-workflows.md`](durable-workflows.md).
 - **OIDC/OPA/Keycloak** — source of truth: [`oidc.md`](oidc.md), [`access-model.md`](access-model.md), and
@@ -147,5 +146,5 @@ Good next steps for the website:
   "For agents" section on `/navigator` linking to [`agent-decision-councils.md`](agent-decision-councils.md), this page,
   [`access-model.md`](access-model.md), [`glossary.md`](glossary.md), and [`RUNBOOK.md`](RUNBOOK.md).
 - Keep top-level docs concise and push long command transcripts into examples such as
-  [`deploy/gke-power-push-example.md`](deploy/gke-power-push-example.md).
+  [`deploy/gke-ship-example.md`](deploy/gke-ship-example.md).
 - Keep public docs as the source of truth. If an invariant matters, lift it into `docs/`.
