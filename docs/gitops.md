@@ -63,8 +63,8 @@ App ID never changes):
 
 ```bash
 gh secret set AUTOMERGE_APP_ID --app dependabot --body "$(doppler secrets get AUTOMERGE_APP_ID \
-  --plain --project navigator --config navigator-gitops)"
-doppler secrets get AUTOMERGE_APP_PRIVATE_KEY --plain --project navigator --config navigator-gitops \
+  --plain --project navigator-gitops --config prd)"
+doppler secrets get AUTOMERGE_APP_PRIVATE_KEY --plain --project navigator-gitops --config prd \
   | gh secret set AUTOMERGE_APP_PRIVATE_KEY --app dependabot
 ```
 
