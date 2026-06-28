@@ -7,8 +7,8 @@ questionnaire:
   BEGIN:
     _: annual_or_amended
   annual_or_amended:
-    _: managers_list
-  managers_list:
+    _: people__managers
+  people__managers:
     _: END
   END: {}
 workflow:
@@ -22,5 +22,5 @@ workflow:
 ---
 
 Annual List for `{{entity_name}}`, filed with the Nevada Secretary of State for the period ending
-`{{annual_or_amended}}`. The current managers and members of the company are: `{{managers_list}}`. The registered agent
-remains the one of record unless updated by a separate filing.
+`{{annual_or_amended}}`. The current managers and members of the company are: `{{people__managers}}`. The registered
+agent remains the one of record unless updated by a separate filing.

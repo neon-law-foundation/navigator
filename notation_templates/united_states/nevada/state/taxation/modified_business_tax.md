@@ -5,12 +5,14 @@ code: nv_state_tax_filing__modified_business_tax
 confidential: true
 questionnaire:
   BEGIN:
-    _: tax_year
-  tax_year:
-    _: gross_revenue
-  gross_revenue:
+    _: datetime__tax_year
+  datetime__tax_year:
+    _: custom_usd__gross_revenue
+  custom_usd__gross_revenue:
     _: END
   END: {}
+prompts:
+  gross_revenue: What is the gross revenue?
 workflow:
   BEGIN:
     _: member_signatures
@@ -23,6 +25,6 @@ workflow:
   END: {}
 ---
 
-Nevada Modified Business Tax Return for `{{entity_name}}` covering tax year `{{tax_year}}`. Total Nevada gross revenue
-for the period is `{{gross_revenue}}`. The signing member certifies under penalty of perjury that this return is true,
-correct, and complete to the best of their knowledge.
+Nevada Modified Business Tax Return for `{{entity_name}}` covering tax year `{{datetime__tax_year}}`. Total Nevada gross
+revenue for the period is `{{custom_usd__gross_revenue}}`. The signing member certifies under penalty of perjury that
+this return is true, correct, and complete to the best of their knowledge.

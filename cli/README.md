@@ -27,7 +27,7 @@ Subcommands split by whether they need a database:
 
 | Subcommand       | Needs DB? | Notes                                                                      |
 | ---------------- | --------- | -------------------------------------------------------------------------- |
-| `validate`       | no        | N104 runs in structural mode only.                                         |
+| `validate`       | no        | N104 checks questionnaire codes against the canonical question seed list.  |
 | `render`         | no        | Validation-gated template → PDF; `--format letter`.                        |
 | `format`         | no        | Whitespace + bullet cleanup on one `.md`.                                  |
 | `glossary`       | no        | Looks up workspace vocabulary by term.                                     |

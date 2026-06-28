@@ -22,7 +22,7 @@ There is no CI example to copy: a fork inherits the canonical
 [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml), which builds every image and publishes it to that
 fork's own `ghcr.io` (the publish job derives the owner from `${{ github.repository_owner }}`) tagged `YY.MM.DD` +
 `latest`. Make those packages public so the cluster pulls them anonymously, then pin the dated tag in your overlay (or
-roll it with `navigator power-push`).
+roll it with `navigator ship`).
 
 ## Placeholder contract
 

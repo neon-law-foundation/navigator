@@ -54,6 +54,8 @@ pub enum FieldKind<'a> {
         input_type: &'a str,
         value: &'a str,
         placeholder: Option<&'a str>,
+        prefix: Option<&'a str>,
+        step: Option<&'a str>,
     },
     /// Multi-line `<textarea>`.
     Textarea { value: &'a str, rows: u8 },
@@ -125,6 +127,8 @@ impl<'a> Field<'a> {
                 input_type,
                 value,
                 placeholder: None,
+                prefix: None,
+                step: None,
             },
         )
     }
@@ -185,6 +189,24 @@ impl<'a> Field<'a> {
         self
     }
 
+    /// Render a short text prefix inside a Bootstrap input group.
+    #[must_use]
+    pub fn prefix(mut self, prefix: &'a str) -> Self {
+        if let FieldKind::Input { prefix: p, .. } = &mut self.kind {
+            *p = Some(prefix);
+        }
+        self
+    }
+
+    /// Set the numeric `step` increment (no-op on non-`Input` kinds).
+    #[must_use]
+    pub fn step(mut self, step: &'a str) -> Self {
+        if let FieldKind::Input { step: s, .. } = &mut self.kind {
+            *s = Some(step);
+        }
+        self
+    }
+
     /// Render the `<select>` disabled (no-op on non-`Select` kinds).
     #[must_use]
     pub fn disabled(mut self) -> Self {
@@ -230,12 +252,23 @@ impl<'a> Field<'a> {
                 input_type,
                 value,
                 placeholder,
+                prefix,
+                step,
             } => html! {
                 div."mb-3" {
                     label."form-label" for=(self.name) { (self.label) (required_mark) }
-                    input."form-control" type=(input_type) id=(self.name) name=(self.name)
-                        value=(value) placeholder=[*placeholder] required[self.required]
-                        aria-describedby=[described_by] autofocus[autofocus];
+                    @if let Some(prefix) = prefix {
+                        div."input-group" {
+                            span."input-group-text" { (prefix) }
+                            input."form-control" type=(input_type) id=(self.name) name=(self.name)
+                                value=(value) placeholder=[*placeholder] step=[*step] required[self.required]
+                                aria-describedby=[described_by] autofocus[autofocus];
+                        }
+                    } @else {
+                        input."form-control" type=(input_type) id=(self.name) name=(self.name)
+                            value=(value) placeholder=[*placeholder] step=[*step] required[self.required]
+                            aria-describedby=[described_by] autofocus[autofocus];
+                    }
                     (help)
                 }
             },

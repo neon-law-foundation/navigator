@@ -221,14 +221,13 @@ workflow on a topic branch (`git switch -c <topic>`), push and open a PR (`git p
 `gh pr create`), then enable auto-merge (`gh pr merge --auto --squash`). `ci.yml` runs on the PR and GitHub
 squash-merges it once every required check is green — never commit to `main`, never merge by hand.
 
-## Ship the work — merge, then `/power-push` to roll the cluster
+## Ship the work — merge, then roll the cluster
 
 A legal workflow that lives only on the operator's laptop is half-built. Once your PR auto-merges into `main`, the
 **daily tag flow** ([`deploy.yml`](../../../.github/workflows/deploy.yml)) builds both images and publishes them to
-**ghcr.io** tagged `YY.MM.DD` — you no longer build images locally. To put the new workflow in front of clients, invoke
-the [`power-push`](../power-push/SKILL.md) skill (`/power-push`), which rolls the GKE cluster onto the **latest
-published `YY.MM.DD` image** from ghcr.io. New workflows are useless until the cluster pulls the image that contains
-them.
+**ghcr.io** tagged `YY.MM.DD` — you no longer build images locally. To put the new workflow in front of clients, the
+prod-deploy flow (`navigator ship --tag YY.MM.DD`) rolls the GKE cluster onto that **published `YY.MM.DD` image** from
+ghcr.io. New workflows are useless until the cluster pulls the image that contains them.
 
 ## Things to avoid
 

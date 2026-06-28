@@ -8,12 +8,12 @@
 # Registration: a registered deployment is a SNAPSHOT of the worker's
 # handler list, not a subscription — rolling a new image does NOT
 # re-register, so a newly added service 404s at the ingress until you
-# re-register. `power-push` does this automatically after every worker
+# re-register. `ship` does this automatically after every worker
 # rollout, targeting https://workflows.<domain>/ derived from
 # NAVIGATOR_PRIMARY_DOMAIN (or the explicit NAVIGATOR_WORKFLOWS_URL).
 # It WARNS and continues on failure — it does not gate the ship — because
 # the admin :9070 endpoint may be unreachable from the operator's network
-# (see docs/durable-workflows.md "How power-push re-registers"). Manual
+# (see docs/durable-workflows.md "How ship re-registers"). Manual
 # fallbacks when the auto step warns:
 #   restate -y cloud login && restate -y cloud env config --env navigator-prod
 #   restate -y deployment register https://workflows.your-domain.example/

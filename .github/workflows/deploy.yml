@@ -12,7 +12,7 @@ name: deploy
 #      for Linux, macOS, and Windows and attach them to the GitHub Release.
 #   3. notify      — post a "ready to deploy" hand-off to the engineering Slack
 #      channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL, synced from
-#      Doppler), tagging Nick with the exact `power-push` command to roll the new
+#      Doppler), tagging Nick with the exact `ship` command to roll the new
 #      images to prod. The prod roll is a deliberate manual step (docs/gitops.md),
 #      so the green-deploy message is an actionable hand-off, not a silent FYI.
 #
@@ -919,7 +919,7 @@ jobs:
   # synced from Doppler) — the same channel and webhook the failure guard below
   # uses. Unlike a silent FYI, this tags Nick and carries the exact roll
   # commands — install the version-tagged CLI from the Homebrew tap this run
-  # published, then `power-push` with it — because the prod roll is a deliberate
+  # published, then `ship` with it — because the prod roll is a deliberate
   # manual step (docs/gitops.md): the images are on the shelf, and a human rolls
   # them. The one rule still binds: identifiers and counts, never content — the
   # body carries the tag, the run URL, and the roll commands, nothing
@@ -963,7 +963,7 @@ jobs:
           TEXT=":rocket: Neon Law Navigator ${TAG} is built and published to ghcr, with CLI/LSP downloads attached to the GitHub Release — ready to deploy. ${SLACK_OPS_MENTION}
           Install the ${TAG} CLI, then roll it to prod:
           \`brew update && brew upgrade neon-law-foundation/tap/navigator || brew install neon-law-foundation/tap/navigator\`
-          \`doppler run --project navigator --config prd -- navigator power-push --tag ${TAG}\`
+          \`doppler run --project navigator --config prd -- navigator ship --tag ${TAG}\`
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
           code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \

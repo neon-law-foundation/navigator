@@ -7,10 +7,12 @@ questionnaire:
   BEGIN:
     _: annual_or_amended
   annual_or_amended:
-    _: fundraising_activities
-  fundraising_activities:
+    _: custom_text__fundraising_activities
+  custom_text__fundraising_activities:
     _: END
   END: {}
+prompts:
+  fundraising_activities: What are the fundraising activities?
 workflow:
   BEGIN:
     _: staff_review
@@ -23,5 +25,5 @@ workflow:
 
 Nevada Charitable Solicitation Registration Statement for `{{entity_name}}` filed with the Secretary of State for the
 period ending `{{annual_or_amended}}`. The organization's fundraising activities during the period are:
-`{{fundraising_activities}}`. This registration is required of any nonprofit that solicits contributions from Nevada
-residents, and is renewed annually.
+`{{custom_text__fundraising_activities}}`. This registration is required of any nonprofit that solicits contributions
+from Nevada residents, and is renewed annually.

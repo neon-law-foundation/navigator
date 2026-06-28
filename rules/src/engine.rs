@@ -9,6 +9,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use serde::Deserialize;
 use serde_yaml::Value;
 use walkdir::WalkDir;
 
@@ -235,7 +236,7 @@ impl ClassifiedRuleEngine {
     pub fn new() -> Self {
         Self {
             filter: Box::new(DefaultFileFilter::default()),
-            valid_question_codes: Vec::new(),
+            valid_question_codes: canonical_question_codes(),
         }
     }
 
@@ -371,11 +372,33 @@ pub fn code_uniqueness_violations(
     Ok(violations)
 }
 
+#[derive(Debug, Deserialize)]
+struct CanonicalQuestions {
+    records: Vec<CanonicalQuestion>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CanonicalQuestion {
+    code: String,
+}
+
+/// The canonical seeded question-code registry, bundled from
+/// `store/seeds/Question.yaml` so the CLI, LSP, and CI all validate
+/// notation templates against the same list the workspace seeds.
+#[must_use]
+pub fn canonical_question_codes() -> Vec<String> {
+    const QUESTION_YAML: &str = include_str!("../../store/seeds/Question.yaml");
+    serde_yaml::from_str::<CanonicalQuestions>(QUESTION_YAML)
+        .expect("embedded store/seeds/Question.yaml must deserialize for N104 validation")
+        .records
+        .into_iter()
+        .map(|q| q.code)
+        .collect()
+}
+
 /// The canonical Neon Law Navigator rule set, in the stable presentation
-/// order. `N104` is included with no recognized codes by default —
-/// callers that want strict flow-code validation should construct a
-/// `RuleEngine` with their own list that supplies
-/// `F104FlowQuestionCodes::new(codes)`.
+/// order. `N104` validates questionnaire states against the canonical
+/// `store/seeds/Question.yaml` question-code list by default.
 #[must_use]
 pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
     use crate::{
@@ -401,7 +424,7 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
         Box::new(F101FrontmatterTitle),
         Box::new(F102RespondentType),
         Box::new(F103SnakeCaseFilename),
-        Box::new(F104FlowQuestionCodes::new(Vec::<String>::new())),
+        Box::new(F104FlowQuestionCodes::new(canonical_question_codes())),
         Box::new(F105ConfidentialRequired),
         Box::new(F106StaffReviewRequired),
         Box::new(F107SignaturePlaceholders),
@@ -550,7 +573,7 @@ pub fn classify_source(file: &SourceFile) -> DocumentKind {
 
 #[must_use]
 pub fn navigator_classified_rules(file: &SourceFile) -> Vec<Box<dyn Rule>> {
-    navigator_classified_rules_with_codes(file, &[])
+    navigator_classified_rules_with_codes(file, &canonical_question_codes())
 }
 
 #[must_use]
@@ -567,7 +590,7 @@ pub fn navigator_classified_rules_with_codes(
 
 #[must_use]
 pub fn lint_source_classified(file: &SourceFile) -> Vec<Violation> {
-    lint_source_classified_with_codes(file, &[])
+    lint_source_classified_with_codes(file, &canonical_question_codes())
 }
 
 fn lint_source_classified_with_codes(file: &SourceFile, valid_codes: &[String]) -> Vec<Violation> {
@@ -618,8 +641,8 @@ fn mapping_has_key(map: &serde_yaml::Mapping, key: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        classify_source, lint_source_classified, navigator_default_rules, ClassifiedRuleEngine,
-        DefaultFileFilter, DocumentKind, FileFilter, RuleEngine,
+        canonical_question_codes, classify_source, lint_source_classified, navigator_default_rules,
+        ClassifiedRuleEngine, DefaultFileFilter, DocumentKind, FileFilter, RuleEngine,
     };
     use crate::{F101FrontmatterTitle, F102RespondentType, Rule, S101LineLength};
     use std::fs;
@@ -788,6 +811,15 @@ mod tests {
     }
 
     #[test]
+    fn canonical_question_codes_include_custom_text() {
+        let codes = canonical_question_codes();
+        assert!(
+            codes.iter().any(|code| code == "custom_text"),
+            "canonical question registry should include the reusable custom_text prompt code"
+        );
+    }
+
+    #[test]
     fn navigator_markdown_only_rules_drop_n_family_and_add_s102() {
         use super::navigator_markdown_only_rules;
         let codes: Vec<&'static str> = navigator_markdown_only_rules()
@@ -939,6 +971,38 @@ Body.
         assert!(
             codes.contains(&"N108"),
             "expected missing code violation, got {codes:?}"
+        );
+    }
+
+    #[test]
+    fn classified_lint_rejects_unknown_question_code_from_canonical_registry() {
+        let file = source(
+            "notation_templates/custom/draft.md",
+            r"---
+title: Draft
+respondent_type: person
+code: draft__unknown_question
+confidential: true
+questionnaire:
+  BEGIN:
+    _: not_a_seeded_question
+  not_a_seeded_question:
+    _: END
+workflow:
+  BEGIN:
+    _: staff_review
+  staff_review:
+    _: END
+---
+Body.
+",
+        );
+        let violations = lint_source_classified(&file);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.code == "N104" && v.message.contains("not_a_seeded_question")),
+            "expected N104 for unknown canonical question code, got {violations:?}"
         );
     }
 

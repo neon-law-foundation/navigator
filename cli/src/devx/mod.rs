@@ -31,7 +31,7 @@ mod e2e;
 mod gcp;
 mod ghcr;
 mod observability;
-mod power_push;
+mod ship;
 mod worktree_env;
 
 pub use worktree_env::WorktreeEnvCmd;
@@ -329,7 +329,7 @@ pub enum RestateCmd {
 
 /// Dispatch the orchestration subset of the `navigator` CLI — the commands
 /// collapsed in from the former `devx` binary (cluster up/down, image builds,
-/// deploy, e2e, GCP provisioning, power-push, …). `main` loads `.env` +
+/// deploy, e2e, GCP provisioning, ship, …). `main` loads `.env` +
 /// `.devx/env` before parsing, so this only resolves the KIND config and
 /// routes. Non-orchestration commands never reach here.
 ///
@@ -407,11 +407,11 @@ pub fn dispatch(command: crate::Command) -> Result<()> {
             service,
         })) => gcp_iap_grant(&project_id, &service, &member),
         crate::Command::Restate(RestateCmd::Register { url }) => restate_register(url.as_deref()),
-        crate::Command::PowerPush {
+        crate::Command::Ship {
             dry_run,
             restart_only,
             tag,
-        } => power_push::run_power_push(&power_push::PowerPushOpts {
+        } => ship::run_ship(&ship::ShipOpts {
             dry_run,
             restart_only,
             tag,
@@ -600,7 +600,7 @@ pub(crate) fn resolve_workflows_url(
 ///   (the production / CI path, wired in Doppler `prd`), register via the
 ///   admin REST API. This is headless: it needs no `restate cloud env
 ///   configure` (which requires a TTY) and works with a non-expiring
-///   admin-scoped API key, so an unattended `power-push` from a fresh
+///   admin-scoped API key, so an unattended `ship` from a fresh
 ///   machine re-registers without the SSO token or a configured CLI env.
 /// - Otherwise shell out to the pinned `restate` CLI (the KIND dev loop and
 ///   operators who keep the `restate cloud login` SSO token fresh).

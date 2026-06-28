@@ -1306,7 +1306,13 @@ async fn render_and_park(
         store::templates::body(&state.db, &state.storage, &template_row).await?;
     let clauses = store::notation_clauses::for_notation(&state.db, notation_id).await?;
     let template_body = store::notation_clauses::splice(&raw_template_body, &clauses);
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id).await?;
+    let ctx = render_context_from_answers(
+        &state.db,
+        notation_row.person_id,
+        &template_row,
+        &raw_template_body,
+    )
+    .await?;
 
     // Two rendering paths, declared by the template: a `form:` binding
     // fills the vendored government packet's AcroForm from the answers
@@ -1469,7 +1475,13 @@ async fn dispatch_signature(
         store::templates::body(&state.db, &state.storage, &template_row).await?;
     let clauses = store::notation_clauses::for_notation(&state.db, notation_id).await?;
     let template_body = store::notation_clauses::splice(&raw_template_body, &clauses);
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id).await?;
+    let ctx = render_context_from_answers(
+        &state.db,
+        notation_row.person_id,
+        &template_row,
+        &raw_template_body,
+    )
+    .await?;
     let (_typst_source, signature_fields) =
         crate::signature_render::expand_signatures(&substitute_template_body(&template_body, &ctx));
 
@@ -1730,7 +1742,13 @@ async fn render_assembled_document(
         store::templates::body(&state.db, &state.storage, &template_row).await?;
     let clauses = store::notation_clauses::for_notation(&state.db, notation_id).await?;
     let template_body = store::notation_clauses::splice(&raw_template_body, &clauses);
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id).await?;
+    let ctx = render_context_from_answers(
+        &state.db,
+        notation_row.person_id,
+        &template_row,
+        &raw_template_body,
+    )
+    .await?;
     Ok(views::notation::render_filled_in(&template_body, &ctx))
 }
 
@@ -1982,7 +2000,13 @@ async fn drive_closing_workflow(
         .await?
         .ok_or(WorkflowDriveError::TemplateMissing(notation_id))?;
     let template_body = store::templates::body(&state.db, &state.storage, &template_row).await?;
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id).await?;
+    let ctx = render_context_from_answers(
+        &state.db,
+        notation_row.person_id,
+        &template_row,
+        &template_body,
+    )
+    .await?;
 
     // Staff review short-circuits to `approved` in the dev loop (a real
     // staff-review handler swaps in for prod). The `approved` signal
@@ -2129,6 +2153,8 @@ fn build_signature_manifest(
 async fn render_context_from_answers(
     db: &store::Db,
     person_id: Uuid,
+    template_row: &template::Model,
+    template_body: &str,
 ) -> Result<BTreeMap<String, String>, sea_orm::DbErr> {
     let answers = answer::Entity::find()
         .filter(answer::Column::PersonId.eq(person_id))
@@ -2147,15 +2173,115 @@ async fn render_context_from_answers(
         .into_iter()
         .map(|q| (q.id, q.code))
         .collect();
-    // Ascending id order means the last write per code wins — the latest
-    // answer, matching the previous `order_by_desc(Id).one()` selection.
-    let mut ctx = BTreeMap::new();
+    // Collect every answer per canonical code in ascending-id (answer)
+    // order. A canonical code can carry more than one answer: a re-answered
+    // single state, or — the case typed prefixes intend — several distinct
+    // template states that share one canonical question (e.g. two
+    // `custom_text__*` fields both seeded as `custom_text`). The ordered
+    // vector lets `add_template_state_aliases` map each answer back to the
+    // state that produced it instead of collapsing them to one value.
+    let mut values_by_code: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for a in answers {
         if let Some(code) = code_by_id.get(&a.question_id) {
-            ctx.insert(code.clone(), a.value);
+            values_by_code
+                .entry(code.clone())
+                .or_default()
+                .push(a.value);
         }
     }
+    // The bare canonical key resolves to the latest answer — both for a
+    // direct `{{code}}` placeholder and as the single-state default.
+    let mut ctx = BTreeMap::new();
+    for (code, values) in &values_by_code {
+        if let Some(latest) = values.last() {
+            ctx.insert(code.clone(), latest.clone());
+        }
+    }
+    add_template_state_aliases(&mut ctx, &values_by_code, template_row, template_body);
     Ok(ctx)
+}
+
+/// Map each answered value onto the template state that produced it.
+///
+/// Answers for a canonical question are stored under one `question_id`, so
+/// two states sharing a canonical code (`custom_text__a`, `custom_text__b`)
+/// are distinguishable only by insertion order. We recover the mapping the
+/// same way intake's `answered_client_states` does: walk the states in
+/// questionnaire order and align them, front to front, against that code's
+/// answers in answer order. When a code has more answers than states (a
+/// re-answered single state is the common case), the oldest extras are
+/// dropped so the freshest answer wins — preserving the prior
+/// latest-answer-wins behaviour for the single-state path.
+fn add_template_state_aliases(
+    ctx: &mut BTreeMap<String, String>,
+    values_by_code: &BTreeMap<String, Vec<String>>,
+    template_row: &template::Model,
+    template_body: &str,
+) {
+    let spec = workflows::bundled_spec_yaml(&template_row.code).map_or_else(
+        || workflows::questionnaire_spec_from_template(template_body),
+        workflows::questionnaire_spec_from_yaml,
+    );
+    let Ok(spec) = spec else {
+        return;
+    };
+    let states = ordered_question_states(&spec);
+    // How many states share each canonical prefix, so we know how many of a
+    // code's answers belong to one document.
+    let mut group_size: BTreeMap<&str, usize> = BTreeMap::new();
+    for state in &states {
+        *group_size.entry(canonical_prefix(state)).or_default() += 1;
+    }
+    let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
+    for state in &states {
+        let prefix = canonical_prefix(state);
+        let idx = seen.entry(prefix).or_default();
+        let position = *idx;
+        *idx += 1;
+        let Some(values) = values_by_code.get(prefix) else {
+            continue;
+        };
+        let k = group_size.get(prefix).copied().unwrap_or(1);
+        // Align the last `k` answers to the `k` states, front to front.
+        let start = values.len().saturating_sub(k);
+        if let Some(value) = values.get(start + position) {
+            ctx.entry(state.clone()).or_insert_with(|| value.clone());
+        }
+    }
+}
+
+/// Canonical question code for a state — the prefix before the first `__`.
+fn canonical_prefix(state: &str) -> &str {
+    state.split_once("__").map_or(state, |(prefix, _)| prefix)
+}
+
+/// The questionnaire's non-sentinel states in BEGIN-first order. Walks the
+/// linear `_` transition chain (the only shape questionnaires take), then
+/// appends any state the walk didn't reach so none is silently dropped.
+fn ordered_question_states(spec: &workflows::QuestionnaireSpec) -> Vec<String> {
+    let mut ordered: Vec<String> = Vec::new();
+    let mut here = StateName::begin();
+    while let Some(next) = spec
+        .transitions_from(&here)
+        .and_then(|t| t.lookup("_"))
+        .cloned()
+    {
+        if next == StateName::end() {
+            break;
+        }
+        ordered.push(next.as_str().to_string());
+        here = next;
+    }
+    for state in spec.inner().states.keys() {
+        let state = state.as_str();
+        if state == StateName::BEGIN || state == StateName::END {
+            continue;
+        }
+        if !ordered.iter().any(|s| s == state) {
+            ordered.push(state.to_string());
+        }
+    }
+    ordered
 }
 
 /// Stamp the e-signature provider's request id onto the notation so a
@@ -2227,7 +2353,10 @@ fn progress_for(spec: &workflows::QuestionnaireSpec, current_state: &StateName) 
 
 #[cfg(test)]
 mod tests {
-    use super::progress_for;
+    use super::{add_template_state_aliases, progress_for};
+    use std::collections::BTreeMap;
+    use store::entity::template;
+    use uuid::Uuid;
     use workflows::{retainer_intake_questionnaire, StateName};
 
     #[test]
@@ -2251,6 +2380,157 @@ mod tests {
         assert_eq!(
             progress_for(&spec, &StateName::from("product_description")),
             (4, 4)
+        );
+    }
+
+    #[test]
+    fn state_aliases_parse_non_bundled_template_frontmatter() {
+        let template_row = template::Model {
+            id: Uuid::nil(),
+            code: "project_scoped__custom".into(),
+            title: "Project custom".into(),
+            respondent_type: "entity".into(),
+            project_id: None,
+            blob_id: None,
+            form_code: None,
+            inserted_at: String::new(),
+            updated_at: String::new(),
+        };
+        let body = "---
+questionnaire:
+  BEGIN:
+    _: entity__company
+  entity__company:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    _: staff_review
+  staff_review:
+    _: END
+  END: {}
+---
+# {{entity__company}}
+";
+        let mut ctx = BTreeMap::from([("entity".into(), "Libra LLC".into())]);
+        let values_by_code = BTreeMap::from([("entity".into(), vec!["Libra LLC".into()])]);
+
+        add_template_state_aliases(&mut ctx, &values_by_code, &template_row, body);
+
+        assert_eq!(
+            ctx.get("entity__company").map(String::as_str),
+            Some("Libra LLC")
+        );
+    }
+
+    #[test]
+    fn state_aliases_do_not_collapse_duplicate_typed_prefixes() {
+        // Two `custom_text__*` states share the canonical `custom_text`
+        // question, so both answers are stored under one question_id. Each
+        // placeholder must render the answer the client gave for *that*
+        // state, not the latest answer for the shared code.
+        let template_row = template::Model {
+            id: Uuid::nil(),
+            code: "project_scoped__two_custom".into(),
+            title: "Two custom fields".into(),
+            respondent_type: "entity".into(),
+            project_id: None,
+            blob_id: None,
+            form_code: None,
+            inserted_at: String::new(),
+            updated_at: String::new(),
+        };
+        let body = "---
+questionnaire:
+  BEGIN:
+    _: custom_text__mission_statement
+  custom_text__mission_statement:
+    _: custom_text__revenue_strategy
+  custom_text__revenue_strategy:
+    _: END
+  END: {}
+prompts:
+  mission_statement: Mission?
+  revenue_strategy: Revenue?
+workflow:
+  BEGIN:
+    _: staff_review
+  staff_review:
+    _: END
+  END: {}
+---
+# {{custom_text__mission_statement}} / {{custom_text__revenue_strategy}}
+";
+        // Answer order matches questionnaire order: mission first, revenue
+        // second (the state machine enforces this ordering at intake).
+        let values_by_code = BTreeMap::from([(
+            "custom_text".to_string(),
+            vec![
+                "Expand legal access".to_string(),
+                "Flat-fee retainers".to_string(),
+            ],
+        )]);
+        let mut ctx = BTreeMap::from([("custom_text".into(), "Flat-fee retainers".into())]);
+
+        add_template_state_aliases(&mut ctx, &values_by_code, &template_row, body);
+
+        assert_eq!(
+            ctx.get("custom_text__mission_statement")
+                .map(String::as_str),
+            Some("Expand legal access"),
+            "first typed state must keep its own answer, not the latest"
+        );
+        assert_eq!(
+            ctx.get("custom_text__revenue_strategy").map(String::as_str),
+            Some("Flat-fee retainers")
+        );
+    }
+
+    #[test]
+    fn state_aliases_single_state_uses_latest_answer() {
+        // A re-answered single state keeps latest-answer-wins: two answers
+        // for one `custom_text__*` state resolve to the freshest value.
+        let template_row = template::Model {
+            id: Uuid::nil(),
+            code: "project_scoped__one_custom".into(),
+            title: "One custom field".into(),
+            respondent_type: "entity".into(),
+            project_id: None,
+            blob_id: None,
+            form_code: None,
+            inserted_at: String::new(),
+            updated_at: String::new(),
+        };
+        let body = "---
+questionnaire:
+  BEGIN:
+    _: custom_text__mission_statement
+  custom_text__mission_statement:
+    _: END
+  END: {}
+prompts:
+  mission_statement: Mission?
+workflow:
+  BEGIN:
+    _: staff_review
+  staff_review:
+    _: END
+  END: {}
+---
+# {{custom_text__mission_statement}}
+";
+        let values_by_code = BTreeMap::from([(
+            "custom_text".to_string(),
+            vec!["First draft".to_string(), "Final answer".to_string()],
+        )]);
+        let mut ctx = BTreeMap::from([("custom_text".into(), "Final answer".into())]);
+
+        add_template_state_aliases(&mut ctx, &values_by_code, &template_row, body);
+
+        assert_eq!(
+            ctx.get("custom_text__mission_statement")
+                .map(String::as_str),
+            Some("Final answer")
         );
     }
 }

@@ -13,11 +13,11 @@ Feature: Bundled-template workflow composition (Foundation / nonprofit)
   Scenario: Nevada 501(c)(3) formation questionnaire walks mission → board → agent → END
     Given the bundled template "united_states/nevada/state/business_associations/nonprofit_501c3_formation.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
-      | from              | to                |
-      | BEGIN             | mission_statement |
-      | mission_statement | board_members     |
-      | board_members     | registered_agent  |
-      | registered_agent  | END               |
+      | from                           | to                             |
+      | BEGIN                          | custom_text__mission_statement |
+      | custom_text__mission_statement | people__board_members         |
+      | people__board_members          | registered_agent              |
+      | registered_agent               | END                           |
 
   Scenario: Nevada 501(c)(3) formation workflow signs, reviews, and mails the articles
     Given the bundled template "united_states/nevada/state/business_associations/nonprofit_501c3_formation.md"
@@ -35,10 +35,10 @@ Feature: Bundled-template workflow composition (Foundation / nonprofit)
   Scenario: Form 990 questionnaire walks tax_year → revenue → END
     Given the bundled template "united_states/federal/irs/taxation/form990_annual_report.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
-      | from            | to              |
-      | BEGIN           | tax_year        |
-      | tax_year        | revenue_summary |
-      | revenue_summary | END             |
+      | from                          | to                            |
+      | BEGIN                         | datetime__tax_year            |
+      | datetime__tax_year            | custom_text__revenue_strategy |
+      | custom_text__revenue_strategy | END                           |
 
   Scenario: Form 990 workflow signs, reviews, and mails to the IRS
     Given the bundled template "united_states/federal/irs/taxation/form990_annual_report.md"
@@ -56,10 +56,10 @@ Feature: Bundled-template workflow composition (Foundation / nonprofit)
   Scenario: Charitable solicitation registration questionnaire walks period → activities → END
     Given the bundled template "united_states/nevada/state/business_associations/charitable_solicitation_registration.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
-      | from                   | to                     |
-      | BEGIN                  | annual_or_amended      |
-      | annual_or_amended      | fundraising_activities |
-      | fundraising_activities | END                    |
+      | from                                | to                                  |
+      | BEGIN                               | annual_or_amended                   |
+      | annual_or_amended                   | custom_text__fundraising_activities |
+      | custom_text__fundraising_activities | END                                 |
 
   Scenario: Charitable solicitation registration workflow reviews and mails the statement
     Given the bundled template "united_states/nevada/state/business_associations/charitable_solicitation_registration.md"

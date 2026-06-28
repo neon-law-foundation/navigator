@@ -10,11 +10,10 @@ acting on anything below, and keep the doc, not this file, authoritative.
 ## Architecture invariants
 
 - **Rust only.** Every executable and library is Rust; the `navigator` CLI orchestrates every machine-bound flow
-  (`start-dev-server`, `deploy`, `e2e`, `grant-staff`, `power-push`, …) — no shell scripts, no Makefile. New scripts are
-  Rust binaries under `cli`, a new `cli` subcommand, or a new crate. If a task implies another language, push back —
-  find a Rust equivalent or carve a clean seam to a separate repo. →
-  [`docs/workspace-layout.md`](docs/workspace-layout.md)
-- **English-first.** English is the only language of every binding or internal artifact: a legal **template body is
+  (`start-dev-server`, `deploy`, `e2e`, `grant-staff`, `ship`, …) — no shell scripts, no Makefile. New scripts are Rust
+  binaries under `cli`, a new `cli` subcommand, or a new crate. If a task implies another language, push back — find a
+  Rust equivalent or carve a clean seam to a separate repo. → [`docs/workspace-layout.md`](docs/workspace-layout.md) -
+  **English-first.** English is the only language of every binding or internal artifact: a legal **template body is
   English-only, no exceptions**, as are the portal UI, `/docs`, code, and comments. We localize in exactly two places —
   marketing pages (`/es` Tier-A + the mission letter) and questionnaire intake prompts (`question_translations`, which
   never bypass `staff_review`). Whenever an English marketing or public Foundation page changes, update its Spanish
@@ -71,8 +70,8 @@ acting on anything below, and keep the doc, not this file, authoritative.
   rebuilding/redeploying the `navigator-web:dev` image) — **the agent may run these itself here.** Asked to "run the
   kind tests", bring up the harness it needs (chromedriver on `:9515`, a `kubectl` port-forward of `deployment/postgres`
   to `15432:5432`, `grant-staff`, and the CI env vars `NAV_BASE_URL` + `DATABASE_URL` + `NAV_REQUIRE_HARNESS=1`) and run
-  `cargo test -p web --test browser_e2e`. Only *production* or *irreversible* cloud actions (`gcloud`, `power-push`, a
-  real `deploy` to prod) stay propose-only — print the exact command and let the user prefix it with `!`.
+  `cargo test -p web --test browser_e2e`. Only *production* or *irreversible* cloud actions (`gcloud`, `ship`, a real
+  `deploy` to prod) stay propose-only — print the exact command and let the user prefix it with `!`.
 - **Run `web` and every supporting service on a unique port.** Never bind to a shared default and assume it is free — a
   second worktree or session will collide on it. `navigator worktree-env up` already derives a per-worktree `web` port
   (`WEB_PORT_BASE` 3001 + a hash of the worktree slug, in `cli/src/devx/worktree_env.rs`); prefer it, and pick a unique

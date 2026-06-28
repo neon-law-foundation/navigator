@@ -1,11 +1,14 @@
 questionnaire:
   BEGIN:
-    _: dissolution_reason
-  dissolution_reason:
-    _: final_debts_settled
-  final_debts_settled:
+    _: custom_text__dissolution_reason
+  custom_text__dissolution_reason:
+    _: custom_yes_no__final_debts_settled
+  custom_yes_no__final_debts_settled:
     _: END
   END: {}
+prompts:
+  dissolution_reason: What is the dissolution reason?
+  final_debts_settled: Have all final debts been settled?
 workflow:
   BEGIN:
     _: member_signatures

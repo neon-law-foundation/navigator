@@ -55,7 +55,7 @@ container images to [ghcr.io](https://ghcr.io); you then roll a published image 
 and visit your `NAVIGATOR_PRIMARY_DOMAIN`:
 
 ```bash
-doppler run -- cargo run --release -p cli -- power-push --tag YY.MM.DD
+doppler run -- cargo run --release -p cli -- ship --tag YY.MM.DD
 ```
 
 The full edit → merge → release → deploy lifecycle is documented in [GitOps](docs/gitops.md). Cluster setup lives in

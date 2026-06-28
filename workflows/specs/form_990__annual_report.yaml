@@ -1,11 +1,13 @@
 questionnaire:
   BEGIN:
-    _: tax_year
-  tax_year:
-    _: revenue_summary
-  revenue_summary:
+    _: datetime__tax_year
+  datetime__tax_year:
+    _: custom_text__revenue_strategy
+  custom_text__revenue_strategy:
     _: END
   END: {}
+prompts:
+  revenue_strategy: What is the revenue strategy?
 workflow:
   BEGIN:
     _: board_signatures

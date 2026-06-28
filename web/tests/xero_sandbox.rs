@@ -21,7 +21,7 @@
 //! `NAVIGATOR_RUN_LIVE_SANDBOX=1` is set (and self-skips green otherwise,
 //! plus self-skips when no Xero creds are present). The explicit opt-in
 //! keeps it from hitting Xero on any ambient-credentials `cargo test` —
-//! notably the power-push verify, which runs under Doppler `prd`. Run
+//! notably the ship verify, which runs under Doppler `prd`. Run
 //! locally against the demo company through Doppler:
 //!
 //! ```bash
@@ -86,7 +86,7 @@ async fn discover_tenant_id(access_token: &str) -> Option<String> {
 #[tokio::test]
 async fn sandbox_resolves_a_contact_idempotently() {
     // Live external API: opt in explicitly so it never runs on an
-    // ambient-credentials `cargo test` (e.g. the power-push verify, which
+    // ambient-credentials `cargo test` (e.g. the ship verify, which
     // runs under Doppler `prd`). Only the dedicated nightly job and an
     // on-demand run set the flag; everything else self-skips green.
     if std::env::var("NAVIGATOR_RUN_LIVE_SANDBOX").is_err() {
