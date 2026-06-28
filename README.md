@@ -35,16 +35,20 @@ plethora of automations that save time, and we see its impact in scaling legal s
 
 ## Install the CLI
 
-On Apple Silicon macOS, install the `navigator` CLI and the `navigator-lsp` language server from our Homebrew tap:
+On Apple Silicon macOS, install the `navigator` CLI from our Homebrew tap:
 
 ```bash
 brew install neon-law-foundation/tap/navigator
-brew install neon-law-foundation/tap/navigator-lsp
 ```
 
 A new `YY.MM.DD` release publishes every day, so `brew upgrade` always pulls the latest build. The published binaries
 are Apple-Silicon only; on other platforms — or to hack on the workspace — build from source with `cargo` as below. The
 tap and its formulae live at [neon-law-foundation/homebrew-tap](https://github.com/neon-law-foundation/homebrew-tap).
+
+The `navigator-lsp` language server is **not** on the tap. It ships as a published Zed extension: install **Navigator
+LSP** from Zed's extension marketplace (`zed: extensions` → search **Navigator LSP** → **Install**) and it pulls the
+matching `navigator-lsp` binary from the latest GitHub Release automatically. Building the binary from source — and
+pointing any other LSP-aware editor at it — is covered in the [LSP docs](docs/lsp/README.md).
 
 ## Getting started
 

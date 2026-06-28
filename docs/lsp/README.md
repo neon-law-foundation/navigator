@@ -4,11 +4,10 @@
 files in a Neon Law Navigator workspace and you get red squiggles + fix-on-save tied to the same rule engine as `cli
 validate`.
 
-Per-editor snippets live alongside this README:
+Editor setup lives alongside this README:
 
-- [Neovim](./neovim.md) — built-in `vim.lsp.start`. [Helix](./helix.md) — language servers in `languages.toml`.
-  [Emacs](./emacs.md) — `eglot` or `lsp-mode`. [VS Code](./vscode.md) — sideload the bundled extension under
-  `lsp/vscode-ext/`. [Zed](./zed.md) — sideload the bundled extension under `lsp/zed-ext/`.
+- [Zed](./zed.md) — install **Navigator LSP** from Zed's extension marketplace; it pulls the matching `navigator-lsp`
+  binary from the latest GitHub Release automatically.
 
 ## Install the binary
 
@@ -19,8 +18,9 @@ cargo build --release -p lsp
 # binary at: target/release/navigator-lsp
 ```
 
-Pointing your editor at the absolute `target/release/navigator-lsp` path is fine while iterating; once you have run
-`cargo install`, `navigator-lsp` lives on `$PATH` and the snippets below work as-is.
+The Zed extension downloads this binary for you; build it yourself only to hack on the server or to wire up another
+LSP-aware editor. Pointing your editor at the absolute `target/release/navigator-lsp` path is fine while iterating; once
+you have run `cargo install`, `navigator-lsp` lives on `$PATH` and any editor launching it by name picks it up.
 
 ## Coexistence with `marksman` / `markdown-oxide`
 
