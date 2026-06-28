@@ -1276,10 +1276,12 @@ async fn contact_returns_contact_page_html() {
     let body = body_string(resp).await;
     assert!(body.contains("<title>Neon Law | Contact</title>"));
     assert!(body.contains("mailto:support@neonlaw.com"));
+    assert!(body.contains("mailto:support@neonlaw.org"));
+    assert!(body.contains("github.com/neon-law-foundation"));
 }
 
 #[tokio::test]
-async fn foundation_contact_returns_foundation_brand_contact_html() {
+async fn foundation_contact_redirects_to_contact() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -1293,11 +1295,13 @@ async fn foundation_contact_returns_foundation_brand_contact_html() {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Contact</title>"));
-    assert!(body.contains("mailto:support@neonlaw.org"));
-    assert!(body.contains("github.com/neon-law-foundation"));
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    let location = resp
+        .headers()
+        .get("location")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert_eq!(location, "/contact");
 }
 
 #[tokio::test]

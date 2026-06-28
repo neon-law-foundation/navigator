@@ -20,4 +20,4 @@ description: "The Neon Law Foundation's conflict of interest policy for its dire
 ## Status
 
 The adopted text is being prepared for publication. Until it is posted here, a copy is available on request through the
-[Foundation contact page](/foundation/contact).
+[contact page](/contact).

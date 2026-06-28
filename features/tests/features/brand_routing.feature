@@ -30,9 +30,13 @@ Feature: Public site brand routing
     Examples:
       | path                              |
       | /foundation                       |
-      | /foundation/contact               |
       | /privacy                          |
       | /terms                            |
+
+  Scenario: The old /foundation/contact URL permanently redirects to the shared contact page
+    When a visitor opens /foundation/contact
+    Then the response status is 308
+    And the response redirects to "/contact"
 
   Scenario: The old /foundation/workshops/navigator URL permanently redirects to its Nebula home
     When a visitor opens /foundation/workshops/navigator
