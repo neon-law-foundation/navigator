@@ -73,6 +73,11 @@ acting on anything below, and keep the doc, not this file, authoritative.
   to `15432:5432`, `grant-staff`, and the CI env vars `NAV_BASE_URL` + `DATABASE_URL` + `NAV_REQUIRE_HARNESS=1`) and run
   `cargo test -p web --test browser_e2e`. Only *production* or *irreversible* cloud actions (`gcloud`, `power-push`, a
   real `deploy` to prod) stay propose-only — print the exact command and let the user prefix it with `!`.
+- **Run `web` and every supporting service on a unique port.** Never bind to a shared default and assume it is free — a
+  second worktree or session will collide on it. `navigator worktree-env up` already derives a per-worktree `web` port
+  (`WEB_PORT_BASE` 3001 + a hash of the worktree slug, in `cli/src/devx/worktree_env.rs`); prefer it, and pick a unique
+  port the same way for anything you start by hand (`web`, chromedriver, a Postgres port-forward, the OIDC / OPA /
+  storage deps). Record the ports you chose so the rest of the task — and the next agent — can find them.
 - **Scratch output never lands in the working tree.** Screenshots and any throwaway file go under `/tmp` (e.g.
   `/tmp/navigator-screenshots/`, `mkdir -p` first), never the repo. Committed visual artifacts (e.g. `docs/erd.svg`) are
   the exception.
