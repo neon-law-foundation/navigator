@@ -3,7 +3,7 @@
 //! binary, driven against an in-process `web` app on a loopback port.
 //!
 //! This proves the formation flow through the **CLI surface** the prompt
-//! specifies — `matter open` → `intake answer` (the seven `nv__llc_formation`
+//! specifies — `notation create` → `intake answer` (the seven `nv__llc_formation`
 //! questions, including a `people_list` row) → `notation status` →
 //! `notation approve` → `notation document` — and asserts with
 //! `pdf::read_field_value` that the downloaded bytes are the official
@@ -133,13 +133,13 @@ async fn run_cli_stdin(creds: &Path, args: &[&str], stdin: &str) -> (bool, Strin
     (out.status.success(), format!("{stdout}\n{stderr}"))
 }
 
-/// Pull the notation UUID out of `matter open`'s stdout (color is
+/// Pull the notation UUID out of `notation create`'s stdout (color is
 /// stripped for a pipe, so tokens are plain).
 fn notation_id_from(stdout: &str) -> Uuid {
     stdout
         .split_whitespace()
         .find_map(|tok| Uuid::parse_str(tok.trim()).ok())
-        .unwrap_or_else(|| panic!("no notation id in matter-open output:\n{stdout}"))
+        .unwrap_or_else(|| panic!("no notation id in notation-create output:\n{stdout}"))
 }
 
 /// Assert the downloaded packet is the official Nevada SoS form carrying
@@ -173,18 +173,17 @@ async fn forms_an_llc_through_the_cli_with_answer_flags() {
     let (ok, out) = run_cli(
         &creds,
         &[
-            "matter",
-            "open",
+            "notation",
+            "create",
             "--host",
             &base,
-            "--template",
             "nv__llc_formation",
             "--client-email",
             "libra@example.com",
         ],
     )
     .await;
-    assert!(ok, "matter open failed:\n{out}");
+    assert!(ok, "notation create failed:\n{out}");
     let id = notation_id_from(&out).to_string();
 
     // 2. Answer all seven questions non-interactively: six scalars in
@@ -261,18 +260,17 @@ async fn forms_an_llc_through_the_interactive_cli_walk() {
     let (ok, out) = run_cli(
         &creds,
         &[
-            "matter",
-            "open",
+            "notation",
+            "create",
             "--host",
             &base,
-            "--template",
             "nv__llc_formation",
             "--client-email",
             "libra@example.com",
         ],
     )
     .await;
-    assert!(ok, "matter open failed:\n{out}");
+    assert!(ok, "notation create failed:\n{out}");
     let id = notation_id_from(&out).to_string();
 
     // Scripted stdin: five scalars, then the people_list row (name, then

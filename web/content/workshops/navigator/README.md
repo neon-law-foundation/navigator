@@ -234,9 +234,9 @@ navigator login --host <your-host>   # mints a short-lived token
 
 Once your installation is live you do not need a browser to drive it: the `navigator` CLI logs in to *your* installation
 the way `gcloud auth login` does. `navigator login --host <your-host>` mints a short-lived token, and after that the
-`navigator matter open`, `navigator retainer approve`, and `navigator notation status` commands run the same matter flow
-here, from your terminal. The host is whatever you named your deployment, so the one CLI drives every instance you stand
-up.
+`navigator notation create`, `navigator retainer approve`, and `navigator notation status` commands run the same matter
+flow here, from your terminal. The host is whatever you named your deployment, so the one CLI drives every instance you
+stand up.
 
 ## Form a Nevada LLC from the command line
 
@@ -245,7 +245,7 @@ State packet**:
 
 ```bash
 navigator login --host https://your-firm.example
-navigator matter open --template nv__llc_formation --client-email libra@example.com
+navigator notation create nv__llc_formation --client-email libra@example.com
 navigator intake answer <notation-id>
 navigator notation status <notation-id>
 navigator notation approve <notation-id>
@@ -255,12 +255,12 @@ navigator notation document <notation-id> --out llc.pdf
 ---
 
 You open a questionnaire-driven matter, answer the formation questions at the terminal, and download the same artifact a
-browser walk produces — the one you review before the staff-gated filing. `matter open` starts the `nv__llc_formation`
-matter and prints its notation id. `intake answer` then walks the formation questionnaire one question at a time — the
-entity name, the registered agent, whether the company is member-managed or manager-managed, and the managing members
-entered row by row (a blank name ends the list). Answer it interactively, or script it with repeated `--answer` and
-`--person` flags. `notation status` reports the workflow state and whether the packet has already been rendered, then
-`notation approve` renders and parks the filled packet for your review, and `notation document` writes the PDF to
+browser walk produces — the one you review before the staff-gated filing. `notation create` starts the
+`nv__llc_formation` Notation and prints its notation id. `intake answer` then walks the formation questionnaire one
+question at a time — the entity name, the registered agent, whether the company is member-managed or manager-managed,
+and the managing members entered row by row (a blank name ends the list). Answer it interactively, or script it with
+repeated `--answer` and `--person` flags. `notation status` reports the workflow state and whether the packet has
+already been rendered, then `notation approve` parks the filled packet, and `notation document` writes the PDF to
 `--out`. AIDA fills the state's official form from the answers — it never invents one — and the matter ends at the same
 staff-gated `filing__nv_sos` step a browser walk reaches: **you file with the Secretary of State; Neon Law Navigator
 never files for you.**

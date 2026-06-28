@@ -280,7 +280,7 @@ enum Command {
         #[command(subcommand)]
         action: RetainerAction,
     },
-    /// Open a questionnaire-driven matter on a live site.
+    /// Deprecated alias for `notation create`.
     Matter {
         #[command(subcommand)]
         action: MatterAction,
@@ -709,12 +709,11 @@ enum ClauseAction {
 
 #[derive(Subcommand)]
 enum MatterAction {
-    /// Open a questionnaire-driven matter (an `onboarding__*` formation)
-    /// and leave its questionnaire ready to walk with `intake answer`
-    /// (`POST /portal/admin/retainers/new`). This is distinct from
-    /// `project open`, which opens a matter *and* sends a retainer in one
-    /// action; `matter open` sends nothing — it parks at the first
-    /// question for the terminal walk.
+    /// Deprecated alias for `notation create <template-code>
+    /// --client-email ...`.
+    ///
+    /// Opens a questionnaire-driven notation and leaves its questionnaire
+    /// ready to walk with `intake answer`.
     Open {
         #[command(flatten)]
         host: HostOpt,
@@ -824,7 +823,7 @@ enum IntakeAction {
     /// non-interactively (scalar answers consumed in order; people rows
     /// fed to the first `people_list` question).
     Answer {
-        /// Notation UUID printed by `matter open`.
+        /// Notation UUID printed by `notation create`.
         notation_id: uuid::Uuid,
         #[command(flatten)]
         host: HostOpt,
@@ -842,6 +841,27 @@ enum IntakeAction {
 
 #[derive(Subcommand)]
 enum NotationAction {
+    /// Create a questionnaire-driven notation from a template code
+    /// (`POST /portal/admin/retainers/new`) and leave its questionnaire
+    /// ready to walk with `intake answer`.
+    ///
+    /// The current live-site route resolves the shared bundled/template-
+    /// example catalog. A future project-scoped custom notation path must
+    /// pass `--project <project-code>` so short custom template codes are
+    /// resolved inside the intended Project instead of the shared catalog.
+    Create {
+        /// Template code, e.g. `nv__llc_formation` (Nevada LLC).
+        template_code: String,
+        #[command(flatten)]
+        host: HostOpt,
+        /// Client email — the notation's bound client (signer).
+        #[arg(long)]
+        client_email: String,
+        /// Future project-scoped custom notation context. Omit for
+        /// bundled/template-example catalog templates.
+        #[arg(long)]
+        project: Option<String>,
+    },
     /// Print a notation's workflow state + signature request id
     /// (`GET …/review?format=json`).
     Status {
@@ -1488,6 +1508,20 @@ async fn run_intake(action: IntakeAction) -> ExitCode {
 
 async fn run_notation(action: NotationAction) -> ExitCode {
     match action {
+        NotationAction::Create {
+            template_code,
+            host,
+            client_email,
+            project,
+        } => {
+            remote::notation_create(
+                host.host.as_deref(),
+                &template_code,
+                &client_email,
+                project.as_deref(),
+            )
+            .await
+        }
         NotationAction::Status {
             notation_id,
             host,

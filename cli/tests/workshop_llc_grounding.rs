@@ -59,7 +59,7 @@ fn help(args: &[&str]) -> (bool, String) {
 fn every_command_the_section_documents_is_a_real_navigator_subcommand() {
     let section = llc_section();
     for (phrase, args) in [
-        ("matter open", ["matter", "open"].as_slice()),
+        ("notation create", ["notation", "create"].as_slice()),
         ("intake answer", ["intake", "answer"].as_slice()),
         ("notation status", ["notation", "status"].as_slice()),
         ("notation approve", ["notation", "approve"].as_slice()),
@@ -87,8 +87,8 @@ fn every_flag_the_section_prints_appears_in_the_commands_help() {
     // both printed in the workshop AND present in the real `--help` output.
     for (args, flags) in [
         (
-            ["matter", "open"].as_slice(),
-            ["--template", "--client-email"].as_slice(),
+            ["notation", "create"].as_slice(),
+            ["--client-email"].as_slice(),
         ),
         (
             ["intake", "answer"].as_slice(),
@@ -114,9 +114,8 @@ fn every_flag_the_section_prints_appears_in_the_commands_help() {
 
 #[test]
 fn the_template_code_the_section_names_is_a_real_seeded_template() {
-    // `nv__llc_formation` must be a real template code, or `matter open
-    // --template nv__llc_formation` (and the screenshot in the prose) is a
-    // dead command.
+    // `nv__llc_formation` must be a real template code, or `notation create
+    // nv__llc_formation` (and the screenshot in the prose) is a dead command.
     let section = llc_section();
     assert!(
         section.contains("nv__llc_formation"),
@@ -127,7 +126,7 @@ fn the_template_code_the_section_names_is_a_real_seeded_template() {
     assert!(
         template.contains("code: nv__llc_formation"),
         "`notation_templates/forms/united_states/nevada/state/nv__llc_formation.md` no longer declares `code: nv__llc_formation` — \
-         the workshop's `--template nv__llc_formation` is now a dead command",
+         the workshop's `notation create nv__llc_formation` is now a dead command",
     );
 }
 
