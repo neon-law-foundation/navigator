@@ -388,10 +388,12 @@ struct CanonicalQuestion {
 #[must_use]
 pub fn canonical_question_codes() -> Vec<String> {
     const QUESTION_YAML: &str = include_str!("../../store/seeds/Question.yaml");
-    serde_yaml::from_str::<CanonicalQuestions>(QUESTION_YAML).map_or_else(
-        |_| Vec::new(),
-        |parsed| parsed.records.into_iter().map(|q| q.code).collect(),
-    )
+    serde_yaml::from_str::<CanonicalQuestions>(QUESTION_YAML)
+        .expect("embedded store/seeds/Question.yaml must deserialize for N104 validation")
+        .records
+        .into_iter()
+        .map(|q| q.code)
+        .collect()
 }
 
 /// The canonical Neon Law Navigator rule set, in the stable presentation

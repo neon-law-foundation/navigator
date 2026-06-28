@@ -1306,7 +1306,13 @@ async fn render_and_park(
         store::templates::body(&state.db, &state.storage, &template_row).await?;
     let clauses = store::notation_clauses::for_notation(&state.db, notation_id).await?;
     let template_body = store::notation_clauses::splice(&raw_template_body, &clauses);
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id, &template_row).await?;
+    let ctx = render_context_from_answers(
+        &state.db,
+        notation_row.person_id,
+        &template_row,
+        &raw_template_body,
+    )
+    .await?;
 
     // Two rendering paths, declared by the template: a `form:` binding
     // fills the vendored government packet's AcroForm from the answers
@@ -1469,7 +1475,13 @@ async fn dispatch_signature(
         store::templates::body(&state.db, &state.storage, &template_row).await?;
     let clauses = store::notation_clauses::for_notation(&state.db, notation_id).await?;
     let template_body = store::notation_clauses::splice(&raw_template_body, &clauses);
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id, &template_row).await?;
+    let ctx = render_context_from_answers(
+        &state.db,
+        notation_row.person_id,
+        &template_row,
+        &raw_template_body,
+    )
+    .await?;
     let (_typst_source, signature_fields) =
         crate::signature_render::expand_signatures(&substitute_template_body(&template_body, &ctx));
 
@@ -1730,7 +1742,13 @@ async fn render_assembled_document(
         store::templates::body(&state.db, &state.storage, &template_row).await?;
     let clauses = store::notation_clauses::for_notation(&state.db, notation_id).await?;
     let template_body = store::notation_clauses::splice(&raw_template_body, &clauses);
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id, &template_row).await?;
+    let ctx = render_context_from_answers(
+        &state.db,
+        notation_row.person_id,
+        &template_row,
+        &raw_template_body,
+    )
+    .await?;
     Ok(views::notation::render_filled_in(&template_body, &ctx))
 }
 
@@ -1982,7 +2000,13 @@ async fn drive_closing_workflow(
         .await?
         .ok_or(WorkflowDriveError::TemplateMissing(notation_id))?;
     let template_body = store::templates::body(&state.db, &state.storage, &template_row).await?;
-    let ctx = render_context_from_answers(&state.db, notation_row.person_id, &template_row).await?;
+    let ctx = render_context_from_answers(
+        &state.db,
+        notation_row.person_id,
+        &template_row,
+        &template_body,
+    )
+    .await?;
 
     // Staff review short-circuits to `approved` in the dev loop (a real
     // staff-review handler swaps in for prod). The `approved` signal
@@ -2130,6 +2154,7 @@ async fn render_context_from_answers(
     db: &store::Db,
     person_id: Uuid,
     template_row: &template::Model,
+    template_body: &str,
 ) -> Result<BTreeMap<String, String>, sea_orm::DbErr> {
     let answers = answer::Entity::find()
         .filter(answer::Column::PersonId.eq(person_id))
@@ -2156,15 +2181,20 @@ async fn render_context_from_answers(
             ctx.insert(code.clone(), a.value);
         }
     }
-    add_template_state_aliases(&mut ctx, template_row);
+    add_template_state_aliases(&mut ctx, template_row, template_body);
     Ok(ctx)
 }
 
-fn add_template_state_aliases(ctx: &mut BTreeMap<String, String>, template_row: &template::Model) {
-    let Some(yaml) = workflows::bundled_spec_yaml(&template_row.code) else {
-        return;
-    };
-    let Ok(spec) = workflows::questionnaire_spec_from_yaml(yaml) else {
+fn add_template_state_aliases(
+    ctx: &mut BTreeMap<String, String>,
+    template_row: &template::Model,
+    template_body: &str,
+) {
+    let spec = workflows::bundled_spec_yaml(&template_row.code).map_or_else(
+        || workflows::questionnaire_spec_from_template(template_body),
+        workflows::questionnaire_spec_from_yaml,
+    );
+    let Ok(spec) = spec else {
         return;
     };
     let states: Vec<String> = spec
@@ -2259,7 +2289,10 @@ fn progress_for(spec: &workflows::QuestionnaireSpec, current_state: &StateName) 
 
 #[cfg(test)]
 mod tests {
-    use super::progress_for;
+    use super::{add_template_state_aliases, progress_for};
+    use std::collections::BTreeMap;
+    use store::entity::template;
+    use uuid::Uuid;
     use workflows::{retainer_intake_questionnaire, StateName};
 
     #[test]
@@ -2283,6 +2316,45 @@ mod tests {
         assert_eq!(
             progress_for(&spec, &StateName::from("product_description")),
             (4, 4)
+        );
+    }
+
+    #[test]
+    fn state_aliases_parse_non_bundled_template_frontmatter() {
+        let template_row = template::Model {
+            id: Uuid::nil(),
+            code: "project_scoped__custom".into(),
+            title: "Project custom".into(),
+            respondent_type: "entity".into(),
+            project_id: None,
+            blob_id: None,
+            form_code: None,
+            inserted_at: String::new(),
+            updated_at: String::new(),
+        };
+        let body = "---
+questionnaire:
+  BEGIN:
+    _: entity__company
+  entity__company:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    _: staff_review
+  staff_review:
+    _: END
+  END: {}
+---
+# {{entity__company}}
+";
+        let mut ctx = BTreeMap::from([("entity".into(), "Libra LLC".into())]);
+
+        add_template_state_aliases(&mut ctx, &template_row, body);
+
+        assert_eq!(
+            ctx.get("entity__company").map(String::as_str),
+            Some("Libra LLC")
         );
     }
 }

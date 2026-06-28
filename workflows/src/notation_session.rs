@@ -402,20 +402,20 @@ pub async fn client_intake_step(
         .all(db)
         .await?;
     let mut latest_value: BTreeMap<String, String> = BTreeMap::new();
-    let mut client_answered: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut client_answer_counts: BTreeMap<String, usize> = BTreeMap::new();
     for a in answers {
         let Some(code) = id_to_code.get(&a.question_id) else {
             continue;
         };
         if a.source == answer::SOURCE_CLIENT {
-            client_answered.insert(code.clone());
+            *client_answer_counts.entry(code.clone()).or_default() += 1;
         }
         latest_value.insert(code.clone(), a.value);
     }
+    let client_answered = answered_client_states(&client_codes, client_answer_counts);
 
     for (idx, code) in client_codes.iter().enumerate() {
-        if client_answered.contains(code) || client_answered.contains(question_code_for_state(code))
-        {
+        if client_answered.contains(code) {
             continue;
         }
         let question = load_question(
@@ -613,6 +613,25 @@ fn prompt_override_for_state<'a>(
     }
 }
 
+fn answered_client_states(
+    client_codes: &[String],
+    mut answer_counts_by_canonical_code: BTreeMap<String, usize>,
+) -> std::collections::BTreeSet<String> {
+    let mut answered = std::collections::BTreeSet::new();
+    for code in client_codes {
+        let canonical_code = question_code_for_state(code);
+        let Some(remaining) = answer_counts_by_canonical_code.get_mut(canonical_code) else {
+            continue;
+        };
+        if *remaining == 0 {
+            continue;
+        }
+        answered.insert(code.clone());
+        *remaining -= 1;
+    }
+    answered
+}
+
 fn localize_prompt_for_state(prompt: &str, state: &str) -> String {
     let label = state
         .split_once("__")
@@ -647,13 +666,14 @@ async fn localized_prompt(
 #[cfg(test)]
 mod tests {
     use super::{
-        answer_step, current_step, start_notation, AnswerAuthor, NextStep, NotationSessionError,
-        QuestionDescriptor,
+        answer_step, answered_client_states, current_step, start_notation, AnswerAuthor, NextStep,
+        NotationSessionError, QuestionDescriptor,
     };
     use crate::runtime::InMemoryRuntime;
     use sea_orm::{
         ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter, QueryOrder,
     };
+    use std::collections::BTreeMap;
     use store::entity::answer::{SOURCE_CLIENT, SOURCE_STAFF};
     use store::entity::{
         answer, notation, person, project, question, question_translation, template,
@@ -1447,5 +1467,17 @@ mod tests {
             err,
             NotationSessionError::QuestionNotClientFacing(c) if c == "project_name"
         ));
+    }
+
+    #[test]
+    fn answered_client_states_do_not_collapse_duplicate_typed_prefixes() {
+        let codes = vec![
+            "custom_text__mission_statement".to_string(),
+            "custom_text__revenue_strategy".to_string(),
+        ];
+        let answered = answered_client_states(&codes, BTreeMap::from([("custom_text".into(), 1)]));
+
+        assert!(answered.contains("custom_text__mission_statement"));
+        assert!(!answered.contains("custom_text__revenue_strategy"));
     }
 }
