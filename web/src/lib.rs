@@ -705,7 +705,10 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
                 "/foundation/mission",
                 get(|| async { axum::response::Redirect::permanent("/foundation") }),
             )
-            .route("/foundation/contact", get(foundation_contact))
+            .route(
+                "/foundation/contact",
+                get(|| async { axum::response::Redirect::permanent("/contact") }),
+            )
             .route("/foundation/nimbus", get(foundation_nimbus))
             // The Neon Law Navigator hub and its per-package pages. `/navigator`
             // and `/lsp` were the old top-level URLs; keep them as
@@ -1060,11 +1063,7 @@ async fn blog_post(
 }
 
 async fn contact(MaybeAuth(auth): MaybeAuth) -> Markup {
-    views::pages::contact::render_firm(auth)
-}
-
-async fn foundation_contact(MaybeAuth(auth): MaybeAuth) -> Markup {
-    views::pages::contact::render_foundation(auth)
+    views::pages::contact::render(auth)
 }
 
 /// `GET /foundation/navigator` — the Neon Law Navigator hub: the workspace README
