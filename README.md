@@ -62,6 +62,10 @@ The full edit → merge → release → deploy lifecycle is documented in [GitOp
 [GKE production](docs/gke-prod.md); a from-scratch fork install is in [OSS install](docs/oss-install.md). For each
 command, the error messages will tell you what you need. Loop that back to your LLM of choice, like Claude.
 
+## Contributing
+
+Contributions are welcome under the [Contributor License and Feedback Agreement](CONTRIBUTING.md).
+
 ## License
 
 Licensed under either of the following at your option.
