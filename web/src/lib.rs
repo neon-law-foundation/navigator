@@ -1764,8 +1764,8 @@ fn render_service_with_testimonials(
             || u8::try_from(pricing.len().clamp(1, 4)).unwrap_or(3),
             |n| n.clamp(1, 4),
         );
-    // Optional `hero_image:` frontmatter slug turns the page into a split
-    // hero (see `views::pages::service`). Absent → the body renders flat.
+    // Legacy `hero_image:` frontmatter is still parsed for compatibility,
+    // but the service view renders every animated hero without a photo layer.
     let hero_image = doc.and_then(|d| d.metadata.get("hero_image").map(String::as_str));
     // Optional `hero_scene: clouds` frontmatter swaps the hero's moving grid
     // floor for a soft drifting cloud field (Nimbus, the cloud install).

@@ -11,7 +11,6 @@
 
 use maud::{html, Markup, PreEscaped};
 
-use crate::assets;
 use crate::brand::SiteBrand;
 use crate::components::{
     pricing_section, testimonial_section, ExternalLink, PricingCard, TestimonialCard,
@@ -72,12 +71,10 @@ pub struct ServiceContent<'a> {
     /// Desktop column count for the pricing grid (3 for tiered plans,
     /// up to 4 for flat-fee menus).
     pub pricing_cols: u8,
-    /// Curated gallery slug for the product photo (the `hero_image:`
-    /// frontmatter key, e.g. `lake-tahoe`). `Some` rides the photo beneath
-    /// the neon hero as a dimmed backdrop (via the `--ph-photo` custom
-    /// property) and preloads it for the LCP; `None` renders the scene over
-    /// its flat animated background. Either way the body's leading `<h1>` is
-    /// lifted into the hero tagline.
+    /// Legacy curated gallery slug from the `hero_image:` frontmatter key,
+    /// e.g. `lake-tahoe`. Service animations intentionally ignore it so
+    /// every product hero renders over the same image-free animated scene.
+    /// The body's leading `<h1>` is still lifted into the hero tagline.
     pub hero_image: Option<&'a str>,
     /// Optional product-specific animation variant. Only Nexus opts in
     /// today; the shared hero remains the fallback for the rest of the
@@ -160,11 +157,6 @@ pub fn render_in(
     // The card now sits in its own section above the prose, so drop the
     // inline `[[pricing]]` splice marker if the author left one.
     let prose = prose_body.replace(PRICING_MARKER, "");
-    // The page's curated photo (if any) rides beneath the neon as a dimmed
-    // backdrop via the `--ph-photo` custom property, keeping the art and its
-    // LCP preload meaningful. `preload_href` is the same fallback `.jpg` the
-    // `<head>` preloads, so the backdrop reuses the already-fetched bytes.
-    let photo_href = content.hero_image.and_then(assets::preload_href);
     let hero_class = content.hero_variant.map_or_else(
         || "product-hero".to_string(),
         |variant| format!("product-hero product-hero--{variant}"),
@@ -173,10 +165,6 @@ pub fn render_in(
         // 1. The neon product hero — the page's bold, rounded top band.
         section class=(hero_class) {
             div."product-hero__bg" aria-hidden="true" {
-                @if let Some(href) = &photo_href {
-                    div."product-hero__photo"
-                        style=(format!("--ph-photo:url('{href}')")) {}
-                }
                 @if content.hero_variant == Some("nexus") {
                     div."product-hero__honeycomb"."product-hero__honeycomb--back" {}
                     div."product-hero__honeycomb"."product-hero__honeycomb--front" {}
@@ -254,12 +242,7 @@ pub fn render_in(
     if let Some(path) = canonical_path {
         layout = layout.with_canonical_path(path);
     }
-    // Preload the hero photo so it leads the Largest Contentful Paint,
-    // the same as the home hero. `href` must outlive the borrow.
-    match content.hero_image.and_then(assets::preload_href) {
-        Some(href) => layout.with_preload_image(&href).render(&body),
-        None => layout.render(&body),
-    }
+    layout.render(&body)
 }
 
 fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
@@ -545,21 +528,20 @@ mod tests {
     }
 
     #[test]
-    fn hero_image_rides_beneath_the_neon_hero_as_a_dimmed_backdrop() {
-        // A page with a hero image keeps its curated photo — but now beneath
-        // the neon scene as a dimmed `--ph-photo` backdrop, not as a separate
-        // Notion-style banner figure. The brand title is still the page <h1>,
-        // and the markdown headline is lifted into the hero tagline once.
+    fn hero_image_does_not_render_behind_the_neon_animation() {
+        // A page with legacy `hero_image` metadata still renders the same
+        // image-free neon animation as every other service page. The brand
+        // title is still the page <h1>, and the markdown headline is lifted
+        // into the hero tagline once.
         let mut content = fixture(
             "Neon Law Nautilus",
             "<h1>Put a lawyer between you</h1><p>body</p>",
         );
         content.hero_image = Some("migrating-birds");
         let html = render(&content, crate::AuthState::Anonymous).into_string();
-        // The photo rides as the neon backdrop, not a standalone banner.
         assert!(
-            html.contains("product-hero__photo") && html.contains("migrating-birds"),
-            "curated photo should ride as the neon backdrop, got: {html}"
+            !html.contains("product-hero__photo") && !html.contains("migrating-birds"),
+            "service hero animation should not render or preload a photo, got: {html}"
         );
         assert!(
             !html.contains("service-banner"),
@@ -582,10 +564,9 @@ mod tests {
             html.contains("<p class=\"product-hero__tagline lead\">Put a lawyer between you</p>"),
             "headline should become the hero tagline, got: {html}"
         );
-        // And the backdrop photo still leads the LCP via a hero preload.
         assert!(
-            html.contains("rel=\"preload\" as=\"image\""),
-            "backdrop photo should be preloaded, got: {html}"
+            !html.contains("rel=\"preload\" as=\"image\""),
+            "ignored hero_image should not add an image preload, got: {html}"
         );
     }
 

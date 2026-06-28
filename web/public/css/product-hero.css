@@ -9,9 +9,9 @@
 /* many colours distract from the work. The accent ramp lives in four custom */
 /* properties (`--ph-accent` / `--ph-bright` / `--ph-deep` / `--ph-soft`) plus */
 /* a scene background `--ph-bg`, kept as variables so the keyframes never */
-/* hard-code a colour. The page's curated photo (`hero_image`) rides */
-/* underneath as a dimmed backdrop via `--ph-photo`, keeping the art and its */
-/* LCP preload meaningful. */
+/* hard-code a colour. The animation is deliberately image-free: product */
+/* pages that still carry legacy `hero_image` metadata do not paint those */
+/* photos behind the moving scene. */
 /* */
 /* Like the home hero, the scene has TWO variants toggled by `data-bs-theme` */
 /* on <html> (resolved from the OS by color-scheme.js): the always-cyan */
@@ -58,21 +58,6 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-}
-
-/* The curated product photo, dimmed and tinted, sitting beneath the neon */
-/* so the scene keeps its art without drowning the glyph + title. Rendered */
-/* only when the page declares a `hero_image`. */
-.product-hero__photo {
-  position: absolute;
-  inset: 0;
-  background-image: var(--ph-photo);
-  background-size: cover;
-  background-position: center;
-  opacity: 0.22;
-  filter: saturate(1.1) contrast(1.05);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 92%);
-  mask-image: linear-gradient(to bottom, #000 0%, transparent 92%);
 }
 
 .product-hero__honeycomb {
