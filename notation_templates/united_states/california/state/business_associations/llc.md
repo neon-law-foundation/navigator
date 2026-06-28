@@ -5,12 +5,12 @@ code: llc__california
 confidential: false
 questionnaire:
   BEGIN:
-    _: company_name
-  company_name:
-    _: principal_office
-  principal_office:
-    _: member_list
-  member_list:
+    _: entity__company
+  entity__company:
+    _: address__principal_office
+  address__principal_office:
+    _: people__members
+  people__members:
     _: END
   END: {}
 workflow:
@@ -23,5 +23,5 @@ workflow:
   END: {}
 ---
 
-Operating agreement for `{{company_name}}`, a California limited liability company with its principal office at
-`{{principal_office}}`. The agreement is signed by the members listed in `{{member_list}}`.
+Operating agreement for `{{entity__company}}`, a California limited liability company with its principal office at
+`{{address__principal_office}}`. The agreement is signed by the members listed in `{{people__members}}`.

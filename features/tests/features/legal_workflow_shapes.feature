@@ -22,11 +22,11 @@ Feature: Bundled-template workflow composition (LLC, trust, will)
   Scenario: California LLC questionnaire walks company → office → members → END
     Given the bundled template "united_states/california/state/business_associations/llc.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
-      | from             | to                |
-      | BEGIN            | company_name      |
-      | company_name     | principal_office  |
-      | principal_office | member_list       |
-      | member_list      | END               |
+      | from                      | to                        |
+      | BEGIN                     | entity__company           |
+      | entity__company           | address__principal_office |
+      | address__principal_office | people__members           |
+      | people__members           | END                       |
 
   Scenario: California LLC workflow walks member signatures → staff review → END
     Given the bundled template "united_states/california/state/business_associations/llc.md"

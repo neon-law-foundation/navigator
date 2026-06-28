@@ -17,6 +17,8 @@
 //! in `workflows/tests/spec_coherence.rs` catches any drift between
 //! the two sources.
 
+use std::collections::BTreeMap;
+
 use serde::Deserialize;
 
 use crate::spec::{QuestionnaireSpec, WorkflowSpec, WorkflowSpecError};
@@ -196,6 +198,15 @@ pub fn questionnaire_spec_from_yaml(yaml: &str) -> Result<QuestionnaireSpec, Wor
     Ok(wrapper.questionnaire)
 }
 
+/// Parse the optional `prompts:` map from a standalone spec YAML.
+pub fn prompt_overrides_from_yaml(
+    yaml: &str,
+) -> Result<BTreeMap<String, String>, WorkflowSpecError> {
+    let wrapper: PromptFrontmatter =
+        serde_yaml::from_str(yaml).map_err(|e| WorkflowSpecError::Yaml(e.to_string()))?;
+    Ok(wrapper.prompts)
+}
+
 /// Extract the `workflow:` block from a notation template's YAML
 /// frontmatter and parse it as a [`WorkflowSpec`]. Used by the
 /// integrity / shape-lock tests, which validate that every template's
@@ -217,6 +228,16 @@ pub fn questionnaire_spec_from_template(
     questionnaire_spec_from_yaml(frontmatter)
 }
 
+/// Extract the optional `prompts:` map from a notation template's
+/// YAML frontmatter.
+pub fn prompt_overrides_from_template(
+    markdown: &str,
+) -> Result<BTreeMap<String, String>, WorkflowSpecError> {
+    let frontmatter = extract_frontmatter(markdown)
+        .ok_or_else(|| WorkflowSpecError::Yaml("template has no YAML frontmatter".into()))?;
+    prompt_overrides_from_yaml(frontmatter)
+}
+
 #[derive(Deserialize)]
 struct WorkflowFrontmatter {
     workflow: WorkflowSpec,
@@ -225,6 +246,12 @@ struct WorkflowFrontmatter {
 #[derive(Deserialize)]
 struct QuestionnaireFrontmatter {
     questionnaire: QuestionnaireSpec,
+}
+
+#[derive(Deserialize)]
+struct PromptFrontmatter {
+    #[serde(default)]
+    prompts: BTreeMap<String, String>,
 }
 
 fn extract_frontmatter(contents: &str) -> Option<&str> {

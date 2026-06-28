@@ -1541,7 +1541,7 @@ async fn run_validate(
             }
         }
     } else {
-        Vec::new()
+        rules::canonical_question_codes()
     };
     let filter: Box<dyn rules::FileFilter> = if no_default_excludes {
         Box::new(rules::DefaultFileFilter::without_default_excludes())

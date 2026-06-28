@@ -42,6 +42,8 @@ struct FrontmatterShape {
     #[serde(default)]
     questionnaire: Option<BTreeMap<String, BTreeMap<String, String>>>,
     #[serde(default)]
+    prompts: BTreeMap<String, String>,
+    #[serde(default)]
     workflow: Option<BTreeMap<String, BTreeMap<String, String>>>,
 }
 
@@ -67,7 +69,7 @@ impl Rule for F104FlowQuestionCodes {
             violations.push(violation(file, "Missing required `workflow` key"));
             return violations;
         };
-        self.validate_questionnaire(file, &questionnaire, &mut violations);
+        self.validate_questionnaire(file, &questionnaire, &parsed.prompts, &mut violations);
         Self::validate_workflow(file, &workflow, &mut violations);
         violations
     }
@@ -102,6 +104,7 @@ impl F104FlowQuestionCodes {
         &self,
         file: &SourceFile,
         map: &BTreeMap<String, BTreeMap<String, String>>,
+        prompts: &BTreeMap<String, String>,
         violations: &mut Vec<Violation>,
     ) {
         if !Self::validate_common_shape(file, map, "questionnaire", violations) {
@@ -123,6 +126,25 @@ impl F104FlowQuestionCodes {
                     file,
                     format!("Invalid question code: `{prefix}` (from state `{state}`)"),
                 ));
+            }
+            if prefix.starts_with("custom_") {
+                let Some((_, prompt_key)) = state.split_once("__") else {
+                    violations.push(violation(
+                        file,
+                        format!(
+                            "Custom question state `{state}` must use `custom_*__prompt_key` and define `prompts.<prompt_key>`"
+                        ),
+                    ));
+                    continue;
+                };
+                if !prompts.contains_key(prompt_key) {
+                    violations.push(violation(
+                        file,
+                        format!(
+                            "Custom question state `{state}` is missing required `prompts.{prompt_key}`"
+                        ),
+                    ));
+                }
             }
         }
     }
@@ -292,6 +314,78 @@ workflow:
 ---
 ";
         assert!(rule().lint(&file(body)).is_empty());
+    }
+
+    #[test]
+    fn custom_question_states_require_a_prompt_key() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: custom_text__fundraising_activities
+  custom_text__fundraising_activities:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: staff_review
+  staff_review:
+    approved: END
+  END: {}
+---
+";
+        let v = F104FlowQuestionCodes::new(["custom_text"]).lint(&file(body));
+        assert!(v.iter().any(|x| x
+            .message
+            .contains("missing required `prompts.fundraising_activities`")));
+    }
+
+    #[test]
+    fn custom_question_states_accept_matching_prompt_key() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: custom_text__fundraising_activities
+  custom_text__fundraising_activities:
+    answered: END
+  END: {}
+prompts:
+  fundraising_activities: What are the fundraising activities?
+workflow:
+  BEGIN:
+    created: staff_review
+  staff_review:
+    approved: END
+  END: {}
+---
+";
+        assert!(F104FlowQuestionCodes::new(["custom_text"])
+            .lint(&file(body))
+            .is_empty());
+    }
+
+    #[test]
+    fn bare_custom_question_state_is_invalid_without_a_prompt_discriminator() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: custom_text
+  custom_text:
+    answered: END
+  END: {}
+prompts:
+  custom_text: What custom text?
+workflow:
+  BEGIN:
+    created: staff_review
+  staff_review:
+    approved: END
+  END: {}
+---
+";
+        let v = F104FlowQuestionCodes::new(["custom_text"]).lint(&file(body));
+        assert!(v
+            .iter()
+            .any(|x| x.message.contains("must use `custom_*__prompt_key`")));
     }
 
     #[test]

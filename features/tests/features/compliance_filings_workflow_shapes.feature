@@ -15,10 +15,10 @@ Feature: Bundled-template workflow composition (compliance filings)
   Scenario: Nevada LLC dissolution questionnaire walks reason → debts → END
     Given the bundled template "united_states/nevada/state/business_associations/dissolution.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
-      | from                | to                  |
-      | BEGIN               | dissolution_reason  |
-      | dissolution_reason  | final_debts_settled |
-      | final_debts_settled | END                 |
+      | from                                | to                                  |
+      | BEGIN                               | custom_text__dissolution_reason     |
+      | custom_text__dissolution_reason     | custom_yes_no__final_debts_settled  |
+      | custom_yes_no__final_debts_settled  | END                                 |
 
   Scenario: Nevada LLC dissolution workflow mails articles to the Secretary of State
     Given the bundled template "united_states/nevada/state/business_associations/dissolution.md"
@@ -36,10 +36,10 @@ Feature: Bundled-template workflow composition (compliance filings)
   Scenario: Nevada annual report questionnaire walks period → managers → END
     Given the bundled template "united_states/nevada/state/business_associations/annual_report.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
-      | from              | to                |
+      | from              | to               |
       | BEGIN             | annual_or_amended |
-      | annual_or_amended | managers_list     |
-      | managers_list     | END               |
+      | annual_or_amended | people__managers |
+      | people__managers  | END              |
 
   Scenario: Nevada annual report workflow mails the list after staff review
     Given the bundled template "united_states/nevada/state/business_associations/annual_report.md"
@@ -56,10 +56,10 @@ Feature: Bundled-template workflow composition (compliance filings)
   Scenario: Nevada Modified Business Tax questionnaire walks year → revenue → END
     Given the bundled template "united_states/nevada/state/taxation/modified_business_tax.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
-      | from          | to            |
-      | BEGIN         | tax_year      |
-      | tax_year      | gross_revenue |
-      | gross_revenue | END           |
+      | from                       | to                         |
+      | BEGIN                      | datetime__tax_year         |
+      | datetime__tax_year         | custom_usd__gross_revenue  |
+      | custom_usd__gross_revenue  | END                        |
 
   Scenario: Nevada Modified Business Tax workflow signs, reviews, and mails the return
     Given the bundled template "united_states/nevada/state/taxation/modified_business_tax.md"

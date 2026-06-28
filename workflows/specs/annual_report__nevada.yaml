@@ -2,8 +2,8 @@ questionnaire:
   BEGIN:
     _: annual_or_amended
   annual_or_amended:
-    _: managers_list
-  managers_list:
+    _: people__managers
+  people__managers:
     _: END
   END: {}
 workflow:
