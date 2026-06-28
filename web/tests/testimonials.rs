@@ -93,3 +93,37 @@ async fn product_page_renders_only_matching_product_testimonials() {
     let litigation_body = body_string(litigation).await;
     assert!(!litigation_body.contains("Nexus made general counsel feel close at hand."));
 }
+
+#[tokio::test]
+async fn referral_campaign_renders_modal_overlay_and_local_javascript() {
+    let state = web::test_support::app_state(seeded_testimonial_db().await).await;
+    let resp = get(state, "/services/litigation?ref=1337lawyers").await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+
+    assert!(
+        body.contains("class=\"modal fade show d-block lawyers-terminal-modal\"")
+            && body.contains("role=\"dialog\"")
+            && body.contains("aria-modal=\"true\"")
+            && body.contains("class=\"modal-backdrop fade show lawyers-terminal-backdrop\""),
+        "campaign link must render an open modal overlay, got: {body}"
+    );
+    assert!(
+        body.contains("script defer src=\"/public/js/bootstrap.bundle.min.js\"")
+            && body.contains("script defer src=\"/public/js/htmx.min.js\"")
+            && body.contains("script defer src=\"/public/js/alpine.min.js\""),
+        "layout must load vendored JavaScript from /public/js, got: {body}"
+    );
+    for cdn in [
+        "cdn.jsdelivr.net",
+        "unpkg.com",
+        "cdnjs.cloudflare.com",
+        "code.jquery.com",
+        "ajax.googleapis.com",
+    ] {
+        assert!(
+            !body.contains(cdn),
+            "campaign page must not load JavaScript from CDN host {cdn}: {body}"
+        );
+    }
+}

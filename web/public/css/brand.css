@@ -376,12 +376,15 @@
 
 /* Campaign-only Matrix-style terminal for /services/litigation?ref=1337lawyers. */
 .lawyers-terminal-modal {
-  position: fixed;
-  inset: 0;
   z-index: 1100;
-  display: grid;
+  display: grid !important;
   place-items: center;
   padding: clamp(0.75rem, 3vw, 2rem);
+  color: #d1fae5;
+}
+
+.lawyers-terminal-backdrop {
+  z-index: 1090;
   background:
     linear-gradient(rgba(0, 10, 7, 0.86), rgba(0, 10, 7, 0.82)),
     repeating-linear-gradient(
@@ -394,11 +397,12 @@
       rgba(52, 211, 153, 0.04) 0 1px,
       transparent 1px 2.4rem
     );
-  color: #d1fae5;
+  opacity: 1;
 }
 
 .lawyers-terminal {
   width: min(100%, 64rem);
+  margin: auto;
   max-height: min(82vh, 44rem);
   overflow: auto;
   border: 1px solid rgba(110, 231, 183, 0.7);

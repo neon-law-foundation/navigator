@@ -285,8 +285,9 @@ fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
     };
     let cta_href = format!("mailto:{}?subject={subject}", crate::brand::firm_email());
     html! {
-        section."lawyers-terminal-modal"
+        section.modal.fade.show."d-block"."lawyers-terminal-modal"
             role="dialog"
+            tabindex="-1"
             aria-modal="true"
             aria-labelledby="lawyers-terminal-title" {
             div."lawyers-terminal" {
@@ -320,6 +321,7 @@ fn referral_terminal(close_href: &str, locale: Locale) -> Markup {
                 }
             }
         }
+        div."modal-backdrop".fade.show."lawyers-terminal-backdrop" {}
     }
 }
 
@@ -723,8 +725,10 @@ mod tests {
         content.referral_terminal_close_href = Some("/services/litigation");
         let html = render(&content, crate::AuthState::Anonymous).into_string();
         assert!(
-            html.contains("class=\"lawyers-terminal-modal\"")
+            html.contains("class=\"modal fade show d-block lawyers-terminal-modal\"")
                 && html.contains("role=\"dialog\"")
+                && html.contains("tabindex=\"-1\"")
+                && html.contains("class=\"modal-backdrop fade show lawyers-terminal-backdrop\"")
                 && html.contains("Yo. Need something? Follow the white rabbit."),
             "campaign modal should render as an accessible dialog, got: {html}"
         );
