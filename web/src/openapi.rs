@@ -84,7 +84,7 @@ pub fn document_with_base(base: &str) -> Value {
            authentication — either a browser session cookie issued by the OAuth flow \
            at `/auth/login`, or a JWT bearer token. The documentation itself stays \
            public: both the OpenAPI document (`/openapi.json`) and the Swagger UI that \
-           renders it (`/api/docs`) are reachable without a session, so the schema is \
+           renders it (`/api-docs`) are reachable without a session, so the schema is \
            discoverable before signing in. The MCP endpoint at `/mcp` (JSON-RPC, \
            Google OAuth bearer) is documented separately.",
         "contact": { "name": FIRM_BRAND.site_name, "url": contact_url }

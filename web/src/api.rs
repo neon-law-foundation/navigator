@@ -36,13 +36,16 @@ pub fn routes() -> Router<Db> {
             axum::routing::post(validate_template),
         )
         .route("/openapi.json", axum::routing::get(openapi_json))
-        .route("/api/docs", axum::routing::get(api_docs))
+        // Top-level public docs shell — deliberately a sibling of
+        // `/openapi.json`, not a `/api/*` leaf, so the gate rule stays
+        // "all of `/api/*` needs a session" with no in-prefix carve-out.
+        .route("/api-docs", axum::routing::get(api_docs))
 }
 
 /// The `/api/*` routes that should appear in the OpenAPI document, in
 /// OpenAPI path-template form (`{id}`, not axum's `:id`). Kept in
 /// lockstep with [`routes`] by `web/tests/openapi_drift.rs`. Excludes
-/// `/openapi.json` and `/api/docs` because those are meta-endpoints
+/// `/openapi.json` and `/api-docs` because those are meta-endpoints
 /// (the doc itself and the Swagger UI shell), not part of the public
 /// API surface the document describes.
 #[must_use]
@@ -58,12 +61,14 @@ pub fn documented_api_paths() -> Vec<&'static str> {
     ]
 }
 
-/// Static Swagger UI shell. Loads the vendored `swagger-ui-dist`
-/// assets from `/public/swagger-ui/` and points the renderer at
-/// `/openapi.json`. Public via its own OPA exemption, alongside
-/// `/openapi.json` — the documentation describes the API but is not
-/// the API, so the OIDC gate guards the data endpoints it documents,
-/// not the docs themselves. The shell renders the public
+/// Static Swagger UI shell, served at the top-level public `/api-docs`.
+/// Loads the vendored `swagger-ui-dist` assets from `/public/swagger-ui/`
+/// and points the renderer at `/openapi.json`. Public via its own OPA
+/// exemption, alongside `/openapi.json` — the documentation describes
+/// the API but is not the API, so the OIDC gate guards the data
+/// endpoints it documents, not the docs themselves. It lives outside
+/// the `/api/*` prefix on purpose: the gate rule stays "all of `/api/*`
+/// needs a session" with no leaf carve-out. The shell renders the public
 /// `/openapi.json` and calls no protected route, so a session would
 /// add nothing. The per-response `Content-Security-Policy` header
 /// keeps script execution on the same origin — the whole point of

@@ -319,7 +319,7 @@ fn deny_response(
                 .into_response()
         }
     } else if swagger_ui_request && crate::wants_json(path) {
-        let login = format!("/auth/login?return_to={}", percent_encode_path("/api/docs"));
+        let login = format!("/auth/login?return_to={}", percent_encode_path("/api-docs"));
         tracing::info!(path, login = %login, "policy denied Swagger UI request (anonymous; 401)");
         (
             axum::http::StatusCode::UNAUTHORIZED,
