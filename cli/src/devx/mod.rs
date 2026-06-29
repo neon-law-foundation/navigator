@@ -1021,14 +1021,94 @@ fn kind_up_steps(root: &Path, cfg: &KindConfig) -> Result<()> {
         .arg("--all"))
 }
 
+/// Load a local Docker image tag into every KIND node.
+///
+/// `kind load docker-image` hardcodes `ctr images import --all-platforms
+/// --digests`, which means it tries to import *every* manifest the local
+/// image index references. Since CI began publishing multi-arch indexes
+/// (`linux/amd64` + `linux/arm64` + buildx `unknown/unknown` attestation
+/// manifests), that breaks on any single-arch host: `docker pull` only
+/// materializes the host platform's blobs, so `--all-platforms` aborts with
+/// `ctr: content digest <other-arch manifest>: not found`. `OrbStack` and
+/// Docker 29 use the containerd image store, which keeps the full index, so
+/// this is the *default* failure on Apple Silicon — not an opt-in misconfig.
+///
+/// Flatten to the daemon's own platform with `docker save --platform` first,
+/// then `kind load image-archive` the single-platform tar — `--all-platforms`
+/// then finds exactly one platform and succeeds. If the save can't produce
+/// that platform (e.g. an older single-arch image that doesn't contain it),
+/// fall back to the legacy whole-image load, which still works when the
+/// index has only one platform.
 fn kind_load_image_into_cluster(tag: &str, cfg: &KindConfig) -> Result<()> {
-    eprintln!("==> kind load docker-image {tag}");
+    let platform = format!("linux/{}", docker_daemon_arch());
+    match kind_load_single_platform(tag, &platform, cfg) {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            eprintln!(
+                "==> single-platform load of {tag} ({platform}) failed ({err:#}); \
+                 falling back to `kind load docker-image`"
+            );
+            run(Command::new("kind")
+                .arg("load")
+                .arg("docker-image")
+                .arg(tag)
+                .arg("--name")
+                .arg(&cfg.cluster))
+        }
+    }
+}
+
+/// `docker save --platform <platform> <tag>` to a temp archive, then `kind
+/// load image-archive` it. Keeps the archive single-platform so KIND's
+/// `--all-platforms` import never references a blob the host never pulled.
+fn kind_load_single_platform(tag: &str, platform: &str, cfg: &KindConfig) -> Result<()> {
+    let archive = tempfile::Builder::new()
+        .prefix("navigator-kind-load-")
+        .suffix(".tar")
+        .tempfile()
+        .context("create temp image archive for kind load")?;
+    eprintln!("==> docker save --platform {platform} {tag} (single-platform for kind)");
+    run(Command::new("docker")
+        .arg("save")
+        .arg("--platform")
+        .arg(platform)
+        .arg(tag)
+        .arg("-o")
+        .arg(archive.path()))?;
+    eprintln!("==> kind load image-archive ({tag} → {})", cfg.cluster);
     run(Command::new("kind")
         .arg("load")
-        .arg("docker-image")
-        .arg(tag)
+        .arg("image-archive")
+        .arg(archive.path())
         .arg("--name")
         .arg(&cfg.cluster))
+}
+
+/// Architecture the Docker daemon runs as (`arm64` / `amd64`), used to build
+/// the `linux/<arch>` platform passed to `docker save`. Queries the daemon
+/// directly (`docker version`) so it is correct even when the CLI binary runs
+/// under a different arch (Rosetta); falls back to the host arch if the daemon
+/// can't be reached.
+fn docker_daemon_arch() -> String {
+    Command::new("docker")
+        .args(["version", "--format", "{{.Server.Arch}}"])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .filter(|arch| !arch.is_empty())
+        .unwrap_or_else(|| normalize_docker_arch(std::env::consts::ARCH))
+}
+
+/// Map a Rust `std::env::consts::ARCH` value to the Docker/OCI arch suffix.
+/// Only the two arches the workspace builds for are remapped; anything else
+/// passes through unchanged.
+fn normalize_docker_arch(arch: &str) -> String {
+    match arch {
+        "x86_64" => "amd64".to_string(),
+        "aarch64" => "arm64".to_string(),
+        other => other.to_string(),
+    }
 }
 
 /// Resolve the `YY.MM.DD` ghcr tag the local cluster should pull, in
@@ -1773,6 +1853,20 @@ mod tests {
                 );
             }
         }
+    }
+
+    // The `linux/<arch>` platform fed to `docker save` (in
+    // `kind_load_image_into_cluster`) must use the OCI arch suffix, not the
+    // Rust arch triple — `linux/aarch64` would never match an image's
+    // `linux/arm64` manifest, defeating the multi-arch flatten.
+    #[test]
+    fn normalize_docker_arch_maps_rust_arches_to_oci_suffixes() {
+        assert_eq!(normalize_docker_arch("x86_64"), "amd64");
+        assert_eq!(normalize_docker_arch("aarch64"), "arm64");
+        // Already-normalized or unknown values pass through unchanged.
+        assert_eq!(normalize_docker_arch("amd64"), "amd64");
+        assert_eq!(normalize_docker_arch("arm64"), "arm64");
+        assert_eq!(normalize_docker_arch("riscv64"), "riscv64");
     }
 
     // Every env var `KindConfig::from_env` reads. Tests clear all of
