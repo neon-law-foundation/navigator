@@ -62,11 +62,18 @@ pub struct BillingDigestReport {
 
 impl BillingDigestReport {
     fn cost_total(&self) -> f64 {
-        self.current.iter().map(|c| c.cost).sum()
+        visible_cost_total(&self.current)
     }
 
     fn prior_cost_total(&self) -> f64 {
-        self.prior.iter().map(|c| c.cost).sum()
+        visible_cost_total(&self.prior)
+    }
+
+    fn service_count(&self) -> usize {
+        self.current
+            .iter()
+            .filter(|c| is_visible_cost(c.cost))
+            .count()
     }
 }
 
@@ -155,7 +162,7 @@ impl BillingDigest for BillingDigestService {
         let outcome = DigestOutcome {
             sent: true,
             cost_total: report.cost_total(),
-            services: report.current.len(),
+            services: report.service_count(),
         };
         let email = build_digest_email(&report, &cfg.recipient);
         let svc = Arc::clone(&self.email);
@@ -229,6 +236,17 @@ fn rounded_cents(v: f64) -> i64 {
     (v * 100.0).round() as i64
 }
 
+fn is_visible_cost(v: f64) -> bool {
+    rounded_cents(v) != 0
+}
+
+fn visible_cost_total(rows: &[CostRow]) -> f64 {
+    rows.iter()
+        .filter(|c| is_visible_cost(c.cost))
+        .map(|c| c.cost)
+        .sum()
+}
+
 /// Build the daily billing-digest email. Pure — exposed so the rendered
 /// subject/body is unit-tested without a worker or BigQuery.
 #[must_use]
@@ -273,7 +291,7 @@ pub fn build_digest_email(report: &BillingDigestReport, recipient: &str) -> Outb
             .iter()
             .map(|c| (c.service.as_str(), c.cost))
             .collect::<std::collections::HashMap<_, _>>();
-        let display_rows = report.current.iter().filter(|c| rounded_cents(c.cost) != 0);
+        let display_rows = report.current.iter().filter(|c| is_visible_cost(c.cost));
         for c in display_rows {
             let delta = prior_by_service
                 .get(c.service.as_str())
@@ -352,6 +370,14 @@ mod tests {
                     service: "Artifact Registry".into(),
                     cost: 0.004,
                 },
+                CostRow {
+                    service: "Cloud Trace".into(),
+                    cost: 0.004,
+                },
+                CostRow {
+                    service: "Invoice".into(),
+                    cost: 0.004,
+                },
             ],
             prior: vec![CostRow {
                 service: "Kubernetes Engine".into(),
@@ -362,7 +388,11 @@ mod tests {
 
     #[test]
     fn digest_starts_with_money_and_renders_30_day_cost_table() {
-        let email = build_digest_email(&sample_report(), "ops@example.com");
+        let report = sample_report();
+        assert_eq!(report.service_count(), 2);
+        assert_eq!(dollars(report.cost_total()), "$133.76");
+
+        let email = build_digest_email(&report, "ops@example.com");
         assert_eq!(email.to, "ops@example.com");
         assert!(email.subject.starts_with("💸 $133.76 30-day GCP cost"));
 
@@ -373,6 +403,8 @@ mod tests {
         assert!(b.contains("Kubernetes Engine"));
         assert!(b.contains("Cloud SQL"));
         assert!(!b.contains("Artifact Registry"));
+        assert!(!b.contains("Cloud Trace"));
+        assert!(!b.contains("Invoice"));
         assert!(b.contains("$114.44"));
         assert!(b.contains("n/a"));
         assert!(b.contains("TOTAL"));
