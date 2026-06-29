@@ -28,6 +28,7 @@ Subcommands split by whether they need a database:
 | Subcommand       | Needs DB? | Notes                                                                      |
 | ---------------- | --------- | -------------------------------------------------------------------------- |
 | `validate`       | no        | N104 checks questionnaire codes against the canonical question seed list.  |
+| `validate-yaml`  | no        | Parses every `.yaml` and `.yml` under a directory.                         |
 | `render`         | no        | Validation-gated template → PDF; `--format letter`.                        |
 | `format`         | no        | Whitespace + bullet cleanup on one `.md`.                                  |
 | `docs list`      | no        | Lists published docs pages plus glossary term anchors.                     |
