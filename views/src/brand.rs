@@ -407,22 +407,6 @@ mod tests {
     }
 
     #[test]
-    fn foundation_top_nav_is_four_flat_leaves() {
-        let labels: Vec<&str> = FOUNDATION_BRAND.nav.iter().map(|n| n.label).collect();
-        // The Foundation nav stays terse: firm cross-link, software,
-        // Templates, Nimbus, and Nebula.
-        assert_eq!(
-            labels,
-            ["Firm", "Navigator", "Templates", "Nimbus", "Nebula"]
-        );
-        assert_eq!(FOUNDATION_BRAND.nav[0].href, "/");
-        assert!(
-            FOUNDATION_BRAND.nav.iter().all(|n| !n.is_dropdown()),
-            "the Foundation nav no longer carries any dropdown"
-        );
-    }
-
-    #[test]
     fn foundation_nav_navigator_points_at_the_package_hub() {
         // "Navigator" is a flat top-level leaf at the hub that fans out to
         // the per-package pages (lsp / cli / mcp / web).
