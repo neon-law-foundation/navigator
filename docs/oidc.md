@@ -179,7 +179,7 @@ and JWKS with a bounded startup retry.
 
 ## Rego policy
 
-The default policy that ships in `k8s/opa/opa.yaml`:
+The default policy that ships in `k8s/base/opa/opa.yaml`:
 
 ```rego
 package navigator.authz
