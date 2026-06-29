@@ -1,8 +1,8 @@
 //! Vendored government forms — the bundled registry behind
-//! `notation_templates/forms/`.
+//! `templates/forms/`.
 //!
 //! Each canonical blank PDF lives under the same path it uses in the
-//! public assets bucket: `notation_templates/<object_path>`. The sibling
+//! public assets bucket: `templates/<object_path>`. The sibling
 //! markdown template is the catalog card, and this crate embeds the PDF
 //! bytes so runtime form filling never depends on a network read.
 
@@ -22,7 +22,7 @@ pub struct FormMeta {
     pub title: &'static str,
     /// Canonical government page where the blank can be obtained.
     pub origin_url: &'static str,
-    /// Path in the public assets bucket and, with `notation_templates/`
+    /// Path in the public assets bucket and, with `templates/`
     /// prepended, in the repo.
     pub object_path: &'static str,
 }
@@ -63,7 +63,7 @@ const BUNDLED: &[Form] = &[
             object_path: "forms/united_states/nevada/state/nv__llc_formation.pdf",
         },
         bytes: include_bytes!(
-            "../../notation_templates/forms/united_states/nevada/state/nv__llc_formation.pdf"
+            "../../templates/forms/united_states/nevada/state/nv__llc_formation.pdf"
         ),
     },
     Form {
@@ -75,7 +75,7 @@ const BUNDLED: &[Form] = &[
             object_path: "forms/united_states/nevada/state/nv__profit_corp_formation.pdf",
         },
         bytes: include_bytes!(
-            "../../notation_templates/forms/united_states/nevada/state/nv__profit_corp_formation.pdf"
+            "../../templates/forms/united_states/nevada/state/nv__profit_corp_formation.pdf"
         ),
     },
     Form {
@@ -87,7 +87,7 @@ const BUNDLED: &[Form] = &[
             object_path: "forms/united_states/nevada/state/nv__business_trust_formation.pdf",
         },
         bytes: include_bytes!(
-            "../../notation_templates/forms/united_states/nevada/state/nv__business_trust_formation.pdf"
+            "../../templates/forms/united_states/nevada/state/nv__business_trust_formation.pdf"
         ),
     },
 ];

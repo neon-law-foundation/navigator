@@ -11,7 +11,7 @@
 //! pins against).
 //!
 //! Adding a new workflow: drop a notation template under
-//! `notation_templates/forms/...` or `notation_templates/neon_law/...`,
+//! `templates/forms/...` or `templates/neon_law/...`,
 //! write the same `workflow:` + `questionnaire:` blocks into
 //! `workflows/specs/<code>.yaml`, and add the file to
 //! [`BUNDLED_SPEC_YAML`] below. The coherence test in
@@ -29,7 +29,7 @@ use crate::spec::{QuestionnaireSpec, WorkflowSpec, WorkflowSpecError};
 /// the integrity / coherence tests; the workflow spec itself now
 /// loads from [`RETAINER_INTAKE_SPEC_YAML`].
 pub const RETAINER_INTAKE_TEMPLATE: &str =
-    include_str!("../../notation_templates/neon_law/shared/retainer.md");
+    include_str!("../../templates/neon_law/shared/retainer.md");
 
 /// Standalone YAML carrying both `questionnaire:` and `workflow:`
 /// blocks for the retainer intake template.

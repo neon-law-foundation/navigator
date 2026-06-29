@@ -3,7 +3,7 @@
 //!
 //! The conversion centerpiece of the "our legal documents are plain
 //! markdown" pitch: a stretched nonprofit staffer can browse a curated,
-//! client-safe subset of the workspace `notation_templates/` tree, see the
+//! client-safe subset of the workspace `templates/` tree, see the
 //! notation format itself (the YAML frontmatter is rendered verbatim),
 //! and download the raw `.md` to take with them. Every page carries the
 //! shared [`legal_blueprint_disclaimer`] UPL guardrail and ends with a

@@ -130,102 +130,98 @@ mod canonical {
     /// it without a separate `navigator import` step. The full
     /// shipped catalog is bundled so a fresh cluster carries every
     /// template without an import pass.
-    pub const TEMPLATE_RETAINER: &str =
-        include_str!("../../notation_templates/neon_law/shared/retainer.md");
+    pub const TEMPLATE_RETAINER: &str = include_str!("../../templates/neon_law/shared/retainer.md");
     pub const TEMPLATE_CLOSING_LETTER: &str =
-        include_str!("../../notation_templates/neon_law/shared/closing_letter.md");
-    pub const TEMPLATE_ANNUAL_REPORT_NV: &str = include_str!(
-        "../../notation_templates/forms/united_states/nevada/state/nv__annual_report.md"
-    );
-    pub const TEMPLATE_DISSOLUTION_NV: &str = include_str!(
-        "../../notation_templates/forms/united_states/nevada/state/nv__dissolution.md"
-    );
+        include_str!("../../templates/neon_law/shared/closing_letter.md");
+    pub const TEMPLATE_ANNUAL_REPORT_NV: &str =
+        include_str!("../../templates/forms/united_states/nevada/state/nv__annual_report.md");
+    pub const TEMPLATE_DISSOLUTION_NV: &str =
+        include_str!("../../templates/forms/united_states/nevada/state/nv__dissolution.md");
     pub const TEMPLATE_LLC_CA: &str =
-        include_str!("../../notation_templates/neon_law/nest/ca__llc_operating_agreement.md");
+        include_str!("../../templates/neon_law/nest/ca__llc_operating_agreement.md");
     pub const TEMPLATE_FORM990: &str =
-        include_str!("../../notation_templates/forms/united_states/federal/irs/us__form_990.md");
-    pub const TEMPLATE_NONPROFIT_501C3_NV: &str =
-        include_str!("../../notation_templates/forms/united_states/nevada/state/nv__nonprofit_501c3_formation.md");
+        include_str!("../../templates/forms/united_states/federal/irs/us__form_990.md");
+    pub const TEMPLATE_NONPROFIT_501C3_NV: &str = include_str!(
+        "../../templates/forms/united_states/nevada/state/nv__nonprofit_501c3_formation.md"
+    );
     pub const TEMPLATE_CHARITABLE_SOLICITATION_NV: &str = include_str!(
-        "../../notation_templates/forms/united_states/nevada/state/nv__charitable_solicitation_registration.md"
+        "../../templates/forms/united_states/nevada/state/nv__charitable_solicitation_registration.md"
     );
     pub const TEMPLATE_NV_MBT: &str = include_str!(
-        "../../notation_templates/forms/united_states/nevada/state/nv__modified_business_tax.md"
+        "../../templates/forms/united_states/nevada/state/nv__modified_business_tax.md"
     );
     pub const TEMPLATE_TRUST_NV: &str =
-        include_str!("../../notation_templates/neon_law/northstar/nv__generic_trust.md");
+        include_str!("../../templates/neon_law/northstar/nv__generic_trust.md");
     pub const TEMPLATE_WILL_SIMPLE: &str =
-        include_str!("../../notation_templates/neon_law/northstar/nv__simple_will.md");
+        include_str!("../../templates/neon_law/northstar/nv__simple_will.md");
     pub const TEMPLATE_ESTATE: &str =
-        include_str!("../../notation_templates/neon_law/northstar/estate_plan.md");
+        include_str!("../../templates/neon_law/northstar/estate_plan.md");
     // Northstar estate instrument stubs — the will, trust, and the two
     // directives the `document_drafts__estate` step renders from the
     // sitting's answers into one `review_documents` row each.
     pub const TEMPLATE_NORTHSTAR_WILL: &str =
-        include_str!("../../notation_templates/neon_law/northstar/nv__will.md");
+        include_str!("../../templates/neon_law/northstar/nv__will.md");
     pub const TEMPLATE_NORTHSTAR_TRUST: &str =
-        include_str!("../../notation_templates/neon_law/northstar/nv__trust.md");
+        include_str!("../../templates/neon_law/northstar/nv__trust.md");
     pub const TEMPLATE_NORTHSTAR_DIRECTIVE_HEALTH: &str =
-        include_str!("../../notation_templates/neon_law/northstar/nv__directive_health.md");
+        include_str!("../../templates/neon_law/northstar/nv__directive_health.md");
     pub const TEMPLATE_NORTHSTAR_DIRECTIVE_FINANCIAL: &str =
-        include_str!("../../notation_templates/neon_law/northstar/nv__directive_financial.md");
-    pub const TEMPLATE_NEST_NV: &str = include_str!(
-        "../../notation_templates/forms/united_states/nevada/state/nv__llc_formation.md"
-    );
+        include_str!("../../templates/neon_law/northstar/nv__directive_financial.md");
+    pub const TEMPLATE_NEST_NV: &str =
+        include_str!("../../templates/forms/united_states/nevada/state/nv__llc_formation.md");
     pub const TEMPLATE_NEST_CORP_NV: &str = include_str!(
-        "../../notation_templates/forms/united_states/nevada/state/nv__profit_corp_formation.md"
+        "../../templates/forms/united_states/nevada/state/nv__profit_corp_formation.md"
     );
     pub const TEMPLATE_NEST_BUSINESS_TRUST_NV: &str = include_str!(
-        "../../notation_templates/forms/united_states/nevada/state/nv__business_trust_formation.md"
+        "../../templates/forms/united_states/nevada/state/nv__business_trust_formation.md"
     );
     pub const TEMPLATE_NEXUS: &str =
-        include_str!("../../notation_templates/neon_law/nexus/fractional_gc.md");
+        include_str!("../../templates/neon_law/nexus/fractional_gc.md");
     pub const TEMPLATE_EMPLOYMENT_W2: &str =
-        include_str!("../../notation_templates/neon_law/nexus/nv__employment_agreement.md");
+        include_str!("../../templates/neon_law/nexus/nv__employment_agreement.md");
     pub const TEMPLATE_CONTRACTOR_1099: &str =
-        include_str!("../../notation_templates/neon_law/nexus/nv__contractor_agreement.md");
+        include_str!("../../templates/neon_law/nexus/nv__contractor_agreement.md");
     pub const TEMPLATE_CONTRACT_REVIEW: &str =
-        include_str!("../../notation_templates/neon_law/nexus/contract_review.md");
+        include_str!("../../templates/neon_law/nexus/contract_review.md");
     pub const TEMPLATE_NAUTILUS_CEASE: &str =
-        include_str!("../../notation_templates/neon_law/nautilus/cease_communication.md");
+        include_str!("../../templates/neon_law/nautilus/cease_communication.md");
     pub const TEMPLATE_NAUTILUS_DEBT_VALIDATION: &str =
-        include_str!("../../notation_templates/neon_law/nautilus/debt_validation.md");
+        include_str!("../../templates/neon_law/nautilus/debt_validation.md");
     pub const TEMPLATE_NAUTILUS_FCRA: &str =
-        include_str!("../../notation_templates/neon_law/nautilus/fcra_dispute.md");
+        include_str!("../../templates/neon_law/nautilus/fcra_dispute.md");
     pub const TEMPLATE_NAUTILUS_NOTICE: &str =
-        include_str!("../../notation_templates/neon_law/nautilus/notice_of_representation.md");
+        include_str!("../../templates/neon_law/nautilus/notice_of_representation.md");
     pub const TEMPLATE_NAUTILUS_SETTLEMENT: &str =
-        include_str!("../../notation_templates/neon_law/nautilus/settlement_letter.md");
-    pub const TEMPLATE_NATURALIZATION: &str = include_str!(
-        "../../notation_templates/forms/united_states/federal/uscis/us__naturalization.md"
-    );
+        include_str!("../../templates/neon_law/nautilus/settlement_letter.md");
+    pub const TEMPLATE_NATURALIZATION: &str =
+        include_str!("../../templates/forms/united_states/federal/uscis/us__naturalization.md");
     // Service-specific retainers — one engagement agreement per product.
     // Each carries the shared JAMS arbitration + `support@` clauses
     // (byte-identical across all six, guarded by a body test) and a
     // practice-area-specific ethics reading naming the RPC(s) that bite
     // for that service.
     pub const TEMPLATE_RETAINER_NEST: &str =
-        include_str!("../../notation_templates/neon_law/nest/retainer.md");
+        include_str!("../../templates/neon_law/nest/retainer.md");
     pub const TEMPLATE_RETAINER_NEXUS: &str =
-        include_str!("../../notation_templates/neon_law/nexus/retainer.md");
+        include_str!("../../templates/neon_law/nexus/retainer.md");
     pub const TEMPLATE_RETAINER_NORTHSTAR: &str =
-        include_str!("../../notation_templates/neon_law/northstar/retainer.md");
+        include_str!("../../templates/neon_law/northstar/retainer.md");
     pub const TEMPLATE_RETAINER_NAUTILUS: &str =
-        include_str!("../../notation_templates/neon_law/nautilus/retainer.md");
+        include_str!("../../templates/neon_law/nautilus/retainer.md");
     pub const TEMPLATE_RETAINER_NOOK: &str =
-        include_str!("../../notation_templates/neon_law/nook/retainer.md");
+        include_str!("../../templates/neon_law/nook/retainer.md");
     pub const TEMPLATE_RETAINER_LITIGATION: &str =
-        include_str!("../../notation_templates/neon_law/litigation/retainer.md");
+        include_str!("../../templates/neon_law/litigation/retainer.md");
     pub const TEMPLATE_RETAINER_NERD: &str =
-        include_str!("../../notation_templates/neon_law/nerd/retainer.md");
+        include_str!("../../templates/neon_law/nerd/retainer.md");
     pub const TEMPLATE_RETAINER_NODE: &str =
-        include_str!("../../notation_templates/neon_law/node/retainer.md");
+        include_str!("../../templates/neon_law/node/retainer.md");
     pub const TEMPLATE_RETAINER_NEWLEAF: &str =
-        include_str!("../../notation_templates/neon_law/newleaf/retainer.md");
+        include_str!("../../templates/neon_law/newleaf/retainer.md");
     pub const TEMPLATE_RETAINER_NAMESAKE: &str =
-        include_str!("../../notation_templates/neon_law/namesake/retainer.md");
+        include_str!("../../templates/neon_law/namesake/retainer.md");
     pub const TEMPLATE_RETAINER_NUCLEUS: &str =
-        include_str!("../../notation_templates/neon_law/nucleus/retainer.md");
+        include_str!("../../templates/neon_law/nucleus/retainer.md");
 }
 
 /// Wrap a list of records under the YAML's `records:` key. Every seed

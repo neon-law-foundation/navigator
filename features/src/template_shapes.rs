@@ -12,14 +12,14 @@ use std::path::PathBuf;
 
 use workflows::{StateName, WorkflowSpec};
 
-/// Workspace-relative `notation_templates/` directory, computed from the
+/// Workspace-relative `templates/` directory, computed from the
 /// `features` crate's `CARGO_MANIFEST_DIR`.
 #[must_use]
 pub fn templates_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("features crate is one level below the workspace root")
-        .join("notation_templates")
+        .join("templates")
 }
 
 /// Strip the second `END: {}` declaration from a bundled template's

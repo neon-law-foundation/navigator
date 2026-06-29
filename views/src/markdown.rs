@@ -33,7 +33,7 @@ pub fn render(src: &str) -> Markup {
 /// `rewrite` first and every heading gets a slug `id` so in-page anchors
 /// resolve. Used to serve repo-relative Markdown (a README, a doc) on the
 /// web: a link written for a git reader (`docs/glossary.md#project`,
-/// `notation_templates/x/y.md`) is retargeted onto its site route, and a
+/// `templates/x/y.md`) is retargeted onto its site route, and a
 /// same-page anchor (`#trademarks`) lands on the matching heading.
 #[must_use]
 pub fn render_with_link_rewrite(src: &str, rewrite: impl Fn(&str) -> String) -> Markup {

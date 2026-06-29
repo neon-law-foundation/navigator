@@ -197,7 +197,7 @@ enum Command {
         #[command(subcommand)]
         action: AssetsAction,
     },
-    /// Vendored government forms (`notation_templates/forms/`).
+    /// Vendored government forms (`templates/forms/`).
     Forms {
         #[command(subcommand)]
         action: FormsAction,
@@ -279,7 +279,7 @@ enum Command {
         action: NotationAction,
     },
     /// Drop the three files that a new legal workflow starts with:
-    /// `notation_templates/<category>/<jurisdiction>.md`,
+    /// `templates/<category>/<jurisdiction>.md`,
     /// `workflows/specs/<code>.yaml`, and
     /// `features/tests/features/<matter>.feature`. Idempotent —
     /// existing files are left alone.
@@ -287,7 +287,7 @@ enum Command {
         /// Snake-case matter slug, e.g. `incorporation`,
         /// `estate_planning`. Forms the prefix of the template `code`.
         matter: String,
-        /// Directory under `notation_templates/` to drop the markdown into.
+        /// Directory under `templates/` to drop the markdown into.
         #[arg(long)]
         category: String,
         /// Jurisdiction name (`PascalCase` for the filename,
@@ -532,7 +532,7 @@ enum AssetsAction {
 #[derive(Subcommand)]
 enum FormsAction {
     /// Push every vendored blank (the `forms` registry bundled from
-    /// `notation_templates/forms/`) to the assets bucket at the matching
+    /// `templates/forms/`) to the assets bucket at the matching
     /// object path. Idempotent — existing keys are skipped.
     /// Auth is ADC; the emulator endpoint is honored via
     /// `NAVIGATOR_STORAGE_ENDPOINT`.

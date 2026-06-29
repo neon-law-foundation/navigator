@@ -15,7 +15,7 @@
 //! per-package pages reuse the same retargeting):
 //!
 //! - a top-level `docs/<name>.md` → the published `/docs/<name>` route;
-//! - a `notation_templates/**/*.md` link → the raw `/api/templates/**`
+//! - a `templates/**/*.md` link → the raw `/api/templates/**`
 //!   endpoint (`web::template_api`);
 //! - every other repo-relative path (nested docs, `LICENSE-*`) → the
 //!   GitHub source, so no link dead-ends;
@@ -206,9 +206,9 @@ pub(crate) fn rewrite_link(dest: &str) -> String {
             return with_anchor(&format!("/docs/{}", crate::slug::to_url(stem)), anchor);
         }
     }
-    // A `notation_templates/**/*.md` link maps to the raw template API.
+    // A `templates/**/*.md` link maps to the raw template API.
     if let Some(stem) = path
-        .strip_prefix("notation_templates/")
+        .strip_prefix("templates/")
         .and_then(|rest| rest.strip_suffix(".md"))
     {
         return with_anchor(
@@ -381,8 +381,8 @@ mod tests {
             "/docs/glossary#project"
         );
         assert_eq!(
-            rewrite_link("docs/notation.md#templates"),
-            "/docs/notation#templates"
+            rewrite_link("docs/notation.md#template"),
+            "/docs/notation#template"
         );
         assert_eq!(rewrite_link("docs/glossary.md"), "/docs/glossary");
         // An underscore doc filename is rewritten to its kebab-case URL.
@@ -395,20 +395,16 @@ mod tests {
     #[test]
     fn template_links_map_to_the_raw_api() {
         assert_eq!(
-            rewrite_link(
-                "notation_templates/forms/united_states/nevada/state/nv__llc_formation.md"
-            ),
+            rewrite_link("templates/forms/united_states/nevada/state/nv__llc_formation.md"),
             "/api/templates/forms/united-states/nevada/state/nv--llc-formation"
         );
         // Underscores in either segment become hyphens in the URL.
         assert_eq!(
-            rewrite_link("notation_templates/forms/united_states/federal/irs/us__form_990.md"),
+            rewrite_link("templates/forms/united_states/federal/irs/us__form_990.md"),
             "/api/templates/forms/united-states/federal/irs/us--form-990"
         );
         assert_eq!(
-            rewrite_link(
-                "notation_templates/forms/united_states/nevada/state/nv__annual_report.md"
-            ),
+            rewrite_link("templates/forms/united_states/nevada/state/nv__annual_report.md"),
             "/api/templates/forms/united-states/nevada/state/nv--annual-report"
         );
     }

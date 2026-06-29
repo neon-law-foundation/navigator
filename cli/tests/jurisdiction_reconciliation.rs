@@ -73,7 +73,7 @@ fn every_validator_jurisdiction_code_is_seeded() {
 #[test]
 fn every_template_jurisdiction_code_is_seeded() {
     let codes = seeded_codes();
-    let root = repo_root().join("notation_templates");
+    let root = repo_root().join("templates");
     let mut paths = Vec::new();
     template_paths(&root, &mut paths);
     assert!(!paths.is_empty(), "expected bundled notation templates");

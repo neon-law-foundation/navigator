@@ -19,9 +19,9 @@ symbols.
 ## Rule set
 
 `navigator-lsp` uses the same classified rule selection as `cli validate`: ordinary prose markdown gets every `M-` rule
-plus `S101` line-length and `S102` line-packing, while notation templates also get the N-family notation rules. A file
-is treated as a notation template when it lives under `notation_templates/` or its frontmatter declares a
-`questionnaire:` or `workflow:` block. A `code:` key alone is not enough to switch modes.
+plus `S101` line-length and `S102` line-packing, while Templates also get the N-family notation rules. A file is treated
+as a Template when it lives under `templates/` or its frontmatter declares a `questionnaire:` or `workflow:` block. A
+`code:` key alone is not enough to switch modes.
 
 ## Autofix surface
 

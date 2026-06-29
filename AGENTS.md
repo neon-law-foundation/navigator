@@ -152,7 +152,7 @@ catalog. → [`docs/aida-a2a-interaction.md`](docs/aida-a2a-interaction.md),
 - `web/content/marketing/mission.md` — why this project exists (live at `/foundation/mission`). Every product decision
   should be justifiable against it.
 - `README.md` — workspace overview, install, demo. `cli/README.md` — per-subcommand reference. `k8s/` — KIND manifests.
-  `notation_templates/` — notation templates. `store/seeds/` — canonical reference-data YAML.
+  `templates/` — notation templates. `store/seeds/` — canonical reference-data YAML.
 
 ## Planning lives in GitHub issues — action 1, groom an issue
 

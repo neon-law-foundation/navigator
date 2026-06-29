@@ -1,10 +1,10 @@
-# Notation
+# Templates
 
-This tree holds Neon Law Navigator's markdown notation templates: static legal blueprints whose frontmatter declares a
-questionnaire and workflow, and whose body supplies the legal prose. When a Template is bound to a respondent and
-Project, it becomes a **Notation** — the running instance whose questions are answered and whose workflow advances to
-review, signature, filing, or closing. The vocabulary is taught in [`docs/notation.md`](../docs/notation.md); this
-README is about how the tree is organized and named.
+This tree holds Neon Law Navigator's Templates: static legal blueprints whose frontmatter declares a questionnaire and
+workflow, and whose body supplies the legal prose. When a Template is bound to a respondent and Project, it becomes a
+**Notation** — the running instance whose questions are answered and whose workflow advances to review, signature,
+filing, or closing. The vocabulary is taught in [`docs/notation.md`](../docs/notation.md); this README is about how the
+tree is organized and named.
 
 Every template has YAML frontmatter with `title`, `code`, `jurisdiction`, `respondent_type`, `confidential`, and the
 `questionnaire:` / `workflow:` state machines. The body is legal prose with `{{question_code}}` placeholders.
@@ -14,7 +14,7 @@ Every template has YAML frontmatter with `title`, `code`, `jurisdiction`, `respo
 The tree has exactly two top-level shelves:
 
 ```text
-notation_templates/
+templates/
 ├── forms/
 └── neon_law/
 ```
@@ -23,9 +23,9 @@ notation_templates/
 at `gs://<assets-bucket>/forms/united_states/nevada/state/nv__llc_formation.pdf`, the local canonical copy lives at:
 
 ```text
-notation_templates/forms/united_states/nevada/state/nv__llc_formation.pdf
-notation_templates/forms/united_states/nevada/state/nv__llc_formation.fields.toml
-notation_templates/forms/united_states/nevada/state/nv__llc_formation.md
+templates/forms/united_states/nevada/state/nv__llc_formation.pdf
+templates/forms/united_states/nevada/state/nv__llc_formation.fields.toml
+templates/forms/united_states/nevada/state/nv__llc_formation.md
 ```
 
 The markdown file is the catalog card and workflow. Its `code` is the form identity:
@@ -47,7 +47,7 @@ records where those bytes came from.
 folder, and shared firm documents live under `shared/`:
 
 ```text
-notation_templates/neon_law/
+templates/neon_law/
 ├── nautilus/retainer.md
 ├── nest/retainer.md
 ├── nexus/retainer.md
@@ -75,20 +75,20 @@ The `navigator validate` command enforces these with the N-family notation rules
 Run it before committing:
 
 ```bash
-cargo run -p cli --quiet -- validate notation_templates
+cargo run -p cli --quiet -- validate templates
 ```
 
 This `README.md` is linted like every other workspace README:
 
 ```bash
-cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes notation_templates/README.md
+cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes templates/README.md
 ```
 
 ## Adding a form template
 
 1. Put the blank PDF under the bucket-shaped local path:
-   `notation_templates/forms/<country>/<jurisdiction>/<office>/<code>.pdf`.
+   `templates/forms/<country>/<jurisdiction>/<office>/<code>.pdf`.
 2. Add a sibling `<code>.fields.toml` when the form is fillable.
 3. Add a sibling `<code>.md` whose `code` matches the filename stem and whose `origin_url` is the government source.
 4. Add the PDF to `forms/src/lib.rs` so the binary embeds the same bytes the repo carries.
-5. Run `cargo run -p cli -- validate notation_templates` and the `forms` crate tests.
+5. Run `cargo run -p cli -- validate templates` and the `forms` crate tests.

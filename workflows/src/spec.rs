@@ -205,7 +205,7 @@ impl WorkflowSpec {
 /// questionnaire spec to a workflow runtime call (or vice versa).
 ///
 /// Wire shape (matches the retainer template's
-/// [`notation_templates/neon_law/shared/retainer.md`](../../../notation_templates/neon_law/shared/retainer.md)
+/// [`templates/neon_law/shared/retainer.md`](../../../templates/neon_law/shared/retainer.md)
 /// `questionnaire:` block):
 ///
 /// ```yaml

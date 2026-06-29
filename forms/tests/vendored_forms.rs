@@ -1,7 +1,7 @@
 //! Provenance guard for vendored government forms.
 //!
 //! The repository path is the public bucket path: each bundled blank PDF
-//! lives at `notation_templates/<object_path>`, and the sibling markdown
+//! lives at `templates/<object_path>`, and the sibling markdown
 //! template carries the catalog metadata.
 
 use std::path::PathBuf;
@@ -33,7 +33,7 @@ fn vendored_forms_match_repo_paths() {
         );
 
         let disk_path = workspace_root()
-            .join("notation_templates")
+            .join("templates")
             .join(form.meta.object_path);
         let disk = std::fs::read(&disk_path).unwrap_or_else(|e| {
             panic!(

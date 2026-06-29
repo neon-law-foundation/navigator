@@ -2,7 +2,7 @@
 //! drop the three workspace files that every new legal workflow
 //! starts with:
 //!
-//! 1. `notation_templates/<category>/<jurisdiction>.md`
+//! 1. `templates/<category>/<jurisdiction>.md`
 //! 2. `workflows/specs/<code>.yaml`
 //! 3. `features/tests/features/<matter>.feature`
 //!
@@ -46,7 +46,7 @@ pub fn run(workspace_root: &Path, matter: &str, category: &str, jurisdiction: &s
     let snake_jurisdiction = snake_case(jurisdiction);
 
     let template_path = workspace_root
-        .join("notation_templates")
+        .join("templates")
         .join(category)
         .join(format!("{snake_jurisdiction}.md"));
     let spec_path = workspace_root
@@ -299,10 +299,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let _ = super::run(dir.path(), "estate_planning", "estate", "Nevada");
 
-        assert!(dir
-            .path()
-            .join("notation_templates/estate/nevada.md")
-            .exists());
+        assert!(dir.path().join("templates/estate/nevada.md").exists());
         assert!(dir
             .path()
             .join("workflows/specs/estate_planning__nevada.yaml")
