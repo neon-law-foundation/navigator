@@ -197,6 +197,41 @@ Work down the chain; the break is almost always near the top:
    `SENDGRID_API_KEY` are present; otherwise the worker silently uses a capturing backend that logs "sent" without
    sending. See [cloud operations](cloud-operations.md) for manifest-drift notes.
 
+## When a workflow didn't run, follow the evidence
+
+Don't pattern-match against a catalog of past outages — read what the system is telling you now, and trace the request
+through the stages above. Four sources, in the order that usually pays off:
+
+- **Commit history.** `git log` / `git blame` on `workflows-service`, the `*-trigger` manifests, and
+  `images/Dockerfile.*`. A durable-execution break is almost always a recent diff, not spontaneous — find what changed
+  since the last run that worked.
+- **GitHub Actions.** The `ci` and `deploy` runs (`gh run list`, `gh run view <id> --log`). Did the worker and trigger
+  images actually build and publish, and did the deploy job succeed? A red or skipped deploy explains a stale image
+  faster than any cluster probe.
+- **Logs.** The trigger pod and worker logs (`kubectl -n navigator logs ...`) for the live failure; Cloud Logging /
+  BigQuery for history. The worker prints its backends and per-invocation status; the trigger logs whether the ingress
+  accepted the call.
+- **Google Cloud.** Cloud Trace for the invocation's spans (`web` → ingress → handler), GKE workload state, and the
+  Restate Cloud console's Invocations view for which step failed and retried.
+
+`navigator doctor` is a shortcut for the cluster slice — it surfaces wedged trigger Jobs and unready workloads in plain
+language. Triage with it, then confirm against the evidence above.
+
+## Guardrails: keep a fixed bug fixed
+
+We don't re-litigate the same outage. Every failure we've actually hit is pinned by a test or a manifest field so it
+can't silently recur; when you fix a new one, add its guard in the same PR.
+
+- **Every workspace member is in every workspace-building Dockerfile.** Add a crate → add `COPY <crate> <crate>` to
+  `images/Dockerfile.{trigger,workflows-service,web}`. Guarded by
+  `every_workspace_member_is_copied_into_each_workspace_image` in `cli::devx`.
+- **Registered workflow names are PascalCase** and the registry matches `main.rs`'s `.bind(...)` calls — guarded by the
+  `workflows_service::registry` tests (template filenames follow the separate snake_case convention `N103` enforces).
+- **Trigger CronJobs carry `activeDeadlineSeconds` + `startingDeadlineSeconds`** so a stuck Job can't wedge `Forbid`,
+  and `start_workflow` has a 30s HTTP timeout so a hung ingress can't keep a trigger pod alive.
+- **Debugging stays identifier-and-status only — never client content** (the standing no-content rule; see
+  [observability](observability.md)).
+
 ## See also
 
 - The *what* of each individual workflow: [notation](notation.md), [retainer intake](retainer_intake.md),

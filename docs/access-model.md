@@ -44,6 +44,15 @@ documentation (`/openapi.json` and `/api-docs`), and `/auth/login`.
 `admin` is a superset of `staff`, not a separate axis. A firm administrator is, by definition, someone who could be
 assigned to any matter; making them ask for participation rows on every project they need to touch buys nothing.
 
+## Concrete people in the seed data
+
+- **Nick** (`nick@neonlaw.com`, lowercase) — the firm administrator. Role `admin`; sees every project. The lowercase
+  spelling is exact: `store::seed::require_firm_domain` rejects mixed-case staff/admin seeds at load time.
+- **Staff** — firm employees, role `staff`, by convention lowercase `*@neonlaw.com` emails. The KIND-only Keycloak
+  fixture `staff@neonlaw.com` is role `staff` (per [`docs/RUNBOOK.md`](RUNBOOK.md) step 3) — exactly one role, staff,
+  not admin.
+- **Clients** — any seeded non-firm person, role `client`. Email is the client's real address; no domain restriction.
+
 ## Participation
 
 `person_project_roles.participation` is a free-form `text` column. The values currently in use (from
@@ -112,6 +121,10 @@ pub async fn visible_projects(db: &Db, person_id: Uuid, role: Role) -> Result<Ve
 
 Every project-list and project-detail handler funnels through this helper. Inlining the SQL into individual handlers is
 the failure mode we are explicitly avoiding — it's how authz quietly drifts.
+
+The route layer carries a second gate for the project-write surface: `store::entity::person::Role::is_staff_tier`
+(`true` for `staff` and `admin`). A `client` who reaches `/portal/projects/:id/edit` and friends gets `404`, not `403` —
+the management surface is made to "not exist" for them rather than announce itself as forbidden.
 
 ## Related
 
