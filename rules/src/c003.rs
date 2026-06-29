@@ -7,6 +7,8 @@
 //! drop is the failure this rule makes loud: a misnamed post is caught at
 //! authoring time instead of vanishing in production.
 
+use chrono::NaiveDate;
+
 use crate::{line_byte_range, Rule, SourceFile, Violation};
 
 pub struct C003BlogFilename;
@@ -15,23 +17,19 @@ impl C003BlogFilename {
     pub const CODE: &'static str = "C003";
 }
 
-/// True when `stem` is `YYYYMMDD_slug`: an 8-digit date prefix (with a
-/// plausible month and day), an underscore, and a non-empty slug. This
-/// mirrors `web::blog::parse_post_filename`, which splits on the first
-/// underscore and parses the prefix as `%Y%m%d`.
+/// True when `stem` is `YYYYMMDD_slug`: a real calendar date prefix, an
+/// underscore, and a non-empty slug.
+///
+/// The date is validated with the *same* strict parse the loader uses —
+/// `web::blog::parse_post_filename` does `NaiveDate::parse_from_str(.., "%Y%m%d")`
+/// — so an impossible date (Feb 31, Apr 31, Feb 29 off a leap year) is
+/// rejected here too, rather than passing lint and then being silently
+/// dropped by the loader, which is the exact failure this rule prevents.
 fn is_dated_post_stem(stem: &str) -> bool {
     let Some((date_part, slug)) = stem.split_once('_') else {
         return false;
     };
-    if slug.is_empty() {
-        return false;
-    }
-    if date_part.len() != 8 || !date_part.bytes().all(|b| b.is_ascii_digit()) {
-        return false;
-    }
-    let month: u8 = date_part[4..6].parse().unwrap_or(0);
-    let day: u8 = date_part[6..8].parse().unwrap_or(0);
-    (1..=12).contains(&month) && (1..=31).contains(&day)
+    !slug.is_empty() && NaiveDate::parse_from_str(date_part, "%Y%m%d").is_ok()
 }
 
 impl Rule for C003BlogFilename {
@@ -103,6 +101,21 @@ mod tests {
     #[test]
     fn rejects_an_impossible_month() {
         assert!(!is_dated_post_stem("20261325_post"));
+    }
+
+    #[test]
+    fn rejects_an_impossible_calendar_date() {
+        // These pass naive month/day range checks but are not real dates,
+        // and `web::blog`'s strict parse would silently drop them — so the
+        // rule must reject them. (Greptile P1 on #206.)
+        assert!(!is_dated_post_stem("20260231_post"), "Feb 31");
+        assert!(!is_dated_post_stem("20260431_post"), "Apr 31");
+        assert!(
+            !is_dated_post_stem("20270229_post"),
+            "Feb 29 in a non-leap year"
+        );
+        // A real leap day still passes.
+        assert!(is_dated_post_stem("20240229_post"), "Feb 29 in a leap year");
     }
 
     #[test]
