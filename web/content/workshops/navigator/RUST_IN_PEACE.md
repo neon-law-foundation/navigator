@@ -24,8 +24,9 @@ An agenda, not a lecture outline — you are here to argue back. By the end of t
   foundation-stewarded language is access-to-justice infrastructure. **Trace** our process from the law, to a Cucumber
   feature, to a reusable template, to the signed notation it produces for one client. **Dissect** one workflow — forming
   a Nevada LLC — into attorney-gated steps with the shipped code. **Map** the Rust ecosystem we rely on: Restate,
-  OpenTelemetry, Arrow/Parquet/Iceberg, Solana, LSPs, and Zed. **Defend** the claim that a reviewed, repeatable workflow
-  beats a prompt. **Decide** whether to fork, white-label, read the code, and star it.
+  OpenTelemetry, Arrow/Parquet/Iceberg, LSPs, and Zed — plus Solana, where we are headed but have not shipped yet.
+  **Defend** the claim that a reviewed, repeatable workflow beats a prompt. **Decide** whether to fork, white-label,
+  read the code, and star it.
 
 ---
 
@@ -37,10 +38,10 @@ preference. **Trace** our process from the law itself, to a Cucumber feature, to
 questionnaire and a workflow, to the client-specific notation that gets reviewed and signed. **Dissect** one legal
 workflow — forming a Nevada LLC — into small, modular, attorney-gated steps, and read the exact shipped code behind each
 one. **Map** the ecosystem choices that let a small legal team act bigger than it is: Restate for durable execution,
-OpenTelemetry for privacy-preserving operations, Arrow/Parquet and Iceberg for the lake, Solana for attestations,
-`navigator-lsp` in Zed for legal docs as code. **Defend** the claim that a reviewed, repeatable workflow beats asking an
-LLM with a prompt, because steps in a prompt are neither repeatable nor modular. **Decide** whether to fork, rebrand,
-read the code, and — if it earns it — star it before you leave.
+OpenTelemetry for privacy-preserving operations, Arrow/Parquet and Iceberg for the lake, Solana for the attestations we
+plan but have not shipped, `navigator-lsp` in Zed for legal docs as code. **Defend** the claim that a reviewed,
+repeatable workflow beats asking an LLM with a prompt, because steps in a prompt are neither repeatable nor modular.
+**Decide** whether to fork, rebrand, read the code, and — if it earns it — star it before you leave.
 
 ## A eulogy for my programming career
 
