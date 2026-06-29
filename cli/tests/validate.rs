@@ -62,13 +62,9 @@ fn validate_exits_nonzero_on_violations_and_prints_each_one() {
 #[test]
 fn validate_default_rule_set_flags_missing_frontmatter() {
     let dir = TempDir::new().unwrap();
-    // Files under `notation_templates/` are notation templates even before
+    // Files under `templates/` are notation templates even before
     // they have enough frontmatter to self-identify.
-    write(
-        dir.path(),
-        "notation_templates/notes.md",
-        "Just a body line.\n",
-    );
+    write(dir.path(), "templates/notes.md", "Just a body line.\n");
     navigator()
         .args(["validate"])
         .arg(dir.path())
@@ -131,10 +127,10 @@ fn workspace_root() -> PathBuf {
         .expect("workspace root exists")
 }
 
-/// CI guard: every shipped example notation under `notation_templates/` must pass
+/// CI guard: every shipped example notation under `templates/` must pass
 /// the *classified* (default-mode) validator with zero blocking errors.
 ///
-/// Files under `notation_templates/` are always classified as notation templates,
+/// Files under `templates/` are always classified as notation templates,
 /// so this runs the full N-family (N101–N108) plus the markdown rules
 /// against each one. It is the enforcement the prompt asks for — running
 /// inside `cargo test --workspace`, it fails CI the moment a template (or
@@ -147,10 +143,10 @@ fn workspace_root() -> PathBuf {
 /// they are expected and do not fail the gate — assert on `0 error(s)`.
 #[test]
 fn every_template_notation_passes_classified_validation() {
-    let templates = workspace_root().join("notation_templates");
+    let templates = workspace_root().join("templates");
     assert!(
         templates.is_dir(),
-        "notation_templates/ directory must exist at {}",
+        "templates/ directory must exist at {}",
         templates.display(),
     );
     navigator()
@@ -168,7 +164,7 @@ fn every_template_notation_passes_classified_validation() {
 /// that the notation-only path would not surface.
 #[test]
 fn every_template_notation_passes_markdown_only_validation() {
-    let templates = workspace_root().join("notation_templates");
+    let templates = workspace_root().join("templates");
     navigator()
         .args(["validate", "--markdown-only"])
         .arg(&templates)
@@ -243,7 +239,7 @@ fn validate_fix_leaves_diagnostic_only_violations_for_human() {
     // notation-template file.
     write(
         dir.path(),
-        "notation_templates/needs.md",
+        "templates/needs.md",
         "---\nrespondent_type: entity\n---\n\n\tTabbed\n",
     );
     navigator()
@@ -255,7 +251,7 @@ fn validate_fix_leaves_diagnostic_only_violations_for_human() {
         .stdout(str::contains("N101"))
         .stdout(str::contains("remaining violation"));
     // The autofixable tab is gone.
-    let after = fs::read_to_string(dir.path().join("notation_templates/needs.md")).unwrap();
+    let after = fs::read_to_string(dir.path().join("templates/needs.md")).unwrap();
     assert!(
         !after.contains('\t'),
         "tab should be replaced; got: {after:?}"

@@ -17,10 +17,9 @@ and no workflow has run.
 
 Identified by a stable `code` like `nv__llc_formation`, `ca__llc_operating_agreement`, or `onboarding__retainer_nest`.
 
-- Schema: [`store::entity::template`](../store/src/entity/template.rs) Files:
-  [`notation_templates/`](../notation_templates/) — exactly two top-level shelves:
-  `forms/<country>/<jurisdiction>/<office>/<code>.md` for government forms, and `neon_law/<product>/<document>.md` for
-  Neon Law product work.
+- Schema: [`store::entity::template`](../store/src/entity/template.rs) Files: [`templates/`](../templates/) — exactly
+  two top-level shelves: `forms/<country>/<jurisdiction>/<office>/<code>.md` for government forms, and
+  `neon_law/<product>/<document>.md` for Neon Law product work.
 
 > **Storage.** The markdown body lives in [`cloud::StorageService`](../cloud/) like every other artifact: the
   `templates.body` TEXT column is gone; `templates.blob_id` references a [Blob](glossary.md#blob) holding the bytes.

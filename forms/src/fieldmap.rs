@@ -106,19 +106,19 @@ const BUNDLED_MAPS: &[(&str, &str)] = &[
     (
         "nv__llc_formation",
         include_str!(
-            "../../notation_templates/forms/united_states/nevada/state/nv__llc_formation.fields.toml"
+            "../../templates/forms/united_states/nevada/state/nv__llc_formation.fields.toml"
         ),
     ),
     (
         "nv__profit_corp_formation",
         include_str!(
-            "../../notation_templates/forms/united_states/nevada/state/nv__profit_corp_formation.fields.toml"
+            "../../templates/forms/united_states/nevada/state/nv__profit_corp_formation.fields.toml"
         ),
     ),
     (
         "nv__business_trust_formation",
         include_str!(
-            "../../notation_templates/forms/united_states/nevada/state/nv__business_trust_formation.fields.toml"
+            "../../templates/forms/united_states/nevada/state/nv__business_trust_formation.fields.toml"
         ),
     ),
 ];

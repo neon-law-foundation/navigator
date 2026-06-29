@@ -1,4 +1,4 @@
-//! End-to-end import tests: walk the `notation_templates/` fixture tree, lint
+//! End-to-end import tests: walk the `templates/` fixture tree, lint
 //! the markdown notation templates, and persist into a per-test
 //! Postgres schema spun up via `store::test_support::pg`. These
 //! tests prove that
@@ -19,15 +19,15 @@ use store::test_support::schema;
 
 fn fixtures_dir() -> PathBuf {
     // CARGO_MANIFEST_DIR points at cli; the templates live at the
-    // repository root under `notation_templates/<category>/<name>.md`.
+    // repository root under `templates/<category>/<name>.md`.
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../notation_templates")
+        .join("../templates")
         .canonicalize()
         .expect("templates dir exists")
 }
 
 /// Count the notation templates under the fixture tree — every `.md`
-/// carrying YAML frontmatter (so `notation_templates/README.md` and other prose
+/// carrying YAML frontmatter (so `templates/README.md` and other prose
 /// are excluded). The import writes one `templates` row per such file,
 /// so this is the expected `templates_created` count and tolerates new
 /// templates landing without a hard-coded number going stale.

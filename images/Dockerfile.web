@@ -56,7 +56,7 @@ COPY features          features
 COPY lsp               lsp
 COPY live-inquiry      live-inquiry
 COPY pdf               pdf
-COPY notation_templates notation_templates
+COPY templates templates
 COPY archives          archives
 COPY statutes          statutes
 COPY billing           billing
@@ -84,7 +84,7 @@ WORKDIR /app
 COPY --from=builder /usr/local/bin/web /app/web
 COPY --from=builder /src/web/public  /app/public
 COPY --from=builder /src/web/content /app/content
-COPY --from=builder /src/notation_templates    /app/notation_templates
+COPY --from=builder /src/templates    /app/templates
 
 # Identify the build. The daily `deploy.yml` publish job passes
 # `--build-arg RELEASE_TAG=$YY.MM.DD` (the ghcr tag it publishes under) plus

@@ -26,7 +26,7 @@ async fn populated_schema() -> Schema {
     let out = Command::new(&bin)
         .args(["import", "--database-url"])
         .arg(&s.url)
-        .arg(repo_root().join("notation_templates"))
+        .arg(repo_root().join("templates"))
         .output()
         .expect("run navigator import");
     assert!(

@@ -1,6 +1,6 @@
 //! Integration test for the inbound contract-review workflow.
 //!
-//! The spec lives in the frontmatter of `notation_templates/neon_law/nexus/contract_review.md`
+//! The spec lives in the frontmatter of `templates/neon_law/nexus/contract_review.md`
 //! (mirrored by `workflows/specs/services__contract_review.yaml`, checked by
 //! `spec_coherence`). The first test pins the parsed state-machine shape; the
 //! second drives a notation through the happy path on the in-memory runtime
@@ -15,7 +15,7 @@ use workflows::{
 
 const TEMPLATE_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../notation_templates/neon_law/nexus/contract_review.md",
+    "/../templates/neon_law/nexus/contract_review.md",
 );
 
 const KIND: MachineKind = MachineKind::Workflow;

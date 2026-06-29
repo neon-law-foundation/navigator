@@ -1,8 +1,8 @@
 //! `GET /api/templates/*path` — raw template markdown, served
 //! inline so a reader on neonlaw.com sees the same bytes a git reader
 //! sees. This backs the repository README's template links (e.g.
-//! `notation_templates/forms/united_states/nevada/state/nv__llc_formation.md`)
-//! without the `notation_templates/` tree leaving the workspace root:
+//! `templates/forms/united_states/nevada/state/nv__llc_formation.md`)
+//! without the `templates/` tree leaving the workspace root:
 //! it is still `include_str!`-d by `store::seed` and
 //! scanned by `cli validate`. Here `web` embeds the whole tree a second
 //! time, read-only, purely to serve it over HTTP.
@@ -18,10 +18,10 @@ use include_dir::{include_dir, Dir};
 
 use crate::template_paths::kebab_path_eq;
 
-/// The repository `notation_templates/` tree, embedded at build time. The path is
+/// The repository `templates/` tree, embedded at build time. The path is
 /// resolved against `web`'s manifest dir, so it tracks the dir in place
 /// at the workspace root.
-static TEMPLATES: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../notation_templates");
+static TEMPLATES: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../templates");
 
 const LEGACY_ALIASES: &[(&str, &str)] = &[
     (
@@ -219,7 +219,7 @@ mod tests {
                 if let Some(prev) = seen.insert(kebab.clone(), stem) {
                     panic!(
                         "templates `{}` and `{}` in {} both map to the kebab URL stem `{}` — \
-                         rename one so every notation_templates URL is unambiguous",
+                         rename one so every templates URL is unambiguous",
                         prev,
                         stem,
                         dir.path().display(),

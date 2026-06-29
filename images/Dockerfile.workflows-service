@@ -56,7 +56,7 @@ COPY features          features
 COPY lsp               lsp
 COPY live-inquiry      live-inquiry
 COPY pdf               pdf
-COPY notation_templates notation_templates
+COPY templates templates
 COPY archives          archives
 COPY statutes          statutes
 COPY billing           billing

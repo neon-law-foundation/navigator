@@ -10,7 +10,7 @@
 //!
 //! The CLI calls this both from the `import` subcommand (file-backed
 //! `SQLite`) and from integration tests (in-memory `SQLite`). The
-//! fixture repository lives at `notation_templates/<category>/<name>.md`.
+//! fixture repository lives at `templates/<category>/<name>.md`.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

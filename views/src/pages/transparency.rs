@@ -109,7 +109,7 @@ pub fn render_index(content: &IndexContent<'_>, auth: AuthState) -> Markup {
                     "The Foundation also publishes the standard agreements it uses to engage "
                     "its team — an at-will employment agreement and an independent-contractor "
                     "agreement — as open "
-                    a href="/foundation/notations" { "notation templates" }
+                    a href="/foundation/templates" { "Templates" }
                     " any nonprofit can reuse."
                 }
             }
@@ -239,8 +239,8 @@ mod tests {
         assert!(html.contains("href=\"/foundation/transparency/conflict-of-interest\""));
         assert!(html.contains("href=\"/foundation/transparency/minutes-2026-q2\""));
         assert!(html.contains("Board Meeting Minutes — Q1 2021"));
-        // Links out to the reusable agreement notations.
-        assert!(html.contains("href=\"/foundation/notations\""));
+        // Links out to the reusable agreement Templates.
+        assert!(html.contains("href=\"/foundation/templates\""));
     }
 
     #[test]

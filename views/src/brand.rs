@@ -137,15 +137,15 @@ const FIRM_NAV: &[NavLink] = &[
 
 const FOUNDATION_NAV: &[NavLink] = &[
     NavLink::leaf("Firm", "/"),
-    // The Foundation publishes Navigator, Notations, Nimbus installs, and
+    // The Foundation publishes Navigator, Templates, Nimbus installs, and
     // Nebula sharing programs:
     // "Navigator" (the software: the LSP, CLI, MCP, and web app, each its
-    // own package page under the `/foundation/navigator` hub), "Notations"
+    // own package page under the `/foundation/navigator` hub), "Templates"
     // (the legal blueprints), "Nimbus" (white-label installs), and
     // "Nebula" (workshops, show-and-tells, and presentations). No
     // "Learn" catch-all dropdown.
     NavLink::leaf("Navigator", "/foundation/navigator"),
-    NavLink::leaf("Notations", "/foundation/notations"),
+    NavLink::leaf("Templates", "/foundation/templates"),
     NavLink::leaf("Nimbus", "/foundation/nimbus"),
     NavLink::leaf("Nebula", "/foundation/nebula"),
 ];
@@ -410,10 +410,10 @@ mod tests {
     fn foundation_top_nav_is_four_flat_leaves() {
         let labels: Vec<&str> = FOUNDATION_BRAND.nav.iter().map(|n| n.label).collect();
         // The Foundation nav stays terse: firm cross-link, software,
-        // Notations, Nimbus, and Nebula.
+        // Templates, Nimbus, and Nebula.
         assert_eq!(
             labels,
-            ["Firm", "Navigator", "Notations", "Nimbus", "Nebula"]
+            ["Firm", "Navigator", "Templates", "Nimbus", "Nebula"]
         );
         assert_eq!(FOUNDATION_BRAND.nav[0].href, "/");
         assert!(
@@ -436,14 +436,14 @@ mod tests {
     }
 
     #[test]
-    fn foundation_nav_notations_points_at_the_readme_page() {
+    fn foundation_nav_templates_points_at_the_readme_page() {
         let templates = FOUNDATION_BRAND
             .nav
             .iter()
-            .find(|n| n.label == "Notations")
-            .expect("Notations leaf present");
+            .find(|n| n.label == "Templates")
+            .expect("Templates leaf present");
         assert!(!templates.is_dropdown());
-        assert_eq!(templates.href, "/foundation/notations");
+        assert_eq!(templates.href, "/foundation/templates");
     }
 
     #[test]

@@ -2,7 +2,7 @@
 //!
 //! The estate plan is a *suite* of templates — the onboarding matter
 //! (`neon_law/northstar/estate_plan.md`) plus the four instrument stubs under
-//! `notation_templates/neon_law/northstar/`.
+//! `templates/neon_law/northstar/`.
 //! The recorded sitting must answer every
 //! question the suite needs, so the extraction step has a value for
 //! every `{{placeholder}}` the instruments render. This test pins that
@@ -62,17 +62,17 @@ fn seeded_question_codes() -> BTreeSet<String> {
 }
 
 const INSTRUMENTS: &[&str] = &[
-    "notation_templates/neon_law/northstar/nv__will.md",
-    "notation_templates/neon_law/northstar/nv__trust.md",
-    "notation_templates/neon_law/northstar/nv__directive_health.md",
-    "notation_templates/neon_law/northstar/nv__directive_financial.md",
+    "templates/neon_law/northstar/nv__will.md",
+    "templates/neon_law/northstar/nv__trust.md",
+    "templates/neon_law/northstar/nv__directive_health.md",
+    "templates/neon_law/northstar/nv__directive_financial.md",
 ];
 
 #[test]
 fn estate_suite_questions_are_all_asked_and_seeded() {
     let root = workspace_root();
     let asked = data_placeholders(&read(
-        &root.join("notation_templates/neon_law/northstar/estate_plan.md"),
+        &root.join("templates/neon_law/northstar/estate_plan.md"),
     ));
     assert!(
         !asked.is_empty(),

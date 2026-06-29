@@ -1,10 +1,10 @@
 //! `aida_validate_notation` MCP tool.
 //!
 //! Lints markdown without persisting anything. Mirrors the `cli
-//! validate` rule-set selection so a notation that passes the CLI
+//! validate` rule-set selection so a Template that passes the CLI
 //! passes here and vice versa — same `rules::navigator_default_rules`
 //! / `rules::navigator_markdown_only_rules` as the REST handler at
-//! `POST /api/notations/validate`.
+//! `POST /api/templates/validate`.
 //!
 //! Conversational use: the model drafts markdown, calls this tool,
 //! reads back the `violations` array, fixes the markdown, and tries
@@ -20,7 +20,7 @@ use super::ToolError;
 /// Default pretend filename used when the caller does not pass one.
 /// `snake_case` so the default does not itself trip the `N103`
 /// filename rule.
-const DEFAULT_PATH: &str = "notation.md";
+const DEFAULT_PATH: &str = "template.md";
 
 #[must_use]
 pub fn descriptor() -> Value {
@@ -54,7 +54,7 @@ pub fn descriptor() -> Value {
                         "Optional pretend filename so rules that key \
                          off the path (`N103` snake_case) and the \
                          response have something meaningful to report. \
-                         Defaults to `notation.md`."
+                         Defaults to `template.md`."
                 },
                 "markdown_only": {
                     "type": "boolean",
@@ -209,7 +209,7 @@ Body.\n";
         let result = call(&json!({ "contents": contents })).await.unwrap();
         let sc = &result["structuredContent"];
         assert_eq!(sc["clean"], true, "expected clean (no errors), got: {sc}");
-        assert_eq!(sc["path"], "notation.md");
+        assert_eq!(sc["path"], "template.md");
         // The mandatory staff_review gate earns the yellow N112 advisory,
         // returned without flipping `clean` to false.
         let codes: Vec<&str> = sc["violations"]
@@ -276,6 +276,6 @@ Body.\n";
         }))
         .await
         .unwrap();
-        assert_eq!(result["structuredContent"]["path"], "notation.md");
+        assert_eq!(result["structuredContent"]["path"], "template.md");
     }
 }

@@ -1,7 +1,7 @@
 #![allow(clippy::doc_markdown)]
 //! `N103` — notation template filename basename must be snake_case.
 //!
-//! Templates under `notation_templates/` catalogue domain documents (an
+//! Templates under `templates/` catalogue domain documents (an
 //! LLC formation, a 501(c)(3) formation, a Nevada annual report).
 //! Each form template's frontmatter `code` uses a jurisdiction prefix
 //! followed by a `__` separator (`nv__llc_formation`). Naming the file

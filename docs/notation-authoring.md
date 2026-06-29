@@ -7,35 +7,33 @@ enforces, what runs after a client finishes intake, and what is still on the roa
 
 ## What a notation is, in one paragraph
 
-A **Template** is a static blueprint: one markdown file with YAML frontmatter, checked into `notation_templates/`. A
-**Notation** is that Template come to life — one running instance bound to a [Person](glossary.md#person) (the
-respondent), exactly one [Project](glossary.md#project), and optionally an [Entity](glossary.md#entity) — advancing
-through two state machines the Template declares. In client English a Notation-in-a-Project is the **Engagement** (or
-**Retainer**). The Template *declares*; Restate *runs*. Everything below is about writing good Templates and growing
-what their workflows can do.
+A **Template** is a static blueprint: one markdown file with YAML frontmatter, checked into `templates/`. A **Notation**
+is that Template come to life — one running instance bound to a [Person](glossary.md#person) (the respondent), exactly
+one [Project](glossary.md#project), and optionally an [Entity](glossary.md#entity) — advancing through two state
+machines the Template declares. In client English a Notation-in-a-Project is the **Engagement** (or **Retainer**). The
+Template *declares*; Restate *runs*. Everything below is about writing good Templates and growing what their workflows
+can do.
 
 ## Where templates live
 
 Every template lives under exactly one of two shelves:
 
-- `notation_templates/forms/` — government form-backed templates. Paths mirror the public assets bucket, so
-  `notation_templates/forms/united_states/nevada/state/nv__llc_formation.md` corresponds to
+- `templates/forms/` — government form-backed templates. Paths mirror the public assets bucket, so
+  `templates/forms/united_states/nevada/state/nv__llc_formation.md` corresponds to
   `gs://<assets-bucket>/forms/united_states/nevada/state/nv__llc_formation.pdf`.
-- `notation_templates/neon_law/` — Neon Law product work: product retainers, engagement letters, product-specific
+- `templates/neon_law/` — Neon Law product work: product retainers, engagement letters, product-specific
   documents, and shared firm documents such as the closing letter.
 
 Every template declares `jurisdiction:` using a seeded jurisdiction code from `store/seeds/Jurisdiction.yaml`. Form
 templates are stricter: their filename stem, `code`, and `form` binding must match, and that code starts with the
 jurisdiction prefix (`nv__llc_formation`, `us__form_990`, `ca__...`). Product retainers may keep runtime codes such as
-`onboarding__retainer_nest` while living at author-friendly paths such as
-`notation_templates/neon_law/nest/retainer.md`.
+`onboarding__retainer_nest` while living at author-friendly paths such as `templates/neon_law/nest/retainer.md`.
 
 ## Anatomy of a template file
 
 Every template has two parts: YAML frontmatter (the contract) and a markdown body (the document, with
-`{{question_code}}` placeholders). Here is the shared retainer frontmatter from
-`notation_templates/neon_law/shared/retainer.md` (the real file wraps this block in `---` fences, then the prose body
-follows):
+`{{question_code}}` placeholders). Here is the shared retainer frontmatter from `templates/neon_law/shared/retainer.md`
+(the real file wraps this block in `---` fences, then the prose body follows):
 
 ```yaml
 title: Retainer Agreement
@@ -89,10 +87,10 @@ Feature-first, so the composition is specified before the prose exists:
 1. **Write the composition `.feature` first.** Describe the matter as a sequence or branching graph of reusable workflow
    steps, using only Person / Entity nouns from [`glossary.md`](glossary.md). The feature is the product-level spec; the
    template satisfies it by composing already-known steps.
-2. **Write the template + questionnaire.** Create the markdown file under `notation_templates/forms/...` for a
-   government form or `notation_templates/neon_law/<product>/...` for a product template. Declare the `questionnaire:`
-   walk and the `workflow:` states. Body prose uses `{{question_code}}` placeholders. If a questionnaire state uses a
-   `custom_*__prompt_key` code, add a sibling `prompts:` map with that English prompt key and the exact prompt to ask.
+2. **Write the template + questionnaire.** Create the markdown file under `templates/forms/...` for a government form or
+   `templates/neon_law/<product>/...` for a product template. Declare the `questionnaire:` walk and the `workflow:`
+   states. Body prose uses `{{question_code}}` placeholders. If a questionnaire state uses a `custom_*__prompt_key`
+   code, add a sibling `prompts:` map with that English prompt key and the exact prompt to ask.
 3. **Seed the questions.** Add each new question `code` to `store/seeds/Question.yaml` (prompt, `question_type`,
    help text). The questionnaire's state prefixes must resolve to these codes or N104 fails.
 4. **Declare the workflow YAML.** Compose the post-intake flow from the shared step registry (below) — never a one-off
@@ -138,7 +136,7 @@ cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path
 editor and CI can never disagree. Supported editors ship copy-paste configs under [`lsp/`](../lsp) docs: VS Code,
 Neovim, Helix, Emacs, Zed. The authoring loop for a non-engineer legal author:
 
-1. **Type.** Open `notation_templates/neon_law/northstar/nv__simple_will.md` in your editor. Write
+1. **Type.** Open `templates/neon_law/northstar/nv__simple_will.md` in your editor. Write
    legal prose and frontmatter — no proprietary tool, no markup beyond markdown.
 2. **Live diagnostics.** On every keystroke the LSP lints the buffer and shows squiggles: N101 if `title:` is missing,
    N104 if the questionnaire/workflow shape is broken or a questionnaire state is not in the canonical question seed

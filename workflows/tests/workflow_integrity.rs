@@ -1,7 +1,7 @@
-//! Integrity test for every notation template under `notation_templates/`.
+//! Integrity test for every notation template under `templates/`.
 //!
 //! Parses the workflow + questionnaire frontmatter of every `.md`
-//! file in the workspace's `notation_templates/` tree and asserts a small set
+//! file in the workspace's `templates/` tree and asserts a small set
 //! of invariants that a half-finished hand-edit could easily
 //! violate:
 //!
@@ -28,7 +28,7 @@ fn templates_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("workflows crate lives one level below the workspace root")
-        .join("notation_templates")
+        .join("templates")
 }
 
 fn walk_markdown(root: &Path) -> Vec<PathBuf> {
@@ -158,7 +158,7 @@ fn every_bundled_template_has_a_coherent_workflow_and_questionnaire() {
         let markdown = std::fs::read_to_string(path)
             .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
 
-        // Skip non-notation files (notation_templates/README.md and similar
+        // Skip non-notation files (templates/README.md and similar
         // prose docs that share the directory). Real notation
         // templates carry YAML frontmatter delimited by `---`.
         if !markdown.starts_with("---\n") {
@@ -169,7 +169,7 @@ fn every_bundled_template_has_a_coherent_workflow_and_questionnaire() {
         // that have no `workflow:` block because they are rendered as
         // part of *another* matter's workflow rather than driving one of
         // their own (the Northstar estate instrument stubs under
-        // `notation_templates/neon_law/northstar/`,
+        // `templates/neon_law/northstar/`,
         // rendered by `document_drafts__estate` into `review_documents`).
         // A fragment is defined by the absence
         // of a `workflow:` block — the same way `questionnaire:` is

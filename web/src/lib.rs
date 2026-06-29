@@ -718,11 +718,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/foundation/navigator/cli", get(navigator_cli))
             .route("/foundation/navigator/mcp", get(navigator_mcp))
             .route("/foundation/navigator/web", get(navigator_web))
-            .route("/foundation/notations", get(notation_templates))
-            .route(
-                "/foundation/notation-templates",
-                get(|| async { axum::response::Redirect::permanent("/foundation/notations") }),
-            )
+            .route("/foundation/templates", get(template_tree))
             .route("/foundation/transparency", get(foundation_transparency))
             .route(
                 "/foundation/transparency/{slug}",
@@ -845,7 +841,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/templates", get(templates_index))
             .route("/templates/{*path}", get(template_entry))
             // Raw template markdown as an API — the bytes the README's
-            // `notation_templates/**/*.md` links point at on the website.
+            // `templates/**/*.md` links point at on the website.
             .route("/api/templates/{*path}", get(api_template_raw))
             .route(
                 "/lsp",
@@ -1130,10 +1126,10 @@ async fn navigator_web(MaybeAuth(auth): MaybeAuth) -> Markup {
     )
 }
 
-/// `GET /foundation/notations` — the notation template tree README,
+/// `GET /foundation/templates` — the Template tree README,
 /// rendered under the Foundation brand.
-async fn notation_templates(MaybeAuth(auth): MaybeAuth) -> Markup {
-    views::pages::notation_templates::render(auth)
+async fn template_tree(MaybeAuth(auth): MaybeAuth) -> Markup {
+    views::pages::template_tree::render(auth)
 }
 
 async fn foundation_mission(
@@ -1294,7 +1290,7 @@ fn template_card(
 }
 
 /// `GET /templates` — the public, no-login gallery index. Lists the
-/// curated, client-safe subset of `notation_templates/`.
+/// curated, client-safe subset of `templates/`.
 async fn templates_index(MaybeAuth(auth): MaybeAuth) -> Markup {
     let cards: Vec<_> = template_gallery::gallery()
         .iter()
@@ -1360,8 +1356,8 @@ async fn template_entry(
 /// `GET /api/templates/*path` — the raw template markdown,
 /// served inline as `text/markdown`. Unlike `/templates/.../download`
 /// (the curated gallery, attachment-dispositioned), this serves any
-/// `confidential: false` template under `notation_templates/` so the README's
-/// `notation_templates/**/*.md` links resolve on the site. Confidential
+/// `confidential: false` template under `templates/` so the README's
+/// `templates/**/*.md` links resolve on the site. Confidential
 /// templates and unknown paths 404.
 async fn api_template_raw(AxumPath(path): AxumPath<String>) -> impl IntoResponse {
     let path = template_api::legacy_alias(&path).unwrap_or(&path);

@@ -1,12 +1,12 @@
 # forms
 
-Vendored government forms — the bundled registry behind `notation_templates/forms/`.
+Vendored government forms — the bundled registry behind `templates/forms/`.
 
 Every official form Neon Law Navigator fills is stored under the same path it uses in the public assets bucket. For
 example:
 
 ```text
-notation_templates/forms/united_states/nevada/state/nv__llc_formation.pdf
+templates/forms/united_states/nevada/state/nv__llc_formation.pdf
 ```
 
 syncs to:

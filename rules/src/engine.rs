@@ -550,7 +550,7 @@ pub fn navigator_event_rules() -> Vec<Box<dyn Rule>> {
 /// `code:` alone is deliberately not enough to make a file a notation
 /// template: content systems can also use stable codes. The notation
 /// markers are the machine declarations (`questionnaire:`/`workflow:`),
-/// plus the canonical `notation_templates/` tree from the glossary.
+/// plus the canonical `templates/` tree from the glossary.
 ///
 /// Events take precedence: a `starts_at` timestamp marks an event, even
 /// if the file also (wrongly) declares a questionnaire/workflow — the
@@ -609,7 +609,7 @@ fn path_is_notation_template(path: &Path) -> bool {
     path.components().any(|component| {
         matches!(
             component,
-            std::path::Component::Normal(seg) if seg == "notation_templates"
+            std::path::Component::Normal(seg) if seg == "templates"
         )
     })
 }
@@ -868,7 +868,7 @@ mod tests {
 
     #[test]
     fn classifier_treats_templates_tree_as_notation_template() {
-        let file = source("notation_templates/trust/draft.md", "Plain body.\n");
+        let file = source("templates/trust/draft.md", "Plain body.\n");
         assert_eq!(classify_source(&file), DocumentKind::NotationTemplate);
     }
 
@@ -916,7 +916,7 @@ mod tests {
     #[test]
     fn template_with_timestamp_trips_e002() {
         let file = source(
-            "notation_templates/trust/draft.md",
+            "templates/trust/draft.md",
             "---\ntitle: T\ncode: x\nworkflow:\n  BEGIN:\n    a: END\nstarts_at: \"2026-07-02T11:00:00\"\n---\n",
         );
         let codes: Vec<&str> = lint_source_classified(&file)
@@ -977,7 +977,7 @@ Body.
     #[test]
     fn classified_lint_rejects_unknown_question_code_from_canonical_registry() {
         let file = source(
-            "notation_templates/custom/draft.md",
+            "templates/custom/draft.md",
             r"---
 title: Draft
 respondent_type: person
@@ -1016,7 +1016,7 @@ Body.
         );
         write(
             dir.path(),
-            "notation_templates/neon_law/northstar/nv__generic_trust.md",
+            "templates/neon_law/northstar/nv__generic_trust.md",
             r"---
 title: Nevada Trust
 respondent_type: entity
@@ -1063,32 +1063,16 @@ Body.
             )
         };
         // Two templates share `trusts__nevada`; one is unique.
-        write(
-            dir.path(),
-            "notation_templates/a/x.md",
-            &tmpl("trusts__nevada"),
-        );
-        write(
-            dir.path(),
-            "notation_templates/b/y.md",
-            &tmpl("trusts__nevada"),
-        );
-        write(
-            dir.path(),
-            "notation_templates/c/z.md",
-            &tmpl("wills__simple"),
-        );
+        write(dir.path(), "templates/a/x.md", &tmpl("trusts__nevada"));
+        write(dir.path(), "templates/b/y.md", &tmpl("trusts__nevada"));
+        write(dir.path(), "templates/c/z.md", &tmpl("wills__simple"));
         let v =
             code_uniqueness_violations(dir.path(), &DefaultFileFilter::without_default_excludes())
                 .unwrap();
         assert_eq!(v.len(), 1, "{v:?}");
         assert_eq!(v[0].code, "N111");
         // The second file in sorted order (b/y.md) is the one flagged.
-        assert!(
-            v[0].path.ends_with("notation_templates/b/y.md"),
-            "{:?}",
-            v[0].path
-        );
+        assert!(v[0].path.ends_with("templates/b/y.md"), "{:?}", v[0].path);
         assert!(v[0].message.contains("trusts__nevada"));
     }
 

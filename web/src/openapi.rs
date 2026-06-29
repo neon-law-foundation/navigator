@@ -169,15 +169,13 @@ pub fn document_with_base(base: &str) -> Value {
             }
           }
         },
-        "/api/notations/validate": {
+        "/api/templates/validate": {
           "post": {
-            "summary": "Lint a markdown notation without saving it",
+            "summary": "Lint a Template markdown file without saving it",
             "description":
               "Runs the Neon Law Navigator rule engine over the supplied markdown and returns the \
-               violations. Stateless: no row is inserted, no template registered. \"Notation\" \
-               here is the *markdown notation format* — the file format Templates are written \
-               in — not a `notations`-table row and not a persisted Template; nothing is \
-               looked up or created, so this is the right call to lint a draft before it \
+               violations. Stateless: no row is inserted and no Template is registered; nothing \
+               is looked up or created, so this is the right call to lint a draft before it \
                exists anywhere. Mirrors `cli validate` rule-set selection: the default uses \
                `navigator_default_rules` (M-family markdown + N-family notation + S101 \
                line length); set `markdown_only: true` to drop the N-family and enable \
@@ -210,7 +208,7 @@ pub fn document_with_base(base: &str) -> Value {
                `sessionCookie` scheme. Authorization is then delegated to the Open \
                Policy Agent sidecar: the policy in `k8s/base/opa/opa.yaml` allows any \
                authenticated session to call the read-only `/api/*` listings and the \
-               stateless `/api/notations/validate` endpoint."
+               stateless `/api/templates/validate` endpoint."
           },
           "sessionCookie": {
             "type": "apiKey",
@@ -282,7 +280,7 @@ pub fn document_with_base(base: &str) -> Value {
               "path":          { "type": "string",
                                  "description": "Pretend filename so rules that key off the path \
                                                  (e.g. N103 snake_case) have something to read. \
-                                                 Defaults to `notation.md`." },
+                                                 Defaults to `template.md`." },
               "markdown_only": { "type": "boolean",
                                  "description": "Lint with `navigator_markdown_only_rules` instead \
                                                  of the default Neon Law Navigator notation set." }
@@ -378,7 +376,7 @@ mod tests {
         assert!(d["paths"]["/api/entities"].is_object());
         assert!(d["paths"]["/api/jurisdictions"].is_object());
         assert!(d["paths"]["/api/entity-types"].is_object());
-        assert!(d["paths"]["/api/notations/validate"]["post"].is_object());
+        assert!(d["paths"]["/api/templates/validate"]["post"].is_object());
     }
 
     #[test]

@@ -1,6 +1,6 @@
 //! Admin /templates page: read-only list of notation templates.
 //!
-//! Templates are authored as markdown files in `notation_templates/` and
+//! Templates are authored as markdown files in `templates/` and
 //! loaded into the DB by the `cli import` command. The web admin
 //! view is a transparency surface only — no Add / Edit / Delete.
 //! Column headers are sortable so staff can flip alphabetically by
