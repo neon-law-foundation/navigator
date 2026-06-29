@@ -1,13 +1,18 @@
-# Templates
+# Notations
 
-This tree holds Neon Law Navigator's Templates: static legal blueprints whose frontmatter declares a questionnaire and
-workflow, and whose body supplies the legal prose. When a Template is bound to a respondent and Project, it becomes a
-**Notation** — the running instance whose questions are answered and whose workflow advances to review, signature,
-filing, or closing. The vocabulary is taught in [`docs/notation.md`](../docs/notation.md); this README is about how the
-tree is organized and named.
+This tree holds Neon Law Navigator's **notations** — the executable form of the firm's legal work. A notation is one
+markdown file that carries three things at once: the **template** (the legal prose the client signs), the
+**questionnaire** that gathers the answers that fill it in, and the **workflow** that advances the document from intake
+through attorney review to signature, filing, or closing. Templates, questionnaires, and workflows are not three
+separate files — they are three faces of one notation.
 
-Every template has YAML frontmatter with `title`, `code`, `jurisdiction`, `respondent_type`, `confidential`, and the
-`questionnaire:` / `workflow:` state machines. The body is legal prose with `{{question_code}}` placeholders.
+When a notation is bound to a respondent and a Project it comes to life as a running **Notation** (capital N): the live
+matter whose questions get answered and whose workflow advances. That runtime vocabulary is taught in
+[`docs/notation.md`](../docs/notation.md); this page is about how the notation tree is organized, named, and checked.
+
+Every notation has YAML frontmatter with `title`, `code`, `jurisdiction`, `respondent_type`, `confidential`, and the
+`questionnaire:` / `workflow:` state machines. The body is legal prose with `{{question_code}}` placeholders. Every key
+is explained, in plain English and for attorneys, in [`docs/frontmatter.md`](../docs/frontmatter.md).
 
 ## Two shelves
 
@@ -78,11 +83,27 @@ Run it before committing:
 cargo run -p cli --quiet -- validate templates
 ```
 
-This `README.md` is linted like every other workspace README:
+This `README.md` is linted like every other workspace README (the validator classifies each file automatically, so there
+is no mode flag to pass):
 
 ```bash
-cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes templates/README.md
+cargo run -p cli --quiet -- validate --no-default-excludes templates/README.md
 ```
+
+## Authoring with live feedback — the LSP
+
+You do not have to run `validate` by hand to find a problem. The same rule engine ships as a small language server,
+`navigator-lsp`, that any editor (VS Code, Zed, Neovim, Helix, Emacs) can attach to `*.md`. As you type a notation it
+underlines what is wrong, in place:
+
+- a **red** underline is a blocking error — a missing `title`, an unknown `respondent_type`, a `workflow` with no
+  `staff_review`, a notation that declares only one of `questionnaire:` / `workflow:`;
+- a **yellow** underline is a non-blocking advisory — most often a workflow step that is allowed but not built yet.
+
+Hover any underline for the rule and the fix. The server runs entirely on your machine and sends nothing anywhere — the
+same confidentiality the `confidential:` key is there to protect. The frontmatter keys it checks are documented for
+attorneys in [`docs/frontmatter.md`](../docs/frontmatter.md); editor setup is in
+[`docs/lsp/README.md`](../docs/lsp/README.md).
 
 ## Adding a form template
 

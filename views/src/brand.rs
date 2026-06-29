@@ -145,7 +145,7 @@ const FOUNDATION_NAV: &[NavLink] = &[
     // "Nebula" (workshops, show-and-tells, and presentations). No
     // "Learn" catch-all dropdown.
     NavLink::leaf("Navigator", "/foundation/navigator"),
-    NavLink::leaf("Templates", "/foundation/templates"),
+    NavLink::leaf("Notations", "/foundation/notations"),
     NavLink::leaf("Nimbus", "/foundation/nimbus"),
     NavLink::leaf("Nebula", "/foundation/nebula"),
 ];
@@ -436,14 +436,14 @@ mod tests {
     }
 
     #[test]
-    fn foundation_nav_templates_points_at_the_readme_page() {
-        let templates = FOUNDATION_BRAND
+    fn foundation_nav_notations_points_at_the_readme_page() {
+        let notations = FOUNDATION_BRAND
             .nav
             .iter()
-            .find(|n| n.label == "Templates")
-            .expect("Templates leaf present");
-        assert!(!templates.is_dropdown());
-        assert_eq!(templates.href, "/foundation/templates");
+            .find(|n| n.label == "Notations")
+            .expect("Notations leaf present");
+        assert!(!notations.is_dropdown());
+        assert_eq!(notations.href, "/foundation/notations");
     }
 
     #[test]
