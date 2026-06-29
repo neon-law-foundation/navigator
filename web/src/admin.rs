@@ -746,16 +746,44 @@ async fn people_create(
     }
 }
 
+/// Query flags carried back to the person show view after a per-record
+/// action redirect. Today only the welcome-email send sets one
+/// (`?notice=welcome_sent` / `welcome_failed`), surfaced as a flash toast
+/// on arrival — the show-view sibling of the sign-in page's `?notice=`.
+#[derive(Deserialize, Default)]
+struct PersonShowQuery {
+    #[serde(default)]
+    notice: Option<String>,
+}
+
+/// Map the show view's `?notice=` flag to a toned flash toast, personalized
+/// with the recipient. `welcome_sent` is green (the success confirmation the
+/// staff member asked for); `welcome_failed` is red; any other value (or
+/// none) renders no toast, so a plain visit to the page stays clean.
+fn welcome_notice(notice: Option<&str>, recipient: &str) -> Option<views::components::Toast> {
+    match notice {
+        Some("welcome_sent") => Some(views::components::Toast::success(format!(
+            "Welcome email sent to {recipient}."
+        ))),
+        Some("welcome_failed") => Some(views::components::Toast::danger(format!(
+            "Couldn't send the welcome email to {recipient}. Check the email log."
+        ))),
+        _ => None,
+    }
+}
+
 async fn people_edit(
     State(s): State<AdminState>,
     session: Option<Extension<SessionData>>,
     Path(id): Path<Uuid>,
+    axum::extract::Query(q): axum::extract::Query<PersonShowQuery>,
 ) -> Response {
     let token = csrf_token(session.as_deref());
     match person::Entity::find_by_id(id).one(&s.db).await {
         Ok(Some(p)) => {
             let role_token = p.role.as_str();
             let locked = is_bootstrap_admin_email(s.bootstrap_admin_email.as_deref(), &p.email);
+            let notice = welcome_notice(q.notice.as_deref(), &p.email);
             admin_views::people::edit_form(
                 p.id,
                 &admin_views::people::PersonForm {
@@ -767,6 +795,7 @@ async fn people_edit(
                     error: None,
                     xero_contact_id: p.xero_contact_id.as_deref(),
                 },
+                notice.as_ref(),
             )
             .into_response()
         }
@@ -954,17 +983,22 @@ async fn people_send_welcome(State(state): State<AdminState>, Path(id): Path<Uui
     .with_template("welcome")
     .with_html(html)
     .with_person(id.to_string());
-    match state.email.send(msg).await {
+    // Carry the outcome back as a `?notice=` flag so the show view floats a
+    // green confirmation (or a red failure) toast on arrival — staff get a
+    // clear "the welcome email was sent" signal, not a silent reload.
+    let notice = match state.email.send(msg).await {
         Ok(_) => {
             tracing::info!(person_id = %id, recipient = %person.email, "admin: welcome email sent");
+            "welcome_sent"
         }
         Err(e) => {
             tracing::warn!(error = %e, person_id = %id, "admin: welcome email send failed");
+            "welcome_failed"
         }
-    }
+    };
     // Back to the person's show view (where the button now lives), not the
     // list — the staff member stays on the record they just acted on.
-    Redirect::to(&format!("/portal/admin/people/{id}/edit")).into_response()
+    Redirect::to(&format!("/portal/admin/people/{id}/edit?notice={notice}")).into_response()
 }
 
 // ---- Entities ----

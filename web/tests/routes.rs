@@ -3490,6 +3490,18 @@ async fn admin_send_welcome_writes_audit_row_and_redirects() {
         "expected redirect, got {}",
         resp.status()
     );
+    // The redirect carries the success flag so the show view floats the
+    // green "welcome email sent" confirmation toast on arrival.
+    let location = resp
+        .headers()
+        .get("location")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default();
+    assert_eq!(
+        location,
+        format!("/portal/admin/people/{}/edit?notice=welcome_sent", libra.id),
+        "redirect must flag the welcome-sent notice",
+    );
 
     let rows = sent_email::Entity::find().all(&state.db).await.unwrap();
     assert_eq!(rows.len(), 1, "expected one audit row");
@@ -3502,6 +3514,49 @@ async fn admin_send_welcome_writes_audit_row_and_redirects() {
         rows[0].body.contains("Libra"),
         "body should be personalized, got: {}",
         rows[0].body
+    );
+}
+
+#[tokio::test]
+async fn admin_person_show_floats_success_toast_after_welcome_sent() {
+    // Following the welcome-send redirect lands on the show view with
+    // `?notice=welcome_sent`; the page must float the green confirmation
+    // toast naming the recipient.
+    use sea_orm::{ActiveModelTrait, ActiveValue};
+    use store::entity::person;
+    let state = empty_state().await;
+    store::migrate(&state.db).await.unwrap();
+    let libra = person::ActiveModel {
+        name: ActiveValue::Set("Libra".into()),
+        email: ActiveValue::Set("libra@example.com".into()),
+        ..Default::default()
+    }
+    .insert(&state.db)
+    .await
+    .unwrap();
+
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/portal/admin/people/{}/edit?notice=welcome_sent",
+                    libra.id
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(
+        body.contains("text-bg-success"),
+        "expected a green success toast, got: {body}",
+    );
+    assert!(
+        body.contains("Welcome email sent to libra@example.com."),
+        "toast must name the recipient, got: {body}",
     );
 }
 

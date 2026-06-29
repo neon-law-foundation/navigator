@@ -16,6 +16,7 @@ use crate::components::data_table::{data_table, Column};
 use crate::components::form::{Choice, Field, FormCard};
 use crate::components::row_actions::RowActions;
 use crate::components::sort_spec::SortSpec;
+use crate::components::toast::{toast_overlay, Toast};
 use crate::PageLayout;
 
 pub struct PersonRow<'a> {
@@ -131,12 +132,21 @@ fn action_cell(r: &PersonRow<'_>, csrf_token: &str) -> Markup {
 /// a "View in Xero" deep-link. The welcome POST and the Xero link live
 /// outside the edit `<form>` (no nested forms) so they act on the record
 /// independently of a field edit.
+///
+/// `notice` is an optional flash toast floated at the top-right on arrival
+/// — the green confirmation after a welcome-email send (or a red one if the
+/// dispatch failed). It mirrors the sign-in page's `LoginNotice` pattern:
+/// the handler maps a `?notice=` query flag to a toned [`Toast`] and the
+/// view renders it through the shared overlay.
 #[must_use]
-pub fn edit_form(id: Uuid, form: &PersonForm<'_>) -> Markup {
+pub fn edit_form(id: Uuid, form: &PersonForm<'_>, notice: Option<&Toast>) -> Markup {
     let action = format!("/portal/admin/people/{id}");
     let body = html! {
         section.admin {
             div.container {
+                @if let Some(toast) = notice {
+                    (toast_overlay(&toast.render()))
+                }
                 (person_form_card("Edit person", &action, "Save", form))
                 (person_actions(id, form))
             }
@@ -233,7 +243,7 @@ fn person_form_card(title: &str, action: &str, submit_label: &str, f: &PersonFor
 
 #[cfg(test)]
 mod tests {
-    use super::{edit_form, list, new_form, PersonForm, PersonRow};
+    use super::{edit_form, list, new_form, PersonForm, PersonRow, Toast};
     use crate::components::sort_spec::{SortDirection, SortSpec};
     use uuid::Uuid;
 
@@ -412,6 +422,7 @@ mod tests {
                 role: "staff",
                 ..Default::default()
             },
+            None,
         )
         .into_string();
         assert!(html.contains(&format!("action=\"/portal/admin/people/{ID7}\"")));
@@ -431,6 +442,7 @@ mod tests {
                 csrf_token: "TOK",
                 ..Default::default()
             },
+            None,
         )
         .into_string();
         assert!(html.contains(&format!("action=\"/portal/admin/people/{ID7}/welcome\"")));
@@ -450,6 +462,7 @@ mod tests {
                 xero_contact_id: Some("xero-abc-123"),
                 ..Default::default()
             },
+            None,
         )
         .into_string();
         assert!(
@@ -461,12 +474,47 @@ mod tests {
 
     #[test]
     fn show_view_notes_unsynced_when_no_xero_contact() {
-        let html = edit_form(ID7, &PersonForm::default()).into_string();
+        let html = edit_form(ID7, &PersonForm::default(), None).into_string();
         assert!(
             !html.contains("go.xero.com"),
             "no link when unsynced: {html}"
         );
         assert!(html.contains("Not synced to Xero yet"));
+    }
+
+    #[test]
+    fn show_view_floats_success_toast_when_welcome_sent() {
+        // After a welcome-email send the handler redirects back here with
+        // `?notice=welcome_sent`, mapped to a green confirmation toast.
+        let html = edit_form(
+            ID7,
+            &PersonForm {
+                name: "Libra",
+                email: "libra@example.com",
+                ..Default::default()
+            },
+            Some(&Toast::success("Welcome email sent to libra@example.com.")),
+        )
+        .into_string();
+        // Green tone (Bootstrap success helper) + the overlay container.
+        assert!(
+            html.contains("text-bg-success"),
+            "welcome toast must use the success color, got: {html}",
+        );
+        assert!(
+            html.contains("toast-container"),
+            "toast must be pinned in the overlay container, got: {html}",
+        );
+        assert!(html.contains("Welcome email sent to libra@example.com."));
+    }
+
+    #[test]
+    fn show_view_renders_no_toast_without_a_notice() {
+        let html = edit_form(ID7, &PersonForm::default(), None).into_string();
+        assert!(
+            !html.contains("toast-container"),
+            "a plain show view must not float a toast, got: {html}",
+        );
     }
 
     #[test]

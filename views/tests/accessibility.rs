@@ -129,6 +129,7 @@ fn people_forms_are_accessible() {
             csrf_token: "TOK",
             ..people::PersonForm::default()
         },
+        None,
     );
     assert_forms_accessible(&edit.into_string(), "people::edit_form (locked role)");
 
