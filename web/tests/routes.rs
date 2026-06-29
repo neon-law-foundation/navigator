@@ -696,7 +696,7 @@ async fn templates_serves_the_tree_readme_under_foundation_brand() {
 }
 
 #[tokio::test]
-async fn old_foundation_notations_url_redirects_to_templates() {
+async fn old_foundation_notations_url_is_not_mounted() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -710,11 +710,7 @@ async fn old_foundation_notations_url_redirects_to_templates() {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
-    assert_eq!(
-        resp.headers().get("location").unwrap(),
-        "/foundation/templates"
-    );
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

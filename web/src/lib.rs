@@ -719,14 +719,6 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/foundation/navigator/mcp", get(navigator_mcp))
             .route("/foundation/navigator/web", get(navigator_web))
             .route("/foundation/templates", get(template_tree))
-            .route(
-                "/foundation/notations",
-                get(|| async { axum::response::Redirect::permanent("/foundation/templates") }),
-            )
-            .route(
-                "/foundation/notation-templates",
-                get(|| async { axum::response::Redirect::permanent("/foundation/templates") }),
-            )
             .route("/foundation/transparency", get(foundation_transparency))
             .route(
                 "/foundation/transparency/{slug}",
