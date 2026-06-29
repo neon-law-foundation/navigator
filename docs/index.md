@@ -65,8 +65,9 @@ These are the terms agents most often need before making a decision. The full al
   env-var-driven dev and deploy surfaces. [`assets.md`](assets.md) — photography pipeline (build/upload/pull); pull
   photos down for local dev. [`secrets-doppler.md`](secrets-doppler.md) — Doppler and secret handling.
   [`editing-workflows.md`](editing-workflows.md) — editing notation templates.
-  [`notation-authoring.md`](notation-authoring.md) — authoring notation templates. [`lsp/README.md`](lsp/README.md) —
-  editor integrations for notation diagnostics.
+  [`notation-authoring.md`](notation-authoring.md) — authoring notation templates. [`frontmatter.md`](frontmatter.md) —
+  the attorney-facing guide to every frontmatter key, per document kind (notation template, event, blog post, board
+  minutes). [`lsp/README.md`](lsp/README.md) — editor integrations for notation diagnostics.
 
 ## Shipping and operations
 
