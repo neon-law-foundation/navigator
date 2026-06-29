@@ -89,7 +89,23 @@ impl BillingClient {
 
     /// Trailing-`days` cost by service, highest first.
     pub async fn cost_by_service(&self, table: &str, days: u32) -> Result<Vec<CostRow>> {
-        let json = self.run_query(&format_cost_sql(table, days)).await?;
+        let json = self
+            .run_query(&format_cost_window_sql(table, days, 0))
+            .await?;
+        parse_cost_rows(&json)
+    }
+
+    /// Cost by service over the `[now-older_days, now-newer_days)` window,
+    /// highest first. `newer_days == 0` is the trailing window up to now.
+    pub async fn cost_by_service_window(
+        &self,
+        table: &str,
+        older_days: u32,
+        newer_days: u32,
+    ) -> Result<Vec<CostRow>> {
+        let json = self
+            .run_query(&format_cost_window_sql(table, older_days, newer_days))
+            .await?;
         parse_cost_rows(&json)
     }
 
@@ -159,10 +175,24 @@ impl BillingClient {
 /// the exact form without a live `BigQuery`.
 #[must_use]
 pub fn format_cost_sql(table: &str, days: u32) -> String {
+    format_cost_window_sql(table, days, 0)
+}
+
+/// Build the cost-by-service SQL for `[now-older_days, now-newer_days)`.
+/// `newer_days == 0` leaves the recent end open for the trailing window.
+#[must_use]
+pub fn format_cost_window_sql(table: &str, older_days: u32, newer_days: u32) -> String {
+    let upper_bound = if newer_days == 0 {
+        String::new()
+    } else {
+        format!(
+            " AND _PARTITIONTIME < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {newer_days} DAY)"
+        )
+    };
     format!(
         "SELECT service.description AS service, ROUND(SUM(cost), 2) AS cost \
          FROM `{table}` \
-         WHERE _PARTITIONTIME >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {days} DAY) \
+         WHERE _PARTITIONTIME >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {older_days} DAY){upper_bound} \
          GROUP BY service ORDER BY cost DESC"
     )
 }
@@ -360,8 +390,9 @@ impl TokenProvider for AdcToken {
 #[cfg(test)]
 mod tests {
     use super::{
-        format_cost_sql, format_cost_with_credits_sql, format_promo_applied_sql, parse_cost_rows,
-        parse_scalar_amount, parse_service_costs, CostRow, ServiceCost,
+        format_cost_sql, format_cost_window_sql, format_cost_with_credits_sql,
+        format_promo_applied_sql, parse_cost_rows, parse_scalar_amount, parse_service_costs,
+        CostRow, ServiceCost,
     };
     use serde_json::json;
 
@@ -372,6 +403,15 @@ mod tests {
         assert!(sql.contains("INTERVAL 30 DAY"));
         assert!(sql.contains("`proj.billing_export.gcp_billing_export_v1_X`"));
         assert!(sql.contains("GROUP BY service"));
+    }
+
+    #[test]
+    fn cost_window_sql_bounds_prior_period_when_newer_days_is_set() {
+        let sql = format_cost_window_sql("p.ds.t", 60, 30);
+        assert!(sql.contains("SUM(cost)"));
+        assert!(sql.contains(">= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)"));
+        assert!(sql.contains("< TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)"));
+        assert!(sql.contains("GROUP BY service ORDER BY cost DESC"));
     }
 
     #[test]
