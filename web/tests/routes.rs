@@ -899,13 +899,13 @@ async fn services_northstar_uses_marketing_doc_when_present() {
 }
 
 #[tokio::test]
-async fn services_northstar_renders_the_neon_hero_from_the_hero_image_metadata() {
-    // The `hero_image:` frontmatter key rides the curated photo beneath the
-    // neon product hero as a dimmed `--ph-photo` backdrop: the "Neon Law …"
-    // brand title is the page's single <h1> inside the hero, and the body's
-    // own leading <h1> is lifted up into the hero tagline (so it isn't
-    // repeated). This drives the full web→view seam — the metadata read in
-    // `service_page` plus the view's hero render.
+async fn services_northstar_renders_the_neon_hero_without_the_hero_image_photo() {
+    // Legacy `hero_image:` frontmatter is still parsed but the service view
+    // ignores it: every product hero renders over the same image-free neon
+    // animation. The "Neon Law …" brand title is the page's single <h1>
+    // inside the hero, and the body's own leading <h1> is lifted up into the
+    // hero tagline (so it isn't repeated). This drives the full web→view
+    // seam — the metadata read in `service_page` plus the view's hero render.
     let docs = vec![web::MarketingDoc {
         slug: "northstar".into(),
         title: "Neon Law Northstar".into(),
@@ -947,15 +947,17 @@ async fn services_northstar_renders_the_neon_hero_from_the_hero_image_metadata()
         ),
         "expected the brand title as the hero h1"
     );
-    // The curated photo rides beneath the neon as a dimmed `--ph-photo`
-    // backdrop (no separate <picture> banner) and still leads the LCP.
+    // The legacy `hero_image` is ignored: no photo layer rides beneath the
+    // neon, and the slug never reaches the markup (no `--ph-photo` backdrop,
+    // no separate <picture> banner).
     assert!(
-        body.contains("product-hero__photo") && body.contains("lake-tahoe"),
-        "curated photo should ride as the dimmed neon backdrop"
+        !body.contains("product-hero__photo") && !body.contains("lake-tahoe"),
+        "service hero should render image-free, with no curated photo backdrop"
     );
+    // And an ignored `hero_image` adds no LCP image preload.
     assert!(
-        body.contains("rel=\"preload\" as=\"image\""),
-        "hero photo should be preloaded for LCP"
+        !body.contains("rel=\"preload\" as=\"image\""),
+        "ignored hero_image should not add an image preload"
     );
     // The markdown headline moved into the hero lead — present exactly once,
     // and no longer wrapped in its own <h1>.
