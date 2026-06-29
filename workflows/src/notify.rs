@@ -135,12 +135,14 @@ impl Notifier for SlackNotifier {
 }
 
 /// Render the Slack message for an internal ops email: the subject as a bold
-/// header, then the plain-text body. Pure and exposed so the formatting is
+/// header, then the plain-text body in a code block so fixed-width ops tables
+/// keep their columns in Slack. Pure and exposed so the formatting is
 /// unit-tested. The HTML part is intentionally dropped — Slack renders the
 /// plain text and the body already reads as a standalone ops notice.
 #[must_use]
 pub fn ops_slack_text(email: &OutboundEmail) -> String {
-    format!("*{}*\n{}", email.subject, email.body)
+    let body = email.body.trim_end().replace("```", "'''");
+    format!("*{}*\n```\n{body}\n```", email.subject)
 }
 
 /// An [`EmailService`] adapter that delivers an ops notice to a [`Notifier`]
@@ -206,7 +208,17 @@ mod tests {
     fn ops_slack_text_is_bold_subject_then_body() {
         let text = ops_slack_text(&ops_email());
         assert!(text.starts_with("*Durable execution OK"));
+        assert!(text.contains("\n```"));
         assert!(text.contains("ran end to end"));
+        assert!(text.ends_with("```"));
+    }
+
+    #[test]
+    fn ops_slack_text_escapes_nested_code_fences() {
+        let email = OutboundEmail::new("ops@example.com", "Ops", "before ``` after\n");
+        let text = ops_slack_text(&email);
+        assert!(text.contains("before ''' after"));
+        assert_eq!(text.matches("```").count(), 2);
     }
 
     #[tokio::test]
