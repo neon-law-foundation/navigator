@@ -46,6 +46,39 @@ fn docs_glossary_with_known_term_prints_just_that_term() {
 }
 
 #[test]
+fn docs_glossary_without_argument_lists_every_term() {
+    let out = Command::new(cargo_bin("navigator"))
+        .args(["docs", "glossary"])
+        .output()
+        .expect("run navigator docs glossary");
+    assert!(out.status.success(), "exit status: {:?}", out.status);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    // The no-argument dump prints every parsed entry as a `## <title>` block;
+    // spot-check entries from across the file and guard against a parse that
+    // silently yields nothing.
+    assert!(stdout.contains("## Staff Review"));
+    assert!(stdout.contains("## Workflow Runtime"));
+    let heading_count = stdout.lines().filter(|l| l.starts_with("## ")).count();
+    assert!(
+        heading_count >= 25,
+        "expected >= 25 glossary headings, got {heading_count}"
+    );
+}
+
+#[test]
+fn docs_glossary_term_lookup_is_case_insensitive() {
+    let out = Command::new(cargo_bin("navigator"))
+        .args(["docs", "glossary", "staff review"])
+        .output()
+        .expect("run navigator docs glossary 'staff review' (lower-case)");
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("## Staff Review"));
+    // One term only — no other heading bleeds in.
+    assert!(!stdout.contains("## Workflow Runtime"));
+}
+
+#[test]
 fn docs_glossary_term_lookup_accepts_anchor_slug() {
     let out = Command::new(cargo_bin("navigator"))
         .args(["docs", "glossary", "staff-review"])
