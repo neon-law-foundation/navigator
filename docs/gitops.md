@@ -143,8 +143,8 @@ Separate from the CI/CD three, on its own cron and knowing nothing about tags. F
 authenticated with `secrets.GHCR_CLEANUP_PAT`. That secret must be a classic PAT from an org/package admin with
 `read:packages` and `delete:packages`; fine-grained PATs cannot list org packages through this endpoint. `latest` and
 the recent dated tags are re-pushed daily by `deploy.yml`, so their versions stay under the cutoff and only stale images
-are swept. It then posts a Slack summary, tagging Nick on failure. New scheduled maintenance belongs here, not in a
-CI/CD workflow.
+are swept. It then posts a Slack summary to `#engineering` with `secrets.SLACK_ENGINEERING_WEBHOOK_URL`, tagging Nick on
+failure. New scheduled maintenance belongs here, not in a CI/CD workflow.
 
 ## Publish vs. roll out
 

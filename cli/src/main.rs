@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
+use serde::Deserialize;
 
 mod assets;
 mod credentials;
@@ -106,6 +107,12 @@ enum Command {
     ValidateEvents {
         /// Directory to walk.
         #[arg(default_value = "web/content/events")]
+        dir: PathBuf,
+    },
+    /// Parse every `.yaml` and `.yml` file under `<dir>`.
+    ValidateYaml {
+        /// Directory to walk.
+        #[arg(default_value = ".")]
         dir: PathBuf,
     },
     /// Render a single notation template to a PDF, framed by an output
@@ -1027,6 +1034,7 @@ fn main() -> ExitCode {
             database_url.as_deref(),
         )),
         Command::ValidateEvents { dir } => events::run_validate(&dir),
+        Command::ValidateYaml { dir } => run_validate_yaml(&dir),
         Command::Render {
             file,
             out,
@@ -1523,6 +1531,72 @@ fn code_uniqueness_pass(
         Box::new(rules::DefaultFileFilter::default())
     };
     rules::code_uniqueness_violations(dir, filter.as_ref())
+}
+
+fn run_validate_yaml(dir: &std::path::Path) -> ExitCode {
+    if !dir.is_dir() {
+        eprintln!("navigator: {} is not a directory", dir.display());
+        return ExitCode::from(2);
+    }
+
+    let mut files_scanned = 0usize;
+    let mut errors = 0usize;
+    for entry in walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_entry(|entry| {
+            let name = entry.file_name().to_string_lossy();
+            !entry.file_type().is_dir()
+                || (name != ".git" && name != "target" && name != ".worktrees")
+        })
+    {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => {
+                eprintln!("navigator: {err}");
+                return ExitCode::from(2);
+            }
+        };
+        if !entry.file_type().is_file() || !is_yaml_path(entry.path()) {
+            continue;
+        }
+        files_scanned += 1;
+        let raw = match std::fs::read_to_string(entry.path()) {
+            Ok(raw) => raw,
+            Err(err) => {
+                eprintln!("navigator: {}: {err}", entry.path().display());
+                return ExitCode::from(2);
+            }
+        };
+        for document in serde_yaml::Deserializer::from_str(&raw) {
+            if let Err(err) = serde_yaml::Value::deserialize(document) {
+                if let Some(location) = err.location() {
+                    eprintln!(
+                        "{}:{}:{}: YAML parse error: {err}",
+                        entry.path().display(),
+                        location.line(),
+                        location.column()
+                    );
+                } else {
+                    eprintln!("{}: YAML parse error: {err}", entry.path().display());
+                }
+                errors += 1;
+                break;
+            }
+        }
+    }
+
+    println!("Parsed {files_scanned} YAML file(s), found {errors} error(s)");
+    if errors == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    }
+}
+
+fn is_yaml_path(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("yaml") || ext.eq_ignore_ascii_case("yml"))
 }
 
 async fn run_validate(

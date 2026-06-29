@@ -70,6 +70,7 @@ const MANIFEST: &[(&str, &str)] = &[
     doc!("notation-authoring", "docs/notation-authoring.md"),
     doc!("observability", "docs/observability.md"),
     doc!("oidc", "docs/oidc.md"),
+    doc!("opa-policy", "docs/opa-policy.md"),
     doc!("oss-install", "docs/oss-install.md"),
     doc!("recurring-billing", "docs/recurring-billing.md"),
     doc!("retainer_intake", "docs/retainer_intake.md"),

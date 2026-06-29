@@ -49,6 +49,8 @@ Inside Restate handlers, the rules are stricter: do not use native concurrency f
   state over ad-hoc request parsing. Keep auth and visibility checks close to existing middleware/access helpers. New
   `/portal/...` routes must respect [`access-model.md`](access-model.md) and OPA policy. Return `404` where the existing
   surface intentionally hides staff-only management routes from clients.
+- Body/consuming extractors (`Json`, `Form`, multipart) go last in a handler's argument list — the body can only be
+  consumed once. `5xx` responses log via `tracing` before returning; `4xx` responses do not.
 
 ## SeaORM and Postgres
 
@@ -61,7 +63,9 @@ Inside Restate handlers, the rules are stricter: do not use native concurrency f
 
 - Long-running binaries initialize config, database, telemetry, and external clients before serving traffic. Hold the
   telemetry guard until the end of `main`. Use the workspace shutdown helper instead of ad-hoc signal handling. Health
-  and readiness endpoints should reflect the dependency contract the service actually needs.
+  and readiness endpoints should reflect the dependency contract the service actually needs. Liveness (`/health`) must
+  not probe downstreams — a transient DB blip would restart-loop the pod; readiness (`/readyz`) is where the real
+  dependency round-trip gates traffic.
 
 ## Testing
 

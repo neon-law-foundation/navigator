@@ -57,7 +57,7 @@ Exit `0` on every iteration means clean. Otherwise the violating file, line, rul
 ## What NOT to do
 
 - Don't reach for `markdownlint`, `mdformat`, or any non-Rust linter. We standardize on the in-house `cli` — that's the
-  whole point of dogfooding. See [[rust-best-practices]] for the Rust-only stance.
+  whole point of dogfooding. See [[rust]] for the Rust-only stance.
 - Don't run plain `cargo run -p cli -- validate <path>` on a README.
   Without `--markdown-only` it fails with N-family complaints about missing frontmatter; without `--no-default-excludes`
   it silently skips the file.

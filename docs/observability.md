@@ -62,6 +62,47 @@ This complements the existing Iceberg archive ([iceberg-archive guide](iceberg-a
 workflow snapshots Postgres *tables* to Parquet on GCS for BigQuery external-table analysis. Telemetry (logs, traces,
 metrics) is the *operational* half; the Iceberg archive is the *data* half. Both query from BigQuery.
 
+## Seeing telemetry locally: Grafana LGTM
+
+Emitting telemetry is only half the loop; the other half is seeing it before it reaches prod. In KIND, a single
+`navigator start-dev-server` stands up **Grafana LGTM** (the one-process `grafana/otel-lgtm` image: Grafana + **L**oki
+for logs + **T**empo for traces + Prometheus for **M**etrics + a bundled OTel Collector that receives OTLP and fans it
+into the three stores). One pod, datasources auto-provisioned, no dashboards to import.
+
+**Bring-up is automatic.** `start-dev-server` applies the `lgtm` Deployment + Service, waits for its rollout,
+port-forwards **Grafana 3000 → host `:3000`** and **OTLP gRPC 4317 → host `:4317`**, and writes
+`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` into `.devx/env`. Override the host ports with
+`NAVIGATOR_KIND_GRAFANA_PORT` / `NAVIGATOR_KIND_OTLP_PORT` if 3000/4317 clash. Storage is `emptyDir`, so tearing down
+(or restarting the pod) wipes all telemetry — the right default for KIND.
+
+**Generate telemetry.** Host `web` started with `.devx/env` sourced picks up `OTEL_EXPORTER_OTLP_ENDPOINT`, which is
+exactly what flips `telemetry::init` from human-readable stdout to JSON logs + OTLP export; then drive a request.
+In-cluster `web` and `workflows-service` already carry `OTEL_EXPORTER_OTLP_ENDPOINT` pointing at
+`http://lgtm.navigator.svc.cluster.local:4317` (baked into their manifests), so a cross-service trace stays intact. To
+run host `web` with plain stdout and no export (the pre-LGTM behavior), set `OTEL_EXPORTER_OTLP_ENDPOINT=` (empty) in
+`.env` — it loads before `.devx/env` and wins, and `telemetry::init` treats an empty endpoint as "do not export."
+
+**Look at it in Grafana.** Open `http://localhost:3000` (anonymous Admin, login disabled), then **Explore** (compass
+icon) and pick a datasource:
+
+- **Traces → Tempo**: Search → `Service Name = navigator-web` (or `navigator-workflows-service`), then click a trace to
+  see the span tree spanning the Restate boundary. A workflow span showing a *new* trace id instead of joining `web`'s
+  means W3C propagation is broken.
+- **Logs → Loki**: `{service_name="navigator-web"}`, then filter by a field (e.g. add a `status` selector for the HTTP
+  code).
+- **Metrics → Prometheus**: query `navigator_workflow_trigger_fired_total` or `navigator_mcp_tool_called_total` — OTLP
+  dots become `_` and counters pick up a `_total` suffix. A flat `navigator_workflow_trigger_fired_total` for a service
+  that should fire on a schedule is a silently-stopped trigger.
+
+The local-LGTM wiring lives in three places:
+
+- `k8s/overlays/kind/deps/lgtm.yaml` — the LGTM Deployment + Service (OTLP gRPC 4317, OTLP HTTP 4318, Grafana 3000);
+  `k8s/overlays/kind/deps/kustomization.yaml` includes it so both the `kind` and `kind-deps` overlays apply it.
+- `cli/src/devx/mod.rs` — `up()` port-forwards `svc/lgtm`, waits for rollout, and `render_env` writes the OTLP endpoint
+  into `.devx/env`; `NAVIGATOR_KIND_GRAFANA_PORT` / `NAVIGATOR_KIND_OTLP_PORT` are the host-port knobs.
+- `k8s/base/web/web.yaml` + `k8s/overlays/kind/workflows-service/workflows-service.yaml` — the in-cluster
+  `OTEL_EXPORTER_OTLP_ENDPOINT` pointing at the cluster-internal `lgtm` Service.
+
 ## Debugging "the workflow didn't run"
 
 Work down the chain (full version in the [durable-workflows guide](durable-workflows.md)); each rung now has telemetry:

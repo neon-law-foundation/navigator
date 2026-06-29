@@ -202,6 +202,49 @@ fn validate_events_rejects_missing_required_frontmatter() {
 }
 
 #[test]
+fn validate_yaml_accepts_yaml_and_yml_files() {
+    let dir = TempDir::new().unwrap();
+    write(
+        dir.path(),
+        "config.yaml",
+        "name: navigator\nitems:\n  - one\n",
+    );
+    write(dir.path(), "nested/multi.yml", "---\na: 1\n---\nb: 2\n");
+    write(dir.path(), "notes.txt", "not: [valid\n");
+    navigator()
+        .arg("validate-yaml")
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(str::contains("Parsed 2 YAML file(s), found 0 error(s)"));
+}
+
+#[test]
+fn validate_yaml_rejects_parse_errors() {
+    let dir = TempDir::new().unwrap();
+    write(dir.path(), "bad.yaml", "root:\n  - ok\n  - [broken\n");
+    navigator()
+        .arg("validate-yaml")
+        .arg(dir.path())
+        .assert()
+        .failure()
+        .code(1)
+        .stdout(str::contains("Parsed 1 YAML file(s), found 1 error(s)"))
+        .stderr(str::contains("bad.yaml"))
+        .stderr(str::contains("YAML parse error"));
+}
+
+#[test]
+fn validate_yaml_requires_directory() {
+    navigator()
+        .args(["validate-yaml", "/definitely/does/not/exist/12345"])
+        .assert()
+        .failure()
+        .code(2)
+        .stderr(str::contains("is not a directory"));
+}
+
+#[test]
 fn missing_subcommand_prints_usage_and_fails() {
     navigator()
         .assert()

@@ -36,7 +36,7 @@ ready. The deps a `web` request actually touches (illustrative host ports, sourc
 
 | Dependency | Host port | What `web` uses it for | Skill |
 | --- | --- | --- | --- |
-| Postgres | `:15432` | every SeaORM query (port-forward to in-cluster Cloud-SQL-equivalent) | `postgres-in-kind` |
+| Postgres | `:15432` | every SeaORM query (port-forward to in-cluster Cloud-SQL-equivalent) | `kind-local-dev` |
 | Keycloak | `:30080` | OIDC sign-in (`/auth/login` → callback) | `keycloak-oidc` |
 | fake-gcs | `:30443` | object storage (`cloud::StorageService`, GCS stand-in) | — |
 | OPA | `:8181` | authorization decisions for `/portal/*` | `opa-policy` |
@@ -52,8 +52,8 @@ doppler run --project navigator --config dev -- \
 `web` binds `:3001`. Watch the boot log for `web listening addr=0.0.0.0:3001`. If it exits with "production invariants
 violated", you skipped `doppler run`.
 
-**Per-worktree preview (parallel agents / Codex).** To preview several worktrees at once without colliding on `:3001`
-or the `navigator` database, run `cargo run -p cli -- worktree-env up` in each worktree first: it writes a `.devx/env`
+**Per-worktree preview (parallel agents / Codex).** To preview several worktrees at once without colliding on `:3001` or
+the `navigator` database, run `cargo run -p cli -- worktree-env up` in each worktree first: it writes a `.devx/env`
 pointing `web` at that worktree's own port (`3001` + a stable per-slug offset) and its own `navigator_<slug>` database
 on the shared deps. Then source that `.devx/env` and run `web` exactly as above (it binds the per-worktree port). See
 `kind-local-dev` and `docs/RUNBOOK.md` §7c.
@@ -61,12 +61,12 @@ on the shared deps. Then source that `.devx/env` and run `web` exactly as above 
 #### OpenTelemetry (on by default)
 
 `navigator start-dev-server` stands up a Grafana **LGTM** pod (Loki/Grafana/Tempo/Prometheus + a bundled OTel Collector)
-as a local OTLP sink, port-forwards its OTLP gRPC port, and writes
-`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` into `.devx/env`.
-So sourcing `.devx/env` (step 2) already flips host `web` to JSON logs + OTLP export — no manual port-forward. Browse
-traces/logs/metrics at `http://localhost:3000` (Grafana, anonymous Admin). To run with plain stdout logs and no export,
-set `OTEL_EXPORTER_OTLP_ENDPOINT=` (empty) in `.env`. Full local-telemetry loop is the [[grafana-lgtm]] skill; the
-emit-side seam and the load-bearing "identifiers and counts, never client content" rule are the `observability` skill.
+as a local OTLP sink, port-forwards its OTLP gRPC port, and writes `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317`
+into `.devx/env`. So sourcing `.devx/env` (step 2) already flips host `web` to JSON logs + OTLP export — no manual
+port-forward. Browse traces/logs/metrics at `http://localhost:3000` (Grafana, anonymous Admin). To run with plain stdout
+logs and no export, set `OTEL_EXPORTER_OTLP_ENDPOINT=` (empty) in `.env`. Full local-telemetry loop is the
+[[grafana-lgtm]] skill; the emit-side seam and the load-bearing "identifiers and counts, never client content" rule are
+the `observability` skill.
 
 ### 3. Open it in a real browser and screenshot
 
@@ -148,8 +148,8 @@ github.com PR page it must be hosted by GitHub, and the only clean way is GitHub
 `user-attachments`/`user-images` URL, zero repo pollution). GitHub ships no public API for that upload, but the
 [[pr-image-upload]] skill drives it from the CLI by replaying the browser upload flow with your github.com session — so
 you can embed the `/tmp` capture into the PR body yourself, no drag-drop required. Avoid the tempting `pr-assets`
-orphan-branch trick — it works, but leaves a stray binary-accumulating branch on the remote that someone has to
-remember to delete. (Inside Cursor Cloud, skip [[pr-image-upload]] and use the artifact tags its PR tool resolves.)
+orphan-branch trick — it works, but leaves a stray binary-accumulating branch on the remote that someone has to remember
+to delete. (Inside Cursor Cloud, skip [[pr-image-upload]] and use the artifact tags its PR tool resolves.)
 
 ## CSP gotcha (front-end JS)
 
