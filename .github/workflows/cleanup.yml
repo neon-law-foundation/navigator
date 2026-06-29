@@ -135,9 +135,8 @@ jobs:
   cleanup-failed:
     name: slack — alert Nick on cleanup failure
     needs: cleanup
-    # Same pattern as deploy.yml's notify-failure: post to #engineering
-    # via the channel-specific webhook (SLACK_ENGINEERING_WEBHOOK_URL, synced
-    # from Doppler) and tag Nick.
+    # Cleanup maintenance alerts intentionally use the #engineering-specific
+    # webhook (SLACK_ENGINEERING_WEBHOOK_URL, synced from Doppler) and tag Nick.
     if: failure() && github.repository == 'neon-law-foundation/navigator'
     runs-on: ubuntu-latest
     timeout-minutes: 10
