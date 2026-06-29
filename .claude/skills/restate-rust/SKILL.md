@@ -14,8 +14,8 @@ description: >
   into `main.rs`'s `Endpoint::builder().bind(...)`, or porting orchestration logic into a durable handler. To ADD a
   whole legal flow (template + questionnaire + workflow YAML) use create-legal-workflow; to OPERATE/diagnose the
   already-running engine use durable-execution; this skill is the Rust SDK authoring rules that sit under both. Skip for
-  non-Restate Rust (use rust-best-practices / rust-concurrency) and for the submit side (`workflows` lib, which only
-  POSTs to the ingress and never binds the SDK).
+  non-Restate Rust (use the rust skill) and for the submit side (`workflows` lib, which only POSTs to the ingress and
+  never binds the SDK).
 ---
 
 # restate-rust
@@ -127,9 +127,9 @@ retryable for infrastructure.
 Inside a handler, **do not** reach for `tokio::spawn`, `tokio::join!`, `futures::join_all`, or channels to run journaled
 steps concurrently — native concurrency is invisible to the journal and races replay. If you need to await multiple
 durable operations, use the SDK's own combinators / select, or sequence the `ctx.run` steps. (The workspace standardizes
-on Tokio everywhere else — that's [[rust-concurrency]]; this restriction is *only* about journaled steps inside a
-Restate handler.) Durable timers use `ctx.sleep(duration).await?`, never `tokio::time::sleep`; cross-handler rendezvous
-uses awakeables, never an in-process `oneshot`.
+on Tokio everywhere else — that's the [[rust]] skill; this restriction is *only* about journaled steps inside a Restate
+handler.) Durable timers use `ctx.sleep(duration).await?`, never `tokio::time::sleep`; cross-handler rendezvous uses
+awakeables, never an in-process `oneshot`.
 
 ## Observability inside a handler
 
