@@ -4,7 +4,7 @@
 //! that [`web::api::routes`] registers. Without this test the doc
 //! silently rots whenever a new route lands.
 //!
-//! `/openapi.json` and `/api/docs` are deliberately excluded — those
+//! `/openapi.json` and `/api-docs` are deliberately excluded — those
 //! are meta-endpoints (the spec itself and the Swagger UI shell), not
 //! part of the public API surface the document describes.
 

@@ -140,5 +140,13 @@ test_anonymous_reaches_openapi if {
 }
 
 test_anonymous_reaches_api_docs if {
-	authz.allow with input as {"path": ["api", "docs"], "method": "GET", "session": null}
+	authz.allow with input as {"path": ["api-docs"], "method": "GET", "session": null}
+}
+
+# The docs shell moved out of the gated `/api/*` prefix; the old
+# `/api/docs` path carries no public exemption anymore. An anonymous
+# GET must NOT be allowed (the route is gone, but if it ever returned
+# the policy must not silently re-open it).
+test_anonymous_denied_old_api_docs if {
+	not authz.allow with input as {"path": ["api", "docs"], "method": "GET", "session": null}
 }
