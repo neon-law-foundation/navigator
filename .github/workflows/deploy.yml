@@ -273,9 +273,11 @@ jobs:
         env:
           DATABASE_URL: postgres://navigator:navigator@127.0.0.1:25432/navigator
         run: |
+          set -euo pipefail
           cargo run -p cli --quiet -- list templates
-          cargo run -p cli --quiet -- erd | head -5
-          cargo run -p cli --quiet -- glossary jurisdiction
+          cargo run -p cli --quiet -- docs erd > /tmp/navigator-erd.mmd
+          sed -n '1,5p' /tmp/navigator-erd.mmd
+          cargo run -p cli --quiet -- docs glossary jurisdiction
 
       # ---------- chromedriver-driven browser tests ----------
       # The full browser suite (login + admin-routes + retainer-walker)
