@@ -1035,46 +1035,43 @@ fn kind_up_steps(root: &Path, cfg: &KindConfig) -> Result<()> {
 ///
 /// Flatten to the daemon's own platform with `docker save --platform` first,
 /// then `kind load image-archive` the single-platform tar — `--all-platforms`
-/// then finds exactly one platform and succeeds. If the save can't produce
-/// that platform (e.g. an older single-arch image that doesn't contain it),
-/// fall back to the legacy whole-image load, which still works when the
-/// index has only one platform.
+/// then finds exactly one platform and succeeds.
+///
+/// Only a *failed `docker save`* triggers the legacy fallback: a save that
+/// can't produce `<platform>` means the image is older/single-arch, where
+/// `kind load docker-image` still works (one platform, nothing to mismatch).
+/// A failure of the `kind load image-archive` step is deliberately *not*
+/// caught — KIND being unreachable or out of disk would fail the legacy load
+/// the same way, and on a multi-arch image the fallback would re-trigger the
+/// very `--all-platforms` digest bug this exists to avoid. That error
+/// propagates directly instead of hiding behind a "flatten failed" message.
 fn kind_load_image_into_cluster(tag: &str, cfg: &KindConfig) -> Result<()> {
     let platform = format!("linux/{}", docker_daemon_arch());
-    match kind_load_single_platform(tag, &platform, cfg) {
-        Ok(()) => Ok(()),
-        Err(err) => {
-            eprintln!(
-                "==> single-platform load of {tag} ({platform}) failed ({err:#}); \
-                 falling back to `kind load docker-image`"
-            );
-            run(Command::new("kind")
-                .arg("load")
-                .arg("docker-image")
-                .arg(tag)
-                .arg("--name")
-                .arg(&cfg.cluster))
-        }
-    }
-}
-
-/// `docker save --platform <platform> <tag>` to a temp archive, then `kind
-/// load image-archive` it. Keeps the archive single-platform so KIND's
-/// `--all-platforms` import never references a blob the host never pulled.
-fn kind_load_single_platform(tag: &str, platform: &str, cfg: &KindConfig) -> Result<()> {
     let archive = tempfile::Builder::new()
         .prefix("navigator-kind-load-")
         .suffix(".tar")
         .tempfile()
         .context("create temp image archive for kind load")?;
     eprintln!("==> docker save --platform {platform} {tag} (single-platform for kind)");
-    run(Command::new("docker")
+    let saved = run(Command::new("docker")
         .arg("save")
         .arg("--platform")
-        .arg(platform)
+        .arg(&platform)
         .arg(tag)
         .arg("-o")
-        .arg(archive.path()))?;
+        .arg(archive.path()));
+    if let Err(err) = saved {
+        eprintln!(
+            "==> `docker save --platform {platform}` failed ({err:#}); \
+             falling back to `kind load docker-image` (older single-arch image?)"
+        );
+        return run(Command::new("kind")
+            .arg("load")
+            .arg("docker-image")
+            .arg(tag)
+            .arg("--name")
+            .arg(&cfg.cluster));
+    }
     eprintln!("==> kind load image-archive ({tag} → {})", cfg.cluster);
     run(Command::new("kind")
         .arg("load")
