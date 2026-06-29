@@ -5,12 +5,16 @@ NYC](https://www.meetup.com/rust-nyc/).
 
 This talk comes from the Foundation itself — the 501(c)(3) that stewards Neon Law Navigator, the open-source harness
 behind a law firm that drafts, checks, and files routine legal work. We started as software engineers. We became
-lawyers. We kept writing Rust — one Cargo workspace, every executable and library in a single language. The thesis of
-the half hour: our goal is to create **deterministic workflows from law**, and a language that is *widely available* —
-free, permissively licensed, governed by a non-profit — is what lets a small nonprofit build them with the same
-first-class tooling the largest companies run on. Every code block below is an exact copy from the repository, kept
-honest by a test that fails the build if a slide drifts from the source. The steps are the talk, beat by beat; the "Copy
-as Markdown" button hands you the whole thing to take home.
+lawyers. We kept writing Rust — one Cargo workspace, every executable and library in a single language. The title's joke
+is also the thesis: **Rust in Peace** is a eulogy for the programming career I thought I had to keep separate from
+practicing law. Going all in on Rust lets that career die peacefully, because the open ecosystem now carries the
+production-grade pieces a tiny legal team could not build alone.
+
+The goal of the half hour: show how that compounding works in one real repository. We create **deterministic workflows
+from law**, and a language that is *widely available* — free, permissively licensed, governed by a non-profit — lets a
+small nonprofit build them with the same first-class tooling the largest companies run on. Every code block below is an
+exact copy from the repository, kept honest by a test that fails the build if a slide drifts from the source. The steps
+are the talk, beat by beat; the "Copy as Markdown" button hands you the whole thing to take home.
 
 ## Agenda
 
@@ -19,9 +23,10 @@ An agenda, not a lecture outline — you are here to argue back. By the end of t
 - **Recount** how a two-person team crossed from software to law without dropping the toolchain. **Explain** why a
   foundation-stewarded language is access-to-justice infrastructure. **Trace** our process from the law, to a Cucumber
   feature, to a reusable template, to the signed notation it produces for one client. **Dissect** one workflow — forming
-  a Nevada LLC — into attorney-gated steps with the shipped code. **Defend** the claim that a reviewed, repeatable
-  workflow beats a prompt. **Map** how the rules of professional conduct compile into schema and workflow. **Decide**
-  whether to open the repository, read the code, and star it.
+  a Nevada LLC — into attorney-gated steps with the shipped code. **Map** the Rust ecosystem we rely on: Restate,
+  OpenTelemetry, Arrow/Parquet/Iceberg, LSPs, and Zed — plus Solana, where we are headed but have not shipped yet.
+  **Defend** the claim that a reviewed, repeatable workflow beats a prompt. **Decide** whether to fork, white-label,
+  read the code, and star it.
 
 ---
 
@@ -32,28 +37,51 @@ free to every clinic, student, and solo practitioner — is access-to-justice in
 preference. **Trace** our process from the law itself, to a Cucumber feature, to a reusable template carrying a
 questionnaire and a workflow, to the client-specific notation that gets reviewed and signed. **Dissect** one legal
 workflow — forming a Nevada LLC — into small, modular, attorney-gated steps, and read the exact shipped code behind each
-one. **Defend** the claim that a reviewed, repeatable workflow beats asking an LLM with a prompt, because steps in a
-prompt are neither repeatable nor modular. **Map** how the rules of professional conduct — scoped engagements, conflict
-checks, referrals without referral fees — compile into schema and workflow rather than staying paper promises.
-**Decide** whether to open the repository, read the code, and — if it earns it — star it before you leave.
+one. **Map** the ecosystem choices that let a small legal team act bigger than it is: Restate for durable execution,
+OpenTelemetry for privacy-preserving operations, Arrow/Parquet and Iceberg for the lake, Solana for the attestations we
+plan but have not shipped, `navigator-lsp` in Zed for legal docs as code. **Defend** the claim that a reviewed,
+repeatable workflow beats asking an LLM with a prompt, because steps in a prompt are neither repeatable nor modular.
+**Decide** whether to fork, rebrand, read the code, and — if it earns it — star it before you leave.
 
-## From software engineers to lawyers who code
+## A eulogy for my programming career
 
-We were engineers who got tired of watching routine legal work priced out of reach. So we got licensed — and kept the
-engineering discipline. A pull request and a contract are closer than either profession likes to admit.
+I thought becoming a full-time lawyer meant leaving production software behind. Rust changed the obituary: I can let the
+old career rest because its best habits now run the law practice.
 
 ---
 
 The honest version of the origin story: we were engineers who got tired of watching routine legal work priced out of
-reach of the people who needed it most. So we went and got licensed. We did not, however, stop being engineers — we
-started applying the discipline of one craft to the other. A pull request and a contract are closer than either
-profession likes to admit: both are reviewed line by line, both fail in the edge cases, both are worse when a single
-person is the only one who understands them.
+reach of the people who needed it most. So we went and got licensed. I thought that meant choosing a side: spend the day
+as a lawyer, then steal nights to keep production software alive. The surprise was that software development had changed
+enough to make the split unnecessary. With Rust, Cargo, and the ecosystem around them, the serious parts I would have
+had to invent alone — web servers, durable execution, observability, data formats, editor tooling — were already open,
+reviewed, and composable.
+
+So yes, this is a eulogy. Not for programming, but for the version of my programming career that had to be a separate
+identity. A pull request and a contract are closer than either profession likes to admit: both are reviewed line by
+line, both fail in the edge cases, both are worse when a single person is the only one who understands them.
 
 Neon Law Navigator is what fell out of that conviction. It is a harness — a deterministic checklist applied every time —
 that grounds an LLM's output in a shared, database-backed vocabulary so the routine parts of legal drafting come out
 correct and cheap. The lawyer still signs. The machine just makes it faster and more correct to *be* the lawyer who
 signs.
+
+## Go all in, or the interest does not compound
+
+The bet is not "write a service in Rust." It is Rust all the way down: vendors, libraries, command-line tools, workers,
+editor integrations, and tests. The payoff is that each good decision reinforces the next one.
+
+---
+
+The core claim for a Rust room is stronger than "Rust is pleasant" or "Rust is safe." The claim is that going all in
+changes the economics of a small team. A CLI can call the same validators as the website. A workflow worker can share
+the same state-machine types as the template authoring rules. The LSP can surface those rules inside Zed while a lawyer
+writes a document. A release can ship one dated set of binaries, images, and editor assets. The ecosystem compounds only
+when the seams stay in the same language long enough to reuse them.
+
+That is why the repository is Rust-only by design. Every executable and library is Rust; `navigator` orchestrates the
+machine-bound flows; there are no shell scripts and no Makefile. We do not win because we wrote more code than everyone
+else. We win when the code someone else wrote in the Rust ecosystem becomes a trustworthy brick in our law practice.
 
 ## Widely available — governed in the open
 
@@ -308,15 +336,68 @@ concise automation for one real legal outcome — formation, estate plan, debt-c
 reuses the same states, the same guardrails, and the same review gate. That is how the floor rises: not a bigger model,
 but a longer shelf of workflows anyone can read, run, and extend.
 
+## Privacy-preserving operations are part of the product
+
+Legal tech cannot treat observability as a copy of production. Navigator emits OpenTelemetry traces, metrics, and logs
+through one Rust crate, and the rule is structural: identifiers and counts, never client content.
+
+---
+
+The repository has one telemetry seam: every binary calls `telemetry::init`, and production exports OTLP to a collector
+while dev and CI fall back to human-readable stdout. The interesting part is not the exporter. The interesting part is
+the trust boundary. A `notation_id`, a workflow service name, an outcome, a duration, a status code — yes. A client
+name, an answer body, an email address, a document body — never. The OpenTelemetry collector runs a fail-closed
+redaction processor, and the Rust code keeps request bodies out of spans in the first place.
+
+The analytics story follows the same pattern. Operational telemetry goes to BigQuery through structured logs and OTLP.
+Matter data is archived separately by the nightly Restate `Archives` workflow: Postgres snapshots become Parquet through
+`arrow` and `parquet`, with Iceberg metadata being added so the lake becomes time-travelable instead of a pile of files.
+The ecosystem point is the same as the law point: the boundary is written down, enforced, and testable.
+
+## Rust reaches the places lawyers work
+
+Navigator is not only a web app. The same rule engine runs as a CLI and as an LSP, so legal documents can be written
+like code in Zed — an editor written in Rust — with diagnostics and fix-all actions as the lawyer types.
+
+---
+
+This is where "available in many places" stops being abstract. The workspace builds a website, a Restate worker, trigger
+jobs, a `navigator` CLI, an MCP server, and `navigator-lsp`. The LSP speaks JSON-RPC over stdio, has no telemetry, and
+attaches to Markdown. Ordinary prose gets Markdown rules; templates get the notation rules on top, because a legal
+template is both a document and a program. Zed can install the published Navigator LSP extension and pull the matching
+release binary automatically.
+
+That matters because the artifact lawyers already care about — the legal document — becomes the artifact the toolchain
+understands. Git shows the diff. The LSP shows the rule violation. The CLI validates the same file in CI. The website
+turns it into a notation. There is no copy-paste seam where the law stops being source code.
+
+## Built to be forked, rebranded, and improved with agents
+
+Neon Law Navigator powers our practice, but it is designed so another firm can run it under its own name. White-labeling
+and AI-assisted development are not side quests; they are how open work compounds.
+
+---
+
+The code is open under MIT OR Apache-2.0. The names and marks are not, because clients should not be confused about
+which lawyers stand behind which software. That is why the product has a rebrand seam: a fork can become another firm's
+Navigator without pretending to be Neon Law. The Foundation's job is to make that path boring enough that a clinic, a
+solo, or another mission-driven firm can adopt the harness instead of starting from a blank repository.
+
+And yes, we use agents. Not as a replacement for review, but as a way to capture compound interest. The repo teaches the
+agent the same rules it teaches humans: every task is an issue, PR, or review; every template must pass the workflow
+guardrails; every Markdown change runs the Navigator validator; every public UI change gets a walkthrough artifact. The
+vibe is useful only when it lands back in durable structure — tests, docs, workflow states, and code a future lawyer can
+read.
+
 ## The crates we actually run on
 
 The bill of materials for a real legal-tech product — every line a crate you can pull today:
 
 - **HTTP and views** — `axum`, `maud`, `tower` / `tower-http`. **Async runtime** — `tokio`, multi-threaded, with
   graceful shutdown. **Database** — `sea-orm` over Postgres, `uuid` (v7) + `chrono` for keys and timestamps. **Durable
-  execution** — `restate-sdk`. **Archive** — `arrow` + `parquet`. **Content** — `pulldown-cmark`. **Cloud** —
-  `google-cloud-storage` + `reqwest`. **Identity** — `jsonwebtoken` + `oauth2`. **Tests** — `testcontainers`,
-  `fantoccini`, `cucumber`.
+  execution** — `restate-sdk`. **Telemetry** — `opentelemetry`, `tracing`, OTLP. **Archive** — `arrow`, `parquet`,
+  `iceberg`. **Content** — `pulldown-cmark`. **Cloud** — `google-cloud-storage` + `reqwest`. **Identity** —
+  `jsonwebtoken` + `oauth2`. **Tests** — `testcontainers`, `fantoccini`, `cucumber`.
 
 ---
 
@@ -327,10 +408,12 @@ handlers, [`maud`](https://docs.rs/maud) for compile-time-checked HTML, [`tower`
 [`sea-orm`](https://docs.rs/sea-orm) over Postgres with [`sea-orm-migration`](https://docs.rs/sea-orm-migration) for
 schema, and [`uuid`](https://docs.rs/uuid) (v7) + [`chrono`](https://docs.rs/chrono) for keys and timestamps. **Durable
 execution** is [`restate-sdk`](https://docs.rs/restate-sdk) hosting every workflow on one worker endpoint, with the
-journal doing the remembering. The **archive** uses [`arrow`](https://docs.rs/arrow) +
-[`parquet`](https://docs.rs/parquet) to turn the nightly Postgres snapshot into open columnar files. **Content** is
-[`pulldown-cmark`](https://docs.rs/pulldown-cmark), which renders the very markdown you are reading right now. **Cloud**
-is [`google-cloud-storage`](https://docs.rs/google-cloud-storage) behind a storage trait, with
+journal doing the remembering. **Telemetry** is [`opentelemetry`](https://docs.rs/opentelemetry) and
+[`tracing`](https://docs.rs/tracing), with OTLP as the export seam. The **archive** uses
+[`arrow`](https://docs.rs/arrow) + [`parquet`](https://docs.rs/parquet), with Iceberg metadata coming in through the
+[`iceberg`](https://docs.rs/iceberg) crate, to turn the nightly Postgres snapshot into open columnar tables. **Content**
+is [`pulldown-cmark`](https://docs.rs/pulldown-cmark), which renders the very markdown you are reading right now.
+**Cloud** is [`google-cloud-storage`](https://docs.rs/google-cloud-storage) behind a storage trait, with
 [`reqwest`](https://docs.rs/reqwest) for the REST plumbing that provisions a fresh project. **Identity** is
 [`jsonwebtoken`](https://docs.rs/jsonwebtoken) and `oauth2` for the OIDC flow. **Tests** use
 [`testcontainers`](https://docs.rs/testcontainers) for a real Postgres per test binary,
