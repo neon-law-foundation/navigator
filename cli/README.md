@@ -16,7 +16,7 @@ cargo run -p cli -- validate templates
 export DATABASE_URL=postgres://navigator:navigator@localhost:15432/navigator
 cargo run -p cli -- import templates
 cargo run -p cli -- list templates
-cargo run -p cli -- erd | head
+cargo run -p cli -- docs erd | head
 
 # Or install on your PATH
 cargo install --path cli
@@ -30,14 +30,15 @@ Subcommands split by whether they need a database:
 | `validate`       | no        | N104 checks questionnaire codes against the canonical question seed list.  |
 | `render`         | no        | Validation-gated template → PDF; `--format letter`.                        |
 | `format`         | no        | Whitespace + bullet cleanup on one `.md`.                                  |
-| `glossary`       | no        | Looks up workspace vocabulary by term.                                     |
+| `docs list`      | no        | Lists published docs pages plus glossary term anchors.                     |
+| `docs glossary`  | no        | Looks up workspace vocabulary by term.                                     |
 | `scaffold`       | no        | Drops template + workflow + feature stubs.                                 |
 | `assets build`   | no        | Transcodes source photos into AVIF/WebP/JPEG.                              |
 | `assets upload`  | no        | Pushes built variants to the public assets bucket.                         |
 | `assets pull`    | no        | Restores `web/public/img/` from the assets bucket for local dev.           |
 | `import`         | **yes**   | Writes into `--database-url` Postgres.                                     |
 | `list`           | **yes**   | Auto-runs migrate + seed before printing.                                  |
-| `erd`            | **yes**   | Introspects `pg_catalog` + `information_schema`.                           |
+| `docs erd`       | **yes**   | Introspects `pg_catalog` + `information_schema`.                           |
 | `project create` | **yes**   | Needs `--client-email` (a client DRI); `--skip-migrate-and-seed` for prod. |
 
 The live-site commands need no local database — they are an authenticated HTTP client against a deployed `web`:

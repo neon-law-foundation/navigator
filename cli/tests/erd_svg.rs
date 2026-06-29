@@ -14,7 +14,7 @@
 //!
 //! ```text
 //! set -a && source .devx/env && set +a
-//! cargo run -p cli -- erd --format svg > docs/erd.svg
+//! cargo run -p cli -- docs erd --format svg > docs/erd.svg
 //! git add docs/erd.svg
 //! ```
 //!
@@ -29,14 +29,14 @@ use store::test_support::schema;
 async fn rendered_svg_matches_committed_docs_erd_svg() {
     let s = schema().await;
     let out = Command::new(cargo_bin("navigator"))
-        .args(["erd", "--format", "svg", "--database-url"])
+        .args(["docs", "erd", "--format", "svg", "--database-url"])
         .arg(&s.url)
         .output()
-        .expect("run navigator erd --format svg");
+        .expect("run navigator docs erd --format svg");
 
     assert!(
         out.status.success(),
-        "erd --format svg failed: stderr=\n{}",
+        "docs erd --format svg failed: stderr=\n{}",
         String::from_utf8_lossy(&out.stderr),
     );
 
@@ -77,7 +77,7 @@ async fn rendered_svg_matches_committed_docs_erd_svg() {
              committed: {} bytes\n\
              {first_diff}\n\n\
              To refresh:\n  set -a && source .devx/env && set +a\n  \
-             cargo run -p cli -- erd --format svg > docs/erd.svg",
+             cargo run -p cli -- docs erd --format svg > docs/erd.svg",
             rendered.len(),
             committed.len(),
         );

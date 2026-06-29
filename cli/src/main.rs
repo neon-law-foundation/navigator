@@ -6,12 +6,12 @@ use clap::{Parser, Subcommand};
 mod assets;
 mod credentials;
 mod devx;
+mod docs;
 mod erd;
 mod events;
 mod format;
 mod forms_sync;
 mod git;
-mod glossary;
 mod import;
 mod intake;
 mod list;
@@ -178,23 +178,12 @@ enum Command {
         #[arg(long, env = "DATABASE_URL")]
         database_url: String,
     },
-    /// Print an ERD describing every table in the migrated schema.
-    /// Default format is a Mermaid `erDiagram` block; `--format svg`
-    /// emits a deterministic, hand-written SVG (suitable for piping
-    /// into `docs/erd.svg`). Introspects Postgres `pg_catalog` /
-    /// `information_schema`.
-    Erd {
-        /// Postgres connection URL. Falls back to the
-        /// `DATABASE_URL` environment variable. The database is
-        /// migrated (idempotently) before introspection — point at
-        /// a throwaway database if you don't want migrations applied
-        /// in place.
-        #[arg(long, env = "DATABASE_URL")]
-        database_url: String,
-        /// Output format. `mermaid` (default) → GitHub-renderable
-        /// `erDiagram` block. `svg` → deterministic standalone SVG.
-        #[arg(long, value_enum, default_value_t = erd::OutputFormat::Mermaid)]
-        format: erd::OutputFormat,
+    /// Published workspace docs helpers. Requires a subcommand, e.g.
+    /// `navigator docs list`, `navigator docs erd`, or
+    /// `navigator docs glossary staff-review`.
+    Docs {
+        #[command(subcommand)]
+        action: DocsAction,
     },
     /// Normalize whitespace and bullet style in a Markdown notation.
     /// Frontmatter passes through untouched; the body has `- `
@@ -202,13 +191,6 @@ enum Command {
     Format {
         /// File to format in place.
         file: PathBuf,
-    },
-    /// Print canonical Neon Law Navigator vocabulary. With no argument lists
-    /// every term; with one argument prints just that term (case-
-    /// insensitive), exiting non-zero on a miss.
-    Glossary {
-        /// Optional term to look up.
-        term: Option<String>,
     },
     /// Transcode curated source photos into responsive web variants.
     Assets {
@@ -558,6 +540,38 @@ enum FormsAction {
         /// Target bucket. Defaults to `NAVIGATOR_ASSETS_BUCKET`.
         #[arg(long, env = "NAVIGATOR_ASSETS_BUCKET")]
         bucket: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum DocsAction {
+    /// List every published docs page, including the ERD page and each
+    /// glossary term anchor.
+    List,
+    /// Print an ERD describing every table in the migrated schema.
+    /// Default format is a Mermaid `erDiagram` block; `--format svg`
+    /// emits a deterministic, hand-written SVG (suitable for piping
+    /// into `docs/erd.svg`). Introspects Postgres `pg_catalog` /
+    /// `information_schema`.
+    Erd {
+        /// Postgres connection URL. Falls back to the
+        /// `DATABASE_URL` environment variable. The database is
+        /// migrated (idempotently) before introspection — point at
+        /// a throwaway database if you don't want migrations applied
+        /// in place.
+        #[arg(long, env = "DATABASE_URL")]
+        database_url: String,
+        /// Output format. `mermaid` (default) → GitHub-renderable
+        /// `erDiagram` block. `svg` → deterministic standalone SVG.
+        #[arg(long, value_enum, default_value_t = erd::OutputFormat::Mermaid)]
+        format: erd::OutputFormat,
+    },
+    /// Print canonical Neon Law Navigator vocabulary from
+    /// `docs/glossary.md`. With no argument prints every term; with one
+    /// argument prints just that term or anchor slug.
+    Glossary {
+        /// Optional term or glossary anchor slug to look up.
+        term: Option<String>,
     },
 }
 
@@ -1031,10 +1045,14 @@ fn main() -> ExitCode {
             subject,
             database_url,
         } => runtime().block_on(run_list(subject, &database_url)),
-        Command::Erd {
-            database_url,
-            format,
-        } => runtime().block_on(run_erd(&database_url, format)),
+        Command::Docs { action } => match action {
+            DocsAction::List => docs::list(),
+            DocsAction::Erd {
+                database_url,
+                format,
+            } => runtime().block_on(run_erd(&database_url, format)),
+            DocsAction::Glossary { term } => docs::glossary(term.as_deref()),
+        },
         Command::Assets { action } => match action {
             AssetsAction::Build { src, out } => assets::run_build(&src, &out),
             AssetsAction::Upload { dir, bucket } => assets::run_upload(&dir, bucket),
@@ -1059,7 +1077,6 @@ fn main() -> ExitCode {
         Command::Intake { action } => runtime().block_on(run_intake(action)),
         Command::Notation { action } => runtime().block_on(run_notation(action)),
         Command::Format { file } => format::run(&file),
-        Command::Glossary { term } => glossary::run(term.as_deref()),
         Command::Scaffold {
             matter,
             category,
