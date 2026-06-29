@@ -137,7 +137,7 @@ pub fn render_in(auth: AuthState, locale: Locale, testimonials: &[TestimonialCar
                          from first answer to attorney review."
                     }
                     p."mb-0" {
-                        a href="/foundation/notations" { "Read about Notations" }
+                        a href="/foundation/templates" { "Read about Templates" }
                     }
                 }
                 div."col-lg-6" {
@@ -204,7 +204,7 @@ mod tests {
             "home should name the Foundation: {html}"
         );
         assert!(html.contains("Read the Foundation mission"));
-        assert!(html.contains("href=\"/foundation/notations\""));
+        assert!(html.contains("href=\"/foundation/templates\""));
     }
 
     #[test]

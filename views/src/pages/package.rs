@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn render_emits_readme_under_foundation_brand_with_rewritten_links() {
-        let readme = "# CLI\n\nSee [the glossary](docs/glossary.md) and [a template](notation_templates/forms/united_states/nevada/state/nv__llc_formation.md).\n";
+        let readme = "# CLI\n\nSee [the glossary](docs/glossary.md) and [a template](templates/forms/united_states/nevada/state/nv__llc_formation.md).\n";
         let html = render(
             "Neon Law Navigator CLI",
             "The navigator operator CLI.",

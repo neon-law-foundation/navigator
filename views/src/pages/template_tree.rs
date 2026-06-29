@@ -1,7 +1,7 @@
-//! `/foundation/notations` — the notation template tree README,
+//! `/foundation/templates` — the Template tree README,
 //! rendered on the site under the Foundation brand.
 //!
-//! The body is `notation_templates/README.md`, baked in at compile time
+//! The body is `templates/README.md`, baked in at compile time
 //! with `include_str!`, so the public page stays tied to the repository
 //! instructions for how the template tree is organized and named.
 
@@ -13,11 +13,11 @@ use crate::{AuthState, PageLayout};
 
 const README: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../notation_templates/README.md"
+    "/../templates/README.md"
 ));
 
 const REPO_BLOB_BASE: &str =
-    "https://github.com/neon-law-foundation/navigator/blob/main/notation_templates/";
+    "https://github.com/neon-law-foundation/navigator/blob/main/templates/";
 
 #[must_use]
 pub fn render(auth: AuthState) -> Markup {
@@ -26,9 +26,9 @@ pub fn render(auth: AuthState) -> Markup {
             (render_with_link_rewrite(README, rewrite_link))
         }
     };
-    PageLayout::new("Notations")
+    PageLayout::new("Templates")
         .with_description(
-            "The Neon Law Navigator notation tree: markdown blueprints for legal \
+            "The Neon Law Navigator Template tree: markdown blueprints for legal \
              intake, workflows, and attorney-reviewed documents.",
         )
         .with_brand(*FOUNDATION_BRAND)
@@ -81,17 +81,17 @@ mod tests {
     use crate::AuthState;
 
     #[test]
-    fn notation_templates_renders_the_readme_under_foundation_brand() {
+    fn templates_renders_the_readme_under_foundation_brand() {
         let html = render(AuthState::Anonymous).into_string();
         assert!(html.starts_with("<!DOCTYPE html>"));
-        assert!(html.contains("<title>Neon Law Foundation | Notations</title>"));
-        assert!(html.contains(">Notation</h1>"));
+        assert!(html.contains("<title>Neon Law Foundation | Templates</title>"));
+        assert!(html.contains(">Templates</h1>"));
         assert!(html.contains("Every template has YAML frontmatter"));
     }
 
     #[test]
-    fn notation_templates_page_is_tied_to_the_readme() {
-        assert!(README.starts_with("# Notation"));
+    fn templates_page_is_tied_to_the_readme() {
+        assert!(README.starts_with("# Templates"));
         assert!(README.contains("## Naming convention"));
     }
 
@@ -128,7 +128,7 @@ mod tests {
     fn other_relative_links_point_at_the_github_source() {
         assert_eq!(
             rewrite_link("forms/united_states/nevada/state/nv__llc_formation.fields.toml"),
-            "https://github.com/neon-law-foundation/navigator/blob/main/notation_templates/forms/united_states/nevada/state/nv__llc_formation.fields.toml"
+            "https://github.com/neon-law-foundation/navigator/blob/main/templates/forms/united_states/nevada/state/nv__llc_formation.fields.toml"
         );
     }
 }

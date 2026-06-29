@@ -28,8 +28,12 @@ pub fn routes() -> Router<Db> {
         .route("/api/jurisdictions", axum::routing::get(list_jurisdictions))
         .route("/api/entity-types", axum::routing::get(list_entity_types))
         .route(
+            "/api/templates/validate",
+            axum::routing::post(validate_template),
+        )
+        .route(
             "/api/notations/validate",
-            axum::routing::post(validate_notation),
+            axum::routing::post(validate_template),
         )
         .route("/openapi.json", axum::routing::get(openapi_json))
         .route("/api/docs", axum::routing::get(api_docs))
@@ -50,7 +54,7 @@ pub fn documented_api_paths() -> Vec<&'static str> {
         "/api/entities/{id}",
         "/api/jurisdictions",
         "/api/entity-types",
-        "/api/notations/validate",
+        "/api/templates/validate",
     ]
 }
 
@@ -138,7 +142,7 @@ async fn list_entity_types(
     Ok(Json(rows))
 }
 
-/// Request body for `POST /api/notations/validate`. The caller hands
+/// Request body for `POST /api/templates/validate`. The caller hands
 /// over markdown they're drafting; we lint it and return violations
 /// without touching the database.
 #[derive(Debug, Deserialize)]
@@ -147,7 +151,7 @@ pub struct ValidateRequest {
     pub contents: String,
     /// Optional pretend filename so rules that key off the path
     /// (`N103` snake_case) and the response have something meaningful
-    /// to report. Defaults to `notation.md` — a snake_case placeholder
+    /// to report. Defaults to `template.md` — a snake_case placeholder
     /// so the default doesn't pollute the response with a filename
     /// complaint the caller never intended.
     #[serde(default)]
@@ -178,8 +182,8 @@ pub struct ValidationViolation {
 /// rule-set selection so a notation that passes the CLI passes here
 /// and vice versa. Requires an authenticated session — same posture
 /// as the rest of `/api/*`.
-async fn validate_notation(Json(req): Json<ValidateRequest>) -> Json<ValidateResponse> {
-    let path = req.path.unwrap_or_else(|| "notation.md".to_string());
+async fn validate_template(Json(req): Json<ValidateRequest>) -> Json<ValidateResponse> {
+    let path = req.path.unwrap_or_else(|| "template.md".to_string());
     let rule_set = if req.markdown_only {
         rules::navigator_markdown_only_rules()
     } else {

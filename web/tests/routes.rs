@@ -314,7 +314,7 @@ async fn root_returns_home_page_html() {
     assert!(body
         .contains("a licensed attorney works with you, with transparent pricing before the work"));
     assert!(body.contains("LSC Justice Gap Report, 2022"));
-    assert!(body.contains("href=\"/foundation/notations\""));
+    assert!(body.contains("href=\"/foundation/templates\""));
     // It is firm-branded prose and cards — no old marketing hero strip.
     assert!(
         !body.contains("lake-tahoe"),
@@ -671,7 +671,32 @@ async fn navigator_es_serves_the_spanish_hub_with_an_english_readme() {
 }
 
 #[tokio::test]
-async fn notations_serves_the_tree_readme_under_foundation_brand() {
+async fn templates_serves_the_tree_readme_under_foundation_brand() {
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/templates")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("<title>Neon Law Foundation | Templates</title>"));
+    assert!(body.contains(">Templates</h1>"));
+    assert!(body.contains("The tree has exactly two top-level shelves"));
+    assert!(body.contains("templates/forms/united_states/nevada/state/nv__llc_formation.md"));
+    assert!(body.contains("href=\"/docs/notation\""));
+    assert!(body.contains("href=\"/foundation/navigator#trademarks\""));
+}
+
+#[tokio::test]
+async fn old_foundation_notations_url_redirects_to_templates() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -685,16 +710,11 @@ async fn notations_serves_the_tree_readme_under_foundation_brand() {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Notations</title>"));
-    assert!(body.contains(">Notation</h1>"));
-    assert!(body.contains("The tree has exactly two top-level shelves"));
-    assert!(
-        body.contains("notation_templates/forms/united_states/nevada/state/nv__llc_formation.md")
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        resp.headers().get("location").unwrap(),
+        "/foundation/templates"
     );
-    assert!(body.contains("href=\"/docs/notation\""));
-    assert!(body.contains("href=\"/foundation/navigator#trademarks\""));
 }
 
 #[tokio::test]
@@ -2090,7 +2110,7 @@ async fn api_entity_by_id_404s_when_missing() {
 }
 
 #[tokio::test]
-async fn api_validate_notation_returns_clean_for_valid_markdown() {
+async fn api_validate_template_returns_clean_for_valid_markdown() {
     let state = empty_state().await;
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
     // Minimal notation that satisfies every N-rule:
@@ -2120,7 +2140,7 @@ Body.\n";
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/notations/validate")
+                .uri("/api/templates/validate")
                 .header("content-type", "application/json")
                 .body(Body::from(body.to_string()))
                 .unwrap(),
@@ -2130,7 +2150,7 @@ Body.\n";
     assert_eq!(resp.status(), StatusCode::OK);
     let body: serde_json::Value = serde_json::from_str(&body_string(resp).await).unwrap();
     assert_eq!(body["clean"], true, "expected clean, got: {body}");
-    assert_eq!(body["path"], "notation.md");
+    assert_eq!(body["path"], "template.md");
     // Valid notation, no blocking errors — but its mandatory staff_review
     // gate earns the yellow N112 "not built yet" advisory, returned
     // without flipping `clean` to false.
@@ -2148,7 +2168,7 @@ Body.\n";
 }
 
 #[tokio::test]
-async fn api_validate_notation_reports_frontmatter_and_line_length_violations() {
+async fn api_validate_template_reports_frontmatter_and_line_length_violations() {
     let state = empty_state().await;
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
     // Missing title + missing respondent_type + a body line over 120 chars.
@@ -2161,7 +2181,7 @@ async fn api_validate_notation_reports_frontmatter_and_line_length_violations() 
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/notations/validate")
+                .uri("/api/templates/validate")
                 .header("content-type", "application/json")
                 .body(Body::from(body.to_string()))
                 .unwrap(),
@@ -2193,7 +2213,7 @@ async fn api_validate_notation_reports_frontmatter_and_line_length_violations() 
 }
 
 #[tokio::test]
-async fn api_validate_notation_markdown_only_drops_frontmatter_rules() {
+async fn api_validate_template_markdown_only_drops_frontmatter_rules() {
     let state = empty_state().await;
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
     // No frontmatter at all — would trip N101 in the default set.
@@ -2205,7 +2225,7 @@ async fn api_validate_notation_markdown_only_drops_frontmatter_rules() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/notations/validate")
+                .uri("/api/templates/validate")
                 .header("content-type", "application/json")
                 .body(Body::from(body.to_string()))
                 .unwrap(),
