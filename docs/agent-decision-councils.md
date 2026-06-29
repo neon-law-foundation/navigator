@@ -24,6 +24,28 @@ already decided.
 
 All three follow the same rule: read first, then convene. The voices react to facts, not vibes.
 
+## How to run a council
+
+Every council runs the same way; only the bench changes. The three skills (`council`, `legal-council`, `client-council`)
+each carry their own cast and trigger and defer the shared shape below to this section. This is the one source of truth
+for it — read it before convening any bench.
+
+- **Render inline — voices, then consensus, then action.** A single response carries the framing, the voices, the
+  synthesized consensus, and one concrete next step. This is parallel *framing*, not parallel investigation: the
+  synthesis happens in one head, which is faster and fine. Do **not** spawn twelve real subagents — that is slow,
+  costly, and stochastic, and the cost would dwarf the marginal insight. Only spawn real subagents if the user
+  explicitly asks.
+- **Default to the smallest useful bench; expand only when asked.** Convene the council's named default pair (or its
+  chair plus the one voice the decision needs), not the full twelve. Open the whole bench only when the user asks for
+  it, the decision touches a practice area or surface the default pair would miss, or the call is mission- or
+  governance-level.
+- **Read the real source first; confirm every asserted fact before convening.** Run the file reads and greps each voice
+  will react to, and pin every concrete fact the output will assert — paths, symbols, addresses, fees, entity facts, bar
+  numbers, dates, citations — against the repo or the user, in one batch. A bench without facts produces philosophy, and
+  a wrong fact carried over from a sibling page survives the whole bench because no voice thinks to re-check it.
+- **End with a decision, not a stall.** A council exists to make the call clearer and close with action, never to defer
+  it. If a voice surfaces a real fork, name the user's go/no-go explicitly rather than inventing the answer.
+
 ## Engineering Council
 
 The Engineering Council is the build-side council. Use it for architecture decisions, design planning, cross-cutting

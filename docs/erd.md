@@ -1,3 +1,85 @@
+# Entity-relationship diagram
+
+The workspace ships two ERD artifacts, both rendered from the same live `pg_catalog` introspection in `cli/src/erd.rs`:
+
+- `docs/erd.md` (this file) — the Mermaid `erDiagram` block under [Schema](#schema). GitHub renders Mermaid natively,
+  so this is the "view in the repo" artifact.
+- `docs/erd.svg` — a standalone SVG from `navigator docs erd --format svg`. The renderer is **deterministic by
+  construction** (alphabetical `BTreeMap` iteration, integer-only arithmetic, no timestamps, no random IDs): same schema
+  in → byte-identical SVG out. Use it anywhere Mermaid won't render (slides, design docs, screenshots, links shared
+  outside the repo). Unlike Mermaid's own SVG (text in `<foreignObject>`, invisible in many viewers), this renderer uses
+  native `<text>` elements, so it opens in GNOME Image Viewer, `feh`, browsers — anything.
+
+## Regenerating
+
+Both artifacts come from one command; `--format` selects the renderer. The command reads `DATABASE_URL` (or
+`--database-url`) and **migrates that database idempotently before introspecting** — point at a throwaway or already-
+migrated database if you don't want migrations applied in place:
+
+```bash
+set -a && source .devx/env && set +a   # DATABASE_URL for the KIND Postgres
+
+# Mermaid erDiagram block → paste into the fenced block under Schema in docs/erd.md
+cargo run -p cli -- docs erd --format mermaid
+
+# Deterministic SVG → overwrite the committed file
+cargo run -p cli -- docs erd --format svg > docs/erd.svg
+```
+
+- `--format mermaid` (default) — the GitHub-renderable `erDiagram` block on stdout.
+- `--format svg` — a standalone SVG document on stdout.
+
+After any schema-changing migration, refresh **both** so the picture and the schema stay in sync.
+
+## The `docs/erd.svg` idempotency test
+
+`cli/tests/erd_svg.rs` spins up a Postgres testcontainer (`store::test_support::schema()`), runs migrations, introspects
+via `docs erd --format svg`, and asserts the output byte-matches the committed `docs/erd.svg`. The test is part of
+`cargo test -p cli` and `cargo test --workspace`, so a migration that changes the schema without an SVG refresh fails
+CI; the failure message prints the byte sizes, the first divergent line, and the exact refresh command. The intended
+flow: write the migration → `cargo test -p cli` → see the drift → regenerate → commit the migration and the refreshed
+SVG together on a topic branch (never on `main`).
+
+## Verifying against production
+
+The deploy cron rolls migrations Mon–Thu 06:00 UTC, so local and prod should match within a day of any change. To diff
+(this migrates the target DB, so it is safe only against the already-at-head prod schema):
+
+```bash
+gcloud auth application-default login   # one-time per session
+cloud-sql-proxy --auto-iam-authn --port 15433 YOUR_PROJECT_ID:us-west4:navigator-pg &
+
+DATABASE_URL="postgres://${USER}@your-domain.example@127.0.0.1:15433/navigator?sslmode=disable" \
+  cargo run -p cli -- docs erd --format mermaid > /tmp/prod_mermaid.txt
+diff <(cargo run -p cli -- docs erd --format mermaid) /tmp/prod_mermaid.txt   # no output = identical
+kill %1
+```
+
+See [`test-database.md`](test-database.md) for the local Postgres / `DATABASE_URL` connection story.
+
+## Opening the SVG
+
+```bash
+firefox docs/erd.svg                              # or google-chrome, or any image viewer
+xdg-mime default firefox.desktop image/svg+xml    # optional: make Firefox the default SVG handler
+xdg-open docs/erd.svg
+```
+
+## Layout tuning
+
+The layout is intentionally simple — a 4-column alphabetical row-major grid, straight-line edges, no crossing avoidance;
+the priority is *byte-stable, readable enough*. The constants live at the top of `cli/src/erd.rs`: `CHAR_WIDTH` /
+`ROW_HEIGHT` / `TITLE_HEIGHT` (text dimensions), `CELL_PAD` / `CELL_GAP_X` / `CELL_GAP_Y` (spacing), `GRID_COLS`
+(columns wide), and `MARGIN` / `FONT_SIZE` (outer margin, base font). Any layout change trips the idempotency test until
+`docs/erd.svg` is refreshed — a feature, not a bug.
+
+## Other lenses on the schema
+
+When you don't need a picture: `psql \dt+` (table list with sizes), `psql \d <table>` (columns, types, defaults, FKs,
+indexes), or `cargo run -p cli -- docs erd --format mermaid` (plain text you can grep).
+
+## Schema
+
 ```mermaid
 erDiagram
     addresses {

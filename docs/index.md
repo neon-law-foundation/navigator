@@ -54,7 +54,8 @@ These are the terms agents most often need before making a decision. The full al
 ## Vocabulary and access
 
 - [`glossary.md`](glossary.md) — workspace vocabulary. [`notation.md`](notation.md) — notation-system vocabulary.
-  [`access-model.md`](access-model.md) — role + participation authorization model. [`oidc.md`](oidc.md) — OpenID Connect
+  [`access-model.md`](access-model.md) — role + participation authorization model. [`opa-policy.md`](opa-policy.md) —
+  OPA as the decision engine: sidecar shape, Rego authoring, the Rust client. [`oidc.md`](oidc.md) — OpenID Connect
   login and role loading. [`i18n.md`](i18n.md) — English-first rule and the two allowed localization surfaces.
 
 ## Workspace and development

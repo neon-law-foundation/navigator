@@ -149,6 +149,34 @@ stateDiagram-v2
 Critically, the arrow into `SessionWritten` reads from the `persons` row, not from the id_token. A token-side role, if
 present, is silently ignored — the `IdTokenClaims` struct in `web::oauth` doesn't even include a `role` field.
 
+## Local realm, client, and environment
+
+`k8s/overlays/kind/deps/keycloak.yaml` auto-imports the `navigator` realm on startup. The fixture is intentionally
+minimal — Keycloak hands us identity and nothing else (no realm-role management, no custom user attributes, no
+per-product policy), so a swap target only has to give us `sub` + `email`:
+
+- **Realm:** `navigator`.
+- **Client:** `navigator-web` — confidential, Authorization Code + PKCE.
+- **User:** `staff` / password `staff` (`staff@neonlaw.com`). First login prompts for a last name (the import omits it).
+
+`web` reads its OIDC wiring from the environment. The in-cluster KIND values, written to `.devx/env`, are:
+
+```text
+OAUTH_ISSUER_URL=http://keycloak.navigator.svc.cluster.local:8080/keycloak/realms/navigator
+OAUTH_CLIENT_ID=navigator-web
+OAUTH_CLIENT_SECRET=<from secret>
+OAUTH_REDIRECT_URI=http://localhost:3001/auth/callback   # host-runs-web mode
+SESSION_SECRET=<32+ bytes, HMAC>
+```
+
+When `cargo run -p web` runs on the host rather than in-cluster, point `OAUTH_ISSUER_URL` at the browser-reachable
+Keycloak URL (the ingress / host port-map, not the cluster DNS name) — see the frontchannel / backchannel split above.
+Don't hand-roll these; `.devx/env` sets them correctly.
+
+The Rust seam is three crates: `oauth2` drives the Authorization Code + PKCE state machine, `jsonwebtoken` verifies the
+id_token signature against JWKS (RS256 in prod; HS256 accepted in tests only), and `reqwest` fetches the discovery doc
+and JWKS with a bounded startup retry.
+
 ## Rego policy
 
 The default policy that ships in `k8s/opa/opa.yaml`:
@@ -210,3 +238,23 @@ Run them with:
 ```bash
 cargo test -p web --test oidc_e2e
 ```
+
+## Troubleshooting
+
+- **`/auth/callback` returns 400 "invalid state".** Pre-auth cookie path / SameSite mismatch — the cookie set at
+  `/auth/login` must be readable at `/auth/callback`. Over plain HTTP in dev that means `SameSite=Lax` + `Secure=false`.
+- **JWKS fetch fails with a TLS error.** `OAUTH_ISSUER_URL` is `https` but in-cluster Keycloak is plain HTTP — set it to
+  `http://…`; the spec permits it.
+- **Token exchange returns `invalid_client`.** `OAUTH_CLIENT_SECRET` doesn't match the realm's client. Re-import the
+  realm fixture or rotate the secret in the Keycloak admin console.
+- **id_token verifies but a role claim is empty.** Expected — the session role never comes from the token; it is read
+  from the `persons` row at callback time (see above). Don't add a Keycloak role mapper to work around it.
+
+## Canonical sources
+
+- OIDC Core 1.0: <https://openid.net/specs/openid-connect-core-1_0.html>
+- OIDC Discovery 1.0: <https://openid.net/specs/openid-connect-discovery-1_0.html>
+- OAuth 2.0 PKCE (RFC 7636): <https://datatracker.ietf.org/doc/html/rfc7636>
+- Keycloak: <https://www.keycloak.org/documentation>
+- Google Identity (OIDC): <https://developers.google.com/identity/openid-connect/openid-connect>
+- `oauth2` crate: <https://docs.rs/oauth2> · `jsonwebtoken` crate: <https://docs.rs/jsonwebtoken>
