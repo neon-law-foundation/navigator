@@ -181,7 +181,7 @@ allow if {
 }
 
 allow if {
-    input.path == ["api", "docs"]
+    input.path == ["api-docs"]
 }
 ```
 

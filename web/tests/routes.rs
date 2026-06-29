@@ -3233,12 +3233,70 @@ async fn openapi_json_is_served() {
 #[tokio::test]
 async fn api_docs_serves_swagger_ui_shell_with_csp() {
     // No session cookie / bearer token on this request: the Swagger UI
-    // documentation shell is public, alongside `/openapi.json`. The OPA
-    // exemption that enforces this at the gate is pinned by the
-    // `anonymous → /api/docs` decision in `cli::devx::e2e::opa_cases`;
-    // here the router runs with a passthrough policy, so this asserts
-    // the handler wiring and that an anonymous caller is never bounced
-    // to `/auth/login`.
+    // documentation shell is public at the top-level `/api-docs`, a
+    // sibling of `/openapi.json` rather than a leaf under the gated
+    // `/api/*` prefix. The OPA exemption that enforces this at the gate
+    // is pinned by `test_anonymous_reaches_api_docs` in
+    // `k8s/base/opa/navigator_test.rego`; here the router runs with a
+    // passthrough policy, so this asserts the handler wiring and that an
+    // anonymous caller is never bounced to `/auth/login`.
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api-docs")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "the API documentation must render for an anonymous caller, not redirect to auth"
+    );
+    let csp = resp
+        .headers()
+        .get("content-security-policy")
+        .expect("CSP header must be set on /api-docs")
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        csp.contains("script-src 'self'"),
+        "CSP must keep script-src on same origin: {csp}"
+    );
+    assert!(
+        !csp.contains("'unsafe-inline'") || csp.contains("style-src 'self' 'unsafe-inline'"),
+        "unsafe-inline must only appear under style-src: {csp}"
+    );
+    let body = body_string(resp).await;
+    assert!(
+        body.contains("id=\"swagger-ui\""),
+        "Swagger UI mount point missing from /api-docs shell"
+    );
+    assert!(
+        body.contains("/public/swagger-ui/swagger-ui-bundle.js"),
+        "Swagger UI bundle reference missing"
+    );
+    assert!(
+        body.contains("/openapi.json") || body.contains("init.js"),
+        "init.js (which references /openapi.json) must be loaded"
+    );
+}
+
+#[tokio::test]
+async fn old_api_docs_path_is_gone() {
+    // The docs shell used to live at `/api/docs`, a public leaf carved
+    // out of the otherwise-gated `/api/*` prefix. It now lives at the
+    // top-level `/api-docs`, and the old path is unregistered: it must
+    // 404 like any unknown route — never 303 to `/auth/login`, and
+    // never reintroduce a public exemption inside `/api/*`. An
+    // unmatched `/api/*` path falls past the `require_policy` route
+    // layer to the JSON 404 fallback.
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -3254,37 +3312,11 @@ async fn api_docs_serves_swagger_ui_shell_with_csp() {
         .unwrap();
     assert_eq!(
         resp.status(),
-        StatusCode::OK,
-        "the API documentation must render for an anonymous caller, not redirect to auth"
+        StatusCode::NOT_FOUND,
+        "the retired /api/docs path must 404, not redirect to auth"
     );
-    let csp = resp
-        .headers()
-        .get("content-security-policy")
-        .expect("CSP header must be set on /api/docs")
-        .to_str()
-        .unwrap()
-        .to_string();
-    assert!(
-        csp.contains("script-src 'self'"),
-        "CSP must keep script-src on same origin: {csp}"
-    );
-    assert!(
-        !csp.contains("'unsafe-inline'") || csp.contains("style-src 'self' 'unsafe-inline'"),
-        "unsafe-inline must only appear under style-src: {csp}"
-    );
-    let body = body_string(resp).await;
-    assert!(
-        body.contains("id=\"swagger-ui\""),
-        "Swagger UI mount point missing from /api/docs shell"
-    );
-    assert!(
-        body.contains("/public/swagger-ui/swagger-ui-bundle.js"),
-        "Swagger UI bundle reference missing"
-    );
-    assert!(
-        body.contains("/openapi.json") || body.contains("init.js"),
-        "init.js (which references /openapi.json) must be loaded"
-    );
+    let body: serde_json::Value = serde_json::from_str(&body_string(resp).await).unwrap();
+    assert_eq!(body["error"], "not_found");
 }
 
 #[tokio::test]
@@ -3354,7 +3386,7 @@ async fn unauthenticated_swagger_api_call_gets_warning_payload() {
     );
     let body: serde_json::Value = serde_json::from_str(&body_string(resp).await).unwrap();
     assert_eq!(body["error"], "unauthenticated");
-    assert_eq!(body["login"], "/auth/login?return_to=/api/docs");
+    assert_eq!(body["login"], "/auth/login?return_to=/api-docs");
     assert!(
         body["message"]
             .as_str()

@@ -394,7 +394,7 @@ impl<'a> PageLayout<'a> {
                             // separator AFTER it; Transparency is last and emits
                             // none.
                             "© 2026 " (FIRM_BRAND.site_name) " & " (FOUNDATION_BRAND.site_name) " · "
-                            a.link-secondary href="/api/docs" { "API" } " · "
+                            a.link-secondary href="/api-docs" { "API" } " · "
                             a.link-secondary href="/blog" { "Blog" } " · "
                             a.link-secondary href="/contact" { "Contact" } " · "
                             a.link-secondary href="/design" { "Design" } " · "
@@ -978,7 +978,7 @@ mod tests {
                 "href=\"/terms\"",
                 "href=\"/docs\"",
                 "href=\"/design\"",
-                "href=\"/api/docs\"",
+                "href=\"/api-docs\"",
                 "href=\"/contact\"",
                 "href=\"/blog\"",
                 "href=\"/foundation\"",
