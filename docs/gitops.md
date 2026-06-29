@@ -88,7 +88,7 @@ CI/CD path, so a retention change never lands in a release diff and a cleanup ru
 | Workflow | Trigger | Job |
 | --- | --- | --- |
 | [`ci.yml`](../.github/workflows/ci.yml) | `pull_request` → `main` | fmt + Markdown CLI + clippy + tests |
-| [`release-tag.yml`](../.github/workflows/release-tag.yml) | cron 05:00 PST | cut + push the `YY.MM.DD` tag |
+| [`release-tag.yml`](../.github/workflows/release-tag.yml) | cron 02:00 PST | cut + push the `YY.MM.DD` tag |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | tag push or dispatch | integration → push images → Slack |
 | [`cleanup.yml`](../.github/workflows/cleanup.yml) | cron 07:00 PST | prune ghcr versions > 14 days (maintenance) |
 
@@ -109,7 +109,7 @@ testcontainer per binary). Integration/KIND/docker/browser work does **not** run
 
 ### Cron flow — `release-tag.yml`
 
-Fires daily at **05:00 PST** (`0 13 * * *` UTC). Its only job is to cut a calendar release tag `YY.MM.DD` (e.g.
+Fires daily at **02:00 PST** (`0 10 * * *` UTC). Its only job is to cut a calendar release tag `YY.MM.DD` (e.g.
 `26.06.18` for 2026-06-18) and push it with a PAT (`secrets.RELEASE_PAT`) so the push re-triggers the tag flow below.
 
 ### Tag flow — `deploy.yml`
@@ -138,7 +138,7 @@ roll out](#publish-vs-roll-out) below.
 ### Maintenance flow — `cleanup.yml`
 
 Separate from the CI/CD three, on its own cron and knowing nothing about tags. Fires daily at **07:00 PST** (15:00 UTC)
-— two hours after the tag cut, so the day's fresh images already exist — and prunes ghcr: it discovers every
+— five hours after the tag cut, so the day's fresh images already exist — and prunes ghcr: it discovers every
 `navigator-*` container package through GitHub's package API, then deletes versions older than 14 days through `gh api`
 authenticated with `secrets.GHCR_CLEANUP_PAT`. That secret must be a classic PAT from an org/package admin with
 `read:packages` and `delete:packages`; fine-grained PATs cannot list org packages through this endpoint. `latest` and
