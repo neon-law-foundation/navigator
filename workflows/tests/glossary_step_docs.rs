@@ -12,7 +12,7 @@ const GLOSSARY: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../doc
 fn every_workflow_prefix_has_a_linked_glossary_entry() {
     for (prefix, _) in STEP_PREFIXES {
         let heading = glossary_heading_for_prefix(prefix);
-        let section = glossary_section(&heading)
+        let section = glossary_section(heading)
             .unwrap_or_else(|| panic!("missing glossary heading `## {heading}` for `{prefix}`"));
         assert!(
             section.contains(']') && section.contains("]("),
