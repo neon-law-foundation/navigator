@@ -52,6 +52,7 @@ const MANIFEST: &[(&str, &str)] = &[
     doc!("email-events-pipeline", "docs/email-events-pipeline.md"),
     doc!("env-driven-devx", "docs/env-driven-devx.md"),
     doc!("erd", "docs/erd.md"),
+    doc!("frontmatter", "docs/frontmatter.md"),
     doc!("gemini-enterprise-mcp", "docs/gemini-enterprise-mcp.md"),
     doc!("git-project-repos", "docs/git-project-repos.md"),
     doc!("gitops", "docs/gitops.md"),
