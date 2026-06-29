@@ -14,10 +14,10 @@ name: release-tag
 
 on:
   schedule:
-    # 02:00 America/Los_Angeles. Cron is UTC-only and has no DST, so this is
-    # pinned to PST (UTC-8): 02:00 PST = 10:00 UTC. During PDT (summer) it
-    # lands at 03:00 local — acceptable for an unattended nightly cut.
-    - cron: "0 10 * * *"
+    # 01:11 UTC every day. Cron is UTC-only and has no DST, so the cut runs at
+    # the same wall-clock instant year-round. The off-the-hour minute nudges
+    # the job off GitHub's heavily-contended top-of-hour scheduling window.
+    - cron: "11 1 * * *"
   workflow_dispatch:
 
 permissions:
@@ -39,8 +39,8 @@ jobs:
       - name: compute today's tag
         id: tag
         run: |
-          # 10:00 UTC is the same calendar day as 02:00 PST, so the UTC date
-          # is correct for a "PST 2am" cut.
+          # The cut fires at 01:11 UTC, so the UTC calendar date is exactly
+          # the date we want for the tag.
           TAG="$(date -u +'%y.%m.%d')"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Release tag: $TAG"
