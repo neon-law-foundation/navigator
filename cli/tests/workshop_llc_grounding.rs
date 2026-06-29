@@ -121,11 +121,10 @@ fn the_template_code_the_section_names_is_a_real_seeded_template() {
         section.contains("nv__llc_formation"),
         "the workshop must name the `nv__llc_formation` template",
     );
-    let template =
-        repo_file("notation_templates/forms/united_states/nevada/state/nv__llc_formation.md");
+    let template = repo_file("templates/forms/united_states/nevada/state/nv__llc_formation.md");
     assert!(
         template.contains("code: nv__llc_formation"),
-        "`notation_templates/forms/united_states/nevada/state/nv__llc_formation.md` no longer declares `code: nv__llc_formation` — \
+        "`templates/forms/united_states/nevada/state/nv__llc_formation.md` no longer declares `code: nv__llc_formation` — \
          the workshop's `notation create nv__llc_formation` is now a dead command",
     );
 }

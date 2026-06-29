@@ -9,7 +9,7 @@ client provides, and a hash of the signed attestation is written to Solana, bind
 wallet, and that hash. Solana is the chain because the workspace is Rust top-to-bottom — Solana programs are written in
 Rust and [Anchor](https://www.anchor-lang.com/) is a framework of Rust macros — so the same workspace speaks to the
 chain natively. The marketing copy lives in `web/content/marketing/node.md`; the binding engagement letter is
-`notation_templates/neon_law/node/retainer.md`.
+`templates/neon_law/node/retainer.md`.
 
 ## What is built
 
@@ -100,4 +100,4 @@ contract.
 - Local record: `store::attestations` + the `attestations` entity / migration `m20260722`.
 - Step kind / status table: `workflows::step` and [`docs/notation-authoring.md`](notation-authoring.md) (the `onchain__`
   row).
-- Product surfaces: `web/content/marketing/node.md`, `notation_templates/neon_law/node/retainer.md`.
+- Product surfaces: `web/content/marketing/node.md`, `templates/neon_law/node/retainer.md`.

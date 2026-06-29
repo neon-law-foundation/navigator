@@ -18,10 +18,10 @@ An agenda, not a lecture outline — you are here to argue back. By the end of t
 
 - **Recount** how a two-person team crossed from software to law without dropping the toolchain. **Explain** why a
   foundation-stewarded language is access-to-justice infrastructure. **Trace** our process from the law, to a Cucumber
-  feature, to a template, to a signed notation. **Dissect** one workflow — forming a Nevada LLC — into attorney-gated
-  steps with the shipped code. **Defend** the claim that a reviewed, repeatable workflow beats a prompt. **Map** how the
-  rules of professional conduct compile into schema and workflow. **Decide** whether to open the repository, read the
-  code, and star it.
+  feature, to a reusable template, to the signed notation it produces for one client. **Dissect** one workflow — forming
+  a Nevada LLC — into attorney-gated steps with the shipped code. **Defend** the claim that a reviewed, repeatable
+  workflow beats a prompt. **Map** how the rules of professional conduct compile into schema and workflow. **Decide**
+  whether to open the repository, read the code, and star it.
 
 ---
 
@@ -29,13 +29,13 @@ We frame this as an agenda rather than a lecture outline — you are here to arg
 the half hour you will be able to: **Recount** how a two-person team crossed from shipping software to practicing law
 without dropping the toolchain that got them there. **Explain** why a language stewarded by a non-profit foundation —
 free to every clinic, student, and solo practitioner — is access-to-justice infrastructure, not just an engineering
-preference. **Trace** our process from the law itself, to a Cucumber feature, to a template carrying a questionnaire and
-a workflow, to a notation a client actually signs. **Dissect** one legal workflow — forming a Nevada LLC — into small,
-modular, attorney-gated steps, and read the exact shipped code behind each one. **Defend** the claim that a reviewed,
-repeatable workflow beats asking an LLM with a prompt, because steps in a prompt are neither repeatable nor modular.
-**Map** how the rules of professional conduct — scoped engagements, conflict checks, referrals without referral fees —
-compile into schema and workflow rather than staying paper promises. **Decide** whether to open the repository, read the
-code, and — if it earns it — star it before you leave.
+preference. **Trace** our process from the law itself, to a Cucumber feature, to a reusable template carrying a
+questionnaire and a workflow, to the client-specific notation that gets reviewed and signed. **Dissect** one legal
+workflow — forming a Nevada LLC — into small, modular, attorney-gated steps, and read the exact shipped code behind each
+one. **Defend** the claim that a reviewed, repeatable workflow beats asking an LLM with a prompt, because steps in a
+prompt are neither repeatable nor modular. **Map** how the rules of professional conduct — scoped engagements, conflict
+checks, referrals without referral fees — compile into schema and workflow rather than staying paper promises.
+**Decide** whether to open the repository, read the code, and — if it earns it — star it before you leave.
 
 ## From software engineers to lawyers who code
 
@@ -88,17 +88,16 @@ never gets asked.
 ## The goal — deterministic workflows from law
 
 The whole method on one slide: a prompt is a wish; a workflow is a contract. Read the law → a Cucumber feature → a
-**template** (frontmatter carries a **questionnaire** and a **workflow**) → a **notation** a client signs, after a staff
-review owned by the matter's directly responsible attorney.
+**template** (the reusable blueprint) → a **notation** (one client's reviewed, signed result).
 
 ---
 
 Our process begins by reading the law itself. We translate what the law requires into Cucumber features — executable
-behavior, written before any code. Then we express the work as a template in our notation format: one markdown file
-whose frontmatter carries a questionnaire (the questions a client answers) and a workflow (the state machine the matter
-walks). When a client engages us, the template comes to life as a notation — one client's answers bound to one workflow
-run — and every notation passes a staff review owned by the attorney who is the matter's directly responsible individual
-before anything leaves the building.
+behavior, written before any code. Then we express the work as a template: one markdown file whose frontmatter carries a
+questionnaire (the questions a client answers) and a workflow (the state machine the matter walks). When a client
+engages us, Navigator creates a notation from that template — one client's answers bound to one workflow run — and every
+notation passes a staff review owned by the attorney who is the matter's directly responsible individual before anything
+leaves the building.
 
 The rest of this talk dissects one real workflow — forming a Nevada LLC, our Neon Law Nest product — into its small,
 modular steps, one slide per step, with the exact shipped code behind each. Exact means exact: a test compares every
@@ -150,10 +149,10 @@ against a real Postgres on every `cargo test`. The feature is the contract; the 
 
 ## Step 3 — the template: a questionnaire and a workflow
 
-The template is one markdown file whose frontmatter is the machine-readable half of our notation format: a questionnaire
-graph (what we ask) and a workflow graph (what we do). The Nest questionnaire is seven answers, in order.
+The template is one markdown file with two machine-readable graphs: a questionnaire graph (what we ask) and a workflow
+graph (what we do). The Nest questionnaire is seven answers, in order.
 
-From `notation_templates/forms/united_states/nevada/state/nv__llc_formation.md`:
+From `templates/forms/united_states/nevada/state/nv__llc_formation.md`:
 
 ```yaml
 questionnaire:
@@ -179,7 +178,7 @@ questionnaire:
 And here is the workflow — the LLC formation dissected into small, named, modular steps. Each state is a noun in our
 glossary; each transition is a signal some handler fires. This graph *is* the product.
 
-From `notation_templates/forms/united_states/nevada/state/nv__llc_formation.md`:
+From `templates/forms/united_states/nevada/state/nv__llc_formation.md`:
 
 ```yaml
 workflow:

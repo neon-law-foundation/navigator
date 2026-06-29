@@ -7,17 +7,17 @@ is about evolving what is already shipped.
 
 The guiding idea, proven by the end-to-end journey suite in [`features/`](../features/): **the questionnaire and the
 workflow composition are the tested contract; the template body is replaceable.** A stub template (see the [Nevada
-entity-formation template](../notation_templates/forms/united_states/nevada/state/nv__llc_formation.md)) ships a real,
-tested flow with placeholder prose, and the prose is filled in later without touching the flow.
+entity-formation template](../templates/forms/united_states/nevada/state/nv__llc_formation.md)) ships a real, tested
+flow with placeholder prose, and the prose is filled in later without touching the flow.
 
 ## The four artifacts of one workflow
 
 A single workflow `code` (e.g. `nv__llc_formation`) is defined in four places that must stay in lockstep:
 
-1. **The template markdown** — under `notation_templates/forms/...` for government forms or
-   `notation_templates/neon_law/<product>/...` for product templates. Its YAML frontmatter carries the `questionnaire:`
-   and `workflow:` blocks plus `title` / `code` / `jurisdiction` / `respondent_type`; the body after the frontmatter is
-   the document prose.
+1. **The template markdown** — under `templates/forms/...` for government forms or
+   `templates/neon_law/<product>/...` for product templates. Its YAML frontmatter carries the `questionnaire:` and
+   `workflow:` blocks plus `title` / `code` / `jurisdiction` / `respondent_type`; the body after the frontmatter is the
+   document prose.
 2. **The standalone spec** — `workflows/specs/<code>.yaml`. The same `questionnaire:` + `workflow:` blocks, no body.
    This is the form `cli scaffold` generates and what the runtime resolves by code.
 3. **The seed registration** — `store/src/seed.rs`: an `include_str!` constant in `mod canonical` and a row in the
@@ -132,7 +132,7 @@ Run the cheap structural tests first, then the journey that exercises the flow e
 ```bash
 cargo test -p workflows --test workflow_integrity --test spec_coherence
 cargo test -p features --test <journey>          # e.g. nest_formation, northstar_estate
-cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes notation_templates/forms/united_states/nevada/state/nv__llc_formation.md
+cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes templates/forms/united_states/nevada/state/nv__llc_formation.md
 ```
 
 **Green means green.** Cucumber's `.run()` is non-fatal: a failing *or skipped* scenario still exits `0`. Read the

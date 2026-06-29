@@ -111,8 +111,8 @@ cargo build -p cli --quiet
 ```
 
 That command builds the Neon Law Navigator CLI, checks every included Markdown file in the visible repository tree, and
-applies the notation-template superset to files under `notation_templates/` or any Markdown file with `questionnaire:`
-or `workflow:` frontmatter.
+applies the Template superset to files under `templates/` or any Markdown file with `questionnaire:` or `workflow:`
+frontmatter.
 
 ### Legal workflow authoring
 
@@ -120,7 +120,7 @@ Use this path when adding a new matter type or extending a template's workflow. 
 one-off router handler when a template + questionnaire + workflow can express the matter.
 
 1. Write the composition `.feature` first in `features/tests/features/`.
-2. Create or edit the template under `notation_templates/forms/...` or `notation_templates/neon_law/<product>/...`.
+2. Create or edit the template under `templates/forms/...` or `templates/neon_law/<product>/...`.
 3. Add new questions to `store/seeds/Question.yaml`.
 4. Compose the workflow from documented step prefixes in [`notation-authoring.md`](notation-authoring.md).
 5. Add reusable `StepKind` and dispatch code only when the existing step registry cannot express the work.

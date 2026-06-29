@@ -11,27 +11,24 @@ a website. If you are a lawyer, you are encouraged to use Neon Law Navigator to 
 conversations with reliable legal workflows.
 
 After you install the navigator and a client contacts your firm, a [Project](docs/glossary.md#project) is created for
-their [Matter](docs/glossary.md#matter). Every project contains a git repository of its files and [notation
-templates](docs/notation.md#templates) which frequently use terms from our [glossary](docs/glossary.md). Notation
-templates are markdown documents that define the intake questions and workflows required to solve legal problems.
+their [Matter](docs/glossary.md#matter). Every project contains a git repository of its files and
+[Templates](docs/notation.md#template), the markdown blueprints that define the intake questions and workflows required
+to solve legal problems.
 
-For example, the [Nevada entity-formation](notation_templates/forms/united_states/nevada/state/nv__llc_formation.md)
-notation template defines the questions required for filling out an entity formation, the workflows that are required,
-and where that data is used in the notation template body. When you work with your client, you create a
-[notation](docs/notation.md#notations) from a notation template. For coders, a notation is a workflow executed with a
-durable execution engine.
+For example, the [Nevada entity-formation](templates/forms/united_states/nevada/state/nv__llc_formation.md) Template
+defines the questions required for filling out an entity formation, the workflows that are required, and where that data
+is used in the Template body. When you work with your client, you create a [Notation](docs/notation.md#notation) from a
+Template. For coders, a Notation is a workflow executed with a durable execution engine.
 
-Notation templates live on two shelves. [`notation_templates/forms/`](notation_templates/forms/) mirrors the public
-assets bucket for government forms (`forms/united_states/nevada/state/nv__llc_formation.pdf`), and each sibling `.md`
-declares the jurisdiction-first form code plus the government `origin_url`.
-[`notation_templates/neon_law/`](notation_templates/neon_law/) holds the firm's product work: product retainers,
-engagement letters, product-specific documents, and shared closing letters. Start with [notation
-authoring](docs/notation-authoring.md) and the [`notation_templates` README](notation_templates/README.md) before adding
-a template.
+Templates live on two shelves. [`templates/forms/`](templates/forms/) mirrors the public assets bucket for government
+forms (`forms/united_states/nevada/state/nv__llc_formation.pdf`), and each sibling `.md` declares the jurisdiction-first
+form code plus the government `origin_url`. [`templates/neon_law/`](templates/neon_law/) holds the firm's product work:
+product retainers, engagement letters, product-specific documents, and shared closing letters. Start with [notation
+authoring](docs/notation-authoring.md) and the [`templates` README](templates/README.md) before adding a template.
 
-We encourage writing notation templates with [Zed](https://zed.dev) and our [LSP](docs/lsp/README.md). It's different
-from Word, but once you get used to it, you may find it as productive as we do. Treating legal text like code opens a
-plethora of automations that save time, and we see its impact in scaling legal services.
+We encourage writing Templates with [Zed](https://zed.dev) and our [LSP](docs/lsp/README.md). It's different from Word,
+but once you get used to it, you may find it as productive as we do. Treating legal text like code opens a plethora of
+automations that save time, and we see its impact in scaling legal services.
 
 ## Install the CLI
 

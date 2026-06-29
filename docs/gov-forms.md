@@ -2,7 +2,7 @@
 
 Neon Law Navigator fills official government PDF forms from questionnaire answers and files them through a staff-gated
 workflow. The repository path is the storage contract: a blank at
-`notation_templates/forms/united_states/nevada/state/nv__llc_formation.pdf` syncs to
+`templates/forms/united_states/nevada/state/nv__llc_formation.pdf` syncs to
 `forms/united_states/nevada/state/nv__llc_formation.pdf` in the public assets bucket.
 
 ## Pipeline
@@ -11,9 +11,9 @@ workflow. The repository path is the storage contract: a blank at
 government website (`origin_url`)
    │
    ▼
-notation_templates/forms/<country>/<jurisdiction>/<office>/<code>.pdf
-notation_templates/forms/<country>/<jurisdiction>/<office>/<code>.fields.toml
-notation_templates/forms/<country>/<jurisdiction>/<office>/<code>.md
+templates/forms/<country>/<jurisdiction>/<office>/<code>.pdf
+templates/forms/<country>/<jurisdiction>/<office>/<code>.fields.toml
+templates/forms/<country>/<jurisdiction>/<office>/<code>.md
    │
    ▼
 forms crate registry + field-map resolution
@@ -74,8 +74,8 @@ notations/<notation-id>/certificate-of-completion.pdf
 ## Adding A Form
 
 1. Download the blank from the government `origin_url`.
-2. Store it at the bucket-shaped repo path under `notation_templates/forms/`.
+2. Store it at the bucket-shaped repo path under `templates/forms/`.
 3. Add a sibling markdown template with matching `code`, `jurisdiction`, `origin_url`, and `form`.
 4. Add a sibling field map if the PDF is fillable.
 5. Add the PDF and field map to the `forms` crate registry.
-6. Run `cargo test -p forms` and `cargo run -p cli -- validate notation_templates`.
+6. Run `cargo test -p forms` and `cargo run -p cli -- validate templates`.

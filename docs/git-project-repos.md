@@ -36,6 +36,43 @@ The reference URL shape is `https://www.your-domain.example/projects/<project-id
 thing that distinguishes the git client (HTTP Basic, pack protocol) from the portal's HTML documents view (session
 cookie) at the shared `/projects/:id` prefix — the router splits on it.
 
+## Project repository shape
+
+Every Project repository carries the same small root contract:
+
+```text
+<project-repo>/
+├── .navigator.yaml
+├── README.md
+├── .gitattributes
+├── templates/
+└── notations/
+```
+
+`.navigator.yaml` is intentionally tiny:
+
+```yaml
+version: "0.1.0"
+code: project
+```
+
+`code: project` selects Navigator's built-in Project repository schema. The schema, not per-repo policy, defines which
+paths are staff workspace and which paths may feed the client portal.
+
+`templates/` contains inert markdown blueprints: staff-side drafts or Project-scoped Templates that have not themselves
+become runtime work. This name matches the `templates` table and the workspace top-level [`templates/`](../templates/)
+tree. A Template declares questions, workflow, and prose; it does not ask questions or advance state on its own.
+
+`notations/` contains the Project-bound runtime projection: reviewed Engagement packets, rendered PDFs, signature
+artifacts, workflow summaries, and other documents generated from `notations`, `answers`, `notation_events`, blobs, and
+workflow state. This replaces the earlier planning name `assigned_notations/`; assignment is an authorization and
+projection rule, not a third domain noun.
+
+Clients never browse this raw tree. The portal uses human labels such as **Documents**, **Engagements**, and **Matters**
+and exposes only reviewed client-facing artifacts. Staff and admin views may inspect the internal workspace as needed.
+Postgres and Restate remain authoritative for runtime state; Project repo commits are the matter document/audit
+projection.
+
 ## Append-only, single `main` — the only ref
 
 Per the matter-record requirement, each repo is **append-only with exactly one branch, `main`**. No other branches, no
