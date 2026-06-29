@@ -160,7 +160,7 @@ type: sequence, expected a map".
 
 ## Publishing the extension (maintainers)
 
-The extension is published like the Homebrew tap — automatically, every release. The flow has three repos:
+The extension is published automatically on release tag pushes. The flow has three repos:
 
 1. **`lsp/zed-ext/`** in this repo is the source of truth. Edit `src/lib.rs` / `extension.toml` here; CI gates it with a
    `wasm32-wasip2` build (the `zed-ext` job in `ci.yml`), since it is not a workspace member and `cargo test` never

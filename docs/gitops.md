@@ -128,13 +128,12 @@ the Release is up, a `homebrew-tap` job cross-pollinates the public
 [neon-law-foundation/homebrew-tap](https://github.com/neon-law-foundation/homebrew-tap) repo: it recomputes the macOS
 checksum and rewrites only the `navigator` CLI formula to the new release version, then pushes it with the gitops PAT
 `secrets.GHCR_CLEANUP_PAT` (which must carry `contents:write` on the homebrew-tap repo) so that invoking `brew install
-neon-law-foundation/tap/navigator` always tracks the latest build. The editor LSP is not published through Homebrew; it
-ships through the Zed extension flow, which pulls the matching `navigator-lsp` release binary. The published formula is
-Apple-Silicon only, matching the single macOS binary the release builds. On success it posts a **"ready to deploy"**
-message to the engineering Slack channel (the prod ops incoming webhook, `secrets.SLACK_WEBHOOK_URL`, synced from
-Doppler), tagging Nick with the exact `ship` command to roll the new images to prod; a failure on any stage posts a
-separate alert to the same channel, also tagging Nick. The images are published, **not** rolled out — see [Publish vs.
-roll out](#publish-vs-roll-out) below.
+neon-law-foundation/tap/navigator` always tracks the latest build. The published formula is Apple-Silicon only, matching
+the single macOS binary the release builds. Separately, the Zed extension flow pulls the matching `navigator-lsp`
+release binary for editor installs. On success it posts a **"ready to deploy"** message to the engineering Slack channel
+(the prod ops incoming webhook, `secrets.SLACK_WEBHOOK_URL`, synced from Doppler), tagging Nick with the exact `ship`
+command to roll the new images to prod; a failure on any stage posts a separate alert to the same channel, also tagging
+Nick. The images are published, **not** rolled out — see [Publish vs. roll out](#publish-vs-roll-out) below.
 
 ### Maintenance flow — `cleanup.yml`
 
