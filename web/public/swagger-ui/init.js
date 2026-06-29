@@ -14,6 +14,11 @@ window.onload = function () {
     layout: "BaseLayout",
     tryItOutEnabled: true,
     persistAuthorization: false,
+    requestInterceptor: function (request) {
+      request.headers = request.headers || {};
+      request.headers["X-Navigator-Swagger-UI"] = "1";
+      return request;
+    },
     defaultModelsExpandDepth: 1,
     docExpansion: "list"
   });

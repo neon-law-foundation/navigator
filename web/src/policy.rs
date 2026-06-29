@@ -265,6 +265,7 @@ pub async fn require_policy(
             });
         }
     }
+    let swagger_ui_request = req.headers().contains_key("x-navigator-swagger-ui");
     let path = req.uri().path().to_string();
     let path_segments: Vec<String> = path
         .trim_start_matches('/')
@@ -279,10 +280,10 @@ pub async fn require_policy(
     });
     match client.evaluate(&input).await {
         Ok(decision) if decision.allow => Ok(next.run(req).await),
-        Ok(_) => Ok(deny_response(&path, session.is_some())),
+        Ok(_) => Ok(deny_response(&path, session.is_some(), swagger_ui_request)),
         Err(e) => {
             tracing::warn!(error = %e, "policy evaluation failed; failing closed");
-            Ok(deny_response(&path, session.is_some()))
+            Ok(deny_response(&path, session.is_some(), swagger_ui_request))
         }
     }
 }
@@ -295,7 +296,11 @@ pub async fn require_policy(
 /// browser surfaces that 403 carries the styled HTML page; for
 /// `/api/*` and `/mcp` it stays a tiny JSON body so JSON-RPC clients
 /// see a parseable error.
-fn deny_response(path: &str, has_session: bool) -> axum::response::Response {
+fn deny_response(
+    path: &str,
+    has_session: bool,
+    swagger_ui_request: bool,
+) -> axum::response::Response {
     use axum::response::IntoResponse;
 
     if has_session {
@@ -313,6 +318,22 @@ fn deny_response(path: &str, has_session: bool) -> axum::response::Response {
             )
                 .into_response()
         }
+    } else if swagger_ui_request && crate::wants_json(path) {
+        let login = format!("/auth/login?return_to={}", percent_encode_path("/api/docs"));
+        tracing::info!(path, login = %login, "policy denied Swagger UI request (anonymous; 401)");
+        (
+            axum::http::StatusCode::UNAUTHORIZED,
+            [(
+                axum::http::header::WWW_AUTHENTICATE,
+                "NavigatorSession realm=\"Neon Law Navigator API\"",
+            )],
+            axum::Json(serde_json::json!({
+                "error": "unauthenticated",
+                "message": "Sign in before using Swagger UI's Try it out.",
+                "login": login,
+            })),
+        )
+            .into_response()
     } else {
         let target = format!("/auth/login?return_to={}", percent_encode_path(path));
         tracing::info!(path, target = %target, "policy denied request (anonymous; redirecting to /auth/login)");
