@@ -13,8 +13,9 @@ name: ci
 # suite already runs inside `cargo test --workspace`, and the heavy paths
 # belong in the nightly tag flow so PR latency stays low. Coverage is the one
 # deliberate exception: it piggybacks on the existing test pass so reviewers
-# see diff coverage on the PR, and a Codecov upload hiccup never blocks the
-# merge gate (`fail_ci_if_error: false`).
+# see diff coverage on the PR. Codecov is a hard merge gate: the repository
+# `codecov.yml` requires project coverage to never decrease and patch coverage
+# to stay complete, so upload failures must block the PR too.
 
 on:
   # Pull requests targeting `main` only. `main` itself never runs CI on push:
@@ -149,8 +150,8 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
-          # Never let a Codecov outage block the auto-merge gate.
-          fail_ci_if_error: false
+          # Coverage is a required merge signal; missing uploads must fail CI.
+          fail_ci_if_error: true
       - name: show sccache stats
         if: always()
         continue-on-error: true
