@@ -29,6 +29,7 @@ pricing:
       - "The same open-source corpus and operator-run upgrades — you own it outright when we leave"
     cta_label: "Ask about the legal aid rate"
     cta_href: "mailto:support@neonlaw.org"
+    featured_label: "Discounted rate"
 ---
 
 # Your own Neon Law Navigator, installed on your cloud in two weeks
