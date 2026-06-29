@@ -778,7 +778,7 @@ jobs:
           repository: neon-law-foundation/homebrew-tap
           token: ${{ secrets.GHCR_CLEANUP_PAT }}
           path: homebrew-tap
-      - name: render formulae with new version + checksums
+      - name: render formula with new version + checksum
         env:
           TAG: ${{ needs.release-version.outputs.tag }}
           REPO: ${{ github.repository }}
@@ -825,7 +825,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A Formula/navigator.rb Formula/navigator-lsp.rb
+          git add -A Formula
           if git diff --cached --quiet; then
               echo "Homebrew tap already current for ${TAG}"
               exit 0
