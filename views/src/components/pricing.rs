@@ -11,7 +11,7 @@
 //!
 //! There is intentionally no "most popular" badge: a popularity claim
 //! the firm cannot substantiate trips the attorney-advertising rules.
-//! The anchor card carries the firm's own recommendation label instead.
+//! Each card carries its own flat-fee label in the cyan band instead.
 
 use maud::{html, Markup};
 
