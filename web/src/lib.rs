@@ -476,9 +476,10 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
         .service(ServeDir::new(public_dir));
     // JSON API uses only `Db` as state; merge it under the same root.
     // Every `/api/*` route runs behind `require_policy` so OPA enforces
-    // the OIDC requirement uniformly with `/portal/*`. The OPA rule in
-    // `k8s/base/opa/opa.yaml` exempts `/openapi.json` so the published
-    // schema stays discoverable without a session.
+    // the OIDC requirement uniformly with `/portal/*`. The OPA rules in
+    // `k8s/base/opa/opa.yaml` exempt `/openapi.json` and the top-level
+    // `/api-docs` Swagger shell so the published schema and its docs stay
+    // discoverable without a session.
     let api = api::routes().with_state(state.db.clone()).route_layer(
         axum::middleware::from_fn_with_state(
             (state.sessions.clone(), state.policy.clone()),
