@@ -1,41 +1,10 @@
-# English — the source locale and the universal fallback.
+# English marketing — the public firm pages (home, /services catalog,
+# CTAs, testimonial section headings).
 #
-# This is the chrome catalog: short, repeated, engineer-owned strings
-# (navbar, auth links, the language switcher, CTAs). Long
-# prose (marketing pages, the mission letter) is NOT here — it lives as
-# Markdown under web/content/marketing/ and mission.md.
-#
-# Every key here MUST exist, because `es.yml` (and any later locale)
-# falls back to this file. Keys are dotted namespaces; the layout looks
-# them up with `views::i18n::t(locale, "nav.home")`.
-#
-nav:
-  home: Home
-  foundation: Foundation
-  firm: Firm
-  services: Services
-  mission: Mission
-  notations: Notations
-  workshops: Workshops
-auth:
-  portal: Portal
-  sign_in: Sign in
-  sign_out: Sign out
-switcher:
-  # Shown as the link's aria-label; describes the action in the page's
-  # CURRENT language. The visible label is the target language's own
-  # name (its endonym), supplied by `Locale::endonym`.
-  aria: View this page in Spanish
-footer:
-  github_star: Star Neon Law Navigator
-  # Shown ONLY on localized (non-English) pages, heading the footer's
-  # legal strip — bar admissions and the legal-advice disclaimer stay
-  # English by policy, because the binding artifact a client signs is
-  # English even when the page chrome is localized (CLAUDE.md). Telling
-  # the reader, in their own language, that this is deliberate is an
-  # attorney-advertising-honesty requirement, not polish. English keeps
-  # the key for fallback completeness; the layout never renders it in En.
-  legal_in_english: "Binding legal text on this site is provided in English."
+# LOCALIZED (Tier A): es/marketing.yml is its Spanish twin, attorney-
+# reviewed. A key with no Spanish yet must be named in the es-parity
+# waiver in i18n.rs (English fallback until reviewed) — never machine-
+# translated marketing copy (CLAUDE.md).
 cta:
   # %{email} is the contact address; the button text on marketing pages.
   email: "Email %{email}"

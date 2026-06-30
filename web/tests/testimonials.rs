@@ -6,7 +6,7 @@ use store::entity::{person, project, testimonial};
 use store::test_support::{dri_person, pg, seed_entity};
 use tower::ServiceExt;
 // Keyed render assertions: assert the page wires up a catalog slot, not
-// what the slot currently says. Editing the copy in `en.yml` keeps these
+// what the slot currently says. Editing the copy in the catalog keeps these
 // green; a typo'd/deleted key fails loudly via `t_strict`.
 use views::assert_renders;
 

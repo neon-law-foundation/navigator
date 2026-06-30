@@ -1,31 +1,8 @@
-# Español — Spanish chrome catalog.
+# Español — Spanish marketing (the twin of en/marketing.yml).
 #
-# Mirrors the key tree of en.yml. Any key omitted here falls back to the
-# English value, so a partial translation degrades gracefully rather
-# than showing a raw key. Product proper nouns (Nexus, Nest, Northstar,
-# Nautilus, 1337 Lawyers, Neon Law Navigator) are NOT translated — they are
-# carried through verbatim by `nav_label`.
-#
-# These are chrome strings (Tier A in docs/i18n.md). The footer legal
-# strip — disclaimer, bar-admission prose — is NOT translated here: it
-# stays English-source until an attorney reviews the Spanish (Tier B).
-nav:
-  home: Inicio
-  foundation: Fundación
-  firm: Firma
-  services: Servicios
-  mission: Misión
-  notations: Notaciones
-  workshops: Talleres
-auth:
-  portal: Portal
-  sign_in: Iniciar sesión
-  sign_out: Cerrar sesión
-switcher:
-  aria: Ver esta página en inglés
-footer:
-  github_star: Destacar Neon Law Navigator
-  legal_in_english: "El texto legal vinculante de este sitio se proporciona en inglés."
+# Attorney-reviewed Tier-A copy. Keys omitted here fall back to English
+# and MUST be named in the es-parity waiver in i18n.rs (e.g. the
+# testimonials.* headings, pending attorney-reviewed Spanish).
 cta:
   email: "Escríbenos a %{email}"
   consultation: "Reserve una consulta"
