@@ -3240,11 +3240,12 @@ async fn api_docs_serves_swagger_ui_shell_with_csp() {
     // No session cookie / bearer token on this request: the Swagger UI
     // documentation shell is public at the top-level `/api-docs`, a
     // sibling of `/openapi.json` rather than a leaf under the gated
-    // `/api/*` prefix. The OPA exemption that enforces this at the gate
-    // is pinned by `test_anonymous_reaches_api_docs` in
-    // `k8s/base/opa/navigator_test.rego`; here the router runs with a
-    // passthrough policy, so this asserts the handler wiring and that an
-    // anonymous caller is never bounced to `/auth/login`.
+    // `/api/*` prefix. `/api-docs` mounts OUTSIDE `require_policy`
+    // (`web::api::doc_routes`), so it is public by routing, not by an OPA
+    // exemption. This test asserts the handler wiring with a passthrough
+    // policy; that the surface stays public even when OPA actively denies
+    // is the stronger property pinned by
+    // `public_doc_surfaces_bypass_opa_when_policy_denies`.
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -3290,6 +3291,69 @@ async fn api_docs_serves_swagger_ui_shell_with_csp() {
     assert!(
         body.contains("/openapi.json") || body.contains("init.js"),
         "init.js (which references /openapi.json) must be loaded"
+    );
+}
+
+#[tokio::test]
+async fn public_doc_surfaces_bypass_opa_when_policy_denies() {
+    // Regression guard for the prod incident where `/api-docs` 303'd to
+    // `/auth/login`: the OPA exemption added with #204 hadn't deployed
+    // (an image-only push advanced the binary ahead of the policy
+    // bundle), so OPA default-denied the new path. The fix makes the
+    // public doc surfaces public by ROUTING — they mount outside
+    // `require_policy` (`web::api::doc_routes`) — so a stale or hostile
+    // policy can never gate them.
+    //
+    // This OPA mock denies EVERYTHING. `/api-docs` and `/openapi.json`
+    // must still render 200; a genuinely gated `/api/*` path must still
+    // be turned away, proving enforcement is live (the 200s aren't just
+    // a passthrough/unreachable-OPA artifact).
+    let opa = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/data/navigator/authz/allow"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "result": false
+        })))
+        .mount(&opa)
+        .await;
+
+    let app = web::build_router(
+        empty_state_with_policy(web::policy::PolicyClient::new(opa.uri())).await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+
+    for uri in ["/api-docs", "/openapi.json"] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "{uri} must stay public even when OPA denies every request — it is gated by \
+             routing, not policy"
+        );
+    }
+
+    // Sanity: a gated data path under the SAME deny-all policy is
+    // refused (anonymous → 303 to /auth/login). This proves the policy
+    // layer is actually enforcing, so the 200s above are the routing
+    // bypass and not an inert OPA.
+    let gated = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/people")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        gated.status(),
+        StatusCode::SEE_OTHER,
+        "a gated /api/* path must be denied under the same deny-all policy"
     );
 }
 

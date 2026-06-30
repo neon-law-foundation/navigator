@@ -39,7 +39,9 @@ project-scoping entirely. Sees every project, silently, without writing an audit
 ### *anonymous*
 
 No row in `persons` at all. Sees only the public marketing surface (homepage, `/foundation/*`), the public API
-documentation (`/openapi.json` and `/api-docs`), and `/auth/login`.
+documentation (`/openapi.json` and `/api-docs`), and `/auth/login`. The doc surfaces describe the API but are not the
+API, so `web` serves them *outside* the OPA gate (`web::api::doc_routes`) — their public-ness lives in routing, not in a
+policy rule that would have to redeploy in lockstep with the binary.
 
 `admin` is a superset of `staff`, not a separate axis. A firm administrator is, by definition, someone who could be
 assigned to any matter; making them ask for participation rows on every project they need to touch buys nothing.
