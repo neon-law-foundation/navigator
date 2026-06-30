@@ -25,7 +25,7 @@ name: deploy
 # "identifiers and counts, never content" rule binds here too.
 #
 # The image tag is the release tag itself (`github.ref_name`, e.g. 26.06.18)
-# for nightly tag pushes. Manual workflow-dispatch publishes add the Pacific
+# for nightly tag pushes. Manual workflow-dispatch publishes add the UTC
 # hour as a fourth digit (e.g. 26.06.25.14) so operators can publish multiple
 # build sets in one day without overwriting the dated image/release.
 
@@ -64,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-              tag="$(TZ=America/Los_Angeles date +'%y.%m.%d.%H')"
+              tag="$(TZ=UTC date +'%y.%m.%d.%H')"
           else
               tag="${REF_NAME}"
           fi
