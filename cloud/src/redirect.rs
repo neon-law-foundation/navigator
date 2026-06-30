@@ -6,8 +6,7 @@
 //! - `neonlaw.com` → `https://www.neonlaw.com{path_and_query}`
 //!   (naked-to-www canonicalization, path-preserving).
 //! - `chat.neonlaw.com` → fixed Gemini Enterprise landing URL
-//!   (regardless of path, matching the legacy third-party
-//!   redirector's behavior).
+//!   (regardless of path).
 //!
 //! Status code is 308 (`PERMANENT_REDIRECT`) to mirror the
 //! workspace convention spelled out in

@@ -1,7 +1,7 @@
 //! Single-matter detail rendered at `GET /portal/projects/:id` for
 //! clients. Intentionally thin — name, status chip, and a way back
 //! to the matter list. Staff and admin hitting the same URL fall
-//! through to the admin-chrome view (documents, upload, drive sync)
+//! through to the admin-chrome view (documents, upload)
 //! per the role-aware dispatcher in
 //! `web::admin::projects_detail_role_aware`.
 

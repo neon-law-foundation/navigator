@@ -32,8 +32,8 @@ drifts from the worker's actual `.bind(...)` calls. In the reference deploy the 
 `workflows.your-domain.example` (Restate worker + Envoy sidecar).
 
 The runtime is chosen by `RESTATE_BROKER_URL`: unset means in-process / in-memory, so KIND works with zero config; set
-means the `RestateRuntime` adapter posts to the broker over HTTP. The same selection is used in `web::main`,
-`web::drive_sync`, and the `archives` trigger.
+means the `RestateRuntime` adapter posts to the broker over HTTP. The same selection is used in `web::main` and the
+`archives` trigger.
 
 ## Three ways a workflow starts
 

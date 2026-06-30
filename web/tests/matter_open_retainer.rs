@@ -447,7 +447,3 @@ async fn matter_open_without_an_entity_is_rejected() {
         "no project should be created without an entity",
     );
 }
-
-// (The former `plain_project_create_without_retainer_records_no_signature_call`
-// test was removed: there is no plain-project path any more — every matter
-// opens on a retainer, so a create without one is not a valid scenario.)

@@ -130,7 +130,7 @@ all three call the same `rules` crate. A template that is clean on your laptop i
 Run it before committing any `.md` change:
 
 ```bash
-cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path>
+cargo run -p cli --quiet -- validate --no-default-excludes <path>
 ```
 
 ## Authoring in markdown with the LSP
@@ -309,22 +309,17 @@ route advance a signed retainer to END (see External integrations above).
    verifies the provider's HMAC signature over the raw body before signaling `signature_received`; the provider
    request-id is persisted on the notation for correlation. This ended the production dead-end at
    `sent_for_signature__pending`.
-2. ~~**Make Drive sync Restate-durable (reliability).**~~ **Removed.** The per-project Drive sync (the `DriveSync`
-   workflow, the `drive_folder_id` column, the `aida_drive_*` tools) has been dropped in favour of the append-only
-   per-Project git repo as the document surface. Drive is no longer an ingest path.
-3. ~~**Add Drive write-back (feature).**~~ **Dropped** with the per-project Drive sync above — the per-Project git repo
-   is the document system of record now, not a Drive folder.
-4. ~~**AcroForm form-filling.**~~ **Shipped.** `pdf::fill_acroform(blank_pdf, fields)` (lopdf) fills a fillable
+2. ~~**AcroForm form-filling.**~~ **Shipped.** `pdf::fill_acroform(blank_pdf, fields)` (lopdf) fills a fillable
    government form; a `document_open__<form>` sub-slug dispatches it through the worker step, with blank forms held in
    `cloud::StorageService`. Output is **attorney-review-ready, never auto-filed** — the spec-graph guardrail
    `staff_review_gates_filing` proves no fill→file path skips `staff_review`. XFA forms and unmatched field names fail
    loudly rather than emitting a silent blank.
-5. ~~**Promote the planned filing/mail steps to real handlers.**~~ **Shipped.** `mailroom_send`, `certified_mail`,
+3. ~~**Promote the planned filing/mail steps to real handlers.**~~ **Shipped.** `mailroom_send`, `certified_mail`,
    `e_filing`, and `filing__*` are worker-dispatched steps that record a durable `filings` row (the firm's proof of what
    was filed) in `ctx.run`; compliance flows (e.g. the Nevada annual report) run end-to-end to END instead of parking.
    `staff_review_precedes_submission` proves — on every bundled spec — that no submission side effect fires before the
    review gate. (`notarization` stays a human act; `mailroom_receive` is inbound.)
-6. ~~**Make language access explicit in intake.**~~ **Shipped.** `persons.preferred_language` (BCP-47, default `en`)
+4. ~~**Make language access explicit in intake.**~~ **Shipped.** `persons.preferred_language` (BCP-47, default `en`)
    plus a `question_translations` table of attorney-reviewed localized prompts; `notation_session` renders every
    questionnaire prompt in the person's language (web form + AIDA MCP/A2A surfaces, one convergence point), falling back
    to the English base when a translation is absent. Spanish ships seeded for the retainer questions. Translation is
@@ -332,7 +327,7 @@ route advance a signed retainer to END (see External integrations above).
    each language. The questionnaire *prompt* is the only localized surface here: the **template body** — the binding
    document a client signs — stays English-only regardless of the client's language. See the English-first rule in
    [`../CLAUDE.md`](../CLAUDE.md).
-7. ~~**Template storage and scoping.**~~ **Shipped.** Template bodies moved from the inline `templates.body` TEXT
+5. ~~**Template storage and scoping.**~~ **Shipped.** Template bodies moved from the inline `templates.body` TEXT
    column to blob storage (`templates.blob_id` → a Blob via `cloud::StorageService`); `templates.project_id` plus two
    partial unique indexes add project-scoped templates alongside the shared catalog, resolved by
    `store::templates::resolve` (prefer Project, fall back to shared). The seed + `navigator import` paths ingest bodies
