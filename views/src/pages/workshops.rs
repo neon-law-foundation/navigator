@@ -17,7 +17,8 @@
 
 use maud::{html, Markup, PreEscaped};
 
-use crate::assets::{self, Priority};
+// The Nebula hero is an image-free CSS scene (see `.nebula-hero` in
+// `brand.css`), so no gallery asset is loaded for it.
 use crate::brand::FOUNDATION_BRAND;
 use crate::{AuthState, Locale, PageLayout};
 
@@ -196,6 +197,23 @@ pub fn landing(
     )
 }
 
+/// The animated deep-space background for the Nebula hero: two drifting
+/// starfields, a cloud of nebula gas, and a star being born (a pulsing
+/// core inside an expanding shockwave). Every layer is decorative and
+/// `aria-hidden`; the CSS lives in `.nebula-hero__*` (`brand.css`) and
+/// freezes wholesale under `prefers-reduced-motion`.
+fn nebula_hero_scene() -> Markup {
+    html! {
+        div.nebula-hero-media aria-hidden="true" {
+            div."nebula-hero__stars" {}
+            div."nebula-hero__stars"."nebula-hero__stars--far" {}
+            div."nebula-hero__cloud" {}
+            div."nebula-hero__burst" {}
+            div."nebula-hero__core" {}
+        }
+    }
+}
+
 #[must_use]
 pub fn landing_in(
     workshop_cards: &[MaterialCard<'_>],
@@ -228,9 +246,7 @@ pub fn landing_in(
         section.workshops {
             div.container {
                 header.nebula-hero."position-relative"."overflow-hidden"."mb-5" {
-                    div.nebula-hero-media aria-hidden="true" {
-                        (assets::picture("lantana", "100vw", Priority::Eager))
-                    }
+                    (nebula_hero_scene())
                     div.nebula-hero-copy."position-relative"."py-5"."px-4"."px-lg-5" {
                         p."text-uppercase"."small"."fw-semibold"."mb-2" { "Neon Law Foundation" }
                         h1 { (title) }
@@ -295,10 +311,7 @@ pub fn landing_in(
         .with_auth(auth)
         .with_locale(locale)
         .with_canonical_path("/foundation/nebula");
-    match assets::preload_href("lantana") {
-        Some(href) => layout.with_preload_image(&href).render(&body),
-        None => layout.render(&body),
-    }
+    layout.render(&body)
 }
 
 fn material_card(c: &MaterialCard<'_>) -> Markup {
@@ -320,9 +333,7 @@ pub fn show_tell_index(index: &ShowTellIndex<'_>, auth: AuthState) -> Markup {
     let body = html! {
         section.show-tell-index {
             header.nebula-hero."position-relative"."overflow-hidden"."mb-5" {
-                div.nebula-hero-media aria-hidden="true" {
-                    (assets::picture("lantana", "100vw", Priority::Eager))
-                }
+                (nebula_hero_scene())
                 div.nebula-hero-copy."position-relative"."py-5"."px-4"."px-lg-5" {
                     p."text-uppercase"."small"."fw-semibold"."mb-2" { "Neon Law Foundation" }
                     h1 { "Show-and-tell events" }
@@ -375,10 +386,7 @@ pub fn show_tell_index(index: &ShowTellIndex<'_>, auth: AuthState) -> Markup {
         .with_brand(*FOUNDATION_BRAND)
         .with_auth(auth)
         .with_canonical_path("/foundation/nebula/show-and-tell");
-    match assets::preload_href("lantana") {
-        Some(href) => layout.with_preload_image(&href).render(&body),
-        None => layout.render(&body),
-    }
+    layout.render(&body)
 }
 
 fn event_list_card(event: &EventListItem<'_>) -> Markup {
@@ -906,19 +914,28 @@ mod tests {
     }
 
     #[test]
-    fn landing_shows_an_inviting_preloaded_hero() {
+    fn landing_shows_the_animated_nebula_hero() {
         let html = landing(&[], &[], &[], crate::AuthState::Anonymous).into_string();
         assert!(
             html.contains("class=\"nebula-hero"),
             "Nebula overview should carry the hero shell"
         );
+        // The hero is an image-free CSS scene: the starfield / nebula gas /
+        // star-birth layers render, and no gallery photo is loaded behind it.
+        for layer in [
+            "nebula-hero__stars",
+            "nebula-hero__cloud",
+            "nebula-hero__burst",
+            "nebula-hero__core",
+        ] {
+            assert!(
+                html.contains(layer),
+                "hero should render the {layer} scene layer, got: {html}"
+            );
+        }
         assert!(
-            html.contains("fetchpriority=\"high\""),
-            "hero should be loaded eagerly"
-        );
-        assert!(
-            html.contains("rel=\"preload\" as=\"image\""),
-            "hero should preload its image"
+            !html.contains("rel=\"preload\" as=\"image\""),
+            "the animated hero should not preload a photo, got: {html}"
         );
     }
 
@@ -1043,6 +1060,42 @@ mod tests {
         assert!(
             media_at < body_at,
             "event cards should render the image rail before the body: {html}"
+        );
+    }
+
+    #[test]
+    fn show_tell_index_wears_the_animated_nebula_hero() {
+        // The show-and-tell index shares the landing's `nebula_hero_scene()`,
+        // so it must render the same image-free animated layers and likewise
+        // load no hero photo — guard it independently of the landing path.
+        let empty: Vec<EventListItem<'_>> = Vec::new();
+        let no_pages = || EventPager {
+            previous_href: None,
+            next_href: None,
+            current_page: 1,
+            total_pages: 1,
+        };
+        let index = ShowTellIndex {
+            upcoming: &empty,
+            past: &empty,
+            upcoming_pager: no_pages(),
+            past_pager: no_pages(),
+        };
+        let html = show_tell_index(&index, crate::AuthState::Anonymous).into_string();
+        for layer in [
+            "nebula-hero__stars",
+            "nebula-hero__cloud",
+            "nebula-hero__burst",
+            "nebula-hero__core",
+        ] {
+            assert!(
+                html.contains(layer),
+                "show-and-tell hero should render the {layer} scene layer, got: {html}"
+            );
+        }
+        assert!(
+            !html.contains("rel=\"preload\" as=\"image\""),
+            "the animated hero should not preload a photo, got: {html}"
         );
     }
 
