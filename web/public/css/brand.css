@@ -99,11 +99,36 @@
   border-color: #06b6d4;
 }
 
+/* The Foundation's Nebula page (/foundation/nebula) wears an animated
+   deep-space scene rather than a photo: a drifting, twinkling starfield;
+   slow cyan nebula gas; and, at the heart of it, a star being born — a
+   bright core that pulses while a shockwave ring expands and fades. It
+   speaks the SAME cyan brand ramp as the service heroes
+   (`product-hero.css`), but the motion is its own (creation, not a
+   receding grid), matching the page's name: a nebula is where new stars —
+   new ideas — are made. Two themes toggle on `data-bs-theme` (dark deep
+   space / light daylight nebula), both on the one cyan ramp; every bit of
+   motion is decorative, hidden from the a11y tree, and frozen wholesale
+   under prefers-reduced-motion (the same access-to-justice restraint the
+   service heroes keep — no strobe for someone in crisis). */
 .nebula-hero {
+  /* The brand cyan ramp — the only hue, mirroring `product-hero.css`. */
+  --neb-accent: #22d3ee;
+  --neb-bright: #67e8f9;
+  --neb-deep: #0891b2;
+  --neb-soft: #a5f3fc;
+
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   min-height: clamp(21rem, 48vw, 34rem);
-  background: #111827;
   border-radius: 0.5rem;
   color: #fff;
+  /* Deep space: two faint cyan nebula washes over a near-black field. */
+  background:
+    radial-gradient(ellipse 64% 56% at 72% 30%, rgba(8, 145, 178, 0.34), transparent 62%),
+    radial-gradient(ellipse 58% 66% at 18% 82%, rgba(34, 211, 238, 0.16), transparent 64%),
+    linear-gradient(180deg, #03040a 0%, #061018 58%, #04070f 100%);
 }
 
 .nebula-hero-media {
@@ -115,13 +140,89 @@
   height: 100%;
 }
 
+/* A soft vignette so the bottom-left copy stays legible over the moving
+   scene — lighter than the old photo scrim so the stars still read. */
 .nebula-hero-media::after {
   position: absolute;
   inset: 0;
   content: "";
   background:
-    linear-gradient(90deg, rgba(17, 24, 39, 0.9), rgba(17, 24, 39, 0.56) 48%, rgba(17, 24, 39, 0.2)),
-    linear-gradient(0deg, rgba(17, 24, 39, 0.54), rgba(17, 24, 39, 0));
+    linear-gradient(90deg, rgba(3, 5, 12, 0.72), rgba(3, 5, 12, 0.32) 52%, rgba(3, 5, 12, 0)),
+    linear-gradient(0deg, rgba(3, 5, 12, 0.66), rgba(3, 5, 12, 0) 60%);
+}
+
+/* Two tiled starfields drifting at different speeds for parallax. Each
+   plane is a handful of tiny radial-gradient dots repeated across the
+   scene; the whole plane twinkles (opacity) and drifts (background
+   position). */
+.nebula-hero__stars,
+.nebula-hero__stars--far {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+  background-image:
+    radial-gradient(1.5px 1.5px at 40px 60px, #fff, transparent),
+    radial-gradient(1px 1px at 130px 100px, var(--neb-soft), transparent),
+    radial-gradient(1.5px 1.5px at 200px 168px, var(--neb-bright), transparent),
+    radial-gradient(1px 1px at 92px 224px, #fff, transparent),
+    radial-gradient(1px 1px at 252px 44px, var(--neb-soft), transparent),
+    radial-gradient(1.5px 1.5px at 280px 256px, var(--neb-accent), transparent);
+  background-size: 300px 300px;
+  animation:
+    nebula-twinkle 4.5s ease-in-out infinite,
+    nebula-drift 90s linear infinite;
+}
+
+.nebula-hero__stars--far {
+  background-size: 210px 210px;
+  opacity: 0.6;
+  animation:
+    nebula-twinkle 6.5s ease-in-out infinite 1.2s,
+    nebula-drift 150s linear infinite reverse;
+}
+
+/* The nebula gas — soft blurred cyan clouds that breathe and drift, the
+   cradle the new star forms inside. */
+.nebula-hero__cloud {
+  position: absolute;
+  inset: -12%;
+  background:
+    radial-gradient(38% 50% at 70% 32%, color-mix(in srgb, var(--neb-accent) 32%, transparent), transparent 70%),
+    radial-gradient(30% 42% at 30% 60%, color-mix(in srgb, var(--neb-bright) 22%, transparent), transparent 72%),
+    radial-gradient(26% 36% at 82% 70%, color-mix(in srgb, var(--neb-deep) 28%, transparent), transparent 72%);
+  filter: blur(26px);
+  animation: nebula-cloud 26s ease-in-out infinite alternate;
+}
+
+/* The star being born, anchored to the densest knot of gas (72% / 32%):
+   a bright pulsing core... */
+.nebula-hero__core {
+  position: absolute;
+  left: 72%;
+  top: 32%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, var(--neb-bright) 42%, transparent 72%);
+  box-shadow:
+    0 0 14px 4px var(--neb-bright),
+    0 0 40px 12px color-mix(in srgb, var(--neb-accent) 70%, transparent);
+  animation: nebula-core 5s ease-in-out infinite;
+}
+
+/* ...wrapped in a shockwave ring that expands and fades — the explosion. */
+.nebula-hero__burst {
+  position: absolute;
+  left: 72%;
+  top: 32%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--neb-bright) 82%, transparent);
+  transform: scale(0);
+  animation: nebula-burst 7s ease-out infinite;
 }
 
 .nebula-hero-copy {
@@ -135,11 +236,127 @@
 .nebula-hero h1 {
   font-size: 5.5rem;
   line-height: 0.95;
+  /* A gentle cyan halo ties the wordmark to the service heroes' glow. */
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--neb-bright) 60%, transparent),
+    0 0 28px color-mix(in srgb, var(--neb-deep) 55%, transparent);
 }
 
 .nebula-hero .lede {
   max-width: 44rem;
   color: rgba(255, 255, 255, 0.88);
+}
+
+@keyframes nebula-twinkle {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes nebula-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 300px -300px;
+  }
+}
+
+@keyframes nebula-cloud {
+  from {
+    transform: translate3d(-3%, 2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, -2%, 0) scale(1.08);
+  }
+}
+
+@keyframes nebula-core {
+  0%,
+  100% {
+    transform: scale(0.8);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.28);
+    opacity: 1;
+  }
+}
+
+@keyframes nebula-burst {
+  0% {
+    transform: scale(0);
+    opacity: 0.9;
+  }
+  72% {
+    opacity: 0.22;
+  }
+  100% {
+    transform: scale(26);
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* LIGHT variant — "daylight nebula": the same cyan ramp re-tinted for   */
+/* white paper, the counterpart of the service heroes' light scene.     */
+/* Activated when color-scheme.js resolves <html data-bs-theme> to       */
+/* `light`. Deeper cyans hold contrast on white, and the copy flips to   */
+/* ink so it reads on the pale sky.                                       */
+/* ------------------------------------------------------------------ */
+[data-bs-theme="light"] .nebula-hero {
+  color: #04161d;
+  background:
+    radial-gradient(ellipse 64% 56% at 72% 30%, rgba(34, 211, 238, 0.22), transparent 62%),
+    radial-gradient(ellipse 58% 66% at 18% 82%, rgba(8, 145, 178, 0.12), transparent 64%),
+    linear-gradient(180deg, #ecfeff 0%, #f3fdff 56%, #ffffff 100%);
+}
+
+/* Cyan-ink stars so the dots read as a daytime sparkle on white. */
+[data-bs-theme="light"] .nebula-hero__stars,
+[data-bs-theme="light"] .nebula-hero__stars--far {
+  background-image:
+    radial-gradient(1.5px 1.5px at 40px 60px, var(--neb-deep), transparent),
+    radial-gradient(1px 1px at 130px 100px, var(--neb-accent), transparent),
+    radial-gradient(1.5px 1.5px at 200px 168px, #0e7490, transparent),
+    radial-gradient(1px 1px at 92px 224px, var(--neb-deep), transparent),
+    radial-gradient(1px 1px at 252px 44px, var(--neb-accent), transparent),
+    radial-gradient(1.5px 1.5px at 280px 256px, #0e7490, transparent);
+}
+
+/* Pale vignette so ink copy reads on the bright scene. */
+[data-bs-theme="light"] .nebula-hero-media::after {
+  background:
+    linear-gradient(90deg, rgba(236, 254, 255, 0.72), rgba(236, 254, 255, 0.2) 52%, rgba(236, 254, 255, 0)),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 60%);
+}
+
+/* Ink wordmark with a soft cyan halo — no neon on paper. */
+[data-bs-theme="light"] .nebula-hero h1 {
+  color: #04161d;
+  text-shadow: 0 0 18px rgba(34, 211, 238, 0.3);
+}
+
+[data-bs-theme="light"] .nebula-hero .lede {
+  color: rgba(4, 22, 29, 0.78);
+}
+
+/* Access-to-justice restraint: freeze the scene to a still, dignified
+   space banner for anyone who asks for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .nebula-hero__stars,
+  .nebula-hero__stars--far,
+  .nebula-hero__cloud,
+  .nebula-hero__core {
+    animation: none;
+  }
+  .nebula-hero__burst {
+    display: none;
+  }
 }
 
 /* The show-and-tell index is a vertical list of horizontal cards: a small
@@ -220,7 +437,7 @@
   }
 
   .nebula-hero-media::after {
-    background: linear-gradient(0deg, rgba(17, 24, 39, 0.92), rgba(17, 24, 39, 0.38));
+    background: linear-gradient(0deg, rgba(3, 5, 12, 0.9), rgba(3, 5, 12, 0.36));
   }
 }
 
