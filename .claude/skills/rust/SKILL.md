@@ -20,6 +20,9 @@ The doc owns the conventions; this skill is the short list of guards that are ea
 - **One canonical shutdown-signal helper** for service lifecycle (SIGTERM + SIGINT). No ad-hoc `ctrl_c().await.unwrap()`
   inline in `main`.
 - **Axum body/consuming extractors go LAST** in handler argument order — the body can only be consumed once.
+- **Comments and tests describe the present.** No "we used to…"/"no longer…"/"legacy" narration, no deprecated-but-kept
+  flags or aliases — delete the old path; git history holds the past. Keep only the *why* behind a live invariant and
+  guard tests that assert today's behavior.
 
 Everything else — conventions, async, Axum, SeaORM, service lifecycle, testing — is in
 [`docs/rust-programming.md`](../../../docs/rust-programming.md).

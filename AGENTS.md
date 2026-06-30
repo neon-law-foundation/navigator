@@ -87,15 +87,21 @@ acting on anything below, and keep the doc, not this file, authoritative.
 - **No assumptions; always test what you changed.** "It compiles" / "it looks right" is not evidence — read or run the
   real code path and observe the result. Add or run the covering test (TDD, same commit). Report faithfully: if you
   didn't test it, or a step failed or was skipped, say so with the output.
+- **Document the present, not the past.** Code, comments, tests, and docs describe what the system does *today*. Git
+  history is the record of how we got here — don't duplicate it in the tree. Delete vestigial references to superseded
+  decisions ("we used to…", "no longer…", "legacy", deprecated-but-kept flags/aliases) instead of annotating them, and
+  when you change behavior remove the old code rather than leaving a compatibility shim. Keep only history that still
+  informs a current reader (the *why* behind a live invariant) and guard tests that assert today's behavior (an old URL
+  must 404 or redirect). → [`docs/rust-programming.md`](docs/rust-programming.md).
 - **Markdown lint before committing any `.md`.** Dogfood the CLI; never hand-roll a linter. Must exit `0`:
 
   ```bash
   cargo run -p cli --quiet -- validate --no-default-excludes <path>
   ```
 
-  `validate` classifies each file automatically (prose, notation template, event, blog post, board minutes), so the old
-  `--markdown-only` flag is deprecated and ignored. Frontmatter keys per kind are documented for attorneys in
-  [`docs/frontmatter.md`](docs/frontmatter.md). → [`docs/agent-workflows.md`](docs/agent-workflows.md).
+  `validate` classifies each file automatically (prose, notation template, event, blog post, board minutes). Frontmatter
+  keys per kind are documented for attorneys in [`docs/frontmatter.md`](docs/frontmatter.md). →
+  [`docs/agent-workflows.md`](docs/agent-workflows.md).
 - **Use the three decision councils when the decision earns them.** Engineering Council for architecture and doc
   clarity, Legal Council for legal copy before it becomes a Notation/template/prompt/email, and Client Council for
   client-facing product, intake, pricing, onboarding, and portal decisions. Default to the smallest useful bench and

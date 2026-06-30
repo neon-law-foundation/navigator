@@ -31,7 +31,9 @@ rots a PR. This skill exists to make sure that never happens: **no comment is le
 
 1. **Identify** the PR — explicit number/URL if given, else the current branch's PR → `{owner}/{repo}` + number.
 2. **Read** the PR — metadata, the full diff, then the changed files at the head commit.
-3. **Assess** independently — form your own correctness + quality view before reading any bot's opinion.
+3. **Assess** independently — form your own correctness + quality view before reading any bot's opinion. Flag history
+   the diff *reintroduces*: "we used to…"/"no longer…"/"legacy" narration, a deprecated-but-kept flag or alias, or a
+   comment/test describing superseded behavior. Code describes the present; git history holds the past.
 4. **Collect** every comment — inline review comments, the review summary, and issue/PR comments, from all reviewers.
 5. **Adjudicate** each comment — validate or refute it against the real code; classify severity.
 6. **Ask** the user, per actionable comment, whether to fix it (recommendation first).
