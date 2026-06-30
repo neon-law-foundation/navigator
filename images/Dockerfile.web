@@ -30,13 +30,9 @@ RUN apt-get update \
 
 WORKDIR /src
 
-# Copy the full workspace in one layer and build. We used to stage a
-# stub-prime step here to cache the dep build separately, but the
-# stubs left cached artifacts for our path deps (`store`, `views`,
-# `cloud`, `workflows`) that the real-source rebuild didn't always
-# invalidate, surfacing as "unresolved import store::entity" failures.
-# A single COPY + build is simpler and still benefits from Docker
-# layer caching when neither `Cargo.lock` nor source changes.
+# Copy the full workspace in one layer and build. A single COPY + build
+# benefits from Docker layer caching when neither `Cargo.lock` nor source
+# changes.
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY rules             rules
 COPY store             store
@@ -87,7 +83,7 @@ COPY --from=builder /src/web/content /app/content
 COPY --from=builder /src/templates    /app/templates
 
 # Identify the build. The daily `deploy.yml` publish job passes
-# `--build-arg RELEASE_TAG=$YY.MM.DD` (the ghcr tag it publishes under) plus
+# `--build-arg RELEASE_TAG=$YY.M.D` (the ghcr tag it publishes under) plus
 # `GIT_SHA`/`BUILD_TIME` for the released commit, so the running binary can
 # answer `GET /version` with the exact release + commit it was built from —
 # distroless has no shell, so a runtime endpoint is the only way to read

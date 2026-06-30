@@ -1,6 +1,6 @@
 //! Bake the published release tag into the `navigator` binary.
 //!
-//! `deploy.yml` builds the downloadable CLI from a `YY.MM.DD` git tag and
+//! `deploy.yml` builds the downloadable CLI from a `YY.M.D` git tag and
 //! exposes it to `cargo build` as `NAVIGATOR_RELEASE_TAG`. We capture that at
 //! build time and re-export it as `NAVIGATOR_CLI_VERSION`, which `main.rs`
 //! reads with `env!`. This is what makes a *downloaded* release binary report

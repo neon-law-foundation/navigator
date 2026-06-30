@@ -67,7 +67,7 @@ impl Card {
     }
 
     /// Anchor treatment — cyan border, and a cyan header band when a header
-    /// is set. Mirrors the featured pricing card.
+    /// is set. Mirrors the highlighted pricing card.
     #[must_use]
     pub fn highlighted(mut self) -> Self {
         self.emphasis = Emphasis::Highlighted;

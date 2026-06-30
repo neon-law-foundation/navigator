@@ -82,18 +82,18 @@ PR merged to main
       (no images built — the PR flow is lean by design)
 
 Daily 05:00 PST (13:00 UTC)
-  └─→ .github/workflows/release-tag.yml cuts tag YY.MM.DD (e.g. 26.06.18)
+  └─→ .github/workflows/release-tag.yml cuts tag YY.M.D (e.g. 26.6.18)
       and pushes it with secrets.RELEASE_PAT
             └─→ the tag push triggers .github/workflows/deploy.yml
                   ├─ KIND integration suite (e2e + interop + browser)
-                  ├─ build + push both images to ghcr.io tagged YY.MM.DD + latest
+                  ├─ build + push both images to ghcr.io tagged YY.M.D + latest
                   └─ post a "ready to deploy" hand-off to the engineering Slack channel
                         Images are on the shelf, tagged by date.
 
 Manual same-day publish
   └─→ gh workflow run deploy.yml
-        └─→ .github/workflows/deploy.yml derives YY.MM.DD.HH in UTC
-              (for example, 26.06.25.14 for June 25, 2026 at 14:00 UTC)
+        └─→ .github/workflows/deploy.yml derives YY.M.D.H in UTC
+              (for example, 26.6.25.14 for June 25, 2026 at 14:00 UTC)
 ```
 
 The images are published, not rolled out — promoting a dated image to the GKE cluster (the Config Sync reconcile, or an

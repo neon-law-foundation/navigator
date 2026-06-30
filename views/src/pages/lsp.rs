@@ -13,7 +13,7 @@
 //! Prebuilt binaries are served straight from the public assets bucket:
 //! `cli lsp publish` pushes one `navigator-lsp` per platform to
 //! the tag's GitHub Release, and the download buttons here resolve to
-//! those versioned `YY.MM.DD` release assets. The shared blueprint
+//! those versioned `YY.M.D` release assets. The shared blueprint
 //! disclaimer rides this page too.
 
 use maud::{html, Markup};
@@ -114,7 +114,7 @@ pub fn render(auth: AuthState) -> Markup {
 }
 
 /// The "Download" section: one archive per supported desktop platform,
-/// resolved to the current `YY.MM.DD` GitHub Release when this page is
+/// resolved to the current `YY.M.D` GitHub Release when this page is
 /// running from a deployed image.
 fn prebuilt_downloads() -> Markup {
     release_downloads(ReleaseBinary::NavigatorLsp)
@@ -161,7 +161,7 @@ mod tests {
             html.contains("https://github.com/neon-law-foundation/navigator/releases"),
             "got: {html}"
         );
-        assert!(html.contains("YY.MM.DD"), "got: {html}");
+        assert!(html.contains("YY.M.D"), "got: {html}");
     }
 
     #[test]

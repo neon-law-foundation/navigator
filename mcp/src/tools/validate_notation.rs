@@ -61,8 +61,7 @@ pub fn descriptor() -> Value {
                     "description":
                         "When true, lint with the Markdown-only rule \
                          set (drops the N-family, adds `S102` line \
-                         packing) — same as \
-                         `cli validate --markdown-only`. Defaults to \
+                         packing) — use this for plain prose. Defaults to \
                          false: the full Neon Law Navigator notation rule set \
                          runs."
                 }

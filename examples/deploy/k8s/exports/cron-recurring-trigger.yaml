@@ -38,7 +38,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: recurring-trigger
-              image: ghcr.io/neon-law-foundation/navigator-recurring-billing-trigger:YY.MM.DD
+              image: ghcr.io/neon-law-foundation/navigator-recurring-billing-trigger:YY.M.D
               imagePullPolicy: Always
               env:
                 # Restate Cloud ingress endpoint for the navigator-prod

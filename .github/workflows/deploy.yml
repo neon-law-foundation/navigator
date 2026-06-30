@@ -1,7 +1,7 @@
 name: deploy
 
 # The tag flow — one of exactly three workflows in this repo (see CLAUDE.md
-# "CI/CD — three workflows, no more"). Triggered by the `YY.MM.DD` tag that
+# "CI/CD — three workflows, no more"). Triggered by the `YY.M.D` tag that
 # the cron flow (`release-tag.yml`) cuts nightly. In strict order:
 #
 #   1. integration — build both service images, stand up KIND, run the full
@@ -24,22 +24,27 @@ name: deploy
 # nightly deploy is seen immediately. It carries only the tag + run URL — the
 # "identifiers and counts, never content" rule binds here too.
 #
-# The image tag is the release tag itself (`github.ref_name`, e.g. 26.06.18)
+# The image tag is the release tag itself (`github.ref_name`, e.g. 26.6.18)
 # for nightly tag pushes. Manual workflow-dispatch publishes add the UTC
-# hour as a fourth digit (e.g. 26.06.25.14) so operators can publish multiple
-# build sets in one day without overwriting the dated image/release.
+# hour as a fourth digit (e.g. 26.6.25.14) so operators can publish multiple
+# build sets in one day without overwriting the dated image/release. Every
+# component is unpadded — no leading zeros (June is `6`).
 
 on:
   push:
     tags:
-      - "[0-9][0-9].[0-9][0-9].[0-9][0-9]"
+      # `YY.M.D` with no leading zeros, so each component is 1–2 digits.
+      # `[0-9]+` matches one-or-more digits per group (GitHub's documented
+      # version-tag idiom, e.g. `v[12].[0-9]+.[0-9]+`) — a fixed-width glob
+      # would silently NOT fire for a single-digit month or day (`26.6.5`).
+      - "[0-9]+.[0-9]+.[0-9]+"
     # CI-iteration seam. Pushing a branch named `kind-ci/**` runs ONLY the
     # KIND integration job below — the publish-* jobs, notify, and
     # notify-failure are all gated on a tag ref, so a branch run pushes no
     # images, sends no email, and posts no Slack. This lets a change to *this
     # workflow* (or the KIND wiring it exercises) be proven green on a branch
     # before it's tagged into the nightly deploy, without cutting a throwaway
-    # `YY.MM.DD` tag. Not a fourth workflow — same deploy.yml, just an extra
+    # `YY.M.D` tag. Not a fourth workflow — same deploy.yml, just an extra
     # trigger on the one job that needs pre-tag iteration.
     branches:
       - "kind-ci/**"
@@ -64,7 +69,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-              tag="$(TZ=UTC date +'%y.%m.%d.%H')"
+              # No leading zeros on any component (`10#` forces base-10 so
+              # `08`/`09` aren't read as bad octal) — the firm-wide version
+              # convention. 2 p.m. on June 5 is `26.6.5.14`.
+              read -r y m d h <<< "$(TZ=UTC date +'%y %m %d %H')"
+              tag="$((10#$y)).$((10#$m)).$((10#$d)).$((10#$h))"
           else
               tag="${REF_NAME}"
           fi
@@ -675,7 +684,7 @@ jobs:
           key: release-binaries-${{ matrix.platform }}
       - name: build navigator and navigator-lsp
         # Bake the release tag into the binaries so `navigator --version`
-        # self-reports the `YY.MM.DD` release it shipped from (cli/build.rs
+        # self-reports the `YY.M.D` release it shipped from (cli/build.rs
         # reads NAVIGATOR_RELEASE_TAG); without it the binary reports the
         # placeholder `0.1.0` workspace crate version.
         env:
@@ -845,9 +854,10 @@ jobs:
   # marketplace install is self-contained.
   #
   # Tag pushes only — NOT workflow_dispatch. The extension version is the date
-  # tag normalized to semver (`26.06.27` → `26.6.27`); a manual dispatch's extra
-  # hour digit can't be expressed as a strictly-increasing semver under a pure
-  # date scheme, so manual builds publish images/binaries but skip the Zed bump.
+  # tag (already no-leading-zeros, e.g. `26.6.27`), which is also a valid
+  # semver — a manual dispatch's extra hour digit can't be expressed as a
+  # strictly-increasing semver under a pure date scheme, so manual builds
+  # publish images/binaries but skip the Zed bump.
   #
   # Pushed with GHCR_CLEANUP_PAT (Doppler `navigator-gitops`, the same gitops PAT
   # family as the Homebrew tap and ghcr sweep); it must have `contents:write`
@@ -876,10 +886,10 @@ jobs:
           TAG: ${{ needs.release-version.outputs.tag }}
         run: |
           set -euo pipefail
-          # Normalize the YY.MM.DD release tag to a valid semver: strip the
-          # leading zeros semver forbids (06 → 6). Date tags stay monotonic.
-          IFS='.' read -r y m d _ <<< "${TAG}"
-          VER="$((10#$y)).$((10#$m)).$((10#$d))"
+          # The release tag is `YY.M.D` with no leading zeros (release-tag.yml
+          # cuts it that way), which is a valid semver as-is — carry it
+          # through verbatim. Date tags stay monotonic.
+          VER="${TAG}"
           echo "extension version: ${VER}"
           echo "EXT_VER=${VER}" >> "$GITHUB_ENV"
 

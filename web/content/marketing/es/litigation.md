@@ -18,7 +18,6 @@ pricing:
       - "¿Fuera de nuestra área, con conflicto o sin capacidad? Le referimos a abogados litigantes de confianza"
     cta_label: "Reserve una consulta"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "Cotizada por fase"
 ---
 

@@ -1,9 +1,9 @@
 # Local end-to-end runbook
 
 Step-by-step instructions to bring the full Neon Law Navigator stack up in a local KIND cluster and walk through the
-OIDC + admin flow in Chrome. Every command in this document has been verified against the manifests and Makefile in the
-repo as of the commit that introduces this file. The runtime steps (`docker`, `kind`, `kubectl`) run on your machine, so
-they're marked with `🔧 you run`; everything else has been mechanically validated.
+OIDC + admin flow in Chrome. Every command in this document is verified against the manifests in the repo. The runtime
+steps (`docker`, `kind`, `kubectl`) run on your machine, so they're marked with `🔧 you run`; everything else has been
+mechanically validated.
 
 ## 0. Prerequisites
 
@@ -67,10 +67,10 @@ cargo run --release -p cli -- deploy
 
 What this does:
 
-1. Resolve the `YY.MM.DD` ghcr tag to pull — `NAVIGATOR_IMAGE_TAG` if set, else the latest published tag.
+1. Resolve the `YY.M.D` ghcr tag to pull — `NAVIGATOR_IMAGE_TAG` if set, else the latest published tag.
 2. `docker pull ghcr.io/<owner>/navigator-web:<tag>` then retag it to `navigator-web:dev` (the name the manifests
    reference), and the same for `navigator-workflows-service`. CI (`deploy.yml`) builds and publishes these images; the
-   local loop no longer builds them — pin a known-good release with `NAVIGATOR_IMAGE_TAG=YY.MM.DD` for a reproducible
+   local loop no longer builds them — pin a known-good release with `NAVIGATOR_IMAGE_TAG=YY.M.D` for a reproducible
    demo.
 3. `kind load docker-image navigator-web:dev --name navigator` — pushes the pulled image into the cluster.
 4. `kubectl apply -k k8s/overlays/kind` — the full stack including `navigator-web`.
@@ -412,8 +412,8 @@ cargo run -p cli -- worktree-env down --path "$CODEX_WORKTREE_PATH"
 to boot — run it under `doppler run …` or with a gitignored stub `.env`, exactly as the section-7b loop does.
 
 **Full-stack demo.** To show the product running entirely in KIND from the published ghcr images (no host `web`), use
-`cargo run -p cli -- worktree-env up --demo` (optionally `--tag YY.MM.DD` to pin a release). This delegates to
-`navigator deploy`; it is a single in-cluster stack, reached through the ingress at <http://localhost:8080>.
+`cargo run -p cli -- worktree-env up --demo` (optionally `--tag YY.M.D` to pin a release). This delegates to `navigator
+deploy`; it is a single in-cluster stack, reached through the ingress at <http://localhost:8080>.
 
 ## 7d. Running the test suite
 

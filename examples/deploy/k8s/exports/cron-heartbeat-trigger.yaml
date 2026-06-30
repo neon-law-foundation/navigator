@@ -42,7 +42,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: heartbeat-trigger
-              image: ghcr.io/neon-law-foundation/navigator-heartbeat-trigger:YY.MM.DD
+              image: ghcr.io/neon-law-foundation/navigator-heartbeat-trigger:YY.M.D
               imagePullPolicy: Always
               env:
                 # Restate Cloud ingress endpoint for the navigator-prod

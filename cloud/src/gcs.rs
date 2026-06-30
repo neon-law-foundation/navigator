@@ -62,11 +62,10 @@ impl GcsStorageConfig {
         //    the exports bucket; KIND / the `navigator` CLI points it at the fake-gcs
         //    `navigator` bucket.
         //
-        // The split exists because the same var historically named
-        // different buckets in different workloads — co-mingling client
-        // documents into the public `-assets` bucket. The documents var
-        // gives `web` + the worker's render lane their own private bucket;
-        // the fallback keeps every other caller working unchanged.
+        // The split keeps client documents out of the public `-assets`
+        // bucket: the documents var gives `web` + the worker's render lane
+        // their own private bucket, and the fallback serves every other
+        // caller.
         let bucket = get("NAVIGATOR_DOCUMENTS_BUCKET")
             .or_else(|| get("NAVIGATOR_STORAGE_BUCKET"))
             .ok_or(StorageError::MissingEnv(

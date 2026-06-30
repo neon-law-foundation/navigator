@@ -38,10 +38,10 @@ require_policy (OPA)  →  /mcp handler  →  tools/call
 In KIND / local dev `GOOGLE_OAUTH_CLIENT_IDS` is unset, so `require_google_oauth` is a pass-through and `require_auth`
 handles the Bearer-JWT path — the existing test harness keeps working.
 
-**Why this rather than Identity-Aware Proxy?** We first wired IAP at the GKE LB. IAP requires JWT-shaped ID tokens
-(`eyJ...`), but Gemini Enterprise's Custom MCP Server data store sends opaque OAuth 2.0 access tokens (`ya29....`). IAP
-rejected every Gemini call with `"Invalid IAP credentials: Unable to parse JWT"`. We dropped the IAP gate (the
-BackendConfig is kept with `iap.enabled: false` as scaffolding) and moved validation in-process.
+**Why this rather than Identity-Aware Proxy?** IAP requires JWT-shaped ID tokens (`eyJ...`), but Gemini Enterprise's
+Custom MCP Server data store sends opaque OAuth 2.0 access tokens (`ya29....`) that IAP rejects with the message
+`"Invalid IAP credentials: Unable to parse JWT"`. Validation runs in-process instead; the BackendConfig keeps
+`iap.enabled: false` as scaffolding.
 
 ## Source documentation
 
@@ -292,10 +292,9 @@ gcloud logging read \
 ```
 
 **Zero hits** during the failed refresh window means the request never left Google's network — almost always because the
-**MCP Server URL** field in the data store config points at a hostname that no longer resolves. The 2026-05-25
-retirement of `navigator.neonlaw.com` did exactly this: Gemini Enterprise had the old URL cached, DNS lookup failed
-client-side, Console reported "successfully authenticated" (the OAuth dance ran against Google's own servers) but the
-subsequent `tools/list` call never reached us.
+**MCP Server URL** field in the data store config points at a hostname that no longer resolves. Gemini Enterprise caches
+the URL, so a stale hostname fails DNS client-side: the Console reports "successfully authenticated" (the OAuth dance
+runs against Google's own servers) but the subsequent `tools/list` call never reaches us.
 
 **Fix**: open the data store config, edit the URL to `https://www.your-domain.example/mcp`, save, click **Refresh
 tools** again. The next LB log entry should be a `POST 401` from `python-httpx/<version>` — the 401 is expected on the

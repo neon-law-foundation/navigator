@@ -180,9 +180,9 @@ pub struct ValidateRequest {
     #[serde(default)]
     pub path: Option<String>,
     /// When true, lint with the Markdown-only rule set (drops the
-    /// N-family, adds `S102` line packing) — same as
-    /// `cli validate --markdown-only`. Defaults to false: the full
-    /// Neon Law Navigator notation rule set runs.
+    /// N-family, adds `S102` line packing) — use this for plain prose.
+    /// Defaults to false: the full Neon Law Navigator notation rule set
+    /// runs.
     #[serde(default)]
     pub markdown_only: bool,
 }

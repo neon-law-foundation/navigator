@@ -24,6 +24,12 @@ use store::test_support::pg;
 use store::Db;
 use tower::ServiceExt;
 use web::AppState;
+// Keyed render assertions: assert the page wires up a catalog slot, not what
+// the slot currently says. Editing the copy in `views/locales` keeps these
+// green; a typo'd/deleted key fails loudly via `t_strict`. Product names,
+// DB-backed prices, cadence suffixes, routes, and icon classes stay literal —
+// those are data/structure, not catalog copy.
+use views::assert_renders;
 
 async fn seeded_db() -> Db {
     let db = pg().await;
@@ -140,7 +146,8 @@ async fn catalog_lists_every_active_product_at_the_db_price() {
     assert!(body.contains("href=\"/services/nucleus\""));
     // Pro bono closes the catalog as a free card linking to its own page.
     assert!(body.contains("href=\"/services/pro-bono\""));
-    assert!(body.contains("Free"), "pro bono card shows a Free price");
+    // The pro bono price label is catalog copy.
+    assert_renders!(&body, "products.free");
     // Every catalog card carries its product icon. Most are Bootstrap
     // glyphs; litigation wears the inline scales-of-justice SVG (no such
     // font glyph exists), resolved by the shared `product_icon` helper.
@@ -157,12 +164,13 @@ async fn catalog_lists_every_active_product_at_the_db_price() {
         "the litigation card wears the inline scales-of-justice SVG"
     );
 
+    // The phase-pricing label and suffix are catalog copy; the negatives
+    // stay literal — the card must not advertise the old hourly billing.
+    assert_renders!(&body, "products.litigation_phase_price");
+    assert_renders!(&body, "products.litigation_phase_suffix");
     assert!(
-        body.contains("Flat fee")
-            && body.contains("quoted per phase")
-            && !body.contains("quoted after case assessment")
-            && !body.contains("$1,337/hour"),
-        "litigation card should advertise quoted phase pricing instead of hourly billing"
+        !body.contains("quoted after case assessment") && !body.contains("$1,337/hour"),
+        "litigation card must not advertise hourly billing"
     );
 
     // The catalog is a curated lineup, not alphabetical or by-price: the
@@ -198,16 +206,10 @@ async fn catalog_lists_every_active_product_at_the_db_price() {
         body.contains("once"),
         "one-time products show 'once' on the price line"
     );
-    // Each card shows a one-sentence service description, not just a
-    // cadence note.
-    assert!(
-        body.contains("answered under your rights"),
-        "Nautilus card shows its service description"
-    );
-    assert!(
-        body.contains("no broker on either side"),
-        "Nook card shows its service description"
-    );
+    // Each card shows its one-sentence service description, not just a
+    // cadence note — catalog copy, keyed.
+    assert_renders!(&body, "products.desc_nautilus");
+    assert_renders!(&body, "products.desc_nook");
 }
 
 #[tokio::test]
@@ -261,13 +263,10 @@ async fn spanish_catalog_renders_at_es_services() {
     let resp = get(state, "/es/services").await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    // Spanish chrome, real DB prices.
-    assert!(body.contains("Servicios"), "Spanish heading");
+    // Spanish chrome + catalog copy, real DB prices.
+    assert_renders!(&body, views::Locale::Es, "products.heading");
     assert!(body.contains("$44"));
-    assert!(
-        body.contains("acuerdo prenupcial o divorcio de mutuo acuerdo"),
-        "Spanish Newleaf card includes both service options"
-    );
+    assert_renders!(&body, views::Locale::Es, "products.desc_newleaf");
     // The Spanish service links are `/es`-prefixed.
     assert!(body.contains("href=\"/es/services/nautilus\""));
 }

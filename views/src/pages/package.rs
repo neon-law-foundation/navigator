@@ -65,7 +65,7 @@ pub const PACKAGES: &[Package] = &[
     },
 ];
 
-/// A downloadable executable family attached to every `YY.MM.DD`
+/// A downloadable executable family attached to every `YY.M.D`
 /// GitHub Release.
 #[derive(Debug, Clone, Copy)]
 pub enum ReleaseBinary {
@@ -132,7 +132,7 @@ fn release_asset_url(binary: ReleaseBinary, tag: &str, platform: ReleasePlatform
 }
 
 /// Versioned download links for the public release artifacts. In prod,
-/// `NAVIGATOR_RELEASE_TAG` is the `YY.MM.DD` tag baked into the image by
+/// `NAVIGATOR_RELEASE_TAG` is the `YY.M.D` tag baked into the image by
 /// `deploy.yml`; in local/dev there is no release tag, so link to the
 /// releases index rather than fabricating a semver asset name.
 #[must_use]
@@ -161,7 +161,7 @@ pub fn release_downloads(binary: ReleaseBinary) -> Markup {
             } @else {
                 p {
                     "Release downloads are attached to each "
-                    code { "YY.MM.DD" }
+                    code { "YY.M.D" }
                     " tag on GitHub."
                 }
                 p {
@@ -351,18 +351,18 @@ mod tests {
 
     #[test]
     fn release_asset_names_are_tagged_by_version_and_platform() {
-        let tag = "26.06.24";
+        let tag = "26.6.24";
         assert_eq!(
             release_asset_name(ReleaseBinary::Cli, tag, RELEASE_PLATFORMS[0]),
-            "navigator-26.06.24-linux.tar.gz"
+            "navigator-26.6.24-linux.tar.gz"
         );
         assert_eq!(
             release_asset_name(ReleaseBinary::NavigatorLsp, tag, RELEASE_PLATFORMS[2]),
-            "navigator-lsp-26.06.24-windows.zip"
+            "navigator-lsp-26.6.24-windows.zip"
         );
         assert_eq!(
             release_asset_url(ReleaseBinary::Cli, tag, RELEASE_PLATFORMS[1]),
-            "https://github.com/neon-law-foundation/navigator/releases/download/26.06.24/navigator-26.06.24-macos.tar.gz"
+            "https://github.com/neon-law-foundation/navigator/releases/download/26.6.24/navigator-26.6.24-macos.tar.gz"
         );
     }
 
@@ -371,13 +371,13 @@ mod tests {
         // The macOS archive needs the Gatekeeper quarantine cleared before the
         // unsigned binary will run — "extract and add to PATH" alone is a dead
         // end on macOS. The worked example uses the macOS asset name.
-        let html = post_download_steps(ReleaseBinary::NavigatorLsp, "26.06.25").into_string();
+        let html = post_download_steps(ReleaseBinary::NavigatorLsp, "26.6.25").into_string();
         assert!(
             html.contains("xattr -d com.apple.quarantine navigator-lsp"),
             "macOS install must clear the Gatekeeper quarantine, got: {html}"
         );
         assert!(
-            html.contains("navigator-lsp-26.06.25-macos.tar.gz"),
+            html.contains("navigator-lsp-26.6.25-macos.tar.gz"),
             "the worked example should use the macOS asset name, got: {html}"
         );
     }

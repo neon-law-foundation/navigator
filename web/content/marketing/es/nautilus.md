@@ -17,7 +17,6 @@ pricing:
       - "Una tarifa fija — nunca nos quedamos con un porcentaje de su deuda"
     cta_label: "Reserve una consulta"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$66/mes"
 ---
 

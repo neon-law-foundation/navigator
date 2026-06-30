@@ -272,7 +272,7 @@ kubectl apply -k examples/deploy/k8s/gke
 ---
 
 You do not build or push an image by hand: GitHub Actions builds every image on the daily tag and publishes it to
-**public [GitHub Container Registry](https://docs.github.com/packages)** at `ghcr.io/<your-org>/navigator-web:YY.MM.DD`
+**public [GitHub Container Registry](https://docs.github.com/packages)** at `ghcr.io/<your-org>/navigator-web:YY.M.D`
 (the publish job derives the owner from your own fork's repository, automatically). Because the packages are public, the
 cluster pulls them **anonymously** — there is no in-cluster registry credential to create and no Artifact Registry to
 provision.
@@ -282,21 +282,21 @@ Actions defaults to private even when the repo is public, and a private package 
 opaque `ImagePullBackOff`. Flip each at GitHub → your org → **Packages** → the package → **Package settings** → **Change
 visibility** → Public. "Public" means **pull-only to the world** — anyone can read the image bytes, but only your org
 can publish them, and it does **not** make your client data public: the private documents bucket from the last step
-stays private. Then pin the dated `YY.MM.DD` tag in the overlay — **never `:latest` on a workload**, because a moved
+stays private. Then pin the dated `YY.M.D` tag in the overlay — **never `:latest` on a workload**, because a moved
 `latest` is a deploy you can't audit — and reconcile the parameterized overlay shipped in `examples/deploy/k8s/gke` with
 your project's values supplied as a Kubernetes Secret and the runtime `.env`.
 
 Then confirm the service is live — and you can do it **from the page itself**. The site footer renders the deployed
-release as "Neon Law Navigator YY.MM.DD", so the moment your new image is serving traffic the footer changes: that is
-your end-to-end "it worked." For a scripted check:
+release as "Neon Law Navigator YY.M.D", so the moment your new image is serving traffic the footer changes: that is your
+end-to-end "it worked." For a scripted check:
 
 ```bash
 curl -fsS https://www.your-domain.example/readyz
-curl -fsS https://www.your-domain.example/version   # {"release":"YY.MM.DD","commit":"…",…}
+curl -fsS https://www.your-domain.example/version   # {"release":"YY.M.D","commit":"…",…}
 ```
 
 `web` exposes a readiness endpoint that returns `200 OK` only once it has a database connection and its dependencies in
-hand, and a `/version` endpoint whose `release` field is the very same `YY.MM.DD` the footer shows. A `200` on `/readyz`
+hand, and a `/version` endpoint whose `release` field is the very same `YY.M.D` the footer shows. A `200` on `/readyz`
 means the same stack our firm runs is now answering on your own cloud, and the `release` field — identical to the footer
 line — tells you which dated image landed, so every push is verifiable without shelling into a pod. (NeonLaw's own ship
 step is wrapped in a one-shot `ship` helper that rolls both deployments onto a named published tag (you pass `--tag`) in

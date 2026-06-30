@@ -33,7 +33,7 @@ use devx::{DnsCmd, GcpCmd, RestateCmd, WorktreeEnvCmd};
 /// 1. A runtime `NAVIGATOR_RELEASE_TAG` — the workspace-wide convention `web`
 ///    and `lsp` already follow, and the seam tests assert against.
 /// 2. The tag baked at build time by `build.rs` (`NAVIGATOR_CLI_VERSION`), so a
-///    *downloaded* release binary self-reports its `YY.MM.DD` release with no
+///    *downloaded* release binary self-reports its `YY.M.D` release with no
 ///    environment set.
 /// 3. The workspace crate version (`0.1.0`) on a plain local build, since
 ///    `build.rs` falls back to `CARGO_PKG_VERSION` when no tag is present.
@@ -72,13 +72,6 @@ enum Command {
     Validate {
         /// Directory to walk.
         dir: PathBuf,
-        /// Deprecated and ignored. `validate` now classifies each file
-        /// automatically — prose Markdown gets the M/S rules, while
-        /// notation templates, events, blog posts, and board minutes also
-        /// get their frontmatter rules — so the flag is no longer needed.
-        /// Kept so existing invocations don't error; it prints a notice.
-        #[arg(long, hide = true)]
-        markdown_only: bool,
         /// Validate files normally skipped by name (`README.md`,
         /// `CLAUDE.md`, `CODE_OF_CONDUCT.md`, `LICENSE.md`, `ERD.md`)
         /// and directories (`AgentDocumentation`, `workshops`,
@@ -263,11 +256,6 @@ enum Command {
         #[command(subcommand)]
         action: RetainerAction,
     },
-    /// Deprecated alias for `notation create`.
-    Matter {
-        #[command(subcommand)]
-        action: MatterAction,
-    },
     /// Open and list recurring-billing subscriptions on a live site.
     Subscription {
         #[command(subcommand)]
@@ -384,7 +372,7 @@ enum Command {
     /// `kubectl apply -k k8s/overlays/kind` — the full stack
     /// including navigator-web. CI publishes the images; this no longer
     /// builds them. Pin a release with `NAVIGATOR_IMAGE_TAG`, else the
-    /// latest published `YY.MM.DD` tag is pulled. Ends with the
+    /// latest published `YY.M.D` tag is pulled. Ends with the
     /// navigator-web rollout settling.
     Deploy,
     /// `kubectl delete namespace navigator`. Removes every Neon Law Navigator
@@ -435,12 +423,12 @@ enum Command {
     },
     /// One-shot "ship to prod" — the executable path documented in
     /// `docs/cloud-operations.md`. CI (`deploy.yml`) builds and publishes
-    /// the images to ghcr.io tagged `YY.MM.DD`; `ship` only rolls the
-    /// cluster. Flow: take the `--tag` `YY.MM.DD` ghcr tag → confirm the
+    /// the images to ghcr.io tagged `YY.M.D`; `ship` only rolls the
+    /// cluster. Flow: take the `--tag` `YY.M.D` ghcr tag → confirm the
     /// prod Secret satisfies the new binary's boot invariants → roll out
     /// BOTH deployments at that tag → pin every trigger `CronJob` to the
     /// same tag → re-register the worker with Restate, so every navigator
-    /// image ends in sync at one `YY.MM.DD`. Reads every project / region /
+    /// image ends in sync at one `YY.M.D`. Reads every project / region /
     /// domain / cluster value from `.env`; never builds images locally.
     Ship {
         /// Print every command instead of running it.
@@ -451,7 +439,7 @@ enum Command {
         /// after rotating a key in the K8s Secret.
         #[arg(long)]
         restart_only: bool,
-        /// The `YY.MM.DD` ghcr tag to roll onto. Required for a roll — name
+        /// The `YY.M.D` ghcr tag to roll onto. Required for a roll — name
         /// the exact published release (both deployments pin to the same
         /// tag, never a skew). Omit only with `--restart-only`.
         #[arg(long)]
@@ -694,25 +682,6 @@ enum ClauseAction {
         body: String,
         #[command(flatten)]
         host: HostOpt,
-    },
-}
-
-#[derive(Subcommand)]
-enum MatterAction {
-    /// Deprecated alias for `notation create <template-code>
-    /// --client-email ...`.
-    ///
-    /// Opens a questionnaire-driven notation and leaves its questionnaire
-    /// ready to walk with `intake answer`.
-    Open {
-        #[command(flatten)]
-        host: HostOpt,
-        /// Template code, e.g. `nv__llc_formation` (Nevada LLC).
-        #[arg(long)]
-        template: String,
-        /// Client email — the matter's bound client (signer).
-        #[arg(long)]
-        client_email: String,
     },
 }
 
@@ -1025,13 +994,11 @@ fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Validate {
             dir,
-            markdown_only,
             no_default_excludes,
             fix,
             database_url,
         } => runtime().block_on(run_validate(
             &dir,
-            markdown_only,
             no_default_excludes,
             fix,
             database_url.as_deref(),
@@ -1082,7 +1049,6 @@ fn main() -> ExitCode {
         Command::Whoami { host } => login::run_whoami(host.as_deref()),
         Command::Projects { action } => runtime().block_on(run_projects(action)),
         Command::Retainer { action } => runtime().block_on(run_retainer(action)),
-        Command::Matter { action } => runtime().block_on(run_matter(action)),
         Command::Subscription { action } => runtime().block_on(run_subscription(action)),
         Command::Coupon { action } => runtime().block_on(run_coupon(action)),
         Command::Intake { action } => runtime().block_on(run_intake(action)),
@@ -1403,16 +1369,6 @@ async fn run_clause(action: ClauseAction) -> ExitCode {
     }
 }
 
-async fn run_matter(action: MatterAction) -> ExitCode {
-    match action {
-        MatterAction::Open {
-            host,
-            template,
-            client_email,
-        } => remote::matter_walk_open(host.host.as_deref(), &template, &client_email).await,
-    }
-}
-
 async fn run_subscription(action: SubscriptionAction) -> ExitCode {
     match action {
         SubscriptionAction::Create {
@@ -1604,18 +1560,10 @@ fn is_yaml_path(path: &std::path::Path) -> bool {
 
 async fn run_validate(
     dir: &std::path::Path,
-    markdown_only: bool,
     no_default_excludes: bool,
     fix: bool,
     database_url: Option<&str>,
 ) -> ExitCode {
-    if markdown_only {
-        eprintln!(
-            "navigator: --markdown-only is deprecated and ignored — validate now classifies \
-             each file automatically (prose Markdown gets the M/S rules; notation templates, \
-             events, blog posts, and board minutes get their frontmatter rules too)."
-        );
-    }
     let question_codes = if let Some(url) = database_url {
         let db = match open_postgres(url).await {
             Ok(d) => d,

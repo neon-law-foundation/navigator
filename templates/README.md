@@ -42,6 +42,7 @@ jurisdiction: NV
 origin_url: https://www.nvsos.gov/businesses/commercial-recordings/forms-fees/all-business-forms
 respondent_type: person_and_entity
 confidential: false
+output: form
 form: nv__llc_formation
 ```
 

@@ -425,7 +425,7 @@ impl<'a> PageLayout<'a> {
                         }
                         // Bottom line: the Neon Law Navigator version and the repo-star
                         // CTA share one row, and a version ALWAYS shows. In a
-                        // deployed image it is the `YY.MM.DD` ghcr tag this
+                        // deployed image it is the `YY.M.D` ghcr tag this
                         // build shipped under (same value as `/version`'s
                         // `release`), linked to the matching GitHub release so
                         // a push is verifiable from the page itself. On a local
@@ -1130,7 +1130,7 @@ mod tests {
     fn footer_always_shows_a_navigator_version() {
         // A version renders in EVERY environment so the footer is never
         // version-less (and shows in screenshots/previews): the deployed
-        // YY.MM.DD release tag in prod, or the crate's semantic version on a
+        // YY.M.D release tag in prod, or the crate's semantic version on a
         // local `cargo run` where the tag is unset.
         let footer = firm_footer();
         let version = crate::brand::deployed_release().unwrap_or(env!("CARGO_PKG_VERSION"));

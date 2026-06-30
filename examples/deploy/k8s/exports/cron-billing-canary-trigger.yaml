@@ -35,7 +35,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: billing-canary-trigger
-              image: ghcr.io/neon-law-foundation/navigator-billing-canary-trigger:YY.MM.DD
+              image: ghcr.io/neon-law-foundation/navigator-billing-canary-trigger:YY.M.D
               imagePullPolicy: Always
               env:
                 # Restate Cloud ingress endpoint for the navigator-prod

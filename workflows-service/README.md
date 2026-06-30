@@ -13,7 +13,6 @@ worker + Envoy sidecar), one worker pod for *every* workflow — new workflows b
   (questionnaire + workflow) on one journal.
 - **`journal.rs`** — projects each state-machine transition into the `notation_events` journal in Postgres (via the
   `store` crate) so every advance is auditable.
-- **`drive_sync_workflow.rs`** — the Restate-durable Drive-sync workflow.
 - **`archives` (dep)** — the Archives workflow + GCP cost step, hosted here on the same worker.
 
 ## Getting started

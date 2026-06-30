@@ -18,7 +18,6 @@ pricing:
       - "One flat fee — no subscription, no per-seat pricing, and no obligation to engage us again"
     cta_label: "Email about Nimbus"
     cta_href: "mailto:support@neonlaw.org"
-    featured: true
     featured_label: "Once, flat"
   - title: "Legal aid centers"
     price: "Discounted"

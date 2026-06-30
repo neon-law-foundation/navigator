@@ -85,7 +85,7 @@ COPY --from=builder \
 ENV WORKFLOWS_SERVICE_LISTEN=0.0.0.0:9080
 
 # Identify the release. The daily `deploy.yml` passes `--build-arg
-# RELEASE_TAG=$YY.MM.DD`; `telemetry::init` reads `NAVIGATOR_RELEASE_TAG`
+# RELEASE_TAG=$YY.M.D`; `telemetry::init` reads `NAVIGATOR_RELEASE_TAG`
 # and tags every span/metric/log with `service.version`, so the headless
 # worker self-reports which release it is — the counterpart to `web`'s
 # `GET /version`. A local build (no build-arg) reports `unknown`.

@@ -8,8 +8,8 @@ description: >
   committed), pushes, opens the PR with `gh pr create`, and enables auto-merge. Trigger when the user says "/create-pr",
   "create a PR", "open a pull request", "commit and PR these changes", "group these into commits and ship them", or has
   a dirty working tree they want landed. This is the COMMIT-GROUPING + PR front door; the build-and-deploy-to-prod flow
-  is a separate prod-deploy flow (run /create-pr first, let it merge, then `ship` from `main`). Honors the
-  workspace gate (`cargo fmt` + `clippy` + `cargo test`, plus markdown lint on any `.md`) before the first commit.
+  is a separate prod-deploy flow (run /create-pr first, let it merge, then `ship` from `main`). Honors the workspace
+  gate (`cargo fmt` + `clippy` + `cargo test`, plus markdown lint on any `.md`) before the first commit.
 ---
 
 # `/create-pr` — group changes into conventional commits, open a PR
@@ -27,7 +27,9 @@ merges the PR the moment `ci.yml` goes green.
 ## The whole flow, in order
 
 1. **Survey** every change (staged + unstaged + untracked).
-2. **Group** the files into logical units — one concern per commit.
+2. **Group** the files into logical units — one concern per commit. While surveying, drop any history the change leaves
+   behind: "we used to…"/"no longer…"/"legacy" narration, a deprecated-but-kept flag or alias, or a dangling reference
+   to a removed file/module/flag. Code describes the present; git history holds the past.
 3. **Gate** the workspace once (`fmt` + `clippy` + `test`, markdown lint if any `.md` changed).
 4. **Branch** off `main` (or carry existing work onto a topic branch).
 5. **Commit** each group as a Conventional Commit, staging only that group's paths.
@@ -165,8 +167,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 **Every PR that changes something a person can see ships with a picture of it.** A page, a component, a layout, an
 email, a CLI's rendered output, a copy edit on a live surface — if a human would notice the difference in a browser,
-capture it. Skip only when the change is genuinely invisible (a pure refactor, an internal type, a test-only edit,
-a workflow/CI tweak) — and say so in the Test plan rather than silently omitting the visual.
+capture it. Skip only when the change is genuinely invisible (a pure refactor, an internal type, a test-only edit, a
+workflow/CI tweak) — and say so in the Test plan rather than silently omitting the visual.
 
 Capture against the **running app with your working-tree changes** — the host `web`, not the stale in-cluster image —
 following the [[web-preview]] loop. Prefer a GIF of **real interaction** when the change has behavior to show (a hover,

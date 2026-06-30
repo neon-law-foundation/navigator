@@ -17,7 +17,6 @@ pricing:
       - "Engaged as a testifying or consulting expert; a separate proceeding needs a separate engagement"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$1,337/deliverable"
 ---
 

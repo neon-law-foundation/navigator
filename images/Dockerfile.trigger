@@ -71,7 +71,7 @@ COPY --from=builder /trigger-bin /app/trigger
 ENV RUST_LOG=info
 
 # Identify the release. The daily `deploy.yml` passes `--build-arg
-# RELEASE_TAG=$YY.MM.DD`; `telemetry::init` reads `NAVIGATOR_RELEASE_TAG`
+# RELEASE_TAG=$YY.M.D`; `telemetry::init` reads `NAVIGATOR_RELEASE_TAG`
 # and tags every span/metric/log with `service.version`, so each trigger
 # run self-reports which release fired it. A local build reports `unknown`.
 ARG RELEASE_TAG=unknown

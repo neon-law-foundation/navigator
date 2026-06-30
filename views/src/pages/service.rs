@@ -790,7 +790,6 @@ mod tests {
             features: vec!["20 reviews"],
             cta_label: "Get your tier recommendation",
             cta_href: "mailto:support@neonlaw.com",
-            featured: true,
             featured_label: Some("Recommended"),
         }
     }

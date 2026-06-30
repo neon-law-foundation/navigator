@@ -16,7 +16,6 @@ pricing:
       - "Each additional class is a separate flat fee"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$777 once"
 ---
 

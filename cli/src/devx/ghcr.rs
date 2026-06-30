@@ -1,7 +1,7 @@
 //! Shared GitHub Container Registry (ghcr.io) helpers.
 //!
 //! CI (`deploy.yml`) builds and publishes every navigator image to
-//! public `ghcr.io` tagged `YY.MM.DD`. Three callers resolve and verify
+//! public `ghcr.io` tagged `YY.M.D`. Three callers resolve and verify
 //! those tags and must do it identically, so the logic lives here once:
 //!
 //! - `ship` — rolls **prod** onto a published tag.
@@ -46,19 +46,23 @@ pub fn image_ref(owner: &str, image: &str, tag: &str) -> String {
     format!("{}/{image}:{tag}", registry(owner))
 }
 
-/// True when `tag` is the `YY.MM.DD` release shape — three dot-separated
-/// two-digit groups (e.g. `26.06.23`) — with an optional `.HH` fourth
-/// group for an ad-hoc same-day release (e.g. `26.06.25.14`).
+/// True when `tag` is the `YY.M.D` release shape — three dot-separated
+/// numeric groups (e.g. `26.6.23`) — with an optional `.H` fourth group
+/// for an ad-hoc same-day release (e.g. `26.6.25.14`).
+///
+/// Each component carries **no leading zeros** (the firm-wide version
+/// convention: June is `6`), so groups are 1–2 digits — a four-digit year
+/// (`2026.…`) is rejected.
 #[must_use]
 pub fn is_release_tag(tag: &str) -> bool {
     let parts: Vec<&str> = tag.split('.').collect();
     (parts.len() == 3 || parts.len() == 4)
         && parts
             .iter()
-            .all(|p| p.len() == 2 && p.bytes().all(|b| b.is_ascii_digit()))
+            .all(|p| (1..=2).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_digit()))
 }
 
-/// Reject a `--tag` that is not a `YY.MM.DD[.HH]` release tag — rolling a
+/// Reject a `--tag` that is not a `YY.M.D[.H]` release tag — rolling a
 /// `latest` or a `ci-<sha>` tag onto a workload is exactly the
 /// un-auditable deploy we forbid.
 pub fn validate_release_tag(tag: &str) -> Result<()> {
@@ -66,29 +70,52 @@ pub fn validate_release_tag(tag: &str) -> Result<()> {
         Ok(())
     } else {
         bail!(
-            "--tag must be a YY.MM.DD release tag, optionally with an .HH suffix for an ad-hoc same-day release (e.g. 26.06.23 or 26.06.25.14), got `{tag}`"
+            "--tag must be a YY.M.D release tag, optionally with an .H suffix for an ad-hoc same-day release (e.g. 26.6.23 or 26.6.25.14), got `{tag}`"
         );
     }
 }
 
-/// The newest `YY.MM.DD[.HH]` tag in `tags`. Zero-padded `YY.MM.DD` sorts
-/// lexicographically the same as chronologically, and an `.HH` ad-hoc
-/// suffix (e.g. `26.06.25.14`) sorts after the bare same-day tag it
-/// extends, so `max` is the latest. Non-release tags (`latest`,
+/// The newest `YY.M.D[.H]` tag in `tags`. Compares **numerically** per
+/// component, not lexicographically: with no-leading-zeros tags the plain
+/// string order is wrong (`26.6.5` would sort after `26.6.30`, and
+/// `26.6.x` after `26.10.x`), so we parse each group to an integer and
+/// take the max by `(year, month, day, hour)`. A bare same-day tag sorts
+/// *before* any `.H` ad-hoc extension of it (`26.6.25` < `26.6.25.0` <
+/// `26.6.25.14`) via a sentinel hour of `-1`. Non-release tags (`latest`,
 /// `ci-<sha>`) are ignored.
 #[must_use]
 pub fn pick_latest_release_tag(tags: &[String]) -> Option<String> {
-    tags.iter().filter(|t| is_release_tag(t)).max().cloned()
+    tags.iter()
+        .filter(|t| is_release_tag(t))
+        .max_by_key(|t| release_sort_key(t))
+        .cloned()
 }
 
-/// Resolve the latest published `YY.MM.DD[.HH]` tag for
+/// Parse a release tag into a numerically-comparable
+/// `(year, month, day, hour)` key. The hour defaults to the sentinel `-1`
+/// for a bare three-group tag so it orders before any `.H` extension of
+/// the same day. Assumes `is_release_tag(tag)` already held, so every
+/// group parses; an unexpected non-numeric group falls back to `0` rather
+/// than panicking.
+fn release_sort_key(tag: &str) -> (u32, u32, u32, i32) {
+    let mut groups = tag.split('.').map(|p| p.parse::<u32>().unwrap_or(0));
+    let year = groups.next().unwrap_or(0);
+    let month = groups.next().unwrap_or(0);
+    let day = groups.next().unwrap_or(0);
+    let hour = groups
+        .next()
+        .map_or(-1, |h| i32::try_from(h).unwrap_or(i32::MAX));
+    (year, month, day, hour)
+}
+
+/// Resolve the latest published `YY.M.D[.H]` tag for
 /// `ghcr.io/<owner>/<image>`. Errors when the package has no release tag
 /// yet (e.g. the daily deploy has never run for this fork).
 pub fn resolve_latest_tag(owner: &str, image: &str) -> Result<String> {
     let tags = fetch_tags(owner, image)?;
     pick_latest_release_tag(&tags).ok_or_else(|| {
         anyhow::anyhow!(
-            "no YY.MM.DD[.HH] release tag on ghcr.io/{owner}/{image} — has the daily deploy published one yet?"
+            "no YY.M.D[.H] release tag on ghcr.io/{owner}/{image} — has the daily deploy published one yet?"
         )
     })
 }
@@ -176,38 +203,57 @@ mod tests {
     use super::*;
 
     #[test]
-    fn is_release_tag_accepts_yy_mm_dd_and_optional_hh() {
-        assert!(is_release_tag("26.06.23"));
-        assert!(is_release_tag("00.01.09"));
-        assert!(is_release_tag("26.06.25.14")); // ad-hoc same-day .HH suffix
-        assert!(is_release_tag("26.06.25.00"));
+    fn is_release_tag_accepts_yy_m_d_and_optional_h() {
+        // Canonical no-leading-zeros shape.
+        assert!(is_release_tag("26.6.23"));
+        assert!(is_release_tag("26.6.5")); // single-digit day
+        assert!(is_release_tag("0.1.9")); // every component single-digit
+        assert!(is_release_tag("26.6.25.14")); // ad-hoc same-day .H suffix
+        assert!(is_release_tag("26.6.25.4")); // single-digit hour
+        assert!(is_release_tag("26.6.25.0"));
+        // Non-releases and malformed shapes stay rejected.
         assert!(!is_release_tag("latest"));
         assert!(!is_release_tag("ci-6a5f96a"));
-        assert!(!is_release_tag("2026.06.23")); // four-digit year
-        assert!(!is_release_tag("26.6.23")); // unpadded month
-        assert!(!is_release_tag("26.06")); // too few groups
-        assert!(!is_release_tag("26.06.25.4")); // unpadded hour
-        assert!(!is_release_tag("26.06.25.14.30")); // too many groups
+        assert!(!is_release_tag("2026.6.23")); // four-digit year
+        assert!(!is_release_tag("26.6")); // too few groups
+        assert!(!is_release_tag("26.6.25.14.30")); // too many groups
+        assert!(!is_release_tag("26..6")); // empty group
     }
 
     #[test]
     fn pick_latest_release_tag_takes_the_newest_and_ignores_non_releases() {
         let tags = vec![
             "latest".to_string(),
-            "26.06.10".to_string(),
+            "26.6.10".to_string(),
             "ci-deadbeef".to_string(),
-            "26.06.23".to_string(),
-            "26.05.31".to_string(),
+            "26.6.23".to_string(),
+            "26.5.31".to_string(),
         ];
-        assert_eq!(pick_latest_release_tag(&tags), Some("26.06.23".to_string()));
-        // An ad-hoc `.HH` release sorts after the bare same-day tag.
+        assert_eq!(pick_latest_release_tag(&tags), Some("26.6.23".to_string()));
+        // An ad-hoc `.H` release sorts after the bare same-day tag.
         assert_eq!(
             pick_latest_release_tag(&[
-                "26.06.25".to_string(),
-                "26.06.25.14".to_string(),
-                "26.06.10".to_string(),
+                "26.6.25".to_string(),
+                "26.6.25.14".to_string(),
+                "26.6.10".to_string(),
             ]),
-            Some("26.06.25.14".to_string())
+            Some("26.6.25.14".to_string())
+        );
+        // Regression: numeric, not lexical, ordering. A plain string `max`
+        // would pick `26.6.5` over `26.6.30` ("5" > "3") and `26.6.x` over
+        // `26.10.x` ("6" > "1") — both chronologically wrong.
+        assert_eq!(
+            pick_latest_release_tag(&[
+                "26.6.5".to_string(),
+                "26.6.30".to_string(),
+                "26.10.5".to_string(),
+            ]),
+            Some("26.10.5".to_string())
+        );
+        // A later month wins even though its day is smaller.
+        assert_eq!(
+            pick_latest_release_tag(&["26.6.30".to_string(), "26.7.1".to_string()]),
+            Some("26.7.1".to_string())
         );
         assert_eq!(
             pick_latest_release_tag(&["latest".to_string(), "ci-x".to_string()]),
@@ -217,7 +263,7 @@ mod tests {
 
     #[test]
     fn validate_release_tag_rejects_non_release() {
-        assert!(validate_release_tag("26.06.23").is_ok());
+        assert!(validate_release_tag("26.6.23").is_ok());
         assert!(validate_release_tag("latest").is_err());
         assert!(validate_release_tag("ci-abc").is_err());
     }
@@ -226,8 +272,8 @@ mod tests {
     fn owner_default_and_refs() {
         // image_ref composes the canonical public path.
         assert_eq!(
-            image_ref(DEFAULT_GHCR_OWNER, "navigator-web", "26.06.23"),
-            "ghcr.io/neon-law-foundation/navigator-web:26.06.23"
+            image_ref(DEFAULT_GHCR_OWNER, "navigator-web", "26.6.23"),
+            "ghcr.io/neon-law-foundation/navigator-web:26.6.23"
         );
         assert_eq!(
             registry("neon-law-foundation"),

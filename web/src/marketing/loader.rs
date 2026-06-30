@@ -400,7 +400,6 @@ mod tests {
                    \x20   features: [\"20 contract reviews each month\"]\n\
                    \x20   cta_label: Get your tier recommendation\n\
                    \x20   cta_href: \"mailto:support@neonlaw.com\"\n\
-                   \x20   featured: true\n\
                    \x20   featured_label: Recommended\n\
                    ---\nbody";
         let doc = parse(raw, "x").expect("parses");
@@ -408,9 +407,7 @@ mod tests {
         assert_eq!(doc.pricing[0].title, "Seed");
         assert_eq!(doc.pricing[0].price, "$3,500");
         assert_eq!(doc.pricing[0].cadence.as_deref(), Some("/mo"));
-        assert!(!doc.pricing[0].featured);
         assert_eq!(doc.pricing[1].title, "Growth");
-        assert!(doc.pricing[1].featured);
         assert_eq!(
             doc.pricing[1].featured_label.as_deref(),
             Some("Recommended")

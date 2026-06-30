@@ -538,19 +538,6 @@ pub async fn notation_create(
     .await
 }
 
-/// Deprecated compatibility path for `navigator matter open --template …
-/// --client-email …`.
-pub async fn matter_walk_open(host: Option<&str>, template: &str, client_email: &str) -> ExitCode {
-    eprintln!(
-        "{}",
-        palette::dim(
-            "deprecated: `navigator matter open --template ...` is an alias; \
-             use `navigator notation create <template-code> --client-email ...`"
-        )
-    );
-    notation_create(host, template, client_email, None).await
-}
-
 /// `navigator intake answer <id>` — walk the notation's questionnaire one
 /// question at a time over the same `/portal/admin/notations/:id/step`
 /// route the browser POSTs, reading each question's metadata from the

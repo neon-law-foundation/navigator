@@ -167,8 +167,8 @@ The extension is published automatically on release tag pushes. The flow has thr
    touches it.
 2. **`neon-law-foundation/zed-navigator-lsp`** is the published extension repo — the git submodule Zed's registry
    tracks. The `zed-extension` job in [`deploy.yml`](../../.github/workflows/deploy.yml) syncs `lsp/zed-ext/` into it
-   each release, stamps the release version (the `YY.MM.DD` tag normalized to semver — `26.06.27` → `26.6.27`), and
-   pushes a `v<semver>` tag.
+   each release, stamps the release version (the `YY.M.D` tag is already a valid semver — no leading zeros, e.g.
+   `26.6.27` — so it carries over verbatim), and pushes a `v<semver>` tag.
 3. **`zed-industries/extensions`** is the public Zed registry. The `zed-navigator-lsp` repo's own `release.yml` runs
    [`huacnlee/zed-extension-action`](https://github.com/huacnlee/zed-extension-action) on that `v*` tag, which opens the
    version-bump PR (submodule pointer + `extensions.toml` version) against the registry. The first submission is

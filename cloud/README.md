@@ -26,9 +26,8 @@ in the **private** documents bucket `gs://YOUR_PROJECT_ID-documents/` (the `FsSt
 public `-assets` bucket. The LFS pointer is committed in the pack; the object reconciles by its `oid` (sha256). The git
 repos themselves live on a POSIX volume, not a bucket (GCS is not a filesystem); see the durable design doc.
 
-The legacy Google Drive ingest path (the `cli drive` OAuth door, the `cloud::drive` REST client, the `DriveSync`
-workflow, and the `projects.drive_folder_id` column) has been **removed** — git is the per-Project document system of
-record. No `google-cloud-drive` crate, and no `drive.readonly` OAuth app, is in the dependency graph.
+Git is the per-Project document system of record. No `google-cloud-drive` crate, and no `drive.readonly` OAuth app, is
+in the dependency graph.
 
 ### Ingestion audit trail
 
@@ -150,7 +149,7 @@ pipeline order.
   remote yet.
 
 There is **no Artifact Registry**. Container images are built by CI (`deploy.yml`) and published to the **public**
-`ghcr.io/neon-law-foundation/navigator-*` packages, tagged `YY.MM.DD` (the release date) + `latest`; the GKE nodes pull
+`ghcr.io/neon-law-foundation/navigator-*` packages, tagged `YY.M.D` (the release date) + `latest`; the GKE nodes pull
 them anonymously, so there is no in-cluster registry credential and nothing to rotate. `navigator gcp setup` never
 provisioned an Artifact Registry repo.
 
@@ -185,10 +184,10 @@ image for the nightly CronJob.
 #    the snapshot phase can write Parquet. Re-register with Restate after the roll.
 
 # 2. Point the nightly trigger CronJob at the published ghcr image. CI (deploy.yml)
-#    builds and publishes navigator-archives-trigger to ghcr.io tagged YY.MM.DD;
+#    builds and publishes navigator-archives-trigger to ghcr.io tagged YY.M.D;
 #    the GKE nodes pull it anonymously (public package). Pin the manifest to the tag:
 TAG=$(git ls-remote --tags --refs origin | grep -oE '[0-9]{2}\.[0-9]{2}\.[0-9]{2}$' | sort | tail -1)
-sed -i "s|:YY.MM.DD|:$TAG|" examples/deploy/k8s/exports/cron-archives-trigger.yaml
+sed -i "s|:YY.M.D|:$TAG|" examples/deploy/k8s/exports/cron-archives-trigger.yaml
 kubectl --context=gke_YOUR_PROJECT_ID_us-west4_navigator-prod apply -k examples/deploy/k8s/exports/
 
 # 3. Trigger a run to seed the bucket so external-table schema inference works:
@@ -243,7 +242,7 @@ Setting that policy requires `roles/orgpolicy.policyAdmin` at the org level (not
 #### Deploy
 
 CI (`deploy.yml`) builds the redirect image and publishes it to the **public**
-`ghcr.io/neon-law-foundation/navigator-redirect` package, tagged `YY.MM.DD` + `latest`; Cloud Run pulls it anonymously.
+`ghcr.io/neon-law-foundation/navigator-redirect` package, tagged `YY.M.D` + `latest`; Cloud Run pulls it anonymously.
 Deploying is just pointing the service at the published tag:
 
 ```bash
@@ -342,10 +341,6 @@ The GKE LB serves Neon Law Navigator on two hostnames; both `A` records point at
 `navigator-ingress-ip`. DNS is at **DNSimple** — same zone (`neonlaw.com`) and same `dnsimple` CLI as the redirect swap
 above. The CLI install is one-liner at <https://dnsimple-cli.netlify.app/install.sh> on Linux. On macOS, use `brew` to
 install `dnsimple/tap/dnsimple`; it reads `DNSIMPLE_TOKEN` (or `~/.config/dnsimple/credentials.yml`).
-
-**Retirement of `navigator.neonlaw.com` and `workflows.navigator.neonlaw.com`.** The old hostnames are no longer
-referenced anywhere in the workspace. Remove their records once the new ones resolve and the Google-managed certs flip
-Active.
 
 Get the LB IP:
 
