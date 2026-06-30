@@ -1,0 +1,21 @@
+# English-only portal/auth copy — the sign-in chooser (`/auth/login`): the
+# Google button label, the toast notices the private-mode gate and the
+# post-action redirects float, and the warm, non-enumerating sign-in error.
+#
+# ENGLISH-ONLY by construction: this domain has no `es/` twin, so the
+# es-parity guard skips it (no per-key waiver). The portal stays English by
+# policy (CLAUDE.md); the catalog is the single source of this copy so it is
+# DRY, reviewable, and covered by `navigator validate-i18n`. See docs/i18n.md.
+#
+# Looked up with `views::i18n::t(Locale::En, "portal.google_sign_in")`.
+portal:
+  google_sign_in: "Sign in with Google"
+  # Red toast: the visitor was bounced to sign-in because a page required a
+  # login (the private-mode gate, in place of a 403).
+  login_required: "You need to log in to view that page."
+  # Green toasts confirming a positive outcome completed elsewhere.
+  password_reset_done: "Your password has been updated. Please sign in."
+  email_confirmed: "Your email is confirmed. Please sign in."
+  # Warm, non-enumerating sign-in failure — identical for unknown email and
+  # wrong password, so the response never reveals which.
+  login_failed: "That email and password don't match what we have on file. Please try again."

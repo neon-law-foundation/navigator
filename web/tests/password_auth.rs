@@ -29,6 +29,9 @@ use serde_json::json;
 use store::entity::person;
 use store::Db;
 use tower::ServiceExt;
+// Keyed render assertion: the sign-in error copy lives in the catalog
+// (`portal.login_failed`), so assert the slot, not the literal.
+use views::assert_renders;
 use web::oauth::IdentityPasswordConfig;
 use web::{policy, AppState, AuthConfig, OAuthConfig, SessionStore};
 use wiremock::matchers::{method, path};
@@ -250,10 +253,8 @@ async fn wrong_password_is_rejected_without_enumeration_and_without_session() {
         .all(|v| !v.to_str().unwrap().contains("navigator_session="));
     assert!(no_session, "a rejected sign-in never sets a session");
     let html = body_string(resp).await;
-    assert!(
-        html.contains("don't match"),
-        "shows the warm, non-enumerating error",
-    );
+    // The warm, non-enumerating sign-in error is catalog copy.
+    assert_renders!(&html, "portal.login_failed");
 }
 
 #[tokio::test]

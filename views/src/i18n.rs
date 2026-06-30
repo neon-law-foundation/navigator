@@ -113,8 +113,13 @@ const DOMAINS: &[Domain] = &[
         en: include_str!("../locales/en/marketing.yml"),
         es: Some(include_str!("../locales/es/marketing.yml")),
     },
-    // English-only domains land here as their copy migrates, e.g.:
-    //   Domain { en: include_str!("../locales/en/portal.yml"), es: None },
+    // Portal — the sign-in chooser, password flows, the private-mode gate.
+    // English-only (es: None): the portal stays English by policy, so the
+    // es-parity guard skips it by construction (no per-key waiver).
+    Domain {
+        en: include_str!("../locales/en/portal.yml"),
+        es: None,
+    },
 ];
 
 /// Merge every domain's catalog under `select` into one flat key→value map.

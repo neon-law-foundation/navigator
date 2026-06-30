@@ -412,33 +412,39 @@ pub fn routes(state: AuthState) -> Router {
 /// field embedded in the form.
 pub const LOGIN_CSRF_COOKIE_NAME: &str = "navigator_login_csrf";
 
-/// Warm, non-enumerating message shown for every failed password
-/// sign-in — identical for unknown email and wrong password.
-const GENERIC_LOGIN_ERROR: &str =
-    "That email and password don't match what we have on file. Please try again.";
+/// Resolve an English-only `portal` string from the catalog. Portal copy
+/// is English by policy; the catalog is its single source so the sign-in
+/// chooser copy stays DRY and `navigator validate-i18n`-checked.
+fn portal_copy(key: &str) -> String {
+    views::i18n::t(views::Locale::En, key)
+}
 
-/// Toast shown on the sign-in page when the visitor was redirected here
-/// because a page required a login (the private-mode gate, in place of a
-/// 403). Keyed by `?notice=login_required`; any other value renders no
-/// toast, so a voluntary sign-in stays clean.
-const LOGIN_REQUIRED_NOTICE: &str = "You need to log in to view that page.";
+/// A resolved sign-in toast: its tone plus the catalog-sourced text, owned
+/// so it outlives the borrowed [`views::LoginNotice`] handed to the view.
+enum NoticeText {
+    Danger(String),
+    Success(String),
+}
 
-/// Shown on `?notice=password_reset` after a successful password reset, so
-/// the user lands on sign-in knowing the change took.
-const PASSWORD_RESET_NOTICE: &str = "Your password has been updated. Please sign in.";
+impl NoticeText {
+    fn as_login_notice(&self) -> views::LoginNotice<'_> {
+        match self {
+            NoticeText::Danger(text) => views::LoginNotice::Danger(text),
+            NoticeText::Success(text) => views::LoginNotice::Success(text),
+        }
+    }
+}
 
-/// Shown on `?notice=email_confirmed` after a successful email
-/// confirmation, so a previously-gated user knows they can now sign in.
-const EMAIL_CONFIRMED_NOTICE: &str = "Your email is confirmed. Please sign in.";
-
-/// Map the `notice` query flag to the toned banner the sign-in page
-/// should surface, if any. The bounce case is red; the post-action
-/// outcomes are green.
-fn login_notice(notice: Option<&str>) -> Option<views::LoginNotice<'static>> {
+/// Map the `notice` query flag to the toned banner the sign-in page should
+/// surface, if any. The bounce case is red; the post-action outcomes are
+/// green. Copy lives in the `portal` catalog domain.
+fn login_notice(notice: Option<&str>) -> Option<NoticeText> {
     match notice {
-        Some("login_required") => Some(views::LoginNotice::Danger(LOGIN_REQUIRED_NOTICE)),
-        Some("password_reset") => Some(views::LoginNotice::Success(PASSWORD_RESET_NOTICE)),
-        Some("email_confirmed") => Some(views::LoginNotice::Success(EMAIL_CONFIRMED_NOTICE)),
+        Some("login_required") => Some(NoticeText::Danger(portal_copy("portal.login_required"))),
+        Some("password_reset") => Some(NoticeText::Success(portal_copy(
+            "portal.password_reset_done",
+        ))),
+        Some("email_confirmed") => Some(NoticeText::Success(portal_copy("portal.email_confirmed"))),
         _ => None,
     }
 }
@@ -467,12 +473,15 @@ async fn login(
     // form + the OIDC button). Existing OIDC-only deploys (no API key)
     // keep the immediate redirect, byte-identical.
     if s.identity_password.is_some() {
+        // Hold the resolved notice so the borrowed `LoginNotice` it lends
+        // the view outlives the render call.
+        let notice = login_notice(q.notice.as_deref());
         return login_chooser_response(
             &s,
             &cookies,
             &q.return_to,
             None,
-            login_notice(q.notice.as_deref()),
+            notice.as_ref().map(NoticeText::as_login_notice),
             StatusCode::OK,
         );
     }
@@ -650,14 +659,19 @@ async fn password_login(
             };
             complete_sign_in(&s, &cookies, claims, &form.return_to).await
         }
-        Err(PasswordError::Rejected) => login_chooser_response(
-            &s,
-            &cookies,
-            &form.return_to,
-            Some(GENERIC_LOGIN_ERROR),
-            None,
-            StatusCode::UNAUTHORIZED,
-        ),
+        Err(PasswordError::Rejected) => {
+            // Hold the catalog-sourced error so it outlives the borrow into
+            // the rendered page.
+            let error = portal_copy("portal.login_failed");
+            login_chooser_response(
+                &s,
+                &cookies,
+                &form.return_to,
+                Some(&error),
+                None,
+                StatusCode::UNAUTHORIZED,
+            )
+        }
         Err(PasswordError::Upstream) => {
             (StatusCode::BAD_GATEWAY, "sign-in service unavailable").into_response()
         }
@@ -1293,8 +1307,9 @@ pub(crate) fn expired_cookie(name: &'static str) -> Cookie<'static> {
 #[cfg(test)]
 mod tests {
     use super::{
-        authorize_url, constant_time_eq, decode_unverified_payload, pkce_challenge, pkce_verifier,
-        session_cookie, urlencode, IdTokenError, IdentityPasswordConfig, OAuthConfig, PreAuth,
+        authorize_url, constant_time_eq, decode_unverified_payload, login_notice, pkce_challenge,
+        pkce_verifier, session_cookie, urlencode, IdTokenError, IdentityPasswordConfig, NoticeText,
+        OAuthConfig, PreAuth,
     };
     use crate::session::{now_unix_secs, DEFAULT_SESSION_TTL_SECS};
     use crate::test_support::{oidc_verifier, sign_id_token};
@@ -1308,6 +1323,32 @@ mod tests {
             "https://idp.example.com/oauth/authorize",
             "https://idp.example.com/oauth/token",
         )
+    }
+
+    #[test]
+    fn login_notice_maps_each_flag_to_a_toned_catalog_toast() {
+        // The bounce case is a red (Danger) toast; the post-action outcomes
+        // are green (Success); anything else (and a voluntary visit) is no
+        // toast. Each carries catalog-sourced, non-empty copy, and the
+        // borrow-lending conversion renders both tones.
+        let danger = login_notice(Some("login_required")).expect("login_required → a toast");
+        assert!(matches!(danger, NoticeText::Danger(ref t) if !t.is_empty()));
+        assert!(matches!(
+            danger.as_login_notice(),
+            views::LoginNotice::Danger(_)
+        ));
+
+        for flag in ["password_reset", "email_confirmed"] {
+            let success = login_notice(Some(flag)).expect("post-action → a toast");
+            assert!(matches!(success, NoticeText::Success(ref t) if !t.is_empty()));
+            assert!(matches!(
+                success.as_login_notice(),
+                views::LoginNotice::Success(_)
+            ));
+        }
+
+        assert!(login_notice(Some("not-a-flag")).is_none());
+        assert!(login_notice(None).is_none());
     }
 
     #[test]
