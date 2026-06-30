@@ -601,6 +601,21 @@ mod tests {
     }
 
     #[test]
+    fn malformed_and_degenerate_calls_are_skipped() {
+        // Unbalanced — `matching_paren` finds no close, so the marker is
+        // skipped (no key, no panic).
+        assert!(keys("i18n::t(locale, \"x\"").is_empty());
+        // Empty args, and a first arg that isn't a locale → no key.
+        assert!(keys("i18n::t()").is_empty());
+        assert!(keys("t(xyz, \"x\")").is_empty());
+        // An assertion macro with no string literal → no key.
+        assert!(keys("assert_renders!(body)").is_empty());
+        // An unterminated block comment is blanked to end-of-input, so the
+        // call it swallows is never seen.
+        assert!(keys("let x = 1; /* unterminated i18n::t(locale, \"y\")").is_empty());
+    }
+
+    #[test]
     fn reconciles_missing_and_unused() {
         use std::collections::BTreeSet;
         let catalog: BTreeSet<String> = ["nav.home", "auth.portal", "dead.key"]
@@ -660,6 +675,38 @@ mod tests {
         assert_eq!(audit.unused, ["dead.key"]);
         assert_eq!(audit.files_scanned, 1, "the .txt file is not scanned");
         assert_eq!(audit.keys_in_catalog, 2);
+    }
+
+    #[test]
+    fn missing_keys_are_sorted_by_path_then_line_then_key() {
+        // Forces the `sort_by` comparator through all three tiers: two keys
+        // on one line (key tiebreak), a third on a later line (line
+        // tiebreak), and one in a second file (path is the primary sort).
+        let dir = tempfile::tempdir().unwrap();
+        write_source(
+            dir.path(),
+            "web/src/a.rs",
+            "fn f() {\n  i18n::t(locale, \"z.one\"); i18n::t(locale, \"a.one\");\n  \
+             i18n::t(locale, \"m.two\");\n}",
+        );
+        write_source(
+            dir.path(),
+            "web/tests/b.rs",
+            "fn f() { i18n::t(locale, \"n.b\"); }",
+        );
+        // An empty catalog makes every referenced key missing.
+        let audit = audit_workspace(dir.path(), &BTreeSet::new()).unwrap();
+
+        let order: Vec<(&str, usize)> = audit
+            .missing
+            .iter()
+            .map(|r| (r.key.as_str(), r.line))
+            .collect();
+        // web/src sorts before web/tests; within a file, by line then key.
+        assert_eq!(
+            order,
+            [("a.one", 2), ("z.one", 2), ("m.two", 3), ("n.b", 1)]
+        );
     }
 
     #[test]
