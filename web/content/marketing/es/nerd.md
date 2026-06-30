@@ -5,7 +5,7 @@ hero_image: bengaluru-skyline
 description: >
   Neon Law Nerd es la práctica de perito experto de Neon Law para disputas de software y acceso a datos — una opinión
   técnica independiente, facturada a una tarifa fija de $1,337 por entregable: un informe escrito, una declaración o
-  testimonio en juicio, y nunca por cuota litis.
+  testimonio en juicio — y nunca por cuota litis.
 pricing:
   - title: "Neon Law Nerd"
     price: "$1,337"
