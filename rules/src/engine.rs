@@ -594,24 +594,31 @@ pub fn navigator_minutes_rules() -> Vec<Box<dyn Rule>> {
 
 /// Classify a source file before choosing its validation rule set.
 ///
-/// `code:` alone is deliberately not enough to make a file a notation
-/// template: content systems can also use stable codes. The notation
-/// markers are the machine declarations (`questionnaire:`/`workflow:`),
-/// plus the canonical `templates/` tree from the glossary.
+/// Classification reads the file, not the path: a notation template is a
+/// file whose frontmatter declares the notation machine
+/// (`questionnaire:`/`workflow:`), regardless of where it sits. The
+/// `templates/` tree is not what makes a file a template — a `templates/`
+/// file with no machine yet is plain Markdown until it declares one.
+/// (`code:` alone is deliberately not enough either: content systems can
+/// also carry stable codes.)
 ///
 /// Events take precedence: a `starts_at` timestamp marks an event, even
 /// if the file also (wrongly) declares a questionnaire/workflow — the
 /// mutual-exclusivity rule [`E002`] then flags the conflict instead of
 /// the file silently linting as a template.
 ///
+/// Blog posts and board minutes carry no distinguishing frontmatter of
+/// their own, so they stay path-classified — but anchored to their real
+/// content roots (`web/content/blog`, `web/content/foundation/minutes`)
+/// so a stray `blog`/`minutes` directory elsewhere can't trip the
+/// C-family rules.
+///
 /// [`E002`]: crate::E002EventTemplateExclusive
 #[must_use]
 pub fn classify_source(file: &SourceFile) -> DocumentKind {
     if frontmatter_has_event_machine(&file.contents) {
         DocumentKind::Event
-    } else if path_is_notation_template(&file.path)
-        || frontmatter_has_notation_machine(&file.contents)
-    {
+    } else if frontmatter_has_notation_machine(&file.contents) {
         DocumentKind::NotationTemplate
     } else if path_is_blog_post(&file.path) {
         DocumentKind::BlogPost
@@ -651,7 +658,14 @@ fn lint_source_classified_with_codes(file: &SourceFile, valid_codes: &[String]) 
     rule_set.iter().flat_map(|r| r.lint(file)).collect()
 }
 
-fn path_is_notation_template(path: &Path) -> bool {
+/// True when `path` contains `chain` as a consecutive run of path
+/// components and is not a `README.md`. Blog posts and board minutes carry
+/// no distinguishing frontmatter signal of their own — they look like any
+/// titled page — so the containing content root is the classifier marker.
+/// Anchoring to the full root (`web/content/blog`, not a lone `blog`)
+/// keeps a stray directory named `blog`/`minutes` elsewhere in the tree
+/// from tripping the C-family rules.
+fn path_under_content_root(path: &Path, chain: &[&str]) -> bool {
     if path
         .file_name()
         .and_then(|n| n.to_str())
@@ -659,39 +673,24 @@ fn path_is_notation_template(path: &Path) -> bool {
     {
         return false;
     }
-    path.components().any(|component| {
-        matches!(
-            component,
-            std::path::Component::Normal(seg) if seg == "templates"
-        )
-    })
-}
-
-/// True when `path` sits under a directory named `dir` and is not a
-/// `README.md`. Blog posts and board minutes carry no distinguishing
-/// frontmatter signal of their own — they look like any titled page — so
-/// the containing directory is the classifier marker, the same way
-/// `templates/` marks a notation template.
-fn path_under_named_dir(path: &Path, dir: &str) -> bool {
-    if path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .is_some_and(|name| name.eq_ignore_ascii_case("README.md"))
-    {
-        return false;
-    }
-    path.components()
-        .any(|component| matches!(component, std::path::Component::Normal(seg) if seg == dir))
+    let segments: Vec<&str> = path
+        .components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(seg) => seg.to_str(),
+            _ => None,
+        })
+        .collect();
+    segments.windows(chain.len()).any(|window| window == chain)
 }
 
 /// A blog post lives under `web/content/blog/`.
 fn path_is_blog_post(path: &Path) -> bool {
-    path_under_named_dir(path, "blog")
+    path_under_content_root(path, &["web", "content", "blog"])
 }
 
 /// Board minutes live under `web/content/foundation/minutes/`.
 fn path_is_board_minutes(path: &Path) -> bool {
-    path_under_named_dir(path, "minutes")
+    path_under_content_root(path, &["web", "content", "foundation", "minutes"])
 }
 
 fn frontmatter_has_notation_machine(contents: &str) -> bool {
@@ -947,9 +946,12 @@ mod tests {
     }
 
     #[test]
-    fn classifier_treats_templates_tree_as_notation_template() {
+    fn classifier_treats_templates_path_without_machine_as_markdown() {
+        // Classification is frontmatter-driven, not path-driven: a file
+        // under `templates/` that has not yet declared the notation machine
+        // (`questionnaire:`/`workflow:`) is plain Markdown until it does.
         let file = source("templates/trust/draft.md", "Plain body.\n");
-        assert_eq!(classify_source(&file), DocumentKind::NotationTemplate);
+        assert_eq!(classify_source(&file), DocumentKind::Markdown);
     }
 
     #[test]
@@ -977,6 +979,27 @@ mod tests {
             "---\ntitle: Minutes\ndescription: Q1.\n---\n\nBody.\n",
         );
         assert_eq!(classify_source(&file), DocumentKind::BoardMinutes);
+    }
+
+    #[test]
+    fn classifier_ignores_stray_blog_dir_outside_content_root() {
+        // A `blog` directory anywhere other than `web/content/blog` must
+        // not trip the C-family rules — classification is anchored to the
+        // real content root (Greptile P2 on #206).
+        let file = source(
+            "docs/blog/notes.md",
+            "---\ntitle: Notes\n---\n\nProse body.\n",
+        );
+        assert_eq!(classify_source(&file), DocumentKind::Markdown);
+    }
+
+    #[test]
+    fn classifier_ignores_stray_minutes_dir_outside_content_root() {
+        let file = source(
+            "docs/minutes/standup.md",
+            "---\ntitle: Standup\n---\n\nProse body.\n",
+        );
+        assert_eq!(classify_source(&file), DocumentKind::Markdown);
     }
 
     #[test]
