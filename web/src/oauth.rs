@@ -1307,8 +1307,9 @@ pub(crate) fn expired_cookie(name: &'static str) -> Cookie<'static> {
 #[cfg(test)]
 mod tests {
     use super::{
-        authorize_url, constant_time_eq, decode_unverified_payload, pkce_challenge, pkce_verifier,
-        session_cookie, urlencode, IdTokenError, IdentityPasswordConfig, OAuthConfig, PreAuth,
+        authorize_url, constant_time_eq, decode_unverified_payload, login_notice, pkce_challenge,
+        pkce_verifier, session_cookie, urlencode, IdTokenError, IdentityPasswordConfig, NoticeText,
+        OAuthConfig, PreAuth,
     };
     use crate::session::{now_unix_secs, DEFAULT_SESSION_TTL_SECS};
     use crate::test_support::{oidc_verifier, sign_id_token};
@@ -1322,6 +1323,32 @@ mod tests {
             "https://idp.example.com/oauth/authorize",
             "https://idp.example.com/oauth/token",
         )
+    }
+
+    #[test]
+    fn login_notice_maps_each_flag_to_a_toned_catalog_toast() {
+        // The bounce case is a red (Danger) toast; the post-action outcomes
+        // are green (Success); anything else (and a voluntary visit) is no
+        // toast. Each carries catalog-sourced, non-empty copy, and the
+        // borrow-lending conversion renders both tones.
+        let danger = login_notice(Some("login_required")).expect("login_required → a toast");
+        assert!(matches!(danger, NoticeText::Danger(ref t) if !t.is_empty()));
+        assert!(matches!(
+            danger.as_login_notice(),
+            views::LoginNotice::Danger(_)
+        ));
+
+        for flag in ["password_reset", "email_confirmed"] {
+            let success = login_notice(Some(flag)).expect("post-action → a toast");
+            assert!(matches!(success, NoticeText::Success(ref t) if !t.is_empty()));
+            assert!(matches!(
+                success.as_login_notice(),
+                views::LoginNotice::Success(_)
+            ));
+        }
+
+        assert!(login_notice(Some("not-a-flag")).is_none());
+        assert!(login_notice(None).is_none());
     }
 
     #[test]
