@@ -5,6 +5,10 @@ use sea_orm::{ActiveModelTrait, ActiveValue};
 use store::entity::{person, project, testimonial};
 use store::test_support::{dri_person, pg, seed_entity};
 use tower::ServiceExt;
+// Keyed render assertions: assert the page wires up a catalog slot, not
+// what the slot currently says. Editing the copy in `en.yml` keeps these
+// green; a typo'd/deleted key fails loudly via `t_strict`.
+use views::assert_renders;
 
 async fn body_string(resp: axum::http::Response<Body>) -> String {
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();
@@ -73,7 +77,10 @@ async fn homepage_renders_published_testimonials() {
     let resp = get(state, "/").await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("What clients say"));
+    // Section heading: catalog copy, keyed — survives copy edits.
+    assert_renders!(&body, "testimonials.home_heading");
+    // The quote, attribution, and image are DB-seeded data, not UI copy —
+    // they stay literal (there is no catalog key for client content).
     assert!(body.contains("Nexus made general counsel feel close at hand."));
     assert!(body.contains("Approved Client"));
     assert!(body.contains("src=\"/images/testimonial-route.webp\""));
@@ -85,7 +92,7 @@ async fn product_page_renders_only_matching_product_testimonials() {
     let nexus = get(state.clone(), "/services/nexus").await;
     assert_eq!(nexus.status(), StatusCode::OK);
     let nexus_body = body_string(nexus).await;
-    assert!(nexus_body.contains("Client proof"));
+    assert_renders!(&nexus_body, "testimonials.service_heading");
     assert!(nexus_body.contains("Nexus made general counsel feel close at hand."));
 
     let litigation = get(state, "/services/litigation").await;

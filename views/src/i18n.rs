@@ -164,6 +164,83 @@ pub fn t_args(locale: Locale, key: &str, args: &[(&str, &str)]) -> String {
     out
 }
 
+/// Resolve `key` in `locale` or panic — the strict counterpart to [`t`].
+///
+/// Where [`t`] falls back to the key string so a render never blanks in
+/// production, `t_strict` treats a missing entry as the programming error
+/// it is (a typo'd or deleted key). This is the Rust analog of Rails'
+/// `raise_on_missing_translations`: use it in tests (and dev tooling) so
+/// a stale key fails loudly instead of rendering its own name.
+/// `#[track_caller]` points the panic at the caller, not here.
+#[track_caller]
+#[must_use]
+pub fn t_strict(locale: Locale, key: &str) -> &'static str {
+    raw(locale, key).unwrap_or_else(|| {
+        panic!(
+            "i18n: no catalog entry for {key:?} (checked {locale:?}, then the En \
+             fallback) — add it to the English catalog (views/locales/en.yml); \
+             En is the complete source every locale falls back to."
+        )
+    })
+}
+
+/// HTML-escape the way maud does (`&<>"`), so asserting on catalog copy
+/// that contains one of those characters still matches the rendered body.
+#[cfg(feature = "test-support")]
+fn maud_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// Assert that `body` renders the catalog copy for `key`.
+///
+/// Two failures, two distinct messages: a missing key panics in
+/// [`t_strict`] ("no catalog entry"); a present key whose copy is absent
+/// from the page fails here. Because the expectation is the *key*, not the
+/// prose, editing the copy in `en.yml` keeps every call site green — the
+/// test asserts the page wires up the slot, not what the slot says.
+///
+/// Prefer the [`assert_renders!`](crate::assert_renders) macro, which
+/// defaults the locale to English.
+#[cfg(feature = "test-support")]
+#[track_caller]
+pub fn assert_renders(body: &str, locale: Locale, key: &str) {
+    let value = t_strict(locale, key);
+    assert!(
+        body.contains(value) || body.contains(&maud_escape(value)),
+        "assert_renders: page did not render {key:?} = {value:?} ({locale:?})"
+    );
+}
+
+/// The negation of [`assert_renders`]: assert `key`'s copy is *absent*
+/// from `body`. Still strict-resolves `key`, so a typo can't make the
+/// assertion vacuously pass.
+#[cfg(feature = "test-support")]
+#[track_caller]
+pub fn assert_absent(body: &str, locale: Locale, key: &str) {
+    let value = t_strict(locale, key);
+    assert!(
+        !body.contains(value) && !body.contains(&maud_escape(value)),
+        "assert_absent: page rendered {key:?} = {value:?} ({locale:?})"
+    );
+}
+
+/// `assert_renders!(body, "key")` (locale defaults to English) or
+/// `assert_renders!(body, locale, "key")` — sugar over
+/// [`i18n::assert_renders`](crate::i18n::assert_renders).
+#[cfg(feature = "test-support")]
+#[macro_export]
+macro_rules! assert_renders {
+    ($body:expr, $key:expr $(,)?) => {
+        $crate::i18n::assert_renders($body, $crate::i18n::Locale::En, $key)
+    };
+    ($body:expr, $locale:expr, $key:expr $(,)?) => {
+        $crate::i18n::assert_renders($body, $locale, $key)
+    };
+}
+
 /// Translate a navbar label. Known chrome labels route through the
 /// catalog; product proper nouns (Nexus, Northstar, Neon Law Navigator, …) and
 /// any unrecognized label pass through verbatim. In `En` the catalog
@@ -231,7 +308,7 @@ pub fn localize_href(href: &str, locale: Locale) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{localize_href, nav_label, t, t_args, Locale};
+    use super::{localize_href, nav_label, t, t_args, t_strict, Locale};
 
     #[test]
     fn locale_yields_code_prefix_and_endonym() {
@@ -299,6 +376,26 @@ mod tests {
     }
 
     #[test]
+    fn t_strict_resolves_a_known_key() {
+        // The strict resolver returns the same value as `t` for a real key.
+        assert_eq!(t_strict(Locale::En, "nav.home"), "Home");
+        assert_eq!(t_strict(Locale::Es, "nav.home"), "Inicio");
+        // And it resolves the copy we just lifted into the catalog.
+        assert_eq!(
+            t_strict(Locale::En, "testimonials.home_heading"),
+            "What clients say"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "no catalog entry for \"does.not.exist\"")]
+    fn t_strict_panics_on_a_missing_key() {
+        // Where `t` returns the key string, `t_strict` is the
+        // raise_on_missing_translations analog: a stale key fails loudly.
+        let _ = t_strict(Locale::En, "does.not.exist");
+    }
+
+    #[test]
     fn interpolation_substitutes_named_placeholders() {
         assert_eq!(
             t_args(Locale::Es, "cta.email", &[("email", "support@neonlaw.com")]),
@@ -343,6 +440,15 @@ mod tests {
             "products.desc_namesake",
             "products.desc_nucleus",
             "products.desc_probono",
+            // Testimonial section headings on `/` and `/services/*`. These
+            // were inline English literals that already rendered English on
+            // `/es`; lifting them into the catalog preserves that status
+            // quo. They fall back to English until attorney-reviewed
+            // Spanish exists — never machine-translated marketing copy.
+            "testimonials.home_heading",
+            "testimonials.home_lead",
+            "testimonials.service_heading",
+            "testimonials.service_lead",
         ];
         let mut untranslated: Vec<&str> = super::EN
             .keys()

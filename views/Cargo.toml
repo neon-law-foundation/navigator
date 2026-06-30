@@ -13,6 +13,13 @@ pulldown-cmark.workspace = true
 serde_yaml.workspace = true
 uuid.workspace = true
 
+[features]
+# Render-assertion test helpers (`i18n::assert_renders`, the
+# `assert_renders!` macro). Behind a feature so they never enter a
+# production build; downstream crates enable it in their dev-deps, the
+# same way `store` exposes its `test-support`.
+test-support = []
+
 [dev-dependencies]
 # Layer-1 accessibility gate (`tests/accessibility.rs`) scans rendered
 # maud for structural invariants — already resolved in the lockfile.
