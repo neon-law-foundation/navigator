@@ -3,6 +3,10 @@
 //! Downstream consumers (the `cli` binary) build a
 //! [`RuleEngine`] from a set of rules and run it over a directory.
 
+pub mod c001;
+pub mod c002;
+pub mod c003;
+pub mod c004;
 pub mod e001;
 pub mod e002;
 pub mod e003;
@@ -65,6 +69,10 @@ pub mod m060;
 pub mod s102;
 pub mod workflow_steps;
 
+pub use c001::C001ContentTitle;
+pub use c002::C002ContentDescription;
+pub use c003::C003BlogFilename;
+pub use c004::C004MinutesFilename;
 pub use e001::E001EventTimestamp;
 pub use e002::E002EventTemplateExclusive;
 pub use e003::E003EventLocationOrMeeting;
@@ -243,6 +251,10 @@ pub fn description_for_code(code: &str) -> &'static str {
         "E001" => "Event must declare both a `starts_at` timestamp and a `timezone`",
         "E002" => "A file is either an event or a notation template, never both",
         "E003" => "Event must declare a `location_address` or a `meeting_url`",
+        "C001" => "Content page must declare a non-empty `title`",
+        "C002" => "Content page must declare a non-empty `description`",
+        "C003" => "Blog post filename must be `YYYYMMDD_slug.md`",
+        "C004" => "Board-minutes filename must be `YYYY-qN.md`",
         "M001" => "Heading levels must increment by one",
         "M003" => "Headings must use the ATX (`# Heading`) style",
         "M004" => "Unordered list markers must be consistent",

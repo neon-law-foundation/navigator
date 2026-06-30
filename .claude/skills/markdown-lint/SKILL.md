@@ -14,13 +14,17 @@ definitions, exit codes, and CI behavior stay coherent.
 ## The canonical command
 
 ```bash
-cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path>
+cargo run -p cli --quiet -- validate --no-default-excludes <path>
 ```
 
 What each piece does:
 
-- `--markdown-only` — runs the M-family Markdown rules and S101 (line length), but skips the N-family notation-template
-  rules. Without this, every README would fail with bogus N101/N102/N103 violations.
+- `validate` classifies each file by its content and path — prose markdown gets the M-family rules + S101/S102, a
+  notation template under `templates/` (or any file declaring `questionnaire:`/`workflow:`) also gets the N-family,
+  events get the E-family, and blog posts / board minutes get the C-family. A plain README classifies as prose on its
+  own, so it never trips bogus N101/N102/N103. The old `--markdown-only` flag forced the prose rules onto everything; it
+  is now deprecated and ignored (it prints a notice). The per-kind frontmatter keys are documented for attorneys in
+  `docs/frontmatter.md`.
 - `--no-default-excludes` — validates files normally skipped by name
   (`README.md`, `CLAUDE.md`, `LICENSE.md`, `CODE_OF_CONDUCT.md`, `ERD.md`) and directories (`AgentDocumentation`,
   `workshops`, `Blog`). For prose docs you want these in scope.
@@ -30,7 +34,7 @@ What each piece does:
 
 ```bash
 for d in rules store views workflows cloud web cli mcp; do
-  cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes "$d"
+  cargo run -p cli --quiet -- validate --no-default-excludes "$d"
 done
 ```
 
@@ -58,8 +62,8 @@ Exit `0` on every iteration means clean. Otherwise the violating file, line, rul
 
 - Don't reach for `markdownlint`, `mdformat`, or any non-Rust linter. We standardize on the in-house `cli` — that's the
   whole point of dogfooding. See [[rust]] for the Rust-only stance.
-- Don't run plain `cargo run -p cli -- validate <path>` on a README.
-  Without `--markdown-only` it fails with N-family complaints about missing frontmatter; without `--no-default-excludes`
-  it silently skips the file.
+- Don't forget `--no-default-excludes` when you want a README, `CLAUDE.md`, or a `workshops`/`Blog` file in scope —
+  without it the walker silently skips those. (A README no longer needs a mode flag: it classifies as prose on its own,
+  so it gets only the M/S rules, never the N-family.)
 - Don't disable a rule by editing `cli/src/main.rs`. If a rule is
   wrong, fix it in `rules/src/<code>.rs` with a test.

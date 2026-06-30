@@ -26,19 +26,30 @@ fn navigator() -> Command {
 #[test]
 fn validate_succeeds_on_clean_directory() {
     let dir = TempDir::new().unwrap();
-    // Use markdown-only mode so the test doesn't need to satisfy the
-    // full N-family notation-template expectations (questionnaire/workflow
-    // maps, confidential, staff_review). Those rules have dedicated
-    // unit tests in the rules crate.
+    // A plain prose file classifies as Markdown (it carries none of the
+    // notation/event/content markers), so it is held only to the M/S
+    // rules — no N-family expectations to satisfy.
     write(dir.path(), "Notes.md", "Plain body line.\n");
     navigator()
-        .args(["validate", "--markdown-only"])
+        .args(["validate"])
         .arg(dir.path())
         .assert()
         .success()
         .stdout(str::contains(
             "Scanned 1 file(s), found 0 error(s), 0 warning(s)",
         ));
+}
+
+#[test]
+fn validate_markdown_only_flag_is_deprecated_but_still_runs() {
+    let dir = TempDir::new().unwrap();
+    write(dir.path(), "Notes.md", "Plain body line.\n");
+    navigator()
+        .args(["validate", "--markdown-only"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(str::contains("--markdown-only is deprecated"));
 }
 
 #[test]
@@ -50,7 +61,7 @@ fn validate_exits_nonzero_on_violations_and_prints_each_one() {
         &format!("Intro.\n\n{}\n", "x".repeat(121)),
     );
     navigator()
-        .args(["validate", "--markdown-only"])
+        .args(["validate"])
         .arg(dir.path())
         .assert()
         .failure()
@@ -111,7 +122,7 @@ fn validate_skips_readme_and_claude_files() {
     write(dir.path(), "CLAUDE.md", &"x".repeat(200));
     write(dir.path(), "Ok.md", "Plain body line.\n");
     navigator()
-        .args(["validate", "--markdown-only"])
+        .args(["validate"])
         .arg(dir.path())
         .assert()
         .success()
@@ -155,22 +166,6 @@ fn every_template_notation_passes_classified_validation() {
         .assert()
         .success()
         .stdout(str::contains("found 0 error(s)"));
-}
-
-/// Companion guard: the same notations must also pass under
-/// `--markdown-only`, which forces the markdown rules (M-family + S101 +
-/// S102) onto every file regardless of classification. This catches
-/// prose-level regressions (long lines, hard tabs, trailing whitespace)
-/// that the notation-only path would not surface.
-#[test]
-fn every_template_notation_passes_markdown_only_validation() {
-    let templates = workspace_root().join("templates");
-    navigator()
-        .args(["validate", "--markdown-only"])
-        .arg(&templates)
-        .assert()
-        .success()
-        .stdout(str::contains("found 0 error(s), 0 warning(s)"));
 }
 
 #[test]
@@ -263,7 +258,7 @@ fn validate_fix_writes_back_autofixable_edits_and_reports_remaining() {
         "Body line with trailing spaces   \nTabbed\there\n",
     );
     navigator()
-        .args(["validate", "--fix", "--markdown-only"])
+        .args(["validate", "--fix"])
         .arg(dir.path())
         .assert()
         .stdout(str::contains("fixed"))
@@ -306,13 +301,13 @@ fn validate_fix_is_idempotent() {
     let dir = TempDir::new().unwrap();
     write(dir.path(), "OnlyFixable.md", "Body  \n\tIndent\n");
     navigator()
-        .args(["validate", "--fix", "--markdown-only"])
+        .args(["validate", "--fix"])
         .arg(dir.path())
         .assert()
         .success();
     // Second run finds nothing to fix.
     navigator()
-        .args(["validate", "--fix", "--markdown-only"])
+        .args(["validate", "--fix"])
         .arg(dir.path())
         .assert()
         .success()

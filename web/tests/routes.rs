@@ -314,7 +314,7 @@ async fn root_returns_home_page_html() {
     assert!(body
         .contains("a licensed attorney works with you, with transparent pricing before the work"));
     assert!(body.contains("LSC Justice Gap Report, 2022"));
-    assert!(body.contains("href=\"/foundation/templates\""));
+    assert!(body.contains("href=\"/foundation/notations\""));
     // It is firm-branded prose and cards — no old marketing hero strip.
     assert!(
         !body.contains("lake-tahoe"),
@@ -671,32 +671,7 @@ async fn navigator_es_serves_the_spanish_hub_with_an_english_readme() {
 }
 
 #[tokio::test]
-async fn templates_serves_the_tree_readme_under_foundation_brand() {
-    let app = web::build_router(
-        empty_state().await,
-        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
-    );
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/templates")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("<title>Neon Law Foundation | Templates</title>"));
-    assert!(body.contains(">Templates</h1>"));
-    assert!(body.contains("The tree has exactly two top-level shelves"));
-    assert!(body.contains("templates/forms/united_states/nevada/state/nv__llc_formation.md"));
-    assert!(body.contains("href=\"/docs/notation\""));
-    assert!(body.contains("href=\"/foundation/navigator#trademarks\""));
-}
-
-#[tokio::test]
-async fn old_foundation_notations_url_is_not_mounted() {
+async fn notations_serve_the_tree_readme_under_foundation_brand() {
     let app = web::build_router(
         empty_state().await,
         std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
@@ -705,6 +680,36 @@ async fn old_foundation_notations_url_is_not_mounted() {
         .oneshot(
             Request::builder()
                 .uri("/foundation/notations")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains("<title>Neon Law Foundation | Notations</title>"));
+    assert!(body.contains(">Notations</h1>"));
+    // The hero + story open the page above the tree README.
+    assert!(body.contains("product-hero__title"));
+    assert!(body.contains("executable form of legal work"));
+    assert!(body.contains("The tree has exactly two top-level shelves"));
+    assert!(body.contains("templates/forms/united_states/nevada/state/nv__llc_formation.md"));
+    assert!(body.contains("href=\"/docs/notation\""));
+    assert!(body.contains("href=\"/foundation/navigator#trademarks\""));
+}
+
+#[tokio::test]
+async fn old_foundation_templates_url_is_not_mounted() {
+    // The page was renamed Templates → Notations and the old URL was not
+    // kept (no redirect): `/foundation/templates` 404s.
+    let app = web::build_router(
+        empty_state().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/templates")
                 .body(Body::empty())
                 .unwrap(),
         )

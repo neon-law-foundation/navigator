@@ -719,7 +719,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/foundation/navigator/cli", get(navigator_cli))
             .route("/foundation/navigator/mcp", get(navigator_mcp))
             .route("/foundation/navigator/web", get(navigator_web))
-            .route("/foundation/templates", get(template_tree))
+            .route("/foundation/notations", get(template_tree))
             .route("/foundation/transparency", get(foundation_transparency))
             .route(
                 "/foundation/transparency/{slug}",
@@ -1127,8 +1127,8 @@ async fn navigator_web(MaybeAuth(auth): MaybeAuth) -> Markup {
     )
 }
 
-/// `GET /foundation/templates` — the Template tree README,
-/// rendered under the Foundation brand.
+/// `GET /foundation/notations` — the notations page: a Foundation-brand
+/// story about what a notation is, above the notation tree README.
 async fn template_tree(MaybeAuth(auth): MaybeAuth) -> Markup {
     views::pages::template_tree::render(auth)
 }

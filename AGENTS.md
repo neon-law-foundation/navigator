@@ -90,10 +90,12 @@ acting on anything below, and keep the doc, not this file, authoritative.
 - **Markdown lint before committing any `.md`.** Dogfood the CLI; never hand-roll a linter. Must exit `0`:
 
   ```bash
-  cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path>
+  cargo run -p cli --quiet -- validate --no-default-excludes <path>
   ```
 
-  → [`docs/agent-workflows.md`](docs/agent-workflows.md).
+  `validate` classifies each file automatically (prose, notation template, event, blog post, board minutes), so the old
+  `--markdown-only` flag is deprecated and ignored. Frontmatter keys per kind are documented for attorneys in
+  [`docs/frontmatter.md`](docs/frontmatter.md). → [`docs/agent-workflows.md`](docs/agent-workflows.md).
 - **Use the three decision councils when the decision earns them.** Engineering Council for architecture and doc
   clarity, Legal Council for legal copy before it becomes a Notation/template/prompt/email, and Client Council for
   client-facing product, intake, pricing, onboarding, and portal decisions. Default to the smallest useful bench and

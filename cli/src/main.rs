@@ -72,9 +72,12 @@ enum Command {
     Validate {
         /// Directory to walk.
         dir: PathBuf,
-        /// Skip the N-family rules (Neon Law Navigator notation-template
-        /// specific) and only run general Markdown checks.
-        #[arg(long)]
+        /// Deprecated and ignored. `validate` now classifies each file
+        /// automatically — prose Markdown gets the M/S rules, while
+        /// notation templates, events, blog posts, and board minutes also
+        /// get their frontmatter rules — so the flag is no longer needed.
+        /// Kept so existing invocations don't error; it prints a notice.
+        #[arg(long, hide = true)]
         markdown_only: bool,
         /// Validate files normally skipped by name (`README.md`,
         /// `CLAUDE.md`, `CODE_OF_CONDUCT.md`, `LICENSE.md`, `ERD.md`)
@@ -1606,9 +1609,14 @@ async fn run_validate(
     fix: bool,
     database_url: Option<&str>,
 ) -> ExitCode {
-    let question_codes = if markdown_only {
-        Vec::new()
-    } else if let Some(url) = database_url {
+    if markdown_only {
+        eprintln!(
+            "navigator: --markdown-only is deprecated and ignored — validate now classifies \
+             each file automatically (prose Markdown gets the M/S rules; notation templates, \
+             events, blog posts, and board minutes get their frontmatter rules too)."
+        );
+    }
+    let question_codes = if let Some(url) = database_url {
         let db = match open_postgres(url).await {
             Ok(d) => d,
             Err(code) => return code,
@@ -1630,11 +1638,7 @@ async fn run_validate(
     };
     if fix {
         let fix_report = match fix_directory(dir, filter.as_ref(), |file| {
-            if markdown_only {
-                rules::navigator_markdown_only_rules()
-            } else {
-                rules::navigator_classified_rules_with_codes(file, &question_codes)
-            }
+            rules::navigator_classified_rules_with_codes(file, &question_codes)
         }) {
             Ok(r) => r,
             Err(e) => {
@@ -1662,11 +1666,7 @@ async fn run_validate(
             ExitCode::from(1)
         };
     }
-    let report = if markdown_only {
-        let engine =
-            rules::RuleEngine::new(rules::navigator_markdown_only_rules()).with_filter(filter);
-        engine.lint_directory(dir)
-    } else {
+    let report = {
         let engine = rules::ClassifiedRuleEngine::new()
             .with_question_codes(question_codes)
             .with_filter(filter);
@@ -1680,15 +1680,13 @@ async fn run_validate(
         }
     };
     // Cross-file `N111`: notation template `code` must be unique across
-    // the tree. Only meaningful for the classified (notation) rule set,
-    // not the markdown-only prose pass.
-    if !markdown_only {
-        match code_uniqueness_pass(dir, no_default_excludes) {
-            Ok(mut v) => report.violations.append(&mut v),
-            Err(e) => {
-                eprintln!("navigator: {e}");
-                return ExitCode::from(2);
-            }
+    // the tree. Always run — only notation templates carry a `code`, so a
+    // prose-only tree simply finds nothing.
+    match code_uniqueness_pass(dir, no_default_excludes) {
+        Ok(mut v) => report.violations.append(&mut v),
+        Err(e) => {
+            eprintln!("navigator: {e}");
+            return ExitCode::from(2);
         }
     }
     for v in &report.violations {

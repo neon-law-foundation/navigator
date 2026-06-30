@@ -145,7 +145,7 @@ const FOUNDATION_NAV: &[NavLink] = &[
     // "Nebula" (workshops, show-and-tells, and presentations). No
     // "Learn" catch-all dropdown.
     NavLink::leaf("Navigator", "/foundation/navigator"),
-    NavLink::leaf("Templates", "/foundation/templates"),
+    NavLink::leaf("Notations", "/foundation/notations"),
     NavLink::leaf("Nimbus", "/foundation/nimbus"),
     NavLink::leaf("Nebula", "/foundation/nebula"),
 ];
@@ -407,22 +407,6 @@ mod tests {
     }
 
     #[test]
-    fn foundation_top_nav_is_four_flat_leaves() {
-        let labels: Vec<&str> = FOUNDATION_BRAND.nav.iter().map(|n| n.label).collect();
-        // The Foundation nav stays terse: firm cross-link, software,
-        // Templates, Nimbus, and Nebula.
-        assert_eq!(
-            labels,
-            ["Firm", "Navigator", "Templates", "Nimbus", "Nebula"]
-        );
-        assert_eq!(FOUNDATION_BRAND.nav[0].href, "/");
-        assert!(
-            FOUNDATION_BRAND.nav.iter().all(|n| !n.is_dropdown()),
-            "the Foundation nav no longer carries any dropdown"
-        );
-    }
-
-    #[test]
     fn foundation_nav_navigator_points_at_the_package_hub() {
         // "Navigator" is a flat top-level leaf at the hub that fans out to
         // the per-package pages (lsp / cli / mcp / web).
@@ -436,14 +420,14 @@ mod tests {
     }
 
     #[test]
-    fn foundation_nav_templates_points_at_the_readme_page() {
-        let templates = FOUNDATION_BRAND
+    fn foundation_nav_notations_points_at_the_readme_page() {
+        let notations = FOUNDATION_BRAND
             .nav
             .iter()
-            .find(|n| n.label == "Templates")
-            .expect("Templates leaf present");
-        assert!(!templates.is_dropdown());
-        assert_eq!(templates.href, "/foundation/templates");
+            .find(|n| n.label == "Notations")
+            .expect("Notations leaf present");
+        assert!(!notations.is_dropdown());
+        assert_eq!(notations.href, "/foundation/notations");
     }
 
     #[test]

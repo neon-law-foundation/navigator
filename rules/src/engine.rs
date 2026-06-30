@@ -40,6 +40,17 @@ pub enum DocumentKind {
     ///
     /// [`E002`]: crate::E002EventTemplateExclusive
     Event,
+    /// A published blog post under `web/content/blog/`: dated markdown
+    /// (`YYYYMMDD_slug.md`) carrying a `title` and `description`. Not a
+    /// notation template — it gets the prose rules plus the content-page
+    /// frontmatter rules (`C001`/`C002`) and the dated-filename rule
+    /// (`C003`).
+    BlogPost,
+    /// A quarterly board-minutes page under
+    /// `web/content/foundation/minutes/`, named `YYYY-qN.md`, carrying a
+    /// `title` and `description`. Gets the prose rules plus `C001`/`C002`
+    /// and the minutes-filename rule (`C004`).
+    BoardMinutes,
 }
 
 impl LintReport {
@@ -532,16 +543,52 @@ pub fn navigator_markdown_only_rules() -> Vec<Box<dyn Rule>> {
 /// The rule set for a public event (show-and-tell) markdown file.
 ///
 /// Events get the prose Markdown rules (so headings, links, and the
-/// 120-character budget are still enforced on the body) plus the
-/// E-family event-contract rules. They deliberately do *not* get the
-/// N-family notation rules — an event is not a template.
+/// 120-character budget are still enforced on the body), the shared
+/// content-page rules (`C001`/`C002` — an event page needs a `title` and
+/// a `description` the same way a blog post does), plus the E-family
+/// event-contract rules. They deliberately do *not* get the N-family
+/// notation rules — an event is not a template.
 #[must_use]
 pub fn navigator_event_rules() -> Vec<Box<dyn Rule>> {
     use crate::{E001EventTimestamp, E002EventTemplateExclusive, E003EventLocationOrMeeting};
-    let mut rules = navigator_markdown_only_rules();
+    let mut rules = navigator_content_page_rules();
     rules.push(Box::new(E001EventTimestamp));
     rules.push(Box::new(E002EventTemplateExclusive));
     rules.push(Box::new(E003EventLocationOrMeeting));
+    rules
+}
+
+/// Prose Markdown rules plus the shared content-page frontmatter rules
+/// (`C001` title, `C002` description). This is the base for every
+/// published `web/content` page that is not a notation template —
+/// events, blog posts, and board minutes — each of which then adds its
+/// own kind-specific rule(s).
+#[must_use]
+fn navigator_content_page_rules() -> Vec<Box<dyn Rule>> {
+    use crate::{C001ContentTitle, C002ContentDescription};
+    let mut rules = navigator_markdown_only_rules();
+    rules.push(Box::new(C001ContentTitle));
+    rules.push(Box::new(C002ContentDescription));
+    rules
+}
+
+/// The rule set for a blog post under `web/content/blog/`: the shared
+/// content-page rules plus `C003`, which pins the `YYYYMMDD_slug.md`
+/// filename the loader silently depends on.
+#[must_use]
+pub fn navigator_blog_rules() -> Vec<Box<dyn Rule>> {
+    let mut rules = navigator_content_page_rules();
+    rules.push(Box::new(crate::C003BlogFilename));
+    rules
+}
+
+/// The rule set for a board-minutes page under
+/// `web/content/foundation/minutes/`: the shared content-page rules plus
+/// `C004`, which pins the `YYYY-qN.md` filename.
+#[must_use]
+pub fn navigator_minutes_rules() -> Vec<Box<dyn Rule>> {
+    let mut rules = navigator_content_page_rules();
+    rules.push(Box::new(crate::C004MinutesFilename));
     rules
 }
 
@@ -566,6 +613,10 @@ pub fn classify_source(file: &SourceFile) -> DocumentKind {
         || frontmatter_has_notation_machine(&file.contents)
     {
         DocumentKind::NotationTemplate
+    } else if path_is_blog_post(&file.path) {
+        DocumentKind::BlogPost
+    } else if path_is_board_minutes(&file.path) {
+        DocumentKind::BoardMinutes
     } else {
         DocumentKind::Markdown
     }
@@ -585,6 +636,8 @@ pub fn navigator_classified_rules_with_codes(
         DocumentKind::Markdown => navigator_markdown_only_rules(),
         DocumentKind::NotationTemplate => navigator_default_rules_with_codes(valid_codes),
         DocumentKind::Event => navigator_event_rules(),
+        DocumentKind::BlogPost => navigator_blog_rules(),
+        DocumentKind::BoardMinutes => navigator_minutes_rules(),
     }
 }
 
@@ -612,6 +665,33 @@ fn path_is_notation_template(path: &Path) -> bool {
             std::path::Component::Normal(seg) if seg == "templates"
         )
     })
+}
+
+/// True when `path` sits under a directory named `dir` and is not a
+/// `README.md`. Blog posts and board minutes carry no distinguishing
+/// frontmatter signal of their own — they look like any titled page — so
+/// the containing directory is the classifier marker, the same way
+/// `templates/` marks a notation template.
+fn path_under_named_dir(path: &Path, dir: &str) -> bool {
+    if path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("README.md"))
+    {
+        return false;
+    }
+    path.components()
+        .any(|component| matches!(component, std::path::Component::Normal(seg) if seg == dir))
+}
+
+/// A blog post lives under `web/content/blog/`.
+fn path_is_blog_post(path: &Path) -> bool {
+    path_under_named_dir(path, "blog")
+}
+
+/// Board minutes live under `web/content/foundation/minutes/`.
+fn path_is_board_minutes(path: &Path) -> bool {
+    path_under_named_dir(path, "minutes")
 }
 
 fn frontmatter_has_notation_machine(contents: &str) -> bool {
@@ -879,6 +959,105 @@ mod tests {
             "---\ntitle: Seattle\nstarts_at: \"2026-07-02T11:00:00\"\ntimezone: America/Los_Angeles\n---\n\nBody.\n",
         );
         assert_eq!(classify_source(&file), DocumentKind::Event);
+    }
+
+    #[test]
+    fn classifier_treats_blog_dir_as_blog_post() {
+        let file = source(
+            "web/content/blog/20260625_going_all_in_on_rust.md",
+            "---\ntitle: Going All-In on Rust\ndescription: Why.\n---\n\nBody.\n",
+        );
+        assert_eq!(classify_source(&file), DocumentKind::BlogPost);
+    }
+
+    #[test]
+    fn classifier_treats_minutes_dir_as_board_minutes() {
+        let file = source(
+            "web/content/foundation/minutes/2021-q1.md",
+            "---\ntitle: Minutes\ndescription: Q1.\n---\n\nBody.\n",
+        );
+        assert_eq!(classify_source(&file), DocumentKind::BoardMinutes);
+    }
+
+    #[test]
+    fn blog_post_requires_title_description_and_dated_filename() {
+        // A misnamed, under-specified post trips all three content rules:
+        // missing title (C001), missing description (C002), bad filename
+        // (C003) — none of which the loader would report; it would just
+        // drop the post.
+        let file = source("web/content/blog/draft.md", "---\nslug: x\n---\n\nBody.\n");
+        let codes: Vec<&str> = lint_source_classified(&file)
+            .iter()
+            .map(|v| v.code)
+            .collect();
+        assert!(codes.contains(&"C001"), "expected C001, got {codes:?}");
+        assert!(codes.contains(&"C002"), "expected C002, got {codes:?}");
+        assert!(codes.contains(&"C003"), "expected C003, got {codes:?}");
+        assert!(
+            !codes.iter().any(|c| c.starts_with('N')),
+            "a blog post is not a notation template: {codes:?}"
+        );
+    }
+
+    #[test]
+    fn board_minutes_require_minutes_filename() {
+        let file = source(
+            "web/content/foundation/minutes/q1-2021.md",
+            "---\ntitle: T\ndescription: D\n---\n\nBody.\n",
+        );
+        let codes: Vec<&str> = lint_source_classified(&file)
+            .iter()
+            .map(|v| v.code)
+            .collect();
+        assert!(codes.contains(&"C004"), "expected C004, got {codes:?}");
+    }
+
+    #[test]
+    fn plain_prose_never_gets_content_page_rules() {
+        // A README-style prose doc has no title/description requirement —
+        // the C-family must not leak onto ordinary Markdown.
+        let file = source("docs/some-guide.md", "# Guide\n\nProse body.\n");
+        let codes: Vec<&str> = lint_source_classified(&file)
+            .iter()
+            .map(|v| v.code)
+            .collect();
+        assert!(
+            !codes.iter().any(|c| c.starts_with('C')),
+            "prose markdown must not trip C-family rules: {codes:?}"
+        );
+    }
+
+    #[test]
+    fn template_with_only_workflow_is_flagged_for_missing_questionnaire() {
+        // The "both or neither" invariant: declaring one machine
+        // classifies the file as a template (||), and N104 then requires
+        // the other. A half-declared template never lints clean.
+        let workflow_only = source(
+            "templates/neon_law/shared/draft.md",
+            "---\ntitle: Draft\ncode: x__draft\nworkflow:\n  BEGIN:\n    created: END\n---\n",
+        );
+        let codes: Vec<&str> = lint_source_classified(&workflow_only)
+            .iter()
+            .map(|v| v.code)
+            .collect();
+        assert!(codes.contains(&"N104"), "expected N104, got {codes:?}");
+        assert!(
+            lint_source_classified(&workflow_only)
+                .iter()
+                .any(|v| v.code == "N104" && v.message.contains("questionnaire")),
+            "N104 should name the missing questionnaire"
+        );
+
+        let questionnaire_only = source(
+            "templates/neon_law/shared/draft.md",
+            "---\ntitle: Draft\ncode: x__draft\nquestionnaire:\n  BEGIN:\n    _: END\n---\n",
+        );
+        assert!(
+            lint_source_classified(&questionnaire_only)
+                .iter()
+                .any(|v| v.code == "N104" && v.message.contains("workflow")),
+            "N104 should name the missing workflow"
+        );
     }
 
     #[test]

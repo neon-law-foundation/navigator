@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString};
-use rules::{description_for_code, Rule, SourceFile, Violation};
+use rules::{description_for_code, severity_for_code, Rule, Severity, SourceFile, Violation};
 
 use crate::position::range_to_lsp_range;
 
@@ -30,11 +30,22 @@ pub fn lint_buffer(path: PathBuf, text: String) -> (SourceFile, Vec<Violation>) 
 /// Project a single `Violation` onto the LSP diagnostic shape.
 /// `text` is the source the violation was computed against and is
 /// used to map byte offsets to UTF-16 positions.
+///
+/// The LSP severity mirrors the gate severity from
+/// [`rules::severity_for_code`]: a blocking error (anything that fails
+/// `navigator validate`) renders as a **red** squiggle, while a
+/// non-blocking advisory (e.g. `N112`, "step allowed but not built yet")
+/// renders as a **yellow** one — the same red/yellow split a lawyer sees
+/// described in `docs/frontmatter.md`.
 #[must_use]
 pub fn violation_to_diagnostic(text: &str, v: &Violation) -> Diagnostic {
+    let severity = match severity_for_code(v.code) {
+        Severity::Error => DiagnosticSeverity::ERROR,
+        Severity::Warning => DiagnosticSeverity::WARNING,
+    };
     Diagnostic {
         range: range_to_lsp_range(text, &v.range),
-        severity: Some(DiagnosticSeverity::WARNING),
+        severity: Some(severity),
         code: Some(NumberOrString::String(v.code.to_string())),
         code_description: None,
         source: Some("navigator".to_string()),
@@ -89,15 +100,32 @@ mod tests {
     }
 
     #[test]
-    fn violation_to_diagnostic_carries_code_and_warning_severity() {
+    fn violation_to_diagnostic_renders_a_blocking_error_as_red() {
+        // A gate-blocking rule (M010 hard tab) is an `Error`, so it
+        // surfaces as a red `ERROR` squiggle, not a yellow warning.
         let text = "ok\n\thard tab\n";
         let (_file, violations) = lint_buffer(std::path::PathBuf::from("t.md"), text.to_string());
         let m010 = violations.iter().find(|v| v.code == "M010").unwrap();
         let diag = violation_to_diagnostic(text, m010);
-        assert_eq!(diag.severity, Some(DiagnosticSeverity::WARNING));
+        assert_eq!(diag.severity, Some(DiagnosticSeverity::ERROR));
         assert!(matches!(diag.code, Some(NumberOrString::String(ref s)) if s == "M010"));
         assert_eq!(diag.source.as_deref(), Some("navigator"));
         // Line 2 (1-based in source → 0-based in LSP).
         assert_eq!(diag.range.start.line, 1);
+    }
+
+    #[test]
+    fn violation_to_diagnostic_renders_an_advisory_as_yellow() {
+        // The "allowed but not built yet" advisory (N112) is a
+        // `Warning`, so it stays a yellow `WARNING` squiggle.
+        let advisory = rules::Violation {
+            code: "N112",
+            path: std::path::PathBuf::from("t.md"),
+            line: 1,
+            range: 0..1,
+            message: "step not built yet".to_string(),
+        };
+        let diag = violation_to_diagnostic("x\n", &advisory);
+        assert_eq!(diag.severity, Some(DiagnosticSeverity::WARNING));
     }
 }
