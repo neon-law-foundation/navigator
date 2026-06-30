@@ -26,9 +26,8 @@ in the **private** documents bucket `gs://YOUR_PROJECT_ID-documents/` (the `FsSt
 public `-assets` bucket. The LFS pointer is committed in the pack; the object reconciles by its `oid` (sha256). The git
 repos themselves live on a POSIX volume, not a bucket (GCS is not a filesystem); see the durable design doc.
 
-The legacy Google Drive ingest path (the `cli drive` OAuth door, the `cloud::drive` REST client, the `DriveSync`
-workflow, and the `projects.drive_folder_id` column) has been **removed** — git is the per-Project document system of
-record. No `google-cloud-drive` crate, and no `drive.readonly` OAuth app, is in the dependency graph.
+Git is the per-Project document system of record. No `google-cloud-drive` crate, and no `drive.readonly` OAuth app, is
+in the dependency graph.
 
 ### Ingestion audit trail
 
@@ -342,10 +341,6 @@ The GKE LB serves Neon Law Navigator on two hostnames; both `A` records point at
 `navigator-ingress-ip`. DNS is at **DNSimple** — same zone (`neonlaw.com`) and same `dnsimple` CLI as the redirect swap
 above. The CLI install is one-liner at <https://dnsimple-cli.netlify.app/install.sh> on Linux. On macOS, use `brew` to
 install `dnsimple/tap/dnsimple`; it reads `DNSIMPLE_TOKEN` (or `~/.config/dnsimple/credentials.yml`).
-
-**Retirement of `navigator.neonlaw.com` and `workflows.navigator.neonlaw.com`.** The old hostnames are no longer
-referenced anywhere in the workspace. Remove their records once the new ones resolve and the Google-managed certs flip
-Active.
 
 Get the LB IP:
 

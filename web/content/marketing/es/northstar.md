@@ -16,7 +16,6 @@ pricing:
       - "Usted lee y comenta cada uno en línea antes de firmar"
     cta_label: "Reserve una consulta"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$3,333, pago único"
 ---
 

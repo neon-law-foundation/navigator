@@ -1,12 +1,9 @@
 //! Drop `projects.drive_folder_id` — retire the per-Project Google Drive
 //! sync surface.
 //!
-//! The per-Project archive is now the append-only git repo served from
-//! `web` (`/projects/<id>.git`); Drive is no longer the address of
-//! record, so the column has no remaining reader. (Google Drive was
-//! since removed entirely — the `cloud::drive` client and the `cli drive`
-//! login/ls commands are gone — but that came after this migration; this
-//! step only drops the column.)
+//! The per-Project archive is the append-only git repo served from `web`
+//! (`/projects/<id>.git`); the column has no remaining reader, so this
+//! step drops it.
 //!
 //! Pre-live clean slate: dropping the column loses no production data.
 //! The `down` re-adds it as a nullable text column (matching its

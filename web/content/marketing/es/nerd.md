@@ -17,7 +17,6 @@ pricing:
       - "Como perito que declara o que asesora; un procedimiento separado requiere un acuerdo por separado"
     cta_label: "Reserve una consulta"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$1,337/hora"
 ---
 

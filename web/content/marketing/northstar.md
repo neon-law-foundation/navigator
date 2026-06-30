@@ -16,7 +16,6 @@ pricing:
       - "You read and comment on each one online before signing"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$3,333, once"
 ---
 

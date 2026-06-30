@@ -18,7 +18,6 @@ pricing:
       - "One flat legal fee, paid once at closing — no percentage of the sale price"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$9,999 at closing"
 ---
 

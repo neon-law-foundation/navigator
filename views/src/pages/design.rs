@@ -247,7 +247,6 @@ fn pricing_cards_section() -> Markup {
             features: Vec::new(),
             cta_label: "Get started",
             cta_href: "#design",
-            featured: false,
             featured_label: Some("$3,333, once"),
         },
         PricingCard {
@@ -258,7 +257,6 @@ fn pricing_cards_section() -> Markup {
             features: vec!["Unlimited projects", "Priority support"],
             cta_label: "Get started",
             cta_href: "#design",
-            featured: true,
             featured_label: Some("$2,222 a month, all in"),
         },
     ];

@@ -41,18 +41,6 @@ fn validate_succeeds_on_clean_directory() {
 }
 
 #[test]
-fn validate_markdown_only_flag_is_deprecated_but_still_runs() {
-    let dir = TempDir::new().unwrap();
-    write(dir.path(), "Notes.md", "Plain body line.\n");
-    navigator()
-        .args(["validate", "--markdown-only"])
-        .arg(dir.path())
-        .assert()
-        .success()
-        .stderr(str::contains("--markdown-only is deprecated"));
-}
-
-#[test]
 fn validate_exits_nonzero_on_violations_and_prints_each_one() {
     let dir = TempDir::new().unwrap();
     write(

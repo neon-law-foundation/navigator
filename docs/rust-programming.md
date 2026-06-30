@@ -32,6 +32,19 @@ Canonical language references:
   not needed. Keep one concept per file; split large files when two concepts are hiding inside one module. Use a `mod`
   declaration plus `pub use foo::Type;` for public re-exports.
 
+## Comments describe the present
+
+- A comment, doc comment, or test states what the code does **today**, not how it used to work. Git history is the
+  record of past decisions — don't re-narrate it in the tree. Drop phrasing like "we used to…", "no longer…",
+  "previously", "legacy", or "kept for backwards compat"; if a behavior changed, delete the old path rather than leaving
+  a deprecated-but-handled flag or alias behind.
+- Keep the exceptions that still earn their place: the *why* behind a live invariant (a comment that stops someone
+  re-introducing a removed approach), a migration file's short rationale (a migration is itself a dated record), and
+  guard tests that assert current behavior — an old URL must `404` or redirect, a removed column must fail loud. These
+  describe today's contract, not nostalgia.
+- When you delete a feature, delete its references too: doc examples, README rows, and the test that only exercised the
+  removed path. A dangling pointer to a file, module, or flag that no longer exists is a bug, not history.
+
 ## Async and concurrency
 
 - Use `async fn` over manual future types except at trait/object boundaries. Use structured concurrency first:

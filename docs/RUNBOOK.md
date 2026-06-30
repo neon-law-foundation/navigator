@@ -1,9 +1,9 @@
 # Local end-to-end runbook
 
 Step-by-step instructions to bring the full Neon Law Navigator stack up in a local KIND cluster and walk through the
-OIDC + admin flow in Chrome. Every command in this document has been verified against the manifests and Makefile in the
-repo as of the commit that introduces this file. The runtime steps (`docker`, `kind`, `kubectl`) run on your machine, so
-they're marked with `🔧 you run`; everything else has been mechanically validated.
+OIDC + admin flow in Chrome. Every command in this document is verified against the manifests in the repo. The runtime
+steps (`docker`, `kind`, `kubectl`) run on your machine, so they're marked with `🔧 you run`; everything else has been
+mechanically validated.
 
 ## 0. Prerequisites
 

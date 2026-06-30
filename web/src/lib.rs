@@ -1752,7 +1752,6 @@ fn render_service_with_testimonials(
             features: c.features.iter().map(String::as_str).collect(),
             cta_label: &c.cta_label,
             cta_href: &c.cta_href,
-            featured: c.featured,
             featured_label: c.featured_label.as_deref(),
         })
         .collect();

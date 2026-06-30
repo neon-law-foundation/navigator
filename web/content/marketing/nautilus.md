@@ -17,7 +17,6 @@ pricing:
       - "One flat fee — we never take a percentage of your debt"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$66/month"
 ---
 

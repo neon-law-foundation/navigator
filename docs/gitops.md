@@ -72,7 +72,7 @@ inherit this.
   Run the Markdown gate for the touched docs instead:
 
   ```bash
-  cargo run -p cli -- validate --markdown-only --no-default-excludes <path>
+  cargo run -p cli -- validate --no-default-excludes <path>
   ```
 
 - After the PR is created or updated, clean task-owned build and e2e resources. `cargo clean` the task worktree when

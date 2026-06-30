@@ -1,9 +1,8 @@
 # GKE ship — the roll-only model
 
-This page used to document a local-build → Artifact Registry → GCS-bundle ship. That flow is **retired**. Images are no
-longer built on a laptop and there is no Artifact Registry: CI (`.github/workflows/deploy.yml`) builds every image and
-publishes it to the **public** `ghcr.io/neon-law-foundation/navigator-*` packages, tagged `YY.M.D` (the release date)
-plus `latest`. `ship` only **rolls the cluster** onto an already-published image.
+CI (`.github/workflows/deploy.yml`) builds every image and publishes it to the **public**
+`ghcr.io/neon-law-foundation/navigator-*` packages, tagged `YY.M.D` (the release date) plus `latest`. `ship` only
+**rolls the cluster** onto an already-published image.
 
 The canonical, maintained walk-through is [`cloud-operations.md`](../cloud-operations.md). Read it for the full recipe
 (resolving the tag, the Secret-invariant check, the concurrent rollout, the Restate re-registration, and the

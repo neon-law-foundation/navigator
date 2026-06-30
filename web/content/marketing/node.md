@@ -17,7 +17,6 @@ pricing:
       - "One flat fee per attestation — network fees passed through at cost"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$44 each"
 ---
 

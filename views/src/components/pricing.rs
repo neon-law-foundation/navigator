@@ -1,9 +1,8 @@
 //! Bootstrap pricing / offer cards for the firm's service pages.
 //!
-//! Flat-fee cards share one visual treatment: the cyan header band and
-//! solid CTA formerly reserved for a featured tier. Some legacy content
-//! still sets `featured`; the renderer keeps the field for schema
-//! compatibility but no longer branches the card style on it.
+//! Flat-fee cards share one visual treatment: the cyan header band and a
+//! solid CTA. There is no per-card style toggle — every card renders with
+//! the same highlighted treatment.
 //!
 //! The data is borrowed view input; the owning strings live in the
 //! marketing content the `web` crate loads and maps onto these structs
@@ -34,9 +33,6 @@ pub struct PricingCard<'a> {
     pub features: Vec<&'a str>,
     pub cta_label: &'a str,
     pub cta_href: &'a str,
-    /// Legacy marker for the old tiered-plan treatment. Pricing cards
-    /// are all rendered with the highlighted flat-fee style now.
-    pub featured: bool,
     /// Label for the cyan band (e.g. `"$3,333, once"`). Falls back to
     /// the card price when omitted.
     pub featured_label: Option<&'a str>,
@@ -115,7 +111,11 @@ fn card_markup(card: &PricingCard<'_>) -> Markup {
 mod tests {
     use super::{pricing_section, PricingCard};
 
-    fn fee_card<'a>(title: &'a str, price: &'a str, featured: bool) -> PricingCard<'a> {
+    fn fee_card<'a>(
+        title: &'a str,
+        price: &'a str,
+        featured_label: Option<&'a str>,
+    ) -> PricingCard<'a> {
         PricingCard {
             title,
             price,
@@ -124,17 +124,16 @@ mod tests {
             features: vec!["Priority support"],
             cta_label: "Get started",
             cta_href: "mailto:support@neonlaw.com",
-            featured,
-            featured_label: featured.then_some("$2,222 a month, all in"),
+            featured_label,
         }
     }
 
     #[test]
     fn renders_one_card_per_entry_in_a_responsive_row() {
         let cards = [
-            fee_card("Northstar", "$3,333", false),
-            fee_card("Nexus", "$2,222", true),
-            fee_card("Nimbus", "$11,111", false),
+            fee_card("Northstar", "$3,333", None),
+            fee_card("Nexus", "$2,222", Some("$2,222 a month, all in")),
+            fee_card("Nimbus", "$11,111", None),
         ];
         let html = pricing_section(&cards, 3).into_string();
         assert_eq!(html.matches("class=\"card h-100").count(), 3);
@@ -149,8 +148,8 @@ mod tests {
         // side-by-side: the row is a plain single column, with no
         // `row-cols-md-2` to break it into two on a tablet.
         let cards = [
-            fee_card("Nimbus", "$11,111", true),
-            fee_card("Legal aid", "Discounted", false),
+            fee_card("Nimbus", "$11,111", Some("$2,222 a month, all in")),
+            fee_card("Legal aid", "Discounted", None),
         ];
         let html = pricing_section(&cards, 1).into_string();
         assert!(
@@ -166,7 +165,7 @@ mod tests {
 
     #[test]
     fn every_card_gets_primary_band_and_solid_cta() {
-        let cards = [fee_card("Nexus", "$2,222", true)];
+        let cards = [fee_card("Nexus", "$2,222", Some("$2,222 a month, all in"))];
         let html = pricing_section(&cards, 3).into_string();
         assert!(html.contains("card h-100 shadow-sm border-primary"));
         assert!(html.contains("card-header"));
@@ -175,8 +174,8 @@ mod tests {
     }
 
     #[test]
-    fn unfeatured_legacy_card_still_uses_highlighted_flat_fee_style() {
-        let cards = [fee_card("Northstar", "$3,333", false)];
+    fn card_without_a_featured_label_uses_highlighted_flat_fee_style() {
+        let cards = [fee_card("Northstar", "$3,333", None)];
         let html = pricing_section(&cards, 3).into_string();
         assert!(html.contains("card h-100 shadow-sm border-primary"));
         assert!(html.contains("card-header"));
@@ -195,7 +194,6 @@ mod tests {
             features: Vec::new(),
             cta_label: "Get started",
             cta_href: "mailto:support@neonlaw.com",
-            featured: false,
             featured_label: None,
         };
         let html = pricing_section(&[card], 4).into_string();
@@ -210,7 +208,7 @@ mod tests {
     fn renders_check_icon_per_feature() {
         let card = PricingCard {
             features: vec!["a", "b", "c"],
-            ..fee_card("Nexus", "$2,222", false)
+            ..fee_card("Nexus", "$2,222", None)
         };
         let html = pricing_section(&[card], 3).into_string();
         assert_eq!(html.matches("bi-check-lg").count(), 3);
