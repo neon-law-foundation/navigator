@@ -220,7 +220,7 @@ pub fn t_strict(locale: Locale, key: &str) -> &'static str {
     raw(locale, key).unwrap_or_else(|| {
         panic!(
             "i18n: no catalog entry for {key:?} (checked {locale:?}, then the En \
-             fallback) — add it to the English catalog (views/locales/en.yml); \
+             fallback) — add it to the English catalog (views/locales/en/<domain>.yml); \
              En is the complete source every locale falls back to."
         )
     })
@@ -414,6 +414,26 @@ mod tests {
                 super::EN.contains_key(key),
                 "Spanish key {key:?} has no English counterpart"
             );
+        }
+    }
+
+    #[test]
+    fn domain_key_namespaces_are_disjoint() {
+        // `build` merges domains with `extend`, so a key repeated across two
+        // domain files would silently shadow the earlier value with no
+        // diagnostic. Guard that the en domain files never collide — a new
+        // domain (e.g. portal.yml) that reuses a `nav.*` / `cta.*` key trips
+        // this instead of quietly overwriting. Checked on en (the source);
+        // es is a subset of en keys, so en-disjoint implies es-disjoint.
+        use std::collections::HashSet;
+        let mut seen: HashSet<String> = HashSet::new();
+        for domain in super::DOMAINS {
+            for key in super::parse_catalog(domain.en).into_keys() {
+                assert!(
+                    seen.insert(key.clone()),
+                    "duplicate i18n key {key:?} across en domain files — domains must be disjoint"
+                );
+            }
         }
     }
 
