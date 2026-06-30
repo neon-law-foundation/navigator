@@ -1,0 +1,34 @@
+# English chrome — navbar, auth links, the language switcher, footer.
+#
+# Chrome is short, repeated, engineer-owned, and LOCALIZED (Tier A in
+# docs/i18n.md): es/chrome.yml is its Spanish twin and es-parity is
+# enforced. Long prose lives as Markdown under web/content/marketing/.
+#
+# Looked up with `views::i18n::t(locale, "nav.home")`.
+nav:
+  home: Home
+  foundation: Foundation
+  firm: Firm
+  services: Services
+  mission: Mission
+  notations: Notations
+  workshops: Workshops
+auth:
+  portal: Portal
+  sign_in: Sign in
+  sign_out: Sign out
+switcher:
+  # Shown as the link's aria-label; describes the action in the page's
+  # CURRENT language. The visible label is the target language's own
+  # name (its endonym), supplied by `Locale::endonym`.
+  aria: View this page in Spanish
+footer:
+  github_star: Star Neon Law Navigator
+  # Shown ONLY on localized (non-English) pages, heading the footer's
+  # legal strip — bar admissions and the legal-advice disclaimer stay
+  # English by policy, because the binding artifact a client signs is
+  # English even when the page chrome is localized (CLAUDE.md). Telling
+  # the reader, in their own language, that this is deliberate is an
+  # attorney-advertising-honesty requirement, not polish. English keeps
+  # the key for fallback completeness; the layout never renders it in En.
+  legal_in_english: "Binding legal text on this site is provided in English."

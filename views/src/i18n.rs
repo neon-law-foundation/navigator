@@ -4,15 +4,23 @@
 //! Two kinds of user-visible text get two mechanisms (see
 //! [`docs/i18n.md`](../../../docs/i18n.md)):
 //!
-//! - **Chrome** — navbar, auth links, the language switcher,
-//!   CTAs — is short, repeated, and engineer-owned. It lives in the YAML
-//!   catalogs under `views/locales/{en,es}.yml`, baked into the binary
-//!   with `include_str!` and looked up here with [`t`] / [`t_args`].
+//! - **Chrome / marketing copy** — navbar, auth links, the switcher,
+//!   CTAs, the service catalog, testimonial headings — is short and
+//!   engineer- or attorney-owned. It lives in per-domain YAML files under
+//!   `views/locales/<locale>/<domain>.yml`, baked into the binary with
+//!   `include_str!` and looked up here with [`t`] / [`t_args`].
 //! - **Prose** — marketing pages, the mission letter — stays Markdown,
 //!   with a parallel localized tree the `web` crate loads.
 //!
+//! The catalog is split by **domain** (one file per domain per locale) so
+//! review boundaries map to files and "English-only" is structural, not a
+//! per-key waiver: a domain with an `es/` twin is LOCALIZED (es-parity
+//! enforced); a domain with no `es/` twin (portal, errors — added as copy
+//! migrates) is ENGLISH-ONLY and skipped by the parity guard. See
+//! [`DOMAINS`].
+//!
 //! `En` is the source locale and the universal fallback: a key missing
-//! from `es.yml` resolves to the English value, never to a raw key.
+//! from a Spanish file resolves to the English value, never to a raw key.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -83,11 +91,45 @@ impl Locale {
     }
 }
 
-const EN_CATALOG: &str = include_str!("../locales/en.yml");
-const ES_CATALOG: &str = include_str!("../locales/es.yml");
+/// One catalog domain: its English source and, for a LOCALIZED domain,
+/// the Spanish twin. `es: None` marks an ENGLISH-ONLY domain (portal,
+/// errors) that es-parity skips by construction — no per-key waiver.
+struct Domain {
+    en: &'static str,
+    es: Option<&'static str>,
+}
 
-static EN: LazyLock<HashMap<String, String>> = LazyLock::new(|| parse_catalog(EN_CATALOG));
-static ES: LazyLock<HashMap<String, String>> = LazyLock::new(|| parse_catalog(ES_CATALOG));
+/// The catalog, split by domain. Add an English-only domain during the
+/// copy migration with `es: None`; add a localized one with both halves.
+const DOMAINS: &[Domain] = &[
+    // Chrome — navbar, auth, switcher, footer. Localized (Tier A).
+    Domain {
+        en: include_str!("../locales/en/chrome.yml"),
+        es: Some(include_str!("../locales/es/chrome.yml")),
+    },
+    // Marketing — services catalog, CTAs, testimonials, home strip.
+    // Localized (Tier A, attorney-reviewed Spanish).
+    Domain {
+        en: include_str!("../locales/en/marketing.yml"),
+        es: Some(include_str!("../locales/es/marketing.yml")),
+    },
+    // English-only domains land here as their copy migrates, e.g.:
+    //   Domain { en: include_str!("../locales/en/portal.yml"), es: None },
+];
+
+/// Merge every domain's catalog under `select` into one flat key→value map.
+fn build(select: impl Fn(&Domain) -> Option<&'static str>) -> HashMap<String, String> {
+    let mut out = HashMap::new();
+    for domain in DOMAINS {
+        if let Some(src) = select(domain) {
+            out.extend(parse_catalog(src));
+        }
+    }
+    out
+}
+
+static EN: LazyLock<HashMap<String, String>> = LazyLock::new(|| build(|d| Some(d.en)));
+static ES: LazyLock<HashMap<String, String>> = LazyLock::new(|| build(|d| d.es));
 
 fn catalog(locale: Locale) -> &'static HashMap<String, String> {
     match locale {
@@ -135,7 +177,7 @@ fn flatten(prefix: &str, value: &serde_yaml::Value, out: &mut HashMap<String, St
 
 /// Resolve `key` in `locale`, falling back to English, then to the key
 /// itself. Returns `None` only when the key is absent from every
-/// catalog — which is a programming error, since `en.yml` is complete.
+/// catalog — a programming error, since the English catalog is complete.
 fn raw(locale: Locale, key: &str) -> Option<&'static str> {
     catalog(locale)
         .get(key)
@@ -147,7 +189,7 @@ fn raw(locale: Locale, key: &str) -> Option<&'static str> {
 ///
 /// Falls back to the English value when the key is missing in `locale`,
 /// and to the key itself only as a last-resort dev signal (never
-/// expected in production, since `en.yml` is the complete source).
+/// expected in production, since the English catalog is the complete source).
 #[must_use]
 pub fn t(locale: Locale, key: &str) -> String {
     raw(locale, key).map_or_else(|| key.to_string(), str::to_string)
@@ -178,7 +220,7 @@ pub fn t_strict(locale: Locale, key: &str) -> &'static str {
     raw(locale, key).unwrap_or_else(|| {
         panic!(
             "i18n: no catalog entry for {key:?} (checked {locale:?}, then the En \
-             fallback) — add it to the English catalog (views/locales/en.yml); \
+             fallback) — add it to the English catalog (views/locales/en/<domain>.yml); \
              En is the complete source every locale falls back to."
         )
     })
@@ -199,7 +241,7 @@ fn maud_escape(s: &str) -> String {
 /// Two failures, two distinct messages: a missing key panics in
 /// [`t_strict`] ("no catalog entry"); a present key whose copy is absent
 /// from the page fails here. Because the expectation is the *key*, not the
-/// prose, editing the copy in `en.yml` keeps every call site green — the
+/// prose, editing the copy in the catalog keeps every call site green — the
 /// test asserts the page wires up the slot, not what the slot says.
 ///
 /// Prefer the [`assert_renders!`](crate::assert_renders) macro, which
@@ -370,8 +412,28 @@ mod tests {
         for key in super::ES.keys() {
             assert!(
                 super::EN.contains_key(key),
-                "es.yml key {key:?} has no en.yml counterpart"
+                "Spanish key {key:?} has no English counterpart"
             );
+        }
+    }
+
+    #[test]
+    fn domain_key_namespaces_are_disjoint() {
+        // `build` merges domains with `extend`, so a key repeated across two
+        // domain files would silently shadow the earlier value with no
+        // diagnostic. Guard that the en domain files never collide — a new
+        // domain (e.g. portal.yml) that reuses a `nav.*` / `cta.*` key trips
+        // this instead of quietly overwriting. Checked on en (the source);
+        // es is a subset of en keys, so en-disjoint implies es-disjoint.
+        use std::collections::HashSet;
+        let mut seen: HashSet<String> = HashSet::new();
+        for domain in super::DOMAINS {
+            for key in super::parse_catalog(domain.en).into_keys() {
+                assert!(
+                    seen.insert(key.clone()),
+                    "duplicate i18n key {key:?} across en domain files — domains must be disjoint"
+                );
+            }
         }
     }
 
@@ -421,19 +483,23 @@ mod tests {
     }
 
     #[test]
-    fn every_en_key_is_translated_in_es_or_explicitly_waived() {
-        // The silent gap Capricorn flagged: a key in en.yml but missing
-        // from es.yml renders English on a Spanish page with nobody
-        // noticing. Every en key must be EITHER translated in es OR named
-        // in the waiver below — a deliberate "English for now" choice,
-        // never an accident. A new en key trips this until someone makes
-        // that call.
+    fn every_localized_en_key_is_translated_in_es_or_explicitly_waived() {
+        // The silent gap Capricorn flagged: a key in a LOCALIZED domain
+        // (chrome, marketing) but missing from its es twin renders English
+        // on a Spanish page with nobody noticing. Every such key must be
+        // EITHER translated in es OR named in the waiver below — a
+        // deliberate "English for now" choice, never an accident. A new
+        // localized key trips this until someone makes that call.
         //
-        // Waiver = product-catalog descriptions awaiting attorney-reviewed
-        // Spanish (CLAUDE.md: marketing translations are reviewed
-        // in-language, so we never ship machine Spanish here). They fall
-        // back to English on /es/services until reviewed. Add a key ONLY
-        // with that justification — the point is to force the choice.
+        // English-only domains (es: None — portal, errors) are exempt by
+        // construction: they are not in `localized_en` at all, so there is
+        // no per-key waiver to maintain for them.
+        //
+        // Waiver = marketing copy awaiting attorney-reviewed Spanish
+        // (CLAUDE.md: marketing translations are reviewed in-language, so
+        // we never ship machine Spanish here). They fall back to English
+        // until reviewed. Add a key ONLY with that justification — the
+        // point is to force the choice.
         const PENDING_ATTORNEY_REVIEW: &[&str] = &[
             "products.desc_node",
             "products.desc_newleaf",
@@ -450,7 +516,10 @@ mod tests {
             "testimonials.service_heading",
             "testimonials.service_lead",
         ];
-        let mut untranslated: Vec<&str> = super::EN
+        // Keys from localized domains only (es: Some) — English-only
+        // domains carry no Spanish obligation.
+        let localized_en = super::build(|d| d.es.map(|_| d.en));
+        let mut untranslated: Vec<&str> = localized_en
             .keys()
             .map(String::as_str)
             .filter(|k| !super::ES.contains_key(*k))
@@ -459,7 +528,7 @@ mod tests {
         untranslated.sort_unstable();
         assert!(
             untranslated.is_empty(),
-            "en.yml keys with no Spanish translation and no waiver: {untranslated:?}"
+            "localized en keys with no Spanish translation and no waiver: {untranslated:?}"
         );
     }
 
