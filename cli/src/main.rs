@@ -13,6 +13,7 @@ mod events;
 mod format;
 mod forms_sync;
 mod git;
+mod i18n_audit;
 mod import;
 mod intake;
 mod list;
@@ -117,6 +118,20 @@ enum Command {
         /// Directory to walk.
         #[arg(default_value = ".")]
         dir: PathBuf,
+    },
+    /// Reconcile the English i18n catalog against the Rust call sites —
+    /// the `i18n-tasks` analog.
+    ///
+    /// Scans the render/test sources for `t(locale, "key")`,
+    /// `t_strict`/`t_args`, and `assert_renders!`/`assert_absent!` call
+    /// sites and reports two kinds of drift: a **missing** key (named at a
+    /// call site, no catalog entry) and an **unused** key (in the catalog,
+    /// referenced nowhere). Exits nonzero on either, so the `ci` gate
+    /// fails fast on copy that drifted from its catalog.
+    ValidateI18n {
+        /// Workspace root to scan (its `views/src`, `web/src`, `web/tests`).
+        #[arg(default_value = ".")]
+        root: PathBuf,
     },
     /// Render a single notation template to a PDF, framed by an output
     /// format (a plain document, or a firm `letter` on Neon Law
@@ -1038,6 +1053,7 @@ fn main() -> ExitCode {
         )),
         Command::ValidateEvents { dir } => events::run_validate(&dir),
         Command::ValidateYaml { dir } => run_validate_yaml(&dir),
+        Command::ValidateI18n { root } => i18n_audit::run(&root),
         Command::Render {
             file,
             out,
