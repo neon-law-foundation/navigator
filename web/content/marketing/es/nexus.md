@@ -17,7 +17,6 @@ pricing:
       - "Operadores que también leen sus cuentas en la nube, sus despliegues y su postura de seguridad"
     cta_label: "Reserve una consulta"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$2,222 al mes, todo incluido"
 ---
 

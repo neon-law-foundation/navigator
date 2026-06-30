@@ -1197,7 +1197,6 @@ async fn services_nexus_uses_marketing_doc_when_present() {
             features: vec!["Two-business-day response on everything you send us".into()],
             cta_label: "Ask about an open seat".into(),
             cta_href: "mailto:support@neonlaw.com".into(),
-            featured: true,
             featured_label: Some("2 of 10 filled".into()),
         }],
     }];
@@ -1377,7 +1376,7 @@ async fn foundation_nimbus_renders_the_install_product_under_foundation_brand() 
     assert!(body.contains("mailto:support@neonlaw.org"));
     assert!(!body.contains(">Services</summary>"));
     // The flat fee and the legal-aid discount both surface as pricing cards;
-    // the featured band reads "Once, flat" (the fee is paid a single time).
+    // the band reads "Once, flat" (the fee is paid a single time).
     assert!(body.contains("$11,111"));
     assert!(body.contains("Once, flat"));
     assert!(body.contains("Legal aid centers"));

@@ -17,7 +17,6 @@ pricing:
       - "Un abogado para el trabajo de rutina, no contencioso — el trabajo a medida es Neon Law Nexus"
     cta_label: "Reserve una consulta"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$1,111 al año, todo incluido"
 ---
 

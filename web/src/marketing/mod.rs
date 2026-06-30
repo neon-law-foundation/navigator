@@ -62,10 +62,6 @@ pub struct PricingCard {
     pub features: Vec<String>,
     pub cta_label: String,
     pub cta_href: String,
-    /// The shared renderer gives every pricing card the highlighted
-    /// flat-fee treatment regardless of this marker.
-    #[serde(default)]
-    pub featured: bool,
     /// Label for the cyan band. No "most popular" claims — they trip
     /// attorney-advertising rules.
     #[serde(default)]

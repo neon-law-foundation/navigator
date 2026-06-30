@@ -18,7 +18,6 @@ pricing:
       - "Outside our lane, conflicted, or at capacity? We refer you to trial counsel we trust"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "Quoted per phase"
 ---
 

@@ -17,7 +17,6 @@ pricing:
       - "One flat fee — divorce court filing fees excluded, passed through at cost"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$555 once"
 ---
 

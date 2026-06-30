@@ -15,7 +15,6 @@ pricing:
       - "No attorney's fee for the matter we take on — court costs and other fees may still apply"
     cta_label: "Get help"
     cta_href: "mailto:support@neonlaw.org"
-    featured: true
     featured_label: "Free"
 ---
 

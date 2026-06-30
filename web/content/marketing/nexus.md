@@ -16,7 +16,6 @@ pricing:
       - "Operators who also read your cloud accounts, deployments, and security posture"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$2,222 a month, all in"
 ---
 

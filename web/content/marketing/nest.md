@@ -17,7 +17,6 @@ pricing:
       - "A lawyer for the routine, non-litigation work"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
-    featured: true
     featured_label: "$1,111 a year, all in"
 ---
 
