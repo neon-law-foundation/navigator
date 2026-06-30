@@ -169,7 +169,11 @@ fn audit_workspace(root: &Path, catalog: &BTreeSet<String>) -> std::io::Result<A
                     line,
                 });
             }
-            contents.push(src);
+            // The unused check substring-searches `contents`; strip comments
+            // here too so both directions see the same comment-free source.
+            // Otherwise a key named only in a comment (`// TODO: "x.y"`) would
+            // count as "used" and hide a genuinely unused key.
+            contents.push(strip_comments(&src));
         }
     }
 
@@ -707,6 +711,24 @@ mod tests {
             order,
             [("a.one", 2), ("z.one", 2), ("m.two", 3), ("n.b", 1)]
         );
+    }
+
+    #[test]
+    fn a_key_named_only_in_a_comment_is_still_unused() {
+        // The unused check must see the SAME comment-free source the
+        // extractor does — a key mentioned only in a comment renders
+        // nowhere, so it is genuinely unused.
+        let dir = tempfile::tempdir().unwrap();
+        write_source(
+            dir.path(),
+            "views/src/c.rs",
+            "fn f() { /* see \"dead.key\" */ }",
+        );
+        let catalog: BTreeSet<String> = ["dead.key"].into_iter().map(String::from).collect();
+
+        let audit = audit_workspace(dir.path(), &catalog).unwrap();
+
+        assert_eq!(audit.unused, ["dead.key"]);
     }
 
     #[test]
