@@ -475,17 +475,23 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
         ))
         .service(ServeDir::new(public_dir));
     // JSON API uses only `Db` as state; merge it under the same root.
-    // Every `/api/*` route runs behind `require_policy` so OPA enforces
-    // the OIDC requirement uniformly with `/portal/*`. The OPA rules in
-    // `k8s/base/opa/opa.yaml` exempt `/openapi.json` and the top-level
-    // `/api-docs` Swagger shell so the published schema and its docs stay
-    // discoverable without a session.
+    // Every gated `/api/*` data route runs behind `require_policy` so OPA
+    // enforces the OIDC requirement uniformly with `/portal/*`.
     let api = api::routes().with_state(state.db.clone()).route_layer(
         axum::middleware::from_fn_with_state(
             (state.sessions.clone(), state.policy.clone()),
             crate::policy::require_policy,
         ),
     );
+    // Public API documentation — the OpenAPI document and the Swagger UI
+    // shell — mounts WITHOUT `require_policy`, the same router-level
+    // pattern as the public `/api/aida.json` agent card. These surfaces
+    // describe the API but are not the API and carry no authz decision,
+    // so routing (not an OPA exemption that must redeploy in lockstep
+    // with the binary) is the single source of truth for their
+    // public-ness. See `api::doc_routes` for the prod incident this
+    // prevents.
+    let api_docs = api::doc_routes();
     let admin_state = admin::AdminState {
         db: state.db.clone(),
         workflow_runtime: state.workflow_runtime.clone(),
@@ -863,6 +869,7 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
         .merge(git_lfs::routes())
         .with_state(state)
         .merge(api)
+        .merge(api_docs)
         .merge(admin)
         .merge(portal)
         .merge(mcp)
