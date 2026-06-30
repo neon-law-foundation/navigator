@@ -12,10 +12,6 @@ products:
   learn_more: Más información
   contact: Inicie un asunto
   cta_blurb: "¿Listo para empezar? Cuéntenos qué necesita y un abogado con licencia se comunicará con usted."
-  billed_monthly: Facturación mensual
-  billed_yearly: Facturación anual
-  billed_hourly: Facturación por hora
-  billed_once: Pago único
   free: Gratis
   probono_name: Pro Bono
   # Descripciones de una frase que aparecen bajo el precio de cada producto.
@@ -34,5 +30,3 @@ products:
   desc_nucleus: Constitución de tarifa fija de un fondo de inversión de Nevada, preparada y presentada por un abogado con licencia.
   desc_probono: Ayuda legal gratuita para personas que no pueden pagar un abogado, con la Neon Law Foundation y socios de asistencia legal.
   desc_default: Servicios legales de tarifa fija con un abogado con licencia.
-home:
-  theme_strip: Con raíces en Nevada, con alcance en todo el mundo

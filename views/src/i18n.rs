@@ -200,6 +200,15 @@ pub fn t(locale: Locale, key: &str) -> String {
     raw(locale, key).map_or_else(|| key.to_string(), str::to_string)
 }
 
+/// Every key in the English catalog, sorted. `En` is the complete
+/// source (every locale falls back to it), so this is the canonical set a
+/// static key-check reconciles call sites against — see the
+/// `navigator validate-i18n` audit in `cli::i18n_audit`.
+#[must_use]
+pub fn en_catalog_keys() -> std::collections::BTreeSet<String> {
+    EN.keys().cloned().collect()
+}
+
 /// `t` with `%{name}` interpolation, e.g.
 /// `t_args(locale, "cta.email", &[("email", "support@example.com")])`.
 #[must_use]

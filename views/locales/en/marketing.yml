@@ -17,10 +17,6 @@ products:
   learn_more: Learn more
   contact: Start a matter
   cta_blurb: "Ready to begin? Tell us what you need and a licensed attorney will be in touch."
-  billed_monthly: Billed monthly
-  billed_yearly: Billed yearly
-  billed_hourly: Billed hourly
-  billed_once: One-time fee
   # The price label for the free pro bono card.
   free: Free
   probono_name: Pro Bono
@@ -40,8 +36,6 @@ products:
   desc_nucleus: Flat-fee Nevada investment-fund formation, prepared and filed by a licensed attorney.
   desc_probono: Free legal help for people who cannot afford a lawyer, with the Neon Law Foundation and legal-aid partners.
   desc_default: Flat-fee legal services with a licensed attorney in the loop.
-home:
-  theme_strip: Rooted in Nevada, reaching the world
 testimonials:
   # Section headings for the matter-linked testimonial blocks. The copy
   # lives here so it can change in one place — every render site and every
