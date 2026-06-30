@@ -120,8 +120,8 @@ pub fn render_in(auth: AuthState, locale: Locale, testimonials: &[TestimonialCar
         }
 
         (testimonial_section(
-            "What clients say",
-            "Published only after client consent and staff review.",
+            &i18n::t(locale, "testimonials.home_heading"),
+            &i18n::t(locale, "testimonials.home_lead"),
             testimonials,
         ))
 

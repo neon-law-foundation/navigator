@@ -203,8 +203,8 @@ pub fn render_in(
                 (PreEscaped(&prose))
             }
             (testimonial_section(
-                "Client proof",
-                "Matter-linked testimonials approved for this service.",
+                &i18n::t(locale, "testimonials.service_heading"),
+                &i18n::t(locale, "testimonials.service_lead"),
                 content.testimonials,
             ))
             // 4. The call to action — the firm's booking calendar (a

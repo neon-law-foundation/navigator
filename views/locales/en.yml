@@ -73,3 +73,12 @@ products:
   desc_default: Flat-fee legal services with a licensed attorney in the loop.
 home:
   theme_strip: Rooted in Nevada, reaching the world
+testimonials:
+  # Section headings for the matter-linked testimonial blocks. The copy
+  # lives here so it can change in one place — every render site and every
+  # test resolves the key, not the literal. (Spanish pending attorney
+  # review; see the waiver in i18n.rs.)
+  home_heading: What clients say
+  home_lead: Published only after client consent and staff review.
+  service_heading: Client proof
+  service_lead: Matter-linked testimonials approved for this service.
