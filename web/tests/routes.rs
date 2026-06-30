@@ -315,9 +315,12 @@ async fn root_returns_home_page_html() {
     let body = body_string(resp).await;
     assert!(body.starts_with("<!DOCTYPE html>"));
     assert!(body.contains("<title>Neon Law | Home</title>"));
-    // The hero lead is catalog copy. The justice-gap stat below stays
-    // literal — it is cited data, not UI chrome copy.
+    // The whole neon hero is catalog copy — eyebrow, lead, and both CTAs.
+    // The justice-gap stat below stays literal — cited data, not chrome.
+    assert_renders!(&body, "home.hero_eyebrow");
     assert_renders!(&body, "home.hero_lead");
+    assert_renders!(&body, "home.cta_services");
+    assert_renders!(&body, "home.cta_mission");
     assert!(body.contains("LSC Justice Gap Report, 2022"));
     assert!(body.contains("href=\"/foundation/notations\""));
     // It is firm-branded prose and cards — no old marketing hero strip.
