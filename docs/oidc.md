@@ -177,44 +177,15 @@ The Rust seam is three crates: `oauth2` drives the Authorization Code + PKCE sta
 id_token signature against JWKS (RS256 in prod; HS256 accepted in tests only), and `reqwest` fetches the discovery doc
 and JWKS with a bounded startup retry.
 
-## Rego policy
+## Authorization is decided elsewhere
 
-The default policy that ships in `k8s/base/opa/opa.yaml`:
-
-```rego
-package navigator.authz
-
-default allow := false
-
-staff_tier := {"staff", "admin"}
-
-# /portal/admin requires the DB-stamped staff (or admin) role.
-allow if {
-    input.path[0] == "portal"
-    input.path[1] == "admin"
-    input.session
-    staff_tier[input.session.role]
-}
-
-# Authenticated read API.
-allow if {
-    input.path[0] == "api"
-    input.method == "GET"
-    input.session
-}
-
-# Public API documentation surfaces.
-allow if {
-    input.path[0] == "openapi.json"
-}
-
-allow if {
-    input.path == ["api-docs"]
-}
-```
-
-`input.session.role` is whatever `persons.role` was at callback time. A user demoted to `client` in the database is
-denied at their next login — no IdP coordination required.
+OIDC supplies *identity* — who the caller is, stamped into the session at callback time. It does not decide
+*authorization*. That is OPA's job, and its policy lives in exactly one place: the live Rego at
+[`k8s/base/opa/opa.yaml`](../k8s/base/opa/opa.yaml). For the decision semantics (admin bypass, staff-tier writes,
+project-scoped reads) see [`docs/access-model.md`](access-model.md#how-opa-decides); for the system shape and Rego
+authoring see [`docs/opa-policy.md`](opa-policy.md). The one identity fact that matters here: `input.session.role` is
+whatever `persons.role` was at callback time, so a user demoted to `client` in the database is denied at their next
+login — no IdP coordination required.
 
 ## Verified end-to-end
 
