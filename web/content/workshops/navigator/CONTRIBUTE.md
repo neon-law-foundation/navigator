@@ -10,7 +10,7 @@ the platform; pick the one that fits the time you have.
 
 The whole stack is public and written in Rust at
 [github.com/neon-law-foundation/navigator](https://github.com/neon-law-foundation/navigator), dual-licensed Apache-2.0 /
-MIT. Open an issue today; pull requests are coming soon.
+MIT. Open an issue today; pull requests open in the near future.
 
 ---
 
@@ -19,12 +19,13 @@ public repository you can read, fork, and run. Start by standing it up yourself 
 Navigator](/foundation/nebula/workshops/deploy-the-navigator) workshop or the local KIND loop, then file what you find.
 The Foundation [welcomes issues today and pull requests in the near
 future](https://github.com/neon-law-foundation/navigator/blob/main/CONTRIBUTING.md); every contribution is covered by
-the Contributor License and Feedback Agreement in the repository root, so the terms are clear before you send a line.
+the Contributor License and Feedback Agreement in the repository root, which grants the Foundation a license to use what
+you contribute — read it before you send a line.
 
-## Give us information
+## Tell us what you learned
 
 The most valuable thing you can send is what you learned using it: a template that worked, a checklist item we are
-missing, a bug, a kaizen improvement. Email
+missing, a bug, a kaizen improvement — never a client's data, just the craft. Email
 [support@neonlaw.org](mailto:support@neonlaw.org?subject=Navigator+feedback).
 
 ---
@@ -33,7 +34,7 @@ You do not need a GitHub account or a single line of code to make Neon Law Navig
 Navigator](/foundation/nebula/workshops/use-the-navigator) workshop closes by asking you to send the markdown of the
 template you built and the one kaizen improvement you found — that is this contribution. Every template a lawyer shares
 raises the floor of competence for the next lawyer who joins. Feedback is covered by the same Contributor License and
-Feedback Agreement as code, so you always know how what you share will be used.
+Feedback Agreement as code — sharing grants the Foundation a license to use it, so read the agreement before you send.
 
 ## Join a show-and-tell
 
