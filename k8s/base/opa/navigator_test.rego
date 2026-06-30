@@ -133,14 +133,23 @@ test_anonymous_denied_notation_validate if {
 	not authz.allow with input as {"path": ["api", "notations", "validate"], "method": "POST", "session": null}
 }
 
-# ---------- public documentation surfaces (no session required) ----------
+# ---------- public documentation surfaces (decided by routing, not OPA) ----------
 
-test_anonymous_reaches_openapi if {
-	authz.allow with input as {"path": ["openapi.json"], "method": "GET", "session": null}
+# /openapi.json and the /api-docs Swagger shell are public, but their
+# public-ness is NOT this policy's job: `web` mounts them OUTSIDE
+# require_policy (see `web::api::doc_routes`), so OPA never sees them.
+# These tests pin that the default-deny policy intentionally does NOT
+# carry a redundant allow rule for them — re-adding one would duplicate
+# the routing decision and reintroduce the lockstep drift that gated
+# /api-docs in prod when the binary shipped ahead of this ConfigMap.
+# That `web` keeps them reachable without a session is guarded by
+# `web/tests/routes.rs::public_doc_surfaces_bypass_opa_when_policy_denies`.
+test_policy_does_not_decide_openapi if {
+	not authz.allow with input as {"path": ["openapi.json"], "method": "GET", "session": null}
 }
 
-test_anonymous_reaches_api_docs if {
-	authz.allow with input as {"path": ["api-docs"], "method": "GET", "session": null}
+test_policy_does_not_decide_api_docs if {
+	not authz.allow with input as {"path": ["api-docs"], "method": "GET", "session": null}
 }
 
 # The docs shell moved out of the gated `/api/*` prefix; the old

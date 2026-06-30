@@ -154,8 +154,8 @@ data:
     # Anyone authenticated can hit the JSON API (read paths). Covers
     # /api/people, /api/entities, /api/jurisdictions, /api/entity-types.
     # Every /api/* path needs a session, no carve-out: the human docs
-    # live at the top-level /api-docs (see the documentation exemption
-    # below), not under this prefix.
+    # live at the top-level /api-docs, which is public at the router
+    # level (see the documentation NOTE below), not under this prefix.
     allow if {
         input.path[0] == "api"
         input.method == "GET"
@@ -170,24 +170,18 @@ data:
         is_authenticated(input.session)
     }
 
-    # OpenAPI document is public so the schema is discoverable without
-    # a session. The OIDC requirement applies to the API surface it
-    # describes, not to the description itself.
-    allow if {
-        input.path[0] == "openapi.json"
-    }
-
-    # The human-readable API documentation — the bundled Swagger UI
-    # shell at the top-level /api-docs — is public for the same reason
-    # /openapi.json is: a description of the API is not the API. It sits
-    # outside /api/* so the gate rule above stays a clean "all of /api/*
-    # needs a session" with no leaf exemption. The documentation renders
-    # the public /openapi.json and calls no protected data endpoint
-    # itself, so a session adds nothing to read it. The OIDC gate still
+    # NOTE: the public API documentation surfaces — /openapi.json and the
+    # top-level /api-docs Swagger shell — are intentionally NOT decided
+    # here. They describe the API but are not the API and carry no authz
+    # decision, so `web` mounts them OUTSIDE require_policy (see
+    # `web::api::doc_routes`), the same router-level pattern as the public
+    # /api/aida.json agent card. OPA never sees those paths, so adding an
+    # allow rule for them would be dead duplication that must redeploy in
+    # lockstep with the binary — exactly the drift that gated /api-docs in
+    # prod when the binary shipped ahead of this ConfigMap. Routing is the
+    # single source of truth for their public-ness; this default-deny
+    # policy correctly does not re-open them. The OIDC gate above still
     # governs every data path the docs describe.
-    allow if {
-        input.path == ["api-docs"]
-    }
 ---
 apiVersion: apps/v1
 kind: Deployment

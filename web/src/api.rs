@@ -17,8 +17,11 @@ use sea_orm::EntityTrait;
 use store::entity::{entity, entity_type, jurisdiction, person};
 use store::Db;
 
-/// Mount every `/api/*` route onto a router that already has `Db` as
-/// state. Returns the same router so callers can chain.
+/// Mount every gated `/api/*` data route onto a router that already
+/// has `Db` as state. Returns the same router so callers can chain.
+/// Every route here goes behind `require_policy` (OPA) in
+/// [`crate::build_router`]; the public documentation surfaces live in
+/// [`doc_routes`], which mounts *outside* that gate.
 pub fn routes() -> Router<Db> {
     Router::new()
         .route("/api/people", axum::routing::get(list_people))
@@ -35,10 +38,27 @@ pub fn routes() -> Router<Db> {
             "/api/notations/validate",
             axum::routing::post(validate_template),
         )
+}
+
+/// The public API-documentation surfaces — the OpenAPI document
+/// (`/openapi.json`) and the Swagger UI shell (`/api-docs`). They
+/// describe the API but are not the API: they carry no authorization
+/// decision (always public) and call no protected data endpoint, so a
+/// session would add nothing.
+///
+/// Crucially they mount *outside* `require_policy`, exactly like the
+/// public `/api/aida.json` agent card. Routing — not an OPA exemption —
+/// is the single source of truth for their public-ness. That removes
+/// the lockstep coupling that gated `/api-docs` in production: the
+/// `/api-docs` exemption shipped in the Rego with #204, but an
+/// image-only deploy advanced the `web` binary ahead of the OPA policy
+/// bundle, so OPA default-denied the new path. With publicity expressed
+/// in routing, the doc surfaces can't drift from a stale policy.
+///
+/// Neither handler reads `Db`, so this router needs no state.
+pub fn doc_routes() -> Router {
+    Router::new()
         .route("/openapi.json", axum::routing::get(openapi_json))
-        // Top-level public docs shell — deliberately a sibling of
-        // `/openapi.json`, not a `/api/*` leaf, so the gate rule stays
-        // "all of `/api/*` needs a session" with no in-prefix carve-out.
         .route("/api-docs", axum::routing::get(api_docs))
 }
 
@@ -63,17 +83,15 @@ pub fn documented_api_paths() -> Vec<&'static str> {
 
 /// Static Swagger UI shell, served at the top-level public `/api-docs`.
 /// Loads the vendored `swagger-ui-dist` assets from `/public/swagger-ui/`
-/// and points the renderer at `/openapi.json`. Public via its own OPA
-/// exemption, alongside `/openapi.json` — the documentation describes
-/// the API but is not the API, so the OIDC gate guards the data
-/// endpoints it documents, not the docs themselves. It lives outside
-/// the `/api/*` prefix on purpose: the gate rule stays "all of `/api/*`
-/// needs a session" with no leaf carve-out. The shell renders the public
-/// `/openapi.json` and calls no protected route, so a session would
-/// add nothing. The per-response `Content-Security-Policy` header
-/// keeps script execution on the same origin — the whole point of
-/// vendoring rather than CDN-loading the dist is so this header can
-/// stay strict.
+/// and points the renderer at `/openapi.json`. Mounted by [`doc_routes`]
+/// *outside* the OPA gate (see that fn for why) — the documentation
+/// describes the API but is not the API, so the OIDC gate guards the
+/// data endpoints it documents, not the docs themselves. The shell
+/// renders the public `/openapi.json` and calls no protected route, so
+/// a session would add nothing. The per-response
+/// `Content-Security-Policy` header keeps script execution on the same
+/// origin — the whole point of vendoring rather than CDN-loading the
+/// dist is so this header can stay strict.
 async fn api_docs() -> impl IntoResponse {
     const HTML: &str = include_str!("../public/swagger-ui/index.html");
     (
