@@ -42,6 +42,60 @@ fn split_leading_h1(body: &str) -> (Option<&str>, &str) {
     (Some(headline), rest)
 }
 
+fn hero_variant_layers(variant: Option<&str>) -> &'static [&'static str] {
+    match variant {
+        Some("northstar") => &[
+            "product-hero__motif product-hero__motif--northstar-star",
+            "product-hero__motif product-hero__motif--northstar-constellation",
+        ],
+        Some("nest") => &[
+            "product-hero__motif product-hero__motif--nest-frame",
+            "product-hero__motif product-hero__motif--nest-blueprint",
+        ],
+        Some("nexus") => &[
+            "product-hero__honeycomb product-hero__honeycomb--back",
+            "product-hero__honeycomb product-hero__honeycomb--front",
+        ],
+        Some("nautilus") => &[
+            "product-hero__motif product-hero__motif--nautilus-current",
+            "product-hero__motif product-hero__motif--nautilus-bubbles",
+        ],
+        Some("nook") => &[
+            "product-hero__motif product-hero__motif--nook-threshold",
+            "product-hero__motif product-hero__motif--nook-floorplan",
+        ],
+        Some("litigation") => &[
+            "product-hero__motif product-hero__motif--litigation-rain",
+            "product-hero__motif product-hero__motif--litigation-prompt",
+        ],
+        Some("nerd") => &[
+            "product-hero__motif product-hero__motif--nerd-waveform",
+            "product-hero__motif product-hero__motif--nerd-lens",
+        ],
+        Some("node") => &[
+            "product-hero__motif product-hero__motif--node-network",
+            "product-hero__motif product-hero__motif--node-chain",
+        ],
+        Some("newleaf") => &[
+            "product-hero__motif product-hero__motif--newleaf-leaf",
+            "product-hero__motif product-hero__motif--newleaf-sprout",
+        ],
+        Some("namesake") => &[
+            "product-hero__motif product-hero__motif--namesake-seal",
+            "product-hero__motif product-hero__motif--namesake-mark",
+        ],
+        Some("nucleus") => &[
+            "product-hero__motif product-hero__motif--nucleus-core",
+            "product-hero__motif product-hero__motif--nucleus-orbits",
+        ],
+        Some("pro-bono") => &[
+            "product-hero__motif product-hero__motif--pro-bono-pulse",
+            "product-hero__motif product-hero__motif--pro-bono-rays",
+        ],
+        _ => &[],
+    }
+}
+
 /// Render a CTA anchor. An off-site `http(s)` target (the firm
 /// consultation calendar, and the booking-linked firm pricing cards)
 /// routes through [`ExternalLink`] for the new-tab + OWASP `rel` pair
@@ -76,9 +130,8 @@ pub struct ServiceContent<'a> {
     /// every product hero renders over the same image-free animated scene.
     /// The body's leading `<h1>` is still lifted into the hero tagline.
     pub hero_image: Option<&'a str>,
-    /// Optional product-specific animation variant. Only Nexus opts in
-    /// today; the shared hero remains the fallback for the rest of the
-    /// service line until each page gets its own treatment.
+    /// Optional product-specific animation variant. A variant keeps the
+    /// shared cyan ramp and swaps in product-specific decorative motion.
     pub hero_variant: Option<&'a str>,
     /// Swap the receding synthwave grid floor for a drifting field of soft,
     /// very transparent clouds in the same brand cyan (the `hero_scene:
@@ -165,9 +218,8 @@ pub fn render_in(
         // 1. The neon product hero — the page's bold, rounded top band.
         section class=(hero_class) {
             div."product-hero__bg" aria-hidden="true" {
-                @if content.hero_variant == Some("nexus") {
-                    div."product-hero__honeycomb"."product-hero__honeycomb--back" {}
-                    div."product-hero__honeycomb"."product-hero__honeycomb--front" {}
+                @for layer in hero_variant_layers(content.hero_variant) {
+                    div class=(*layer) {}
                 }
                 div."product-hero__glow" {}
                 // The receding grid floor is the default scene; a page can
@@ -496,6 +548,107 @@ mod tests {
             !html.contains("product-hero__photo"),
             "Nexus honeycomb should be able to render without a photo layer, got: {html}"
         );
+    }
+
+    #[test]
+    fn service_hero_variants_render_their_product_specific_layers() {
+        for (variant, expected_layers) in [
+            (
+                "northstar",
+                [
+                    "product-hero__motif--northstar-star",
+                    "product-hero__motif--northstar-constellation",
+                ],
+            ),
+            (
+                "nest",
+                [
+                    "product-hero__motif--nest-frame",
+                    "product-hero__motif--nest-blueprint",
+                ],
+            ),
+            (
+                "nautilus",
+                [
+                    "product-hero__motif--nautilus-current",
+                    "product-hero__motif--nautilus-bubbles",
+                ],
+            ),
+            (
+                "nook",
+                [
+                    "product-hero__motif--nook-threshold",
+                    "product-hero__motif--nook-floorplan",
+                ],
+            ),
+            (
+                "litigation",
+                [
+                    "product-hero__motif--litigation-rain",
+                    "product-hero__motif--litigation-prompt",
+                ],
+            ),
+            (
+                "nerd",
+                [
+                    "product-hero__motif--nerd-waveform",
+                    "product-hero__motif--nerd-lens",
+                ],
+            ),
+            (
+                "node",
+                [
+                    "product-hero__motif--node-network",
+                    "product-hero__motif--node-chain",
+                ],
+            ),
+            (
+                "newleaf",
+                [
+                    "product-hero__motif--newleaf-leaf",
+                    "product-hero__motif--newleaf-sprout",
+                ],
+            ),
+            (
+                "namesake",
+                [
+                    "product-hero__motif--namesake-seal",
+                    "product-hero__motif--namesake-mark",
+                ],
+            ),
+            (
+                "nucleus",
+                [
+                    "product-hero__motif--nucleus-core",
+                    "product-hero__motif--nucleus-orbits",
+                ],
+            ),
+            (
+                "pro-bono",
+                [
+                    "product-hero__motif--pro-bono-pulse",
+                    "product-hero__motif--pro-bono-rays",
+                ],
+            ),
+        ] {
+            let mut content = fixture("Neon Law Service", "<h1>Service</h1><p>body</p>");
+            content.hero_variant = Some(variant);
+            let html = render(&content, crate::AuthState::Anonymous).into_string();
+            assert!(
+                html.contains(&format!("class=\"product-hero product-hero--{variant}\"")),
+                "{variant} should opt into its themed hero class, got: {html}"
+            );
+            for layer in expected_layers {
+                assert!(
+                    html.contains(layer),
+                    "{variant} should render the {layer} motif layer, got: {html}"
+                );
+            }
+            assert!(
+                !html.contains("product-hero__photo"),
+                "{variant} should remain image-free, got: {html}"
+            );
+        }
     }
 
     #[test]

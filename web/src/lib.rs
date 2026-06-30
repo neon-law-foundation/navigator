@@ -1429,7 +1429,7 @@ const SERVICE_NORTHSTAR: ServicePage = ServicePage {
     fallback_title: "Estate planning",
     surface: Surface::Firm,
     icon: Some("star-fill"),
-    hero_variant: None,
+    hero_variant: Some("northstar"),
 };
 const SERVICE_NEST: ServicePage = ServicePage {
     slug: "nest",
@@ -1437,7 +1437,7 @@ const SERVICE_NEST: ServicePage = ServicePage {
     fallback_title: "Corporate services",
     surface: Surface::Firm,
     icon: Some("building-fill"),
-    hero_variant: None,
+    hero_variant: Some("nest"),
 };
 const SERVICE_NEXUS: ServicePage = ServicePage {
     slug: "nexus",
@@ -1453,7 +1453,7 @@ const SERVICE_NAUTILUS: ServicePage = ServicePage {
     fallback_title: "Debt-collection help",
     surface: Surface::Firm,
     icon: Some("shield-fill-check"),
-    hero_variant: None,
+    hero_variant: Some("nautilus"),
 };
 const SERVICE_NOOK: ServicePage = ServicePage {
     slug: "nook",
@@ -1461,7 +1461,7 @@ const SERVICE_NOOK: ServicePage = ServicePage {
     fallback_title: "Real-estate closing",
     surface: Surface::Firm,
     icon: Some("house-door-fill"),
-    hero_variant: None,
+    hero_variant: Some("nook"),
 };
 const SERVICE_LITIGATION: ServicePage = ServicePage {
     slug: "litigation",
@@ -1472,7 +1472,7 @@ const SERVICE_LITIGATION: ServicePage = ServicePage {
     // balance scale, so this is the inline-SVG sentinel resolved by
     // `views::components::product_icon`.
     icon: Some("libra-scales"),
-    hero_variant: None,
+    hero_variant: Some("litigation"),
 };
 const SERVICE_NERD: ServicePage = ServicePage {
     slug: "nerd",
@@ -1480,7 +1480,7 @@ const SERVICE_NERD: ServicePage = ServicePage {
     fallback_title: "Expert witness",
     surface: Surface::Firm,
     icon: Some("eyeglasses"),
-    hero_variant: None,
+    hero_variant: Some("nerd"),
 };
 const SERVICE_NODE: ServicePage = ServicePage {
     slug: "node",
@@ -1488,7 +1488,7 @@ const SERVICE_NODE: ServicePage = ServicePage {
     fallback_title: "On-chain attestation",
     surface: Surface::Firm,
     icon: Some("hdd-network-fill"),
-    hero_variant: None,
+    hero_variant: Some("node"),
 };
 const SERVICE_NEWLEAF: ServicePage = ServicePage {
     slug: "newleaf",
@@ -1496,7 +1496,7 @@ const SERVICE_NEWLEAF: ServicePage = ServicePage {
     fallback_title: "Uncontested divorce",
     surface: Surface::Firm,
     icon: Some("tree-fill"),
-    hero_variant: None,
+    hero_variant: Some("newleaf"),
 };
 const SERVICE_NAMESAKE: ServicePage = ServicePage {
     slug: "namesake",
@@ -1504,7 +1504,7 @@ const SERVICE_NAMESAKE: ServicePage = ServicePage {
     fallback_title: "Trademark filing",
     surface: Surface::Firm,
     icon: Some("award-fill"),
-    hero_variant: None,
+    hero_variant: Some("namesake"),
 };
 const SERVICE_NUCLEUS: ServicePage = ServicePage {
     slug: "nucleus",
@@ -1512,7 +1512,7 @@ const SERVICE_NUCLEUS: ServicePage = ServicePage {
     fallback_title: "Fund formation",
     surface: Surface::Firm,
     icon: Some("bank2"),
-    hero_variant: None,
+    hero_variant: Some("nucleus"),
 };
 /// Pro bono — free legal help for people who cannot afford a lawyer, with
 /// the Neon Law Foundation and legal-aid partners. A firm-surface page, but
@@ -1523,7 +1523,7 @@ const SERVICE_PROBONO: ServicePage = ServicePage {
     fallback_title: "Pro bono",
     surface: Surface::Firm,
     icon: Some("heart-fill"),
-    hero_variant: None,
+    hero_variant: Some("pro-bono"),
 };
 /// Neon Law Foundation Nimbus — the 501(c)(3)'s white-label, two-week
 /// install-it-on-your-own-cloud engagement. Foundation-branded, so it
