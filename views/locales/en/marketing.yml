@@ -36,6 +36,14 @@ products:
   desc_nucleus: Flat-fee Nevada investment-fund formation, prepared and filed by a licensed attorney.
   desc_probono: Free legal help for people who cannot afford a lawyer, with the Neon Law Foundation and legal-aid partners.
   desc_default: Flat-fee legal services with a licensed attorney in the loop.
+home:
+  # The neon hero on `/` — the eyebrow, the lead, and the two CTA buttons.
+  # Leads on access-to-justice and exercising legal rights (never price or
+  # vague speed). Spanish pending attorney review; see the waiver in i18n.rs.
+  hero_eyebrow: Everything we can toward access to justice
+  hero_lead: "Building something, protecting it, or exercising a right you already hold — a licensed attorney works with you, with transparent pricing before the work begins. We believe that everyone in America should exercise their legal rights."
+  cta_services: View Services
+  cta_mission: Read the Mission
 testimonials:
   # Section headings for the matter-linked testimonial blocks. The copy
   # lives here so it can change in one place — every render site and every

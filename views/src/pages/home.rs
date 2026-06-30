@@ -92,7 +92,7 @@ pub fn render_in(auth: AuthState, locale: Locale, testimonials: &[TestimonialCar
             }
             div."hero-neon__content" {
                 p."hero-neon__eyebrow"."mb-2" {
-                    "Everything we can toward access to justice"
+                    (i18n::t(locale, "home.hero_eyebrow"))
                 }
                 h1."hero-neon__mark"."display-3"."fw-bold"."mb-3" {
                     @if let Some(url) = FIRM_BRAND.trademark_registration_url {
@@ -108,13 +108,15 @@ pub fn render_in(auth: AuthState, locale: Locale, testimonials: &[TestimonialCar
                     }
                 }
                 p."hero-neon__lead"."mb-4" {
-                    "Building something, protecting it, or exercising a right you already hold — \
-                     a licensed attorney works with you, with transparent pricing before the work \
-                     begins. We believe that everyone in America should exercise their legal rights."
+                    (i18n::t(locale, "home.hero_lead"))
                 }
                 div."d-flex"."flex-wrap"."gap-2" {
-                    a."btn"."btn-primary"."btn-lg" href="/services" { "View Services" }
-                    a."btn"."btn-lg"."hero-neon__btn-ghost" href="/foundation" { "Read the Mission" }
+                    a."btn"."btn-primary"."btn-lg" href="/services" {
+                        (i18n::t(locale, "home.cta_services"))
+                    }
+                    a."btn"."btn-lg"."hero-neon__btn-ghost" href="/foundation" {
+                        (i18n::t(locale, "home.cta_mission"))
+                    }
                 }
             }
         }
