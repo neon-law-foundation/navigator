@@ -43,7 +43,7 @@ When a dirty tree is ready to land:
    across the workspace so CI-only wrap issues are caught locally:
 
    ```bash
-   cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes .
+   cargo run -p cli --quiet -- validate --no-default-excludes .
    ```
 
 4. If the PR changes Rust files or build/runtime configuration, run the full Rust gate:
@@ -83,7 +83,7 @@ A PR review is not complete until every reviewer comment has been adjudicated ag
 6. Re-run the relevant gate and report anything skipped. If any Markdown changed while updating the PR, run:
 
    ```bash
-   cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes .
+   cargo run -p cli --quiet -- validate --no-default-excludes .
    ```
 
 If the PR needs more commits, treat that as the update half of this same action: make the smallest change on the PR
@@ -97,11 +97,11 @@ clear in the PR.
 Use the workspace CLI, not a separate Markdown linter:
 
 ```bash
-cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes <path>
+cargo run -p cli --quiet -- validate --no-default-excludes <path>
 ```
 
-`--markdown-only` avoids notation-template rules on ordinary docs. `--no-default-excludes` makes root files such as
-`AGENTS.md` and `CLAUDE.md` visible to the checker.
+`validate` classifies each file automatically, so ordinary docs get the prose rules and notation templates get the
+N-family rules. `--no-default-excludes` makes root files such as `AGENTS.md` and `CLAUDE.md` visible to the checker.
 
 CI runs the repository-wide classified pass on every pull request update:
 

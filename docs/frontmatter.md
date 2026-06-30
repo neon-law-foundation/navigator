@@ -187,8 +187,7 @@ cargo run -p cli --quiet -- validate --no-default-excludes <path>
 ```
 
 It classifies each file automatically — a template is held to the template rules, a blog post to the blog rules, prose
-to the writing rules — and prints any problem with its file, line, and rule code. (There used to be a `--markdown-only`
-switch; it is no longer needed and is ignored, because the checker now works out each file's kind on its own.)
+to the writing rules — and prints any problem with its file, line, and rule code.
 
 ## Where to go next
 

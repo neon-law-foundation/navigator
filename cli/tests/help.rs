@@ -17,7 +17,7 @@ fn top_level_help_disclaims_legal_advice() {
 }
 
 #[test]
-fn notation_create_is_canonical_and_matter_open_is_deprecated_alias() {
+fn notation_create_help_lists_template_and_client_flags() {
     Command::cargo_bin("navigator")
         .unwrap()
         .args(["notation", "create", "--help"])
@@ -27,12 +27,4 @@ fn notation_create_is_canonical_and_matter_open_is_deprecated_alias() {
         .stdout(str::contains("<TEMPLATE_CODE>"))
         .stdout(str::contains("--client-email"))
         .stdout(str::contains("--project"));
-
-    Command::cargo_bin("navigator")
-        .unwrap()
-        .args(["matter", "open", "--help"])
-        .assert()
-        .success()
-        .stdout(str::contains("Deprecated alias"))
-        .stdout(str::contains("notation create <template-code>"));
 }

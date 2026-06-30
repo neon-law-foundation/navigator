@@ -132,7 +132,7 @@ Run the cheap structural tests first, then the journey that exercises the flow e
 ```bash
 cargo test -p workflows --test workflow_integrity --test spec_coherence
 cargo test -p features --test <journey>          # e.g. nest_formation, northstar_estate
-cargo run -p cli --quiet -- validate --markdown-only --no-default-excludes templates/forms/united_states/nevada/state/nv__llc_formation.md
+cargo run -p cli --quiet -- validate --no-default-excludes templates/forms/united_states/nevada/state/nv__llc_formation.md
 ```
 
 **Green means green.** Cucumber's `.run()` is non-fatal: a failing *or skipped* scenario still exits `0`. Read the

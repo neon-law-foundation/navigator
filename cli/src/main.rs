@@ -72,13 +72,6 @@ enum Command {
     Validate {
         /// Directory to walk.
         dir: PathBuf,
-        /// Deprecated and ignored. `validate` now classifies each file
-        /// automatically — prose Markdown gets the M/S rules, while
-        /// notation templates, events, blog posts, and board minutes also
-        /// get their frontmatter rules — so the flag is no longer needed.
-        /// Kept so existing invocations don't error; it prints a notice.
-        #[arg(long, hide = true)]
-        markdown_only: bool,
         /// Validate files normally skipped by name (`README.md`,
         /// `CLAUDE.md`, `CODE_OF_CONDUCT.md`, `LICENSE.md`, `ERD.md`)
         /// and directories (`AgentDocumentation`, `workshops`,
@@ -262,11 +255,6 @@ enum Command {
     Retainer {
         #[command(subcommand)]
         action: RetainerAction,
-    },
-    /// Deprecated alias for `notation create`.
-    Matter {
-        #[command(subcommand)]
-        action: MatterAction,
     },
     /// Open and list recurring-billing subscriptions on a live site.
     Subscription {
@@ -698,25 +686,6 @@ enum ClauseAction {
 }
 
 #[derive(Subcommand)]
-enum MatterAction {
-    /// Deprecated alias for `notation create <template-code>
-    /// --client-email ...`.
-    ///
-    /// Opens a questionnaire-driven notation and leaves its questionnaire
-    /// ready to walk with `intake answer`.
-    Open {
-        #[command(flatten)]
-        host: HostOpt,
-        /// Template code, e.g. `nv__llc_formation` (Nevada LLC).
-        #[arg(long)]
-        template: String,
-        /// Client email — the matter's bound client (signer).
-        #[arg(long)]
-        client_email: String,
-    },
-}
-
-#[derive(Subcommand)]
 enum SubscriptionAction {
     /// Open a recurring subscription (`POST /portal/admin/subscriptions`).
     /// Starts `pending` — not billed until the linked project's retainer is
@@ -1025,13 +994,11 @@ fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Validate {
             dir,
-            markdown_only,
             no_default_excludes,
             fix,
             database_url,
         } => runtime().block_on(run_validate(
             &dir,
-            markdown_only,
             no_default_excludes,
             fix,
             database_url.as_deref(),
@@ -1082,7 +1049,6 @@ fn main() -> ExitCode {
         Command::Whoami { host } => login::run_whoami(host.as_deref()),
         Command::Projects { action } => runtime().block_on(run_projects(action)),
         Command::Retainer { action } => runtime().block_on(run_retainer(action)),
-        Command::Matter { action } => runtime().block_on(run_matter(action)),
         Command::Subscription { action } => runtime().block_on(run_subscription(action)),
         Command::Coupon { action } => runtime().block_on(run_coupon(action)),
         Command::Intake { action } => runtime().block_on(run_intake(action)),
@@ -1403,16 +1369,6 @@ async fn run_clause(action: ClauseAction) -> ExitCode {
     }
 }
 
-async fn run_matter(action: MatterAction) -> ExitCode {
-    match action {
-        MatterAction::Open {
-            host,
-            template,
-            client_email,
-        } => remote::matter_walk_open(host.host.as_deref(), &template, &client_email).await,
-    }
-}
-
 async fn run_subscription(action: SubscriptionAction) -> ExitCode {
     match action {
         SubscriptionAction::Create {
@@ -1604,18 +1560,10 @@ fn is_yaml_path(path: &std::path::Path) -> bool {
 
 async fn run_validate(
     dir: &std::path::Path,
-    markdown_only: bool,
     no_default_excludes: bool,
     fix: bool,
     database_url: Option<&str>,
 ) -> ExitCode {
-    if markdown_only {
-        eprintln!(
-            "navigator: --markdown-only is deprecated and ignored — validate now classifies \
-             each file automatically (prose Markdown gets the M/S rules; notation templates, \
-             events, blog posts, and board minutes get their frontmatter rules too)."
-        );
-    }
     let question_codes = if let Some(url) = database_url {
         let db = match open_postgres(url).await {
             Ok(d) => d,
