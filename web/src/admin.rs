@@ -752,7 +752,6 @@ async fn people_create(
 /// on arrival — the show-view sibling of the sign-in page's `?notice=`.
 #[derive(Deserialize, Default)]
 struct PersonShowQuery {
-    #[serde(default)]
     notice: Option<String>,
 }
 

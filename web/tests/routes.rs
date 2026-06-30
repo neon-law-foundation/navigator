@@ -3561,6 +3561,49 @@ async fn admin_person_show_floats_success_toast_after_welcome_sent() {
 }
 
 #[tokio::test]
+async fn admin_person_show_floats_failure_toast_after_welcome_failed() {
+    // A failed welcome-email send redirects here with `?notice=welcome_failed`;
+    // the page must float the red failure toast naming the recipient so staff
+    // know the send didn't land (not a silent reload).
+    use sea_orm::{ActiveModelTrait, ActiveValue};
+    use store::entity::person;
+    let state = empty_state().await;
+    store::migrate(&state.db).await.unwrap();
+    let libra = person::ActiveModel {
+        name: ActiveValue::Set("Libra".into()),
+        email: ActiveValue::Set("libra@example.com".into()),
+        ..Default::default()
+    }
+    .insert(&state.db)
+    .await
+    .unwrap();
+
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/portal/admin/people/{}/edit?notice=welcome_failed",
+                    libra.id
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(
+        body.contains("text-bg-danger"),
+        "expected a red failure toast, got: {body}",
+    );
+    assert!(
+        body.contains("Couldn't send the welcome email to libra@example.com."),
+        "toast must name the recipient, got: {body}",
+    );
+}
+
+#[tokio::test]
 async fn admin_email_log_empty_state_explains_what_lands_here() {
     let state = empty_state().await;
     store::migrate(&state.db).await.unwrap();
