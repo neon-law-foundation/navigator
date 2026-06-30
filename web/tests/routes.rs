@@ -3518,6 +3518,74 @@ async fn admin_send_welcome_writes_audit_row_and_redirects() {
 }
 
 #[tokio::test]
+async fn admin_send_welcome_flags_failed_when_email_send_errors() {
+    // When the email backend errors, the handler must flag the redirect with
+    // `?notice=welcome_failed` (not silently land on a clean page) so the show
+    // view floats the red failure toast. Drive the real `Err` arm with a stub
+    // whose `send` always fails.
+    use sea_orm::{ActiveModelTrait, ActiveValue};
+    use store::entity::person;
+
+    struct FailingEmail;
+    #[async_trait::async_trait]
+    impl web::email::EmailService for FailingEmail {
+        async fn send(
+            &self,
+            _email: web::email::OutboundEmail,
+        ) -> Result<web::email::SendReceipt, web::email::EmailError> {
+            Err(web::email::EmailError::Transport(
+                "simulated transport failure".into(),
+            ))
+        }
+    }
+
+    let mut state = empty_state().await;
+    store::migrate(&state.db).await.unwrap();
+    state.email = std::sync::Arc::new(FailingEmail);
+    let libra = person::ActiveModel {
+        name: ActiveValue::Set("Libra".into()),
+        email: ActiveValue::Set("libra@example.com".into()),
+        ..Default::default()
+    }
+    .insert(&state.db)
+    .await
+    .unwrap();
+
+    let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/portal/admin/people/{}/welcome", libra.id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(
+        matches!(
+            resp.status(),
+            StatusCode::SEE_OTHER | StatusCode::TEMPORARY_REDIRECT
+        ),
+        "expected redirect, got {}",
+        resp.status()
+    );
+    let location = resp
+        .headers()
+        .get("location")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default();
+    assert_eq!(
+        location,
+        format!(
+            "/portal/admin/people/{}/edit?notice=welcome_failed",
+            libra.id
+        ),
+        "a failed send must flag the welcome-failed notice",
+    );
+}
+
+#[tokio::test]
 async fn admin_person_show_floats_success_toast_after_welcome_sent() {
     // Following the welcome-send redirect lands on the show view with
     // `?notice=welcome_sent`; the page must float the green confirmation
