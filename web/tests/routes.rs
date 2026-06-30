@@ -877,6 +877,61 @@ async fn rust_in_peace_talk_renders_as_a_workshop_under_foundation_brand() {
 }
 
 #[tokio::test]
+async fn contributing_workshop_renders_and_lands_beside_the_other_two() {
+    // The third workshop ("Contributing to Neon Law Navigator") loads from
+    // the real content dir, renders under the workshop chrome, and the Nebula
+    // landing lists all three workshop cards side by side.
+    let materials =
+        web::workshops::loader::load_navigator(std::path::Path::new(web::DEFAULT_WORKSHOPS_DIR))
+            .expect("load real workshop content");
+    let app = web::build_router(
+        state_with_workshops(materials).await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+
+    // The overview page renders with the simple title under the Foundation brand.
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/nebula/workshops/contribute-to-the-navigator")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(
+        body.contains("<title>Neon Law Foundation | Contributing to Neon Law Navigator</title>")
+    );
+    assert!(
+        body.contains("href=\"/foundation/nebula/workshops/contribute-to-the-navigator/step/1\""),
+        "overview links its first slide"
+    );
+
+    // The landing lists all three workshops, simple titles and all.
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/nebula")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    for href in [
+        "href=\"/foundation/nebula/workshops/use-the-navigator\"",
+        "href=\"/foundation/nebula/workshops/deploy-the-navigator\"",
+        "href=\"/foundation/nebula/workshops/contribute-to-the-navigator\"",
+    ] {
+        assert!(body.contains(href), "landing should list {href}: {body}");
+    }
+}
+
+#[tokio::test]
 async fn old_presentation_urls_are_not_mounted() {
     let app = web::build_router(
         empty_state().await,
@@ -1674,7 +1729,7 @@ async fn deploy_workshop_md_twin_and_llms_index_the_real_content() {
     assert_eq!(ctype, "text/markdown; charset=utf-8");
     let body = body_string(resp).await;
     assert!(
-        body.contains("# Deploy the Neon Law Navigator"),
+        body.contains("# Deploying Neon Law Navigator"),
         "raw markdown title"
     );
     assert!(body.contains("cargo run -p cli -- gcp setup --project-id"));
