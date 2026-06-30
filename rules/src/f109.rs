@@ -89,19 +89,24 @@ impl Rule for F109OutputFormat {
             return vec![violation(message)];
         }
 
+        // Require a companion key, distinguishing a missing key from a
+        // present-but-empty one so the author sees the accurate message
+        // (mirroring the empty/missing split on `output:` above).
+        let require = |key: &str, noun: &str| match frontmatter::field(fm, key) {
+            Some(v) if !v.is_empty() => None,
+            Some(_) => Some(violation(format!(
+                "`output: form` has an empty `{key}:` key ({noun})"
+            ))),
+            None => Some(violation(format!(
+                "`output: form` requires a `{key}:` key ({noun})"
+            ))),
+        };
+
         let mut violations = Vec::new();
         if value == Self::FORM {
             // The AcroForm render mode: the form keys ride *with* it.
-            if !form_present {
-                violations.push(violation(
-                    "`output: form` requires a `form:` key naming the bundled form".to_string(),
-                ));
-            }
-            if !has("origin_url") {
-                violations.push(violation(
-                    "`output: form` requires an `origin_url:` key for the bundled form".to_string(),
-                ));
-            }
+            violations.extend(require("form", "naming the bundled form"));
+            violations.extend(require("origin_url", "for the bundled form"));
         } else if form_present {
             // A typeset profile (`letter`) must not carry a form key.
             violations.push(violation(format!(
@@ -196,6 +201,37 @@ mod tests {
         let f = file("---\ntitle: T\noutput: form\n---\n");
         let v = F109OutputFormat.lint(&f);
         assert_eq!(v.len(), 2, "{v:?}");
+    }
+
+    #[test]
+    fn distinguishes_an_empty_companion_key_from_a_missing_one() {
+        // A bare `form:`/`origin_url:` line is present but empty; the
+        // message must say "empty", not "requires", so the author is not
+        // told to add a key that is visibly already there.
+        let f = file("---\ntitle: T\noutput: form\nform:\norigin_url:\n---\n");
+        let v = F109OutputFormat.lint(&f);
+        assert_eq!(v.len(), 2, "{v:?}");
+        assert!(
+            v.iter().all(|x| x.message.contains("has an empty")),
+            "{v:?}"
+        );
+        assert!(v.iter().any(|x| x.message.contains("`form:`")), "{v:?}");
+        assert!(
+            v.iter().any(|x| x.message.contains("`origin_url:`")),
+            "{v:?}"
+        );
+    }
+
+    #[test]
+    fn invalid_output_value_short_circuits_before_the_companion_check() {
+        // Incremental linting: an unrecognized `output:` value is reported
+        // on its own. The companion-key contract is only evaluated once the
+        // profile parses, so a simultaneously stray `form:` surfaces after
+        // the typo is corrected rather than alongside it.
+        let f = file("---\ntitle: T\noutput: form_pdf\nform: nv__llc_formation\n---\n");
+        let v = F109OutputFormat.lint(&f);
+        assert_eq!(v.len(), 1, "{v:?}");
+        assert!(v[0].message.contains("form_pdf"), "{v:?}");
     }
 
     #[test]
