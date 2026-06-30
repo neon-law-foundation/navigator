@@ -529,6 +529,14 @@ mod tests {
             "testimonials.home_lead",
             "testimonials.service_heading",
             "testimonials.service_lead",
+            // The `/` neon hero (eyebrow, lead, CTA buttons). These were
+            // inline English literals that already rendered English on
+            // `/es`; lifting them into the catalog preserves that status
+            // quo. English until attorney-reviewed Spanish exists.
+            "home.hero_eyebrow",
+            "home.hero_lead",
+            "home.cta_services",
+            "home.cta_mission",
         ];
         // Keys from localized domains only (es: Some) — English-only
         // domains carry no Spanish obligation.

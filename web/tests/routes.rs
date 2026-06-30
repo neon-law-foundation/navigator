@@ -12,8 +12,8 @@ use http_body_util::BodyExt;
 use store::test_support::pg;
 use store::Db;
 use tower::ServiceExt;
-// Keyed render assertion: the firm CTA copy lives in the catalog
-// (`cta.consultation`), so assert the slot, not the literal. Editing the
+// Keyed render assertion: catalog copy (the home hero `home.*`, the firm
+// CTA `cta.consultation`) is asserted by slot, not literal. Editing the
 // copy keeps these green; a typo'd key fails loudly via `t_strict`.
 use views::assert_renders;
 use web::workshops::WorkshopSection;
@@ -315,8 +315,12 @@ async fn root_returns_home_page_html() {
     let body = body_string(resp).await;
     assert!(body.starts_with("<!DOCTYPE html>"));
     assert!(body.contains("<title>Neon Law | Home</title>"));
-    assert!(body
-        .contains("a licensed attorney works with you, with transparent pricing before the work"));
+    // The whole neon hero is catalog copy — eyebrow, lead, and both CTAs.
+    // The justice-gap stat below stays literal — cited data, not chrome.
+    assert_renders!(&body, "home.hero_eyebrow");
+    assert_renders!(&body, "home.hero_lead");
+    assert_renders!(&body, "home.cta_services");
+    assert_renders!(&body, "home.cta_mission");
     assert!(body.contains("LSC Justice Gap Report, 2022"));
     assert!(body.contains("href=\"/foundation/notations\""));
     // It is firm-branded prose and cards — no old marketing hero strip.
