@@ -76,7 +76,7 @@ const RESTATE_CLI_VERSION: &str = "1.7.0";
 pub(crate) const WORKFLOWS_PUBLIC_URL: &str = "https://workflows.example.com/";
 
 // Local `:dev` image tags KIND loads. CI publishes the real images to
-// ghcr (`YY.MM.DD`); `pull_retag_load` pulls one and retags it to the
+// ghcr (`YY.M.D`); `pull_retag_load` pulls one and retags it to the
 // `:dev` name the manifests reference, so the overlays stay unchanged.
 // The trigger images (archives/statutes/billing/heartbeat) are pulled
 // straight from ghcr by their CronJobs in prod and are never loaded into
@@ -858,7 +858,7 @@ fn kind_down_only(cfg: &KindConfig) -> Result<()> {
 }
 
 /// `devx deploy`: full in-cluster stack from published ghcr images.
-/// Pulls both images at a resolved `YY.MM.DD` tag, retags + loads them
+/// Pulls both images at a resolved `YY.M.D` tag, retags + loads them
 /// into KIND, applies every manifest under `k8s/`, waits for the
 /// navigator-web rollout to settle. CI builds and publishes the images;
 /// this no longer builds them locally. `tag_override` (e.g. `worktree-env
@@ -1108,7 +1108,7 @@ fn normalize_docker_arch(arch: &str) -> String {
     }
 }
 
-/// Resolve the `YY.MM.DD` ghcr tag the local cluster should pull, in
+/// Resolve the `YY.M.D` ghcr tag the local cluster should pull, in
 /// precedence order: an explicit `override_tag` (e.g. `worktree-env
 /// --demo --tag`), then `NAVIGATOR_IMAGE_TAG`, then the latest published
 /// tag from ghcr. CI builds and publishes the images (`deploy.yml`); the

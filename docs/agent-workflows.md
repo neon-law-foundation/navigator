@@ -148,7 +148,7 @@ sequencing/combinators or keep the steps sequential.
 The branch-to-prod path is:
 
 1. PR merges by squash into `main`.
-2. `release-tag.yml` cuts a `YY.MM.DD` tag.
+2. `release-tag.yml` cuts a `YY.M.D` tag.
 3. `deploy.yml` publishes all images to ghcr.io.
 4. An operator rolls GKE onto the dated tag.
 

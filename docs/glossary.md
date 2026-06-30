@@ -200,7 +200,7 @@ Subcommands:
 - `down` — kill port-forwards and delete the KIND cluster. `env`, `status` — print the env file / show whether
   port-forwards are alive. `kind-up`, `kind-down` — just the cluster + ingress + Operator (no application manifests).
   `deploy` — full in-cluster stack including `navigator-web`. Idempotently sets the cluster up, **pulls** both published
-  ghcr images (`NAVIGATOR_IMAGE_TAG` or the latest `YY.MM.DD`), retags them to `:dev`, `kind load`s, applies every
+  ghcr images (`NAVIGATOR_IMAGE_TAG` or the latest `YY.M.D`), retags them to `:dev`, `kind load`s, applies every
   manifest, waits for the navigator-web rollout. CI builds the images; the local loop no longer builds them.
 - `undeploy` — `kubectl delete namespace navigator`. `worktree-env up/down/status` — stand up (or tear down) a
   per-worktree dev environment (its own `navigator_<slug>` database + host `web` port on the shared deps; `--demo` for

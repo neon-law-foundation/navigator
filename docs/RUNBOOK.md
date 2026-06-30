@@ -67,10 +67,10 @@ cargo run --release -p cli -- deploy
 
 What this does:
 
-1. Resolve the `YY.MM.DD` ghcr tag to pull — `NAVIGATOR_IMAGE_TAG` if set, else the latest published tag.
+1. Resolve the `YY.M.D` ghcr tag to pull — `NAVIGATOR_IMAGE_TAG` if set, else the latest published tag.
 2. `docker pull ghcr.io/<owner>/navigator-web:<tag>` then retag it to `navigator-web:dev` (the name the manifests
    reference), and the same for `navigator-workflows-service`. CI (`deploy.yml`) builds and publishes these images; the
-   local loop no longer builds them — pin a known-good release with `NAVIGATOR_IMAGE_TAG=YY.MM.DD` for a reproducible
+   local loop no longer builds them — pin a known-good release with `NAVIGATOR_IMAGE_TAG=YY.M.D` for a reproducible
    demo.
 3. `kind load docker-image navigator-web:dev --name navigator` — pushes the pulled image into the cluster.
 4. `kubectl apply -k k8s/overlays/kind` — the full stack including `navigator-web`.
@@ -412,8 +412,8 @@ cargo run -p cli -- worktree-env down --path "$CODEX_WORKTREE_PATH"
 to boot — run it under `doppler run …` or with a gitignored stub `.env`, exactly as the section-7b loop does.
 
 **Full-stack demo.** To show the product running entirely in KIND from the published ghcr images (no host `web`), use
-`cargo run -p cli -- worktree-env up --demo` (optionally `--tag YY.MM.DD` to pin a release). This delegates to
-`navigator deploy`; it is a single in-cluster stack, reached through the ingress at <http://localhost:8080>.
+`cargo run -p cli -- worktree-env up --demo` (optionally `--tag YY.M.D` to pin a release). This delegates to `navigator
+deploy`; it is a single in-cluster stack, reached through the ingress at <http://localhost:8080>.
 
 ## 7d. Running the test suite
 

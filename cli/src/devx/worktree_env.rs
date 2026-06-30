@@ -71,7 +71,7 @@ pub enum WorktreeEnvCmd {
         /// host-`web` + shared-deps dev environment.
         #[arg(long)]
         demo: bool,
-        /// Pin the ghcr image tag to pull (`YY.MM.DD`). Only meaningful
+        /// Pin the ghcr image tag to pull (`YY.M.D`). Only meaningful
         /// with `--demo`; omit to pull the latest published tag.
         #[arg(long)]
         tag: Option<String>,

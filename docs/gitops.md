@@ -88,7 +88,7 @@ CI/CD path, so a retention change never lands in a release diff and a cleanup ru
 | Workflow | Trigger | Job |
 | --- | --- | --- |
 | [`ci.yml`](../.github/workflows/ci.yml) | `pull_request` → `main` | fmt + Markdown CLI + clippy + tests |
-| [`release-tag.yml`](../.github/workflows/release-tag.yml) | cron 02:00 PST | cut + push the `YY.MM.DD` tag |
+| [`release-tag.yml`](../.github/workflows/release-tag.yml) | cron 02:00 PST | cut + push the `YY.M.D` tag |
 | [`deploy.yml`](../.github/workflows/deploy.yml) | tag push or dispatch | integration → push images → Slack |
 | [`cleanup.yml`](../.github/workflows/cleanup.yml) | cron 07:00 PST | prune ghcr versions > 14 days (maintenance) |
 
@@ -109,14 +109,17 @@ testcontainer per binary). Integration/KIND/docker/browser work does **not** run
 
 ### Cron flow — `release-tag.yml`
 
-Fires daily at **02:00 PST** (`0 10 * * *` UTC). Its only job is to cut a calendar release tag `YY.MM.DD` (e.g.
-`26.06.18` for 2026-06-18) and push it with a PAT (`secrets.RELEASE_PAT`) so the push re-triggers the tag flow below.
+Fires daily at **02:00 PST** (`0 10 * * *` UTC). Its only job is to cut a calendar release tag `YY.M.D` (e.g. `26.6.18`
+for 2026-06-18) and push it with a PAT (`secrets.RELEASE_PAT`) so the push re-triggers the tag flow below. Every
+component carries **no leading zeros** — the firm-wide version convention — so June 5 is `26.6.5`. That keeps each tag a
+valid semver (which the Zed-extension publish requires) and makes the calendar tag, the ghcr image tag, the GitHub
+Release, the Homebrew formula, and `navigator --version` all agree on one shape.
 
 ### Tag flow — `deploy.yml`
 
-Triggered by the `YY.MM.DD` tag push, or manually with `workflow_dispatch` when an operator needs another publish during
-the same day. The nightly path keeps the plain calendar tag. A manual dispatch derives a Pacific-time `YY.MM.DD.HH` tag,
-so a run on June 25, 2026 at 2 p.m. publishes `26.06.25.14` instead of overwriting `26.06.25`. Either path runs the full
+Triggered by the `YY.M.D` tag push, or manually with `workflow_dispatch` when an operator needs another publish during
+the same day. The nightly path keeps the plain calendar tag. A manual dispatch derives a Pacific-time `YY.M.D.H` tag, so
+a run on June 25, 2026 at 2 p.m. publishes `26.6.25.14` instead of overwriting `26.6.25`. Either path runs the full
 **KIND integration** suite, then builds and pushes every image — the two service images (`navigator-web`,
 `navigator-workflows-service`) and the five CronJob trigger images (`navigator-*-trigger`) — to **ghcr.io** tagged with
 that release version plus `latest`. The service images publish as linux/amd64 + linux/arm64 manifest lists from native
@@ -161,7 +164,7 @@ filled in:
 
 ```bash
 doppler run --project navigator --config prd -- \
-  cargo run --release -p cli -- ship --tag YY.MM.DD
+  cargo run --release -p cli -- ship --tag YY.M.D
 ```
 
 `ship` builds **nothing** — the images already exist from the tag flow. It takes the `--tag` you pass (it never guesses

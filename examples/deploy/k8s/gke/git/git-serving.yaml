@@ -59,7 +59,7 @@ spec:
       containers:
         - name: git
           # Built from images/Dockerfile.git; same tag scheme as navigator-web.
-          image: ghcr.io/neon-law-foundation/navigator-git:YY.MM.DD
+          image: ghcr.io/neon-law-foundation/navigator-git:YY.M.D
           imagePullPolicy: Always
           ports:
             - containerPort: 3001

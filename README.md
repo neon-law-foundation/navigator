@@ -38,9 +38,9 @@ On Apple Silicon macOS, install the `navigator` CLI from our Homebrew tap:
 brew install neon-law-foundation/tap/navigator
 ```
 
-A new `YY.MM.DD` release publishes every day, so `brew upgrade` always pulls the latest build. The published binaries
-are Apple-Silicon only; on other platforms — or to hack on the workspace — build from source with `cargo` as below. The
-tap and its formulae live at [neon-law-foundation/homebrew-tap](https://github.com/neon-law-foundation/homebrew-tap).
+A new `YY.M.D` release publishes every day, so `brew upgrade` always pulls the latest build. The published binaries are
+Apple-Silicon only; on other platforms — or to hack on the workspace — build from source with `cargo` as below. The tap
+and its formulae live at [neon-law-foundation/homebrew-tap](https://github.com/neon-law-foundation/homebrew-tap).
 
 For editor integration, install **Navigator LSP** from Zed's extension marketplace (`zed: extensions` → search
 **Navigator LSP** → **Install**). The extension pulls the matching `navigator-lsp` binary from the latest GitHub Release
@@ -63,7 +63,7 @@ container images to [ghcr.io](https://ghcr.io); you then roll a published image 
 and visit your `NAVIGATOR_PRIMARY_DOMAIN`:
 
 ```bash
-doppler run -- cargo run --release -p cli -- ship --tag YY.MM.DD
+doppler run -- cargo run --release -p cli -- ship --tag YY.M.D
 ```
 
 The full edit → merge → release → deploy lifecycle is documented in [GitOps](docs/gitops.md). Cluster setup lives in
