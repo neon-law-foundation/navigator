@@ -1064,6 +1064,42 @@ mod tests {
     }
 
     #[test]
+    fn show_tell_index_wears_the_animated_nebula_hero() {
+        // The show-and-tell index shares the landing's `nebula_hero_scene()`,
+        // so it must render the same image-free animated layers and likewise
+        // load no hero photo — guard it independently of the landing path.
+        let empty: Vec<EventListItem<'_>> = Vec::new();
+        let no_pages = || EventPager {
+            previous_href: None,
+            next_href: None,
+            current_page: 1,
+            total_pages: 1,
+        };
+        let index = ShowTellIndex {
+            upcoming: &empty,
+            past: &empty,
+            upcoming_pager: no_pages(),
+            past_pager: no_pages(),
+        };
+        let html = show_tell_index(&index, crate::AuthState::Anonymous).into_string();
+        for layer in [
+            "nebula-hero__stars",
+            "nebula-hero__cloud",
+            "nebula-hero__burst",
+            "nebula-hero__core",
+        ] {
+            assert!(
+                html.contains(layer),
+                "show-and-tell hero should render the {layer} scene layer, got: {html}"
+            );
+        }
+        assert!(
+            !html.contains("rel=\"preload\" as=\"image\""),
+            "the animated hero should not preload a photo, got: {html}"
+        );
+    }
+
+    #[test]
     fn overview_carries_exactly_one_h1_and_links_each_step() {
         let steps = sample_steps();
         let m = MaterialOverview {
