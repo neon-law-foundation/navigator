@@ -42,7 +42,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: archives-trigger
-              image: ghcr.io/neon-law-foundation/navigator-archives-trigger:YY.MM.DD
+              image: ghcr.io/neon-law-foundation/navigator-archives-trigger:YY.M.D
               imagePullPolicy: Always
               env:
                 # Restate Cloud ingress endpoint for the navigator-prod

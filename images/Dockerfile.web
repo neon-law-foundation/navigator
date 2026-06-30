@@ -87,7 +87,7 @@ COPY --from=builder /src/web/content /app/content
 COPY --from=builder /src/templates    /app/templates
 
 # Identify the build. The daily `deploy.yml` publish job passes
-# `--build-arg RELEASE_TAG=$YY.MM.DD` (the ghcr tag it publishes under) plus
+# `--build-arg RELEASE_TAG=$YY.M.D` (the ghcr tag it publishes under) plus
 # `GIT_SHA`/`BUILD_TIME` for the released commit, so the running binary can
 # answer `GET /version` with the exact release + commit it was built from —
 # distroless has no shell, so a runtime endpoint is the only way to read

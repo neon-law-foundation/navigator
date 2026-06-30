@@ -120,7 +120,7 @@ fn build_export_providers(
     service_name: &str,
     release: Option<&str>,
 ) -> ExportProviders {
-    // Tag every signal with the deployed release (`YY.MM.DD`) under the OTel
+    // Tag every signal with the deployed release (`YY.M.D`) under the OTel
     // `service.version` convention, so a span/metric/log in Cloud Trace or
     // BigQuery says which release emitted it. This is the headless
     // counterpart to `web`'s `GET /version`: the worker and the trigger
@@ -186,7 +186,7 @@ pub fn init(default_service_name: &str) -> TelemetryGuard {
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| default_service_name.to_string());
 
-    // The deployed release (`YY.MM.DD`), baked into every image as
+    // The deployed release (`YY.M.D`), baked into every image as
     // `NAVIGATOR_RELEASE_TAG`. `None` on a local build (unset, or the honest
     // `unknown`), so dev telemetry carries no bogus version.
     let release = std::env::var("NAVIGATOR_RELEASE_TAG")
@@ -456,7 +456,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn export_providers_build_all_three_signals_offline() {
         let providers =
-            build_export_providers("http://127.0.0.1:4317", "telemetry-test", Some("26.06.23"));
+            build_export_providers("http://127.0.0.1:4317", "telemetry-test", Some("26.6.23"));
         // All three signals are present; shutting down flushes (no-op here,
         // nothing batched) without panicking or requiring a live collector.
         let _ = providers.tracer.shutdown();

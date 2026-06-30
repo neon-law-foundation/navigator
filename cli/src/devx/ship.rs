@@ -8,13 +8,13 @@
 //!
 //! **CI builds and publishes; ship only rolls.** The daily
 //! `deploy.yml` tag flow builds both images and publishes them to
-//! public `ghcr.io` tagged `YY.MM.DD`; this module never builds or
+//! public `ghcr.io` tagged `YY.M.D`; this module never builds or
 //! pushes an image — it pins the running cluster to an
 //! already-published tag.
 //!
 //! Two flows, matching the documented rollout path:
 //!
-//! - **Roll** (default): take the `YY.MM.DD` ghcr tag to deploy (required
+//! - **Roll** (default): take the `YY.M.D` ghcr tag to deploy (required
 //!   `--tag`) → confirm the prod Secret satisfies
 //!   the new binary's boot invariants → roll out BOTH deployments at
 //!   that tag → re-register the worker with Restate. Both deployments
@@ -31,7 +31,7 @@
 //! ## What this does NOT do
 //!
 //! - It never builds or pushes images. CI owns that; ship rolls a
-//!   tag CI already published. The public GitHub `YY.MM.DD` tag is the
+//!   tag CI already published. The public GitHub `YY.M.D` tag is the
 //!   source restore point, so there is no git-bundle archive step.
 //! - It never auto-patches a prod Secret. The invariant check *aborts*
 //!   with the exact `kubectl patch` to run when a required key is
@@ -157,14 +157,14 @@ impl ShipConfig {
         format!("ghcr.io/{}", self.ghcr_owner)
     }
 
-    /// Published `navigator-web` image URL at the `YY.MM.DD` `tag`.
+    /// Published `navigator-web` image URL at the `YY.M.D` `tag`.
     #[must_use]
     pub fn web_image(&self, tag: &str) -> String {
         format!("{}/navigator-web:{tag}", self.registry())
     }
 
     /// Published `navigator-workflows-service` image URL at the
-    /// `YY.MM.DD` `tag`.
+    /// `YY.M.D` `tag`.
     #[must_use]
     pub fn workflows_image(&self, tag: &str) -> String {
         format!("{}/navigator-workflows-service:{tag}", self.registry())
@@ -317,7 +317,7 @@ pub struct ShipOpts {
     /// No-rebuild path: just `kubectl rollout restart` both
     /// deployments (Secret-value rotation), then exit.
     pub restart_only: bool,
-    /// The `YY.MM.DD[.HH]` ghcr tag to roll onto. Required for a roll —
+    /// The `YY.M.D[.H]` ghcr tag to roll onto. Required for a roll —
     /// `None` is rejected (we never guess the latest tag); only the
     /// `--restart-only` path, which changes no image, runs without it.
     pub tag: Option<String>,
@@ -356,7 +356,7 @@ fn restart_only(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
     Ok(())
 }
 
-/// Roll the cluster onto an already-published `YY.MM.DD` ghcr tag.
+/// Roll the cluster onto an already-published `YY.M.D` ghcr tag.
 /// CI built and published the images; this only updates the cluster:
 /// resolve the tag → confirm the Secret satisfies the new binary's boot
 /// invariants → pin BOTH deployments AND every trigger `CronJob` to that
@@ -374,12 +374,12 @@ fn roll(cfg: &ShipConfig, opts: &ShipOpts) -> Result<()> {
     // 1. Pre-flight — confirm the prod context resolves before any call.
     verify_context(cfg, dry_run)?;
 
-    // 2. The YY.MM.DD[.HH] tag to roll — always an explicit `--tag`, so the
+    // 2. The YY.M.D[.H] tag to roll — always an explicit `--tag`, so the
     //    operator names the exact published release rather than letting the
     //    roll guess. Both deployments get the SAME tag.
     let Some(tag) = opts.tag.as_deref() else {
         bail!(
-            "`--tag YY.MM.DD` is required: name the published release to roll onto. \
+            "`--tag YY.M.D` is required: name the published release to roll onto. \
              We never guess the latest tag; pass the tag from the deploy hand-off \
              (or use `--restart-only` to re-read a rotated Secret without changing the image)."
         );
@@ -919,12 +919,12 @@ mod tests {
         let cfg = sample_config();
         assert_eq!(cfg.registry(), "ghcr.io/neon-law-foundation");
         assert_eq!(
-            cfg.web_image("26.06.23"),
-            "ghcr.io/neon-law-foundation/navigator-web:26.06.23"
+            cfg.web_image("26.6.23"),
+            "ghcr.io/neon-law-foundation/navigator-web:26.6.23"
         );
         assert_eq!(
-            cfg.workflows_image("26.06.23"),
-            "ghcr.io/neon-law-foundation/navigator-workflows-service:26.06.23"
+            cfg.workflows_image("26.6.23"),
+            "ghcr.io/neon-law-foundation/navigator-workflows-service:26.6.23"
         );
     }
 

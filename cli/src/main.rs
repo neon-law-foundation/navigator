@@ -33,7 +33,7 @@ use devx::{DnsCmd, GcpCmd, RestateCmd, WorktreeEnvCmd};
 /// 1. A runtime `NAVIGATOR_RELEASE_TAG` — the workspace-wide convention `web`
 ///    and `lsp` already follow, and the seam tests assert against.
 /// 2. The tag baked at build time by `build.rs` (`NAVIGATOR_CLI_VERSION`), so a
-///    *downloaded* release binary self-reports its `YY.MM.DD` release with no
+///    *downloaded* release binary self-reports its `YY.M.D` release with no
 ///    environment set.
 /// 3. The workspace crate version (`0.1.0`) on a plain local build, since
 ///    `build.rs` falls back to `CARGO_PKG_VERSION` when no tag is present.
@@ -384,7 +384,7 @@ enum Command {
     /// `kubectl apply -k k8s/overlays/kind` — the full stack
     /// including navigator-web. CI publishes the images; this no longer
     /// builds them. Pin a release with `NAVIGATOR_IMAGE_TAG`, else the
-    /// latest published `YY.MM.DD` tag is pulled. Ends with the
+    /// latest published `YY.M.D` tag is pulled. Ends with the
     /// navigator-web rollout settling.
     Deploy,
     /// `kubectl delete namespace navigator`. Removes every Neon Law Navigator
@@ -435,12 +435,12 @@ enum Command {
     },
     /// One-shot "ship to prod" — the executable path documented in
     /// `docs/cloud-operations.md`. CI (`deploy.yml`) builds and publishes
-    /// the images to ghcr.io tagged `YY.MM.DD`; `ship` only rolls the
-    /// cluster. Flow: take the `--tag` `YY.MM.DD` ghcr tag → confirm the
+    /// the images to ghcr.io tagged `YY.M.D`; `ship` only rolls the
+    /// cluster. Flow: take the `--tag` `YY.M.D` ghcr tag → confirm the
     /// prod Secret satisfies the new binary's boot invariants → roll out
     /// BOTH deployments at that tag → pin every trigger `CronJob` to the
     /// same tag → re-register the worker with Restate, so every navigator
-    /// image ends in sync at one `YY.MM.DD`. Reads every project / region /
+    /// image ends in sync at one `YY.M.D`. Reads every project / region /
     /// domain / cluster value from `.env`; never builds images locally.
     Ship {
         /// Print every command instead of running it.
@@ -451,7 +451,7 @@ enum Command {
         /// after rotating a key in the K8s Secret.
         #[arg(long)]
         restart_only: bool,
-        /// The `YY.MM.DD` ghcr tag to roll onto. Required for a roll — name
+        /// The `YY.M.D` ghcr tag to roll onto. Required for a roll — name
         /// the exact published release (both deployments pin to the same
         /// tag, never a skew). Omit only with `--restart-only`.
         #[arg(long)]

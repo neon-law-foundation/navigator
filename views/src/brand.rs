@@ -254,7 +254,7 @@ pub fn firm_disclaimer() -> &'static str {
     *DISCLAIMER
 }
 
-/// The deployed release — the `YY.MM.DD` ghcr tag this image was
+/// The deployed release — the `YY.M.D` ghcr tag this image was
 /// published under, baked into the web image by `deploy.yml` as
 /// `NAVIGATOR_RELEASE_TAG` (the same value `GET /version` reports as
 /// `release`). Rendered in the footer so a push is visible end-to-end:

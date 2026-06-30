@@ -41,7 +41,7 @@ Everything is Rust and env-driven — no per-deployment value is baked into a co
    marked failed.
 2. **An image** — servers from `images/Dockerfile.<name>`; triggers from the shared `images/Dockerfile.trigger` (one
    `--build-arg CRATE=`/`BIN=` row). CI (`deploy.yml`) builds and publishes it to `ghcr.io/<owner>/navigator-<name>`
-   tagged `YY.MM.DD` (the release date) + `latest`; the GKE nodes pull it anonymously (the packages are public). The
+   tagged `YY.M.D` (the release date) + `latest`; the GKE nodes pull it anonymously (the packages are public). The
    workspace no longer ships per-image `cargo run -p cli -- image-<name>` build commands — CI owns image builds, and the
    local KIND loop **pulls** the published images (`navigator deploy` / `worktree-env --demo`).
 3. **A manifest** under [`examples/deploy/k8s/exports/`](../examples/deploy/k8s/exports/) with placeholders
@@ -71,7 +71,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: nrs-scraper
-              image: ghcr.io/neon-law-foundation/navigator-nrs-scraper:YY.MM.DD
+              image: ghcr.io/neon-law-foundation/navigator-nrs-scraper:YY.M.D
               envFrom:
                 - secretRef:
                     name: navigator-web-secrets   # DATABASE_URL, storage creds, etc.
@@ -91,9 +91,9 @@ year-round, set `spec.timeZone: "America/Los_Angeles"` instead of doing the math
 ## Build and deploy
 
 CI owns image publishing. Cron trigger images are built and pushed by `deploy.yml` to `ghcr.io/<owner>/navigator-<name>`
-tagged `YY.MM.DD` + `latest` — the same GitHub-published flow as `navigator-web` and `workflows-service`, never a local
+tagged `YY.M.D` + `latest` — the same GitHub-published flow as `navigator-web` and `workflows-service`, never a local
 `docker build` + push side channel. Nothing is built on a laptop, and the public packages are pulled anonymously by the
-GKE nodes (no imagePullSecret). Deploying a cron job is therefore just: pin the manifest to the published `YY.MM.DD` tag
+GKE nodes (no imagePullSecret). Deploying a cron job is therefore just: pin the manifest to the published `YY.M.D` tag
 and apply.
 
 ```bash
@@ -101,7 +101,7 @@ set -a; source <(doppler run --project navigator --config prd -- printenv | grep
 TAG=$(git ls-remote --tags --refs origin | grep -oE '[0-9]{2}\.[0-9]{2}\.[0-9]{2}$' | sort | tail -1)  # latest release
 
 # Render placeholders to a temp file (keep the committed manifest generic), then apply:
-sed -e "s|YOUR_PROJECT_ID|${NAVIGATOR_GCP_PROJECT_ID}|g" -e "s|:YY.MM.DD|:${TAG}|g" \
+sed -e "s|YOUR_PROJECT_ID|${NAVIGATOR_GCP_PROJECT_ID}|g" -e "s|:YY.M.D|:${TAG}|g" \
   examples/deploy/k8s/exports/cron-<name>.yaml > /tmp/cron-<name>.yaml
 kubectl apply -f /tmp/cron-<name>.yaml
 ```
@@ -133,7 +133,7 @@ end-to-end after deploy.
    owns image builds.)
 4. Add `cron-<name>.yaml` under `examples/deploy/k8s/exports/` with placeholders, namespace `navigator`, a UTC schedule
    with a Pacific comment.
-5. Once CI has published the image, render the manifest to the `YY.MM.DD` tag and apply (above). For flavor A, also
+5. Once CI has published the image, render the manifest to the `YY.M.D` tag and apply (above). For flavor A, also
    re-register the worker — see [durable-workflows.md](durable-workflows.md#the-registration-gotcha).
 6. Verify with `create job --from` before trusting the schedule.
 

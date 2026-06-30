@@ -1,6 +1,7 @@
 //! Integration tests for `navigator --version` / `-V`.
 //!
-//! The published binary must self-report the `YY.MM.DD` release tag that
+//! The published binary must self-report the `YY.M.D` release tag (no
+//! leading zeros on any component — June 5 is `26.6.5`) that
 //! `deploy.yml` built it from — not the placeholder `0.1.0` workspace crate
 //! version. `deploy.yml` exposes that tag to `cargo build` as
 //! `NAVIGATOR_RELEASE_TAG`; the CLI honors the same env var at *runtime* (the
@@ -18,11 +19,11 @@ use predicates::str;
 fn version_reports_the_release_tag_when_set() {
     Command::cargo_bin("navigator")
         .unwrap()
-        .env("NAVIGATOR_RELEASE_TAG", "26.06.26")
+        .env("NAVIGATOR_RELEASE_TAG", "26.6.5")
         .arg("--version")
         .assert()
         .success()
-        .stdout(str::contains("navigator 26.06.26"));
+        .stdout(str::contains("navigator 26.6.5"));
 }
 
 /// `-V` is the short alias for the same flag and must agree.
@@ -30,11 +31,11 @@ fn version_reports_the_release_tag_when_set() {
 fn short_version_flag_matches() {
     Command::cargo_bin("navigator")
         .unwrap()
-        .env("NAVIGATOR_RELEASE_TAG", "26.06.26")
+        .env("NAVIGATOR_RELEASE_TAG", "26.6.5")
         .arg("-V")
         .assert()
         .success()
-        .stdout(str::contains("navigator 26.06.26"));
+        .stdout(str::contains("navigator 26.6.5"));
 }
 
 /// An empty/whitespace tag is ignored — it must never surface as the version.

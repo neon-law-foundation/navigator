@@ -2874,7 +2874,7 @@ async fn nebula_certificate_submit(
 /// running, so an operator/CI/AIDA/browser can confirm which release prod
 /// is on without shelling into a (shell-less) distroless pod.
 ///
-/// The headline field is `release`: the `YY.MM.DD` ghcr tag the daily
+/// The headline field is `release`: the `YY.M.D` ghcr tag the daily
 /// `deploy.yml` published, baked into the image as `NAVIGATOR_RELEASE_TAG`.
 /// Under the ghcr model an image is pulled by that dated tag, so `release`
 /// is what a `ship` rolls onto and what an operator pins — it is the
@@ -3010,14 +3010,14 @@ mod version_tests {
 
         // SAFETY: single-threaded within this test; no other code reads
         // NAVIGATOR_GIT_SHA, so there is no concurrent reader to race.
-        std::env::set_var("NAVIGATOR_RELEASE_TAG", "26.06.23");
+        std::env::set_var("NAVIGATOR_RELEASE_TAG", "26.6.23");
         std::env::set_var(
             "NAVIGATOR_GIT_SHA",
             "ef143cba1fdd299c0f57f99eddb7806df5464b68",
         );
         std::env::set_var("NAVIGATOR_BUILD_TIME", "2026-06-11T17:01:25-07:00");
         let v = get_version_json().await;
-        assert_eq!(v["release"], "26.06.23");
+        assert_eq!(v["release"], "26.6.23");
         assert_eq!(v["commit"], "ef143cb");
         assert_eq!(v["commit_full"], "ef143cba1fdd299c0f57f99eddb7806df5464b68");
         assert_eq!(v["built"], "2026-06-11T17:01:25-07:00");

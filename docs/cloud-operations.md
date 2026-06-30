@@ -78,12 +78,12 @@ implementation and run the dry-run command from [`oss-install.md`](oss-install.m
 Code reaches production through PRs and dated images:
 
 1. Merge through the normal PR flow in [`gitops.md`](gitops.md).
-2. The release-tag workflow cuts a `YY.MM.DD` tag.
+2. The release-tag workflow cuts a `YY.M.D` tag.
 3. The deploy workflow builds and publishes both images to ghcr.io:
    `navigator-web` and `navigator-workflows-service`.
 4. An operator rolls GKE onto the published tag.
 
-Always roll `navigator-web` and `workflows-service` together at the same `YY.MM.DD` tag. Version skew between the web
+Always roll `navigator-web` and `workflows-service` together at the same `YY.M.D` tag. Version skew between the web
 surface and durable worker is an avoidable production risk.
 
 Before a rollout, check the new binary's required env/secret keys against the live production Secret. `web` enforces

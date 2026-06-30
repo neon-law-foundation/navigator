@@ -2,7 +2,8 @@ name: release-tag
 
 # The cron flow — one of exactly three workflows in this repo (see CLAUDE.md
 # "CI/CD — three workflows, no more"). Fires once a day and does ONE thing:
-# cut a calendar release tag `YY.MM.DD` (e.g. `26.06.18` for 2026-06-18) at
+# cut a calendar release tag `YY.M.D` (e.g. `26.6.18` for 2026-06-18 — no
+# leading zeros on any component, June is `6`) at
 # the tip of `main`. Pushing that tag is what triggers the tag flow
 # (`deploy.yml`): KIND integration → build + push images to ghcr → email.
 #
@@ -25,7 +26,7 @@ permissions:
 
 jobs:
   cut-tag:
-    name: cut YY.MM.DD release tag
+    name: cut YY.M.D release tag
     # Never run the auto-tagger from a fork — only the canonical repo cuts
     # releases. Forks rebrand and run their own cadence.
     if: github.repository == 'neon-law-foundation/navigator'
@@ -40,8 +41,13 @@ jobs:
         id: tag
         run: |
           # The cut fires at 01:11 UTC, so the UTC calendar date is exactly
-          # the date we want for the tag.
-          TAG="$(date -u +'%y.%m.%d')"
+          # the date we want for the tag. No leading zeros on any component
+          # (`10#` forces base-10 so `08`/`09` don't read as bad octal): the
+          # firm-wide version convention. June 5 is `26.6.5`. A no-leading-
+          # zeros tag is also a valid semver, which the Zed-extension publish
+          # in deploy.yml needs.
+          read -r y m d <<< "$(date -u +'%y %m %d')"
+          TAG="$((10#$y)).$((10#$m)).$((10#$d))"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Release tag: $TAG"
       - name: create + push tag (skip if it already exists)
