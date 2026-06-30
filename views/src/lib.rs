@@ -227,7 +227,7 @@ pub fn password_reset_new_page(token: &str, csrf_token: &str, error: Option<&str
 #[must_use]
 pub fn password_reset_sent_page() -> maud::Markup {
     auth_notice_page(
-        "Check your inbox",
+        &crate::i18n::t(crate::Locale::En, "portal.reset_check_inbox"),
         &maud::html! {
             p { "If an account exists for that email, we've sent a link to reset its password." }
             p."text-body-secondary"."small" {
@@ -243,7 +243,7 @@ pub fn password_reset_sent_page() -> maud::Markup {
 #[must_use]
 pub fn auth_link_invalid_page() -> maud::Markup {
     auth_notice_page(
-        "This link is no longer valid",
+        &crate::i18n::t(crate::Locale::En, "portal.auth_link_invalid"),
         &maud::html! {
             p {
                 "This link has expired or has already been used. Reset links can be used once and "
@@ -270,8 +270,9 @@ pub fn email_confirm_required_page(email: &str, csrf_token: &str) -> maud::Marku
         }
         p."text-body-secondary"."small" { "Didn't get it? Resend the confirmation email below." }
     };
+    let confirm_email = crate::i18n::t(crate::Locale::En, "portal.confirm_email");
     let card = FormCard::new(
-        "Confirm your email",
+        &confirm_email,
         "/auth/email/confirm/resend",
         "Resend confirmation email",
     )
@@ -280,7 +281,7 @@ pub fn email_confirm_required_page(email: &str, csrf_token: &str) -> maud::Marku
     .hidden("csrf_token", csrf_token)
     .intro(intro)
     .fields(vec![]);
-    PageLayout::new("Confirm your email").render(&card.render())
+    PageLayout::new(&confirm_email).render(&card.render())
 }
 
 /// Shared chrome for the standalone auth notice pages (reset-sent,

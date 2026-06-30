@@ -23,6 +23,7 @@ use store::entity::person::Role;
 use store::entity::{blob, expunge_record, person, person_project_role, project};
 use tower::ServiceExt;
 use uuid::Uuid;
+use views::assert_renders;
 use web::session::{SessionData, SESSION_COOKIE_NAME};
 use web::{AppState, SessionStore};
 
@@ -211,7 +212,7 @@ async fn client_requests_then_admin_authorizes_and_document_is_scrubbed() {
     .await;
     assert_eq!(page.status(), StatusCode::OK);
     let html = body_string(page).await;
-    assert!(html.contains("Delete this document"), "html: {html}");
+    assert_renders!(&html, "portal.delete_document");
     assert!(html.contains(&format!(
         "/portal/projects/{}/documents/{}/request-deletion",
         f.project_id, f.doc_id
@@ -242,14 +243,14 @@ async fn client_requests_then_admin_authorizes_and_document_is_scrubbed() {
     )
     .await;
     let html = body_string(page).await;
-    assert!(html.contains("Deletion requested"), "html: {html}");
+    assert_renders!(&html, "portal.deletion_requested");
 
     // Admin sees it in the queue.
     let queue = get(&f, "/portal/admin/expunge-requests".into(), &f.admin_cookie).await;
     assert_eq!(queue.status(), StatusCode::OK);
     let html = body_string(queue).await;
     assert!(html.contains("old-draft.pdf"));
-    assert!(html.contains("Authorize deletion"));
+    assert_renders!(&html, "portal.authorize_deletion");
 
     // Admin authorizes → the governed expunge runs.
     let request_id = pending.unwrap().id;

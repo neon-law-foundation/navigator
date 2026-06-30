@@ -21,6 +21,7 @@ use serde_json::{json, Value};
 use store::entity::person;
 use store::Db;
 use tower::ServiceExt;
+use views::assert_renders;
 use web::email::{CapturingEmail, EmailService};
 use web::idp_admin::IdentityAdminConfig;
 use web::oauth::IdentityPasswordConfig;
@@ -262,7 +263,7 @@ async fn full_reset_flow_sets_a_new_password_and_signs_in() {
     )
     .await;
     assert_eq!(submit.status(), StatusCode::OK);
-    assert!(body_string(submit).await.contains("Check your inbox"));
+    assert_renders!(&body_string(submit).await, "portal.reset_check_inbox");
     let reset_token = token_from_email(&email, "/auth/password/reset/new?token=");
 
     // 3. Open the set-password form via the link.
@@ -297,7 +298,7 @@ async fn full_reset_flow_sets_a_new_password_and_signs_in() {
         &format!("/auth/password/reset/new?token={reset_token}"),
     )
     .await;
-    assert!(body_string(replay).await.contains("no longer valid"));
+    assert_renders!(&body_string(replay).await, "portal.auth_link_invalid");
 }
 
 #[tokio::test]
@@ -319,7 +320,7 @@ async fn request_for_unknown_email_is_neutral_and_sends_nothing() {
     .await;
     // Same neutral page as a real account — no enumeration.
     assert_eq!(submit.status(), StatusCode::OK);
-    assert!(body_string(submit).await.contains("Check your inbox"));
+    assert_renders!(&body_string(submit).await, "portal.reset_check_inbox");
     assert!(email.captured().is_empty(), "no mail for an unknown email");
 }
 
@@ -346,7 +347,7 @@ async fn request_for_a_google_user_mails_the_sign_in_with_google_notice() {
     .await;
     // Same neutral page as every other request — no enumeration.
     assert_eq!(submit.status(), StatusCode::OK);
-    assert!(body_string(submit).await.contains("Check your inbox"));
+    assert_renders!(&body_string(submit).await, "portal.reset_check_inbox");
 
     // Exactly one email, and it's the Google notice — no reset link.
     let captured = email.captured();
@@ -391,7 +392,7 @@ async fn an_unknown_reset_token_shows_the_dead_link_page() {
     let app = web::build_router(state, std::path::Path::new(web::DEFAULT_PUBLIC_DIR));
 
     let resp = get(&app, "/auth/password/reset/new?token=never-minted").await;
-    assert!(body_string(resp).await.contains("no longer valid"));
+    assert_renders!(&body_string(resp).await, "portal.auth_link_invalid");
 }
 
 #[tokio::test]
@@ -453,7 +454,7 @@ async fn unverified_password_sign_in_is_gated_and_confirmable() {
     )
     .await;
     assert!(!has_session(&gated), "an unverified user gets no session");
-    assert!(body_string(gated).await.contains("Confirm your email"));
+    assert_renders!(&body_string(gated).await, "portal.confirm_email");
 
     // The confirmation link was mailed; clicking it verifies the address.
     let confirm_token = token_from_email(&email, "/auth/email/confirm?token=");

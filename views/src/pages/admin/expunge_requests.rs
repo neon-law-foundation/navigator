@@ -56,7 +56,7 @@ pub fn list(rows: &[Row], csrf_token: &str, is_admin: bool) -> Markup {
                                         form."d-inline" method="post"
                                             action=(format!("/portal/admin/expunge-requests/{}/authorize", row.id)) {
                                             input type="hidden" name="_csrf" value=(csrf_token);
-                                            button.btn.btn-danger.btn-sm type="submit" { "Authorize deletion" }
+                                            button.btn.btn-danger.btn-sm type="submit" { (crate::i18n::t(crate::Locale::En, "portal.authorize_deletion")) }
                                         }
                                         " "
                                     }

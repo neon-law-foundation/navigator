@@ -18,6 +18,7 @@ use store::entity::person::Role;
 use store::entity::{notation, person, person_project_role, project, template};
 use tower::ServiceExt;
 use uuid::Uuid;
+use views::assert_renders;
 use web::session::{SessionData, SESSION_COOKIE_NAME};
 use web::{AppState, SessionStore};
 
@@ -168,7 +169,7 @@ async fn disclosed_staff_sees_the_transcript_upload_form_at_begin() {
     assert_eq!(resp.status(), StatusCode::OK);
     let html = body_string(resp).await;
     assert!(html.contains("Estate plan — Northstar"), "html: {html}");
-    assert!(html.contains("File the sitting transcript"));
+    assert_renders!(&html, "portal.file_sitting_transcript");
     assert!(html.contains(&format!(
         "action=\"/portal/projects/{}/notations/{}/transcript\"",
         f.project_id, f.notation_id

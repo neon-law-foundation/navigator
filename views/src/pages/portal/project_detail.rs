@@ -174,13 +174,13 @@ pub fn render(d: &Detail<'_>) -> Markup {
                             div."list-group-item d-flex justify-content-between align-items-center" {
                                 span { (doc.filename) }
                                 @if doc.deletion_requested {
-                                    span."badge text-bg-warning text-uppercase" { "Deletion requested" }
+                                    span."badge text-bg-warning text-uppercase" { (crate::i18n::t(crate::Locale::En, "portal.deletion_requested")) }
                                 } @else {
                                     form method="post"
                                         action=(format!("/portal/projects/{}/documents/{}/request-deletion", d.id, doc.id)) {
                                         input type="hidden" name="_csrf" value=(d.csrf_token);
                                         button."btn btn-outline-danger btn-sm" type="submit" {
-                                            "Delete this document"
+                                            (crate::i18n::t(crate::Locale::En, "portal.delete_document"))
                                         }
                                     }
                                 }

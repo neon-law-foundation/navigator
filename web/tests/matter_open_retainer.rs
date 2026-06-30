@@ -26,6 +26,7 @@ use http_body_util::BodyExt;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use store::{entity, seed};
 use tower::ServiceExt;
+use views::assert_renders;
 use web::signature::StubSignatureProvider;
 use web::AppState;
 use workflows::{DispatchingRuntime, InMemoryRuntime, StateMachineRuntime};
@@ -208,7 +209,7 @@ async fn matter_open_with_retainer_parks_at_staff_review_then_approve_sends_once
         .unwrap();
     assert_eq!(review.status(), StatusCode::OK);
     let review_html = body_string(review).await;
-    assert!(review_html.contains("Approve and send for signature"));
+    assert_renders!(&review_html, "portal.approve_send_signature");
     assert!(review_html.contains("Libra Client"), "html: {review_html}");
     assert!(review_html.contains("Flat-fee estate planning"));
 

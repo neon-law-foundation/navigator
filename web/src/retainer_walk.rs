@@ -99,13 +99,16 @@ pub async fn start_post(
     let templates = onboarding_templates(&state.db).await;
 
     if !client_email.contains('@') {
+        // Catalog-sourced validation error; held so the borrow into
+        // `StartWalk` outlives the render.
+        let email_error = views::i18n::t(views::Locale::En, "portal.retainer_client_email_at");
         return views::pages::admin::retainers::start_walk(
             &views::pages::admin::retainers::StartWalk {
                 client_email: &body.client_email,
                 retainer_template_code: &body.retainer_template_code,
                 templates: &templates,
                 csrf_token: token,
-                error: Some("client email must contain an @"),
+                error: Some(&email_error),
             },
         )
         .into_response();

@@ -168,14 +168,14 @@ pub fn list(rows: &[Row<'_>], csrf_token: &str, sort: &SortSpec) -> Markup {
                     " "
                     span."badge"."bg-warning"."text-dark"."matter-flag"
                         title="This matter has no onboarding notation — it was never opened on a retainer." {
-                        "no retainer"
+                        (crate::i18n::t(crate::Locale::En, "portal.no_retainer"))
                     }
                 }
                 @if r.missing_closing_letter {
                     " "
                     span."badge"."bg-warning"."text-dark"."matter-flag"
                         title="This matter is closed but has no closing letter." {
-                        "no closing letter"
+                        (crate::i18n::t(crate::Locale::En, "portal.no_closing_letter"))
                     }
                 }
             };
@@ -243,7 +243,7 @@ fn estate_section(project_id: Uuid, est: &EstateMatter<'_>, csrf_token: Option<&
             p { "Workflow state: " strong.estate-state { (est.state) } }
             @if est.state == "BEGIN" {
                 (FormCard::new(
-                    "File the sitting transcript",
+                    &crate::i18n::t(crate::Locale::En, "portal.file_sitting_transcript"),
                     &transcript_action,
                     "File transcript",
                 )

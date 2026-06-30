@@ -19,3 +19,18 @@ portal:
   # Warm, non-enumerating sign-in failure — identical for unknown email and
   # wrong password, so the response never reveals which.
   login_failed: "That email and password don't match what we have on file. Please try again."
+  # Standalone auth-notice pages (neutral, non-enumerating by design).
+  reset_check_inbox: "Check your inbox"
+  auth_link_invalid: "This link is no longer valid"
+  confirm_email: "Confirm your email"
+  # Retainer-intake validation error.
+  retainer_client_email_at: "client email must contain an @"
+  # Admin matter / document action labels and status badges.
+  template_gallery: "Template gallery"
+  no_retainer: "no retainer"
+  no_closing_letter: "no closing letter"
+  file_sitting_transcript: "File the sitting transcript"
+  approve_send_signature: "Approve and send for signature"
+  authorize_deletion: "Authorize deletion"
+  delete_document: "Delete this document"
+  deletion_requested: "Deletion requested"

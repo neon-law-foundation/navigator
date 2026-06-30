@@ -69,10 +69,13 @@ pub struct TemplateDetail<'a> {
 /// curated template.
 #[must_use]
 pub fn index(cards: &[TemplateCard<'_>], auth: AuthState) -> Markup {
+    // Resolve the gallery title once and reuse it for the `<h1>` and the
+    // page `<title>` (the `confirm_email` pattern in `lib.rs`).
+    let title = crate::i18n::t(crate::Locale::En, "portal.template_gallery");
     let body = html! {
         article {
             header {
-                h1 { "Template gallery" }
+                h1 { (title) }
                 p.lead {
                     "Our legal documents are plain-markdown "
                     em { "notation" }
@@ -114,7 +117,7 @@ pub fn index(cards: &[TemplateCard<'_>], auth: AuthState) -> Markup {
             }
         }
     };
-    PageLayout::new("Template gallery")
+    PageLayout::new(&title)
         .with_description(
             "Browse and download Neon Law's legal templates — plain-markdown \
              notation you can take with you.",

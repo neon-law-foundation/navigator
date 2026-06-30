@@ -22,6 +22,7 @@ use sea_orm::entity::prelude::*;
 use sea_orm::{ActiveValue, EntityTrait};
 use store::{entity, seed};
 use tower::ServiceExt;
+use views::assert_renders;
 use web::AppState;
 use workflows::{InMemoryRuntime, MachineKind, StateMachineRuntime, StateName};
 
@@ -677,7 +678,7 @@ async fn start_post_rejects_missing_at_in_client_email_with_validation_error() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let html = body_string(resp).await;
-    assert!(html.contains("client email must contain an @"));
+    assert_renders!(&html, "portal.retainer_client_email_at");
 }
 
 #[tokio::test]
