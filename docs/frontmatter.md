@@ -104,10 +104,29 @@ The body below the frontmatter is the legal prose, in English, carrying `{{place
 answers fill in (`{{client_name}}`, `{{project_name}}`, and so on). Authoring that body, and the full list of structural
 checks, is covered in <notation-authoring.md>.
 
+### How the finished document looks: `output`
+
+A notation template may carry an optional **`output`** key. It is the one place a template declares its **render
+profile** — what comes out and how it is dressed:
+
+- **omit it** (the default) and the document renders as a plain page — our standard serif, one-inch margins, no
+  letterhead. The body's `{{placeholders}}` fill from the questionnaire answers.
+- **`output: letter`** renders the same body on Neon Law letterhead: our logo, the firm name and contact line, a rule
+  across the top. This is the dressing we use for the documents that go out under the firm's name, such as engagement
+  letters and demand letters.
+- **`output: form`** is a different mode entirely: instead of typesetting prose, it prints the questionnaire answers
+  onto an official government form (an AcroForm fill). A `form` template carries no legal prose — its body is the field
+  map — so it always rides with the two form keys below (`form:` and `origin_url:`), and the checker (N109) requires
+  them. Conversely a typeset profile (`letter`, or no `output:` at all) must **not** carry a `form:` key.
+
+`letter` and `form` are the values the checker accepts today (N109); leaving the key off gives you the plain page. As we
+add court-specific layouts (pleading paper), each becomes one more named value here — so `output` stays the one place a
+template says what it should look like.
+
 ### Government form templates carry two extra keys
 
-A template backed by an official government form (under `templates/forms/`) adds `form:` (the form's identity) and
-`origin_url:` (the official `.gov` page the blank form came from), as in
+A template backed by an official government form (under `templates/forms/`) declares `output: form` and adds `form:`
+(the form's identity) and `origin_url:` (the official `.gov` page the blank form came from), as in
 `templates/forms/united_states/nevada/state/nv__llc_formation.md`:
 
 ```yaml
@@ -117,8 +136,12 @@ code: nv__llc_formation
 jurisdiction: NV
 origin_url: https://www.nvsos.gov/businesses/commercial-recordings/forms-fees/all-business-forms
 confidential: false
+output: form
 form: nv__llc_formation
 ```
+
+The three travel together: N109 requires `form:` and `origin_url:` whenever `output: form` is declared, and rejects a
+`form:` key on any other profile. So `form:` present and `output: form` always imply each other.
 
 ## Event pages
 
@@ -163,6 +186,55 @@ Board minutes (`web/content/foundation/minutes/`) are one file per quarter, name
 title: "Board Meeting Minutes — Q2 2023"
 description: "Minutes of the Neon Law Foundation board of directors for the Q2 2023 regular meeting."
 ```
+
+## Every frontmatter key at a glance
+
+The narrative above covers the keys you reach for daily. This table is the complete set the system knows, grouped by
+document kind, so nothing is hidden:
+
+### Notation template
+
+| Key | Required | Values | Checked by |
+| --- | --- | --- | --- |
+| `title` | yes | any non-empty text | N101 |
+| `code` | yes | unique `snake_case` | N108 |
+| `respondent_type` | yes | `person`, `entity`, `person_and_entity` | N102 |
+| `jurisdiction` | yes | `NV`, `CA`, `US` | N110 |
+| `confidential` | yes | `true` or `false` | N105 |
+| `questionnaire` | yes (paired) | a `BEGIN` → `END` ladder | N104 |
+| `workflow` | yes (paired) | a `BEGIN` → `END` path that includes `staff_review` | N104, N106 |
+| `prompts` | no | wording for custom questions | N104 |
+| `output` | no | `letter` or `form` (omit for a plain page) | N109 |
+| `form` | with `output: form` | the bundled form's code | N109 |
+| `origin_url` | forms only | the `.gov` page the blank form came from | N109, N110 |
+
+### Event page
+
+| Key | Required | Values | Checked by |
+| --- | --- | --- | --- |
+| `title` | yes | any non-empty text | C001 |
+| `description` | yes | any non-empty text | C002 |
+| `starts_at` | yes | an ISO-8601 time | E001 |
+| `timezone` | yes | an IANA zone, e.g. `America/Denver` | E001 |
+| `location_address` or `meeting_url` | one of the two | a place or a link | E003 |
+| `ends_at` | no | an ISO-8601 time | web build |
+| `draft` | no | `true` or `false` | web build |
+| `location_name` | no | a venue name | web build |
+| `image_url`, `image_alt` | no | a preview image and its alt text | web build |
+| `video_url`, `recap_url` | no | links to a recording or a recap | web build |
+| `public_slug` | no | a custom URL slug | web build |
+
+### Blog post and board minutes
+
+| Key | Required | Values | Checked by |
+| --- | --- | --- | --- |
+| `title` | yes | any non-empty text | C001 |
+| `description` | yes | any non-empty text | C002 |
+
+Two footnotes. `form` rides along on government-form templates and is bound to `output: form` — N109 requires the two
+together and rejects a `form:` key on any other profile, so a stray or orphaned `form:` is now a loud error rather than
+a silent one. The event keys marked "web build" are read when the page is rendered rather than by the command-line
+checker, so they will not underline in your editor.
 
 ## The squiggly underline: red versus yellow
 
