@@ -80,17 +80,26 @@ pub struct Audit {
     pub keys_in_catalog: usize,
 }
 
-/// Run the audit over `root`, print the report, and return a process
-/// exit code: success only when nothing is missing and nothing is unused.
+/// Run the audit over `root`, print the report, and return a process exit
+/// code: `SUCCESS` when clean, `1` on drift (missing or unused keys), `2`
+/// on an I/O error walking or reading a source.
 pub fn run(root: &Path) -> ExitCode {
-    let catalog = views::i18n::en_catalog_keys();
-    let audit = match audit_workspace(root, &catalog) {
-        Ok(audit) => audit,
+    match audit_and_report(root) {
+        Ok(true) => ExitCode::SUCCESS,
+        Ok(false) => ExitCode::from(1),
         Err(err) => {
             eprintln!("navigator: {err}");
-            return ExitCode::from(2);
+            ExitCode::from(2)
         }
-    };
+    }
+}
+
+/// Audit `root` against the English catalog and print the report. Returns
+/// `Ok(true)` when the catalog and the call sites agree, `Ok(false)` when
+/// anything is missing or unused, and `Err` only on an I/O failure.
+fn audit_and_report(root: &Path) -> std::io::Result<bool> {
+    let catalog = views::i18n::en_catalog_keys();
+    let audit = audit_workspace(root, &catalog)?;
 
     for r in &audit.missing {
         crate::print_violation(
@@ -130,11 +139,7 @@ pub fn run(root: &Path) -> ExitCode {
         ))
     );
 
-    if audit.missing.is_empty() && audit.unused.is_empty() {
-        ExitCode::SUCCESS
-    } else {
-        ExitCode::from(1)
-    }
+    Ok(audit.missing.is_empty() && audit.unused.is_empty())
 }
 
 /// Walk [`SOURCE_ROOTS`] under `root`, collect every referenced key, and
@@ -529,6 +534,26 @@ mod tests {
     }
 
     #[test]
+    fn handles_escaped_quotes_and_char_literals() {
+        // A string with an escaped quote must not end early; an escaped
+        // char literal (`'\''`) is skipped whole; a call whose key string
+        // carries a backslash is rejected (not a clean key). The real call
+        // after them still parses — proving none of that derailed scanning.
+        let src = "let s = \"a \\\" b\"; let c = '\\''; i18n::t(locale, \"x\\\\y\"); \
+             let k = i18n::t(locale, \"nav.home\");";
+        assert_eq!(keys(src), ["nav.home"]);
+    }
+
+    #[test]
+    fn char_literal_len_classifies_every_form() {
+        assert_eq!(char_literal_len(b"'a'", 0), Some(3)); // plain
+        assert_eq!(char_literal_len(b"'\\n'", 0), Some(4)); // escape
+        assert_eq!(char_literal_len(b"'a", 0), None); // lifetime: no close
+        assert_eq!(char_literal_len(b"x", 0), None); // not a quote (guard)
+        assert_eq!(char_literal_len(b"'\\", 0), None); // unterminated escape
+    }
+
+    #[test]
     fn reports_line_numbers() {
         let src = "fn f() {\n    i18n::t(locale, \"nav.home\");\n}\n";
         let refs = extract_refs(src);
@@ -592,5 +617,96 @@ mod tests {
             .filter(|k| !src.contains(&format!("\"{k}\"")))
             .collect();
         assert_eq!(unused, vec![&"dead.key".to_string()]);
+    }
+
+    /// Write `body` to `<root>/<rel>` (creating parents).
+    fn write_source(root: &std::path::Path, rel: &str, body: &str) {
+        let path = root.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, body).unwrap();
+    }
+
+    #[test]
+    fn audit_workspace_walks_the_source_roots_and_reconciles() {
+        let dir = tempfile::tempdir().unwrap();
+        write_source(
+            dir.path(),
+            "views/src/page.rs",
+            "fn r() { let _ = i18n::t(locale, \"known.key\"); i18n::t(locale, \"typo.key\"); }",
+        );
+        // A non-`.rs` file is skipped (is_rust_path == false), and a missing
+        // source root (web/tests here) is simply not walked.
+        write_source(
+            dir.path(),
+            "views/src/notes.txt",
+            "i18n::t(locale, \"ignored\")",
+        );
+        let catalog: BTreeSet<String> = ["known.key", "dead.key"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+
+        let audit = audit_workspace(dir.path(), &catalog).unwrap();
+
+        assert_eq!(
+            audit
+                .missing
+                .iter()
+                .map(|r| r.key.as_str())
+                .collect::<Vec<_>>(),
+            ["typo.key"]
+        );
+        assert!(audit.missing[0].path.ends_with("page.rs"));
+        assert_eq!(audit.unused, ["dead.key"]);
+        assert_eq!(audit.files_scanned, 1, "the .txt file is not scanned");
+        assert_eq!(audit.keys_in_catalog, 2);
+    }
+
+    #[test]
+    fn audit_and_report_is_clean_when_every_catalog_key_is_referenced() {
+        // A temp source that names every real En catalog key leaves nothing
+        // missing and nothing unused.
+        let dir = tempfile::tempdir().unwrap();
+        let body = views::i18n::en_catalog_keys()
+            .iter()
+            .map(|k| format!("let _ = i18n::t(locale, \"{k}\");"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        write_source(
+            dir.path(),
+            "views/src/all.rs",
+            &format!("fn r() {{ {body} }}"),
+        );
+
+        assert!(audit_and_report(dir.path()).unwrap());
+        // The `run` shim maps that to a success exit.
+        let _ = run(dir.path());
+    }
+
+    #[test]
+    fn audit_and_report_flags_drift_in_both_directions() {
+        // Names a non-catalog key (missing) and none of the real keys (all
+        // unused), so both report paths run.
+        let dir = tempfile::tempdir().unwrap();
+        write_source(
+            dir.path(),
+            "web/src/x.rs",
+            "fn r() { let _ = i18n::t(locale, \"nope.not.real\"); }",
+        );
+
+        assert!(!audit_and_report(dir.path()).unwrap());
+        let _ = run(dir.path());
+    }
+
+    #[test]
+    fn audit_and_report_surfaces_an_unreadable_source() {
+        // A non-UTF-8 `.rs` file makes `read_to_string` fail; the error
+        // propagates and `run` exits 2.
+        let dir = tempfile::tempdir().unwrap();
+        write_source(dir.path(), "views/src/ok.rs", "fn r() {}");
+        std::fs::write(dir.path().join("views/src/bad.rs"), [0xff, 0xfe, 0x00]).unwrap();
+
+        assert!(audit_and_report(dir.path()).is_err());
+        let _ = run(dir.path());
     }
 }
