@@ -39,9 +39,10 @@ convention, not the signal. A file with a `starts_at:` time is an event; a file 
 is that kind of page; everything else is ordinary prose and is held only to general writing rules. Each kind and the
 keys it must carry:
 
-- **Notation template** — declares **both** `questionnaire:` and `workflow:` (that is what makes it a template), plus
-  `title`, `code`, `respondent_type`, `jurisdiction`, and `confidential`. Lives under `templates/` by convention; a
-  `templates/` file with no machine yet is just prose until it declares one.
+- **Notation template** — declaring `questionnaire:` **or** `workflow:` is what makes a file a template (either block on
+  its own draws the template rules). A complete one then carries **both** machines plus `title`, `code`,
+  `respondent_type`, `jurisdiction`, and `confidential`, and the missing ones are flagged. Lives under `templates/` by
+  convention; a `templates/` file with neither block yet is just prose until it declares one.
 - **Event page** — lives under `web/content/events/`. Needs `title`, `description`, `starts_at`, `timezone`, and a
   `location_address` or `meeting_url`.
 - **Blog post** — lives under `web/content/blog/`. Needs `title` and `description`, in a file named `YYYYMMDD_slug.md`.
