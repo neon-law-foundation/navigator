@@ -72,7 +72,7 @@ pub fn index(cards: &[TemplateCard<'_>], auth: AuthState) -> Markup {
     let body = html! {
         article {
             header {
-                h1 { "Template gallery" }
+                h1 { (crate::i18n::t(crate::Locale::En, "portal.template_gallery")) }
                 p.lead {
                     "Our legal documents are plain-markdown "
                     em { "notation" }
@@ -114,14 +114,17 @@ pub fn index(cards: &[TemplateCard<'_>], auth: AuthState) -> Markup {
             }
         }
     };
-    PageLayout::new("Template gallery")
-        .with_description(
-            "Browse and download Neon Law's legal templates — plain-markdown \
+    PageLayout::new(&crate::i18n::t(
+        crate::Locale::En,
+        "portal.template_gallery",
+    ))
+    .with_description(
+        "Browse and download Neon Law's legal templates — plain-markdown \
              notation you can take with you.",
-        )
-        .with_brand(*FIRM_BRAND)
-        .with_auth(auth)
-        .render(&body)
+    )
+    .with_brand(*FIRM_BRAND)
+    .with_auth(auth)
+    .render(&body)
 }
 
 /// One template's detail page: jurisdiction, plain-language summary, the

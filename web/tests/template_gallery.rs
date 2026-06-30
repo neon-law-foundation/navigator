@@ -20,6 +20,7 @@ use http_body_util::BodyExt;
 use store::test_support::pg;
 use store::Db;
 use tower::ServiceExt;
+use views::assert_renders;
 use web::AppState;
 
 async fn in_memory_db() -> Db {
@@ -49,7 +50,7 @@ async fn gallery_index_renders_for_an_anonymous_visitor() {
     let resp = get(empty_state().await, "/templates").await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    assert!(body.contains("Template gallery"));
+    assert_renders!(&body, "portal.template_gallery");
     // Leads with the federal Form 990, labeled federal.
     assert!(body.contains("IRS Form 990"));
     assert!(body.contains("Federal · United States"));
@@ -73,7 +74,7 @@ async fn template_detail_has_frontmatter_disclaimer_and_start_a_matter_cta() {
     // The UPL disclaimer partial.
     assert!(body.contains("does not create an attorney"));
     // A download must not be a dead end.
-    assert!(body.contains("Start a matter"));
+    assert_renders!(&body, "products.contact");
     assert!(body.contains("href=\"/contact\""));
     // And the raw-download link — kebab-cased, like every asset URL.
     assert!(body.contains("/templates/forms/united-states/federal/irs/us--form-990/download"));

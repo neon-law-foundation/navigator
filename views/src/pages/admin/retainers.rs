@@ -137,10 +137,11 @@ pub fn result(view: &IntakeResult<'_>) -> Markup {
                     dd { code { (view.signature_request_id.unwrap_or("—")) } }
                 }
                 @if awaiting_review {
-                    form.mb-3 method="post" action=(approve_send) aria-label="Approve and send for signature" {
+                    form.mb-3 method="post" action=(approve_send)
+                        aria-label=(crate::i18n::t(crate::Locale::En, "portal.approve_send_signature")) {
                         input type="hidden" name="_csrf" value=(view.csrf_token);
                         button."btn btn-primary" type="submit" {
-                            "Approve and send for signature"
+                            (crate::i18n::t(crate::Locale::En, "portal.approve_send_signature"))
                         }
                     }
                 }

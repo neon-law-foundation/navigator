@@ -17,6 +17,8 @@ use store::entity::person::Role;
 use store::{entity, seed};
 use tower::ServiceExt;
 use uuid::Uuid;
+// Keyed render assertions: the matter-flag badges are catalog copy.
+use views::assert_renders;
 use web::session::{SessionData, SESSION_COOKIE_NAME};
 use web::{AppState, SessionStore};
 use workflows::{InMemoryRuntime, StateMachineRuntime};
@@ -193,32 +195,28 @@ async fn projects_list_flags_the_lifecycle_gaps_and_nothing_else() {
             .to_string()
     };
 
+    // The matter-flag badge labels are catalog copy (keyed); the matter
+    // names that scope each row stay literal (DB-seeded data). `absent` is
+    // the negation of `assert_renders!` — still key-strict, so a typo'd key
+    // can't make the check vacuously pass.
+    let absent = |row: &str, key| views::i18n::assert_absent(row, views::Locale::En, key);
+
     // B — bare open matter — is flagged as missing its retainer only.
     let b = row_for("Bare open matter");
-    assert!(
-        b.contains("no retainer"),
-        "bare matter should flag the retainer gap"
-    );
-    assert!(
-        !b.contains("no closing letter"),
-        "an open matter owes no closing letter"
-    );
+    assert_renders!(&b, "portal.no_retainer");
+    absent(&b, "portal.no_closing_letter");
 
     // C — closed without a letter — is flagged for the closing letter only
     // (it has its onboarding__estate retainer).
     let c = row_for("Closed no letter");
-    assert!(
-        c.contains("no closing letter"),
-        "closed matter should flag the closing-letter gap"
-    );
-    assert!(
-        !c.contains("no retainer"),
-        "C has its retainer (onboarding__estate)"
-    );
+    assert_renders!(&c, "portal.no_closing_letter");
+    absent(&c, "portal.no_retainer");
 
     // A and D are clean — no badge either way.
     let a = row_for("Has retainer open");
-    assert!(!a.contains("no retainer") && !a.contains("no closing letter"));
+    absent(&a, "portal.no_retainer");
+    absent(&a, "portal.no_closing_letter");
     let d = row_for("Closed with letter");
-    assert!(!d.contains("no retainer") && !d.contains("no closing letter"));
+    absent(&d, "portal.no_retainer");
+    absent(&d, "portal.no_closing_letter");
 }
