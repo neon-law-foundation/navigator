@@ -177,9 +177,9 @@ pub fn t_args(locale: Locale, key: &str, args: &[(&str, &str)]) -> String {
 pub fn t_strict(locale: Locale, key: &str) -> &'static str {
     raw(locale, key).unwrap_or_else(|| {
         panic!(
-            "i18n: no catalog entry for {key:?} in {locale:?} — \
-             add it to views/locales/{}.yml",
-            locale.code()
+            "i18n: no catalog entry for {key:?} (checked {locale:?}, then the En \
+             fallback) — add it to the English catalog (views/locales/en.yml); \
+             En is the complete source every locale falls back to."
         )
     })
 }
