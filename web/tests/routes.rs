@@ -912,6 +912,7 @@ async fn contributing_workshop_renders_and_lands_beside_the_other_two() {
 
     // The landing lists all three workshops, simple titles and all.
     let resp = app
+        .clone()
         .oneshot(
             Request::builder()
                 .uri("/foundation/nebula")
@@ -929,6 +930,48 @@ async fn contributing_workshop_renders_and_lands_beside_the_other_two() {
     ] {
         assert!(body.contains(href), "landing should list {href}: {body}");
     }
+
+    // The markdown twin serves raw markdown with the right content type — the
+    // same machine-reader surface the deploy workshop has.
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/nebula/workshops/contribute-to-the-navigator.md")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let ctype = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    assert_eq!(ctype, "text/markdown; charset=utf-8");
+    let body = body_string(resp).await;
+    assert!(
+        body.contains("# Contributing to Neon Law Navigator"),
+        "raw markdown title"
+    );
+
+    // The llms.txt corpus indexes the contributing twin as an absolute URL.
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/llms.txt")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_string(resp).await;
+    assert!(body.contains(
+        "https://www.example.com/foundation/nebula/workshops/contribute-to-the-navigator.md"
+    ));
 }
 
 #[tokio::test]

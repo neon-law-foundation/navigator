@@ -17,10 +17,10 @@ MIT. Open an issue today; pull requests open in the near future.
 Everything you have seen in these workshops — the `web` app, the `navigator` CLI, the durable workflows — lives in one
 public repository you can read, fork, and run. Start by standing it up yourself with the [Deploying Neon Law
 Navigator](/foundation/nebula/workshops/deploy-the-navigator) workshop or the local KIND loop, then file what you find.
-The Foundation [welcomes issues today and pull requests in the near
-future](https://github.com/neon-law-foundation/navigator/blob/main/CONTRIBUTING.md); every contribution is covered by
-the Contributor License and Feedback Agreement in the repository root, which grants the Foundation a license to use what
-you contribute — read it before you send a line.
+The Foundation welcomes issues today and pull requests in the near future; every contribution is covered by the
+[Contributor License and Feedback Agreement](https://github.com/neon-law-foundation/navigator/blob/main/CONTRIBUTING.md)
+in the repository root, which grants the Foundation a license to use what you contribute — read it before you send a
+line.
 
 ## Tell us what you learned
 
@@ -34,7 +34,8 @@ You do not need a GitHub account or a single line of code to make Neon Law Navig
 Navigator](/foundation/nebula/workshops/use-the-navigator) workshop closes by asking you to send the markdown of the
 template you built and the one kaizen improvement you found — that is this contribution. Every template a lawyer shares
 raises the floor of competence for the next lawyer who joins. Feedback is covered by the same Contributor License and
-Feedback Agreement as code — sharing grants the Foundation a license to use it, so read the agreement before you send.
+Feedback Agreement as code — sharing grants the Foundation a license to use it, so [read the
+agreement](https://github.com/neon-law-foundation/navigator/blob/main/CONTRIBUTING.md) before you send.
 
 ## Join a show-and-tell
 
