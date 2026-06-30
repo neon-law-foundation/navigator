@@ -73,9 +73,14 @@ fn validate_exits_nonzero_on_violations_and_prints_each_one() {
 #[test]
 fn validate_default_rule_set_flags_missing_frontmatter() {
     let dir = TempDir::new().unwrap();
-    // Files under `templates/` are notation templates even before
-    // they have enough frontmatter to self-identify.
-    write(dir.path(), "templates/notes.md", "Just a body line.\n");
+    // A file self-identifies as a notation template by declaring the
+    // notation machine (`questionnaire:`/`workflow:`) — not by its path.
+    // Once it does, the missing required keys are flagged.
+    write(
+        dir.path(),
+        "templates/notes.md",
+        "---\nquestionnaire:\n  BEGIN:\n    _: END\n---\n\nBody.\n",
+    );
     navigator()
         .args(["validate"])
         .arg(dir.path())
@@ -84,6 +89,23 @@ fn validate_default_rule_set_flags_missing_frontmatter() {
         .code(1)
         .stdout(str::contains("N101"))
         .stdout(str::contains("N102"));
+}
+
+#[test]
+fn validate_treats_templates_path_without_machine_as_markdown() {
+    let dir = TempDir::new().unwrap();
+    // Classification is frontmatter-driven: a `templates/` file with no
+    // notation machine is plain Markdown, not a half-declared template, so
+    // it trips no N-family rules.
+    write(dir.path(), "templates/notes.md", "Just a body line.\n");
+    navigator()
+        .args(["validate"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stdout(str::contains(
+            "Scanned 1 file(s), found 0 error(s), 0 warning(s)",
+        ));
 }
 
 #[test]
@@ -274,11 +296,12 @@ fn validate_fix_writes_back_autofixable_edits_and_reports_remaining() {
 fn validate_fix_leaves_diagnostic_only_violations_for_human() {
     let dir = TempDir::new().unwrap();
     // M010 (autofixable) + N101 (diagnostic-only) in the same
-    // notation-template file.
+    // notation-template file. The `questionnaire:` machine is what marks
+    // it as a template; `title` is still missing, so N101 fires.
     write(
         dir.path(),
         "templates/needs.md",
-        "---\nrespondent_type: entity\n---\n\n\tTabbed\n",
+        "---\nrespondent_type: entity\nquestionnaire:\n  BEGIN:\n    _: END\n---\n\n\tTabbed\n",
     );
     navigator()
         .args(["validate", "--fix"])

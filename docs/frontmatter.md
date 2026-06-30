@@ -33,13 +33,15 @@ wrong, the editor underlines it — the same way a word processor underlines a m
 
 ## The kinds of file, and what each one declares
 
-Neon Law Navigator works out a file's kind by **reading it**, not by asking you. A file under `templates/`, or one whose
-frontmatter declares a `questionnaire:` or `workflow:` block, is a notation template; a file with a `starts_at:` time is
-an event; a file under the blog or board-minutes folders is that kind of page; everything else is ordinary prose and is
-held only to general writing rules. Each kind and the keys it must carry:
+Neon Law Navigator works out a file's kind by **reading it**, not by asking you. A file whose frontmatter declares a
+`questionnaire:` or `workflow:` block is a notation template — wherever it lives; the `templates/` folder is a
+convention, not the signal. A file with a `starts_at:` time is an event; a file under the blog or board-minutes folders
+is that kind of page; everything else is ordinary prose and is held only to general writing rules. Each kind and the
+keys it must carry:
 
-- **Notation template** — lives under `templates/`. Needs `title`, `code`, `respondent_type`, `jurisdiction`,
-  `confidential`, and **both** `questionnaire:` and `workflow:`.
+- **Notation template** — declares **both** `questionnaire:` and `workflow:` (that is what makes it a template), plus
+  `title`, `code`, `respondent_type`, `jurisdiction`, and `confidential`. Lives under `templates/` by convention; a
+  `templates/` file with no machine yet is just prose until it declares one.
 - **Event page** — lives under `web/content/events/`. Needs `title`, `description`, `starts_at`, `timezone`, and a
   `location_address` or `meeting_url`.
 - **Blog post** — lives under `web/content/blog/`. Needs `title` and `description`, in a file named `YYYYMMDD_slug.md`.
