@@ -4,21 +4,21 @@ slug: nerd
 hero_image: bengaluru-skyline
 description: >
   Neon Law Nerd is the firm's expert-witness practice for software and data-access disputes — an independent technical
-  opinion, a written report, and testimony, billed at $1,337 an hour.
+  opinion, billed at a flat $1,337 per deliverable: a written report, a deposition, or trial testimony.
 pricing:
   - title: "Neon Law Nerd"
     price: "$1,337"
-    cadence: "/hour"
+    cadence: "/deliverable"
     blurb: "An independent expert witness for software and data-access disputes."
     features:
       - "Source-code review, data-access and breach analysis, and forensic examination of systems and logs"
-      - "A written expert report and testimony by deposition or at trial"
-      - "An independent opinion — the fee is for the work, never contingent on the conclusion or the outcome"
+      - "A flat fee per deliverable — one written report, one deposition, or one trial appearance"
+      - "An independent opinion — the fee is for the work, never for the testimony or the outcome"
       - "Engaged as a testifying or consulting expert; a separate proceeding needs a separate engagement"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
-    featured_label: "$1,337/hour"
+    featured_label: "$1,337/deliverable"
 ---
 
 # When the case turns on the code, put a nerd on the stand
@@ -34,8 +34,11 @@ Try Nerd when the case depends on what the system really did. A log is not self-
 plain English. Someone has to read the machine, test the claim, and explain the result without dressing it up.
 
 We examine software and data and give an **independent** technical opinion in a written report and, when the matter
-calls for it, testimony by deposition or at trial. We bill at **$1,337 an hour** against a written engagement letter.
-The fee is for the analysis and the time; it is **never contingent** on the conclusion or outcome.
+calls for it, testimony by deposition or at trial. We bill a flat **$1,337 per deliverable** against a written
+engagement letter — one written report, one deposition (preparation and a single session), or one appearance to testify
+at trial or hearing. The fee is for the work that produces the deliverable, **never for the testimony itself**, and it
+is **never contingent** on the conclusion or the outcome. A second session, a supplemental report, or a separate
+proceeding is a separate deliverable under its own engagement.
 
 Our expert work focuses on software and the data it touches:
 

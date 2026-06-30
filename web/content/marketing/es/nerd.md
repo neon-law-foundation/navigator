@@ -4,21 +4,22 @@ slug: nerd
 hero_image: bengaluru-skyline
 description: >
   Neon Law Nerd es la práctica de perito experto de Neon Law para disputas de software y acceso a datos — una opinión
-  técnica independiente, un informe escrito y testimonio, facturada a $1,337 la hora y nunca por cuota litis.
+  técnica independiente, facturada a una tarifa fija de $1,337 por entregable: un informe escrito, una declaración o
+  testimonio en juicio, y nunca por cuota litis.
 pricing:
   - title: "Neon Law Nerd"
     price: "$1,337"
-    cadence: "/hr"
+    cadence: "/entregable"
     blurb: "Un perito independiente para disputas de software y acceso a datos."
     features:
       - "Revisión de código fuente, análisis de acceso a datos y filtraciones, y examen forense de sistemas y registros"
-      - "Un informe pericial escrito y testimonio por declaración o en juicio"
-      - "Una opinión independiente — los honorarios son por el trabajo, nunca por la conclusión ni el resultado"
+      - "Una tarifa fija por entregable — un informe escrito, una declaración o una comparecencia en juicio"
+      - "Una opinión independiente — los honorarios son por el trabajo, nunca por el testimonio ni el resultado"
       - "Como perito que declara o que asesora; un procedimiento separado requiere un acuerdo por separado"
     cta_label: "Reserve una consulta"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
     featured: true
-    featured_label: "$1,337/hora"
+    featured_label: "$1,337/entregable"
 ---
 
 # Cuando el caso depende del código, lleve a un nerd al estrado
@@ -34,8 +35,11 @@ Pruebe Nerd cuando el caso depende de lo que el sistema realmente hizo. Un regis
 no habla en español llano. Alguien tiene que leer la máquina, probar la afirmación y explicar el resultado sin adorno.
 
 Examinamos software y datos y damos una opinión técnica **independiente** en un informe escrito y, cuando el asunto lo
-requiere, testimonio por declaración o en juicio. Facturamos a **$1,337 la hora** contra una carta de encargo escrita.
-Los honorarios son por el análisis y el tiempo; **nunca dependen** de la conclusión ni del resultado.
+requiere, testimonio por declaración o en juicio. Facturamos una tarifa fija de **$1,337 por entregable** contra una
+carta de encargo escrita — un informe escrito, una declaración (preparación y una sola sesión) o una comparecencia para
+testificar en juicio o audiencia. Los honorarios son por el trabajo que produce el entregable, **nunca por el testimonio
+en sí**, y **nunca dependen** de la conclusión ni del resultado. Una segunda sesión, un informe complementario o un
+procedimiento separado es un entregable separado bajo su propio acuerdo.
 
 Nuestro trabajo pericial se centra en el software y los datos que toca:
 
