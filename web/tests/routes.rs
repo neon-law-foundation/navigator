@@ -12,6 +12,10 @@ use http_body_util::BodyExt;
 use store::test_support::pg;
 use store::Db;
 use tower::ServiceExt;
+// Keyed render assertion: the firm CTA copy lives in the catalog
+// (`cta.consultation`), so assert the slot, not the literal. Editing the
+// copy keeps these green; a typo'd key fails loudly via `t_strict`.
+use views::assert_renders;
 use web::workshops::WorkshopSection;
 use web::{
     AppState, AuthConfig, CanonicalHost, MarketingIndex, SessionStore, WorkshopIndex,
@@ -1022,7 +1026,7 @@ async fn services_northstar_uses_marketing_doc_when_present() {
     assert!(body.contains("<h2>Drafted</h2>"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
-    assert!(body.contains("Book a Consultation"));
+    assert_renders!(&body, "cta.consultation");
 }
 
 #[tokio::test]
@@ -1120,7 +1124,7 @@ async fn services_litigation_uses_marketing_doc_when_present() {
     assert!(body.contains("connect you with trial counsel"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
-    assert!(body.contains("Book a Consultation"));
+    assert_renders!(&body, "cta.consultation");
 }
 
 #[tokio::test]
@@ -1154,7 +1158,7 @@ async fn services_nautilus_uses_marketing_doc_when_present() {
     assert!(body.contains("we never take a percentage of your debt"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
-    assert!(body.contains("Book a Consultation"));
+    assert_renders!(&body, "cta.consultation");
 }
 
 #[tokio::test]
@@ -1177,7 +1181,7 @@ async fn services_nest_falls_back_to_default_when_no_doc() {
     assert!(body.contains("<title>Neon Law | Services | Corporate services</title>"));
     // The firm CTA books a consultation on the calendar, not a mailto.
     assert!(body.contains("calendar.app.google/GueqKHiAuqXEwkRG8"));
-    assert!(body.contains("Book a Consultation"));
+    assert_renders!(&body, "cta.consultation");
 }
 
 #[tokio::test]
