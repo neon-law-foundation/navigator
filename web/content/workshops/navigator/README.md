@@ -1,4 +1,4 @@
-# Using the Neon Law Navigator to Rapidly Solve Legal Outcomes
+# Using Neon Law Navigator
 
 Lawyers are signing more documents in less time than ever, and a dependable way to keep that work correct is a harness —
 a deterministic checklist, applied every time, that catches the things you already know to check. In this workshop you
@@ -277,4 +277,7 @@ to [support@neonlaw.org](mailto:support@neonlaw.org?subject=Workshop+demo).
 
 ---
 
-Every template a lawyer contributes raises the floor of competence for the next lawyer who joins.
+Every template a lawyer contributes raises the floor of competence for the next lawyer who joins. Sharing what you built
+is the second of five ways to give back — the [Contributing to Neon Law
+Navigator](/foundation/nebula/workshops/contribute-to-the-navigator) workshop walks all five, from a GitHub issue to a
+show-and-tell.

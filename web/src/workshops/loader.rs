@@ -35,7 +35,7 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
     ManifestEntry {
         category: "workshops",
         slug: "use-the-navigator",
-        title: "Using the Neon Law Navigator to Rapidly Solve Legal Outcomes",
+        title: "Using Neon Law Navigator",
         description: "A single hands-on workshop for attorneys. Build a deed-of-sale notation \
                       with a notarization step using Gemini's Add AIDA connector — no command \
                       line, no software install. Walk out with a three-minute demo of a \
@@ -51,7 +51,7 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
     ManifestEntry {
         category: "workshops",
         slug: "deploy-the-navigator",
-        title: "Deploy the Neon Law Navigator",
+        title: "Deploying Neon Law Navigator",
         description: "Stand up your own Neon Law Navigator instance on a custom Google Cloud project. Six \
                       grounded steps walk `navigator gcp setup` — APIs, VPC, Cloud SQL, three buckets, \
                       and a GKE Autopilot cluster — with a dry-run that shows every API call \
@@ -63,6 +63,21 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
                   It provisions billable cloud resources, so you set a budget alert first — we \
                   give you the command.",
         filename: "DEPLOY.md",
+    },
+    ManifestEntry {
+        category: "workshops",
+        slug: "contribute-to-the-navigator",
+        title: "Contributing to Neon Law Navigator",
+        description: "Neon Law Navigator is open source under Apache-2.0/MIT, run by the \
+                      Neon Law Foundation. Five ways to make the corpus better for the next \
+                      lawyer — open an issue, share what you learned, join a show-and-tell or \
+                      a presentation, or simply use it. No code required for most of them.",
+        audience: "For the community",
+        benefit: "You walk out knowing five concrete ways to give back — from a GitHub issue \
+                  to a template you share to showing up at a show-and-tell — and which one fits \
+                  the time you have. The simplest contribution is to use Neon Law Navigator: \
+                  every matter you run surfaces the next improvement.",
+        filename: "CONTRIBUTE.md",
     },
     // A conference talk folded into Nebula when the standalone
     // Presentations surface was removed. Every code slide is an exact
@@ -451,7 +466,10 @@ mod tests {
     }
 
     #[test]
-    fn load_navigator_returns_the_single_canonical_workshop() {
+    fn load_navigator_loads_the_using_workshop_from_readme() {
+        // With only README.md on disk, the other manifest entries
+        // (DEPLOY/CONTRIBUTE/RUST_IN_PEACE) are silently skipped, so the
+        // load is exactly the "Using Neon Law Navigator" workshop.
         let dir = TempDir::new().unwrap();
         let target = dir.path().join("navigator");
         fs::create_dir_all(&target).unwrap();
@@ -461,13 +479,10 @@ mod tests {
         )
         .unwrap();
         let materials = load_navigator(dir.path()).unwrap();
-        assert_eq!(materials.len(), 1, "exactly one workshop on the surface");
+        assert_eq!(materials.len(), 1, "only README.md is on disk");
         assert_eq!(materials[0].category, "workshops");
         assert_eq!(materials[0].slug, "use-the-navigator");
-        assert_eq!(
-            materials[0].title,
-            "Using the Neon Law Navigator to Rapidly Solve Legal Outcomes",
-        );
+        assert_eq!(materials[0].title, "Using Neon Law Navigator");
         // The audience tag and you-voiced benefit ride the manifest, not
         // the markdown — the overview card is fed from these.
         assert_eq!(materials[0].audience, "For lawyers");

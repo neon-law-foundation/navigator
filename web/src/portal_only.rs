@@ -12,7 +12,7 @@
 //! it already runs its own marketing website (WordPress, a marketing
 //! team) and only wants Neon Law Navigator to be the client portal + workflow
 //! engine, not a second public site. See `docs/oss-install.md` and the
-//! "Deploy the Neon Law Navigator" workshop.
+//! "Deploying Neon Law Navigator" workshop.
 //!
 //! Disabled by default — NeonLaw's own deploy serves the full public
 //! site, so the flag ships off and the router is unchanged unless it is

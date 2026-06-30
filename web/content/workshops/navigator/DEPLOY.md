@@ -1,4 +1,4 @@
-# Deploy the Neon Law Navigator
+# Deploying Neon Law Navigator
 
 Our firm runs Neon Law Navigator on Google Cloud. The Foundation gives the recipe away. This workshop stands up your
 **own** instance — the same Rust stack our attorneys use, on your own Google Cloud project, for your own community. One
@@ -27,6 +27,25 @@ gcloud billing budgets create --billing-account "$BILLING_ACCOUNT_ID" \
 
 Idle, the stack runs on the order of a small-instance Cloud SQL plus an Autopilot cluster's baseline — budget for it,
 watch the first invoice, and scale the SQL tier down if it is more than you need.
+
+## Two ways to deploy
+
+There are two roads to your own Neon Law Navigator, and you choose by how much you want to run yourself:
+
+1. **Use your own** — follow this workshop. `navigator gcp setup` stands the same Rust stack our attorneys run up on
+   your Google Cloud project. Free, open, and yours to keep.
+2. **Hire Nimbus** — the Foundation does it for you: [Neon Law Foundation Nimbus](/foundation/nimbus) installs the same
+   stack on your cloud in two weeks, migrates your data, and trains your team across these very workshops.
+
+---
+
+The rest of this workshop is the **Use your own** road, end to end. Everything from here down is the self-serve install,
+and it ends at a working instance you own outright. **Nimbus is the identical install, done for you** — Week 1 is the
+install and your data migration, and Week 2 is three days of training grounded in the three Nebula workshops: [Using
+Neon Law Navigator](/foundation/nebula/workshops/use-the-navigator) on day one, this **Deploying** workshop on day two,
+and [Contributing to Neon Law Navigator](/foundation/nebula/workshops/contribute-to-the-navigator) on day three. Same
+recipe, same open-source corpus — Nimbus just hands you the keys with your records already inside. Read it both ways and
+pick the road that fits your team.
 
 ## Agenda
 
@@ -382,4 +401,7 @@ This is the access-to-justice fight made deployable: the cheaper and more repeat
 harness, the more clinics and small firms can run one. Read the [Foundation mission](/foundation/mission) for why that
 matters — and when your instance is live, tell us at
 [support@neonlaw.org](mailto:support@neonlaw.org?subject=Deployed+the+Neon+Law+Navigator) so we can point the next
-deployer at what you learned.
+deployer at what you learned. Telling us what you learned is itself a contribution: the [Contributing to Neon Law
+Navigator](/foundation/nebula/workshops/contribute-to-the-navigator) workshop lays out every way to give back, and once
+your instance is live, walk your staff through [Using Neon Law
+Navigator](/foundation/nebula/workshops/use-the-navigator).
