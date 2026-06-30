@@ -5,6 +5,7 @@ code: nv__llc_formation
 jurisdiction: NV
 origin_url: https://www.nvsos.gov/businesses/commercial-recordings/forms-fees/all-business-forms
 confidential: false
+output: form
 form: nv__llc_formation
 questionnaire:
   BEGIN:
