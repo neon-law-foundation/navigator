@@ -7,8 +7,8 @@ Feature: Workshop "Deploy the Neon Law Navigator"
 
   This feature owns the half that needs the running web app: the
   workshop is registered on the Foundation surface, renders under the
-  Foundation brand, opens with an agenda, splits into stepped content,
-  and shows the reader the real provisioning command. The other half —
+  Foundation brand, opens with the two ways to deploy, splits into
+  stepped content, and shows the reader the real provisioning command. The other half —
   that the services, buckets, and command the prose names match what
   `navigator gcp setup` actually calls — is asserted next to the code in
   `cli/src/devx/gcp/mod.rs::deploy_workshop_prose_matches_the_dry_run_pipeline`,
@@ -26,11 +26,11 @@ Feature: Workshop "Deploy the Neon Law Navigator"
   Scenario: Remember — the workshop is registered on the Foundation surface
     When a reader visits "/foundation/nebula/workshops/deploy-the-navigator"
     Then the response status is 200
-    And the page title is "Neon Law Foundation | Deploy the Neon Law Navigator"
+    And the page title is "Neon Law Foundation | Deploying Neon Law Navigator"
     And the page shows no "not accepting clients" banner
 
-  Scenario: Understand — the agenda opens a stepped walkthrough
-    Then the workshop's first section is titled "Agenda"
+  Scenario: Understand — the two ways to deploy open a stepped walkthrough
+    Then the workshop's first section is titled "Two ways to deploy"
     And the workshop splits into at least 7 sections
     And the rendered body carries no duplicate top-level heading
 
