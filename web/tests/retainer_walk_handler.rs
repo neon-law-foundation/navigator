@@ -136,8 +136,8 @@ async fn step_get_at_begin_renders_the_first_question() {
     assert_eq!(resp.status(), StatusCode::OK);
     let html = body_string(resp).await;
     // First question after BEGIN is client_name.
-    assert!(html.contains("custom_text__client_name"), "html: {html}");
-    assert!(html.contains("step 1 of 4"));
+    assert!(html.contains("person__client"), "html: {html}");
+    assert!(html.contains("step 1 of 3"));
     assert!(html.contains(format!("/portal/admin/notations/{nid}/step").as_str()));
 }
 
@@ -170,7 +170,7 @@ async fn step_get_prefill_is_scoped_to_current_notation() {
         question_id: ActiveValue::Set(client_name.id),
         person_id: ActiveValue::Set(notation.person_id),
         notation_id: ActiveValue::Set(Some(other_notation.id)),
-        state_name: ActiveValue::Set(Some("custom_text__client_name".into())),
+        state_name: ActiveValue::Set(Some("person__client".into())),
         value: ActiveValue::Set(entity::answer::primitive("Other matter client")),
         source: ActiveValue::Set(entity::answer::SOURCE_STAFF.into()),
         ..Default::default()
@@ -191,7 +191,7 @@ async fn step_get_prefill_is_scoped_to_current_notation() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let html = body_string(resp).await;
-    assert!(html.contains("custom_text__client_name"), "html: {html}");
+    assert!(html.contains("person__client"), "html: {html}");
     assert!(
         !html.contains("Other matter client"),
         "stale answer from another notation leaked into prefill: {html}"
@@ -234,7 +234,7 @@ async fn step_post_writes_answer_signals_runtime_and_redirects_to_next_question(
         StateMachineRuntime::events(runtime.as_ref(), MachineKind::Questionnaire, nid).await;
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].from, StateName::begin());
-    assert_eq!(events[0].to.as_str(), "custom_text__client_name");
+    assert_eq!(events[0].to.as_str(), "person__client");
     assert_eq!(events[0].condition, "_");
 
     // Answer row landed: `answers` is application data, written by
@@ -252,11 +252,11 @@ async fn step_post_writes_answer_signals_runtime_and_redirects_to_next_question(
     );
     assert_eq!(
         our_answers[0].state_name.as_deref(),
-        Some("custom_text__client_name"),
+        Some("person__client"),
         "the walked state name is recorded on the answer"
     );
 
-    // Next GET asks the next question (client_email).
+    // Next GET asks the staff-side project question.
     let resp = app
         .oneshot(
             Request::builder()
@@ -269,8 +269,8 @@ async fn step_post_writes_answer_signals_runtime_and_redirects_to_next_question(
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let html = body_string(resp).await;
-    assert!(html.contains("custom_text__client_email"));
-    assert!(html.contains("step 2 of 4"));
+    assert!(html.contains("project__engagement"));
+    assert!(html.contains("step 2 of 3"));
 }
 
 #[tokio::test]
@@ -298,16 +298,11 @@ async fn step_post_for_unknown_notation_returns_404() {
 async fn walking_the_full_questionnaire_records_all_transitions_through_end() {
     let (app, _db, nid, runtime) = build_app_and_notation().await;
 
-    // Walk all four questions. The last POST drives the workflow
+    // Walk all three questions. The last POST drives the workflow
     // and renders the result page (200); the rest redirect (303).
-    for (i, value) in [
-        "Libra",
-        "libra@example.com",
-        "Estate plan",
-        "Trust formation",
-    ]
-    .iter()
-    .enumerate()
+    for (i, value) in ["Libra", "Estate plan", "Trust formation"]
+        .iter()
+        .enumerate()
     {
         let resp = app
             .clone()
@@ -322,7 +317,7 @@ async fn walking_the_full_questionnaire_records_all_transitions_through_end() {
             )
             .await
             .unwrap();
-        let expected = if i == 3 {
+        let expected = if i == 2 {
             StatusCode::OK
         } else {
             StatusCode::SEE_OTHER
@@ -330,8 +325,8 @@ async fn walking_the_full_questionnaire_records_all_transitions_through_end() {
         assert_eq!(resp.status(), expected, "value={value}");
     }
 
-    // Runtime: BEGIN → client_name → client_email → project_name →
-    // product_description → END = 5 events on the questionnaire
+    // Runtime: BEGIN → client → project → product_description → END = 4
+    // events on the questionnaire
     // timeline. The walker no longer writes `notation_events` —
     // in production the workflows-service worker does, via
     // `ctx.run`; here, the InMemoryRuntime is the source of truth.
@@ -339,8 +334,8 @@ async fn walking_the_full_questionnaire_records_all_transitions_through_end() {
         StateMachineRuntime::events(runtime.as_ref(), MachineKind::Questionnaire, nid).await;
     assert_eq!(
         events.len(),
-        5,
-        "expected 5 questionnaire transitions, got {events:?}"
+        4,
+        "expected 4 questionnaire transitions, got {events:?}"
     );
     assert_eq!(events.last().unwrap().to, StateName::end());
 
@@ -405,7 +400,7 @@ async fn start_get_renders_the_minimal_create_form() {
         "the closing letter must not be a matter-open option",
     );
     // The walker collects these; they must NOT be on the create form.
-    assert!(!html.contains("name=\"custom_text__client_name\""));
+    assert!(!html.contains("name=\"person__client\""));
     assert!(!html.contains("name=\"project_name\""));
 }
 
@@ -751,13 +746,8 @@ async fn start_post_rejects_missing_at_in_client_email_with_validation_error() {
 async fn final_post_drives_workflow_and_renders_result_with_substituted_template() {
     let (app, db, nid, _runtime) = build_app_and_notation().await;
 
-    // Walk all four questions.
-    for value in [
-        "Libra",
-        "libra@example.com",
-        "Estate plan",
-        "Flat-fee estate planning",
-    ] {
+    // Walk all three questions.
+    for value in ["Libra", "Estate plan", "Flat-fee estate planning"] {
         let resp = app
             .clone()
             .oneshot(

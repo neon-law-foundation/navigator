@@ -6,12 +6,10 @@ jurisdiction: US
 confidential: true
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
-    _: custom_text__collector_name
-  custom_text__collector_name:
+    _: person__client
+  person__client:
+    _: entity__collector
+  entity__collector:
     _: address__collector_address
   address__collector_address:
     _: custom_text__alleged_account
@@ -22,7 +20,6 @@ questionnaire:
   END: {}
 prompts:
   client_name: What is the client's full legal name?
-  client_email: What is the client's email address?
   collector_name: What is the name of the debt collector contacting you?
   alleged_account: What account or reference number is the collector using?
   consent_to_represent: Do you authorize Neon Law to represent you in communications about this debt?
@@ -39,12 +36,12 @@ workflow:
   END: {}
 ---
 
-To: `{{custom_text__collector_name}}` \
+To: `{{entity__collector.name}}` \
 `{{address__collector_address}}`
 
-Re: `{{custom_text__client_name}}` — account reference `{{custom_text__alleged_account}}`
+Re: `{{person__client.name}}` — account reference `{{custom_text__alleged_account}}`
 
-This letter is formal notice that Neon Law represents `{{custom_text__client_name}}` (the "Client") with respect to the
+This letter is formal notice that Neon Law represents `{{person__client.name}}` (the "Client") with respect to the
 debt you are
 attempting to collect under the account reference above.
 

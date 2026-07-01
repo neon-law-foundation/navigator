@@ -215,7 +215,7 @@ async fn assert_filing(world: &mut NestWorld, office: String) {
     assert_eq!(rows[0].kind, "filing");
 }
 
-#[then("the founder's seven onboarding answers are on file")]
+#[then("the founder's six onboarding answers are on file")]
 async fn assert_answers(world: &mut NestWorld) {
     let person_id = world.person_id.expect("person seeded");
     let rows = entity::answer::Entity::find()
@@ -223,7 +223,7 @@ async fn assert_answers(world: &mut NestWorld) {
         .all(&world.journey().db)
         .await
         .expect("query answers");
-    assert_eq!(rows.len(), 7, "expected seven onboarding answers");
+    assert_eq!(rows.len(), 6, "expected six onboarding answers");
 }
 
 #[then(regex = r#"^the "([^"]+)" workflow ends at a Secretary-of-State filing$"#)]

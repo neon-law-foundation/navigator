@@ -15,11 +15,11 @@ literal = "NRS 88A"
 
 [[field]]
 name = "1 Name of Entity If foreign name in home jurisdiction"
-question = "entity_name"
+question = "entity__company.name"
 
 [[field]] # The official form misspells "Agent" in this field's /T.
 name = "Name of Registered Agenl"
-question = "registered_agent"
+question = "person__registered_agent.name"
 
 # 4. Name and Address of Trustees — two slots on the certificate.
 
@@ -173,7 +173,7 @@ part = "country"
 
 [[field]]
 name = "NAME OF ENTITY"
-question = "entity_name"
+question = "entity__company.name"
 
 [[field]] # Entity type: Business Trust.
 name = "entityType_7"

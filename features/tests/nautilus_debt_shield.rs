@@ -58,10 +58,10 @@ impl NautilusWorld {
 
 fn answer_for(code: &str) -> &'static str {
     match code {
-        "custom_text__client_name" => "Pisces",
-        "custom_text__collector_name" => COLLECTOR,
+        "person__client" => "Pisces",
+        "entity__collector" => COLLECTOR,
         "custom_text__alleged_account" => "ACME-44910",
-        "custom_text__original_creditor" => "ACME Card Services",
+        "entity__original_creditor" => "ACME Card Services",
         "custom_text__disputed_reason" => "I do not recognize this debt and I demand validation",
         other => panic!("debt-validation questionnaire asked an unexpected question: {other}"),
     }

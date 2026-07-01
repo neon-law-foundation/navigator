@@ -17,7 +17,6 @@ Feature: Profit corporation and business trust formations on the official packet
     And the founder answers the formation questionnaire:
       | value |
       | Libra |
-      | libra@example.com |
       | Bright Star Inc |
       | Neon Law Registered Agent |
       | Libra; 1 Main St; Las Vegas; NV; 89101; USA |
@@ -35,7 +34,6 @@ Feature: Profit corporation and business trust formations on the official packet
     And the founder answers the formation questionnaire:
       | value |
       | Libra |
-      | libra@example.com |
       | Bright Star Holdings |
       | Neon Law Registered Agent |
       | Libra; 1 Main St; Las Vegas; NV; 89101; USA |

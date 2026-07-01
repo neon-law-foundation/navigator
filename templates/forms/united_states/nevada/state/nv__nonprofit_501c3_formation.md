@@ -11,8 +11,8 @@ questionnaire:
   custom_text__mission_statement:
     _: people__board_members
   people__board_members:
-    _: custom_text__registered_agent
-  custom_text__registered_agent:
+    _: person__registered_agent
+  person__registered_agent:
     _: END
   END: {}
 prompts:
@@ -33,5 +33,5 @@ workflow:
 Articles of Incorporation for `{{entity_name}}`, a Nevada nonprofit corporation organized exclusively for charitable,
 educational, and scientific purposes within the meaning of Section 501(c)(3) of the Internal Revenue Code. Mission:
 `{{custom_text__mission_statement}}`. The initial board of directors consists of `{{people__board_members}}`. The
-corporation's registered agent in Nevada is `{{custom_text__registered_agent}}`. On dissolution, remaining assets pass
+corporation's registered agent in Nevada is `{{person__registered_agent.name}}`. On dissolution, remaining assets pass
 to another 501(c)(3) organization or to the federal government for a public purpose.

@@ -1,7 +1,7 @@
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
+    _: person__client
+  person__client:
     _: custom_single_choice__credit_bureau
   custom_single_choice__credit_bureau:
     _: custom_text__tradeline

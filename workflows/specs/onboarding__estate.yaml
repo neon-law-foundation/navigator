@@ -2,20 +2,20 @@ questionnaire:
   BEGIN:
     _: custom_yes_no__recording_consent
   custom_yes_no__recording_consent:
-    _: custom_text__testator_name
-  custom_text__testator_name:
-    _: custom_text__executor_name
-  custom_text__executor_name:
-    _: custom_text__successor_trustee
-  custom_text__successor_trustee:
-    _: custom_text__guardian_for_minors
-  custom_text__guardian_for_minors:
-    _: custom_text__residuary_beneficiary
-  custom_text__residuary_beneficiary:
-    _: custom_text__healthcare_agent
-  custom_text__healthcare_agent:
-    _: custom_text__financial_agent
-  custom_text__financial_agent:
+    _: person__testator
+  person__testator:
+    _: person__executor
+  person__executor:
+    _: person__successor_trustee
+  person__successor_trustee:
+    _: person__guardian_for_minors
+  person__guardian_for_minors:
+    _: person__residuary_beneficiary
+  person__residuary_beneficiary:
+    _: person__healthcare_agent
+  person__healthcare_agent:
+    _: person__financial_agent
+  person__financial_agent:
     _: END
   END: {}
 prompts:

@@ -48,8 +48,9 @@ pub enum Cardinality {
 /// The parts a `people`/`person` aggregate row collects, in canonical
 /// order. The single source the widget assembler and the render/fill
 /// resolver key on — the aggregate shape is an array of these fields.
-pub const PERSON_ROW_PARTS: [&str; 7] =
-    ["name", "title", "street", "city", "state", "zip", "country"];
+pub const PERSON_ROW_PARTS: [&str; 9] = [
+    "name", "email", "title", "phone", "street", "city", "state", "zip", "country",
+];
 
 /// The closed set of question types — the `<type>` half of a
 /// `<type>__<role>` state name. Stored as `TEXT`; modelled like

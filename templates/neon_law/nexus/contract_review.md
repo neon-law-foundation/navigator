@@ -14,16 +14,13 @@ jurisdiction: NV
 confidential: true
 prompts:
   client_name: What is the client's full legal name?
-  client_email: What is the client's email address?
   entity_name: What is the legal name of your LLC?
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
-    _: custom_text__entity_name
-  custom_text__entity_name:
+    _: person__client
+  person__client:
+    _: entity__company
+  entity__company:
     _: END
   END: {}
 workflow:
@@ -41,10 +38,10 @@ workflow:
   END: {}
 ---
 
-# Inbound contract review for {{custom_text__entity_name}}
+# Inbound contract review for {{entity__company.name}}
 
-Neon Law reviews an inbound contract `{{custom_text__entity_name}}` (the "Company") received from a third party, on
-behalf of `{{custom_text__client_name}}`. The Company uploads the contract; the firm measures it against the Company's
+Neon Law reviews an inbound contract `{{entity__company.name}}` (the "Company") received from a third party, on
+behalf of `{{person__client.name}}`. The Company uploads the contract; the firm measures it against the Company's
 negotiation playbook, a licensed attorney reviews every point, and the firm delivers a written review memo to the
 Company's Project repository.
 

@@ -39,4 +39,4 @@ Feature: Northstar estate-plan workflow shape
     Then the onboarding__estate questionnaire routes:
       | from                            | condition | to                              |
       | BEGIN                           | _         | custom_yes_no__recording_consent |
-      | custom_yes_no__recording_consent | _        | custom_text__testator_name      |
+      | custom_yes_no__recording_consent | _        | person__testator                |

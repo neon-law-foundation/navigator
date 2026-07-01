@@ -15,11 +15,11 @@ literal = "NRS 78"
 
 [[field]]
 name = "1Name of Entity"
-question = "entity_name"
+question = "entity__company.name"
 
 [[field]]
 name = "2Name_Registered_Agent"
-question = "registered_agent"
+question = "person__registered_agent.name"
 
 # 4. Board of Directors / Trustees — three slots.
 
@@ -185,7 +185,7 @@ part = "country"
 
 [[field]]
 name = "NAME OF ENTITY"
-question = "entity_name"
+question = "entity__company.name"
 
 [[field]] # Entity type: Corporation.
 name = "entityType_1"

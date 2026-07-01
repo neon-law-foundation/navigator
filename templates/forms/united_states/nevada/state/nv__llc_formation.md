@@ -9,14 +9,12 @@ output: form
 form: nv__llc_formation
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
-    _: custom_text__entity_name
-  custom_text__entity_name:
-    _: custom_text__registered_agent
-  custom_text__registered_agent:
+    _: person__client
+  person__client:
+    _: entity__company
+  entity__company:
+    _: person__registered_agent
+  person__registered_agent:
     _: custom_single_choice__management_structure
   custom_single_choice__management_structure:
     _: people__managing_members
@@ -27,7 +25,6 @@ questionnaire:
   END: {}
 prompts:
   client_name: What is the client's full legal name?
-  client_email: What is the client's email address?
   entity_name: What is the legal name of your LLC?
   registered_agent: Who is the registered agent?
   management_structure: How will the company be managed?
@@ -54,12 +51,12 @@ workflow:
   END: {}
 ---
 
-This Nevada entity formation engagement (the "Engagement") forms `{{custom_text__entity_name}}`, a Nevada
-limited-liability company, for `{{custom_text__client_name}}` (the "Organizer"). Neon Law's flat Nest fee is
+This Nevada entity formation engagement (the "Engagement") forms `{{entity__company.name}}`, a Nevada
+limited-liability company, for `{{person__client.name}}` (the "Organizer"). Neon Law's flat Nest fee is
 **\$1,111 per year**. That fee covers the Articles of Organization, the Initial List of Managers or Managing Members,
 and the State Business License application filed with the Nevada Secretary of State, together with the company's
 registered
-agent of record, `{{custom_text__registered_agent}}`.
+agent of record, `{{person__registered_agent.name}}`.
 
 The company will be `{{custom_single_choice__management_structure}}`-managed. Its managers or managing members are:
 
@@ -67,7 +64,7 @@ The company will be `{{custom_single_choice__management_structure}}`-managed. It
 
 The first person listed signs the Articles of Organization as the Organizer. The Organizer asked that the company be
 organized effective `{{custom_datetime__formation_date}}`. Confirmations and the official records returned by the
-Secretary of State are sent to the Organizer at `{{custom_text__client_email}}`.
+Secretary of State are sent to the Organizer at `{{person__client.email}}`.
 
 Your answers above are placed onto the Secretary of State's own formation packet — the same official form the state
 publishes — and a licensed Neon Law attorney reviews the **filled packet** before anything is signed or filed. Nothing

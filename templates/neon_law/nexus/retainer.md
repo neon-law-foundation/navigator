@@ -6,19 +6,16 @@ jurisdiction: NV
 confidential: true
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
-    _: custom_text__project_name
-  custom_text__project_name:
+    _: person__client
+  person__client:
+    _: project__engagement
+  project__engagement:
     _: custom_text__product_description
   custom_text__product_description:
     _: END
   END: {}
 prompts:
   client_name: What is the client's full legal name?
-  client_email: What is the client's email address?
   project_name: What is the project name for this engagement?
   product_description: Describe the services this retainer covers.
 workflow:
@@ -37,8 +34,8 @@ workflow:
   END: {}
 ---
 This Engagement Agreement (the "Agreement") is entered into between Neon Law (the "Firm") and
-`{{custom_text__client_name}}` (the "Client"), reachable at `{{custom_text__client_email}}`, for **Neon Law Nexus** —
-fractional general-counsel services — on the matter referred to as `{{custom_text__project_name}}`.
+`{{person__client.name}}` (the "Client"), reachable at `{{person__client.email}}`, for **Neon Law Nexus** —
+fractional general-counsel services — on the matter referred to as `{{project__engagement.name}}`.
 
 **The work and the fee.** The Firm acts as your company's fractional general counsel:
 `{{custom_text__product_description}}`. This is an ongoing engagement billed as a flat monthly subscription. The
@@ -84,7 +81,7 @@ Washington State Bar Association. You keep those rights in full.
 
 **Reaching the Firm.** Email to **support@neonlaw.com** is the best and primary way to reach the Firm. You consent to
 electronic communication at that address and understand that routine correspondence, documents, and questions about your
-matter flow through it. The Firm sends invoices and case correspondence to you at `{{custom_text__client_email}}`;
+matter flow through it. The Firm sends invoices and case correspondence to you at `{{person__client.email}}`;
 you reach the Firm at support@neonlaw.com.
 
 **Firm-wide conflicts.** Neon Law is a small firm, and we treat a conflict for any one of our attorneys as a conflict
@@ -99,7 +96,7 @@ privileged correspondence we exchange with you — for ten years after your matt
 file at any point during that period. After ten years, the Firm securely destroys the file and its contents.
 
 The Client acknowledges receipt of the Firm's privacy notice and agrees to electronic delivery of invoices and case
-correspondence at `{{custom_text__client_email}}`.
+correspondence at `{{person__client.email}}`.
 
 The Client and the Firm execute this Agreement electronically as of the dates signed below.
 

@@ -22,7 +22,6 @@ Feature: Naturalization, end to end (Form N-400 → Certificate of Naturalizatio
     And the applicant answers the naturalization questionnaire:
       | value             |
       | Maria Santos      |
-      | maria@example.com |
       | 1990-04-12        |
       | Mexico            |
       | Mexico            |
@@ -42,4 +41,4 @@ Feature: Naturalization, end to end (Form N-400 → Certificate of Naturalizatio
     Then the naturalization workflow reaches END
     And a USCIS filing was recorded
     And the issued Certificate of Naturalization is filed in the matter
-    And the applicant's eleven intake answers are on file
+    And the applicant's ten intake answers are on file

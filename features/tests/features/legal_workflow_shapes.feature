@@ -44,8 +44,8 @@ Feature: Bundled-template workflow composition (LLC, trust, will)
     Given the bundled template "neon_law/northstar/nv__generic_trust.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                        | to                          |
-      | BEGIN                       | custom_text__trustee_name   |
-      | custom_text__trustee_name   | custom_text__trust_property |
+      | BEGIN                       | person__trustee             |
+      | person__trustee             | custom_text__trust_property |
       | custom_text__trust_property | END                         |
 
   Scenario: Nevada trust template with END stripped fails to parse
@@ -55,11 +55,11 @@ Feature: Bundled-template workflow composition (LLC, trust, will)
   Scenario: Simple will questionnaire walks testator → executor → residuary → END
     Given the bundled template "neon_law/northstar/nv__simple_will.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
-      | from                            | to                              |
-      | BEGIN                           | custom_text__testator_name      |
-      | custom_text__testator_name      | custom_text__executor_name      |
-      | custom_text__executor_name      | custom_text__residuary_beneficiary |
-      | custom_text__residuary_beneficiary | END                          |
+      | from                            | to                             |
+      | BEGIN                           | person__testator               |
+      | person__testator                | person__executor               |
+      | person__executor                | person__residuary_beneficiary  |
+      | person__residuary_beneficiary   | END                            |
 
   Scenario: Simple will workflow walks testator signature → witnesses → staff review → notarization → END
     Given the bundled template "neon_law/northstar/nv__simple_will.md"

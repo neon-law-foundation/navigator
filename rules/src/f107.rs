@@ -119,6 +119,8 @@ pub fn signature_placeholders(contents: &str) -> Vec<SignaturePlaceholder> {
 struct FrontmatterShape {
     #[serde(default)]
     workflow: Option<BTreeMap<String, BTreeMap<String, String>>>,
+    #[serde(default)]
+    questionnaire: Option<BTreeMap<String, BTreeMap<String, String>>>,
 }
 
 /// 1-based line number containing the byte at `offset`.
@@ -142,10 +144,20 @@ impl Rule for F107SignaturePlaceholders {
         };
 
         let placeholders = signature_placeholders(&file.contents);
+        let parsed = serde_yaml::from_str::<FrontmatterShape>(fm).ok();
+        let questionnaire_states: std::collections::BTreeSet<&str> = parsed
+            .as_ref()
+            .and_then(|p| p.questionnaire.as_ref())
+            .into_iter()
+            .flat_map(|q| q.keys().map(String::as_str))
+            .collect();
         let mut violations = Vec::new();
         let mut saw_valid_block = false;
 
         for ph in &placeholders {
+            if questionnaire_states.contains(ph.signer.as_str()) {
+                continue;
+            }
             let signer_ok = Self::SIGNERS.contains(&ph.signer.as_str());
             let field_ok = Self::FIELDS.contains(&ph.field.as_str());
             let line = line_at(&file.contents, ph.offset);
@@ -185,15 +197,12 @@ impl Rule for F107SignaturePlaceholders {
         // The signing declaration is bidirectional: a body signature
         // block and a `sent_for_signature[__*]` State must each imply the
         // other. Parse the workflow once and cross-check both directions.
-        let has_signing_state = serde_yaml::from_str::<FrontmatterShape>(fm)
-            .ok()
-            .and_then(|p| p.workflow)
-            .is_some_and(|wf| {
-                wf.keys().any(|state| {
-                    state == Self::SIGNING_STATE
-                        || state.starts_with(&format!("{}__", Self::SIGNING_STATE))
-                })
-            });
+        let has_signing_state = parsed.and_then(|p| p.workflow).is_some_and(|wf| {
+            wf.keys().any(|state| {
+                state == Self::SIGNING_STATE
+                    || state.starts_with(&format!("{}__", Self::SIGNING_STATE))
+            })
+        });
 
         // Forward: a signature block must have somewhere to collect the
         // signature.

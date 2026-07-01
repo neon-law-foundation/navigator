@@ -518,12 +518,13 @@ pub(crate) async fn seed_staff_answers(
         else {
             continue;
         };
+        let answer_value = seed_staff_answer_value(txn, person_id, state_name, value).await?;
         answer::ActiveModel {
             question_id: ActiveValue::Set(q.id),
             person_id: ActiveValue::Set(person_id),
             notation_id: ActiveValue::Set(Some(notation_id)),
             state_name: ActiveValue::Set(Some((*state_name).to_string())),
-            value: ActiveValue::Set(answer::primitive(value)),
+            value: ActiveValue::Set(answer_value),
             source: ActiveValue::Set(store::entity::answer::SOURCE_STAFF.to_string()),
             authored_by_person_id: ActiveValue::Set(authored_by),
             ..Default::default()
@@ -532,6 +533,33 @@ pub(crate) async fn seed_staff_answers(
         .await?;
     }
     Ok(())
+}
+
+async fn seed_staff_answer_value(
+    txn: &DatabaseTransaction,
+    person_id: Uuid,
+    state_name: &str,
+    value: &str,
+) -> Result<serde_json::Value, sea_orm::DbErr> {
+    if state_name == "person__client" {
+        if let Some(client) = person::Entity::find_by_id(person_id).one(txn).await? {
+            return Ok(serde_json::json!({
+                "value": client.name,
+                "id": client.id,
+                "name": client.name,
+                "email": client.email,
+                "title": client.title,
+                "phone": client.phone,
+            }));
+        }
+    }
+    let registry_code = state_name
+        .split_once("__")
+        .map_or(state_name, |(code, _)| code);
+    if matches!(registry_code, "person" | "entity" | "project") {
+        return Ok(serde_json::json!({ "value": value, "name": value }));
+    }
+    Ok(answer::primitive(value))
 }
 
 /// Template code for the firm-signed matter-close letter.
@@ -880,9 +908,10 @@ pub async fn step_get(
 fn step_json(notation_id: Uuid, step: Result<NextStep, NotationSessionError>) -> Response {
     match step {
         Ok(NextStep::NeedsAnswer { question }) => {
-            let choices: Vec<serde_json::Value> = store::seed::question_choices(&question.code)
+            let choices: Vec<serde_json::Value> = question
+                .choices
                 .into_iter()
-                .map(|(value, label)| serde_json::json!({ "value": value, "label": label }))
+                .map(|choice| serde_json::json!({ "value": choice.value, "label": choice.label }))
                 .collect();
             axum::Json(serde_json::json!({
                 "notation_id": notation_id,
@@ -1480,8 +1509,9 @@ async fn dispatch_signature(
     // client signs first (routing 1), the firm countersigns (routing 2) so
     // the engagement forms on the firm's signature. The captive client's
     // identity comes from the questionnaire answers when present (the
-    // retainer asks `client_name`/`client_email`) and otherwise from the
-    // notation's bound Person row — never hardcoded in the provider.
+    // retainer asks `person__client`, exposing `person__client.name`) and
+    // otherwise from the notation's bound Person row — never hardcoded in
+    // the provider.
     let template_row = template::Entity::find_by_id(notation_row.template_id)
         .one(&state.db)
         .await?
@@ -2080,10 +2110,12 @@ pub fn client_user_id(notation_id: Uuid) -> String {
 /// (the provider's single-signer fallback).
 ///
 /// The captive client's name/email come from the questionnaire answers
-/// when the template captured them (the retainer asks
-/// `client_name`/`client_email`) and otherwise from the notation's bound
-/// Person row in `client` (the trust questionnaire never asks for an
-/// email). That same Person is what [`crate::esign_view`] resolves the
+/// when the template captured them (the retainer asks `person__client`,
+/// whose dotted `.name`/`.email` fields land in the render context) and
+/// otherwise from the notation's bound Person row in `client` (the trust
+/// questionnaire never asks for an email, and the retainer captures the
+/// email out-of-band, so `.email` falls through to the Person row). That
+/// same Person is what [`crate::esign_view`] resolves the
 /// embedded recipient against, so envelope creation and the recipient
 /// view agree.
 ///
@@ -2117,10 +2149,10 @@ fn build_signature_manifest(
     if role_present("client") {
         recipients.push(SignatureRecipient {
             role: "client".into(),
-            email: answered("custom_text__client_email")
+            email: answered("person__client.email")
                 .or_else(|| client.map(|c| c.email.clone()))
                 .unwrap_or_default(),
-            name: answered("custom_text__client_name")
+            name: answered("person__client.name")
                 .or_else(|| client.map(|c| c.name.clone()))
                 .unwrap_or_default(),
             routing_order: 1,
@@ -2203,10 +2235,37 @@ fn context_from_answers(
         // Storing the state on the row is what stops two records of one
         // type collapsing — no insertion-order alignment needed.
         if let Some(key) = a.state_name.clone().or_else(|| code.cloned()) {
-            ctx.insert(key, display);
+            ctx.insert(key.clone(), display);
+            insert_dotted_answer_fields(&mut ctx, &key, &a.value);
         }
     }
     ctx
+}
+
+fn insert_dotted_answer_fields(
+    ctx: &mut BTreeMap<String, String>,
+    key: &str,
+    value: &serde_json::Value,
+) {
+    let Some(fields) = value.as_object() else {
+        return;
+    };
+    for (field, value) in fields {
+        if field == "value" {
+            continue;
+        }
+        ctx.insert(format!("{key}.{field}"), json_scalar(value));
+    }
+}
+
+fn json_scalar(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Null => String::new(),
+        other => other.to_string(),
+    }
 }
 
 /// Record the e-signature provider's request id in `signatures` so a
@@ -2301,21 +2360,39 @@ mod tests {
         }
     }
 
-    #[test]
-    fn progress_for_begin_is_step_1() {
-        let spec = retainer_intake_questionnaire();
-        assert_eq!(progress_for(&spec, &StateName::begin()), (1, 4));
+    fn record_answer_row(
+        question_id: Uuid,
+        state_name: &str,
+        value: serde_json::Value,
+    ) -> answer::Model {
+        answer::Model {
+            id: Uuid::now_v7(),
+            question_id,
+            person_id: Uuid::nil(),
+            notation_id: Some(Uuid::nil()),
+            state_name: Some(state_name.to_string()),
+            value,
+            source: answer::SOURCE_STAFF.to_string(),
+            authored_by_person_id: None,
+            inserted_at: String::new(),
+            updated_at: String::new(),
+        }
     }
 
     #[test]
-    fn progress_for_client_name_state_is_step_2() {
-        // After answering client_name (state machine moved to
-        // `client_name`), the next question is client_email — the
-        // walker should display "step 2 of 4."
+    fn progress_for_begin_is_step_1() {
+        let spec = retainer_intake_questionnaire();
+        assert_eq!(progress_for(&spec, &StateName::begin()), (1, 3));
+    }
+
+    #[test]
+    fn progress_for_client_state_is_step_2() {
+        // After answering the client identity question, the next question is
+        // the engagement name — the walker should display "step 2 of 3."
         let spec = retainer_intake_questionnaire();
         assert_eq!(
-            progress_for(&spec, &StateName::from("custom_text__client_name")),
-            (2, 4)
+            progress_for(&spec, &StateName::from("person__client")),
+            (2, 3)
         );
     }
 
@@ -2324,7 +2401,7 @@ mod tests {
         let spec = retainer_intake_questionnaire();
         assert_eq!(
             progress_for(&spec, &StateName::from("custom_text__product_description")),
-            (4, 4)
+            (3, 3)
         );
     }
 
@@ -2343,6 +2420,113 @@ mod tests {
             Some("Libra LLC")
         );
         assert_eq!(ctx.get("entity").map(String::as_str), Some("Libra LLC"));
+    }
+
+    #[test]
+    fn context_expands_singular_record_answer_fields() {
+        let person_q = Uuid::now_v7();
+        let code_by_id = BTreeMap::from([(person_q, "person".to_string())]);
+        let answers = [record_answer_row(
+            person_q,
+            "person__client",
+            serde_json::json!({
+                "id": Uuid::now_v7(),
+                "name": "Libra",
+                "email": "libra@example.com",
+            }),
+        )];
+
+        let ctx = context_from_answers(&answers, &code_by_id);
+
+        assert_eq!(
+            ctx.get("person__client.name").map(String::as_str),
+            Some("Libra")
+        );
+        assert_eq!(
+            ctx.get("person__client.email").map(String::as_str),
+            Some("libra@example.com")
+        );
+    }
+
+    /// A bound Person carrying a distinct name/email, so a fixture can tell
+    /// the answered value apart from the Person-row fallback.
+    fn person_named(name: &str, email: &str) -> store::entity::person::Model {
+        store::entity::person::Model {
+            id: Uuid::now_v7(),
+            name: name.to_string(),
+            email: email.to_string(),
+            oidc_subject: None,
+            role: store::entity::person::Role::Client,
+            title: None,
+            phone: None,
+            xero_contact_id: None,
+            preferred_language: "en".to_string(),
+            profile_image_url: None,
+            inserted_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    fn client_signature_field() -> crate::signature::SignatureField {
+        crate::signature::SignatureField {
+            recipient_role: "client".into(),
+            kind: crate::signature::SignatureFieldKind::Signature,
+            anchor: "{{client.signature}}".into(),
+        }
+    }
+
+    #[test]
+    fn signature_manifest_prefers_answered_client_name_over_person_row() {
+        // The migration renamed the client-identity state to
+        // `person__client`, whose `.name`/`.email` fields land in the render
+        // context. The manifest must read those — not the removed
+        // `custom_text__client_*` keys — so the questionnaire-confirmed
+        // legal name reaches the DocuSign recipient. In production the bound
+        // Person is created with `name = <email>` until the questionnaire
+        // fills it, so a fallback silently signs the client under their
+        // email address. The fixture name differs from the answer to prove
+        // the answered value wins.
+        let ctx = BTreeMap::from([
+            ("person__client.name".to_string(), "Libra Prime".to_string()),
+            (
+                "person__client.email".to_string(),
+                "libra@example.com".to_string(),
+            ),
+        ]);
+        let client = person_named("libra@example.com", "libra@example.com");
+        let fields = [client_signature_field()];
+
+        let manifest =
+            super::build_signature_manifest(Uuid::now_v7(), &fields, &ctx, Some(&client), true);
+
+        let recipient = manifest
+            .recipients
+            .iter()
+            .find(|r| r.role == "client")
+            .expect("client recipient present");
+        assert_eq!(recipient.name, "Libra Prime");
+        assert_eq!(recipient.email, "libra@example.com");
+    }
+
+    #[test]
+    fn signature_manifest_falls_back_to_person_row_when_unanswered() {
+        // The trust questionnaire never captures an email and other flows
+        // capture it out-of-band, so with no `person__client.*` in context
+        // the recipient resolves from the bound Person row.
+        let ctx = BTreeMap::new();
+        let client = person_named("Libra Prime", "libra@example.com");
+        let fields = [client_signature_field()];
+
+        let manifest =
+            super::build_signature_manifest(Uuid::now_v7(), &fields, &ctx, Some(&client), true);
+
+        let recipient = manifest
+            .recipients
+            .iter()
+            .find(|r| r.role == "client")
+            .expect("client recipient present");
+        assert_eq!(recipient.name, "Libra Prime");
+        assert_eq!(recipient.email, "libra@example.com");
     }
 
     #[test]

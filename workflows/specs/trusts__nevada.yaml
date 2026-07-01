@@ -1,7 +1,7 @@
 questionnaire:
   BEGIN:
-    _: custom_text__trustee_name
-  custom_text__trustee_name:
+    _: person__trustee
+  person__trustee:
     _: custom_text__trust_property
   custom_text__trust_property:
     _: END

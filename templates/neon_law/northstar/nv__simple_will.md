@@ -10,12 +10,12 @@ prompts:
   residuary_beneficiary: Who receives the remainder of your estate?
 questionnaire:
   BEGIN:
-    _: custom_text__testator_name
-  custom_text__testator_name:
-    _: custom_text__executor_name
-  custom_text__executor_name:
-    _: custom_text__residuary_beneficiary
-  custom_text__residuary_beneficiary:
+    _: person__testator
+  person__testator:
+    _: person__executor
+  person__executor:
+    _: person__residuary_beneficiary
+  person__residuary_beneficiary:
     _: END
   END: {}
 workflow:
@@ -32,6 +32,6 @@ workflow:
   END: {}
 ---
 
-I, `{{custom_text__testator_name}}`, declare this to be my Last Will and Testament. I name
-`{{custom_text__executor_name}}` as the executor of my estate and direct that the residue pass to
-`{{custom_text__residuary_beneficiary}}`.
+I, `{{person__testator.name}}`, declare this to be my Last Will and Testament. I name
+`{{person__executor.name}}` as the executor of my estate and direct that the residue pass to
+`{{person__residuary_beneficiary.name}}`.

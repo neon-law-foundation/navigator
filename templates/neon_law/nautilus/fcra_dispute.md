@@ -6,8 +6,8 @@ jurisdiction: US
 confidential: true
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
+    _: person__client
+  person__client:
     _: custom_single_choice__credit_bureau
   custom_single_choice__credit_bureau:
     _: custom_text__tradeline
@@ -41,9 +41,9 @@ workflow:
 ---
 
 To: `{{custom_single_choice__credit_bureau}}` \
-Re: `{{custom_text__client_name}}` — disputed account `{{custom_text__tradeline}}`
+Re: `{{person__client.name}}` — disputed account `{{custom_text__tradeline}}`
 
-We represent `{{custom_text__client_name}}` and dispute the accuracy of the account above as it appears on the Client's
+We represent `{{person__client.name}}` and dispute the accuracy of the account above as it appears on the Client's
 credit report.
 
 Under the federal Fair Credit Reporting Act, 15 U.S.C. § 1681i, you must conduct a free, reasonable reinvestigation of

@@ -6,14 +6,12 @@ respondent_type: person
 confidential: true
 questionnaire:
   BEGIN:
-    _: custom_text__nonprofit_legal_name
-  custom_text__nonprofit_legal_name:
-    _: custom_text__nonprofit_state
-  custom_text__nonprofit_state:
-    _: custom_text__worker_legal_name
-  custom_text__worker_legal_name:
-    _: custom_text__worker_title
-  custom_text__worker_title:
+    _: entity__nonprofit
+  entity__nonprofit:
+    _: jurisdiction__nonprofit
+  jurisdiction__nonprofit:
+    _: person__worker
+  person__worker:
     _: custom_text__worker_duties
   custom_text__worker_duties:
     _: custom_datetime__engagement_start_date
@@ -51,13 +49,13 @@ workflow:
 
 # Independent Contractor Agreement
 
-This Independent Contractor Agreement (this "Agreement") is between `{{custom_text__nonprofit_legal_name}}`, a
-nonprofit corporation organized under the laws of the State of `{{custom_text__nonprofit_state}}` (the "Organization"),
-and `{{custom_text__worker_legal_name}}` (the "Contractor"). The Organization and the Contractor agree as follows.
+This Independent Contractor Agreement (this "Agreement") is between `{{entity__nonprofit.name}}`, a
+nonprofit corporation organized under the laws of the State of `{{jurisdiction__nonprofit.name}}` (the "Organization"),
+and `{{person__worker.name}}` (the "Contractor"). The Organization and the Contractor agree as follows.
 
 ## 1. Services
 
-The Contractor will provide the following services in the role of `{{custom_text__worker_title}}`:
+The Contractor will provide the following services in the role of `{{person__worker.title}}`:
 `{{custom_text__worker_duties}}`. The Contractor controls the manner and means by which the services are performed and
 supplies the Contractor's own tools and work methods.
 
@@ -103,13 +101,13 @@ work product to the Organization and will sign documents reasonably needed to co
 
 ## 8. General
 
-This Agreement is governed by the laws of the State of `{{custom_text__nonprofit_state}}`. It is the entire agreement
+This Agreement is governed by the laws of the State of `{{jurisdiction__nonprofit.name}}`. It is the entire agreement
 between the parties about these services and supersedes any prior understanding. If any provision is held
 unenforceable, the rest remains in effect.
 
 ## Signatures
 
-**`{{custom_text__nonprofit_legal_name}}`**
+**`{{entity__nonprofit.name}}`**
 
 By: ______________________________  Date: ______________
 
@@ -121,4 +119,4 @@ Title: ______________________________
 
 ______________________________  Date: ______________
 
-`{{custom_text__worker_legal_name}}`
+`{{person__worker.name}}`

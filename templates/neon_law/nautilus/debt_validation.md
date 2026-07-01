@@ -6,14 +6,14 @@ jurisdiction: US
 confidential: true
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__collector_name
-  custom_text__collector_name:
+    _: person__client
+  person__client:
+    _: entity__collector
+  entity__collector:
     _: custom_text__alleged_account
   custom_text__alleged_account:
-    _: custom_text__original_creditor
-  custom_text__original_creditor:
+    _: entity__original_creditor
+  entity__original_creditor:
     _: custom_text__disputed_reason
   custom_text__disputed_reason:
     _: END
@@ -37,10 +37,10 @@ workflow:
   END: {}
 ---
 
-To: `{{custom_text__collector_name}}` \
-Re: `{{custom_text__client_name}}` — account reference `{{custom_text__alleged_account}}`
+To: `{{entity__collector.name}}` \
+Re: `{{person__client.name}}` — account reference `{{custom_text__alleged_account}}`
 
-We represent `{{custom_text__client_name}}` with respect to the debt above and write to dispute it and to demand
+We represent `{{person__client.name}}` with respect to the debt above and write to dispute it and to demand
 validation.
 
 Under the federal Fair Debt Collection Practices Act, 15 U.S.C. § 1692g, the Client disputes this debt. This written
@@ -48,7 +48,7 @@ dispute is made within the thirty-day period that § 1692g(a) provides. Under §
 of this debt until you obtain verification and mail a copy of that verification to the Client through this office.
 
 Please mail verification of the debt, including the amount claimed, an itemization of how it was calculated, and the
-name of the original creditor — stated here by the Client as `{{custom_text__original_creditor}}`. The Client disputes
+name of the original creditor — stated here by the Client as `{{entity__original_creditor.name}}`. The Client disputes
 the debt on the following basis: `{{custom_text__disputed_reason}}`.
 
 Direct all communication about this debt to Neon Law. This letter is signed by the attorney of record for the Client.

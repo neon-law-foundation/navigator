@@ -29,7 +29,9 @@ const SIGNER_ROLES: &[&str] = &["client", "firm"];
 
 /// A person/`people` aggregate row's fields — the registry's
 /// `PERSON_ROW_PARTS`.
-const PERSON_FIELDS: &[&str] = &["name", "title", "street", "city", "state", "zip", "country"];
+const PERSON_FIELDS: &[&str] = &[
+    "name", "email", "title", "phone", "street", "city", "state", "zip", "country",
+];
 /// An address row's fields.
 const ADDRESS_FIELDS: &[&str] = &["street", "city", "state", "zip", "country"];
 /// An entity's renderable field.
