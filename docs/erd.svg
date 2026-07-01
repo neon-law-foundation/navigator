@@ -7,6 +7,7 @@
 <path class="e" d="M630,93 L670,2841" marker-end="url(#arrow)"/>
 <path class="e" d="M630,115 L366,2479" marker-end="url(#arrow)"/>
 <path class="e" d="M630,225 L366,2479" marker-end="url(#arrow)"/>
+<path class="e" d="M630,247 L670,2095" marker-end="url(#arrow)"/>
 <path class="e" d="M870,93 L670,2095" marker-end="url(#arrow)"/>
 <path class="e" d="M254,411 L30,2841" marker-end="url(#arrow)"/>
 <path class="e" d="M254,477 L366,2479" marker-end="url(#arrow)"/>
@@ -101,7 +102,7 @@
 <text class="ct" x="172" y="265" text-anchor="end">text</text>
 </g>
 <g transform="translate(366,30)">
-<rect class="t" width="264" height="206"/>
+<rect class="t" width="264" height="250"/>
 <rect class="tt" width="264" height="30"/>
 <text class="tn" x="132" y="20" text-anchor="middle">answers</text>
 <text class="cn" x="12" y="45">id</text>
@@ -111,7 +112,7 @@
 <text class="cn" x="12" y="89">person_id</text>
 <text class="cfk" x="252" y="89" text-anchor="end">uuid FK</text>
 <text class="cn" x="12" y="111">value</text>
-<text class="ct" x="252" y="111" text-anchor="end">text</text>
+<text class="ct" x="252" y="111" text-anchor="end">jsonb</text>
 <text class="cn" x="12" y="133">inserted_at</text>
 <text class="ct" x="252" y="133" text-anchor="end">text</text>
 <text class="cn" x="12" y="155">updated_at</text>
@@ -120,6 +121,10 @@
 <text class="ct" x="252" y="177" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="199">authored_by_person_id</text>
 <text class="cfk" x="252" y="199" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="221">notation_id</text>
+<text class="cfk" x="252" y="221" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="243">state_name</text>
+<text class="ct" x="252" y="243" text-anchor="end">text</text>
 </g>
 <g transform="translate(670,30)">
 <rect class="t" width="200" height="294"/>

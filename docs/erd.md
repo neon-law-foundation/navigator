@@ -99,11 +99,13 @@ erDiagram
         UUID id PK
         UUID question_id FK
         UUID person_id FK
-        TEXT value
+        JSONB value
         TEXT inserted_at
         TEXT updated_at
         CHARACTER VARYING source
         UUID authored_by_person_id FK
+        UUID notation_id FK
+        TEXT state_name
     }
     attestations {
         UUID id PK
@@ -646,6 +648,7 @@ erDiagram
     questions ||--o{ answers : "question_id"
     persons ||--o{ answers : "person_id"
     persons ||--o{ answers : "authored_by_person_id"
+    notations ||--o{ answers : "notation_id"
     notations ||--o{ attestations : "notation_id"
     projects ||--o{ communications : "project_id"
     persons ||--o{ communications : "author_person_id"

@@ -67,6 +67,7 @@ mod m20260725_add_project_dri_columns;
 mod m20260726_create_testimonials;
 mod m20260727_create_relationship_edges;
 mod m20260728_create_events;
+mod m20260729_answers_notation_scoped_jsonb;
 
 pub struct Migrator;
 
@@ -137,6 +138,7 @@ impl sea_orm_migration::MigratorTrait for Migrator {
             Box::new(m20260726_create_testimonials::Migration),
             Box::new(m20260727_create_relationship_edges::Migration),
             Box::new(m20260728_create_events::Migration),
+            Box::new(m20260729_answers_notation_scoped_jsonb::Migration),
         ]
     }
 }

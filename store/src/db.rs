@@ -189,7 +189,7 @@ mod tests {
         answer::ActiveModel {
             question_id: ActiveValue::Set(q.id),
             person_id: ActiveValue::Set(libra.id),
-            value: ActiveValue::Set("Nick Shook".into()),
+            value: ActiveValue::Set(answer::primitive("Nick Shook")),
             ..Default::default()
         }
         .insert(&db)

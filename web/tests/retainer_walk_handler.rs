@@ -181,14 +181,23 @@ async fn step_post_writes_answer_signals_runtime_and_redirects_to_next_question(
     assert_eq!(events[0].condition, "_");
 
     // Answer row landed: `answers` is application data, written by
-    // the walker (the worker doesn't touch it). Seed-canonical
-    // inserts unrelated rows, so filter by the value we just wrote.
+    // the walker (the worker doesn't touch it). Answers are now
+    // notation-scoped, so filter by the notation we just walked.
     let our_answers = entity::answer::Entity::find()
-        .filter(entity::answer::Column::Value.eq("Libra"))
+        .filter(entity::answer::Column::NotationId.eq(nid))
         .all(&db)
         .await
         .unwrap();
     assert_eq!(our_answers.len(), 1);
+    assert_eq!(
+        entity::answer::display_value(&our_answers[0].value),
+        "Libra"
+    );
+    assert_eq!(
+        our_answers[0].state_name.as_deref(),
+        Some("client_name"),
+        "the walked state name is recorded on the answer"
+    );
 
     // Next GET asks the next question (client_email).
     let resp = app

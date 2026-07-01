@@ -260,7 +260,11 @@ pub async fn answer_step(
     answer::ActiveModel {
         question_id: ActiveValue::Set(question_row.id),
         person_id: ActiveValue::Set(person_id),
-        value: ActiveValue::Set(value.to_string()),
+        notation_id: ActiveValue::Set(Some(notation_id)),
+        // The walked state name carries the `<type>__<role>` discriminator
+        // (`entity__company`); the question row points at the bare code.
+        state_name: ActiveValue::Set(Some(question_code.to_string())),
+        value: ActiveValue::Set(answer::primitive(value)),
         source: ActiveValue::Set(author.source.to_string()),
         authored_by_person_id: ActiveValue::Set(author.authored_by),
         ..Default::default()
@@ -410,7 +414,7 @@ pub async fn client_intake_step(
         if a.source == answer::SOURCE_CLIENT {
             *client_answer_counts.entry(code.clone()).or_default() += 1;
         }
-        latest_value.insert(code.clone(), a.value);
+        latest_value.insert(code.clone(), answer::display_value(&a.value));
     }
     let client_answered = answered_client_states(&client_codes, client_answer_counts);
 
@@ -473,7 +477,9 @@ pub async fn record_client_answer(
     answer::ActiveModel {
         question_id: ActiveValue::Set(question_row.id),
         person_id: ActiveValue::Set(notation_row.person_id),
-        value: ActiveValue::Set(value.to_string()),
+        notation_id: ActiveValue::Set(Some(notation_id)),
+        state_name: ActiveValue::Set(Some(question_code.to_string())),
+        value: ActiveValue::Set(answer::primitive(value)),
         source: ActiveValue::Set(answer::SOURCE_CLIENT.to_string()),
         authored_by_person_id: ActiveValue::Set(Some(authored_by)),
         ..Default::default()
@@ -1288,7 +1294,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].value, "Libra");
+        assert_eq!(answer::display_value(&rows[0].value), "Libra");
+        assert_eq!(rows[0].notation_id, Some(started.notation_id));
+        assert_eq!(rows[0].state_name.as_deref(), Some("client_name"));
         // person_id is the respondent; source + authored_by record who
         // actually entered it.
         assert_eq!(rows[0].source, SOURCE_CLIENT);
@@ -1451,7 +1459,8 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(latest.value, "Libra Prime");
+        assert_eq!(answer::display_value(&latest.value), "Libra Prime");
+        assert_eq!(latest.notation_id, Some(id));
         assert_eq!(latest.source, SOURCE_CLIENT);
     }
 
