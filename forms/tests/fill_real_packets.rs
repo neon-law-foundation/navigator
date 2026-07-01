@@ -208,6 +208,103 @@ fn business_trust_map_round_trips_through_the_real_packet() {
     round_trip("nv__business_trust_formation", &answers);
 }
 
+/// After a packet is filled and flattened, it must carry NO interactive
+/// form fields — nothing downstream can re-edit a value once staff have
+/// approved it — while every filled *text* value still reads back as
+/// static page content, so the government office sees exactly what was
+/// reviewed. Exercised against the three real vendored NV packets, whose
+/// filled maps also carry checkbox/radio states (so the flatten path's
+/// appearance stamping runs, not just its text drawing).
+#[test]
+fn flatten_strips_fields_but_preserves_filled_text_for_all_packets() {
+    // (form code, sample answers, filled text values that must survive).
+    let cases: [(&str, BTreeMap<String, String>, &[&str]); 3] = [
+        (
+            "nv__llc_formation",
+            [
+                ("entity__company.name", "Neon Demo LLC"),
+                ("person__registered_agent.name", "Neon Law Services"),
+                ("management_structure", "members"),
+                ("managing_members", &two_people()),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+            &[
+                "Neon Demo LLC",
+                "Neon Law Services",
+                "Aries Client",
+                "Las Vegas",
+            ],
+        ),
+        (
+            "nv__profit_corp_formation",
+            [
+                ("entity__company.name", "Neon Demo Corp"),
+                ("person__registered_agent.name", "Neon Law Services"),
+                ("shares_authorized", "1000"),
+                ("par_value", "0.01"),
+                ("directors", &two_people()),
+                ("corporate_officers", &two_people()),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+            &["Neon Demo Corp", "Neon Law Services", "Aries Client"],
+        ),
+        (
+            "nv__business_trust_formation",
+            [
+                ("entity__company.name", "Neon Demo Trust"),
+                ("person__registered_agent.name", "Neon Law Services"),
+                ("trustees", &two_people()),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
+            &["Neon Demo Trust", "Neon Law Services", "Aries Client"],
+        ),
+    ];
+
+    for (code, answers, want_text) in &cases {
+        let form = forms::get(code)
+            .expect("registry loads")
+            .expect("form vendored");
+        let map = forms::field_map(code)
+            .expect("map parses")
+            .expect("map exists");
+        let resolved = forms::resolve(&map, answers).expect("answers resolve");
+        let filled = pdf::fill_acroform(form.bytes, &resolved).expect("fill succeeds");
+
+        // The filled packet is still interactive before flattening.
+        assert!(
+            !pdf::field_names(&filled).expect("field names").is_empty(),
+            "{code}: filled packet should still be interactive before flattening"
+        );
+
+        let flat = pdf::flatten(&filled).expect("flatten succeeds");
+
+        // No interactive fields survive — the form layer is emptied.
+        assert!(
+            pdf::field_names(&flat)
+                .expect("field names of flattened")
+                .is_empty(),
+            "{code}: flattened packet still exposes interactive fields — a downstream \
+             tool could re-edit the filed values after staff review"
+        );
+
+        // Every filled text value still reads back as static page content.
+        let text = pdf::page_text(&flat).expect("extract flattened page text");
+        for value in *want_text {
+            assert!(
+                text.contains(value),
+                "{code}: flattened packet lost the filled value `{value}` — the office \
+                 would no longer see what staff reviewed"
+            );
+        }
+    }
+}
+
 #[test]
 fn single_member_llc_leaves_empty_slots_and_their_titles_blank() {
     let one_person = r#"[{"name": "Pisces Founder", "street": "9 Quiet Rd",

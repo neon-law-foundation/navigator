@@ -22,10 +22,10 @@ forms crate registry + field-map resolution
 web::retainer_walk::render_and_park
    │
    ▼
-workflows::dispatch_document_open → pdf::fill_acroform
+staff_review → workflows::dispatch_document_open → pdf::fill_acroform → pdf::flatten
    │
    ▼
-staff_review → signature / filing
+signature / filing
 ```
 
 The `.md` file is the catalog card and workflow. It declares the form identity:
@@ -80,14 +80,19 @@ on-states, and dotted `people__managing_members.0.address.city` addresses list r
 and comb fields for free and break loudly on a re-vendor. Until that re-authoring lands, the three NV blanks keep their
 `.fields.toml` on the path above, and the guard test pins that layer.
 
-Two further follow-ons are tracked, not yet built:
+The filled packet is **flattened** before it is persisted. Because a form's fill state (`document_open__*_pdf`) sits
+past `staff_review` in every packet's workflow spec, `dispatch_document_open` runs `pdf::flatten` right after
+`pdf::fill_acroform`: it paints every value onto the page (text as page content, a checked box as its own appearance
+stream), drops the widget annotations, and empties the AcroForm `/Fields`. The result freezes exactly what an attorney
+approved — no downstream viewer can re-edit a value on the way to a government office, and a viewer that ignores
+`/NeedAppearances` shows the filled values rather than a blank form.
+
+One further follow-on is tracked, not yet built:
 
 - **Blank in GCS, repo stays text-only.** The vendored PDF is binary, re-vendored often, and never diffs — a candidate
   to move out of git and pull through `cloud::StorageService` at fill time, pinned by a sibling `.sha256` so a silent
   re-vendor fails loudly instead of mis-filling. The repo would keep only diffable text (`.md`, the field manifest, the
   sha pin). Trade-off: filling then requires the blank present in the bucket or a warmed cache.
-- **Flatten before file.** Flatten the filled AcroForm to static content before it reaches a government office, so no
-  downstream tool can re-edit the field values after staff review.
 
 ## Runtime Storage
 

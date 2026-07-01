@@ -44,8 +44,8 @@ pub mod format;
 pub mod markdown;
 
 pub use acroform::{
-    blank_acroform, blank_acroform_with, field_names, fill_acroform, read_field_value,
-    read_field_values, read_widget_appearance_state, FieldSpec,
+    blank_acroform, blank_acroform_with, field_names, fill_acroform, flatten, page_text,
+    read_field_value, read_field_values, read_widget_appearance_state, FieldSpec,
 };
 pub use certificate::{render_certificate, CertificateParams};
 pub use format::{render_document, Letterhead, OutputFormat};
