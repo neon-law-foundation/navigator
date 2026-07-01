@@ -88,7 +88,7 @@ pub use f108::F108TemplateCodeRequired;
 pub use f109::F109OutputFormat;
 pub use f110::{F110JurisdictionPath, JURISDICTIONS};
 pub use f112::{workflow_step_not_built, F112WorkflowStepNotBuilt, WORKFLOW_STEPS_NOT_BUILT};
-pub use f113::{F113TypeGrounding, REGISTERED_QUESTION_TYPES};
+pub use f113::{describe_question_type, F113TypeGrounding, REGISTERED_QUESTION_TYPES};
 pub use f114::{F114ForParentOrdering, AGGREGATE_QUESTION_TYPES};
 pub use f115::F115PathResolution;
 pub use m001::M001HeadingIncrement;

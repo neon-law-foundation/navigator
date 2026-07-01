@@ -72,6 +72,25 @@ impl F113TypeGrounding {
     pub const CODE: &'static str = "N113";
 }
 
+/// A one-line hover/completion description of a registered `<type>` token,
+/// or `None` if it is not registered. Sourced from the vocabulary the LSP
+/// shares (the shape half without pulling in `store`): custom primitive,
+/// aggregate, or singular typed answer.
+#[must_use]
+pub fn describe_question_type(token: &str) -> Option<String> {
+    if !REGISTERED_QUESTION_TYPES.contains(&token) {
+        return None;
+    }
+    let shape = if token.starts_with("custom_") {
+        "custom primitive — the value lives in the answer JSON"
+    } else if crate::AGGREGATE_QUESTION_TYPES.contains(&token) {
+        "aggregate — an array of the singular's shape"
+    } else {
+        "singular typed answer — grounds to a `store::entity` row"
+    };
+    Some(format!("`{token}` — registered question type ({shape})"))
+}
+
 #[derive(Debug, Deserialize)]
 struct FrontmatterShape {
     #[serde(default)]
