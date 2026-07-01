@@ -1158,9 +1158,11 @@ respondent_type: person
 confidential: true
 questionnaire:
   BEGIN:
-    created: client_name
-  client_name:
+    created: custom_text__client_name
+  custom_text__client_name:
     answered: END
+prompts:
+  client_name: What is the client's name?
 workflow:
   BEGIN:
     created: staff_review
@@ -1231,9 +1233,11 @@ jurisdiction: NV
 confidential: true
 questionnaire:
   BEGIN:
-    created: client_name
-  client_name:
+    created: custom_text__client_name
+  custom_text__client_name:
     answered: END
+prompts:
+  client_name: What is the client's name?
 workflow:
   BEGIN:
     created: staff_review

@@ -118,12 +118,14 @@ async fn import_writes_each_fixture_template_and_question_to_postgres() {
 
     let questions = question::Entity::find().all(&s.db).await.unwrap();
     let q_codes: Vec<&str> = questions.iter().map(|q| q.code.as_str()).collect();
-    // Spot-check codes that come from the trust fixture.
-    assert!(q_codes.contains(&"trustee_name"));
-    assert!(q_codes.contains(&"trust_property"));
-    // And from the LLC fixture.
-    assert!(q_codes.contains(&"entity"));
-    assert!(q_codes.contains(&"address"));
+    // Spot-check typed question prefixes that come from custom fixture
+    // states such as `custom_text__trustee_name` and
+    // `custom_single_choice__annual_or_amended`.
+    assert!(q_codes.contains(&"custom_text"));
+    assert!(q_codes.contains(&"custom_yes_no"));
+    assert!(q_codes.contains(&"custom_single_choice"));
+    assert!(q_codes.contains(&"custom_datetime"));
+    // And an aggregate prefix from estate fixtures.
     assert!(q_codes.contains(&"people"));
 }
 
@@ -138,8 +140,12 @@ async fn db_backed_validate_loads_codes_and_swaps_f104() {
         .await
         .expect("load codes");
     assert!(
-        codes.iter().any(|c| c == "trustee_name"),
-        "loaded registry must contain canonical question codes; got {codes:?}",
+        codes.iter().any(|c| c == "custom_text"),
+        "loaded registry must contain canonical custom question types; got {codes:?}",
+    );
+    assert!(
+        codes.iter().any(|c| c == "staff_review"),
+        "loaded registry must preserve imported workflow codes; got {codes:?}",
     );
 
     let ruleset = rules::navigator_default_rules_with_codes(&codes);

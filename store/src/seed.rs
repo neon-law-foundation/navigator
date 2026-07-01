@@ -1584,6 +1584,7 @@ fn parse_decimal_to_cents(s: &str) -> i64 {
 mod tests {
     use super::seed_canonical;
     use crate::entity::{jurisdiction, person, question, template};
+    use crate::question_registry::QuestionType;
     use crate::test_support::pg;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
@@ -1605,25 +1606,18 @@ mod tests {
         let report = seed_canonical(&db, &fs_storage().await)
             .await
             .expect("seed");
-        // The canonical question catalog grows whenever a bundled
-        // template adds a questionnaire prompt (the retainer + closing
-        // walkers, then Nautilus, Northstar, the i18n set, …), so this
-        // is a *floor*, not an exact count — 41 distinct codes at the
-        // time of writing. A floor tolerates that growth while still
-        // catching a regression that drops a question; the code-presence
-        // checks below pin the load-bearing prompts by name.
+        // The canonical question catalog is the closed type registry.
+        // Template-specific prompt keys live after the `__` discriminator
+        // in state names rather than as seeded question rows.
+        let expected = QuestionType::all_tokens().len();
         let qs = question::Entity::find().all(&db).await.unwrap();
-        assert!(
-            qs.len() >= 41,
-            "expected at least 41 distinct questions, found {}",
-            qs.len()
-        );
-        assert!(qs.iter().any(|q| q.code == "personal_name"));
-        assert!(qs.iter().any(|q| q.code == "staff_review"));
-        assert!(qs.iter().any(|q| q.code == "client_name"));
-        assert!(qs.iter().any(|q| q.code == "product_description"));
-        assert!(qs.iter().any(|q| q.code == "matter_summary"));
-        assert!(report.questions_inserted >= 41);
+        assert_eq!(qs.len(), expected);
+        assert!(qs.iter().any(|q| q.code == "person"));
+        assert!(qs.iter().any(|q| q.code == "people"));
+        assert!(qs.iter().any(|q| q.code == "custom_text"));
+        assert!(qs.iter().any(|q| q.code == "custom_single_choice"));
+        assert!(qs.iter().any(|q| q.code == "custom_datetime"));
+        assert_eq!(report.questions_inserted, expected);
     }
 
     #[tokio::test]
@@ -1691,7 +1685,8 @@ mod tests {
         assert!(tmpl.project_id.is_none(), "bundled templates are shared");
         // The body now lives in a blob — fetch it via the storage
         // accessor. Just the markdown body, no frontmatter, so the
-        // renderer's `{{client_name}}` interpolation finds its targets.
+        // renderer's `{{custom_text__client_name}}` interpolation finds
+        // its targets.
         let body = crate::templates::body(&db, &fs_storage().await, &tmpl)
             .await
             .expect("template body in storage");
@@ -1700,10 +1695,10 @@ mod tests {
             "body should not include the YAML frontmatter; got {:?}",
             &body[..body.len().min(20)]
         );
-        assert!(body.contains("{{client_name}}"));
-        assert!(body.contains("{{client_email}}"));
-        assert!(body.contains("{{project_name}}"));
-        assert!(body.contains("{{product_description}}"));
+        assert!(body.contains("{{custom_text__client_name}}"));
+        assert!(body.contains("{{custom_text__client_email}}"));
+        assert!(body.contains("{{custom_text__project_name}}"));
+        assert!(body.contains("{{custom_text__product_description}}"));
     }
 
     #[tokio::test]

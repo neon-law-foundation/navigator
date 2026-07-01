@@ -207,6 +207,15 @@ pub fn prompt_overrides_from_yaml(
     Ok(wrapper.prompts)
 }
 
+/// Parse the optional `prompt_translations:` map from a standalone spec YAML.
+pub fn prompt_translations_from_yaml(
+    yaml: &str,
+) -> Result<BTreeMap<String, BTreeMap<String, String>>, WorkflowSpecError> {
+    let wrapper: PromptTranslationFrontmatter =
+        serde_yaml::from_str(yaml).map_err(|e| WorkflowSpecError::Yaml(e.to_string()))?;
+    Ok(wrapper.prompt_translations)
+}
+
 /// Extract the `workflow:` block from a notation template's YAML
 /// frontmatter and parse it as a [`WorkflowSpec`]. Used by the
 /// integrity / shape-lock tests, which validate that every template's
@@ -238,6 +247,16 @@ pub fn prompt_overrides_from_template(
     prompt_overrides_from_yaml(frontmatter)
 }
 
+/// Extract the optional `prompt_translations:` map from a notation
+/// template's YAML frontmatter.
+pub fn prompt_translations_from_template(
+    markdown: &str,
+) -> Result<BTreeMap<String, BTreeMap<String, String>>, WorkflowSpecError> {
+    let frontmatter = extract_frontmatter(markdown)
+        .ok_or_else(|| WorkflowSpecError::Yaml("template has no YAML frontmatter".into()))?;
+    prompt_translations_from_yaml(frontmatter)
+}
+
 #[derive(Deserialize)]
 struct WorkflowFrontmatter {
     workflow: WorkflowSpec,
@@ -252,6 +271,12 @@ struct QuestionnaireFrontmatter {
 struct PromptFrontmatter {
     #[serde(default)]
     prompts: BTreeMap<String, String>,
+}
+
+#[derive(Deserialize)]
+struct PromptTranslationFrontmatter {
+    #[serde(default)]
+    prompt_translations: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 fn extract_frontmatter(contents: &str) -> Option<&str> {

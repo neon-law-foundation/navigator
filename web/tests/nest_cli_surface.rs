@@ -120,9 +120,8 @@ async fn post(
 /// open → walk the seven Nest questions as JSON → complete → status →
 /// idempotent approve → download the filled packet.
 #[tokio::test]
-#[ignore = "TODO(#235 follow-up): per-state audience/prompt-translation — the \
-            walker step JSON surfaces the per-state radio `choices:` block from the \
-            template state, not the (now empty) registry question's choices"]
+#[ignore = "TODO(#235 follow-up): the walker step JSON surfaces the per-state \
+            radio `choices:` block from the template state, not the registry question"]
 #[allow(clippy::too_many_lines)]
 async fn nest_walker_json_step_and_document_download_drive_the_formation() {
     let app = build_app().await;

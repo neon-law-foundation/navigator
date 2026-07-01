@@ -192,22 +192,15 @@ mod tests {
         .insert(db)
         .await
         .unwrap();
-        for code in [
-            "client_name",
-            "client_email",
-            "project_name",
-            "product_description",
-        ] {
-            question::ActiveModel {
-                code: ActiveValue::Set(code.into()),
-                prompt: ActiveValue::Set(format!("Prompt for {code}")),
-                answer_type: ActiveValue::Set("string".into()),
-                ..Default::default()
-            }
-            .insert(db)
-            .await
-            .unwrap();
+        question::ActiveModel {
+            code: ActiveValue::Set("custom_text".into()),
+            prompt: ActiveValue::Set("Prompt for custom text".into()),
+            answer_type: ActiveValue::Set("string".into()),
+            ..Default::default()
         }
+        .insert(db)
+        .await
+        .unwrap();
         person::ActiveModel {
             name: ActiveValue::Set("Libra".into()),
             email: ActiveValue::Set("libra@example.com".into()),
@@ -277,7 +270,7 @@ mod tests {
         seed(&db).await;
         let runtime = InMemoryRuntime::new();
         let (id, code) = start_retainer(&db, &runtime).await;
-        assert_eq!(code, "client_name");
+        assert_eq!(code, "custom_text__client_name");
 
         let out = call(
             &db,
@@ -294,7 +287,7 @@ mod tests {
         assert_eq!(out["structuredContent"]["status"], "needs_answer");
         assert_eq!(
             out["structuredContent"]["next_question"]["code"],
-            "client_email"
+            "custom_text__client_email"
         );
     }
 
@@ -305,10 +298,10 @@ mod tests {
         let runtime = InMemoryRuntime::new();
         let (id, mut code) = start_retainer(&db, &runtime).await;
         let values = [
-            ("client_name", "Libra"),
-            ("client_email", "libra@example.com"),
-            ("project_name", "Apollo"),
-            ("product_description", "rocket"),
+            ("custom_text__client_name", "Libra"),
+            ("custom_text__client_email", "libra@example.com"),
+            ("custom_text__project_name", "Apollo"),
+            ("custom_text__product_description", "rocket"),
         ];
         let mut last: Value = Value::Null;
         for (expected_code, value) in values {
@@ -349,7 +342,7 @@ mod tests {
             None,
             &json!({
                 "notation_id": id,
-                "question_code": "project_name",
+                "question_code": "custom_text__project_name",
                 "value": "Apollo",
             }),
         )
@@ -357,7 +350,10 @@ mod tests {
         .unwrap_err();
         match err {
             ToolError::InvalidArguments(m) => {
-                assert!(m.contains("client_name") && m.contains("project_name"));
+                assert!(
+                    m.contains("custom_text__client_name")
+                        && m.contains("custom_text__project_name")
+                );
             }
             other => panic!("expected InvalidArguments, got {other:?}"),
         }
@@ -374,7 +370,7 @@ mod tests {
             None,
             &json!({
                 "notation_id": Uuid::nil(),
-                "question_code": "client_name",
+                "question_code": "custom_text__client_name",
                 "value": "Libra",
             }),
         )

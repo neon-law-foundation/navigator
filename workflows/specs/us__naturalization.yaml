@@ -10,8 +10,6 @@ questionnaire:
   custom_text__country_of_birth:
     _: custom_text__country_of_citizenship
   custom_text__country_of_citizenship:
-    _: custom_text__a_number
-  custom_text__a_number:
     _: custom_datetime__lpr_since
   custom_datetime__lpr_since:
     _: custom_text__daytime_phone
@@ -32,7 +30,6 @@ prompts:
   date_of_birth: What is your date of birth?
   country_of_birth: In what country were you born?
   country_of_citizenship: Of what country are you currently a citizen or national?
-  a_number: What is your Alien Registration Number (A-Number)?
   lpr_since: On what date did you become a lawful permanent resident?
   daytime_phone: What is the best daytime phone number to reach you?
   eligibility_basis: Which path to naturalization are you applying under?

@@ -31,6 +31,7 @@ use crate::runtime::{StateMachineRuntime, WorkflowRuntimeError};
 use crate::spec::{MachineKind, QuestionnaireSpec, StateName, WorkflowSpecError};
 use crate::specs::{
     bundled_spec_yaml, prompt_overrides_from_template, prompt_overrides_from_yaml,
+    prompt_translations_from_template, prompt_translations_from_yaml,
     questionnaire_spec_from_template, questionnaire_spec_from_yaml,
 };
 
@@ -51,6 +52,8 @@ pub struct QuestionDescriptor {
 struct QuestionnaireDefinition {
     spec: QuestionnaireSpec,
     prompts: BTreeMap<String, String>,
+    #[serde(default)]
+    prompt_translations: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 /// Where the questionnaire is after a `start_notation` /
@@ -316,7 +319,14 @@ pub async fn answer_step(
     let next_state = next_after.ok_or(NotationSessionError::AlreadyComplete)?;
     let locale = resolve_locale(db, person_id).await?;
     Ok(NextStep::NeedsAnswer {
-        question: load_question(db, &next_state, &locale, &definition.prompts).await?,
+        question: load_question(
+            db,
+            &next_state,
+            &locale,
+            &definition.prompts,
+            &definition.prompt_translations,
+        )
+        .await?,
     })
 }
 
@@ -420,13 +430,17 @@ pub async fn client_intake_step(
     let mut latest_value: BTreeMap<String, String> = BTreeMap::new();
     let mut client_answer_counts: BTreeMap<String, usize> = BTreeMap::new();
     for a in answers {
-        let Some(code) = id_to_code.get(&a.question_id) else {
+        let Some(canonical_code) = id_to_code.get(&a.question_id) else {
             continue;
         };
+        let answer_code = a
+            .state_name
+            .clone()
+            .unwrap_or_else(|| canonical_code.clone());
         if a.source == answer::SOURCE_CLIENT {
-            *client_answer_counts.entry(code.clone()).or_default() += 1;
+            *client_answer_counts.entry(answer_code.clone()).or_default() += 1;
         }
-        latest_value.insert(code.clone(), answer::display_value(&a.value));
+        latest_value.insert(answer_code, answer::display_value(&a.value));
     }
     let client_answered = answered_client_states(&client_codes, client_answer_counts);
 
@@ -439,6 +453,7 @@ pub async fn client_intake_step(
             &StateName::from(code.as_str()),
             &locale,
             &definition.prompts,
+            &definition.prompt_translations,
         )
         .await?;
         return Ok(ClientIntakeStep::NeedsAnswer {
@@ -543,6 +558,7 @@ async fn questionnaire_definition_for(
         return Ok(QuestionnaireDefinition {
             spec: questionnaire_spec_from_yaml(yaml)?,
             prompts: prompt_overrides_from_yaml(yaml)?,
+            prompt_translations: prompt_translations_from_yaml(yaml)?,
         });
     }
     let storage = storage.ok_or_else(|| {
@@ -554,6 +570,7 @@ async fn questionnaire_definition_for(
     Ok(QuestionnaireDefinition {
         spec: questionnaire_spec_from_template(&body)?,
         prompts: prompt_overrides_from_template(&body)?,
+        prompt_translations: prompt_translations_from_template(&body)?,
     })
 }
 
@@ -583,7 +600,14 @@ async fn next_step_from(
         return Ok(NextStep::QuestionnaireComplete);
     }
     Ok(NextStep::NeedsAnswer {
-        question: load_question(db, &next, locale, &definition.prompts).await?,
+        question: load_question(
+            db,
+            &next,
+            locale,
+            &definition.prompts,
+            &definition.prompt_translations,
+        )
+        .await?,
     })
 }
 
@@ -601,6 +625,7 @@ async fn load_question(
     state: &StateName,
     locale: &str,
     prompts: &BTreeMap<String, String>,
+    prompt_translations: &BTreeMap<String, BTreeMap<String, String>>,
 ) -> Result<QuestionDescriptor, NotationSessionError> {
     let code = question_code_for_state(state.as_str());
     let row = question::Entity::find()
@@ -608,7 +633,11 @@ async fn load_question(
         .one(db)
         .await?
         .ok_or_else(|| NotationSessionError::QuestionNotSeeded(state.0.clone()))?;
-    let prompt = if let Some(prompt) = prompt_override_for_state(prompts, state.as_str()) {
+    let prompt = if let Some(prompt) =
+        prompt_translation_for_state(prompt_translations, state.as_str(), locale)
+    {
+        prompt.to_string()
+    } else if let Some(prompt) = prompt_override_for_state(prompts, state.as_str()) {
         prompt.to_string()
     } else {
         localize_prompt_for_state(
@@ -640,21 +669,40 @@ fn prompt_override_for_state<'a>(
     }
 }
 
+fn prompt_translation_for_state<'a>(
+    prompt_translations: &'a BTreeMap<String, BTreeMap<String, String>>,
+    state: &str,
+    locale: &str,
+) -> Option<&'a str> {
+    if locale == "en" {
+        return None;
+    }
+    let (_, prompt_key) = state.split_once("__")?;
+    prompt_translations
+        .get(locale)
+        .and_then(|translations| translations.get(prompt_key))
+        .map(String::as_str)
+}
+
 fn answered_client_states(
     client_codes: &[String],
-    mut answer_counts_by_canonical_code: BTreeMap<String, usize>,
+    mut answer_counts_by_code: BTreeMap<String, usize>,
 ) -> std::collections::BTreeSet<String> {
     let mut answered = std::collections::BTreeSet::new();
     for code in client_codes {
-        let canonical_code = question_code_for_state(code);
-        let Some(remaining) = answer_counts_by_canonical_code.get_mut(canonical_code) else {
-            continue;
-        };
-        if *remaining == 0 {
-            continue;
+        if let Some(remaining) = answer_counts_by_code.get_mut(code) {
+            if *remaining > 0 {
+                answered.insert(code.clone());
+                *remaining -= 1;
+                continue;
+            }
         }
-        answered.insert(code.clone());
-        *remaining -= 1;
+        if let Some(remaining) = answer_counts_by_code.get_mut(question_code_for_state(code)) {
+            if *remaining > 0 {
+                answered.insert(code.clone());
+                *remaining -= 1;
+            }
+        }
     }
     answered
 }
@@ -703,9 +751,7 @@ mod tests {
     };
     use std::collections::BTreeMap;
     use store::entity::answer::{SOURCE_CLIENT, SOURCE_STAFF};
-    use store::entity::{
-        answer, notation, person, project, question, question_translation, template,
-    };
+    use store::entity::{answer, notation, person, project, question, template};
     use uuid::Uuid;
 
     async fn db() -> store::Db {
@@ -783,7 +829,7 @@ mod tests {
     /// The retainer's four states share the `custom_text` question after the
     /// vocabulary collapse; per-state audience (client vs staff) is no longer
     /// expressible on a single shared question and is a follow-up (audience
-    /// must move onto the template state like prompts/choices did).
+    /// must move onto the template state like the per-state prompt metadata).
     async fn seed_retainer_questions_with_audiences(db: &store::Db) {
         seed_question(db, "custom_text").await;
     }
@@ -875,6 +921,7 @@ mod tests {
             )
             .unwrap(),
             prompts: BTreeMap::new(),
+            prompt_translations: BTreeMap::new(),
         };
         let mut active: notation::ActiveModel = row.into();
         active.questionnaire_snapshot = ActiveValue::Set(Some(serde_json::to_value(&alt).unwrap()));
@@ -904,25 +951,6 @@ mod tests {
         .id
     }
 
-    async fn add_translation(db: &store::Db, code: &str, locale: &str, prompt: &str) {
-        let q = question::Entity::find()
-            .filter(question::Column::Code.eq(code))
-            .one(db)
-            .await
-            .unwrap()
-            .unwrap();
-        question_translation::ActiveModel {
-            question_id: ActiveValue::Set(q.id),
-            locale: ActiveValue::Set(locale.into()),
-            prompt: ActiveValue::Set(prompt.into()),
-            help_text: ActiveValue::Set(None),
-            ..Default::default()
-        }
-        .insert(db)
-        .await
-        .unwrap();
-    }
-
     fn prompt_of(next: &NextStep) -> &str {
         match next {
             NextStep::NeedsAnswer { question } => question.prompt.as_str(),
@@ -931,18 +959,10 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "TODO(#235 follow-up): per-state audience + prompt translation must move onto the template state (the collapse folded these onto the shared custom_text question)"]
     async fn start_notation_renders_prompt_in_persons_preferred_language() {
         let db = db().await;
         seed_retainer_template(&db).await;
         seed_retainer_questions(&db).await;
-        add_translation(
-            &db,
-            "custom_text__client_name",
-            "es",
-            "¿Cuál es el nombre legal completo del cliente?",
-        )
-        .await;
         let person_id = seed_spanish_person(&db, "gemini@example.com").await;
         let runtime = InMemoryRuntime::new();
 
@@ -964,14 +984,13 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "TODO(#235 follow-up): per-state audience + prompt translation must move onto the template state (the collapse folded these onto the shared custom_text question)"]
     async fn missing_translation_falls_back_to_english_base_prompt() {
         // Spanish person, but no `es` translation seeded for this
         // question → the English base prompt is returned, never an
         // error and never a blank.
         let db = db().await;
-        seed_retainer_template(&db).await;
-        seed_retainer_questions(&db).await;
+        seed_template(&db, "nv__dissolution", "Dissolution").await;
+        seed_question(&db, "custom_text").await;
         let person_id = seed_spanish_person(&db, "gemini@example.com").await;
         let runtime = InMemoryRuntime::new();
 
@@ -979,15 +998,14 @@ mod tests {
             &db,
             &runtime,
             None,
-            "onboarding__retainer",
+            "nv__dissolution",
             person_id,
             seed_project(&db).await,
             None,
         )
         .await
         .unwrap();
-        // seed_question sets the base prompt to "Prompt for client_name".
-        assert_eq!(prompt_of(&outcome.next), "Prompt for client_name");
+        assert_eq!(prompt_of(&outcome.next), "What is the dissolution reason?");
     }
 
     #[tokio::test]
@@ -1014,18 +1032,10 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "TODO(#235 follow-up): per-state audience + prompt translation must move onto the template state (the collapse folded these onto the shared custom_text question)"]
     async fn answer_step_keeps_rendering_in_the_persons_language() {
         let db = db().await;
         seed_retainer_template(&db).await;
         seed_retainer_questions(&db).await;
-        add_translation(
-            &db,
-            "custom_text__client_email",
-            "es",
-            "¿Cuál es el correo del cliente?",
-        )
-        .await;
         let person_id = seed_spanish_person(&db, "gemini@example.com").await;
         let runtime = InMemoryRuntime::new();
         let started = start_notation(
@@ -1050,7 +1060,10 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(prompt_of(&next), "¿Cuál es el correo del cliente?");
+        assert_eq!(
+            prompt_of(&next),
+            "¿Cuál es la dirección de correo electrónico del cliente?"
+        );
     }
 
     #[tokio::test]
@@ -1471,7 +1484,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "TODO(#235 follow-up): per-state audience + prompt translation must move onto the template state (the collapse folded these onto the shared custom_text question)"]
+    #[ignore = "TODO(#235 follow-up): per-state audience must move onto the template state"]
     async fn client_intake_walks_only_client_facing_questions() {
         let db = db().await;
         let runtime = InMemoryRuntime::new();
@@ -1523,7 +1536,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "TODO(#235 follow-up): per-state audience + prompt translation must move onto the template state (the collapse folded these onto the shared custom_text question)"]
+    #[ignore = "TODO(#235 follow-up): per-state audience must move onto the template state"]
     async fn client_intake_progress_is_scoped_to_notation() {
         let db = db().await;
         let runtime = InMemoryRuntime::new();
@@ -1627,7 +1640,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "TODO(#235 follow-up): per-state audience + prompt translation must move onto the template state (the collapse folded these onto the shared custom_text question)"]
+    #[ignore = "TODO(#235 follow-up): per-state audience must move onto the template state"]
     async fn record_client_answer_rejects_staff_only_question() {
         let db = db().await;
         let runtime = InMemoryRuntime::new();

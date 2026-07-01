@@ -15,6 +15,12 @@ prompts:
   client_email: What is the client's email address?
   project_name: What is the project name for this engagement?
   product_description: Describe the services this retainer covers.
+prompt_translations:
+  es:
+    client_name: ¿Cuál es el nombre legal completo del cliente?
+    client_email: ¿Cuál es la dirección de correo electrónico del cliente?
+    project_name: ¿Cuál es el nombre del proyecto para este encargo?
+    product_description: Describa los servicios que cubre este acuerdo de representación.
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__client

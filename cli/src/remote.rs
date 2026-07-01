@@ -496,6 +496,7 @@ pub async fn notation_create(
             .post(format!("{base}/portal/admin/retainers/new"))
             .bearer_auth(&token)
             .form(&[
+                ("client_email", client_email),
                 ("custom_text__client_email", client_email),
                 ("retainer_template_code", template),
             ])
