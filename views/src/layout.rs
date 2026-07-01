@@ -451,6 +451,21 @@ impl<'a> PageLayout<'a> {
                                 &i18n::t(self.locale, "footer.github_star"),
                             ))
                         }
+                        // The very last line: a friendly, unaffiliated nod to
+                        // the German law firm that shares our name at neon.law
+                        // — we disclaim any connection but happily point
+                        // clients their way for matters in Germany or the
+                        // wider EU.
+                        p."mt-3"."small"."text-body-secondary"."mb-0" {
+                            (FIRM_BRAND.site_name) " is not affiliated with "
+                            (external_link_with_class(
+                                "https://neon.law",
+                                "link-secondary",
+                                html! { "NEON" },
+                            ))
+                            ", a German law firm. We do recommend them if you "
+                            "need help in \u{1F1E9}\u{1F1EA} or \u{1F1EA}\u{1F1FA}."
+                        }
                     }
                 }
             }
@@ -1101,9 +1116,10 @@ mod tests {
 
     #[test]
     fn footer_sections_render_top_to_bottom_in_order() {
-        // The reorder this footer now ships: postal addresses → legal-
-        // services attribution → legal-advice disclaimer → joint copyright →
-        // release/star CTA. Each marker is unique within the footer.
+        // The order this footer ships: postal addresses → legal-services
+        // attribution → legal-advice disclaimer → joint copyright →
+        // release/star CTA → the unaffiliated-NEON nod as the very last
+        // line. Each marker is unique within the footer.
         let footer = firm_footer();
         let pos = |needle: &str| {
             footer
@@ -1115,15 +1131,47 @@ mod tests {
         let disclaimer = pos("Nothing on this site is legal advice");
         let copyright = pos("© 2026");
         let star_cta = pos("bi-star-fill");
+        let neon_nod = pos("is not affiliated with");
         assert!(
             addresses < attribution
                 && attribution < disclaimer
                 && disclaimer < copyright
-                && copyright < star_cta,
-            "footer order should be addresses < attribution < disclaimer < copyright < star, \
-             got addresses={addresses} attribution={attribution} disclaimer={disclaimer} \
-             copyright={copyright} star={star_cta}: {footer}"
+                && copyright < star_cta
+                && star_cta < neon_nod,
+            "footer order should be addresses < attribution < disclaimer < copyright < star < \
+             neon, got addresses={addresses} attribution={attribution} disclaimer={disclaimer} \
+             copyright={copyright} star={star_cta} neon={neon_nod}: {footer}"
         );
+    }
+
+    #[test]
+    fn footer_disclaims_the_unaffiliated_german_neon_law_firm() {
+        // A friendly, unaffiliated nod to neon.law, the German law firm that
+        // shares our name: we disclaim any connection but point EU/DE matters
+        // their way. The link is an off-site anchor (opens safely), and the
+        // flag emoji render as Unicode 🇩🇪 / 🇪🇺. The nod lives in the one
+        // shared footer block, so it must render on both firm- and
+        // Foundation-branded pages.
+        for (brand, footer) in [("firm", firm_footer()), ("foundation", foundation_footer())] {
+            assert!(
+                footer.contains("is not affiliated with"),
+                "{brand} footer should carry the NEON disclaimer: {footer}"
+            );
+            assert!(
+                footer.contains("href=\"https://neon.law\"") && footer.contains(">NEON "),
+                "{brand} footer should link the German NEON firm off-site: {footer}"
+            );
+            // Assert BOTH flags independently: 🇩🇪 is U+1F1E9 U+1F1EA and 🇪🇺
+            // is U+1F1EA U+1F1FA, so the two flags share U+1F1EA — checking
+            // only U+1F1E9 + U+1F1EA would pass on the German flag alone.
+            // U+1F1FA is unique to the EU flag, so it pins the EU flag too.
+            assert!(
+                footer.contains('\u{1F1E9}')
+                    && footer.contains('\u{1F1EA}')
+                    && footer.contains('\u{1F1FA}'),
+                "{brand} footer should include the DE/EU flag emoji: {footer}"
+            );
+        }
     }
 
     #[test]
