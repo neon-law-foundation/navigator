@@ -1956,8 +1956,58 @@ mod tests {
         );
         // A free-text question carries no choices; neither does an unknown
         // code. Both answer with an empty vec rather than panicking.
-        assert!(question_choices("entity_name").is_empty());
+        assert!(question_choices("custom_text").is_empty());
         assert!(question_choices("no_such_question_code").is_empty());
+    }
+
+    /// The seed vocabulary is exactly the closed registry — every question
+    /// is a glossary ORM model (record/reference), its plural list form, or
+    /// a `custom_*` primitive. No bespoke per-matter codes. This grounds
+    /// `Question.yaml` to `store::question_registry::QuestionType` so the two
+    /// can never drift (issue #235).
+    #[test]
+    fn question_yaml_is_exactly_the_registry() {
+        use std::collections::BTreeSet;
+        let codes: BTreeSet<String> =
+            super::parse::<super::QuestionRec>(super::canonical::QUESTION, "Question.yaml")
+                .unwrap()
+                .into_iter()
+                .map(|q| q.code)
+                .collect();
+        let registry: BTreeSet<String> = crate::question_registry::QuestionType::all_tokens()
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        assert_eq!(
+            codes, registry,
+            "Question.yaml codes must be exactly store::question_registry::QuestionType"
+        );
+    }
+
+    /// Every localized prompt maps to a real question code — no orphaned
+    /// translations after a rename.
+    #[test]
+    fn question_translations_reference_only_real_codes() {
+        use std::collections::BTreeSet;
+        let codes: BTreeSet<String> =
+            super::parse::<super::QuestionRec>(super::canonical::QUESTION, "Question.yaml")
+                .unwrap()
+                .into_iter()
+                .map(|q| q.code)
+                .collect();
+        let translated: BTreeSet<String> = super::parse::<super::QuestionTranslationRec>(
+            super::canonical::QUESTION_TRANSLATION,
+            "QuestionTranslation.yaml",
+        )
+        .unwrap()
+        .into_iter()
+        .map(|q| q.code)
+        .collect();
+        let orphans: Vec<&String> = translated.difference(&codes).collect();
+        assert!(
+            orphans.is_empty(),
+            "QuestionTranslation codes with no matching Question code: {orphans:?}"
+        );
     }
 
     #[test]

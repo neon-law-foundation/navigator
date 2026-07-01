@@ -1,421 +1,147 @@
 lookup_fields:
   - code
+# Every question is one of exactly three things (issue #235): a one-to-one
+# mapping of a glossary ORM model (a record/reference type), the plural
+# "list" form of one, or a `custom_*` primitive. There are no bespoke
+# per-matter codes — a template asks for a trustee with `person__trustee`,
+# a fee status with `custom_single_choice__fee_status`, and so on. This set
+# is exactly `store::question_registry::QuestionType`; a `store` test pins
+# the two together so they can never drift.
 records:
-  - code: personal_name
-    prompt: What is your name?
-    help_text: Please include your first, middle, and last name.
-    question_type: string
-  - code: personal_address
-    prompt: What is your personal address?
-    question_type: address
-    help_text: Please verify your address.
-  - code: address
-    prompt: What is the address for {{for_label}}?
-    question_type: address
-    help_text: Please enter all of the fields.
+  # --- Record types (create/link a store::entity row) — singular ---
+  - code: person
+    prompt: Who is {{for_label}}?
+    question_type: person
+    help_text: Identify the person this answer refers to.
   - code: entity
     prompt: Which entity is {{for_label}}?
     question_type: entity
     help_text: Select the entity record this answer refers to.
+  - code: address
+    prompt: What is the address for {{for_label}}?
+    question_type: address
+    help_text: Please enter all of the address fields.
+  - code: role
+    prompt: What role does {{for_label}} hold?
+    question_type: role
+    help_text: The person's role at the entity (officer, member, director).
+  - code: filing
+    prompt: Which filing is {{for_label}}?
+    question_type: filing
+    help_text: The government filing this answer refers to.
+  - code: credential
+    prompt: What is the credential for {{for_label}}?
+    question_type: credential
+    help_text: The person's licensure in a jurisdiction.
+  - code: disclosure
+    prompt: What disclosure applies to {{for_label}}?
+    question_type: disclosure
+    help_text: A conflict or material disclosure for this matter.
+  - code: issuance
+    prompt: What stock issuance is {{for_label}}?
+    question_type: issuance
+    help_text: A stock issuance already tracked in Neon Law.
+  - code: signature
+    prompt: Please send the document for signature for {{for_label}}.
+    question_type: signature
+    help_text: Only people can sign documents. A person is identified by their label in a document.
+  - code: notarization
+    prompt: Please send the document for notarization for {{for_label}}.
+    question_type: notarization
+    help_text: Only people can notarize documents. A person is identified by their label in a document.
+  # --- Record types — aggregate (a list of the singular's shape) ---
   - code: people
     prompt: Who are the people for {{for_label}}?
     question_type: people_list
     help_text: List each person with the details needed for this document or filing.
-  - code: custom_datetime
-    prompt: What date or time applies to {{for_label}}?
-    question_type: datetime
-    help_text: Enter the date, time, year, or filing period requested by the prompt.
+  - code: entities
+    prompt: Which entities are {{for_label}}?
+    question_type: entity
+    help_text: List each entity this answer refers to.
+  - code: addresses
+    prompt: What are the addresses for {{for_label}}?
+    question_type: address
+    help_text: List each address for this answer.
+  - code: roles
+    prompt: What roles apply to {{for_label}}?
+    question_type: role
+    help_text: List each role held.
+  - code: filings
+    prompt: Which filings are {{for_label}}?
+    question_type: filing
+    help_text: List each government filing.
+  - code: credentials
+    prompt: What are the credentials for {{for_label}}?
+    question_type: credential
+    help_text: List each licensure.
+  - code: disclosures
+    prompt: What disclosures apply to {{for_label}}?
+    question_type: disclosure
+    help_text: List each disclosure for this matter.
+  - code: issuances
+    prompt: Which stock issuances are {{for_label}}?
+    question_type: issuance
+    help_text: List each stock issuance tracked in Neon Law.
+  # --- Reference types (select a seeded row) — singular ---
+  - code: jurisdiction
+    prompt: Which jurisdiction is {{for_label}}?
+    question_type: jurisdiction
+    help_text: Select the seeded jurisdiction this answer refers to.
+  - code: entity_type
+    prompt: What entity type is {{for_label}}?
+    question_type: entity_type
+    help_text: Select the kind of legal entity (LLC, Trust, Corporation, …).
+  - code: product
+    prompt: Which product is {{for_label}}?
+    question_type: product
+    help_text: Select the seeded product this engagement covers.
+  - code: statute
+    prompt: Which statute is {{for_label}}?
+    question_type: statute
+    help_text: Select the statute this answer cites.
+  - code: project
+    prompt: What is the project for {{for_label}}?
+    question_type: project
+    help_text: Select the matter this answer refers to.
+  # --- Reference types — aggregate ---
+  - code: jurisdictions
+    prompt: Which jurisdictions are {{for_label}}?
+    question_type: jurisdiction
+    help_text: List each jurisdiction this answer refers to.
+  - code: entity_types
+    prompt: Which entity types are {{for_label}}?
+    question_type: entity_type
+    help_text: List each kind of legal entity.
+  - code: products
+    prompt: Which products are {{for_label}}?
+    question_type: product
+    help_text: List each product this engagement covers.
+  - code: statutes
+    prompt: Which statutes are {{for_label}}?
+    question_type: statute
+    help_text: List each statute this answer cites.
+  # --- Custom primitives (value lives in the answer JSON, no SQL grounding) ---
   - code: custom_text
     prompt: What text should be added for {{for_label}}?
     question_type: string
-    help_text: Use this only when the template needs a one-off text answer and no reusable question code fits.
+    help_text: Use this for a one-off text answer when no glossary type fits.
   - code: custom_yes_no
     prompt: Is the answer yes or no for {{for_label}}?
     question_type: yes_no
-    help_text: Use this only when the template needs a one-off yes/no answer and no reusable question code fits.
+    help_text: Use this for a one-off yes/no answer when no glossary type fits.
   - code: custom_single_choice
     prompt: Which option applies to {{for_label}}?
     question_type: radio
-    help_text: Use this only when the template supplies a one-off set of choices and no reusable question code fits.
+    help_text: Use this when the template supplies a one-off set of choices and the respondent picks one.
   - code: custom_multiple_choice
     prompt: Which options apply to {{for_label}}?
     question_type: multiple_choice
-    help_text: Use this only when the template supplies a one-off set of choices and the respondent may select several.
+    help_text: Use this when the template supplies a one-off set of choices and the respondent may pick several.
   - code: custom_usd
     prompt: What dollar amount applies to {{for_label}}?
     question_type: custom_usd
     help_text: Enter a U.S. dollar amount with two decimal places.
-  - code: personal_ssn
-    prompt: What is your Social Security Number?
-    question_type: secret
-    help_text: Please use your 9-digit social security number.
-  - code: annual_or_amended
-    prompt: Is this an original or amended form?
-    question_type: yes_no
-    help_text: Please indicate if you are amending a previous application.
-  - code: nevada_business_id
-    prompt: What is the Nevada Business Identification Number?
-    question_type: string
-    help_text: Your Nevada Business Identification Number is given by the Secretary of State
-  - code: entity_name
-    prompt: What is the legal name of your LLC?
-    question_type: string
-    help_text: Enter the full legal name as it will appear on official documents with the Nevada Secretary of State.
-  - code: org
-    prompt: What organization are we referencing as {label}?
-    question_type: org
-    help_text: The organization must pre-exist as an org record within Neon Law.
-  - code: org_representative
-    prompt: Who will be the {label} for the {parent_label}?
-    question_type: person
-    help_text: The organization must pre-exist as an org record within Neon Law.
-  - code: person
-    prompt: Who is the {{label}}?
-    question_type: person
-    help_text: The person must pre-exist as a person record within Neon Law.
-  - code: neon_person
-    prompt: Who is the {label} for Neon Law?
-    question_type: person
-    help_text: Who from Neon Law will be signing this document on our behalf?
-  - code: reviewed_by_staff
-    prompt: Has the questionnaire been reviewed by Neon Law Staff?
-    help_text: This is not legal advice.
-    question_type: yes_no
-  - code: issuance
-    prompt: What stock issuance is the subject matter of this contract?
-    help_text: A stock issuance refers to one already tracked in Neon Law.
-    question_type: issuance
-  - code: filed_with_sos
-    prompt: Was this document filed with the Secretary of State?
-    help_text: |
-      As a staff member of Neon Law, you certify that you have taken care of this document in Neon Law or otherwise
-      interacted with the Secretary of State.
-    question_type: yes_no
-  - code: annual_or_amended
-    prompt: Is this an original annual application or is it an amendment to a previous application?
-    help_text: A new LLC registration for the Nevada Secretary of State begins with this question.
-    question_type: radio
-    choices:
-      original: Original Application
-      amended: Amendment to Previous Application
-  - code: staff_review
-    prompt: Did you review the workflow? What state would you place it in?
-    help_text: |
-      You certify that you have understood all of the documents and questionnaires relevant to this workflow and the workflow state can be updated.
-    question_type: radio
-    choices:
-      approved: Approved - Ready to File
-      needs_revision: Needs Revision
-      pending_client: Pending Client Response
-  - code: certified_mail
-    prompt: Please send the document via certified mail and collect the certified mail number and receipt.
-    help_text: |
-      Take a picture of the receipt and upload it as a document.
-    question_type: document
-  - code: signature
-    prompt: Please send the document for e-signature for {{for_label}}.
-    help_text: Only people can sign documents. A person will be identified by their label in a document.
-    question_type: signature
-  - code: notarization
-    prompt: Please send the document for notarization for {{for_label}}.
-    help_text: Only people can notarize documents. A person will be identified by their label in a document.
-    question_type: notarization
-  - code: registered_agent
-    prompt: Who is the registered agent for {{for_label}}?
-    help_text: If you have a valid subscription, you can use Neon Law Services as your registered agent.
-    question_type: registered_agent
-  - code: formation_date
-    prompt: When was the formation date of {{for_label}}?
-    help_text: When was the company formed?
-    question_type: date
-  - code: verify_eligible_lawyer
-    prompt: Can the lawyer represent the client in the context of the Notation?
-    help_text: We perform an ethics check here to ensure that lawyers abide by appropriate ethics rules.
-    question_type: person
-  - code: client_name
-    prompt: What is the client's full legal name?
-    help_text: Please include the client's first, middle, and last name as you'd like them to appear on the retainer.
-    question_type: string
-    audience: both
-  - code: client_email
-    prompt: What is the client's email address?
-    help_text: Invoices and signature requests are sent to this address.
-    question_type: string
-    audience: both
-  - code: project_name
-    prompt: What is the project name for this engagement?
-    help_text: A short matter-name that staff will use to refer to this engagement.
-    question_type: string
-    audience: staff
-  - code: product_description
-    prompt: Describe the services this retainer covers.
-    help_text: A short paragraph staff and client both agree to.
-    question_type: string
-    audience: staff
-  - code: matter_summary
-    prompt: Summarize the matter and the work the firm completed.
-    help_text: A short paragraph describing what the firm handled and what was delivered. Appears in the closing letter.
-    question_type: string
-  - code: fee_status
-    prompt: What is the fee status as the matter closes?
-    help_text: Confirms the client's balance at closing. Appears in the closing letter.
-    question_type: radio
-    choices:
-      paid_in_full: Paid in full
-      balance_due: Balance due
-      waived: Fees waived
-  - code: file_retention
-    prompt: How will the client's file be retained or returned?
-    help_text: State the retention period and how the client can request their file. Appears in the closing letter.
-    question_type: string
-  - code: next_obligation
-    prompt: What is the client's next obligation or deadline, if any?
-    help_text: Any deadline the client now owns (e.g. the next annual-report anniversary). Enter "None" if there is none.
-    question_type: string
-  - code: collector_name
-    prompt: What is the name of the debt collector contacting you?
-    help_text: The company or agency on the letter or caller ID. Add one Nautilus matter per collector.
-    question_type: string
-  - code: collector_address
-    prompt: What is the collector's mailing address?
-    question_type: address
-    help_text: The address on the collection letter. We mail the notice of representation here.
-  - code: alleged_account
-    prompt: What account or reference number is the collector using?
-    help_text: Any account, reference, or file number on the letter. Enter "Unknown" if it is not stated.
-    question_type: string
-  - code: consent_to_represent
-    prompt: Do you authorize Neon Law to represent you in communications about this debt?
-    help_text: Your yes lets us tell the collector you are represented, so it must deal with us, not you.
-    question_type: yes_no
-  - code: original_creditor
-    prompt: Who is the original creditor, if you know?
-    help_text: The company you first owed, if different from the collector. Enter "Unknown" if you are not sure.
-    question_type: string
-  - code: disputed_reason
-    prompt: What do you dispute about this debt?
-    help_text: In your words — wrong amount, not mine, already paid, too old, or something else.
-    question_type: string
-  - code: credit_bureau
-    prompt: Which credit bureau is reporting the error?
-    help_text: Pick the bureau whose report is wrong. Choose "all" if the same error is on more than one.
-    question_type: radio
-    choices:
-      equifax: Equifax
-      experian: Experian
-      transunion: TransUnion
-      all: All three
-  - code: tradeline
-    prompt: Which account on your credit report is wrong?
-    help_text: The creditor or collector name and any account number as it appears on the report.
-    question_type: string
-  - code: report_error
-    prompt: What is wrong with how this account is reported?
-    help_text: In your words — not mine, wrong balance, paid, duplicate, or wrong status.
-    question_type: string
-  - code: settlement_target
-    prompt: What amount are you offering to settle this debt for?
-    help_text: The dollar figure you want us to propose. Any savings is entirely yours — the firm takes no percentage.
-    question_type: string
-  - code: settlement_terms
-    prompt: What terms do you want on the settlement?
-    help_text: For example, a lump sum, a payment plan, or that the account is reported as paid or deleted.
-    question_type: string
-  - code: client_authorization
-    prompt: Do you authorize Neon Law to send this settlement offer on these terms?
-    help_text: Your yes lets the attorney sign and send the offer. Nothing goes out until you authorize it.
-    question_type: yes_no
-  - code: trustee_name
-    prompt: Who is the trustee of the trust?
-    help_text: The full legal name of the trustee — the person or entity holding and managing the trust property.
-    question_type: string
-  - code: trust_property
-    prompt: What property does the trust hold as its corpus?
-    help_text: Describe the assets in the trust. Real property funded into the trust needs a separate notarized deed.
-    question_type: string
-  - code: recording_consent
-    prompt: Do you consent to recording this sitting?
-    help_text: We record the sitting so we can prepare your plan accurately. California is a two-party-consent state.
-    question_type: yes_no
-  - code: testator_name
-    prompt: What is your full legal name?
-    help_text: The person whose will, trust, and directives this plan creates. Use your full legal name.
-    question_type: string
-  - code: executor_name
-    prompt: Who is the executor of your will?
-    help_text: The person who carries out your will through probate if probate is needed.
-    question_type: string
-  - code: residuary_beneficiary
-    prompt: Who receives the remainder of your estate?
-    help_text: The person who receives what remains of your estate after any specific gifts.
-    question_type: string
-  - code: successor_trustee
-    prompt: Who is the successor trustee of your trust?
-    help_text: The person who steps in to manage your trust when you no longer can, keeping the estate out of probate.
-    question_type: string
-  - code: guardian_for_minors
-    prompt: Who do you nominate as guardian for any minor children?
-    help_text: The person you want to raise your minor children. Leave blank if you have no minor children.
-    question_type: string
-  - code: healthcare_agent
-    prompt: Who is your health-care agent?
-    help_text: The person who makes medical decisions for you under your advance health-care directive.
-    question_type: string
-  - code: financial_agent
-    prompt: Who is your financial agent under a durable power of attorney?
-    help_text: The person who acts on your financial affairs under your durable financial power of attorney.
-    question_type: string
-  - code: management_structure
-    prompt: How will {{for_label}} be managed?
-    help_text: |
-      Member-managed means the owners run the company day to day themselves. Manager-managed means the owners appoint
-      one or more managers — who may also be owners — to run it. Your answer is printed on the formation papers and
-      can be changed later by amendment.
-    question_type: radio
-    audience: both
-    choices:
-      members: Managed by its members — the owners
-      managers: Managed by appointed managers
-  - code: managing_members
-    prompt: Who are the managers or managing members of {{for_label}}?
-    help_text: |
-      List each manager or managing member with their mailing address. A single-owner company usually lists just the
-      owner. The first person you list also signs the formation papers as the organizer.
-    question_type: people_list
-    audience: both
-  - code: corporate_officers
-    prompt: Who are the officers of {{for_label}}?
-    help_text: |
-      Nevada asks for the corporation's President, Secretary, and Treasurer on its initial list. One person may hold
-      more than one office. Give each officer's title and mailing address.
-    question_type: people_list
-    audience: both
-  - code: directors
-    prompt: Who serves on the board of directors of {{for_label}}?
-    help_text: |
-      List each director with their mailing address. The first director you list also signs the formation papers as
-      the incorporator.
-    question_type: people_list
-    audience: both
-  - code: trustees
-    prompt: Who are the trustees of {{for_label}}?
-    help_text: |
-      List each trustee with their mailing address. The first trustee you list also signs the formation papers, and
-      the certificate of business trust prints up to two trustees.
-    question_type: people_list
-    audience: both
-  - code: shares_authorized
-    prompt: How many shares is {{for_label}} authorized to issue?
-    help_text: |
-      The total number of shares the corporation may issue, printed in the articles. Enter digits only — many small
-      corporations authorize a simple round number.
-    question_type: string
-    audience: both
-  - code: par_value
-    prompt: What is the par value of each share, in dollars?
-    help_text: |
-      Par value is the nominal per-share dollar amount stated in the articles — for example 0.001. Your attorney
-      reviews this with the share count before anything is filed.
-    question_type: string
-    audience: both
-  # --- Immigration: naturalization intake (Form N-400) ---
-  - code: date_of_birth
-    prompt: What is your date of birth?
-    help_text: Enter your date of birth exactly as it appears on your green card and passport.
-    question_type: date
-  - code: country_of_birth
-    prompt: In what country were you born?
-    help_text: The country where you were born, even if its name or borders have since changed.
-    question_type: string
-  - code: country_of_citizenship
-    prompt: Of what country are you currently a citizen or national?
-    help_text: List your current nationality. If you hold more than one citizenship, list each of them.
-    question_type: string
-  - code: a_number
-    prompt: What is your Alien Registration Number (A-Number)?
-    help_text: |
-      The 7-to-9-digit number beginning with "A" on the front of your green card. Enter "None" if you do not have one.
-    question_type: string
-  - code: lpr_since
-    prompt: On what date did you become a lawful permanent resident?
-    help_text: The "Resident Since" date printed on the front of your green card.
-    question_type: date
-  - code: daytime_phone
-    prompt: What is the best daytime phone number to reach you?
-    help_text: The firm and USCIS use this number to reach you about your biometrics, interview, and oath appointments.
-    question_type: string
-  - code: eligibility_basis
-    prompt: Which path to naturalization are you applying under?
-    help_text: |
-      Most applicants qualify after five years as a permanent resident, or after three years if married to and living
-      with the same U.S. citizen the whole time. Military service is its own path. Your attorney confirms your basis.
-    question_type: radio
-    choices:
-      five_year: Five years as a permanent resident
-      three_year_marriage: Three years married to a U.S. citizen
-      military: Qualifying U.S. military service
-  - code: marital_status
-    prompt: What is your current marital status?
-    help_text: Your status today. If it is about to change, tell your attorney so the application reflects the right date.
-    question_type: radio
-    choices:
-      single: Single, never married
-      married: Married
-      divorced: Divorced
-      widowed: Widowed
-  - code: time_outside_us
-    prompt: About how many total days have you spent outside the United States in the last five years?
-    help_text: |
-      A rough total across all your trips is fine for intake — your attorney reviews the exact dates with you. Long or
-      frequent trips can affect the continuous-residence requirement, so it is better to over-report than under-report.
-    question_type: string
-  - code: good_moral_character
-    prompt: Is there anything in your history — arrests, citations, or unpaid taxes — your attorney should know before we file?
-    help_text: |
-      Naturalization asks you to show good moral character. Telling your attorney early, in confidence, lets us handle
-      anything the right way. A "yes" is not a problem — it is a conversation, and nothing is shared without your say.
-    question_type: yes_no
-  - code: nonprofit_legal_name
-    prompt: What is the full legal name of the nonprofit organization?
-    help_text: Enter the organization's exact legal name as it appears on its incorporation documents.
-    question_type: string
-  - code: nonprofit_state
-    prompt: In which U.S. state is the nonprofit incorporated?
-    help_text: Enter the full state name as it will appear in the agreement, for example Nevada or California, not NV or CA.
-    question_type: string
-  - code: worker_legal_name
-    prompt: What is the worker's full legal name?
-    help_text: The full legal name of the employee or contractor who will sign this agreement.
-    question_type: string
-  - code: worker_title
-    prompt: What is the position or title?
-    help_text: For example, Executive Director, Program Coordinator, or Bookkeeper.
-    question_type: string
-  - code: worker_duties
-    prompt: Summarize the duties or scope of work.
-    help_text: A short description of what the employee or contractor will do.
-    question_type: string
-  - code: engagement_start_date
-    prompt: What is the start date?
-    help_text: The date the employment or contractor engagement begins.
-    question_type: date
-  - code: annual_salary
-    prompt: What is the annual base salary?
-    help_text: For example, $52,000 per year. Used for the W-2 employment agreement.
-    question_type: string
-  - code: pay_schedule
-    prompt: How often is the employee paid?
-    help_text: For example, semi-monthly or every two weeks.
-    question_type: string
-  - code: contractor_rate
-    prompt: What is the contractor's compensation?
-    help_text: For example, $75 per hour or $5,000 per project. Used for the 1099 contractor agreement.
-    question_type: string
-  - code: contractor_term
-    prompt: What is the term of the engagement?
-    help_text: For example, "until the project is complete" or "through December 31, 2026."
-    question_type: string
-  - code: termination_notice_days
-    prompt: How many days' written notice may either party give to end the engagement?
-    help_text: Enter a whole number only, with no unit suffix. For example, enter 14 or 30, not "14 days".
-    question_type: string
+  - code: custom_datetime
+    prompt: What date or time applies to {{for_label}}?
+    question_type: datetime
+    help_text: Enter the date, time, year, or filing period requested by the prompt.
