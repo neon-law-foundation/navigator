@@ -144,7 +144,6 @@ mod tests {
             entity_id: ActiveValue::Set(None),
             project_id: ActiveValue::Set(project.id),
             state: ActiveValue::Set("draft".into()),
-            signature_request_id: ActiveValue::Set(None),
             delivery: ActiveValue::Set(notation::DELIVERY_EMBEDDED.into()),
             ..Default::default()
         }

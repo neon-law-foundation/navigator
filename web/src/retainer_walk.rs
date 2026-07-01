@@ -1436,9 +1436,11 @@ async fn dispatch_signature(
         .ok_or(WorkflowDriveError::TemplateMissing(notation_id))?;
 
     // Idempotency: this notation already has an envelope out. Reuse the
-    // persisted id, fire nothing, send nothing — the post-state is
+    // recorded id, fire nothing, send nothing — the post-state is
     // whatever the notation already records.
-    if let Some(existing) = notation_row.signature_request_id.clone() {
+    if let Some(existing) =
+        store::signatures::request_id_for_notation(&state.db, notation_id).await?
+    {
         return Ok((
             StateName::from(notation_row.state.as_str()),
             crate::signature::SignatureRequestId(existing),
@@ -1555,9 +1557,11 @@ pub async fn approve_send_post(
         let workflow_state = notation_row
             .as_ref()
             .map_or_else(String::new, |n| n.state.clone());
-        let signature_request_id = notation_row
-            .as_ref()
-            .and_then(|n| n.signature_request_id.clone());
+        let signature_request_id =
+            store::signatures::request_id_for_notation(&state.db, notation_id)
+                .await
+                .ok()
+                .flatten();
         let rendered = render_assembled_document(&state, notation_id)
             .await
             .unwrap_or_else(|e| {
@@ -1681,6 +1685,10 @@ pub async fn review_get(
     else {
         return (StatusCode::NOT_FOUND, "notation not found").into_response();
     };
+    let signature_request_id = store::signatures::request_id_for_notation(&state.db, notation_id)
+        .await
+        .ok()
+        .flatten();
 
     // `?format=json` is the machine-readable view the `navigator notation
     // status` CLI command reads — the workflow state, the signature
@@ -1700,7 +1708,7 @@ pub async fn review_get(
         return axum::Json(serde_json::json!({
             "notation_id": notation_id,
             "state": notation_row.state,
-            "signature_request_id": notation_row.signature_request_id,
+            "signature_request_id": signature_request_id,
             "delivery": notation_row.delivery,
             "document_ready": document_ready,
         }))
@@ -1716,7 +1724,7 @@ pub async fn review_get(
     views::pages::admin::retainers::result(&views::pages::admin::retainers::IntakeResult {
         notation_id,
         workflow_state: notation_row.state.as_str(),
-        signature_request_id: notation_row.signature_request_id.as_deref(),
+        signature_request_id: signature_request_id.as_deref(),
         rendered,
         csrf_token: &token,
     })
@@ -2193,21 +2201,21 @@ fn context_from_answers(
     ctx
 }
 
-/// Stamp the e-signature provider's request id onto the notation so a
-/// later completion webhook can find it. See
-/// [`crate::esignature_webhook`].
+/// Record the e-signature provider's request id in `signatures` so a
+/// later completion webhook can resolve its callback by `(provider,
+/// provider_id)`. See [`crate::esignature_webhook`].
 async fn persist_signature_request_id(
     db: &store::Db,
     notation_id: Uuid,
     request_id: &str,
 ) -> Result<(), sea_orm::DbErr> {
-    let existing = notation::Entity::find_by_id(notation_id)
-        .one(db)
-        .await?
-        .ok_or_else(|| sea_orm::DbErr::RecordNotFound(format!("notation {notation_id}")))?;
-    let mut active: notation::ActiveModel = existing.into();
-    active.signature_request_id = ActiveValue::Set(Some(request_id.to_string()));
-    active.update(db).await?;
+    store::signatures::record_request(
+        db,
+        notation_id,
+        store::entity::signature::SignatureProvider::DocuSign,
+        request_id,
+    )
+    .await?;
     Ok(())
 }
 

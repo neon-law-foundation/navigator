@@ -384,6 +384,17 @@ erDiagram
         TEXT inserted_at
         TEXT updated_at
     }
+    notarizations {
+        UUID id PK
+        UUID notation_id FK
+        UUID notary_person_id FK
+        UUID document_id FK
+        CHARACTER VARYING provider
+        CHARACTER VARYING provider_id
+        CHARACTER VARYING notarized_at
+        CHARACTER VARYING inserted_at
+        CHARACTER VARYING updated_at
+    }
     notation_clauses {
         UUID id PK
         UUID notation_id FK
@@ -414,7 +425,6 @@ erDiagram
         UUID project_id FK
         TEXT inserted_at
         TEXT updated_at
-        CHARACTER VARYING signature_request_id
         CHARACTER VARYING delivery
         INTEGER discount_pct
         BIGINT discount_amount_cents
@@ -566,6 +576,17 @@ erDiagram
         TEXT inserted_at
         TEXT updated_at
     }
+    signatures {
+        UUID id PK
+        UUID notation_id FK
+        UUID signer_person_id FK
+        CHARACTER VARYING field
+        CHARACTER VARYING provider
+        CHARACTER VARYING provider_id
+        CHARACTER VARYING signed_at
+        CHARACTER VARYING inserted_at
+        CHARACTER VARYING updated_at
+    }
     statute_revisions {
         UUID id PK
         UUID statute_id FK
@@ -689,6 +710,9 @@ erDiagram
     entity_billing_profiles ||--o{ invoices : "entity_billing_profile_id"
     mailrooms ||--o{ letters : "mailroom_id"
     addresses ||--o{ mailrooms : "address_id"
+    notations ||--o{ notarizations : "notation_id"
+    persons ||--o{ notarizations : "notary_person_id"
+    documents ||--o{ notarizations : "document_id"
     notations ||--o{ notation_clauses : "notation_id"
     persons ||--o{ notation_clauses : "authored_by_person_id"
     notations ||--o{ notation_events : "notation_id"
@@ -708,6 +732,8 @@ erDiagram
     persons ||--o{ relationship_logs : "actor_person_id"
     notations ||--o{ review_documents : "notation_id"
     entities ||--o{ share_issuances : "entity_id"
+    notations ||--o{ signatures : "notation_id"
+    persons ||--o{ signatures : "signer_person_id"
     statutes ||--o{ statute_revisions : "statute_id"
     projects ||--o{ templates : "project_id"
     blobs ||--o{ templates : "blob_id"
@@ -715,5 +741,4 @@ erDiagram
     persons ||--o{ testimonials : "person_id"
     products ||--o{ testimonials : "product_code"
     projects ||--o{ xero_invoices : "project_id"
-
 ```

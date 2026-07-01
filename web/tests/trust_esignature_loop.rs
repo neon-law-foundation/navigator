@@ -193,7 +193,13 @@ async fn full_trust_signature_loop_reaches_end_through_generalized_path() {
         .unwrap()
         .unwrap();
     assert_eq!(row.state, "sent_for_signature__pending");
-    assert_eq!(row.signature_request_id.as_deref(), Some(ENVELOPE_ID));
+    assert_eq!(
+        store::signatures::request_id_for_notation(&db, nid)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(ENVELOPE_ID)
+    );
 
     // Anchor + identity proof: the trust template's signature blocks
     // travelled template -> Typst -> rendered PDF -> DocuSign envelope,
