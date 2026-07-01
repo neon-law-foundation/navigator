@@ -16,7 +16,7 @@ workflows    lib   — durable workflow primitives (Restate-shaped); `web` submi
 workflows-service bin `workflows-service` — Restate worker; hosts the `Notation`, `Archives`, `Statutes`, billing-canary services + journal; only `restate-sdk` consumer
 cloud        lib   — storage trait + GCS/Fs backends
 live-inquiry lib   — provider-agnostic transcript segments, Inquiry normalization, and Coverage Findings for live-coverage demos/runtime
-mcp          lib   — MCP server merged into `web` at /mcp (Claude / LibreChat / Cursor)
+mcp          lib   — MCP server merged into `web` at /mcp (Claude / LibreChat)
 features     lib   — Cucumber-rust BDD suite (`cargo test -p features`)
 forms        lib   — vendored government forms registry (bucket-shaped paths + bundled canonical PDFs)
 lsp          bin   `navigator-lsp` — LSP server: rule diagnostics + source.fixAll

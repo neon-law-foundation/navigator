@@ -183,9 +183,8 @@ output land in `/tmp/navigator-screenshots/`, never the repo.
 Surfacing it for review (step 2) is the load-bearing part — a human (or the next agent) sees the change before it
 merges. Keep the capture in `/tmp`; **do not commit it or create an image-hosting branch.** To make the image actually
 render on the github.com PR page, embed it from the CLI with [[pr-image-upload]] — it uploads the `/tmp` capture to
-GitHub's `user-attachments` CDN and returns a real URL for the body (zero repo pollution, no drag-drop). Inside Cursor
-Cloud, skip that and use the artifact tags its PR tool resolves (see `CLAUDE.md`). See [[web-preview]] §5–6 for the
-WebDriver+`gifski` recipe and the sharing rules.
+GitHub's `user-attachments` CDN and returns a real URL for the body (zero repo pollution, no drag-drop). See
+[[web-preview]] §5–6 for the WebDriver+`gifski` recipe and the sharing rules.
 
 ## Step 7 — Push and open the PR against `main`
 

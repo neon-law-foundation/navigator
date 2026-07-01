@@ -440,7 +440,7 @@ fn skill_from_descriptor(descriptor: &Value) -> Skill {
 }
 
 /// Drop the `aida_` MCP namespace from a tool name. The prefix exists
-/// because MCP clients (Claude.ai Connectors, LibreChat, Cursor)
+/// because MCP clients (Claude.ai Connectors, LibreChat)
 /// flatten tools from every connected server into one list — the
 /// namespace prevents collisions. On A2A there is exactly one agent
 /// per card, so the namespace is implicit and the prefix is noise.
