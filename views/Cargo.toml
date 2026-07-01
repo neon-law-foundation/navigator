@@ -24,6 +24,7 @@ test-support = []
 # Layer-1 accessibility gate (`tests/accessibility.rs`) scans rendered
 # maud for structural invariants — already resolved in the lockfile.
 regex = "1"
+rules.workspace = true
 
 [lints]
 workspace = true

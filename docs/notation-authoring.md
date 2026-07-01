@@ -290,8 +290,10 @@ would reintroduce the duplicate-effect bug on replay.
 ## Documents and PDFs
 
 **What we have.** A dedicated `pdf` crate renders a Typst document to PDF bytes in pure Rust (no shell-out), in the firm
-typeface Noto Serif, with a redaction helper. The retainer flow substitutes `{{placeholder}}` tokens from the notation's
-answers in `web`, then threads the result to the **worker** as a `DocumentPayload` on the `approved` signal; the
+typeface Noto Serif, with a redaction helper. Preview, offline rendering, form-fill, and final document generation share
+one notation evaluator for bare placeholders, dotted fields, and aggregate loops; final signed documents evaluate data
+placeholders first, then expand signature anchors into Typst blocks and the e-signature manifest. The retainer flow
+threads the evaluated Typst source to the **worker** as a `DocumentPayload` on the `approved` signal; the
 `document_open__retainer_pdf` step calls `pdf::render` and persists the bytes through the `cloud::StorageService` seam
 (`FsStorage` in dev, GCS in prod) at `notations/<id>/retainer.pdf`, wrapped in `ctx.run` for replay-idempotent
 durability. `web` reads the PDF back from storage to hand to the signature provider. This is one-directional: template →
@@ -301,8 +303,9 @@ fresh PDF.
 letter to send by hand, a draft for review), `navigator render <template.md> --out <file.pdf>` takes any
 validation-passing notation template and compiles it in pure Rust. Because templates are authored in **Markdown** but
 the `pdf` crate compiles **Typst**, the body is converted by `pdf::markdown::to_typst` (headings, emphasis, lists, block
-quotes, inline code, links) before rendering — the missing seam between the two markups. The command validates the file
-against the same rule set as `navigator validate` and refuses to render a template with any violation.
+quotes, inline code, links) before rendering. The command validates the file against the same rule set as `navigator
+validate`, refuses to render a template with any violation, and fills placeholders through the same notation evaluator
+used by preview and final PDF generation.
 
 **Output formats — the letterhead seam.** How the document is dressed is an `OutputFormat` (`pdf::format`): `plain`
 (page geometry + firm typeface) or `letter` (Neon Law letterhead with the embedded logo). A template declares its

@@ -1754,11 +1754,10 @@ fn run_render(
         }
     };
 
-    // Body is everything after the frontmatter block; fill placeholders.
-    let mut body = strip_frontmatter(&contents).to_string();
-    for (code, value) in answers {
-        body = body.replace(&format!("{{{{{code}}}}}"), value);
-    }
+    // Body is everything after the frontmatter block; fill placeholders
+    // through the same evaluator as preview and final document generation.
+    let answer_context = answers.iter().cloned().collect();
+    let body = views::notation::fill(strip_frontmatter(&contents), &answer_context);
 
     // Source the letterhead from the canonical firm brand so the
     // rendered address honors the same `NAVIGATOR_*` overrides as the
