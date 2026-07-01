@@ -16,6 +16,14 @@ to it; the engine glues them together.
 To consume the library, depend on it from another workspace crate and hand a `Vec<Box<dyn Rule>>` to `RuleEngine::new`.
 The `navigator_default_rules()` and `navigator_markdown_only_rules()` constructors are the bundled starting points.
 
+## Rule codes
+
+A rule code is a **family letter followed by digits — never a trailing letter**: `M057`, not `M057a`. The families are
+`M` (Markdown lint), `N` (Notation frontmatter/shape), `E` (event), `C` (content page), and `S` (structural, e.g. line
+length). When one concern needs two rules — say a disk-resolution check and a web-portability check — give each its own
+number (`M057` and `M061`), because a code carries exactly one severity and reads as one diagnostic. The
+`rule_codes_are_a_letter_prefix_then_digits_only` test enforces this grammar across every shipped rule set.
+
 ## What's next
 
 `cli` depends on this crate. To add a new notation rule, follow the N-family pattern — one file under `src/` with unit

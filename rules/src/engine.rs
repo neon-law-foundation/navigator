@@ -421,15 +421,15 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
         M004ULStyle, M005ListIndent, M007ULIndent, M009NoTrailingSpaces, M010NoHardTabs,
         M011NoReversedLinks, M012NoMultipleBlanks, M018NoMissingSpaceATX, M019NoMultipleSpaceATX,
         M020NoMissingSpaceClosedATX, M021NoMultipleSpaceClosedATX, M022BlanksAroundHeadings,
-        M023HeadingStartLeft, M024NoDuplicateHeading, M026NoTrailingPunctuation,
+        M023HeadingStartLeft, M024NoDuplicateHeading, M025SingleH1, M026NoTrailingPunctuation,
         M027NoMultipleSpaceBlockquote, M028NoBlanksBlockquote, M029OLPrefix, M030ListMarkerSpace,
         M031BlanksAroundFences, M032BlanksAroundLists, M034NoBareUrls, M035HRStyle,
         M037NoSpaceInEmphasis, M038NoSpaceInCode, M039NoSpaceInLinks, M040FencedCodeLanguage,
         M042NoEmptyLinks, M045NoAltText, M046CodeBlockStyle, M047SingleTrailingNewline,
         M048CodeFenceStyle, M049EmphasisStyle, M050StrongStyle, M051LinkFragments,
         M052ReferenceLinksImages, M053LinkImageReferenceDefinitions, M054LinkImageStyle,
-        M055TablePipeStyle, M056TableColumnCount, M058BlanksAroundTables, M059DescriptiveLinkText,
-        M060TableColumnStyle, S101LineLength,
+        M055TablePipeStyle, M056TableColumnCount, M057RelativeLinkResolves, M058BlanksAroundTables,
+        M059DescriptiveLinkText, M060TableColumnStyle, M061WebPortableLink, S101LineLength,
     };
     vec![
         Box::new(S101LineLength::default()),
@@ -467,6 +467,7 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
         Box::new(M022BlanksAroundHeadings),
         Box::new(M023HeadingStartLeft),
         Box::new(M024NoDuplicateHeading),
+        Box::new(M025SingleH1),
         Box::new(M026NoTrailingPunctuation),
         Box::new(M027NoMultipleSpaceBlockquote),
         Box::new(M028NoBlanksBlockquote),
@@ -493,9 +494,11 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
         Box::new(M054LinkImageStyle),
         Box::new(M055TablePipeStyle),
         Box::new(M056TableColumnCount),
+        Box::new(M057RelativeLinkResolves),
         Box::new(M058BlanksAroundTables),
         Box::new(M059DescriptiveLinkText),
         Box::new(M060TableColumnStyle),
+        Box::new(M061WebPortableLink),
     ]
 }
 
@@ -534,6 +537,15 @@ pub fn navigator_markdown_only_rules() -> Vec<Box<dyn Rule>> {
         .into_iter()
         .filter(|r| !r.code().starts_with('N') && !r.code().starts_with('E'))
         .collect();
+    // M036 (emphasis-as-heading) is prose-only, not in the default
+    // (notation-template) set: legal template bodies legitimately set
+    // standalone bold labels in signature blocks (`**Employee**`), which
+    // are not headings. Slot it in canonical order, right after M035.
+    let insert_m036 = rules
+        .iter()
+        .position(|r| r.code() == "M035")
+        .map_or(rules.len(), |i| i + 1);
+    rules.insert(insert_m036, Box::new(crate::M036NoEmphasisAsHeading));
     // Place S102 right after S101 so the two line-length rules sit
     // next to each other.
     let insert_at = rules
@@ -877,10 +889,10 @@ mod tests {
     const EXPECTED_DEFAULT_RULE_CODES: &[&str] = &[
         "S101", "N101", "N102", "N103", "N104", "N105", "N106", "N107", "N108", "N109", "N110",
         "N112", "N113", "N114", "N115", "E002", "M001", "M003", "M004", "M005", "M007", "M009",
-        "M010", "M011", "M012", "M018", "M019", "M020", "M021", "M022", "M023", "M024", "M026",
-        "M027", "M028", "M029", "M030", "M031", "M032", "M034", "M035", "M037", "M038", "M039",
-        "M040", "M042", "M045", "M046", "M047", "M048", "M049", "M050", "M051", "M052", "M053",
-        "M054", "M055", "M056", "M058", "M059", "M060",
+        "M010", "M011", "M012", "M018", "M019", "M020", "M021", "M022", "M023", "M024", "M025",
+        "M026", "M027", "M028", "M029", "M030", "M031", "M032", "M034", "M035", "M037", "M038",
+        "M039", "M040", "M042", "M045", "M046", "M047", "M048", "M049", "M050", "M051", "M052",
+        "M053", "M054", "M055", "M056", "M057", "M058", "M059", "M060", "M061",
     ];
 
     #[test]
@@ -903,7 +915,7 @@ mod tests {
     }
 
     #[test]
-    fn navigator_markdown_only_rules_drop_n_family_and_add_s102() {
+    fn navigator_markdown_only_rules_drop_n_family_and_add_s102_and_m036() {
         use super::navigator_markdown_only_rules;
         let codes: Vec<&'static str> = navigator_markdown_only_rules()
             .iter()
@@ -912,14 +924,19 @@ mod tests {
         assert!(codes.iter().all(|c| !c.starts_with('N')));
         // The markdown-only set drops the event family too.
         assert!(codes.iter().all(|c| !c.starts_with('E')));
-        // S102 sits right after S101.
         let mut expected: Vec<&str> = EXPECTED_DEFAULT_RULE_CODES
             .iter()
             .copied()
             .filter(|c| !c.starts_with('N') && !c.starts_with('E'))
             .collect();
-        let pos = expected.iter().position(|c| *c == "S101").unwrap() + 1;
-        expected.insert(pos, "S102");
+        // M036 (emphasis-as-heading) is prose-only — added to this set
+        // rather than the default one — and sits in canonical order,
+        // right after M035.
+        let m036_pos = expected.iter().position(|c| *c == "M035").unwrap() + 1;
+        expected.insert(m036_pos, "M036");
+        // S102 sits right after S101.
+        let s102_pos = expected.iter().position(|c| *c == "S101").unwrap() + 1;
+        expected.insert(s102_pos, "S102");
         assert_eq!(codes, expected);
     }
 
