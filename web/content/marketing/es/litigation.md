@@ -13,7 +13,6 @@ pricing:
     features:
       - "Disputas comerciales, de propiedad intelectual y secretos, de contratos de software y SaaS, y societarias"
       - "Un abogado formado en grandes firmas cotiza cada fase después de la evaluación de Fase 0"
-      - "Los flujos de IA para discovery y pruebas ayudan a que el precio por fase sea predecible"
       - "Las fases se facturan una a la vez, por adelantado — sin contador por hora"
       - "¿Fuera de nuestra área, con conflicto o sin capacidad? Le referimos a abogados litigantes de confianza"
     cta_label: "Reserve una consulta"
@@ -38,10 +37,6 @@ Usted recibe una tarifa fija por fase —sin contador por hora, sin factura sorp
 cotizamos la siguiente fase antes de que empiece y la facturamos por adelantado, una fase a la vez. Conoce el precio de
 la pelea que tiene enfrente antes de comprometerse.
 
-Somos litigantes ante todo; la IA es una herramienta que usamos, no el servicio que vendemos. Donde se gana su lugar
-—discovery, revisión de documentos, organización de pruebas— mantiene el expediente completo y el precio por fase
-predecible, en apoyo del juicio del abogado.
-
 Nuestra práctica de litigio se concentra en la tecnología y las empresas que la construyen:
 
 - Disputas comerciales y empresariales
@@ -55,7 +50,7 @@ Nuestra práctica de litigio se concentra en la tecnología y las empresas que l
   <section class="litigation-phase litigation-phase-1"><p class="phase-num">Fase 1</p><h3>Alegatos</h3>
     <p>Presentar la demanda o la contestación; incluye presentar u oponerse a una moción de desestimación.</p></section>
   <section class="litigation-phase litigation-phase-2"><p class="phase-num">Fase 2</p><h3>Discovery</h3>
-    <p>Solicitudes de documentos, interrogatorios, deposiciones y e-discovery. IA reduce más costo aquí.</p></section>
+    <p>Solicitudes de documentos, interrogatorios, deposiciones y e-discovery. La fase de mayor costo.</p></section>
   <section class="litigation-phase litigation-phase-3"><p class="phase-num">Fase 3</p><h3>Mociones dispositivas</h3>
     <p>Juicio sumario, presentado u opuesto. Cotizado antes de que empiece la fase.</p></section>
   <section class="litigation-phase litigation-phase-4"><p class="phase-num">Fase 4</p><h3>Juicio</h3>

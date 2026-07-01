@@ -13,7 +13,6 @@ pricing:
     features:
       - "Commercial, IP and trade-secret, software and SaaS contract, and founder and equity disputes"
       - "A big-law-trained attorney quotes each phase up front after the Phase 0 case assessment"
-      - "AI-assisted discovery and evidence workflows help keep per-phase pricing predictable"
       - "Phases are billed one at a time, in advance — no hourly meter"
       - "Outside our lane, conflicted, or at capacity? We refer you to trial counsel we trust"
     cta_label: "Book a Consultation"
@@ -37,10 +36,6 @@ You get a flat fee per phase — no hourly meter, no surprise invoice. After a P
 phase before it begins and bill it in advance, one phase at a time. You know the price of the fight in front of you
 before you commit to it.
 
-We are litigators first; AI is a tool we use, not the service we sell. Where it earns its place — discovery, document
-review, evidence organization — it keeps the record thorough and the per-phase fee predictable, in support of the
-lawyer's judgment.
-
 Our litigation practice focuses on technology and the companies that build it:
 
 - Commercial and business disputes
@@ -54,7 +49,7 @@ Our litigation practice focuses on technology and the companies that build it:
   <section class="litigation-phase litigation-phase-1"><p class="phase-num">Phase 1</p><h3>Pleadings</h3>
     <p>File the complaint or the answer; includes filing or opposing a motion to dismiss.</p></section>
   <section class="litigation-phase litigation-phase-2"><p class="phase-num">Phase 2</p><h3>Discovery</h3>
-    <p>Document requests, interrogatories, depositions, and e-discovery. AI cuts the most cost here.</p></section>
+    <p>Document requests, interrogatories, depositions, and e-discovery. The most cost-intensive phase.</p></section>
   <section class="litigation-phase litigation-phase-3"><p class="phase-num">Phase 3</p><h3>Dispositive Motions</h3>
     <p>Summary judgment, filed or opposed. Quoted before the phase begins.</p></section>
   <section class="litigation-phase litigation-phase-4"><p class="phase-num">Phase 4</p><h3>Trial</h3>
