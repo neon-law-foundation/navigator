@@ -2313,7 +2313,10 @@ mod tests {
         // `client_name`), the next question is client_email — the
         // walker should display "step 2 of 4."
         let spec = retainer_intake_questionnaire();
-        assert_eq!(progress_for(&spec, &StateName::from("custom_text__client_name")), (2, 4));
+        assert_eq!(
+            progress_for(&spec, &StateName::from("custom_text__client_name")),
+            (2, 4)
+        );
     }
 
     #[test]

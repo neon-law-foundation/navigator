@@ -253,7 +253,8 @@ The retainer covers the project {{project_name}}.";
     #[test]
     fn nested_for_loops_match_balanced_closes() {
         // The inner `{{/for}}` must not terminate the outer loop.
-        let body = "{{#for g in groups}}[{{g.title}}: {{#for m in groups}}{{m.title}} {{/for}}]{{/for}}";
+        let body =
+            "{{#for g in groups}}[{{g.title}}: {{#for m in groups}}{{m.title}} {{/for}}]{{/for}}";
         let context = ctx(&[("groups", r#"[{"title": "A"}, {"title": "B"}]"#)]);
         let filled = super::fill(body, &context);
         assert_eq!(filled, "[A: A B ][B: A B ]", "got: {filled}");

@@ -597,9 +597,13 @@ mod tests {
 
     #[test]
     fn substitute_fills_known_codes_and_blanks_the_rest() {
-        let body = "Executor {{custom_text__executor_name}} and agent {{custom_text__financial_agent}}.";
+        let body =
+            "Executor {{custom_text__executor_name}} and agent {{custom_text__financial_agent}}.";
         let mut answers = BTreeMap::new();
-        answers.insert("custom_text__executor_name".to_string(), "Aries".to_string());
+        answers.insert(
+            "custom_text__executor_name".to_string(),
+            "Aries".to_string(),
+        );
         let out = substitute(body, &answers);
         assert!(out.contains("Executor Aries"));
         assert!(out.contains("________"));

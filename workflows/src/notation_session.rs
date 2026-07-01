@@ -1019,7 +1019,13 @@ mod tests {
         let db = db().await;
         seed_retainer_template(&db).await;
         seed_retainer_questions(&db).await;
-        add_translation(&db, "custom_text__client_email", "es", "¿Cuál es el correo del cliente?").await;
+        add_translation(
+            &db,
+            "custom_text__client_email",
+            "es",
+            "¿Cuál es el correo del cliente?",
+        )
+        .await;
         let person_id = seed_spanish_person(&db, "gemini@example.com").await;
         let runtime = InMemoryRuntime::new();
         let started = start_notation(
@@ -1277,7 +1283,9 @@ mod tests {
         let id = started.notation_id;
         // Before any answer: should be client_name.
         match current_step(&db, &runtime, None, id).await.unwrap() {
-            NextStep::NeedsAnswer { question } => assert_eq!(question.code, "custom_text__client_name"),
+            NextStep::NeedsAnswer { question } => {
+                assert_eq!(question.code, "custom_text__client_name");
+            }
             NextStep::QuestionnaireComplete => {
                 panic!("expected NeedsAnswer(client_name), got QuestionnaireComplete");
             }
@@ -1295,7 +1303,9 @@ mod tests {
         .unwrap();
         // After one answer: should be client_email.
         match current_step(&db, &runtime, None, id).await.unwrap() {
-            NextStep::NeedsAnswer { question } => assert_eq!(question.code, "custom_text__client_email"),
+            NextStep::NeedsAnswer { question } => {
+                assert_eq!(question.code, "custom_text__client_email");
+            }
             NextStep::QuestionnaireComplete => {
                 panic!("expected NeedsAnswer(client_email), got QuestionnaireComplete");
             }
@@ -1364,7 +1374,10 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(answer::display_value(&rows[0].value), "Libra");
         assert_eq!(rows[0].notation_id, Some(started.notation_id));
-        assert_eq!(rows[0].state_name.as_deref(), Some("custom_text__client_name"));
+        assert_eq!(
+            rows[0].state_name.as_deref(),
+            Some("custom_text__client_name")
+        );
         // person_id is the respondent; source + authored_by record who
         // actually entered it.
         assert_eq!(rows[0].source, SOURCE_CLIENT);
@@ -1491,9 +1504,16 @@ mod tests {
         assert_eq!(question.code, "custom_text__client_email");
         assert_eq!(position, 2);
 
-        record_client_answer(&db, None, id, "custom_text__client_email", "libra@example.com", person)
-            .await
-            .unwrap();
+        record_client_answer(
+            &db,
+            None,
+            id,
+            "custom_text__client_email",
+            "libra@example.com",
+            person,
+        )
+        .await
+        .unwrap();
         // The staff-only project_name / product_description are never
         // offered to the client; their part is done.
         assert!(matches!(
@@ -1513,9 +1533,16 @@ mod tests {
         let first_id = start_audienced_retainer_for_person(&db, &runtime, person).await;
         let second_id = start_audienced_retainer_for_person(&db, &runtime, person).await;
 
-        record_client_answer(&db, None, first_id, "custom_text__client_name", "Libra", person)
-            .await
-            .unwrap();
+        record_client_answer(
+            &db,
+            None,
+            first_id,
+            "custom_text__client_name",
+            "Libra",
+            person,
+        )
+        .await
+        .unwrap();
         record_client_answer(
             &db,
             None,
@@ -1577,9 +1604,16 @@ mod tests {
         assert_eq!(prior_value.as_deref(), Some("Staff-typed Libra"));
 
         // The client corrects it; the latest answer (client-sourced) wins.
-        record_client_answer(&db, None, id, "custom_text__client_name", "Libra Prime", person)
-            .await
-            .unwrap();
+        record_client_answer(
+            &db,
+            None,
+            id,
+            "custom_text__client_name",
+            "Libra Prime",
+            person,
+        )
+        .await
+        .unwrap();
         let latest = answer::Entity::find()
             .filter(answer::Column::PersonId.eq(person))
             .order_by_desc(answer::Column::Id)
@@ -1598,9 +1632,10 @@ mod tests {
         let db = db().await;
         let runtime = InMemoryRuntime::new();
         let (id, person) = start_audienced_retainer(&db, &runtime).await;
-        let err = record_client_answer(&db, None, id, "custom_text__project_name", "sneaky", person)
-            .await
-            .unwrap_err();
+        let err =
+            record_client_answer(&db, None, id, "custom_text__project_name", "sneaky", person)
+                .await
+                .unwrap_err();
         assert!(matches!(
             err,
             NotationSessionError::QuestionNotClientFacing(c) if c == "custom_text__project_name"
