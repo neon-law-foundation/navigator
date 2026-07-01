@@ -423,6 +423,20 @@ impl<'a> PageLayout<'a> {
                             a.link-secondary href=(terms_url()) { "Terms" } " · "
                             a.link-secondary href="/foundation/transparency" { "Transparency" }
                         }
+                        // A friendly, unaffiliated nod to the German law firm
+                        // that shares our name at neon.law — we disclaim any
+                        // connection but happily point clients their way for
+                        // matters in Germany or the wider EU.
+                        p.small."text-body-secondary"."mb-2" {
+                            (FIRM_BRAND.site_name) " is not affiliated with "
+                            (external_link_with_class(
+                                "https://neon.law",
+                                "link-secondary",
+                                html! { "NEON" },
+                            ))
+                            ", a German law firm. We do recommend them if you "
+                            "need help in \u{1F1E9}\u{1F1EA} or \u{1F1EA}\u{1F1FA}."
+                        }
                         // Bottom line: the Neon Law Navigator version and the repo-star
                         // CTA share one row, and a version ALWAYS shows. In a
                         // deployed image it is the `YY.M.D` ghcr tag this
@@ -1123,6 +1137,27 @@ mod tests {
             "footer order should be addresses < attribution < disclaimer < copyright < star, \
              got addresses={addresses} attribution={attribution} disclaimer={disclaimer} \
              copyright={copyright} star={star_cta}: {footer}"
+        );
+    }
+
+    #[test]
+    fn footer_disclaims_the_unaffiliated_german_neon_law_firm() {
+        // A friendly, unaffiliated nod to neon.law, the German law firm that
+        // shares our name: we disclaim any connection but point EU/DE matters
+        // their way. The link is an off-site anchor (opens safely), and the
+        // flag emoji render as Unicode 🇩🇪 / 🇪🇺.
+        let footer = firm_footer();
+        assert!(
+            footer.contains("is not affiliated with"),
+            "footer should carry the NEON disclaimer: {footer}"
+        );
+        assert!(
+            footer.contains("href=\"https://neon.law\"") && footer.contains(">NEON "),
+            "footer should link the German NEON firm off-site: {footer}"
+        );
+        assert!(
+            footer.contains('\u{1F1E9}') && footer.contains('\u{1F1EA}'),
+            "footer should include the DE/EU flag emoji: {footer}"
         );
     }
 
