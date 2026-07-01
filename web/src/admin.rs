@@ -1802,12 +1802,6 @@ async fn retainer_conflict_warning(
     project_form_response(state, input, msg, true).await
 }
 
-/// POST `/portal/projects` — open a matter and, when the "Send retainer
-/// for signature" box is ticked, create the retainer in the same action:
-/// client Person + `client` role + retainer Notation + seeded answers,
-/// driven to the `staff_review` gate. Unchecked, it stays a plain project
-/// create. The whole thing is one transaction, so a failed retainer never
-/// leaves a half-open matter.
 /// Eagerly stand up a matter's append-only git repo (its document system
 /// of record) so the repo exists the moment the matter is opened, rather
 /// than lazily on the first clone.
@@ -1844,6 +1838,12 @@ async fn provision_project_repo(db: &Db, project_id: Uuid) {
     }
 }
 
+/// POST `/portal/projects` — open a matter and, when the "Send retainer
+/// for signature" box is ticked, create the retainer in the same action:
+/// client Person + `client` role + retainer Notation + seeded answers,
+/// driven to the `staff_review` gate. Unchecked, it stays a plain project
+/// create. The whole thing is one transaction, so a failed retainer never
+/// leaves a half-open matter.
 #[allow(clippy::too_many_lines)]
 async fn projects_create_staff_only(
     State(state): State<AdminState>,

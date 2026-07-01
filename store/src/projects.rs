@@ -80,11 +80,13 @@ pub async fn close_for_notation(
 /// created. Returns the effective timestamp (`Some`), or `None` if the
 /// Project no longer exists.
 ///
-/// Idempotent and monotonic: the column records *first* creation, so a
-/// Project already stamped is left untouched (a replay of eager
-/// provisioning, or a later lazy-init, never rewrites the original
-/// timestamp). `updated_at` is maintained by the entity's active-model
-/// behavior.
+/// Idempotent and monotonic, enforced *atomically*: the write is a single
+/// conditional `UPDATE ... WHERE git_initialized_at IS NULL`, so only the
+/// first writer sets the column and a concurrent eager-provision replay can
+/// never overwrite the original first-creation timestamp. An already-stamped
+/// Project is left untouched and its existing stamp is returned. Because the
+/// bulk update bypasses the entity's active-model behavior, `updated_at` is
+/// bumped in the same statement.
 ///
 /// # Errors
 ///
@@ -94,17 +96,28 @@ pub async fn mark_git_initialized(
     project_id: Uuid,
     when: chrono::DateTime<chrono::Utc>,
 ) -> Result<Option<String>, sea_orm::DbErr> {
-    let Some(p) = project::Entity::find_by_id(project_id).one(db).await? else {
-        return Ok(None);
-    };
-    if p.git_initialized_at.is_some() {
-        return Ok(p.git_initialized_at);
-    }
+    use sea_orm::sea_query::Expr;
+
     let stamp = when.to_rfc3339();
-    let mut active: project::ActiveModel = p.into();
-    active.git_initialized_at = ActiveValue::Set(Some(stamp.clone()));
-    active.update(db).await?;
-    Ok(Some(stamp))
+    let res = project::Entity::update_many()
+        .col_expr(
+            project::Column::GitInitializedAt,
+            Expr::value(stamp.clone()),
+        )
+        .col_expr(project::Column::UpdatedAt, Expr::value(stamp.clone()))
+        .filter(project::Column::Id.eq(project_id))
+        .filter(project::Column::GitInitializedAt.is_null())
+        .exec(db)
+        .await?;
+    if res.rows_affected == 1 {
+        return Ok(Some(stamp));
+    }
+    // No row stamped: the Project is either already stamped (return its
+    // existing first-creation timestamp) or gone (`None`).
+    Ok(project::Entity::find_by_id(project_id)
+        .one(db)
+        .await?
+        .and_then(|p| p.git_initialized_at))
 }
 
 #[cfg(test)]
