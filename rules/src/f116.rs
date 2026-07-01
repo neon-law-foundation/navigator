@@ -124,8 +124,9 @@ fn workflow_state_line(contents: &str, state: &str) -> usize {
 }
 
 /// Every outbound-submission state reachable from `BEGIN` without a
-/// `staff_review` on the path before it. BFS over `(state, seen_review)`
-/// pairs — the review flag is part of the visit key so a state reached
+/// `staff_review` on the path before it. A depth-first graph walk over
+/// `(state, seen_review)` pairs (the `Vec` stack is LIFO) — the review
+/// flag is part of the visit key so a state reached
 /// both with and without a prior review is explored under both, and a
 /// cycle can't loop forever.
 fn ungated_submissions(workflow: &BTreeMap<String, BTreeMap<String, String>>) -> BTreeSet<String> {
