@@ -1802,6 +1802,42 @@ async fn retainer_conflict_warning(
     project_form_response(state, input, msg, true).await
 }
 
+/// Eagerly stand up a matter's append-only git repo (its document system
+/// of record) so the repo exists the moment the matter is opened, rather
+/// than lazily on the first clone.
+///
+/// Best-effort and non-fatal: if the repo volume is unconfigured
+/// (`NAVIGATOR_GIT_REPO_ROOT` unset) or the init fails, the matter is
+/// still opened and the lazy path in [`crate::git_http`] materializes the
+/// repo on first access. `git_initialized_at` is stamped only when the
+/// eager create succeeds, and the stamp records first creation, so a later
+/// lazy init never rewrites it. `ensure` is idempotent, so a replay is a
+/// no-op.
+async fn provision_project_repo(db: &Db, project_id: Uuid) {
+    let repo_store = match repos::RepoStore::from_env() {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(error = %e, %project_id, "git repo root unset; deferring to lazy init");
+            return;
+        }
+    };
+    match tokio::task::spawn_blocking(move || repo_store.ensure(project_id)).await {
+        Ok(Ok(_path)) => {
+            if let Err(e) =
+                store::projects::mark_git_initialized(db, project_id, chrono::Utc::now()).await
+            {
+                tracing::error!(error = %e, %project_id, "stamp git_initialized_at failed");
+            }
+        }
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, %project_id, "eager git repo init failed; lazy path will retry");
+        }
+        Err(e) => {
+            tracing::error!(error = %e, %project_id, "eager git repo init task panicked");
+        }
+    }
+}
+
 /// POST `/portal/projects` — open a matter and, when the "Send retainer
 /// for signature" box is ticked, create the retainer in the same action:
 /// client Person + `client` role + retainer Notation + seeded answers,
@@ -2086,6 +2122,10 @@ async fn projects_create_staff_only(
         return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
     }
 
+    // Stand up the matter's append-only git repo now that the row is
+    // committed — every matter is a repo the moment it exists.
+    provision_project_repo(&state.db, project_id).await;
+
     // Drive the workflow to the `staff_review` gate (never auto-send),
     // then land staff on the review/approve screen. The human approve
     // step is the only thing that emits the envelope.
@@ -2253,8 +2293,13 @@ async fn projects_detail_role_aware(
         });
 
     let token = csrf_token(session.as_deref());
+    // The matter's git clone URL, resolved against the deployment's public
+    // origin. Rendered only here in the staff/admin chrome — clients reach
+    // the portal view above and never see it.
+    let clone_url = repos::clone_url(&workflows::email::base_url_from_env(), existing.id);
     admin_views::projects::detail(&admin_views::projects::Detail {
         id: existing.id,
+        clone_url: &clone_url,
         name: &existing.name,
         status: &existing.status,
         entity_name: entity_name.as_deref(),

@@ -94,6 +94,17 @@ pub enum RepoError {
     Io(#[from] std::io::Error),
 }
 
+/// The public clone URL for a Project: `<base>/projects/<id>.git`.
+///
+/// `base` is the deployment's public origin (`https://www.your-domain.example`)
+/// — never hard-coded. The path matches the smart-HTTP route `web` serves,
+/// so the URL is valid whether the bare repo was provisioned eagerly at
+/// matter open or lazily on first access.
+#[must_use]
+pub fn clone_url(base: &str, project_id: Uuid) -> String {
+    format!("{}/projects/{project_id}.git", base.trim_end_matches('/'))
+}
+
 /// Where every Project's bare repo lives, and how they are created.
 ///
 /// Cheap to clone (`root` is a `PathBuf`); construct once at boot and
@@ -498,6 +509,20 @@ mod tests {
     use super::*;
     use std::process::Command;
     use tempfile::TempDir;
+
+    #[test]
+    fn clone_url_joins_without_double_slash() {
+        let id = Uuid::nil();
+        // A trailing slash on `base` must not produce `//projects`.
+        assert_eq!(
+            clone_url("https://www.example.test/", id),
+            "https://www.example.test/projects/00000000-0000-0000-0000-000000000000.git"
+        );
+        assert_eq!(
+            clone_url("https://www.example.test", id),
+            "https://www.example.test/projects/00000000-0000-0000-0000-000000000000.git"
+        );
+    }
 
     /// Run a git command in `dir`, isolated from the developer's global
     /// / system config and with a deterministic identity, so the test is

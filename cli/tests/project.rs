@@ -72,6 +72,57 @@ async fn create_project_inserts_row_linked_to_seeded_entity() {
 }
 
 #[tokio::test]
+async fn create_project_eagerly_provisions_the_git_repo() {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use store::entity::project;
+
+    let s = schema().await;
+    seed_client(&s, "Repo Client", "repo.client@example.com").await;
+    // The child process gets an isolated repo volume via its own env — no
+    // process-global `set_var`, so parallel tests are unaffected.
+    let repo_root = tempfile::tempdir().expect("repo root tempdir");
+    let out = Command::new(cargo_bin("navigator"))
+        .args([
+            "project",
+            "create",
+            "--name",
+            "Repo Matter",
+            "--entity-name",
+            "shook.family",
+            "--client-email",
+            "repo.client@example.com",
+            "--database-url",
+        ])
+        .arg(&s.url)
+        .env("NAVIGATOR_GIT_REPO_ROOT", repo_root.path())
+        .output()
+        .expect("run navigator project create");
+    assert!(
+        out.status.success(),
+        "project create failed: stderr=\n{}",
+        String::from_utf8_lossy(&out.stderr),
+    );
+
+    // The row is stamped, and the bare repo exists on the volume — eager
+    // provisioning, not lazy-on-first-clone.
+    let row = project::Entity::find()
+        .filter(project::Column::Name.eq("Repo Matter"))
+        .one(&s.db)
+        .await
+        .expect("query project")
+        .expect("project row exists");
+    assert!(
+        row.git_initialized_at.is_some(),
+        "git_initialized_at must be stamped on eager provision",
+    );
+    let repo_dir = repo_root.path().join(format!("{}.git", row.id));
+    assert!(
+        repo_dir.join("HEAD").is_file(),
+        "bare repo must exist on the volume at {repo_dir:?}",
+    );
+}
+
+#[tokio::test]
 async fn create_project_without_entity_link_is_rejected() {
     // A matter always opens against a pre-existing entity, so `project
     // create` requires `--entity-name`. The entity is resolved before
