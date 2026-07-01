@@ -221,6 +221,7 @@ fn project_forms_are_accessible() {
     // h1 (no autofocus, h2 headings).
     let detail = projects::detail(&projects::Detail {
         id: ID2,
+        clone_url: "https://nav.test/projects/x.git",
         name: "Sison Trust",
         status: "open",
         entity_name: Some("Acme"),
