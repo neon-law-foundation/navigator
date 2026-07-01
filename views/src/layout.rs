@@ -423,20 +423,6 @@ impl<'a> PageLayout<'a> {
                             a.link-secondary href=(terms_url()) { "Terms" } " · "
                             a.link-secondary href="/foundation/transparency" { "Transparency" }
                         }
-                        // A friendly, unaffiliated nod to the German law firm
-                        // that shares our name at neon.law — we disclaim any
-                        // connection but happily point clients their way for
-                        // matters in Germany or the wider EU.
-                        p.small."text-body-secondary"."mb-2" {
-                            (FIRM_BRAND.site_name) " is not affiliated with "
-                            (external_link_with_class(
-                                "https://neon.law",
-                                "link-secondary",
-                                html! { "NEON" },
-                            ))
-                            ", a German law firm. We do recommend them if you "
-                            "need help in \u{1F1E9}\u{1F1EA} or \u{1F1EA}\u{1F1FA}."
-                        }
                         // Bottom line: the Neon Law Navigator version and the repo-star
                         // CTA share one row, and a version ALWAYS shows. In a
                         // deployed image it is the `YY.M.D` ghcr tag this
@@ -464,6 +450,21 @@ impl<'a> PageLayout<'a> {
                                 foundation_github_url(),
                                 &i18n::t(self.locale, "footer.github_star"),
                             ))
+                        }
+                        // The very last line: a friendly, unaffiliated nod to
+                        // the German law firm that shares our name at neon.law
+                        // — we disclaim any connection but happily point
+                        // clients their way for matters in Germany or the
+                        // wider EU.
+                        p."mt-3"."small"."text-body-secondary"."mb-0" {
+                            (FIRM_BRAND.site_name) " is not affiliated with "
+                            (external_link_with_class(
+                                "https://neon.law",
+                                "link-secondary",
+                                html! { "NEON" },
+                            ))
+                            ", a German law firm. We do recommend them if you "
+                            "need help in \u{1F1E9}\u{1F1EA} or \u{1F1EA}\u{1F1FA}."
                         }
                     }
                 }
@@ -1115,9 +1116,10 @@ mod tests {
 
     #[test]
     fn footer_sections_render_top_to_bottom_in_order() {
-        // The reorder this footer now ships: postal addresses → legal-
-        // services attribution → legal-advice disclaimer → joint copyright →
-        // release/star CTA. Each marker is unique within the footer.
+        // The order this footer ships: postal addresses → legal-services
+        // attribution → legal-advice disclaimer → joint copyright →
+        // release/star CTA → the unaffiliated-NEON nod as the very last
+        // line. Each marker is unique within the footer.
         let footer = firm_footer();
         let pos = |needle: &str| {
             footer
@@ -1129,14 +1131,16 @@ mod tests {
         let disclaimer = pos("Nothing on this site is legal advice");
         let copyright = pos("© 2026");
         let star_cta = pos("bi-star-fill");
+        let neon_nod = pos("is not affiliated with");
         assert!(
             addresses < attribution
                 && attribution < disclaimer
                 && disclaimer < copyright
-                && copyright < star_cta,
-            "footer order should be addresses < attribution < disclaimer < copyright < star, \
-             got addresses={addresses} attribution={attribution} disclaimer={disclaimer} \
-             copyright={copyright} star={star_cta}: {footer}"
+                && copyright < star_cta
+                && star_cta < neon_nod,
+            "footer order should be addresses < attribution < disclaimer < copyright < star < \
+             neon, got addresses={addresses} attribution={attribution} disclaimer={disclaimer} \
+             copyright={copyright} star={star_cta} neon={neon_nod}: {footer}"
         );
     }
 
