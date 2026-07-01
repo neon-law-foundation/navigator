@@ -24,6 +24,7 @@ pub mod f113;
 pub mod f114;
 pub mod f115;
 pub mod frontmatter;
+pub mod links;
 pub mod m001;
 pub mod m003;
 pub mod m004;
@@ -40,6 +41,7 @@ pub mod m021;
 pub mod m022;
 pub mod m023;
 pub mod m024;
+pub mod m025;
 pub mod m026;
 pub mod m027;
 pub mod m028;
@@ -49,6 +51,7 @@ pub mod m031;
 pub mod m032;
 pub mod m034;
 pub mod m035;
+pub mod m036;
 pub mod m037;
 pub mod m038;
 pub mod m039;
@@ -66,9 +69,11 @@ pub mod m053;
 pub mod m054;
 pub mod m055;
 pub mod m056;
+pub mod m057;
 pub mod m058;
 pub mod m059;
 pub mod m060;
+pub mod m061;
 pub mod s102;
 pub mod workflow_steps;
 
@@ -107,6 +112,7 @@ pub use m021::M021NoMultipleSpaceClosedATX;
 pub use m022::M022BlanksAroundHeadings;
 pub use m023::M023HeadingStartLeft;
 pub use m024::M024NoDuplicateHeading;
+pub use m025::M025SingleH1;
 pub use m026::M026NoTrailingPunctuation;
 pub use m027::M027NoMultipleSpaceBlockquote;
 pub use m028::M028NoBlanksBlockquote;
@@ -116,6 +122,7 @@ pub use m031::M031BlanksAroundFences;
 pub use m032::M032BlanksAroundLists;
 pub use m034::M034NoBareUrls;
 pub use m035::M035HRStyle;
+pub use m036::M036NoEmphasisAsHeading;
 pub use m037::M037NoSpaceInEmphasis;
 pub use m038::M038NoSpaceInCode;
 pub use m039::M039NoSpaceInLinks;
@@ -133,9 +140,11 @@ pub use m053::M053LinkImageReferenceDefinitions;
 pub use m054::M054LinkImageStyle;
 pub use m055::M055TablePipeStyle;
 pub use m056::M056TableColumnCount;
+pub use m057::M057RelativeLinkResolves;
 pub use m058::M058BlanksAroundTables;
 pub use m059::M059DescriptiveLinkText;
 pub use m060::M060TableColumnStyle;
+pub use m061::M061WebPortableLink;
 pub use s102::S102LinePacking;
 pub use workflow_steps::{
     is_allowed_prefix, lookup as lookup_workflow_step, StepStatus, WorkflowStep, WORKFLOW_STEPS,
@@ -280,6 +289,7 @@ pub fn description_for_code(code: &str) -> &'static str {
         "M022" => "Headings must be surrounded by blank lines",
         "M023" => "Headings must start at column one",
         "M024" => "Headings must not duplicate prior siblings",
+        "M025" => "A document must have at most one top-level (H1) heading",
         "M026" => "Headings must not end with punctuation",
         "M027" => "Blockquote markers must have a single space before content",
         "M028" => "Blockquotes must not contain blank lines",
@@ -289,6 +299,7 @@ pub fn description_for_code(code: &str) -> &'static str {
         "M032" => "Lists must be surrounded by blank lines",
         "M034" => "Bare URLs must be wrapped in angle brackets",
         "M035" => "Horizontal rule style must be consistent",
+        "M036" => "Emphasis must not be used in place of a heading",
         "M037" => "Emphasis markers must not have inner whitespace",
         "M038" => "Inline code spans must not have inner whitespace",
         "M039" => "Link text must not have inner whitespace",
@@ -306,9 +317,11 @@ pub fn description_for_code(code: &str) -> &'static str {
         "M054" => "Link and image style must be consistent",
         "M055" => "Table pipe style must be consistent",
         "M056" => "Table column counts must match the header row",
+        "M057" => "Relative link targets must resolve to a file on disk",
         "M058" => "Tables must be surrounded by blank lines",
         "M059" => "Link text must be descriptive (not `here`/`click`)",
         "M060" => "Table column styles must be consistent",
+        "M061" => "Web-published docs must not link into non-rendered repo files",
         _ => "Neon Law Navigator rule violation",
     }
 }
@@ -343,7 +356,13 @@ pub enum Severity {
 #[must_use]
 pub fn severity_for_code(code: &str) -> Severity {
     match code {
-        "N112" => Severity::Warning,
+        // Two advisories that report without failing the gate: N112 is
+        // the "allowed but not built yet" step warning, and M061 is
+        // web-portability of docs links — the docs tree carries many
+        // code-file links today, so it surfaces them for cleanup rather
+        // than blocking. (M057, the disk-resolution check, stays an
+        // error — a broken path is a bug.)
+        "N112" | "M061" => Severity::Warning,
         _ => Severity::Error,
     }
 }
@@ -556,6 +575,42 @@ mod tests {
                 "Neon Law Navigator rule violation",
                 "{} has no custom description in description_for_code",
                 rule.code(),
+            );
+        }
+    }
+
+    #[test]
+    fn rule_codes_are_a_letter_prefix_then_digits_only() {
+        // The rule-code grammar is a family letter (`M` for markdown,
+        // `N`/`E`/`C`/`S`) followed by digits — never a trailing letter.
+        // A `M057a`/`M057b`-style suffix is not a code; split such a rule
+        // into two numbered codes (`M057`, `M061`) instead.
+        use super::engine::{
+            navigator_blog_rules, navigator_default_rules, navigator_event_rules,
+            navigator_markdown_only_rules, navigator_minutes_rules,
+        };
+        let mut codes: Vec<&'static str> = Vec::new();
+        for set in [
+            navigator_default_rules(),
+            navigator_markdown_only_rules(),
+            navigator_event_rules(),
+            navigator_blog_rules(),
+            navigator_minutes_rules(),
+        ] {
+            codes.extend(set.iter().map(|r| r.code()));
+        }
+        for code in codes {
+            let mut chars = code.chars();
+            let first = chars.next();
+            assert!(
+                first.is_some_and(|c| c.is_ascii_uppercase()),
+                "rule code {code:?} must start with an uppercase family letter",
+            );
+            let rest: String = chars.collect();
+            assert!(
+                !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()),
+                "rule code {code:?} must be a letter followed by digits only \
+                 (no `a`/`b` suffix — use a new number instead)",
             );
         }
     }

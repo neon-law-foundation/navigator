@@ -2,7 +2,7 @@
 //!
 //! Mirrors `markdownlint`'s MD047 (single-trailing-newline).
 
-use crate::{line_byte_range, Rule, SourceFile, Violation};
+use crate::{line_byte_range, Rule, SourceFile, TextEdit, Violation};
 
 pub struct M047SingleTrailingNewline;
 
@@ -37,6 +37,23 @@ impl Rule for M047SingleTrailingNewline {
             range: line_byte_range(&file.contents, line),
             message: message.to_string(),
         }]
+    }
+
+    fn fix(&self, file: &SourceFile, _violation: &Violation) -> Option<TextEdit> {
+        let contents = &file.contents;
+        if contents.is_empty() {
+            return None;
+        }
+        // Normalize the end-of-file to exactly one `\n`: replace the run
+        // of trailing newlines with a single one. Covers both "missing"
+        // (empty run → insert `\n`) and "too many" (collapse to one).
+        let trimmed_len = contents.trim_end_matches('\n').len();
+        // Skip a no-op edit when the file already ends with exactly one
+        // `\n`, consistent with the other `fix()` impls in this crate.
+        (&contents[trimmed_len..] != "\n").then_some(TextEdit {
+            range: trimmed_len..contents.len(),
+            new_text: "\n".to_string(),
+        })
     }
 }
 
@@ -85,5 +102,50 @@ mod tests {
     #[test]
     fn empty_file_is_exempt() {
         assert!(M047SingleTrailingNewline.lint(&file("")).is_empty());
+    }
+
+    /// Apply the rule's single fix and return the resulting contents.
+    fn fixed(body: &str) -> String {
+        let f = file(body);
+        let v = M047SingleTrailingNewline.lint(&f);
+        let edit = M047SingleTrailingNewline.fix(&f, &v[0]).expect("a fix");
+        let mut out = f.contents.clone();
+        out.replace_range(edit.range, &edit.new_text);
+        out
+    }
+
+    #[test]
+    fn fix_appends_a_missing_newline() {
+        assert_eq!(fixed("hello"), "hello\n");
+        assert_eq!(fixed("line1\nline2"), "line1\nline2\n");
+    }
+
+    #[test]
+    fn fix_collapses_extra_trailing_newlines() {
+        assert_eq!(fixed("hello\n\n"), "hello\n");
+        assert_eq!(fixed("hello\n\n\n\n"), "hello\n");
+    }
+
+    #[test]
+    fn fix_is_idempotent() {
+        // A once-fixed file lints clean, so there is nothing left to fix.
+        let once = fixed("hello\n\n\n");
+        assert!(M047SingleTrailingNewline.lint(&file(&once)).is_empty());
+    }
+
+    #[test]
+    fn fix_declines_a_noop_when_already_correct() {
+        // lint() produces no violation here, but a caller invoking fix()
+        // directly must get None rather than a redundant `\n` → `\n` edit,
+        // matching the guard on the other fix() impls in this crate.
+        let f = file("hello\n");
+        let v = crate::Violation {
+            code: M047SingleTrailingNewline::CODE,
+            path: f.path.clone(),
+            line: 1,
+            range: 0..f.contents.len(),
+            message: "unused".to_string(),
+        };
+        assert!(M047SingleTrailingNewline.fix(&f, &v).is_none());
     }
 }
