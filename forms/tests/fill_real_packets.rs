@@ -281,6 +281,10 @@ fn flatten_strips_fields_but_preserves_filled_text_for_all_packets() {
             !pdf::field_names(&filled).expect("field names").is_empty(),
             "{code}: filled packet should still be interactive before flattening"
         );
+        assert!(
+            pdf::widget_annotation_count(&filled).expect("widget count") > 0,
+            "{code}: filled packet should still carry widget annotations before flattening"
+        );
 
         let flat = pdf::flatten(&filled).expect("flatten succeeds");
 
@@ -291,6 +295,16 @@ fn flatten_strips_fields_but_preserves_filled_text_for_all_packets() {
                 .is_empty(),
             "{code}: flattened packet still exposes interactive fields — a downstream \
              tool could re-edit the filed values after staff review"
+        );
+        // …and no widget annotation survives either: the real packets
+        // store each page's /Annots behind an indirect reference, and a
+        // widget left there lets a viewer rebuild an editable field even
+        // with the AcroForm /Fields emptied.
+        assert_eq!(
+            pdf::widget_annotation_count(&flat).expect("widget count of flattened"),
+            0,
+            "{code}: flattened packet still carries widget annotations — a viewer \
+             could rebuild editable fields from them after staff review"
         );
 
         // Every filled text value still reads back as static page content.

@@ -83,9 +83,11 @@ and comb fields for free and break loudly on a re-vendor. Until that re-authorin
 The filled packet is **flattened** before it is persisted. Because a form's fill state (`document_open__*_pdf`) sits
 past `staff_review` in every packet's workflow spec, `dispatch_document_open` runs `pdf::flatten` right after
 `pdf::fill_acroform`: it paints every value onto the page (text as page content, a checked box as its own appearance
-stream), drops the widget annotations, and empties the AcroForm `/Fields`. The result freezes exactly what an attorney
-approved — no downstream viewer can re-edit a value on the way to a government office, and a viewer that ignores
-`/NeedAppearances` shows the filled values rather than a blank form.
+stream), drops the widget annotations (dereferencing the indirect `/Annots` arrays the NV packets use), and empties the
+AcroForm `/Fields`. The result freezes exactly what an attorney approved — no downstream viewer can re-edit a value on
+the way to a government office, and a viewer that ignores `/NeedAppearances` shows the filled values rather than a blank
+form. Overlay text is written in `WinAnsiEncoding` (declared on the overlay font), so accented names render correctly
+everywhere; a character outside that encoding fails the flatten loudly instead of filing a garbled glyph.
 
 One further follow-on is tracked, not yet built:
 

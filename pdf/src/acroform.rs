@@ -602,6 +602,80 @@ pub fn field_names(pdf: &[u8]) -> Result<Vec<String>, PdfError> {
     Ok(names)
 }
 
+/// Count the widget annotations reachable from the pages' `/Annots`
+/// arrays (dereferenced when indirect). This is the interactive layer a
+/// viewer can rebuild form fields from even when the AcroForm `/Fields`
+/// array is empty — so `0` here, not an empty [`field_names`], is the
+/// property that proves a [`flatten`]ed packet cannot be re-edited.
+///
+/// # Errors
+///
+/// [`PdfError::Lopdf`] if `pdf` is not a parseable PDF.
+pub fn widget_annotation_count(pdf: &[u8]) -> Result<usize, PdfError> {
+    let doc = Document::load_mem(pdf).map_err(|e| PdfError::Lopdf(e.to_string()))?;
+    let mut count = 0usize;
+    for page_id in doc.get_pages().values().copied() {
+        let annots: &Vec<Object> = match annots_slot(&doc, page_id) {
+            Some(AnnotsSlot::Inline(pid)) => match doc
+                .get_dictionary(pid)
+                .ok()
+                .and_then(|p| p.get(b"Annots").ok())
+            {
+                Some(Object::Array(a)) => a,
+                _ => continue,
+            },
+            Some(AnnotsSlot::Indirect(id)) => match doc.objects.get(&id) {
+                Some(Object::Array(a)) => a,
+                _ => continue,
+            },
+            None => continue,
+        };
+        count += annots
+            .iter()
+            .filter(|entry| {
+                let dict = match entry {
+                    Object::Reference(id) => doc.get_object(*id).and_then(Object::as_dict).ok(),
+                    Object::Dictionary(d) => Some(d),
+                    _ => None,
+                };
+                dict.is_some_and(|d| {
+                    d.get(b"Subtype").and_then(Object::as_name).ok() == Some(b"Widget")
+                })
+            })
+            .count();
+    }
+    Ok(count)
+}
+
+/// Where a page's `/Annots` array lives: inline on the page dictionary
+/// itself, or behind an indirect reference — the shape every vendored
+/// NV packet uses. Chained references are followed a bounded number of
+/// hops so a malformed cycle cannot loop.
+enum AnnotsSlot {
+    /// The array is a direct value of the page's `/Annots` key.
+    Inline(ObjectId),
+    /// The array is the standalone object with this id.
+    Indirect(ObjectId),
+}
+
+fn annots_slot(doc: &Document, page_id: ObjectId) -> Option<AnnotsSlot> {
+    match doc.get_dictionary(page_id).ok()?.get(b"Annots").ok()? {
+        Object::Array(_) => Some(AnnotsSlot::Inline(page_id)),
+        Object::Reference(first) => {
+            let mut id = *first;
+            for _ in 0..8 {
+                match doc.objects.get(&id)? {
+                    Object::Reference(next) => id = *next,
+                    Object::Array(_) => return Some(AnnotsSlot::Indirect(id)),
+                    _ => return None,
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 /// One text field's value drawn onto the page it sits on.
 struct TextDraw {
     page: ObjectId,
@@ -641,7 +715,9 @@ enum ApSource {
 /// # Errors
 ///
 /// The same parse / locate failures as [`fill_acroform`] ([`PdfError::Lopdf`],
-/// [`PdfError::NoAcroForm`], [`PdfError::XfaUnsupported`]).
+/// [`PdfError::NoAcroForm`], [`PdfError::XfaUnsupported`]), plus
+/// [`PdfError::UnencodableChar`] when a value carries a character the
+/// overlay font's `WinAnsiEncoding` cannot draw.
 pub fn flatten(pdf: &[u8]) -> Result<Vec<u8>, PdfError> {
     let mut doc = Document::load_mem(pdf).map_err(|e| PdfError::Lopdf(e.to_string()))?;
     let (acroform_id, field_ids) = locate_acroform(&doc)?;
@@ -769,7 +845,7 @@ fn paint_overlays(
     for (page_id, (page_texts, page_stamps)) in per_page {
         let mut ops: Vec<Operation> = Vec::new();
         for t in &page_texts {
-            ops.extend(text_ops(t.rect, &t.value));
+            ops.extend(text_ops(t.rect, &t.value)?);
         }
         let mut xobjects: Vec<(Vec<u8>, ObjectId)> = Vec::new();
         for s in page_stamps {
@@ -802,22 +878,32 @@ fn paint_overlays(
     Ok(())
 }
 
-/// Drop every widget annotation from the pages, empty the AcroForm's
-/// `/Fields`, clear `/NeedAppearances`, and prune the now-unreferenced
-/// field / widget objects so nothing can resurrect them as editable
-/// fields.
+/// Drop every widget annotation from the pages — dereferencing a page's
+/// `/Annots` when it is an indirect reference, the shape every vendored
+/// NV packet uses — empty the AcroForm's `/Fields`, clear
+/// `/NeedAppearances`, and prune the now-unreferenced field / widget
+/// objects so nothing can resurrect them as editable fields.
 fn strip_interactive_layer(
     doc: &mut Document,
     acroform_id: ObjectId,
     widget_ids: &BTreeSet<ObjectId>,
 ) {
     for page_id in doc.get_pages().values().copied().collect::<Vec<_>>() {
-        let Ok(page) = doc.get_dictionary_mut(page_id) else {
-            continue;
+        let annots = match annots_slot(doc, page_id) {
+            Some(AnnotsSlot::Inline(pid)) => match doc.get_dictionary_mut(pid) {
+                Ok(page) => match page.get_mut(b"Annots") {
+                    Ok(Object::Array(a)) => a,
+                    _ => continue,
+                },
+                Err(_) => continue,
+            },
+            Some(AnnotsSlot::Indirect(id)) => match doc.objects.get_mut(&id) {
+                Some(Object::Array(a)) => a,
+                _ => continue,
+            },
+            None => continue,
         };
-        if let Ok(Object::Array(annots)) = page.get_mut(b"Annots") {
-            annots.retain(|o| !o.as_reference().is_ok_and(|id| widget_ids.contains(&id)));
-        }
+        annots.retain(|o| !o.as_reference().is_ok_and(|id| widget_ids.contains(&id)));
     }
     if let Some(Object::Dictionary(af)) = doc.objects.get_mut(&acroform_id) {
         af.set("Fields", Object::Array(Vec::new()));
@@ -827,12 +913,98 @@ fn strip_interactive_layer(
 }
 
 /// A standard Helvetica Type1 font dictionary — the overlay text font.
+/// Declares `/WinAnsiEncoding` so the bytes [`winansi_encode`] writes
+/// map to the intended glyphs in every viewer; without it a viewer
+/// falls back to StandardEncoding and accented characters garble.
 fn helvetica_font() -> Object {
     let mut font = Dictionary::new();
     font.set("Type", Object::Name(b"Font".to_vec()));
     font.set("Subtype", Object::Name(b"Type1".to_vec()));
     font.set("BaseFont", Object::Name(b"Helvetica".to_vec()));
+    font.set("Encoding", Object::Name(b"WinAnsiEncoding".to_vec()));
     Object::Dictionary(font)
+}
+
+/// The `WinAnsiEncoding` (Windows-1252) code points that differ from
+/// Unicode's first 256: bytes 0x80–0x9F. Every other byte maps 1:1.
+const WIN_ANSI_SPECIALS: [(u8, char); 27] = [
+    (0x80, '€'),
+    (0x82, '‚'),
+    (0x83, 'ƒ'),
+    (0x84, '„'),
+    (0x85, '…'),
+    (0x86, '†'),
+    (0x87, '‡'),
+    (0x88, 'ˆ'),
+    (0x89, '‰'),
+    (0x8A, 'Š'),
+    (0x8B, '‹'),
+    (0x8C, 'Œ'),
+    (0x8E, 'Ž'),
+    (0x91, '\u{2018}'),
+    (0x92, '\u{2019}'),
+    (0x93, '\u{201C}'),
+    (0x94, '\u{201D}'),
+    (0x95, '•'),
+    (0x96, '–'),
+    (0x97, '—'),
+    (0x98, '˜'),
+    (0x99, '™'),
+    (0x9A, 'š'),
+    (0x9B, '›'),
+    (0x9C, 'œ'),
+    (0x9E, 'ž'),
+    (0x9F, 'Ÿ'),
+];
+
+/// Encode `value` as the `WinAnsiEncoding` bytes the overlay font
+/// declares. ASCII whitespace controls become a space (a `Tj` draws a
+/// single line); a character with no WinAnsi byte fails loudly —
+/// never a garbled glyph in a packet on its way to a government office.
+fn winansi_encode(value: &str) -> Result<Vec<u8>, PdfError> {
+    value
+        .chars()
+        .map(|ch| {
+            if matches!(ch, '\n' | '\r' | '\t') {
+                return Ok(b' ');
+            }
+            if let Ok(b @ (0x20..=0x7E | 0xA0..=0xFF)) = u8::try_from(u32::from(ch)) {
+                // ASCII printable and the Latin-1 block map 1:1.
+                return Ok(b);
+            }
+            WIN_ANSI_SPECIALS
+                .iter()
+                .find(|&&(_, c)| c == ch)
+                .map(|&(b, _)| b)
+                .ok_or_else(|| PdfError::UnencodableChar {
+                    ch,
+                    value: value.to_owned(),
+                })
+        })
+        .collect()
+}
+
+/// Decode `WinAnsiEncoding` bytes back to text — the inverse of
+/// [`winansi_encode`], used by [`page_text`] for string operands that
+/// are not valid UTF-8. Unassigned bytes decode as U+FFFD.
+fn winansi_decode(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .map(|&b| match b {
+            0x80..=0x9F => WIN_ANSI_SPECIALS
+                .iter()
+                .find(|&&(sb, _)| sb == b)
+                .map_or('\u{FFFD}', |&(_, c)| c),
+            _ => char::from(b),
+        })
+        .collect()
+}
+
+/// Decode one text-showing operand: UTF-8 when valid (what a form's own
+/// content streams typically carry), else WinAnsi — the single-byte
+/// encoding [`flatten`]'s overlay writes.
+fn decode_shown_text(bytes: &[u8]) -> String {
+    std::str::from_utf8(bytes).map_or_else(|_| winansi_decode(bytes), str::to_owned)
 }
 
 /// The `/Rect` of a widget as normalized `[x0, y0, x1, y1]` (x0 ≤ x1,
@@ -899,15 +1071,21 @@ fn six_floats(obj: Option<&Object>) -> Option<[f32; 6]> {
 }
 
 /// The content-stream operations that draw `value` inside `rect` in a
-/// standard Helvetica sized to the box.
-fn text_ops(rect: [f32; 4], value: &str) -> Vec<Operation> {
+/// standard Helvetica sized to the box, encoded to match the font's
+/// declared `WinAnsiEncoding`.
+///
+/// # Errors
+///
+/// [`PdfError::UnencodableChar`] when a character in `value` has no
+/// WinAnsi byte.
+fn text_ops(rect: [f32; 4], value: &str) -> Result<Vec<Operation>, PdfError> {
     let [x0, y0, _, y1] = rect;
     let height = y1 - y0;
     let size = (height * 0.62).clamp(6.0, 11.0);
     let tx = x0 + 2.0;
     // Baseline roughly vertically centred within the box.
     let ty = y0 + (height - size) / 2.0 + size * 0.2;
-    vec![
+    Ok(vec![
         Operation::new("q", vec![]),
         Operation::new(
             "rg",
@@ -922,13 +1100,13 @@ fn text_ops(rect: [f32; 4], value: &str) -> Vec<Operation> {
         Operation::new(
             "Tj",
             vec![Object::String(
-                value.as_bytes().to_vec(),
+                winansi_encode(value)?,
                 StringFormat::Literal,
             )],
         ),
         Operation::new("ET", vec![]),
         Operation::new("Q", vec![]),
-    ]
+    ])
 }
 
 /// The content-stream operations that stamp the named appearance XObject
@@ -1072,7 +1250,7 @@ pub fn page_text(pdf: &[u8]) -> Result<String, PdfError> {
                     "Tj" | "'" | "\"" => {
                         for o in &op.operands {
                             if let Object::String(bytes, _) = o {
-                                out.push_str(&String::from_utf8_lossy(bytes));
+                                out.push_str(&decode_shown_text(bytes));
                                 out.push(' ');
                             }
                         }
@@ -1081,7 +1259,7 @@ pub fn page_text(pdf: &[u8]) -> Result<String, PdfError> {
                         if let Some(Object::Array(arr)) = op.operands.first() {
                             for el in arr {
                                 if let Object::String(bytes, _) = el {
-                                    out.push_str(&String::from_utf8_lossy(bytes));
+                                    out.push_str(&decode_shown_text(bytes));
                                 }
                             }
                             out.push(' ');
@@ -1129,9 +1307,10 @@ pub fn read_widget_appearance_state(
 mod tests {
     use super::{
         blank_acroform, blank_acroform_with, field_names, fill_acroform, flatten, page_text,
-        read_field_value, read_widget_appearance_state, FieldSpec,
+        read_field_value, read_widget_appearance_state, widget_annotation_count, FieldSpec,
     };
     use crate::PdfError;
+    use lopdf::content::Content;
     use lopdf::{Dictionary, Document, Object, Stream};
     use std::collections::BTreeMap;
 
@@ -1385,11 +1564,121 @@ mod tests {
             field_names(&flat).unwrap().is_empty(),
             "flattening leaves no interactive fields to re-edit"
         );
+        assert_eq!(
+            widget_annotation_count(&flat).unwrap(),
+            0,
+            "no widget annotation survives for a viewer to rebuild a field from"
+        );
         let text = page_text(&flat).unwrap();
         assert!(text.contains("Neon Law LLC"), "value survives as page text");
         assert!(text.contains("Jane Doe"), "value survives as page text");
         // The stored /V is gone with the field, so a form reader sees none.
         assert_eq!(read_field_value(&flat, "entity_name"), None);
+    }
+
+    /// Rewrite each page's inline `/Annots` array into an indirect
+    /// object — the shape every real vendored NV packet uses.
+    fn with_indirect_annots(pdf: &[u8]) -> Vec<u8> {
+        let mut doc = Document::load_mem(pdf).unwrap();
+        for page_id in doc.get_pages().values().copied().collect::<Vec<_>>() {
+            let arr = match doc.get_dictionary(page_id).unwrap().get(b"Annots") {
+                Ok(Object::Array(a)) => a.clone(),
+                _ => continue,
+            };
+            let arr_id = doc.add_object(Object::Array(arr));
+            doc.get_dictionary_mut(page_id)
+                .unwrap()
+                .set("Annots", Object::Reference(arr_id));
+        }
+        let mut out = Vec::new();
+        doc.save_to(&mut out).unwrap();
+        out
+    }
+
+    #[test]
+    fn flatten_strips_widgets_behind_an_indirect_annots_array() {
+        let blank = with_indirect_annots(&blank_acroform(&["entity_name"]));
+        let filled = fill_acroform(&blank, &fields(&[("entity_name", "Neon Law LLC")])).unwrap();
+        assert!(
+            widget_annotation_count(&filled).unwrap() > 0,
+            "the fixture carries a widget behind the indirect array"
+        );
+
+        let flat = flatten(&filled).unwrap();
+        assert_eq!(
+            widget_annotation_count(&flat).unwrap(),
+            0,
+            "an indirect /Annots array must be dereferenced and stripped, \
+             or every widget survives flattening"
+        );
+        assert!(
+            page_text(&flat).unwrap().contains("Neon Law LLC"),
+            "value survives as page text"
+        );
+    }
+
+    #[test]
+    fn flatten_writes_win_ansi_bytes_with_a_declared_encoding() {
+        let blank = blank_acroform(&["name"]);
+        let filled = fill_acroform(&blank, &fields(&[("name", "José Núñez")])).unwrap();
+        let flat = flatten(&filled).unwrap();
+
+        // The overlay font must declare the encoding its bytes use…
+        let doc = Document::load_mem(&flat).unwrap();
+        let declares = doc.objects.values().any(|o| {
+            o.as_dict().is_ok_and(|d| {
+                d.get(b"BaseFont").and_then(Object::as_name).ok() == Some(b"Helvetica")
+                    && d.get(b"Encoding").and_then(Object::as_name).ok() == Some(b"WinAnsiEncoding")
+            })
+        });
+        assert!(declares, "overlay Helvetica must declare /WinAnsiEncoding");
+
+        // …and the Tj operand must be WinAnsi bytes (é = 0xE9), not raw
+        // UTF-8 (0xC3 0xA9), which StandardEncoding-era viewers would
+        // render as two unrelated glyphs.
+        let mut operands: Vec<Vec<u8>> = Vec::new();
+        for pid in doc.page_iter() {
+            for sid in doc.get_page_contents(pid) {
+                let Ok(stream) = doc.get_object(sid).and_then(Object::as_stream) else {
+                    continue;
+                };
+                let data = stream
+                    .decompressed_content()
+                    .unwrap_or_else(|_| stream.content.clone());
+                let Ok(content) = Content::decode(&data) else {
+                    continue;
+                };
+                for op in content.operations {
+                    if op.operator == "Tj" {
+                        if let Some(Object::String(b, _)) = op.operands.first() {
+                            operands.push(b.clone());
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            operands
+                .iter()
+                .any(|b| b.as_slice() == b"Jos\xe9 N\xfa\xf1ez"),
+            "overlay text must be WinAnsi-encoded, got {operands:?}"
+        );
+
+        // The round-trip guard reads it back as the original text.
+        assert!(page_text(&flat).unwrap().contains("José Núñez"));
+    }
+
+    #[test]
+    fn flatten_rejects_a_value_outside_win_ansi_loudly() {
+        // A glyph WinAnsi cannot carry must fail the flatten, never
+        // silently garble a packet on its way to a government office.
+        let blank = blank_acroform(&["name"]);
+        let filled = fill_acroform(&blank, &fields(&[("name", "日本商事")])).unwrap();
+        let err = flatten(&filled).unwrap_err();
+        assert!(
+            matches!(err, PdfError::UnencodableChar { ch: '日', .. }),
+            "expected UnencodableChar, got {err:?}"
+        );
     }
 
     #[test]
