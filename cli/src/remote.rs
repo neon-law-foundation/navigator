@@ -95,8 +95,8 @@ pub async fn matter_open(host: Option<&str>, m: &MatterOpen) -> ExitCode {
                 ("status", "open"),
                 ("send_retainer", "true"),
                 ("retainer_template_code", m.template.as_str()),
-                ("client_name", m.client_name.as_str()),
-                ("client_email", m.client_email.as_str()),
+                ("custom_text__client_name", m.client_name.as_str()),
+                ("custom_text__client_email", m.client_email.as_str()),
                 ("scope_of_services", m.scope.as_str()),
                 ("description", m.description.as_str()),
             ])
@@ -496,7 +496,7 @@ pub async fn notation_create(
             .post(format!("{base}/portal/admin/retainers/new"))
             .bearer_auth(&token)
             .form(&[
-                ("client_email", client_email),
+                ("custom_text__client_email", client_email),
                 ("retainer_template_code", template),
             ])
             .send()

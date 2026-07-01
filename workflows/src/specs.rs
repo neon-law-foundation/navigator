@@ -283,10 +283,10 @@ mod tests {
         // product_description → END. Walk via the `_` condition.
         let mut here = StateName::begin();
         let order = [
-            "client_name",
-            "client_email",
-            "project_name",
-            "product_description",
+            "custom_text__client_name",
+            "custom_text__client_email",
+            "custom_text__project_name",
+            "custom_text__product_description",
             "END",
         ];
         for expected in order {

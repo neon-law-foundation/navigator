@@ -1,17 +1,23 @@
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: collector_name
-  collector_name:
-    _: settlement_target
-  settlement_target:
-    _: settlement_terms
-  settlement_terms:
-    _: client_authorization
-  client_authorization:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__collector_name
+  custom_text__collector_name:
+    _: custom_text__settlement_target
+  custom_text__settlement_target:
+    _: custom_text__settlement_terms
+  custom_text__settlement_terms:
+    _: custom_yes_no__client_authorization
+  custom_yes_no__client_authorization:
     _: END
   END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  collector_name: What is the name of the debt collector contacting you?
+  settlement_target: What amount are you offering to settle this debt for?
+  settlement_terms: What terms do you want on the settlement?
+  client_authorization: Do you authorize Neon Law to send this settlement offer on these terms?
 workflow:
   BEGIN:
     intake_submitted: document_open__settlement_letter

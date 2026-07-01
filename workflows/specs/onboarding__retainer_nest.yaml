@@ -1,15 +1,20 @@
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: client_email
-  client_email:
-    _: project_name
-  project_name:
-    _: product_description
-  product_description:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__client_email
+  custom_text__client_email:
+    _: custom_text__project_name
+  custom_text__project_name:
+    _: custom_text__product_description
+  custom_text__product_description:
     _: END
   END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  client_email: What is the client's email address?
+  project_name: What is the project name for this engagement?
+  product_description: Describe the services this retainer covers.
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__client

@@ -16,8 +16,8 @@ Feature: Bundled-template workflow composition (Foundation / nonprofit)
       | from                           | to                             |
       | BEGIN                          | custom_text__mission_statement |
       | custom_text__mission_statement | people__board_members         |
-      | people__board_members          | registered_agent              |
-      | registered_agent               | END                           |
+      | people__board_members          | custom_text__registered_agent |
+      | custom_text__registered_agent  | END                           |
 
   Scenario: Nevada 501(c)(3) formation workflow signs, reviews, and mails the articles
     Given the bundled template "forms/united_states/nevada/state/nv__nonprofit_501c3_formation.md"
@@ -57,9 +57,9 @@ Feature: Bundled-template workflow composition (Foundation / nonprofit)
     Given the bundled template "forms/united_states/nevada/state/nv__charitable_solicitation_registration.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                                | to                                  |
-      | BEGIN                               | annual_or_amended                   |
-      | annual_or_amended                   | custom_text__fundraising_activities |
-      | custom_text__fundraising_activities | END                                 |
+      | BEGIN                                   | custom_single_choice__annual_or_amended |
+      | custom_single_choice__annual_or_amended | custom_text__fundraising_activities |
+      | custom_text__fundraising_activities     | END                                 |
 
   Scenario: Charitable solicitation registration workflow reviews and mails the statement
     Given the bundled template "forms/united_states/nevada/state/nv__charitable_solicitation_registration.md"

@@ -9,16 +9,21 @@ respondent_type: person_and_entity
 code: onboarding__nexus
 jurisdiction: NV
 confidential: true
+prompts:
+  client_name: What is the client's full legal name?
+  client_email: What is the client's email address?
+  entity_name: What is the legal name of your LLC?
+  product_description: Describe the services this retainer covers.
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: client_email
-  client_email:
-    _: entity_name
-  entity_name:
-    _: product_description
-  product_description:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__client_email
+  custom_text__client_email:
+    _: custom_text__entity_name
+  custom_text__entity_name:
+    _: custom_text__product_description
+  custom_text__product_description:
     _: END
   END: {}
 workflow:
@@ -37,12 +42,14 @@ workflow:
   END: {}
 ---
 
-This engagement letter retains Neon Law as fractional general counsel for `{{entity_name}}` (the "Company"), the ongoing
-legal partner for `{{client_name}}`. Neon Law Nexus is a flat **\$2,222 per month**. It is a continuing relationship,
-not a single matter: routine contracts, corporate housekeeping, and the day-to-day legal questions a growing company
-runs into, with a licensed attorney in the loop for anything that needs legal judgment.
+This engagement letter retains Neon Law as fractional general counsel for `{{custom_text__entity_name}}` (the
+"Company"), the ongoing legal partner for `{{custom_text__client_name}}`. Neon Law Nexus is a flat **\$2,222 per
+month**. It is a continuing relationship, not a single matter: routine contracts, corporate housekeeping, and the
+day-to-day legal questions a growing company runs into, with a licensed attorney in the loop for anything that needs
+legal judgment.
 
-The Company described the scope it needs covered: `{{product_description}}`. Work product is delivered into the
+The Company described the scope it needs covered: `{{custom_text__product_description}}`. Work product is delivered into
+the
 Company's Project repository, and questions are answered through the Company's support thread — the ongoing record of
 the engagement lives in both.
 

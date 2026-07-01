@@ -2109,10 +2109,10 @@ fn build_signature_manifest(
     if role_present("client") {
         recipients.push(SignatureRecipient {
             role: "client".into(),
-            email: answered("client_email")
+            email: answered("custom_text__client_email")
                 .or_else(|| client.map(|c| c.email.clone()))
                 .unwrap_or_default(),
-            name: answered("client_name")
+            name: answered("custom_text__client_name")
                 .or_else(|| client.map(|c| c.name.clone()))
                 .unwrap_or_default(),
             routing_order: 1,
@@ -2305,14 +2305,14 @@ mod tests {
         // `client_name`), the next question is client_email — the
         // walker should display "step 2 of 4."
         let spec = retainer_intake_questionnaire();
-        assert_eq!(progress_for(&spec, &StateName::from("client_name")), (2, 4));
+        assert_eq!(progress_for(&spec, &StateName::from("custom_text__client_name")), (2, 4));
     }
 
     #[test]
     fn progress_for_last_answered_question_caps_at_total() {
         let spec = retainer_intake_questionnaire();
         assert_eq!(
-            progress_for(&spec, &StateName::from("product_description")),
+            progress_for(&spec, &StateName::from("custom_text__product_description")),
             (4, 4)
         );
     }

@@ -13,11 +13,11 @@ Feature: Client self-serve intake (the magic link)
   Scenario: The client confirms a staff-prefilled answer and finishes their part
     Given staff pre-filled the client's name as "Staff-typed Libra"
     When the client opens their intake
-    Then the intake asks the "client_name" question
+    Then the intake asks the "custom_text__client_name" question
     And the intake is pre-filled with "Staff-typed Libra"
     When the client answers "Libra Prime"
     And the client opens their intake
-    Then the intake asks the "client_email" question
+    Then the intake asks the "custom_text__client_email" question
     When the client answers "libra@example.com"
     And the client opens their intake
     Then the client's part of the intake is complete

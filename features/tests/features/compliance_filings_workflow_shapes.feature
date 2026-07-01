@@ -36,10 +36,10 @@ Feature: Bundled-template workflow composition (compliance filings)
   Scenario: Nevada annual report questionnaire walks period → managers → END
     Given the bundled template "forms/united_states/nevada/state/nv__annual_report.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
-      | from              | to               |
-      | BEGIN             | annual_or_amended |
-      | annual_or_amended | people__managers |
-      | people__managers  | END              |
+      | from                                    | to                                      |
+      | BEGIN                                   | custom_single_choice__annual_or_amended |
+      | custom_single_choice__annual_or_amended | people__managers                        |
+      | people__managers                        | END                                     |
 
   Scenario: Nevada annual report workflow mails the list after staff review
     Given the bundled template "forms/united_states/nevada/state/nv__annual_report.md"

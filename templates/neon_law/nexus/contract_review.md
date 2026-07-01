@@ -12,14 +12,18 @@ respondent_type: person_and_entity
 code: services__contract_review
 jurisdiction: NV
 confidential: true
+prompts:
+  client_name: What is the client's full legal name?
+  client_email: What is the client's email address?
+  entity_name: What is the legal name of your LLC?
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: client_email
-  client_email:
-    _: entity_name
-  entity_name:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__client_email
+  custom_text__client_email:
+    _: custom_text__entity_name
+  custom_text__entity_name:
     _: END
   END: {}
 workflow:
@@ -37,11 +41,12 @@ workflow:
   END: {}
 ---
 
-# Inbound contract review for {{entity_name}}
+# Inbound contract review for {{custom_text__entity_name}}
 
-Neon Law reviews an inbound contract `{{entity_name}}` (the "Company") received from a third party, on behalf of
-`{{client_name}}`. The Company uploads the contract; the firm measures it against the Company's negotiation playbook, a
-licensed attorney reviews every point, and the firm delivers a written review memo to the Company's Project repository.
+Neon Law reviews an inbound contract `{{custom_text__entity_name}}` (the "Company") received from a third party, on
+behalf of `{{custom_text__client_name}}`. The Company uploads the contract; the firm measures it against the Company's
+negotiation playbook, a licensed attorney reviews every point, and the firm delivers a written review memo to the
+Company's Project repository.
 
 ## What this review covers
 

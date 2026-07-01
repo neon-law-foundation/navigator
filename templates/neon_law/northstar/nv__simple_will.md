@@ -4,14 +4,18 @@ respondent_type: person
 code: will__simple
 jurisdiction: NV
 confidential: true
+prompts:
+  testator_name: What is your full legal name?
+  executor_name: Who is the executor of your will?
+  residuary_beneficiary: Who receives the remainder of your estate?
 questionnaire:
   BEGIN:
-    _: testator_name
-  testator_name:
-    _: executor_name
-  executor_name:
-    _: residuary_beneficiary
-  residuary_beneficiary:
+    _: custom_text__testator_name
+  custom_text__testator_name:
+    _: custom_text__executor_name
+  custom_text__executor_name:
+    _: custom_text__residuary_beneficiary
+  custom_text__residuary_beneficiary:
     _: END
   END: {}
 workflow:
@@ -28,5 +32,6 @@ workflow:
   END: {}
 ---
 
-I, `{{testator_name}}`, declare this to be my Last Will and Testament. I name `{{executor_name}}` as the executor of my
-estate and direct that the residue pass to `{{residuary_beneficiary}}`.
+I, `{{custom_text__testator_name}}`, declare this to be my Last Will and Testament. I name
+`{{custom_text__executor_name}}` as the executor of my estate and direct that the residue pass to
+`{{custom_text__residuary_beneficiary}}`.

@@ -7,32 +7,57 @@ origin_url: https://www.uscis.gov/n-400
 confidential: true
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: client_email
-  client_email:
-    _: date_of_birth
-  date_of_birth:
-    _: country_of_birth
-  country_of_birth:
-    _: country_of_citizenship
-  country_of_citizenship:
-    _: a_number
-  a_number:
-    _: lpr_since
-  lpr_since:
-    _: daytime_phone
-  daytime_phone:
-    _: eligibility_basis
-  eligibility_basis:
-    _: marital_status
-  marital_status:
-    _: time_outside_us
-  time_outside_us:
-    _: good_moral_character
-  good_moral_character:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__client_email
+  custom_text__client_email:
+    _: custom_datetime__date_of_birth
+  custom_datetime__date_of_birth:
+    _: custom_text__country_of_birth
+  custom_text__country_of_birth:
+    _: custom_text__country_of_citizenship
+  custom_text__country_of_citizenship:
+    _: custom_text__a_number
+  custom_text__a_number:
+    _: custom_datetime__lpr_since
+  custom_datetime__lpr_since:
+    _: custom_text__daytime_phone
+  custom_text__daytime_phone:
+    _: custom_single_choice__eligibility_basis
+  custom_single_choice__eligibility_basis:
+    _: custom_single_choice__marital_status
+  custom_single_choice__marital_status:
+    _: custom_text__time_outside_us
+  custom_text__time_outside_us:
+    _: custom_yes_no__good_moral_character
+  custom_yes_no__good_moral_character:
     _: END
   END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  client_email: What is the client's email address?
+  date_of_birth: What is your date of birth?
+  country_of_birth: In what country were you born?
+  country_of_citizenship: Of what country are you currently a citizen or national?
+  a_number: What is your Alien Registration Number (A-Number)?
+  lpr_since: On what date did you become a lawful permanent resident?
+  daytime_phone: What is the best daytime phone number to reach you?
+  eligibility_basis: Which path to naturalization are you applying under?
+  marital_status: What is your current marital status?
+  time_outside_us: About how many total days have you spent outside the United States in the last five years?
+  good_moral_character: >-
+    Is there anything in your history — arrests, citations, or unpaid taxes — your attorney should know before we
+    file?
+choices:
+  eligibility_basis:
+    five_year: Five years as a permanent resident
+    three_year_marriage: Three years married to a U.S. citizen
+    military: Qualifying U.S. military service
+  marital_status:
+    single: Single, never married
+    married: Married
+    divorced: Divorced
+    widowed: Widowed
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__applicant
@@ -60,12 +85,13 @@ workflow:
 ---
 
 This naturalization engagement (the "Engagement") prepares and files Form N-400, Application for Naturalization, with
-U.S. Citizenship and Immigration Services ("USCIS") on behalf of `{{client_name}}` (the "Applicant").
+U.S. Citizenship and Immigration Services ("USCIS") on behalf of `{{custom_text__client_name}}` (the "Applicant").
 
-The Applicant was born on `{{date_of_birth}}` in `{{country_of_birth}}`, is a citizen or national of
-`{{country_of_citizenship}}`, and became a lawful permanent resident on `{{lpr_since}}`. The Applicant's Alien
-Registration Number is `{{a_number}}`. The Applicant is `{{marital_status}}` and applies under the
-`{{eligibility_basis}}` path to naturalization.
+The Applicant was born on `{{custom_datetime__date_of_birth}}` in `{{custom_text__country_of_birth}}`, is a citizen or
+national of `{{custom_text__country_of_citizenship}}`, and became a lawful permanent resident on
+`{{custom_datetime__lpr_since}}`. The Applicant's Alien Registration Number is `{{custom_text__a_number}}`. The
+Applicant is `{{custom_single_choice__marital_status}}` and applies under the
+`{{custom_single_choice__eligibility_basis}}` path to naturalization.
 
 This summary records what the Applicant told the firm at intake so it can be reviewed before anything is filed. It is
 not the application itself and is not legal advice. The firm prepares the full Form N-400 from these answers, and a
@@ -76,10 +102,10 @@ After the Applicant signs, the firm files the Form N-400 with USCIS and stays wi
 follows: the biometrics appointment, the interview and civics test, and the oath ceremony. The Engagement concludes when
 USCIS issues the Applicant's Certificate of Naturalization (Form N-550) — the lifelong proof of U.S. citizenship.
 
-Appointment notices and confirmations are sent to the Applicant at `{{client_email}}`, and the firm reaches the
-Applicant by phone at `{{daytime_phone}}`. The Applicant reported roughly `{{time_outside_us}}` days outside the United
-States in the last five years; the attorney reviews the exact travel dates against the continuous-residence requirement
-before filing.
+Appointment notices and confirmations are sent to the Applicant at `{{custom_text__client_email}}`, and the firm reaches
+the Applicant by phone at `{{custom_text__daytime_phone}}`. The Applicant reported roughly
+`{{custom_text__time_outside_us}}` days outside the United States in the last five years; the attorney reviews the exact
+travel dates against the continuous-residence requirement before filing.
 
 The Applicant signs below to confirm these intake answers are true and complete to the best of the Applicant's
 knowledge, and the firm countersigns to open the matter.

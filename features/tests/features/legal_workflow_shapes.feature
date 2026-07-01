@@ -43,10 +43,10 @@ Feature: Bundled-template workflow composition (LLC, trust, will)
   Scenario: Nevada trust questionnaire walks trustee → property → END
     Given the bundled template "neon_law/northstar/nv__generic_trust.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
-      | from          | to             |
-      | BEGIN         | trustee_name   |
-      | trustee_name  | trust_property |
-      | trust_property| END            |
+      | from                        | to                          |
+      | BEGIN                       | custom_text__trustee_name   |
+      | custom_text__trustee_name   | custom_text__trust_property |
+      | custom_text__trust_property | END                         |
 
   Scenario: Nevada trust template with END stripped fails to parse
     Given the bundled template "neon_law/northstar/nv__generic_trust.md" with the workflow END declaration removed
@@ -55,11 +55,11 @@ Feature: Bundled-template workflow composition (LLC, trust, will)
   Scenario: Simple will questionnaire walks testator → executor → residuary → END
     Given the bundled template "neon_law/northstar/nv__simple_will.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
-      | from                  | to                    |
-      | BEGIN                 | testator_name         |
-      | testator_name         | executor_name         |
-      | executor_name         | residuary_beneficiary |
-      | residuary_beneficiary | END                   |
+      | from                            | to                              |
+      | BEGIN                           | custom_text__testator_name      |
+      | custom_text__testator_name      | custom_text__executor_name      |
+      | custom_text__executor_name      | custom_text__residuary_beneficiary |
+      | custom_text__residuary_beneficiary | END                          |
 
   Scenario: Simple will workflow walks testator signature → witnesses → staff review → notarization → END
     Given the bundled template "neon_law/northstar/nv__simple_will.md"

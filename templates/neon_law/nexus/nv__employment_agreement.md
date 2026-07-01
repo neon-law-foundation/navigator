@@ -4,24 +4,33 @@ code: employment__nonprofit_w2
 jurisdiction: NV
 respondent_type: person
 confidential: true
+prompts:
+  nonprofit_legal_name: What is the full legal name of the nonprofit organization?
+  nonprofit_state: In which U.S. state is the nonprofit incorporated?
+  worker_legal_name: What is the worker's full legal name?
+  worker_title: What is the position or title?
+  worker_duties: Summarize the duties or scope of work.
+  engagement_start_date: What is the start date?
+  annual_salary: What is the annual base salary?
+  pay_schedule: How often is the employee paid?
 questionnaire:
   BEGIN:
-    _: nonprofit_legal_name
-  nonprofit_legal_name:
-    _: nonprofit_state
-  nonprofit_state:
-    _: worker_legal_name
-  worker_legal_name:
-    _: worker_title
-  worker_title:
-    _: worker_duties
-  worker_duties:
-    _: engagement_start_date
-  engagement_start_date:
-    _: annual_salary
-  annual_salary:
-    _: pay_schedule
-  pay_schedule:
+    _: custom_text__nonprofit_legal_name
+  custom_text__nonprofit_legal_name:
+    _: custom_text__nonprofit_state
+  custom_text__nonprofit_state:
+    _: custom_text__worker_legal_name
+  custom_text__worker_legal_name:
+    _: custom_text__worker_title
+  custom_text__worker_title:
+    _: custom_text__worker_duties
+  custom_text__worker_duties:
+    _: custom_datetime__engagement_start_date
+  custom_datetime__engagement_start_date:
+    _: custom_text__annual_salary
+  custom_text__annual_salary:
+    _: custom_text__pay_schedule
+  custom_text__pay_schedule:
     _: END
   END: {}
 workflow:
@@ -39,15 +48,16 @@ workflow:
 
 # At-Will Employment Agreement
 
-This Employment Agreement (this "Agreement") is between `{{nonprofit_legal_name}}`, a nonprofit corporation organized
-under the laws of the State of `{{nonprofit_state}}` (the "Organization"), and `{{worker_legal_name}}` (the "Employee").
-The Organization and the Employee agree as follows.
+This Employment Agreement (this "Agreement") is between `{{custom_text__nonprofit_legal_name}}`, a nonprofit
+corporation organized under the laws of the State of `{{custom_text__nonprofit_state}}` (the "Organization"), and
+`{{custom_text__worker_legal_name}}` (the "Employee"). The Organization and the Employee agree as follows.
 
 ## 1. Position and duties
 
-The Organization employs the Employee as `{{worker_title}}`, beginning on `{{engagement_start_date}}`. The Employee's
-duties are: `{{worker_duties}}`. The Employee will report to the Organization's board of directors or its designee and
-will perform the duties faithfully, competently, and in the Organization's best interest.
+The Organization employs the Employee as `{{custom_text__worker_title}}`, beginning on
+`{{custom_datetime__engagement_start_date}}`. The Employee's duties are: `{{custom_text__worker_duties}}`. The Employee
+will report to the Organization's board of directors or its designee and will perform the duties faithfully,
+competently, and in the Organization's best interest.
 
 ## 2. At-will employment
 
@@ -59,8 +69,9 @@ this employment.
 
 ## 3. Compensation and tax treatment
 
-The Organization will pay the Employee an annual base salary of `{{annual_salary}}`, paid `{{pay_schedule}}` and subject
-to all required payroll withholding. The Organization will treat the Employee as a **W-2 employee**: it will withhold
+The Organization will pay the Employee an annual base salary of `{{custom_text__annual_salary}}`, paid
+`{{custom_text__pay_schedule}}` and subject to all required payroll withholding. The Organization will treat the
+Employee as a **W-2 employee**: it will withhold
 income and employment taxes, pay the employer's share of employment taxes, and report the Employee's wages on **IRS Form
 W-2**. Eligibility for any benefit plan the Organization may offer is governed by the terms of that plan.
 
@@ -81,13 +92,14 @@ conflict of interest policy.
 
 ## 7. General
 
-This Agreement is governed by the laws of the State of `{{nonprofit_state}}`. It is the entire agreement between the
-parties about the Employee's employment and supersedes any prior understanding. If any provision is held unenforceable,
+This Agreement is governed by the laws of the State of `{{custom_text__nonprofit_state}}`. It is the entire agreement
+between the parties about the Employee's employment and supersedes any prior understanding. If any provision is held
+unenforceable,
 the rest remains in effect.
 
 ## Signatures
 
-**`{{nonprofit_legal_name}}`**
+**`{{custom_text__nonprofit_legal_name}}`**
 
 By: ______________________________  Date: ______________
 
@@ -99,4 +111,4 @@ Title: ______________________________
 
 ______________________________  Date: ______________
 
-`{{worker_legal_name}}`
+`{{custom_text__worker_legal_name}}`

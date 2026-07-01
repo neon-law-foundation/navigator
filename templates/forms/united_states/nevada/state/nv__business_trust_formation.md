@@ -9,18 +9,23 @@ output: form
 form: nv__business_trust_formation
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: client_email
-  client_email:
-    _: entity_name
-  entity_name:
-    _: registered_agent
-  registered_agent:
-    _: trustees
-  trustees:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__client_email
+  custom_text__client_email:
+    _: custom_text__entity_name
+  custom_text__entity_name:
+    _: custom_text__registered_agent
+  custom_text__registered_agent:
+    _: people__trustees
+  people__trustees:
     _: END
   END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  client_email: What is the client's email address?
+  entity_name: What is the legal name of your LLC?
+  registered_agent: Who is the registered agent?
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__trustee
@@ -39,14 +44,14 @@ workflow:
   END: {}
 ---
 
-This Nevada entity formation engagement (the "Engagement") forms `{{entity_name}}`, a Nevada business trust, for
-`{{client_name}}`. Neon Law's flat Nest fee is **\$1,111 per year**. That fee covers the Certificate of Business Trust,
-the Initial List of Trustees, and the State Business License application filed with the Nevada Secretary of State,
-together with the trust's registered agent of record, `{{registered_agent}}`.
+This Nevada entity formation engagement (the "Engagement") forms `{{custom_text__entity_name}}`, a Nevada business
+trust, for `{{custom_text__client_name}}`. Neon Law's flat Nest fee is **\$1,111 per year**. That fee covers the
+Certificate of Business Trust, the Initial List of Trustees, and the State Business License application filed with the
+Nevada Secretary of State, together with the trust's registered agent of record, `{{custom_text__registered_agent}}`.
 
 The trustees of the business trust:
 
-`{{trustees}}`
+`{{people__trustees}}`
 
 The first trustee listed signs the Certificate of Business Trust, and the certificate prints up to two trustees.
 
@@ -54,7 +59,7 @@ Your answers above are placed onto the Secretary of State's own formation packet
 publishes — and a licensed Neon Law attorney reviews the **filled packet** before anything is signed or filed. Nothing
 reaches a government office unreviewed. The first trustee signs below and the firm countersigns; Neon Law then files the
 packet with the Nevada Secretary of State and returns the stamped formation record. Confirmations go to
-`{{client_email}}`.
+`{{custom_text__client_email}}`.
 
 {{client.signature}}
 

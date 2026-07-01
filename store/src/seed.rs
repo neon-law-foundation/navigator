@@ -1935,27 +1935,15 @@ mod tests {
     }
 
     #[test]
-    fn question_choices_reads_ordered_radio_choices_from_the_canonical_seed() {
+    fn question_choices_is_empty_after_the_vocabulary_collapse() {
         use super::question_choices;
-        // `management_structure` is the `nv__llc_formation` radio; its
-        // choices must come back in YAML order (members before managers),
-        // value-keyed, so a terminal renders them like the web walker would.
-        let choices = question_choices("management_structure");
-        assert_eq!(
-            choices,
-            vec![
-                (
-                    "members".to_string(),
-                    "Managed by its members — the owners".to_string(),
-                ),
-                (
-                    "managers".to_string(),
-                    "Managed by appointed managers".to_string(),
-                ),
-            ],
-        );
-        // A free-text question carries no choices; neither does an unknown
-        // code. Both answer with an empty vec rather than panicking.
+        // With the vocabulary collapsed to the registry, no seeded question
+        // carries a `choices:` block — a one-off choice set (`fee_status`,
+        // `management_structure`, …) lives in the template that asks it, as a
+        // `custom_single_choice__<key>` state. So the seed reader is empty for
+        // every code, and an unknown code still answers with an empty vec
+        // rather than panicking.
+        assert!(question_choices("custom_single_choice").is_empty());
         assert!(question_choices("custom_text").is_empty());
         assert!(question_choices("no_such_question_code").is_empty());
     }
