@@ -17,6 +17,8 @@ toml.workspace = true
 
 [dev-dependencies]
 pdf = { path = "../pdf" }
+rules = { path = "../rules" }
+serde_yaml.workspace = true
 sha2.workspace = true
 
 [lints]
