@@ -62,7 +62,10 @@ fn normalize_data_placeholder(token: &str) -> Option<&str> {
         return None;
     }
     let (head, field) = token.split_once('.').unwrap_or((token, ""));
-    if matches!(head, "client" | "firm") && matches!(field, "signature" | "date") {
+    // Mirror the production `is_signature_anchor` (web/src/estate.rs): a
+    // `{{client.initials}}` anchor is a signature field, not a data
+    // question, so it must not be counted as a required questionnaire state.
+    if matches!(head, "client" | "firm") && matches!(field, "signature" | "date" | "initials") {
         return None;
     }
     Some(head)

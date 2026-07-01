@@ -926,7 +926,7 @@ mod tests {
         assert_eq!(row.entity_id, None);
         assert_eq!(row.state, "BEGIN");
 
-        // First question per retainer questionnaire is client_name.
+        // First question per retainer questionnaire is person__client.
         match outcome.next {
             NextStep::NeedsAnswer {
                 question: QuestionDescriptor { code, .. },
@@ -1189,7 +1189,7 @@ mod tests {
                 assert_eq!(question.code, "project__engagement");
             }
             NextStep::QuestionnaireComplete => {
-                panic!("expected NeedsAnswer(client_email), got QuestionnaireComplete");
+                panic!("expected NeedsAnswer(project__engagement), got QuestionnaireComplete");
             }
         }
     }
@@ -1356,13 +1356,13 @@ mod tests {
         .await
         .unwrap();
         let id = started.notation_id;
-        // Before any answer: should be client_name.
+        // Before any answer: should be person__client.
         match current_step(&db, &runtime, None, id).await.unwrap() {
             NextStep::NeedsAnswer { question } => {
                 assert_eq!(question.code, "person__client");
             }
             NextStep::QuestionnaireComplete => {
-                panic!("expected NeedsAnswer(client_name), got QuestionnaireComplete");
+                panic!("expected NeedsAnswer(person__client), got QuestionnaireComplete");
             }
         }
         answer_step(
@@ -1376,13 +1376,13 @@ mod tests {
         )
         .await
         .unwrap();
-        // After one answer: should be client_email.
+        // After one answer: should be project__engagement.
         match current_step(&db, &runtime, None, id).await.unwrap() {
             NextStep::NeedsAnswer { question } => {
                 assert_eq!(question.code, "project__engagement");
             }
             NextStep::QuestionnaireComplete => {
-                panic!("expected NeedsAnswer(client_email), got QuestionnaireComplete");
+                panic!("expected NeedsAnswer(project__engagement), got QuestionnaireComplete");
             }
         }
     }
@@ -1555,7 +1555,7 @@ mod tests {
             ..
         } = step
         else {
-            panic!("expected NeedsAnswer(client_name)");
+            panic!("expected NeedsAnswer(person__client)");
         };
         assert_eq!(question.code, "person__client");
         assert_eq!((position, total), (1, 1));
@@ -1592,7 +1592,7 @@ mod tests {
             total,
         } = step
         else {
-            panic!("expected second notation to still need client_name");
+            panic!("expected second notation to still need person__client");
         };
         assert_eq!(question.code, "person__client");
         assert_eq!(prior_value, None);
@@ -1628,7 +1628,7 @@ mod tests {
             ..
         } = step
         else {
-            panic!("expected NeedsAnswer(client_name) pre-filled");
+            panic!("expected NeedsAnswer(person__client) pre-filled");
         };
         assert_eq!(question.code, "person__client");
         assert_eq!(prior_value.as_deref(), Some("Staff-typed Libra"));
