@@ -17,8 +17,6 @@ questionnaire:
   custom_text__country_of_birth:
     _: custom_text__country_of_citizenship
   custom_text__country_of_citizenship:
-    _: custom_text__a_number
-  custom_text__a_number:
     _: custom_datetime__lpr_since
   custom_datetime__lpr_since:
     _: custom_text__daytime_phone
@@ -39,7 +37,6 @@ prompts:
   date_of_birth: What is your date of birth?
   country_of_birth: In what country were you born?
   country_of_citizenship: Of what country are you currently a citizen or national?
-  a_number: What is your Alien Registration Number (A-Number)?
   lpr_since: On what date did you become a lawful permanent resident?
   daytime_phone: What is the best daytime phone number to reach you?
   eligibility_basis: Which path to naturalization are you applying under?
@@ -89,8 +86,7 @@ U.S. Citizenship and Immigration Services ("USCIS") on behalf of `{{custom_text_
 
 The Applicant was born on `{{custom_datetime__date_of_birth}}` in `{{custom_text__country_of_birth}}`, is a citizen or
 national of `{{custom_text__country_of_citizenship}}`, and became a lawful permanent resident on
-`{{custom_datetime__lpr_since}}`. The Applicant's Alien Registration Number is `{{custom_text__a_number}}`. The
-Applicant is `{{custom_single_choice__marital_status}}` and applies under the
+`{{custom_datetime__lpr_since}}`. The Applicant is `{{custom_single_choice__marital_status}}` and applies under the
 `{{custom_single_choice__eligibility_basis}}` path to naturalization.
 
 This summary records what the Applicant told the firm at intake so it can be reviewed before anything is filed. It is
