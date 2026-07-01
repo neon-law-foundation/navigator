@@ -14,7 +14,6 @@ jurisdiction: NV
 confidential: true
 prompts:
   client_name: What is the client's full legal name?
-  client_email: What is the client's email address?
   entity_name: What is the legal name of your LLC?
 questionnaire:
   BEGIN:

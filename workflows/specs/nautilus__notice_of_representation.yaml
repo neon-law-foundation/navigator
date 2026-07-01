@@ -14,7 +14,6 @@ questionnaire:
   END: {}
 prompts:
   client_name: What is the client's full legal name?
-  client_email: What is the client's email address?
   collector_name: What is the name of the debt collector contacting you?
   alleged_account: What account or reference number is the collector using?
   consent_to_represent: Do you authorize Neon Law to represent you in communications about this debt?

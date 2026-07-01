@@ -16,7 +16,6 @@ questionnaire:
   END: {}
 prompts:
   client_name: What is the client's full legal name?
-  client_email: What is the client's email address?
   project_name: What is the project name for this engagement?
   product_description: Describe the services this retainer covers.
 workflow:

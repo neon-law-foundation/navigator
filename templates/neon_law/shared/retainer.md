@@ -6,18 +6,15 @@ jurisdiction: NV
 confidential: true
 prompts:
   client_name: What is the client's full legal name?
-  client_email: What is the client's email address?
   project_name: What is the project name for this engagement?
   product_description: Describe the services this retainer covers.
 prompt_translations:
   es:
     client_name: ¿Cuál es el nombre legal completo del cliente?
-    client_email: ¿Cuál es la dirección de correo electrónico del cliente?
     project_name: ¿Cuál es el nombre del proyecto para este encargo?
     product_description: Describa los servicios que cubre este acuerdo de representación.
 audiences:
   client_name: client
-  client_email: client
   project_name: staff
   product_description: staff
 questionnaire:

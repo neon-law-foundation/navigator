@@ -24,7 +24,6 @@ questionnaire:
   END: {}
 prompts:
   client_name: What is the client's full legal name?
-  client_email: What is the client's email address?
   date_of_birth: What is your date of birth?
   country_of_birth: In what country were you born?
   country_of_citizenship: Of what country are you currently a citizen or national?
