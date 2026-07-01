@@ -57,8 +57,8 @@ Feature: Bundled-template workflow composition (compliance filings)
     Given the bundled template "forms/united_states/nevada/state/nv__modified_business_tax.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                       | to                         |
-      | BEGIN                      | datetime__tax_year         |
-      | datetime__tax_year         | custom_usd__gross_revenue  |
+      | BEGIN                      | custom_datetime__tax_year         |
+      | custom_datetime__tax_year         | custom_usd__gross_revenue  |
       | custom_usd__gross_revenue  | END                        |
 
   Scenario: Nevada Modified Business Tax workflow signs, reviews, and mails the return

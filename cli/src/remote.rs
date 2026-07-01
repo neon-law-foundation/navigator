@@ -582,36 +582,37 @@ pub async fn intake_answer(
                 break;
             };
 
-            let fields: Vec<(String, String)> = if question.answer_type == "people_list" {
-                let rows = if interactive {
-                    read_people_list(&question)?
-                } else {
-                    if persons_consumed {
-                        return Err(anyhow!(
+            let fields: Vec<(String, String)> =
+                if store::question_registry::answer_type_is_aggregate(&question.answer_type) {
+                    let rows = if interactive {
+                        read_people_list(&question)?
+                    } else {
+                        if persons_consumed {
+                            return Err(anyhow!(
                             "question `{}` is a people_list but every --person row was already \
                              consumed by an earlier one; this matter has more than one — answer \
                              it interactively",
                             question.code,
                         ));
-                    }
-                    persons_consumed = true;
-                    crate::intake::people_list_fields(&parsed_persons)
-                };
-                rows
-            } else {
-                let value = if interactive {
-                    prompt_scalar(&question)?
+                        }
+                        persons_consumed = true;
+                        crate::intake::people_list_fields(&parsed_persons)
+                    };
+                    rows
                 } else {
-                    answer_queue.pop_front().ok_or_else(|| {
-                        anyhow!(
-                            "ran out of --answer values at question `{}` ({})",
-                            question.code,
-                            question.prompt,
-                        )
-                    })?
+                    let value = if interactive {
+                        prompt_scalar(&question)?
+                    } else {
+                        answer_queue.pop_front().ok_or_else(|| {
+                            anyhow!(
+                                "ran out of --answer values at question `{}` ({})",
+                                question.code,
+                                question.prompt,
+                            )
+                        })?
+                    };
+                    vec![("value".to_string(), value)]
                 };
-                vec![("value".to_string(), value)]
-            };
 
             let resp = client
                 .post(format!("{base}/portal/admin/notations/{notation_id}/step"))

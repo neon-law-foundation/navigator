@@ -11,8 +11,11 @@
 
 use maud::{html, Markup};
 
-/// The row parts, in render order: input-name suffix + visible label.
-/// Must stay in lock-step with `forms::fieldmap`'s `PersonRow` parts.
+/// The row parts, in render order: input-name suffix + visible label. The
+/// keys are the canonical `people` aggregate shape — `store::question_registry`'s
+/// `PERSON_ROW_PARTS` (grounded by a test in `web::people_list_answer`); the
+/// labels are this render layer's presentation, so `views` stays decoupled
+/// from `store`. Must stay in lock-step with `forms::fieldmap`'s `PersonRow`.
 pub const PARTS: [(&str, &str); 7] = [
     ("name", "Full legal name"),
     ("title", "Title (officers only)"),

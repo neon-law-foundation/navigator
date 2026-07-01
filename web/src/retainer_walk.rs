@@ -969,7 +969,7 @@ pub async fn step_post(
         Ok(question) => question,
         Err(resp) => return resp,
     };
-    let value = if question.answer_type == "people_list" {
+    let value = if store::question_registry::answer_type_is_aggregate(&question.answer_type) {
         crate::people_list_answer::assemble(&body)
     } else {
         body.get("value").cloned().unwrap_or_default()

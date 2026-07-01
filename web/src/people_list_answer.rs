@@ -9,9 +9,7 @@
 
 use std::collections::BTreeMap;
 
-/// The row parts, in lock-step with `views::components::people_list::PARTS`
-/// and `forms::fieldmap`'s `PersonRow`.
-const PARTS: [&str; 7] = ["name", "title", "street", "city", "state", "zip", "country"];
+use store::question_registry::PERSON_ROW_PARTS as PARTS;
 
 /// Fold `p{row}_{part}` form keys into a JSON array of row objects.
 /// Rows whose every part is blank are dropped (the widget renders more
@@ -85,5 +83,20 @@ mod tests {
     #[test]
     fn an_empty_form_assembles_an_empty_list() {
         assert_eq!(assemble(&form(&[("_csrf", "tok")])), "[]");
+    }
+
+    /// The `people_list` widget's row-part keys are the registry's canonical
+    /// `people` aggregate shape — grounded here so the render widget and the
+    /// answer assembler can never drift from `store::question_registry`.
+    #[test]
+    fn widget_part_keys_match_the_registry() {
+        let widget_keys: Vec<&str> = views::components::people_list::PARTS
+            .iter()
+            .map(|(k, _)| *k)
+            .collect();
+        assert_eq!(
+            widget_keys,
+            store::question_registry::PERSON_ROW_PARTS.to_vec()
+        );
     }
 }

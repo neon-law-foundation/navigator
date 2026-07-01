@@ -33,6 +33,7 @@ pub mod persons;
 pub mod playbooks;
 pub mod products;
 pub mod projects;
+pub mod question_registry;
 pub mod review_documents;
 pub mod seed;
 pub mod signatures;

@@ -36,8 +36,8 @@ Feature: Bundled-template workflow composition (Foundation / nonprofit)
     Given the bundled template "forms/united_states/federal/irs/us__form_990.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                          | to                            |
-      | BEGIN                         | datetime__tax_year            |
-      | datetime__tax_year            | custom_text__revenue_strategy |
+      | BEGIN                         | custom_datetime__tax_year            |
+      | custom_datetime__tax_year            | custom_text__revenue_strategy |
       | custom_text__revenue_strategy | END                           |
 
   Scenario: Form 990 workflow signs, reviews, and mails to the IRS

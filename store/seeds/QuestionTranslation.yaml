@@ -24,7 +24,7 @@ records:
     locale: es
     prompt: ¿Quiénes son las personas para {{for_label}}?
     help_text: Liste cada persona con los datos necesarios para este documento o trámite.
-  - code: datetime
+  - code: custom_datetime
     locale: es
     prompt: ¿Qué fecha u hora corresponde a {{for_label}}?
     help_text: Ingrese la fecha, hora, año o período de presentación que solicita la pregunta.
@@ -36,7 +36,7 @@ records:
     locale: es
     prompt: ¿La respuesta es sí o no para {{for_label}}?
     help_text: Use esto solo cuando la plantilla necesite una respuesta única de sí o no y no exista un código reutilizable.
-  - code: custom_radio
+  - code: custom_single_choice
     locale: es
     prompt: ¿Qué opción corresponde a {{for_label}}?
     help_text: Use esto solo cuando la plantilla tenga opciones únicas y no exista un código reutilizable.

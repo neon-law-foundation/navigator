@@ -21,7 +21,7 @@ records:
     prompt: Who are the people for {{for_label}}?
     question_type: people_list
     help_text: List each person with the details needed for this document or filing.
-  - code: datetime
+  - code: custom_datetime
     prompt: What date or time applies to {{for_label}}?
     question_type: datetime
     help_text: Enter the date, time, year, or filing period requested by the prompt.
@@ -33,10 +33,14 @@ records:
     prompt: Is the answer yes or no for {{for_label}}?
     question_type: yes_no
     help_text: Use this only when the template needs a one-off yes/no answer and no reusable question code fits.
-  - code: custom_radio
+  - code: custom_single_choice
     prompt: Which option applies to {{for_label}}?
     question_type: radio
     help_text: Use this only when the template supplies a one-off set of choices and no reusable question code fits.
+  - code: custom_multiple_choice
+    prompt: Which options apply to {{for_label}}?
+    question_type: multiple_choice
+    help_text: Use this only when the template supplies a one-off set of choices and the respondent may select several.
   - code: custom_usd
     prompt: What dollar amount applies to {{for_label}}?
     question_type: custom_usd
