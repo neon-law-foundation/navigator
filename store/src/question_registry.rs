@@ -186,6 +186,13 @@ impl QuestionType {
         Self::iter().find(|t| t.as_str() == token)
     }
 
+    /// Every registered `<type>` token — the canonical vocabulary the
+    /// `rules` crate's `REGISTERED_QUESTION_TYPES` mirror is grounded to.
+    #[must_use]
+    pub fn all_tokens() -> Vec<&'static str> {
+        Self::iter().map(|t| t.as_str()).collect()
+    }
+
     /// Parse the `<type>` out of a full `<type>__<role>` state name (or a
     /// bare `<type>`), then look it up. `__for_<role>` children resolve on
     /// their `<type>` prefix just like any other.
