@@ -1509,8 +1509,9 @@ async fn dispatch_signature(
     // client signs first (routing 1), the firm countersigns (routing 2) so
     // the engagement forms on the firm's signature. The captive client's
     // identity comes from the questionnaire answers when present (the
-    // retainer asks `client_name`/`client_email`) and otherwise from the
-    // notation's bound Person row — never hardcoded in the provider.
+    // retainer asks `person__client`, exposing `person__client.name`) and
+    // otherwise from the notation's bound Person row — never hardcoded in
+    // the provider.
     let template_row = template::Entity::find_by_id(notation_row.template_id)
         .one(&state.db)
         .await?
@@ -2109,10 +2110,12 @@ pub fn client_user_id(notation_id: Uuid) -> String {
 /// (the provider's single-signer fallback).
 ///
 /// The captive client's name/email come from the questionnaire answers
-/// when the template captured them (the retainer asks
-/// `client_name`/`client_email`) and otherwise from the notation's bound
-/// Person row in `client` (the trust questionnaire never asks for an
-/// email). That same Person is what [`crate::esign_view`] resolves the
+/// when the template captured them (the retainer asks `person__client`,
+/// whose dotted `.name`/`.email` fields land in the render context) and
+/// otherwise from the notation's bound Person row in `client` (the trust
+/// questionnaire never asks for an email, and the retainer captures the
+/// email out-of-band, so `.email` falls through to the Person row). That
+/// same Person is what [`crate::esign_view`] resolves the
 /// embedded recipient against, so envelope creation and the recipient
 /// view agree.
 ///
@@ -2146,10 +2149,10 @@ fn build_signature_manifest(
     if role_present("client") {
         recipients.push(SignatureRecipient {
             role: "client".into(),
-            email: answered("custom_text__client_email")
+            email: answered("person__client.email")
                 .or_else(|| client.map(|c| c.email.clone()))
                 .unwrap_or_default(),
-            name: answered("custom_text__client_name")
+            name: answered("person__client.name")
                 .or_else(|| client.map(|c| c.name.clone()))
                 .unwrap_or_default(),
             routing_order: 1,
@@ -2443,6 +2446,87 @@ mod tests {
             ctx.get("person__client.email").map(String::as_str),
             Some("libra@example.com")
         );
+    }
+
+    /// A bound Person carrying a distinct name/email, so a fixture can tell
+    /// the answered value apart from the Person-row fallback.
+    fn person_named(name: &str, email: &str) -> store::entity::person::Model {
+        store::entity::person::Model {
+            id: Uuid::now_v7(),
+            name: name.to_string(),
+            email: email.to_string(),
+            oidc_subject: None,
+            role: store::entity::person::Role::Client,
+            title: None,
+            phone: None,
+            xero_contact_id: None,
+            preferred_language: "en".to_string(),
+            profile_image_url: None,
+            inserted_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    fn client_signature_field() -> crate::signature::SignatureField {
+        crate::signature::SignatureField {
+            recipient_role: "client".into(),
+            kind: crate::signature::SignatureFieldKind::Signature,
+            anchor: "{{client.signature}}".into(),
+        }
+    }
+
+    #[test]
+    fn signature_manifest_prefers_answered_client_name_over_person_row() {
+        // The migration renamed the client-identity state to
+        // `person__client`, whose `.name`/`.email` fields land in the render
+        // context. The manifest must read those — not the removed
+        // `custom_text__client_*` keys — so the questionnaire-confirmed
+        // legal name reaches the DocuSign recipient. In production the bound
+        // Person is created with `name = <email>` until the questionnaire
+        // fills it, so a fallback silently signs the client under their
+        // email address. The fixture name differs from the answer to prove
+        // the answered value wins.
+        let ctx = BTreeMap::from([
+            ("person__client.name".to_string(), "Libra Prime".to_string()),
+            (
+                "person__client.email".to_string(),
+                "libra@example.com".to_string(),
+            ),
+        ]);
+        let client = person_named("libra@example.com", "libra@example.com");
+        let fields = [client_signature_field()];
+
+        let manifest =
+            super::build_signature_manifest(Uuid::now_v7(), &fields, &ctx, Some(&client), true);
+
+        let recipient = manifest
+            .recipients
+            .iter()
+            .find(|r| r.role == "client")
+            .expect("client recipient present");
+        assert_eq!(recipient.name, "Libra Prime");
+        assert_eq!(recipient.email, "libra@example.com");
+    }
+
+    #[test]
+    fn signature_manifest_falls_back_to_person_row_when_unanswered() {
+        // The trust questionnaire never captures an email and other flows
+        // capture it out-of-band, so with no `person__client.*` in context
+        // the recipient resolves from the bound Person row.
+        let ctx = BTreeMap::new();
+        let client = person_named("Libra Prime", "libra@example.com");
+        let fields = [client_signature_field()];
+
+        let manifest =
+            super::build_signature_manifest(Uuid::now_v7(), &fields, &ctx, Some(&client), true);
+
+        let recipient = manifest
+            .recipients
+            .iter()
+            .find(|r| r.role == "client")
+            .expect("client recipient present");
+        assert_eq!(recipient.name, "Libra Prime");
+        assert_eq!(recipient.email, "libra@example.com");
     }
 
     #[test]
