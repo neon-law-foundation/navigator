@@ -3,8 +3,8 @@ title: "Litigio"
 slug: litigation
 hero_image: wa-capitol-blossoms
 description: >
-  La práctica de litigio de Neon Law para disputas tecnológicas de alto riesgo — litigantes formados en grandes firmas,
-  una tarifa fija por fase y flujos de IA que hacen el trabajo pesado.
+  La práctica de litigio de Neon Law para disputas tecnológicas de alto riesgo — litigantes formados en grandes firmas y
+  una tarifa fija por fase, sin contador por hora.
 pricing:
   - title: "Litigio"
     price: "Tarifa fija por fase"
@@ -13,7 +13,7 @@ pricing:
     features:
       - "Disputas comerciales, de propiedad intelectual y secretos, de contratos de software y SaaS, y societarias"
       - "Un abogado formado en grandes firmas cotiza cada fase después de la evaluación de Fase 0"
-      - "Flujos de IA hacen discovery, revisión de documentos y organización de pruebas para ahorrarle tiempo y costo"
+      - "Los flujos de IA para discovery y pruebas ayudan a que el precio por fase sea predecible"
       - "Las fases se facturan una a la vez, por adelantado — sin contador por hora"
       - "¿Fuera de nuestra área, con conflicto o sin capacidad? Le referimos a abogados litigantes de confianza"
     cta_label: "Reserve una consulta"
@@ -30,18 +30,17 @@ futuro de una empresa de software depende del resultado.
 [[pricing]]
 
 Nuestros litigantes se formaron en grandes firmas, y a lo largo de sus carreras han recuperado millones de dólares para
-sus clientes. Esa experiencia ahora corre sobre un modelo hecho para empresas de tecnología: tarifa fija, acelerado por
-IA, y enfocado en las disputas que definen el futuro de una empresa. *Los resultados anteriores no garantizan un
-resultado similar; cada asunto depende de sus propios hechos.*
+sus clientes. Esa experiencia ahora corre sobre un modelo hecho para empresas de tecnología: una tarifa fija por fase,
+enfocada en las disputas que definen el futuro de una empresa. *Los resultados anteriores no garantizan un resultado
+similar; cada asunto depende de sus propios hechos.*
 
 Usted recibe una tarifa fija por fase —sin contador por hora, sin factura sorpresa. Después de una evaluación de Fase 0,
 cotizamos la siguiente fase antes de que empiece y la facturamos por adelantado, una fase a la vez. Conoce el precio de
 la pelea que tiene enfrente antes de comprometerse.
 
-La IA hace el trabajo pesado. Discovery, revisión de documentos, preparación de deposiciones y organización de pruebas
-corren a través de flujos de IA hechos para asuntos tecnológicos —las fases que cargan el mayor costo. Eso le ahorra
-tiempo y dinero, y agudiza el caso: más del expediente revisado, más rápido. La herramienta no reemplaza el juicio;
-libera al litigante formado en grandes firmas para dedicar sus horas donde más importan.
+Somos litigantes ante todo; la IA es una herramienta que usamos, no el servicio que vendemos. Donde se gana su lugar
+—discovery, revisión de documentos, organización de pruebas— mantiene el expediente completo y el precio por fase
+predecible, en apoyo del juicio del abogado.
 
 Nuestra práctica de litigio se concentra en la tecnología y las empresas que la construyen:
 

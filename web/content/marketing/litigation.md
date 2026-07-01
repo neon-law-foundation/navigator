@@ -3,8 +3,8 @@ title: "Litigation"
 slug: litigation
 hero_image: wa-capitol-blossoms
 description: >
-  Neon Law's litigation practice for high-stakes technology disputes — big-law-trained litigators, a flat fee per phase,
-  and AI workflows that do the heavy lifting.
+  Neon Law's litigation practice for high-stakes technology disputes — big-law-trained litigators and a flat fee per
+  phase, with no hourly meter.
 pricing:
   - title: "Litigation"
     price: "Flat fee per phase"
@@ -13,7 +13,7 @@ pricing:
     features:
       - "Commercial, IP and trade-secret, software and SaaS contract, and founder and equity disputes"
       - "A big-law-trained attorney quotes each phase up front after the Phase 0 case assessment"
-      - "AI workflows run discovery, document review, and evidence organization to save you time and cost"
+      - "AI-assisted discovery and evidence workflows help keep per-phase pricing predictable"
       - "Phases are billed one at a time, in advance — no hourly meter"
       - "Outside our lane, conflicted, or at capacity? We refer you to trial counsel we trust"
     cta_label: "Book a Consultation"
@@ -30,17 +30,16 @@ where a software company's future turns on the outcome.
 [[pricing]]
 
 Our litigators are big-law-trained, and over their careers they have recovered millions of dollars for clients. That
-experience now runs on a model built for technology companies: flat-fee, AI-accelerated, and focused on the disputes
-that decide a company's future. *Prior results do not guarantee a similar outcome; every matter turns on its own facts.*
+experience now runs on a model built for technology companies: a flat fee per phase, focused on the disputes that decide
+a company's future. *Prior results do not guarantee a similar outcome; every matter turns on its own facts.*
 
 You get a flat fee per phase — no hourly meter, no surprise invoice. After a Phase 0 case assessment, we quote the next
 phase before it begins and bill it in advance, one phase at a time. You know the price of the fight in front of you
 before you commit to it.
 
-AI does the heavy lifting. Discovery, document review, deposition preparation, and evidence organization run through AI
-workflows built for technology matters — the phases that carry the most cost. That saves you time and money, and it
-sharpens the case: more of the record reviewed, faster. The tooling does not replace judgment; it frees a
-big-law-trained litigator to spend their hours where they matter most.
+We are litigators first; AI is a tool we use, not the service we sell. Where it earns its place — discovery, document
+review, evidence organization — it keeps the record thorough and the per-phase fee predictable, in support of the
+lawyer's judgment.
 
 Our litigation practice focuses on technology and the companies that build it:
 
