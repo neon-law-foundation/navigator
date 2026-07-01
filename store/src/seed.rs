@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 use crate::entity::{
     address, answer, credential, entity as entities, entity_billing_profile, entity_type,
     git_repository, invoice, invoice_line_item, jurisdiction, letter, mailroom, person,
-    person_entity_role, person_project_role, product, project, question, template, testimonial,
+    person_entity_role, person_project_role, product, project, question, testimonial,
 };
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, IntoActiveModel,
@@ -476,56 +476,26 @@ async fn seed_templates(
             .await
             .map_err(|e| anyhow::anyhow!("{label}: ingest body blob: {e}"))?;
 
-        // Idempotent on the shared (project_id IS NULL) code. A fresh
-        // cluster inserts the row; an existing row gets `blob_id` (from
-        // before the body→blob move) or a changed `form_code` binding
-        // backfilled.
-        if let Some(existing) = template::Entity::find()
-            .filter(template::Column::Code.eq(fm.code.clone()))
-            .filter(template::Column::ProjectId.is_null())
-            .one(db)
-            .await?
-        {
-            backfill_template(db, existing, blob_id, fm.form.clone()).await?;
-            continue;
-        }
-
-        template::ActiveModel {
-            code: ActiveValue::Set(fm.code),
-            title: ActiveValue::Set(fm.title),
-            respondent_type: ActiveValue::Set(fm.respondent_type),
-            project_id: ActiveValue::Set(None),
-            blob_id: ActiveValue::Set(Some(blob_id)),
-            form_code: ActiveValue::Set(fm.form),
-            ..Default::default()
-        }
-        .insert(db)
+        // Immutable by policy: a fresh cluster writes the first version;
+        // an unchanged re-seed is a no-op; a changed body/form/title
+        // appends a new current version and retires the prior one, so a
+        // Notation already opened against the old bytes keeps resolving to
+        // them (`notation.template_id` pins the version).
+        let saved = crate::templates::save_version(
+            db,
+            None,
+            &fm.code,
+            crate::templates::Version {
+                title: fm.title,
+                respondent_type: fm.respondent_type,
+                blob_id: Some(blob_id),
+                form_code: fm.form,
+            },
+        )
         .await?;
-        report.templates_inserted += 1;
-    }
-    Ok(())
-}
-
-/// Backfill an already-seeded template row: `blob_id` (rows from before
-/// the body→blob move) and a changed `form_code` binding. No-op when
-/// both already match.
-async fn backfill_template(
-    db: &DatabaseConnection,
-    existing: template::Model,
-    blob_id: Uuid,
-    form: Option<String>,
-) -> anyhow::Result<()> {
-    let needs_blob = existing.blob_id.is_none();
-    let needs_form = existing.form_code != form;
-    if needs_blob || needs_form {
-        let mut active: template::ActiveModel = existing.into();
-        if needs_blob {
-            active.blob_id = ActiveValue::Set(Some(blob_id));
+        if saved.was_written() {
+            report.templates_inserted += 1;
         }
-        if needs_form {
-            active.form_code = ActiveValue::Set(form);
-        }
-        active.update(db).await?;
     }
     Ok(())
 }

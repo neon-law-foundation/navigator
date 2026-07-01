@@ -5,9 +5,13 @@
 //! [`super::blob`]), not an inline column — read it via
 //! [`crate::templates::body`]. A template is workspace-shared
 //! (`project_id` is `None`) or scoped to one Project; resolve a code
-//! with [`crate::templates::resolve`]. Uniqueness is enforced by two
-//! partial indexes (shared codes globally unique; project codes unique
-//! per Project) — see `m20260624_template_storage_and_scoping`.
+//! with [`crate::templates::resolve`].
+//!
+//! Rows are **immutable by policy**: an edit appends a new row and flips
+//! `is_current`, never rewriting a spec a Notation may have pinned via
+//! `notation.template_id` (see [`crate::templates::save_version`]).
+//! Uniqueness applies only to the current version — exactly one current
+//! row per shared `code` and per `(project_id, code)`.
 
 use sea_orm::entity::prelude::*;
 use serde::Serialize;
@@ -28,6 +32,10 @@ pub struct Model {
     /// FK → [`super::project`] when this template is scoped to a single
     /// Project; `None` for the workspace-shared public catalog.
     pub project_id: Option<Uuid>,
+    /// Whether this row is the live version of its `code`. Exactly one
+    /// current row exists per shared `code` / per `(project_id, code)`;
+    /// retired versions stay for the Notations that pinned them.
+    pub is_current: bool,
     /// FK → [`super::blob`] holding the markdown body (with
     /// `{{question_code}}` placeholders). `None` only transiently before
     /// the body is ingested. Read via [`crate::templates::body`].

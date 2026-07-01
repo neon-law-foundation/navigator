@@ -617,6 +617,7 @@ erDiagram
         UUID project_id FK
         UUID blob_id FK
         CHARACTER VARYING form_code
+        BOOLEAN is_current
     }
     testimonials {
         UUID id PK

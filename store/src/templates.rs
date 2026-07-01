@@ -48,6 +48,7 @@ pub async fn resolve(
         if let Some(scoped) = template::Entity::find()
             .filter(template::Column::Code.eq(code))
             .filter(template::Column::ProjectId.eq(pid))
+            .filter(template::Column::IsCurrent.eq(true))
             .one(db)
             .await?
         {
@@ -57,8 +58,107 @@ pub async fn resolve(
     template::Entity::find()
         .filter(template::Column::Code.eq(code))
         .filter(template::Column::ProjectId.is_null())
+        .filter(template::Column::IsCurrent.eq(true))
         .one(db)
         .await
+}
+
+/// The spec fields that make up one Template version. Identity for
+/// "did this change?" is the tuple `(title, respondent_type, blob_id,
+/// form_code)` — `code` and `project_id` locate the version line.
+pub struct Version {
+    pub title: String,
+    pub respondent_type: String,
+    pub blob_id: Option<Uuid>,
+    pub form_code: Option<String>,
+}
+
+/// Outcome of [`save_version`].
+pub enum Saved {
+    /// The current row already matched the spec; nothing was written.
+    Unchanged(template::Model),
+    /// A new current row was written — the first version of this code, or
+    /// a change that retired the prior version.
+    Written(template::Model),
+}
+
+impl Saved {
+    /// The now-current Template row, either way.
+    #[must_use]
+    pub fn into_model(self) -> template::Model {
+        match self {
+            Saved::Unchanged(m) | Saved::Written(m) => m,
+        }
+    }
+
+    /// Whether this call wrote a new row.
+    #[must_use]
+    pub fn was_written(&self) -> bool {
+        matches!(self, Saved::Written(_))
+    }
+}
+
+/// Make `version` the current Template for `(project_id, code)`, appending
+/// it as a new row and retiring any existing current row.
+///
+/// Immutable by policy: a spec change never rewrites a row a Notation
+/// pinned via `notation.template_id`. When `version` matches the existing
+/// current row, this is a no-op and returns [`Saved::Unchanged`] — so a
+/// re-seed of an unchanged template does not churn versions.
+pub async fn save_version(
+    db: &Db,
+    project_id: Option<Uuid>,
+    code: &str,
+    version: Version,
+) -> Result<Saved, sea_orm::DbErr> {
+    use sea_orm::{ActiveModelTrait, ActiveValue};
+
+    let current = resolve_exact(db, project_id, code).await?;
+    if let Some(existing) = &current {
+        if existing.title == version.title
+            && existing.respondent_type == version.respondent_type
+            && existing.blob_id == version.blob_id
+            && existing.form_code == version.form_code
+        {
+            return Ok(Saved::Unchanged(existing.clone()));
+        }
+    }
+    if let Some(existing) = current {
+        let mut retire: template::ActiveModel = existing.into();
+        retire.is_current = ActiveValue::Set(false);
+        retire.update(db).await?;
+    }
+    let written = template::ActiveModel {
+        code: ActiveValue::Set(code.to_string()),
+        title: ActiveValue::Set(version.title),
+        respondent_type: ActiveValue::Set(version.respondent_type),
+        project_id: ActiveValue::Set(project_id),
+        blob_id: ActiveValue::Set(version.blob_id),
+        form_code: ActiveValue::Set(version.form_code),
+        is_current: ActiveValue::Set(true),
+        ..Default::default()
+    }
+    .insert(db)
+    .await?;
+    Ok(Saved::Written(written))
+}
+
+/// The current row for an exact `(project_id, code)` — no shared
+/// fallback, unlike [`resolve`]. `save_version`'s pointer flip must act on
+/// the same scope it writes to.
+async fn resolve_exact(
+    db: &Db,
+    project_id: Option<Uuid>,
+    code: &str,
+) -> Result<Option<template::Model>, sea_orm::DbErr> {
+    let mut q = template::Entity::find()
+        .filter(template::Column::Code.eq(code))
+        .filter(template::Column::IsCurrent.eq(true));
+    q = match project_id {
+        Some(pid) => q.filter(template::Column::ProjectId.eq(pid)),
+        None => q.filter(template::Column::ProjectId.is_null()),
+    };
+    q.one(db).await
 }
 
 /// Fetch a Template's markdown body from blob storage.
@@ -229,5 +329,74 @@ mod tests {
         .unwrap();
         let text = body(&db, &storage, &tmpl).await.unwrap();
         assert_eq!(text, "# Deed\n\n{{buyer}}");
+    }
+
+    fn version(title: &str, blob: Option<Uuid>) -> super::Version {
+        super::Version {
+            title: title.into(),
+            respondent_type: "entity".into(),
+            blob_id: blob,
+            form_code: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn save_version_writes_first_version_and_resolve_reads_it() {
+        let db = crate::test_support::pg().await;
+        let saved = super::save_version(&db, None, "amendment", version("Amendment", None))
+            .await
+            .unwrap();
+        assert!(saved.was_written());
+        let current = resolve(&db, None, "amendment").await.unwrap().unwrap();
+        assert_eq!(current.id, saved.into_model().id);
+        assert!(current.is_current);
+    }
+
+    #[tokio::test]
+    async fn unchanged_re_save_is_a_no_op() {
+        let db = crate::test_support::pg().await;
+        let first = super::save_version(&db, None, "amendment", version("Amendment", None))
+            .await
+            .unwrap()
+            .into_model();
+        let again = super::save_version(&db, None, "amendment", version("Amendment", None))
+            .await
+            .unwrap();
+        assert!(
+            !again.was_written(),
+            "an identical spec must not churn versions"
+        );
+        assert_eq!(again.into_model().id, first.id);
+        assert_eq!(template::Entity::find().all(&db).await.unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn changing_a_template_appends_a_version_and_pins_the_old_one() {
+        let db = crate::test_support::pg().await;
+        let v1 = super::save_version(&db, None, "amendment", version("Amendment", None))
+            .await
+            .unwrap()
+            .into_model();
+        let v2 = super::save_version(&db, None, "amendment", version("Amendment v2", None))
+            .await
+            .unwrap();
+        assert!(v2.was_written());
+        let v2 = v2.into_model();
+        assert_ne!(v1.id, v2.id, "a change appends a new row, never rewrites");
+
+        // resolve returns the new current version.
+        assert_eq!(
+            resolve(&db, None, "amendment").await.unwrap().unwrap().id,
+            v2.id
+        );
+        // The old row survives, retired — a Notation that pinned
+        // `template_id = v1` still finds its exact bytes.
+        let pinned = template::Entity::find_by_id(v1.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(!pinned.is_current);
+        assert_eq!(pinned.title, "Amendment");
     }
 }

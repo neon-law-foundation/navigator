@@ -1172,7 +1172,7 @@
 <text class="ct" x="244" y="331" text-anchor="end">varchar</text>
 </g>
 <g transform="translate(990,3440)">
-<rect class="t" width="216" height="228"/>
+<rect class="t" width="216" height="250"/>
 <rect class="tt" width="216" height="30"/>
 <text class="tn" x="108" y="20" text-anchor="middle">templates</text>
 <text class="cn" x="12" y="45">id</text>
@@ -1193,6 +1193,8 @@
 <text class="cfk" x="204" y="199" text-anchor="end">uuid FK</text>
 <text class="cn" x="12" y="221">form_code</text>
 <text class="ct" x="204" y="221" text-anchor="end">varchar</text>
+<text class="cn" x="12" y="243">is_current</text>
+<text class="ct" x="204" y="243" text-anchor="end">boolean</text>
 </g>
 <g transform="translate(30,3802)">
 <rect class="t" width="232" height="272"/>
