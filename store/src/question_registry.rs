@@ -193,6 +193,17 @@ impl QuestionType {
         Self::iter().map(|t| t.as_str()).collect()
     }
 
+    /// Every aggregate (plural) `<type>` token — the tokens barred from the
+    /// `__for_` child grammar. Grounds the `rules` mirror
+    /// `AGGREGATE_QUESTION_TYPES`.
+    #[must_use]
+    pub fn aggregate_tokens() -> Vec<&'static str> {
+        Self::iter()
+            .filter(|t| t.cardinality() == Cardinality::Aggregate)
+            .map(|t| t.as_str())
+            .collect()
+    }
+
     /// Parse the `<type>` out of a full `<type>__<role>` state name (or a
     /// bare `<type>`), then look it up. `__for_<role>` children resolve on
     /// their `<type>` prefix just like any other.
