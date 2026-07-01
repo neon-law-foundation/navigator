@@ -31,13 +31,9 @@ pub fn random_pat() -> String {
     out
 }
 
-/// The clone URL for a Project: `<base>/projects/<id>.git`. `base` is
-/// the deployment's public origin (`https://www.your-domain.example`) —
-/// never hard-coded.
-#[must_use]
-pub fn clone_url(base: &str, project_id: Uuid) -> String {
-    format!("{}/projects/{project_id}.git", base.trim_end_matches('/'))
-}
+/// The clone URL for a Project, owned by `repos` (the crate that models
+/// the per-Project repo) so the CLI and `web` format it identically.
+pub use repos::clone_url;
 
 /// Mint a PAT for the person identified by `email`, scoped to
 /// `project_id` (`None` = every Project they participate in). Returns
@@ -85,19 +81,6 @@ mod tests {
         assert_eq!(a.len(), 64);
         assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
         assert_ne!(a, random_pat());
-    }
-
-    #[test]
-    fn clone_url_joins_without_double_slash() {
-        let id = Uuid::nil();
-        assert_eq!(
-            clone_url("https://www.example.test/", id),
-            "https://www.example.test/projects/00000000-0000-0000-0000-000000000000.git"
-        );
-        assert_eq!(
-            clone_url("https://www.example.test", id),
-            "https://www.example.test/projects/00000000-0000-0000-0000-000000000000.git"
-        );
     }
 
     #[tokio::test]

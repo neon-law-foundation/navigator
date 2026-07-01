@@ -102,6 +102,12 @@ pub struct Detail<'a> {
     pub staff_dri: Option<&'a str>,
     /// The client-side Directly Responsible Individual's name, if designated.
     pub client_dri: Option<&'a str>,
+    /// The matter's git repo clone URL (`<base>/projects/<id>.git`).
+    /// Rendered only in this admin view, which staff and admin reach —
+    /// clients get the portal view and never see it (the repo is internal
+    /// workspace; the client sees a "Documents" view, never the word
+    /// "git"). See `docs/git-project-repos.md`.
+    pub clone_url: &'a str,
     pub documents: &'a [DocumentRow<'a>],
     /// Present when this matter is a transcript-driven estate plan. Drives
     /// the Northstar section: the transcript-upload form at `BEGIN`, a
@@ -351,6 +357,15 @@ pub fn detail(d: &Detail<'_>) -> Markup {
 
             @if let Some(est) = &d.estate {
                 (estate_section(d.id, est, d.csrf_token))
+            }
+
+            section.project-repo {
+                h2 { "Repository" }
+                p.help {
+                    "This matter's append-only document repository. Clone it with a "
+                    "personal access token (staff only)."
+                }
+                p { code.clone-url { (d.clone_url) } }
             }
 
             section.project-documents {
@@ -726,6 +741,7 @@ mod tests {
     fn detail_renders_project_header_and_upload_form_to_correct_route() {
         let html = detail(&Detail {
             id: ID2,
+            clone_url: "https://nav.test/projects/x.git",
             name: "Sison Trust",
             status: "open",
             entity_name: Some("Acme"),
@@ -748,9 +764,32 @@ mod tests {
     }
 
     #[test]
+    fn detail_renders_the_repository_clone_url() {
+        let html = detail(&Detail {
+            id: ID2,
+            clone_url: "https://nav.test/projects/abc.git",
+            name: "Sison Trust",
+            status: "open",
+            entity_name: Some("Acme"),
+            staff_dri: None,
+            client_dri: None,
+            documents: &[],
+            estate: None,
+            csrf_token: None,
+        })
+        .into_string();
+        assert!(html.contains("Repository"));
+        assert!(
+            html.contains("https://nav.test/projects/abc.git"),
+            "the admin project view must surface the git clone URL"
+        );
+    }
+
+    #[test]
     fn detail_upload_form_includes_description_field() {
         let html = detail(&Detail {
             id: ID2,
+            clone_url: "https://nav.test/projects/x.git",
             name: "Acme Formation",
             status: "open",
             entity_name: None,
@@ -775,6 +814,7 @@ mod tests {
         }];
         let html = detail(&Detail {
             id: ID2,
+            clone_url: "https://nav.test/projects/x.git",
             name: "Acme Formation",
             status: "open",
             entity_name: None,
@@ -837,6 +877,7 @@ mod tests {
         // Open → the close walk is offered, posting to the staff route.
         let open = detail(&Detail {
             id: ID2,
+            clone_url: "https://nav.test/projects/x.git",
             name: "Open matter",
             status: "open",
             entity_name: None,
@@ -854,6 +895,7 @@ mod tests {
         // Already closed → no close button (idempotent surface).
         let closed = detail(&Detail {
             id: ID2,
+            clone_url: "https://nav.test/projects/x.git",
             name: "Closed matter",
             status: "closed",
             entity_name: None,
@@ -874,6 +916,7 @@ mod tests {
         let nid = Uuid::from_u128(42);
         let html = detail(&Detail {
             id: ID2,
+            clone_url: "https://nav.test/projects/x.git",
             name: "Capricorn estate plan",
             status: "open",
             entity_name: None,
@@ -909,6 +952,7 @@ mod tests {
         let nid = Uuid::from_u128(42);
         let html = detail(&Detail {
             id: ID2,
+            clone_url: "https://nav.test/projects/x.git",
             name: "Capricorn estate plan",
             status: "open",
             entity_name: None,
@@ -954,6 +998,7 @@ mod tests {
         use super::{EstateDraftRow, EstateMatter};
         let html = detail(&Detail {
             id: ID2,
+            clone_url: "https://nav.test/projects/x.git",
             name: "Capricorn estate plan",
             status: "open",
             entity_name: None,
@@ -980,6 +1025,7 @@ mod tests {
     fn non_estate_matter_renders_no_northstar_section() {
         let html = detail(&Detail {
             id: ID2,
+            clone_url: "https://nav.test/projects/x.git",
             name: "Acme Formation",
             status: "open",
             entity_name: None,

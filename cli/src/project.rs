@@ -93,6 +93,30 @@ pub async fn create(
     }
     .insert(db)
     .await?;
+
+    // Eagerly stand up the matter's append-only git repo when the repo
+    // volume is configured (`NAVIGATOR_GIT_REPO_ROOT`). Best-effort: a CLI
+    // run against a Postgres with no attached repo volume (e.g. a remote
+    // prod DB) skips, and `web` materializes the repo lazily on first
+    // clone. `ensure` is idempotent, so a re-run is a no-op.
+    if let Ok(repo_store) = repos::RepoStore::from_env() {
+        match repo_store.ensure(inserted.id) {
+            Ok(_) => {
+                store::projects::mark_git_initialized(db, inserted.id, chrono::Utc::now()).await?;
+            }
+            Err(e) => tracing::warn!(
+                project_id = %inserted.id,
+                error = %e,
+                "eager git repo init failed; lazy path will create it on first clone",
+            ),
+        }
+    } else {
+        tracing::info!(
+            project_id = %inserted.id,
+            "NAVIGATOR_GIT_REPO_ROOT unset; deferring git repo to lazy init on first clone",
+        );
+    }
+
     Ok(CreatedProject {
         id: inserted.id,
         name: inserted.name,

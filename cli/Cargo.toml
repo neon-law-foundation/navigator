@@ -29,6 +29,7 @@ pdf.workspace = true
 rand.workspace = true
 ravif.workspace = true
 reqwest.workspace = true
+repos.workspace = true
 rgb.workspace = true
 rules.workspace = true
 sea-orm.workspace = true
