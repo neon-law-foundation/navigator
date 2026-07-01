@@ -3,7 +3,7 @@
 //! `* foo*` where the marker run is a *single* `*` or `_` (not `**`
 //! or `__` — those are strong, handled by M050).
 
-use crate::{frontmatter, line_byte_range, Rule, SourceFile, Violation};
+use crate::{frontmatter, line_byte_range, Rule, SourceFile, TextEdit, Violation};
 
 pub struct M037NoSpaceInEmphasis;
 
@@ -32,6 +32,97 @@ impl Rule for M037NoSpaceInEmphasis {
             })
             .collect()
     }
+
+    fn fix(&self, file: &SourceFile, violation: &Violation) -> Option<TextEdit> {
+        let line = &file.contents[violation.range.clone()];
+        let fixed = strip_emphasis_padding(line);
+        (fixed != *line).then_some(TextEdit {
+            range: violation.range.clone(),
+            new_text: fixed,
+        })
+    }
+}
+
+/// Rebuild `line` with the inner padding of every single-marker
+/// emphasis span removed (`* foo *` → `*foo*`). Code spans are copied
+/// verbatim so emphasis-looking characters inside backticks are never
+/// disturbed, and strong runs (`**`/`__`) are left to M050.
+fn strip_emphasis_padding(line: &str) -> String {
+    let bytes = line.as_bytes();
+    let mut out = String::with_capacity(line.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b'`' {
+            let ticks = bytes[i..].iter().take_while(|&&b| b == b'`').count();
+            let start = i + ticks;
+            let mut j = start;
+            let mut close = None;
+            while j < bytes.len() {
+                if bytes[j] == b'`' {
+                    let run = bytes[j..].iter().take_while(|&&b| b == b'`').count();
+                    if run == ticks {
+                        close = Some(j);
+                        break;
+                    }
+                    j += run;
+                    continue;
+                }
+                j += 1;
+            }
+            let end = close.map_or(start, |j| j + ticks);
+            out.push_str(&line[i..end]);
+            i = end;
+            continue;
+        }
+        if c == b'*' || c == b'_' {
+            let run = bytes[i..].iter().take_while(|&&b| b == c).count();
+            if run != 1 {
+                // Strong (or longer) run — copy verbatim.
+                out.push_str(&line[i..i + run]);
+                i += run;
+                continue;
+            }
+            let inner_start = i + 1;
+            let mut j = inner_start;
+            let mut close = None;
+            while j < bytes.len() {
+                if bytes[j] == c {
+                    let r = bytes[j..].iter().take_while(|&&b| b == c).count();
+                    if r == 1 {
+                        close = Some(j);
+                        break;
+                    }
+                    j += r;
+                    continue;
+                }
+                j += 1;
+            }
+            if let Some(j) = close {
+                let inner = &line[inner_start..j];
+                let trimmed = inner.trim_matches(|ch| ch == ' ' || ch == '\t');
+                if trimmed != inner && !trimmed.is_empty() {
+                    out.push(c as char);
+                    out.push_str(trimmed);
+                    out.push(c as char);
+                } else {
+                    out.push_str(&line[i..=j]);
+                }
+                i = j + 1;
+                continue;
+            }
+            out.push(c as char);
+            i += 1;
+            continue;
+        }
+        let ch = line[i..]
+            .chars()
+            .next()
+            .expect("byte index on char boundary");
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
 }
 
 /// True when the line contains a single-marker emphasis run whose
@@ -124,5 +215,39 @@ mod tests {
         assert!(M037NoSpaceInEmphasis
             .lint(&f("Look at `* foo *` inside backticks.\n"))
             .is_empty());
+    }
+
+    fn fixed(body: &str) -> String {
+        let file = f(body);
+        let v = M037NoSpaceInEmphasis.lint(&file);
+        let edit = M037NoSpaceInEmphasis.fix(&file, &v[0]).expect("a fix");
+        let mut out = file.contents.clone();
+        out.replace_range(edit.range, &edit.new_text);
+        out
+    }
+
+    #[test]
+    fn fix_trims_emphasis_padding() {
+        assert_eq!(fixed("This * is * not fine.\n"), "This *is* not fine.\n");
+        assert_eq!(
+            fixed("A *lead * and *_trail_*.\n"),
+            "A *lead* and *_trail_*.\n"
+        );
+    }
+
+    #[test]
+    fn fix_leaves_code_span_emphasis_untouched() {
+        // The real emphasis is trimmed; the look-alike inside backticks
+        // is preserved byte-for-byte.
+        assert_eq!(
+            fixed("Real * x * but `* y *` stays.\n"),
+            "Real *x* but `* y *` stays.\n"
+        );
+    }
+
+    #[test]
+    fn fix_is_idempotent() {
+        let once = fixed("This * is * fine now.\n");
+        assert!(M037NoSpaceInEmphasis.lint(&f(&once)).is_empty());
     }
 }
