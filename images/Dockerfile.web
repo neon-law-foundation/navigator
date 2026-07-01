@@ -25,15 +25,22 @@ RUN apt-get update \
          amd64) echo x86_64-unknown-linux-musl  > /tmp/rust-target ;; \
          arm64) echo aarch64-unknown-linux-musl > /tmp/rust-target ;; \
          *) echo "unsupported TARGETARCH: ${TARGETARCH:-unset}" >&2; exit 1 ;; \
-       esac \
-    && rustup target add "$(cat /tmp/rust-target)"
+       esac
 
 WORKDIR /src
 
 # Copy the full workspace in one layer and build. A single COPY + build
 # benefits from Docker layer caching when neither `Cargo.lock` nor source
 # changes.
+#
+# `rust-toolchain.toml` must land BEFORE `rustup target add`: the override
+# pins a specific 1.96.0 toolchain that rustup re-syncs the first time cargo
+# runs in this dir. Adding the target beforehand (against the base image's
+# default toolchain) leaves the re-synced toolchain without the musl std,
+# and `cargo build --target …-musl` then fails with `can't find crate for
+# std`. Adding it here attaches the target to the toolchain the build uses.
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+RUN rustup target add "$(cat /tmp/rust-target)"
 COPY rules             rules
 COPY store             store
 COPY repos             repos
