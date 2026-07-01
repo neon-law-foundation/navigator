@@ -192,12 +192,13 @@ async fn name_answer_on_file(world: &mut IntakeWorld, value: String) {
     let latest = entity::answer::Entity::find()
         .filter(entity::answer::Column::QuestionId.eq(q.id))
         .filter(entity::answer::Column::PersonId.eq(world.client().id))
+        .filter(entity::answer::Column::NotationId.eq(world.notation_id))
         .order_by_desc(entity::answer::Column::Id)
         .one(&world.journey().db)
         .await
         .expect("query answers")
         .expect("a client_name answer exists");
-    assert_eq!(latest.value, value);
+    assert_eq!(entity::answer::display_value(&latest.value), value);
     assert_eq!(latest.source, entity::answer::SOURCE_CLIENT);
     assert_eq!(latest.authored_by_person_id, Some(world.client().id));
 }

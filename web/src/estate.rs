@@ -190,7 +190,7 @@ pub async fn drive_estate_pipeline(
         if value.trim().is_empty() {
             continue;
         }
-        write_extracted_answer(&state.db, respondent_id, &code, &value).await?;
+        write_extracted_answer(&state.db, notation_id, respondent_id, &code, &value).await?;
         answers.insert(code, value);
     }
 
@@ -473,6 +473,7 @@ fn not_found() -> Response {
 /// estate codes are, so this only guards against drift).
 async fn write_extracted_answer(
     db: &store::Db,
+    notation_id: Uuid,
     respondent_id: Uuid,
     code: &str,
     value: &str,
@@ -491,7 +492,10 @@ async fn write_extracted_answer(
     answer::ActiveModel {
         question_id: ActiveValue::Set(q.id),
         person_id: ActiveValue::Set(respondent_id),
-        value: ActiveValue::Set(value.to_string()),
+        notation_id: ActiveValue::Set(Some(notation_id)),
+        // Estate intake codes are bare, so the state name is the code.
+        state_name: ActiveValue::Set(Some(code.to_string())),
+        value: ActiveValue::Set(answer::primitive(value)),
         source: ActiveValue::Set(answer::SOURCE_EXTRACTED.to_string()),
         authored_by_person_id: ActiveValue::Set(None),
         ..Default::default()

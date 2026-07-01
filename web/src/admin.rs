@@ -2063,6 +2063,7 @@ async fn projects_create_staff_only(
     let staffer = session.as_deref().and_then(|s| s.person_id);
     if let Err(e) = crate::retainer_walk::seed_staff_answers(
         &txn,
+        rows.notation_id,
         rows.person_id,
         staffer,
         &[
@@ -2397,7 +2398,13 @@ async fn answers_list(State(db): State<Db>) -> Markup {
         "Answers — Admin",
         "Answers",
         &["Question", "Person", "Value"],
-        |a| vec![a.question_id.to_string(), a.person_id.to_string(), a.value],
+        |a| {
+            vec![
+                a.question_id.to_string(),
+                a.person_id.to_string(),
+                answer::display_value(&a.value),
+            ]
+        },
     )
     .await
 }
