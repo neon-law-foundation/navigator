@@ -93,19 +93,21 @@ fn start_tag(out: &mut String, tag: &Tag, list_stack: &mut Vec<Option<u64>>) {
             out.push_str(&typst_string(dest_url));
             out.push_str(")[");
         }
-        // A Markdown table becomes a Typst `#table(..)`: one column per
-        // alignment slot, an `align:` tuple only when the author set any
-        // per-column alignment, then a flat cell stream Typst lays out
-        // row by row. Header cells are wrapped in `table.header(..)` so
-        // Typst treats them as the header row (repeated when the table
-        // breaks across pages); each cell's inline markup (strong,
-        // links, escaped currency) is emitted by the same handlers as
-        // prose.
+        // A Markdown table becomes a centered Typst `#table(..)`: one
+        // column per alignment slot, centered by default unless the
+        // author set per-column alignment, then a flat cell stream Typst
+        // lays out row by row. Header cells are wrapped in
+        // `table.header(..)` so Typst treats them as the header row
+        // (repeated when the table breaks across pages); each cell's
+        // inline markup (strong, links, escaped currency) is emitted by
+        // the same handlers as prose.
         Tag::Table(alignments) => {
-            out.push_str("\n#table(\n  columns: ");
+            out.push_str("\n#align(center)[#table(\n  columns: ");
             out.push_str(&alignments.len().to_string());
             out.push_str(",\n");
-            if alignments.iter().any(|a| *a != Alignment::None) {
+            if alignments.iter().all(|a| *a == Alignment::None) {
+                out.push_str("  align: center,\n");
+            } else {
                 out.push_str("  align: (");
                 for (i, alignment) in alignments.iter().enumerate() {
                     if i > 0 {
@@ -126,13 +128,12 @@ fn start_tag(out: &mut String, tag: &Tag, list_stack: &mut Vec<Option<u64>>) {
 }
 
 /// Map a Markdown column alignment to the Typst `align` keyword. A
-/// column with no explicit alignment (`None`) falls to Typst's own
-/// default of left, so it is only ever emitted when a sibling column
-/// forces the `align:` tuple to be written.
+/// column with no explicit alignment (`None`) uses Navigator's default
+/// centered table-cell alignment.
 fn typst_align(alignment: Alignment) -> &'static str {
     match alignment {
-        Alignment::None | Alignment::Left => "left",
-        Alignment::Center => "center",
+        Alignment::None | Alignment::Center => "center",
+        Alignment::Left => "left",
         Alignment::Right => "right",
     }
 }
@@ -151,7 +152,7 @@ fn end_tag(out: &mut String, tag: TagEnd, list_stack: &mut Vec<Option<u64>>) {
         }
         TagEnd::Item | TagEnd::TableRow => out.push('\n'),
         TagEnd::BlockQuote(_) => out.push_str("]\n\n"),
-        TagEnd::Table => out.push_str(")\n\n"),
+        TagEnd::Table => out.push_str(")]\n\n"),
         TagEnd::TableHead => out.push_str("),\n"),
         TagEnd::TableCell => out.push_str("], "),
         _ => {}
@@ -316,12 +317,11 @@ mod tests {
         // is wrapped in `table.header(..)`; body cells follow as a flat
         // stream that Typst lays out `columns`-wide.
         let out = to_typst("| A | B |\n| - | - |\n| 1 | 2 |");
-        assert!(out.contains("#table("), "got: {out}");
+        assert!(out.contains("#align(center)[#table("), "got: {out}");
         assert!(out.contains("columns: 2"), "got: {out}");
+        assert!(out.contains("align: center"), "got: {out}");
         assert!(out.contains("table.header([A], [B], )"), "got: {out}");
         assert!(out.contains("[1], [2],"), "got: {out}");
-        // No consistent per-column alignment was set, so no `align:` tuple.
-        assert!(!out.contains("align:"), "got: {out}");
     }
 
     #[test]
@@ -335,10 +335,11 @@ mod tests {
 
     #[test]
     fn table_column_alignment_maps_to_typst_align() {
-        // An explicit `:--` / `--:` alignment row forces the `align:`
-        // tuple, mapping left/right per column.
-        let out = to_typst("| A | B |\n| :-- | --: |\n| 1 | 2 |");
-        assert!(out.contains("align: (left, right)"), "got: {out}");
+        // Explicit `:--` / `:--:` / `--:` alignment markers force the
+        // tuple, mapping left/center/right per column.
+        let out = to_typst("| A | B | C |\n| :-- | :--: | --: |\n| 1 | 2 | 3 |");
+        assert!(out.contains("align: (left, center, right)"), "got: {out}");
+        crate::render(&out).expect("converted aligned table must compile through Typst");
     }
 
     #[test]
