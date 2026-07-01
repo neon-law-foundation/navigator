@@ -160,6 +160,6 @@ before serving traffic, which is the loud-failure-by-design behavior.
 
 - For Restate Cloud setup, see [`gke-prod.md`](gke-prod.md). For the Gemini Enterprise (A2A) wiring, see
   [`gemini-enterprise-mcp.md`](gemini-enterprise-mcp.md).
-- For an OSS-friendly weekly deploy via GitHub Actions, copy
-  [`../examples/deploy/ci/deploy-gke.yml.example`](../examples/deploy/ci/deploy-gke.yml.example) to
-  `.github/workflows/deploy.yml` in your fork and set the project / region values as repository variables.
+- For an OSS-friendly weekly deploy via GitHub Actions, a fork inherits the canonical
+  [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml), which builds every image and publishes it to the
+  fork's own `ghcr.io`. Make those packages public and set the project / region values as repository variables.

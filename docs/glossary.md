@@ -251,7 +251,7 @@ templates (`onboarding__retainer`, `onboarding__retainer_nest`, etc.). The `web:
 that specific kind of Notation.
 
 The schema noun in both cases is `Notation`. Marketing copy
-([`web/content/marketing/home.md`](../web/content/marketing/home.md),
+([`web/content/marketing/litigation.md`](../web/content/marketing/litigation.md),
 [`mission.md`](../web/content/marketing/mission.md)) speaks Engagement and Retainer because clients do; the database and
 the workflow runtime speak Notation.
 
@@ -470,7 +470,7 @@ per-Project git repository is the document system of record.
 
 ## Purchasing Power Parity (PPP)
 
-The country-indexed pricing applied to [Northstar](../web/content/marketing/estate.md) — and the **only** Neon Law
+The country-indexed pricing applied to [Northstar](../web/content/marketing/northstar.md) — and the **only** Neon Law
 service that carries it. Every other service is flat-fee: one price for everyone. Northstar is the exception because
 everyone should be able to plan for life after death, not only the wealthy.
 
@@ -547,7 +547,7 @@ outside sources the workspace reads notation *from*, not the matter repos the wo
 The **durable execution layer** in production — [restate.dev](https://restate.dev). An open-source workflow orchestrator
 that records each `signal` as a durable side effect, so a worker that crashes mid-flight can replay to the same terminal
 state. Restate is the production target for [Workflow Runtime](#workflow-runtime); locally,
-[`k8s/restate/`](../k8s/restate/) brings up a broker in KIND.
+[`k8s/overlays/kind/deps/restate.yaml`](../k8s/overlays/kind/deps/restate.yaml) brings up a broker in KIND.
 
 Crucially, **Restate executes the declared workflow verbatim.** The Template's `workflow:` block is the spec; Restate is
 the engine. Neither layer needs to know about the other beyond the YAML contract.
