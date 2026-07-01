@@ -36,7 +36,10 @@ para ponerse de pie.
 Constituimos la entidad de Nevada, redactamos el acuerdo operativo o los estatutos, actuamos como agente registrado,
 presentamos la licencia del condado de Washoe y damos a la entidad una dirección comercial en Reno, un buzón y un
 escritorio de coworking. La mayoría de los clientes elige una LLC de Nevada, pero la misma tarifa puede levantar una
-corporación sin fines de lucro u otra forma simple cuando esa sea la estructura correcta.
+corporación sin fines de lucro u otra forma simple cuando esa sea la estructura correcta. Constituimos en Nevada, no en
+Delaware, y no somos los únicos: [a16z está dejando Delaware por
+Nevada](https://a16z.com/were-leaving-delaware-and-we-think-you-should-consider-leaving-too/) por la previsibilidad de
+sus tribunales comerciales.
 
 El punto es la estabilidad: un alcance, una tarifa anual y trabajo legal rutinario no contencioso para la entidad que
 resguarda el activo. Si está construyendo una empresa de software o tecnología emergente con empleados, inversionistas,
