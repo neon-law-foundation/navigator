@@ -180,9 +180,21 @@ async fn client_never_sees_the_clone_url() {
         )
         .await
         .unwrap();
-    // The client reaches their portal view of the matter, not the admin
-    // chrome — and the git clone URL must not appear anywhere in it.
+    // The client reaches their *rendered* portal view of the matter — a 200,
+    // not a redirect or 404. Assert that first, and that the page actually
+    // renders the matter it names, so the `.git`-absence check below is proven
+    // against a real portal page and can't pass vacuously on an empty body.
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "client must reach their rendered portal view of the matter"
+    );
     let html = body_string(resp).await;
+    assert!(
+        html.contains("Libra formation"),
+        "the client portal view must render the matter it names"
+    );
+    // The git clone URL must not appear anywhere in that rendered view.
     assert!(
         !html.contains(".git"),
         "the client portal view must never expose the git clone URL"
