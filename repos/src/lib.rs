@@ -64,6 +64,19 @@ pub struct ExpungeOutcome {
 /// a tmp/hostPath dir in KIND) and never hard-coded.
 pub const REPO_ROOT_ENV: &str = "NAVIGATOR_GIT_REPO_ROOT";
 
+/// Git LFS routing seeded into every repo's `info/attributes` at
+/// creation (design §5). PDFs, docx, and images go through Git LFS —
+/// their bytes live in `cloud::StorageService` (see `web::git_lfs`)
+/// while only a small pointer rides the pack history. Writing this
+/// server-side means `git check-attr` (and diff/archive) route binaries
+/// to LFS on a fresh, empty repo, before any commit exists.
+const LFS_ATTRIBUTES: &str = "\
+*.pdf filter=lfs diff=lfs merge=lfs -text\n\
+*.docx filter=lfs diff=lfs merge=lfs -text\n\
+*.png filter=lfs diff=lfs merge=lfs -text\n\
+*.jpg filter=lfs diff=lfs merge=lfs -text\n\
+*.jpeg filter=lfs diff=lfs merge=lfs -text\n";
+
 /// The append-only `pre-receive` hook. Rejects any pushed ref that is
 /// not `refs/heads/main`; the config guards (`denyNonFastForwards`,
 /// `denyDeletes`) cover force-push and deletion of `main` itself.
@@ -162,6 +175,13 @@ impl RepoStore {
     pub fn ensure(&self, project_id: Uuid) -> Result<PathBuf, RepoError> {
         let path = self.path_for(project_id);
         if path.join("HEAD").is_file() {
+            // Self-heal the LFS routing on every access: the guard above
+            // keys on `HEAD`, which `git init --bare` writes *before* the
+            // routing is seeded, so a repo whose creation failed after
+            // `HEAD` (or one predating LFS seeding) would otherwise be
+            // served forever without routing. `ensure_lfs_attributes`
+            // only writes when the file is absent or wrong.
+            ensure_lfs_attributes(&path)?;
             return Ok(path);
         }
         std::fs::create_dir_all(&self.root)?;
@@ -186,6 +206,7 @@ impl RepoStore {
         // Let the smart-HTTP transport accept pushes to this repo.
         run_git(&["-C", &path_str, "config", "http.receivepack", "true"])?;
         install_pre_receive_hook(&path)?;
+        ensure_lfs_attributes(&path)?;
 
         tracing::info!(%project_id, path = %path_str, "created append-only bare repo");
         Ok(path)
@@ -300,14 +321,24 @@ impl RepoStore {
         }
 
         for (path, bytes) in files {
+            // `--no-filters` stores the bytes verbatim, bypassing the
+            // repo's `info/attributes`. The seeded LFS routing there
+            // drives the *client* smart-HTTP transport (the client's
+            // git-lfs cleans a binary to a pointer and uploads the
+            // object via the batch API) and `check-attr`/diff/archive —
+            // it must NOT act on this server-side plumbing commit, or a
+            // host with git-lfs configured would clean the document to a
+            // pointer whose bytes were never uploaded, and `read_head_tree`
+            // (documents.zip) would hand the client pointer text instead
+            // of the file. The commit log is the matter's audit trail, so
+            // the blob must be the exact bytes we were given.
             let oid_raw = capture(
                 &[
                     "-C",
                     &repo_str,
                     "hash-object",
                     "-w",
-                    "--path",
-                    path,
+                    "--no-filters",
                     "--stdin",
                 ],
                 &[],
@@ -459,6 +490,24 @@ fn install_pre_receive_hook(repo: &Path) -> Result<(), RepoError> {
     Ok(())
 }
 
+/// Seed the repo's server-side `info/attributes` with the Git LFS
+/// routing rules ([`LFS_ATTRIBUTES`]) unless they are already present and
+/// current. Idempotent and self-healing: it restores routing for a repo
+/// created before LFS seeding, or one whose creation failed after `HEAD`
+/// was written (a truncated or stale file is rewritten too). `git init
+/// --bare` already creates the `info/` directory, but `create_dir_all`
+/// keeps this robust.
+fn ensure_lfs_attributes(repo: &Path) -> Result<(), RepoError> {
+    let info = repo.join("info");
+    let attributes = info.join("attributes");
+    if std::fs::read_to_string(&attributes).is_ok_and(|c| c == LFS_ATTRIBUTES) {
+        return Ok(());
+    }
+    std::fs::create_dir_all(&info)?;
+    std::fs::write(&attributes, LFS_ATTRIBUTES)?;
+    Ok(())
+}
+
 /// Run `git <args>`, mapping a non-zero exit to [`RepoError::Git`].
 fn run_git(args: &[&str]) -> Result<(), RepoError> {
     let output = Command::new("git").args(args).output()?;
@@ -585,6 +634,79 @@ mod tests {
         // Idempotent: a second call returns the same path, no error.
         let again = store.ensure(project).unwrap();
         assert_eq!(again, path);
+    }
+
+    /// Resolve the `filter` attribute git applies to `path` in the bare
+    /// repo — `git check-attr` reads `info/attributes` server-side, so
+    /// this answers "is this path routed through LFS?" on a fresh, empty
+    /// repo without git-lfs installed.
+    fn check_filter(repo: &Path, path: &str) -> String {
+        let out = Command::new("git")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_SYSTEM", "/dev/null")
+            .args([
+                "-C",
+                repo.to_str().unwrap(),
+                "check-attr",
+                "filter",
+                "--",
+                path,
+            ])
+            .output()
+            .expect("run git check-attr");
+        assert!(
+            out.status.success(),
+            "git check-attr failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        // Output shape: `<path>: filter: <value>`; take the value.
+        String::from_utf8_lossy(&out.stdout)
+            .rsplit(": ")
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_string()
+    }
+
+    #[test]
+    fn ensure_seeds_lfs_routing_for_binaries() {
+        let root = TempDir::new().unwrap();
+        let store = RepoStore::new(root.path());
+        let project = Uuid::now_v7();
+        let repo = store.ensure(project).unwrap();
+
+        // Every binary type §5 names routes to the lfs filter on a fresh,
+        // empty repo — no commit, no git-lfs binary required.
+        for name in [
+            "deed.pdf",
+            "brief.docx",
+            "seal.png",
+            "scan.jpg",
+            "photo.jpeg",
+        ] {
+            assert_eq!(
+                check_filter(&repo, name),
+                "lfs",
+                "{name} should route through Git LFS"
+            );
+        }
+
+        // Text and other files are untouched — LFS is for binaries only.
+        assert_eq!(check_filter(&repo, "notes.txt"), "unspecified");
+
+        // Idempotent: a second ensure leaves routing in place.
+        store.ensure(project).unwrap();
+        assert_eq!(check_filter(&repo, "deed.pdf"), "lfs");
+
+        // Self-heal: `ensure`'s idempotency guard keys on `HEAD`, which
+        // exists before routing is seeded — so a repo left without
+        // routing (a creation that failed after `HEAD`, or one predating
+        // LFS seeding) must have it restored on the next access rather
+        // than served unrouted forever.
+        std::fs::remove_file(repo.join("info").join("attributes")).unwrap();
+        assert_eq!(check_filter(&repo, "deed.pdf"), "unspecified");
+        store.ensure(project).unwrap();
+        assert_eq!(check_filter(&repo, "deed.pdf"), "lfs");
     }
 
     #[test]
@@ -718,6 +840,51 @@ mod tests {
         assert_eq!(files[0].1, b"the trust bytes");
         assert_eq!(files[1].0, "will.txt");
         assert_eq!(files[1].1, b"the last will");
+    }
+
+    #[test]
+    fn commit_as_stores_binary_bytes_verbatim_even_with_an_lfs_clean_filter() {
+        // The seeded LFS routing (`info/attributes`) plus a configured
+        // `filter.lfs.clean` (git-lfs is installed on CI and prod hosts)
+        // would otherwise clean a committed binary to an LFS pointer whose
+        // object bytes were never uploaded — corrupting the documents.zip
+        // read path. `commit_as` must store the exact bytes regardless.
+        let root = TempDir::new().unwrap();
+        let store = RepoStore::new(root.path());
+        let project = Uuid::now_v7();
+        let bare = store.ensure(project).unwrap();
+
+        // Simulate git-lfs: a clean filter that rewrites any input to a
+        // fixed pointer-like string. Set repo-locally so the test needs
+        // no git-lfs binary and no global config mutation.
+        assert!(
+            git(
+                &bare,
+                &["config", "filter.lfs.clean", "sed s/.*/LFSPOINTER/"]
+            )
+            .0
+        );
+
+        let pdf = b"the real pdf bytes".to_vec();
+        store
+            .commit_as(
+                project,
+                Author {
+                    name: "Libra",
+                    email: "libra@example.com",
+                },
+                "add a signed pdf",
+                &[("contract.pdf", &pdf)],
+            )
+            .unwrap();
+
+        let files = store.read_head_tree(project).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].0, "contract.pdf");
+        assert_eq!(
+            files[0].1, pdf,
+            "the clean filter mangled the blob — commit_as must hash binary bytes verbatim"
+        );
     }
 
     #[test]
