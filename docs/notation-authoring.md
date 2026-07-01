@@ -82,6 +82,36 @@ notation's id, so their signals serialize and can never interleave. State is **a
 `notation_events` row, and the current state is the latest row's `to_state`. Nothing is ever updated in place, so the
 full history of a matter is replayable for audit.
 
+## The typed question grammar
+
+A questionnaire state name is `<type>__<role>` — a **question type** and the **role** it plays in this matter, e.g.
+`person__trustor`, `entity__company`, `address__for_company`. The `<type>` half is a closed set (the registry in
+[`store::question_registry`](../store/src/question_registry.rs)); `N113` rejects a typed state whose `<type>` is not
+registered. The `<role>` suffix is free naming that keeps two answers of one type distinct — `entity__company` and
+`entity__subsidiary` are two separate entities, not one.
+
+Every type is one of three kinds:
+
+- **Record** — the answer creates or links a `store::entity` row: `person`, `entity`, `address`, `role`, `filing`,
+  `credential`, `disclosure`, `issuance`, `signature`, `notarization`.
+- **Reference** — the answer selects an existing seeded row: `jurisdiction`, `entity_type`, `product`, `statute`,
+  `project`.
+- **Custom** — a primitive value living in the answer JSON, no SQL grounding: `custom_text`, `custom_yes_no`,
+  `custom_single_choice`, `custom_multiple_choice`, `custom_usd`, `custom_datetime`. A custom state reads
+  `custom_<type>__<prompt_key>` and needs a matching `prompts:` entry (`N104`).
+
+**Singular and plural.** Each record/reference type has a singular form (one row) and an explicit aggregate form (an
+array of the singular's shape) collected under one question — `person`→`people`, `entity`→`entities`,
+`address`→`addresses`, and so on. Add a plural only where a matter actually collects several.
+
+**`__for_` children.** A `<type>__for_<role>` state creates a child row that FKs to an earlier role-addressed parent:
+`address__for_trustor` follows `person__trustor` (or `entity__trustor`) and hangs off that answer. `N114` requires the
+parent to precede the child in the questionnaire graph and bars aggregates from `__for_` (their children are inline).
+
+**Body placeholders.** Prose uses `{{code}}` for a bare answer, `{{type__role.field}}` for a field off a typed answer,
+and `{{#for x in <aggregate>}} … {{x.field}} … {{/for}}` to walk a plural answer. `N115` resolves every path and
+iterator against the questionnaire's declared states; signature blocks (`{{client.signature}}`) stay `N107`'s specialty.
+
 ## How to create one — the five-step recipe
 
 New legal matters follow a fixed order (see [`agent-workflows.md`](agent-workflows.md) for the long form).
