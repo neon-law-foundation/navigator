@@ -287,11 +287,14 @@ async fn assert_last_state(world: &mut RetainerWorld, name: String) {
 
 #[then(regex = r#"^an answer row exists with value "([^"]+)"$"#)]
 async fn assert_answer_row(world: &mut RetainerWorld, value: String) {
-    let rows = entity::answer::Entity::find()
-        .filter(entity::answer::Column::Value.eq(value.clone()))
+    // `value` is now the JSONB primitive envelope `{"value": …}`.
+    let rows: Vec<_> = entity::answer::Entity::find()
         .all(world.db())
         .await
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .filter(|a| entity::answer::display_value(&a.value) == value)
+        .collect();
     assert_eq!(rows.len(), 1, "expected one answer row for {value:?}");
 }
 

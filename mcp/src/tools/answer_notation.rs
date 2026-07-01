@@ -161,6 +161,9 @@ fn map_notation_err(err: NotationSessionError) -> ToolError {
         }
         NotationSessionError::Runtime(e) => ToolError::Internal(format!("workflow runtime: {e}")),
         NotationSessionError::Spec(e) => ToolError::Internal(format!("spec parse: {e}")),
+        NotationSessionError::SnapshotEncode(e) | NotationSessionError::SnapshotDecode(e) => {
+            ToolError::Internal(format!("questionnaire snapshot: {e}"))
+        }
     }
 }
 

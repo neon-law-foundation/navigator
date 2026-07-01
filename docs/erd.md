@@ -421,6 +421,7 @@ erDiagram
         CHARACTER VARYING discount_reason
         CHARACTER VARYING discount_approved_by
         CHARACTER VARYING discount_approved_at
+        JSONB questionnaire_snapshot
     }
     person_entity_roles {
         UUID id PK

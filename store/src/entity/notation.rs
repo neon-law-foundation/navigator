@@ -54,6 +54,15 @@ pub struct Model {
     /// RFC 3339 timestamp of the discount approval. `None` when
     /// undiscounted.
     pub discount_approved_at: Option<String>,
+    /// The frozen questionnaire the Notation was opened against — the
+    /// serialized traversal graph (states + transitions + prompts). Written
+    /// once at `start_notation`; render/step/fill resolve against it so a
+    /// later template edit or binary change can't re-route this Notation.
+    /// `None` for Notations created before the snapshot column, which fall
+    /// back to re-resolving from the template. See
+    /// `m20260731_add_questionnaire_snapshot_to_notations`.
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub questionnaire_snapshot: Option<Json>,
     pub inserted_at: String,
     pub updated_at: String,
 }

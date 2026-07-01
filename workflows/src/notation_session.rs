@@ -47,7 +47,7 @@ pub struct QuestionDescriptor {
     pub answer_type: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct QuestionnaireDefinition {
     spec: QuestionnaireSpec,
     prompts: BTreeMap<String, String>,
@@ -131,6 +131,10 @@ pub enum NotationSessionError {
     Db(#[from] sea_orm::DbErr),
     #[error("spec parse: {0}")]
     Spec(#[from] WorkflowSpecError),
+    #[error("encoding questionnaire snapshot: {0}")]
+    SnapshotEncode(String),
+    #[error("decoding questionnaire snapshot: {0}")]
+    SnapshotDecode(String),
 }
 
 /// Create a fresh Notation for `template_code`, start the
@@ -156,12 +160,19 @@ pub async fn start_notation(
 
     let definition = questionnaire_definition_for(db, storage, &template_row).await?;
 
+    // Freeze the askable set: this exact traversal graph drives every
+    // later render/step/fill, so a template edit or binary change can't
+    // re-route an in-flight Notation.
+    let snapshot = serde_json::to_value(&definition)
+        .map_err(|e| NotationSessionError::SnapshotEncode(e.to_string()))?;
+
     let notation_id = notation::ActiveModel {
         template_id: ActiveValue::Set(template_row.id),
         person_id: ActiveValue::Set(person_id),
         entity_id: ActiveValue::Set(entity_id),
         project_id: ActiveValue::Set(project_id),
         state: ActiveValue::Set(StateName::BEGIN.into()),
+        questionnaire_snapshot: ActiveValue::Set(Some(snapshot)),
         ..Default::default()
     }
     .insert(db)
@@ -498,6 +509,15 @@ async fn load_notation_and_spec(
         .one(db)
         .await?
         .ok_or(NotationSessionError::NotationNotFound(notation_id))?;
+
+    // Resolve against the frozen snapshot, immune to later template/binary
+    // changes. Only a Notation created before the snapshot column
+    // (`questionnaire_snapshot IS NULL`) re-resolves from the template.
+    if let Some(snapshot) = &notation_row.questionnaire_snapshot {
+        let definition = serde_json::from_value(snapshot.clone())
+            .map_err(|e| NotationSessionError::SnapshotDecode(e.to_string()))?;
+        return Ok((notation_row, definition));
+    }
     let template_row = template::Entity::find_by_id(notation_row.template_id)
         .one(db)
         .await?
@@ -673,8 +693,9 @@ async fn localized_prompt(
 mod tests {
     use super::{
         answer_step, answered_client_states, current_step, start_notation, AnswerAuthor, NextStep,
-        NotationSessionError, QuestionDescriptor,
+        NotationSessionError, QuestionDescriptor, QuestionnaireDefinition,
     };
+    use crate::questionnaire_spec_from_yaml;
     use crate::runtime::InMemoryRuntime;
     use sea_orm::{
         ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter, QueryOrder,
@@ -825,6 +846,64 @@ mod tests {
             NextStep::QuestionnaireComplete => {
                 panic!("expected NeedsAnswer, got QuestionnaireComplete")
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn start_notation_freezes_the_questionnaire_snapshot() {
+        let db = db().await;
+        seed_retainer_template(&db).await;
+        seed_retainer_questions(&db).await;
+        let person_id = seed_person(&db, "libra@example.com").await;
+        let runtime = InMemoryRuntime::new();
+
+        let outcome = start_notation(
+            &db,
+            &runtime,
+            None,
+            "onboarding__retainer",
+            person_id,
+            seed_project(&db).await,
+            None,
+        )
+        .await
+        .unwrap();
+        let nid = outcome.notation_id;
+
+        // The snapshot is written at creation.
+        let row = notation::Entity::find_by_id(nid)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            row.questionnaire_snapshot.is_some(),
+            "start_notation must freeze the askable set"
+        );
+
+        // Overwrite the snapshot with a *different* questionnaire that
+        // starts at client_email. The template's bundled spec still starts
+        // at client_name, so if resolution re-read the template it would
+        // ask client_name; reading the frozen snapshot asks client_email.
+        let alt = QuestionnaireDefinition {
+            spec: questionnaire_spec_from_yaml(
+                "questionnaire:\n  BEGIN:\n    _: client_email\n  \
+                 client_email:\n    _: END\n  END: {}\n",
+            )
+            .unwrap(),
+            prompts: BTreeMap::new(),
+        };
+        let mut active: notation::ActiveModel = row.into();
+        active.questionnaire_snapshot = ActiveValue::Set(Some(serde_json::to_value(&alt).unwrap()));
+        active.update(&db).await.unwrap();
+
+        let next = current_step(&db, &runtime, None, nid).await.unwrap();
+        match next {
+            NextStep::NeedsAnswer { question } => assert_eq!(
+                question.code, "client_email",
+                "resolution must read the frozen snapshot, not the template"
+            ),
+            NextStep::QuestionnaireComplete => panic!("expected NeedsAnswer"),
         }
     }
 
