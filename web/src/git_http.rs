@@ -27,8 +27,10 @@
 //! Project).
 //!
 //! The repo root is `NAVIGATOR_GIT_REPO_ROOT` (deploy config, never
-//! hard-coded); a Project's bare repo is created lazily on first
-//! authorized access.
+//! hard-coded). A Project's bare repo is normally provisioned eagerly at
+//! matter-open; this transport provisions it lazily on first authorized
+//! access if it does not yet exist, through the one shared path
+//! ([`store::projects::provision_repo`]).
 
 // The transport's internal helpers return `Result<_, Response>` so a
 // failed auth/authz short-circuits with a ready-made HTTP response. An
@@ -264,26 +266,21 @@ async fn authorize(
 ) -> Result<std::path::PathBuf, Response> {
     let project_id = authorize_project(state, repo_segment, service.is_write, headers).await?;
 
-    // Authorized — locate (and lazily create) the bare repo.
-    let store = match repos::RepoStore::from_env() {
-        Ok(s) => s,
-        Err(e) => {
-            tracing::error!(error = %e, "git transport: repo root misconfigured");
-            return Err((
+    // Authorized — locate (and lazily create) the bare repo through the one
+    // shared provisioning path, which also stamps `git_initialized_at` so a
+    // repo first reached over the wire still records when it was born.
+    match store::projects::provision_repo(&state.db, project_id).await {
+        Ok(path) => Ok(path),
+        Err(repos::RepoError::RootUnset) => {
+            tracing::error!("git transport: repo root misconfigured");
+            Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "repo storage unavailable",
             )
-                .into_response());
-        }
-    };
-    match tokio::task::spawn_blocking(move || store.ensure(project_id)).await {
-        Ok(Ok(path)) => Ok(path),
-        Ok(Err(e)) => {
-            tracing::error!(error = %e, "git transport: repo ensure failed");
-            Err((StatusCode::INTERNAL_SERVER_ERROR, "repo init failed").into_response())
+                .into_response())
         }
         Err(e) => {
-            tracing::error!(error = %e, "git transport: ensure task panicked");
+            tracing::error!(error = %e, "git transport: repo provisioning failed");
             Err((StatusCode::INTERNAL_SERVER_ERROR, "repo init failed").into_response())
         }
     }

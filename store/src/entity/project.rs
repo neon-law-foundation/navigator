@@ -6,8 +6,9 @@
 //! [the design](../../../docs/git-project-repos.md)). The ref is *always*
 //! `main`, enforced by the bare repo's `pre-receive` hook; the one source
 //! of truth for the name is the `repos::DEFAULT_BRANCH` constant, so there
-//! is no per-row branch column. `git_initialized_at` records lazy repo
-//! creation.
+//! is no per-row branch column. `git_initialized_at` records when the bare
+//! repo was provisioned — eagerly at matter-open, else lazily on first git
+//! access — both through [`crate::projects::provision_repo`].
 
 use sea_orm::entity::prelude::*;
 use serde::Serialize;
@@ -50,12 +51,12 @@ pub struct Model {
     /// project create or a matter opened before
     /// `m20260711_add_description_to_projects`.
     pub description: Option<String>,
-    /// RFC 3339 timestamp stamped when the matter's bare repo is created,
-    /// eagerly at matter open (`store::projects::mark_git_initialized`).
-    /// `None` on a matter whose repo has not been provisioned yet — one
-    /// opened before eager provisioning existed, or where the repo volume
-    /// was unavailable at open; `web`'s git transport still materializes
-    /// the repo lazily on first access in that case.
+    /// RFC 3339 timestamp stamped when the matter's bare repo is first
+    /// created — eagerly at matter-open, or on first git access — both
+    /// through [`crate::projects::provision_repo`]. `None` on a matter
+    /// whose repo has not been provisioned yet (one opened before eager
+    /// provisioning existed, or where the repo volume was unavailable at
+    /// open; the git transport materializes it lazily on first access).
     pub git_initialized_at: Option<String>,
     /// RFC 3339 timestamp the matter was closed — the start of the 10-year
     /// retention window for its privileged conversation log. `None` while

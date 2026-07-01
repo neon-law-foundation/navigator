@@ -278,6 +278,11 @@ pub async fn start_post(
         return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
     }
 
+    // Stand up the matter's append-only git repo now that the self-serve
+    // intake is committed — every matter is a repo the moment it exists.
+    // Best-effort through the one shared provisioning path.
+    store::projects::provision_repo_eager(&state.db, project_id).await;
+
     // Transcript-driven onboarding (Northstar estate) has no questionnaire
     // to walk before intake — the recorded sitting's transcript fills the
     // answers via extraction. Detect it by the `transcript_uploaded` edge

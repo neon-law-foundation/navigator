@@ -233,6 +233,9 @@ async fn open_project_for_engagement(
     }
     .insert(db)
     .await?;
+    // Stand up the engagement's git repo (best-effort through the one
+    // shared provisioning path).
+    store::projects::provision_repo_eager(db, row.id).await;
     Ok(row.id)
 }
 

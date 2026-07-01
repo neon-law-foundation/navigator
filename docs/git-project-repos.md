@@ -203,6 +203,14 @@ themselves do not live in a bucket.
   `git_default_branch` column (default `main`) was therefore dropped in
   `m20260719_drop_git_default_branch_from_projects`; `drive_folder_id` and the retired `drive_syncs` table were likewise
   dropped (the latter in `m20260718_drop_drive_syncs` — see the note above).
+- **Provisioning is eager, with a lazy fallback, through one shared path.** `store::projects::provision_repo` creates
+  the bare repo (via `repos::RepoStore::ensure`) and stamps `git_initialized_at` — no second `git init`. Every
+  project-creation path calls the best-effort `provision_repo_eager` right after the row commits (the web matter-open
+  form, the self-serve retainer walk, the `aida_create_project` / `aida_create_notation` MCP tools, and the `project`
+  CLI subcommand), so a freshly opened matter already has a ready repo. The smart-HTTP transport calls the same
+  `provision_repo`, so it still creates the repo on first authorized access if it was never provisioned (a repo
+  predating eager creation, or a create path with no git volume mounted). Both halves are idempotent; the stamp records
+  when the repo was *first* created.
 - A `git_access_tokens` table holds PATs: `id`, `person_id`, `project_id` (nullable = all the person's projects),
   `token_hash`, `scope` (`read` | `write`), `expires_at`, `inserted_at`/`updated_at`. Tokens are stored hashed; the
   plaintext is shown once at mint time.
