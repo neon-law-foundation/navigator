@@ -44,8 +44,9 @@ pub mod format;
 pub mod markdown;
 
 pub use acroform::{
-    blank_acroform, blank_acroform_with, field_names, fill_acroform, read_field_value,
-    read_field_values, read_widget_appearance_state, FieldSpec,
+    blank_acroform, blank_acroform_with, field_names, fill_acroform, flatten, page_text,
+    read_field_value, read_field_values, read_widget_appearance_state, widget_annotation_count,
+    FieldSpec,
 };
 pub use certificate::{render_certificate, CertificateParams};
 pub use format::{render_document, Letterhead, OutputFormat};
@@ -110,6 +111,12 @@ pub enum PdfError {
         value: String,
         allowed: Vec<String>,
     },
+    /// A character in a value being [`acroform::flatten`]ed has no byte
+    /// in the overlay font's `WinAnsiEncoding` — surfaced rather than
+    /// silently garbling a glyph in a packet on its way to a government
+    /// office.
+    #[error("`{ch}` (in `{value}`) has no WinAnsi byte for the flattened overlay")]
+    UnencodableChar { ch: char, value: String },
 }
 
 /// How a redacted passage is rendered in the output PDF.

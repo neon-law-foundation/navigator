@@ -40,8 +40,12 @@ pub enum DocumentPayload {
         typst_source: String,
     },
     /// Fetch the blank form at `blank_form_key`, fill its AcroForm
-    /// `/Fields` from `fields` (name → value), and persist the result
-    /// at `storage_key`.
+    /// `/Fields` from `fields` (name → value), **flatten** the result to
+    /// static page content, and persist it at `storage_key`. The workflow
+    /// spec reaches this fill only after `staff_review`
+    /// ([`crate::staff_review_precedes_submission`]), so flattening here
+    /// freezes exactly what an attorney approved — no downstream viewer
+    /// can re-edit a value before it reaches a government office.
     Acroform {
         storage_key: String,
         blank_form_key: String,
@@ -81,7 +85,11 @@ pub async fn dispatch_document_open(
             fields,
         } => {
             let blank = storage.get(blank_form_key).await?.bytes;
-            let bytes = pdf::fill_acroform(&blank, fields)?;
+            let filled = pdf::fill_acroform(&blank, fields)?;
+            // Flatten to static content before persisting: this fill sits
+            // past staff_review, so nothing downstream may re-edit the
+            // approved values on their way to a government office.
+            let bytes = pdf::flatten(&filled)?;
             storage.put(storage_key, &bytes, "application/pdf").await?;
         }
     }
@@ -127,7 +135,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn acroform_dispatch_fills_a_blank_form_from_storage() {
+    async fn acroform_dispatch_fills_flattens_and_persists_a_form() {
         let storage = fs_storage().await;
         // Stage a blank fillable form in storage, then dispatch a fill.
         let blank = pdf::blank_acroform(&["entity_name"]);
@@ -151,9 +159,17 @@ mod tests {
             .get("notations/acro-test/nv_articles.pdf")
             .await
             .expect("filled form persisted");
-        assert_eq!(
-            pdf::acroform::read_field_value(&stored.bytes, "entity_name").as_deref(),
-            Some("Neon Law LLC")
+        // The persisted packet is flattened: no interactive fields remain,
+        // yet the filled value is still readable as static page content.
+        assert!(
+            pdf::field_names(&stored.bytes).expect("parses").is_empty(),
+            "the filed packet must carry no re-editable form fields"
+        );
+        assert!(
+            pdf::page_text(&stored.bytes)
+                .expect("extract text")
+                .contains("Neon Law LLC"),
+            "the reviewed value must survive as static content"
         );
     }
 

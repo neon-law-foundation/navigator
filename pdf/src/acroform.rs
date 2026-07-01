@@ -46,10 +46,23 @@
 //!
 //! Dotted hierarchical `/T` names (kids carrying their own `/T`) remain
 //! out of scope; none of the forms we fill use them.
+//!
+//! ## Flattening (before filing)
+//!
+//! [`flatten`] turns a filled form into static page content: each value
+//! is painted onto the page it sits on (text as page text, a checked box
+//! as its own `/AP` appearance stream), the widget annotations are
+//! removed, and the AcroForm `/Fields` is emptied. The result carries no
+//! interactive form, so once staff have approved a packet no downstream
+//! viewer can re-edit a value on the way to a government office — and a
+//! viewer that ignores `/NeedAppearances` shows the filled values rather
+//! than a blank form. It runs at the end of the fill path, past
+//! `staff_review`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use lopdf::{Dictionary, Document, Object, ObjectId, StringFormat};
+use lopdf::content::{Content, Operation};
+use lopdf::{Dictionary, Document, Object, ObjectId, Stream, StringFormat};
 
 use crate::PdfError;
 
@@ -589,6 +602,677 @@ pub fn field_names(pdf: &[u8]) -> Result<Vec<String>, PdfError> {
     Ok(names)
 }
 
+/// Count the widget annotations reachable from the pages' `/Annots`
+/// arrays (dereferenced when indirect). This is the interactive layer a
+/// viewer can rebuild form fields from even when the AcroForm `/Fields`
+/// array is empty — so `0` here, not an empty [`field_names`], is the
+/// property that proves a [`flatten`]ed packet cannot be re-edited.
+///
+/// # Errors
+///
+/// [`PdfError::Lopdf`] if `pdf` is not a parseable PDF.
+pub fn widget_annotation_count(pdf: &[u8]) -> Result<usize, PdfError> {
+    let doc = Document::load_mem(pdf).map_err(|e| PdfError::Lopdf(e.to_string()))?;
+    let mut count = 0usize;
+    for page_id in doc.get_pages().values().copied() {
+        let annots: &Vec<Object> = match annots_slot(&doc, page_id) {
+            Some(AnnotsSlot::Inline(pid)) => match doc
+                .get_dictionary(pid)
+                .ok()
+                .and_then(|p| p.get(b"Annots").ok())
+            {
+                Some(Object::Array(a)) => a,
+                _ => continue,
+            },
+            Some(AnnotsSlot::Indirect(id)) => match doc.objects.get(&id) {
+                Some(Object::Array(a)) => a,
+                _ => continue,
+            },
+            None => continue,
+        };
+        count += annots
+            .iter()
+            .filter(|entry| {
+                let dict = match entry {
+                    Object::Reference(id) => doc.get_object(*id).and_then(Object::as_dict).ok(),
+                    Object::Dictionary(d) => Some(d),
+                    _ => None,
+                };
+                dict.is_some_and(|d| {
+                    d.get(b"Subtype").and_then(Object::as_name).ok() == Some(b"Widget")
+                })
+            })
+            .count();
+    }
+    Ok(count)
+}
+
+/// Where a page's `/Annots` array lives: inline on the page dictionary
+/// itself, or behind an indirect reference — the shape every vendored
+/// NV packet uses. Chained references are followed a bounded number of
+/// hops so a malformed cycle cannot loop.
+enum AnnotsSlot {
+    /// The array is a direct value of the page's `/Annots` key.
+    Inline(ObjectId),
+    /// The array is the standalone object with this id.
+    Indirect(ObjectId),
+}
+
+fn annots_slot(doc: &Document, page_id: ObjectId) -> Option<AnnotsSlot> {
+    match doc.get_dictionary(page_id).ok()?.get(b"Annots").ok()? {
+        Object::Array(_) => Some(AnnotsSlot::Inline(page_id)),
+        Object::Reference(first) => {
+            let mut id = *first;
+            for _ in 0..8 {
+                match doc.objects.get(&id)? {
+                    Object::Reference(next) => id = *next,
+                    Object::Array(_) => return Some(AnnotsSlot::Indirect(id)),
+                    _ => return None,
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// One text field's value drawn onto the page it sits on.
+struct TextDraw {
+    page: ObjectId,
+    rect: [f32; 4],
+    value: String,
+}
+
+/// A checkbox / radio widget's on-state appearance, stamped onto its page.
+struct StampDraw {
+    page: ObjectId,
+    rect: [f32; 4],
+    /// The `/AP /N /<state>` Form XObject: an existing indirect object we
+    /// can reference directly, or an inline stream we must add first.
+    ap: ApSource,
+    bbox: [f32; 4],
+    matrix: [f32; 6],
+}
+
+/// The source of a widget's on-state appearance stream.
+enum ApSource {
+    Existing(ObjectId),
+    Inline(Stream),
+}
+
+/// Flatten a filled AcroForm to static page content: every filled field's
+/// value is painted onto the page it sits on (text values as page text,
+/// checked checkbox / radio widgets as their own appearance streams), the
+/// widget annotations are removed, and the AcroForm `/Fields` is emptied.
+/// The result renders identically but carries **no interactive form**, so
+/// no downstream viewer can re-edit a value after staff review — the
+/// filing-integrity step that sits at the end of the fill path.
+///
+/// Idempotent: a form with no fields left (already flattened) round-trips
+/// unchanged. `NeedAppearances` is dropped — there are no appearances to
+/// regenerate once the values are static content.
+///
+/// # Errors
+///
+/// The same parse / locate failures as [`fill_acroform`] ([`PdfError::Lopdf`],
+/// [`PdfError::NoAcroForm`], [`PdfError::XfaUnsupported`]), plus
+/// [`PdfError::UnencodableChar`] when a value carries a character the
+/// overlay font's `WinAnsiEncoding` cannot draw.
+pub fn flatten(pdf: &[u8]) -> Result<Vec<u8>, PdfError> {
+    let mut doc = Document::load_mem(pdf).map_err(|e| PdfError::Lopdf(e.to_string()))?;
+    let (acroform_id, field_ids) = locate_acroform(&doc)?;
+
+    let (texts, stamps, widget_ids) = collect_flatten_draws(&doc, &field_ids);
+    paint_overlays(&mut doc, texts, stamps)?;
+    strip_interactive_layer(&mut doc, acroform_id, &widget_ids);
+
+    let mut out = Vec::new();
+    doc.save_to(&mut out)
+        .map_err(|e| PdfError::Lopdf(e.to_string()))?;
+    Ok(out)
+}
+
+/// Read phase: plan every value to paint while the document is borrowed
+/// immutably, and record every widget id so its annotation can be
+/// stripped later. Returns `(text draws, stamp draws, widget ids)`.
+fn collect_flatten_draws(
+    doc: &Document,
+    field_ids: &[ObjectId],
+) -> (Vec<TextDraw>, Vec<StampDraw>, BTreeSet<ObjectId>) {
+    let first_page = doc.get_pages().values().next().copied();
+    let mut texts: Vec<TextDraw> = Vec::new();
+    let mut stamps: Vec<StampDraw> = Vec::new();
+    let mut widget_ids: BTreeSet<ObjectId> = BTreeSet::new();
+
+    for fid in field_ids {
+        let Ok(dict) = doc.get_object(*fid).and_then(Object::as_dict) else {
+            continue;
+        };
+        widget_ids.insert(*fid);
+        let kids: Vec<ObjectId> = dict
+            .get(b"Kids")
+            .and_then(Object::as_array)
+            .map(|a| a.iter().filter_map(|o| o.as_reference().ok()).collect())
+            .unwrap_or_default();
+        for kid in &kids {
+            widget_ids.insert(*kid);
+        }
+        let field_page = dict.get(b"P").and_then(Object::as_reference).ok();
+        // The widgets carrying the visible box: the field itself when it
+        // has no kids, else each kid.
+        let widgets: Vec<ObjectId> = if kids.is_empty() { vec![*fid] } else { kids };
+        let page_of = |wdict: &Dictionary| {
+            wdict
+                .get(b"P")
+                .and_then(Object::as_reference)
+                .ok()
+                .or(field_page)
+                .or(first_page)
+        };
+
+        if dict.get(b"FT").and_then(Object::as_name).ok() == Some(b"Btn") {
+            for wid in widgets {
+                let Ok(wdict) = doc.get_object(wid).and_then(Object::as_dict) else {
+                    continue;
+                };
+                let Ok(state) = wdict.get(b"AS").and_then(Object::as_name) else {
+                    continue;
+                };
+                if state == b"Off" {
+                    continue; // an unchecked box paints nothing
+                }
+                let Some((ap, bbox, matrix)) = appearance_stream(doc, wdict, state) else {
+                    continue;
+                };
+                let (Some(rect), Some(page)) = (rect_of(wdict), page_of(wdict)) else {
+                    continue;
+                };
+                stamps.push(StampDraw {
+                    page,
+                    rect,
+                    ap,
+                    bbox,
+                    matrix,
+                });
+            }
+        } else {
+            // Text / choice: the value lives on the (parent) field's /V as
+            // a literal string; a Name-typed /V is a button and is skipped.
+            let value = match dict.get(b"V") {
+                Ok(Object::String(v, _)) => String::from_utf8_lossy(v).into_owned(),
+                _ => continue,
+            };
+            if value.is_empty() {
+                continue;
+            }
+            for wid in widgets {
+                let Ok(wdict) = doc.get_object(wid).and_then(Object::as_dict) else {
+                    continue;
+                };
+                let (Some(rect), Some(page)) = (rect_of(wdict), page_of(wdict)) else {
+                    continue;
+                };
+                texts.push(TextDraw {
+                    page,
+                    rect,
+                    value: value.clone(),
+                });
+            }
+        }
+    }
+    (texts, stamps, widget_ids)
+}
+
+/// Write phase: group the draws per page, wire each page's resources, and
+/// append one overlay content stream per page.
+fn paint_overlays(
+    doc: &mut Document,
+    texts: Vec<TextDraw>,
+    stamps: Vec<StampDraw>,
+) -> Result<(), PdfError> {
+    let mut per_page: BTreeMap<ObjectId, (Vec<TextDraw>, Vec<StampDraw>)> = BTreeMap::new();
+    for t in texts {
+        per_page.entry(t.page).or_default().0.push(t);
+    }
+    for s in stamps {
+        per_page.entry(s.page).or_default().1.push(s);
+    }
+
+    let needs_font = per_page.values().any(|(t, _)| !t.is_empty());
+    let font_id = needs_font.then(|| doc.add_object(helvetica_font()));
+
+    let mut xobj_counter = 0u32;
+    for (page_id, (page_texts, page_stamps)) in per_page {
+        let mut ops: Vec<Operation> = Vec::new();
+        for t in &page_texts {
+            ops.extend(text_ops(t.rect, &t.value)?);
+        }
+        let mut xobjects: Vec<(Vec<u8>, ObjectId)> = Vec::new();
+        for s in page_stamps {
+            let ap_id = match s.ap {
+                ApSource::Existing(id) => id,
+                ApSource::Inline(stream) => doc.add_object(Object::Stream(stream)),
+            };
+            let name = format!("NavFlatX{xobj_counter}").into_bytes();
+            xobj_counter += 1;
+            ops.extend(stamp_ops(s.rect, s.bbox, s.matrix, &name));
+            xobjects.push((name, ap_id));
+        }
+
+        let res_id = ensure_own_resources(doc, page_id)?;
+        if !page_texts.is_empty() {
+            if let Some(fid) = font_id {
+                add_resource_entry(doc, res_id, b"Font", b"NavFlatHelv".to_vec(), fid)?;
+            }
+        }
+        for (name, id) in xobjects {
+            add_resource_entry(doc, res_id, b"XObject", name, id)?;
+        }
+
+        let bytes = Content { operations: ops }
+            .encode()
+            .map_err(|e| PdfError::Lopdf(e.to_string()))?;
+        doc.add_page_contents(page_id, bytes)
+            .map_err(|e| PdfError::Lopdf(e.to_string()))?;
+    }
+    Ok(())
+}
+
+/// Drop every widget annotation from the pages — dereferencing a page's
+/// `/Annots` when it is an indirect reference, the shape every vendored
+/// NV packet uses — empty the AcroForm's `/Fields`, clear
+/// `/NeedAppearances`, and prune the now-unreferenced field / widget
+/// objects so nothing can resurrect them as editable fields.
+fn strip_interactive_layer(
+    doc: &mut Document,
+    acroform_id: ObjectId,
+    widget_ids: &BTreeSet<ObjectId>,
+) {
+    for page_id in doc.get_pages().values().copied().collect::<Vec<_>>() {
+        let annots = match annots_slot(doc, page_id) {
+            Some(AnnotsSlot::Inline(pid)) => match doc.get_dictionary_mut(pid) {
+                Ok(page) => match page.get_mut(b"Annots") {
+                    Ok(Object::Array(a)) => a,
+                    _ => continue,
+                },
+                Err(_) => continue,
+            },
+            Some(AnnotsSlot::Indirect(id)) => match doc.objects.get_mut(&id) {
+                Some(Object::Array(a)) => a,
+                _ => continue,
+            },
+            None => continue,
+        };
+        annots.retain(|o| !o.as_reference().is_ok_and(|id| widget_ids.contains(&id)));
+    }
+    if let Some(Object::Dictionary(af)) = doc.objects.get_mut(&acroform_id) {
+        af.set("Fields", Object::Array(Vec::new()));
+        af.remove(b"NeedAppearances");
+    }
+    doc.prune_objects();
+}
+
+/// A standard Helvetica Type1 font dictionary — the overlay text font.
+/// Declares `/WinAnsiEncoding` so the bytes [`winansi_encode`] writes
+/// map to the intended glyphs in every viewer; without it a viewer
+/// falls back to StandardEncoding and accented characters garble.
+fn helvetica_font() -> Object {
+    let mut font = Dictionary::new();
+    font.set("Type", Object::Name(b"Font".to_vec()));
+    font.set("Subtype", Object::Name(b"Type1".to_vec()));
+    font.set("BaseFont", Object::Name(b"Helvetica".to_vec()));
+    font.set("Encoding", Object::Name(b"WinAnsiEncoding".to_vec()));
+    Object::Dictionary(font)
+}
+
+/// The `WinAnsiEncoding` (Windows-1252) code points that differ from
+/// Unicode's first 256: bytes 0x80–0x9F. Every other byte maps 1:1.
+const WIN_ANSI_SPECIALS: [(u8, char); 27] = [
+    (0x80, '€'),
+    (0x82, '‚'),
+    (0x83, 'ƒ'),
+    (0x84, '„'),
+    (0x85, '…'),
+    (0x86, '†'),
+    (0x87, '‡'),
+    (0x88, 'ˆ'),
+    (0x89, '‰'),
+    (0x8A, 'Š'),
+    (0x8B, '‹'),
+    (0x8C, 'Œ'),
+    (0x8E, 'Ž'),
+    (0x91, '\u{2018}'),
+    (0x92, '\u{2019}'),
+    (0x93, '\u{201C}'),
+    (0x94, '\u{201D}'),
+    (0x95, '•'),
+    (0x96, '–'),
+    (0x97, '—'),
+    (0x98, '˜'),
+    (0x99, '™'),
+    (0x9A, 'š'),
+    (0x9B, '›'),
+    (0x9C, 'œ'),
+    (0x9E, 'ž'),
+    (0x9F, 'Ÿ'),
+];
+
+/// Encode `value` as the `WinAnsiEncoding` bytes the overlay font
+/// declares. ASCII whitespace controls become a space (a `Tj` draws a
+/// single line); a character with no WinAnsi byte fails loudly —
+/// never a garbled glyph in a packet on its way to a government office.
+fn winansi_encode(value: &str) -> Result<Vec<u8>, PdfError> {
+    value
+        .chars()
+        .map(|ch| {
+            if matches!(ch, '\n' | '\r' | '\t') {
+                return Ok(b' ');
+            }
+            if let Ok(b @ (0x20..=0x7E | 0xA0..=0xFF)) = u8::try_from(u32::from(ch)) {
+                // ASCII printable and the Latin-1 block map 1:1.
+                return Ok(b);
+            }
+            WIN_ANSI_SPECIALS
+                .iter()
+                .find(|&&(_, c)| c == ch)
+                .map(|&(b, _)| b)
+                .ok_or_else(|| PdfError::UnencodableChar {
+                    ch,
+                    value: value.to_owned(),
+                })
+        })
+        .collect()
+}
+
+/// Decode `WinAnsiEncoding` bytes back to text — the inverse of
+/// [`winansi_encode`], used by [`page_text`] for string operands that
+/// are not valid UTF-8. Unassigned bytes decode as U+FFFD.
+fn winansi_decode(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .map(|&b| match b {
+            0x80..=0x9F => WIN_ANSI_SPECIALS
+                .iter()
+                .find(|&&(sb, _)| sb == b)
+                .map_or('\u{FFFD}', |&(_, c)| c),
+            _ => char::from(b),
+        })
+        .collect()
+}
+
+/// Decode one text-showing operand: UTF-8 when valid (what a form's own
+/// content streams typically carry), else WinAnsi — the single-byte
+/// encoding [`flatten`]'s overlay writes.
+fn decode_shown_text(bytes: &[u8]) -> String {
+    std::str::from_utf8(bytes).map_or_else(|_| winansi_decode(bytes), str::to_owned)
+}
+
+/// The `/Rect` of a widget as normalized `[x0, y0, x1, y1]` (x0 ≤ x1,
+/// y0 ≤ y1), or `None` if absent / malformed.
+fn rect_of(widget: &Dictionary) -> Option<[f32; 4]> {
+    let r = four_floats(widget.get(b"Rect").ok())?;
+    Some([
+        r[0].min(r[2]),
+        r[1].min(r[3]),
+        r[0].max(r[2]),
+        r[1].max(r[3]),
+    ])
+}
+
+/// Read an array of at least four numbers as `[f32; 4]`.
+fn four_floats(obj: Option<&Object>) -> Option<[f32; 4]> {
+    let arr = obj?.as_array().ok()?;
+    if arr.len() < 4 {
+        return None;
+    }
+    Some([
+        arr[0].as_float().ok()?,
+        arr[1].as_float().ok()?,
+        arr[2].as_float().ok()?,
+        arr[3].as_float().ok()?,
+    ])
+}
+
+/// The on-state appearance Form XObject for a widget: its `/AP /N /<state>`
+/// entry, plus that form's `/BBox` and `/Matrix` (identity when absent).
+/// `None` when there is no such stream to stamp.
+fn appearance_stream(
+    doc: &Document,
+    widget: &Dictionary,
+    state: &[u8],
+) -> Option<(ApSource, [f32; 4], [f32; 6])> {
+    let ap = resolve_dict(doc, widget.get(b"AP").ok())?;
+    let n = resolve_dict(doc, ap.get(b"N").ok())?;
+    let entry = n.get(state).ok()?;
+    let (source, dict) = match entry {
+        Object::Reference(id) => {
+            let stream = doc.get_object(*id).and_then(Object::as_stream).ok()?;
+            (ApSource::Existing(*id), &stream.dict)
+        }
+        Object::Stream(stream) => (ApSource::Inline(stream.clone()), &stream.dict),
+        _ => return None,
+    };
+    let bbox = four_floats(dict.get(b"BBox").ok())?;
+    let matrix = six_floats(dict.get(b"Matrix").ok()).unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+    Some((source, bbox, matrix))
+}
+
+/// Read an array of at least six numbers as a `[f32; 6]` matrix.
+fn six_floats(obj: Option<&Object>) -> Option<[f32; 6]> {
+    let arr = obj?.as_array().ok()?;
+    if arr.len() < 6 {
+        return None;
+    }
+    let mut m = [0.0f32; 6];
+    for (slot, o) in m.iter_mut().zip(arr) {
+        *slot = o.as_float().ok()?;
+    }
+    Some(m)
+}
+
+/// The content-stream operations that draw `value` inside `rect` in a
+/// standard Helvetica sized to the box, encoded to match the font's
+/// declared `WinAnsiEncoding`.
+///
+/// # Errors
+///
+/// [`PdfError::UnencodableChar`] when a character in `value` has no
+/// WinAnsi byte.
+fn text_ops(rect: [f32; 4], value: &str) -> Result<Vec<Operation>, PdfError> {
+    let [x0, y0, _, y1] = rect;
+    let height = y1 - y0;
+    let size = (height * 0.62).clamp(6.0, 11.0);
+    let tx = x0 + 2.0;
+    // Baseline roughly vertically centred within the box.
+    let ty = y0 + (height - size) / 2.0 + size * 0.2;
+    Ok(vec![
+        Operation::new("q", vec![]),
+        Operation::new(
+            "rg",
+            vec![Object::Real(0.0), Object::Real(0.0), Object::Real(0.0)],
+        ),
+        Operation::new("BT", vec![]),
+        Operation::new(
+            "Tf",
+            vec![Object::Name(b"NavFlatHelv".to_vec()), Object::Real(size)],
+        ),
+        Operation::new("Td", vec![Object::Real(tx), Object::Real(ty)]),
+        Operation::new(
+            "Tj",
+            vec![Object::String(
+                winansi_encode(value)?,
+                StringFormat::Literal,
+            )],
+        ),
+        Operation::new("ET", vec![]),
+        Operation::new("Q", vec![]),
+    ])
+}
+
+/// The content-stream operations that stamp the named appearance XObject
+/// so its (matrix-transformed) `/BBox` maps onto `rect` — the placement
+/// PDF viewers compute for a widget's appearance (spec 12.5.5).
+fn stamp_ops(rect: [f32; 4], bbox: [f32; 4], matrix: [f32; 6], name: &[u8]) -> Vec<Operation> {
+    let [rx0, ry0, rx1, ry1] = rect;
+    let corners = [
+        (bbox[0], bbox[1]),
+        (bbox[2], bbox[1]),
+        (bbox[2], bbox[3]),
+        (bbox[0], bbox[3]),
+    ];
+    // Map each corner through the appearance's /Matrix [m0 m1 m2 m3 m4 m5].
+    let m = matrix;
+    let tx = corners.map(|(x, y)| m[0] * x + m[2] * y + m[4]);
+    let ty = corners.map(|(x, y)| m[1] * x + m[3] * y + m[5]);
+    let tx0 = tx.iter().copied().fold(f32::INFINITY, f32::min);
+    let tx1 = tx.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let ty0 = ty.iter().copied().fold(f32::INFINITY, f32::min);
+    let ty1 = ty.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let bw = tx1 - tx0;
+    let bh = ty1 - ty0;
+    let sx = if bw.abs() > f32::EPSILON {
+        (rx1 - rx0) / bw
+    } else {
+        1.0
+    };
+    let sy = if bh.abs() > f32::EPSILON {
+        (ry1 - ry0) / bh
+    } else {
+        1.0
+    };
+    vec![
+        Operation::new("q", vec![]),
+        Operation::new(
+            "cm",
+            vec![
+                Object::Real(sx),
+                Object::Real(0.0),
+                Object::Real(0.0),
+                Object::Real(sy),
+                Object::Real(rx0 - sx * tx0),
+                Object::Real(ry0 - sy * ty0),
+            ],
+        ),
+        Operation::new("Do", vec![Object::Name(name.to_vec())]),
+        Operation::new("Q", vec![]),
+    ]
+}
+
+/// Ensure `page_id` has its own resources object (materializing an inline
+/// or inherited dictionary into an indirect one) and return its id, so
+/// overlay fonts / XObjects can be added without shadowing inherited
+/// resources the page's own content already relies on.
+fn ensure_own_resources(doc: &mut Document, page_id: ObjectId) -> Result<ObjectId, PdfError> {
+    let lo = |e: lopdf::Error| PdfError::Lopdf(e.to_string());
+    if let Ok(Object::Reference(id)) = doc.get_dictionary(page_id).map_err(lo)?.get(b"Resources") {
+        return Ok(*id);
+    }
+    // Inline or inherited: merge everything reachable up the page tree into
+    // one owned dictionary, add it, and point the page at it.
+    let merged = {
+        let (inline, ids) = doc.get_page_resources(page_id).map_err(lo)?;
+        let mut merged = inline.cloned().unwrap_or_else(Dictionary::new);
+        for rid in ids {
+            if let Ok(dict) = doc.get_dictionary(rid) {
+                for (k, v) in dict {
+                    if !merged.has(k) {
+                        merged.set(k.clone(), v.clone());
+                    }
+                }
+            }
+        }
+        merged
+    };
+    let id = doc.add_object(Object::Dictionary(merged));
+    doc.get_dictionary_mut(page_id)
+        .map_err(lo)?
+        .set("Resources", Object::Reference(id));
+    Ok(id)
+}
+
+/// Add `name → target` under the `category` sub-dictionary (`/Font`,
+/// `/XObject`, …) of the resources object `res_id`, resolving a
+/// referenced sub-dictionary or creating an inline one as needed.
+fn add_resource_entry(
+    doc: &mut Document,
+    res_id: ObjectId,
+    category: &[u8],
+    name: Vec<u8>,
+    target: ObjectId,
+) -> Result<(), PdfError> {
+    let lo = |e: lopdf::Error| PdfError::Lopdf(e.to_string());
+    let sub_ref = match doc.get_dictionary(res_id).map_err(lo)?.get(category) {
+        Ok(Object::Reference(id)) => Some(*id),
+        _ => None,
+    };
+    if let Some(sub_id) = sub_ref {
+        doc.get_dictionary_mut(sub_id)
+            .map_err(lo)?
+            .set(name, Object::Reference(target));
+        return Ok(());
+    }
+    let res = doc.get_dictionary_mut(res_id).map_err(lo)?;
+    if !matches!(res.get(category), Ok(Object::Dictionary(_))) {
+        res.set(category.to_vec(), Object::Dictionary(Dictionary::new()));
+    }
+    if let Ok(Object::Dictionary(sub)) = res.get_mut(category) {
+        sub.set(name, Object::Reference(target));
+    }
+    Ok(())
+}
+
+/// Extract the text shown on every page — the operands of the text-showing
+/// operators (`Tj`, `TJ`, `'`, `"`) across all page content streams — as
+/// one whitespace-joined string. Streams that fail to decode are skipped
+/// (a form's own content may use encodings we don't model); the overlay we
+/// append flattening a form always decodes. Used by round-trip guards to
+/// prove a flattened packet still shows its filled values.
+///
+/// # Errors
+///
+/// [`PdfError::Lopdf`] if `pdf` is not a parseable PDF.
+pub fn page_text(pdf: &[u8]) -> Result<String, PdfError> {
+    let doc = Document::load_mem(pdf).map_err(|e| PdfError::Lopdf(e.to_string()))?;
+    let mut out = String::new();
+    for page_id in doc.page_iter() {
+        for sid in doc.get_page_contents(page_id) {
+            let Ok(stream) = doc.get_object(sid).and_then(Object::as_stream) else {
+                continue;
+            };
+            let data = stream
+                .decompressed_content()
+                .unwrap_or_else(|_| stream.content.clone());
+            let Ok(content) = Content::decode(&data) else {
+                continue;
+            };
+            for op in content.operations {
+                match op.operator.as_str() {
+                    "Tj" | "'" | "\"" => {
+                        for o in &op.operands {
+                            if let Object::String(bytes, _) = o {
+                                out.push_str(&decode_shown_text(bytes));
+                                out.push(' ');
+                            }
+                        }
+                    }
+                    "TJ" => {
+                        if let Some(Object::Array(arr)) = op.operands.first() {
+                            for el in arr {
+                                if let Object::String(bytes, _) = el {
+                                    out.push_str(&decode_shown_text(bytes));
+                                }
+                            }
+                            out.push(' ');
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// Read back the `/AS` appearance state of a widget: the field itself
 /// for a kid-less checkbox, or the `index`-th kid of a radio group. A
 /// test helper for asserting the visible checked state, not just `/V`.
@@ -622,10 +1306,12 @@ pub fn read_widget_appearance_state(
 #[cfg(test)]
 mod tests {
     use super::{
-        blank_acroform, blank_acroform_with, fill_acroform, read_field_value,
-        read_widget_appearance_state, FieldSpec,
+        blank_acroform, blank_acroform_with, field_names, fill_acroform, flatten, page_text,
+        read_field_value, read_widget_appearance_state, widget_annotation_count, FieldSpec,
     };
     use crate::PdfError;
+    use lopdf::content::Content;
+    use lopdf::{Dictionary, Document, Object, Stream};
     use std::collections::BTreeMap;
 
     fn fields(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
@@ -854,6 +1540,225 @@ mod tests {
         assert_eq!(
             read_field_value(&filled, "management").as_deref(),
             Some("members")
+        );
+    }
+
+    #[test]
+    fn flatten_removes_fields_but_keeps_text_as_page_content() {
+        let blank = blank_acroform(&["entity_name", "registered_agent"]);
+        let filled = fill_acroform(
+            &blank,
+            &fields(&[
+                ("entity_name", "Neon Law LLC"),
+                ("registered_agent", "Jane Doe"),
+            ]),
+        )
+        .unwrap();
+        assert!(
+            !field_names(&filled).unwrap().is_empty(),
+            "filled form is still interactive before flattening"
+        );
+
+        let flat = flatten(&filled).unwrap();
+        assert!(
+            field_names(&flat).unwrap().is_empty(),
+            "flattening leaves no interactive fields to re-edit"
+        );
+        assert_eq!(
+            widget_annotation_count(&flat).unwrap(),
+            0,
+            "no widget annotation survives for a viewer to rebuild a field from"
+        );
+        let text = page_text(&flat).unwrap();
+        assert!(text.contains("Neon Law LLC"), "value survives as page text");
+        assert!(text.contains("Jane Doe"), "value survives as page text");
+        // The stored /V is gone with the field, so a form reader sees none.
+        assert_eq!(read_field_value(&flat, "entity_name"), None);
+    }
+
+    /// Rewrite each page's inline `/Annots` array into an indirect
+    /// object — the shape every real vendored NV packet uses.
+    fn with_indirect_annots(pdf: &[u8]) -> Vec<u8> {
+        let mut doc = Document::load_mem(pdf).unwrap();
+        for page_id in doc.get_pages().values().copied().collect::<Vec<_>>() {
+            let arr = match doc.get_dictionary(page_id).unwrap().get(b"Annots") {
+                Ok(Object::Array(a)) => a.clone(),
+                _ => continue,
+            };
+            let arr_id = doc.add_object(Object::Array(arr));
+            doc.get_dictionary_mut(page_id)
+                .unwrap()
+                .set("Annots", Object::Reference(arr_id));
+        }
+        let mut out = Vec::new();
+        doc.save_to(&mut out).unwrap();
+        out
+    }
+
+    #[test]
+    fn flatten_strips_widgets_behind_an_indirect_annots_array() {
+        let blank = with_indirect_annots(&blank_acroform(&["entity_name"]));
+        let filled = fill_acroform(&blank, &fields(&[("entity_name", "Neon Law LLC")])).unwrap();
+        assert!(
+            widget_annotation_count(&filled).unwrap() > 0,
+            "the fixture carries a widget behind the indirect array"
+        );
+
+        let flat = flatten(&filled).unwrap();
+        assert_eq!(
+            widget_annotation_count(&flat).unwrap(),
+            0,
+            "an indirect /Annots array must be dereferenced and stripped, \
+             or every widget survives flattening"
+        );
+        assert!(
+            page_text(&flat).unwrap().contains("Neon Law LLC"),
+            "value survives as page text"
+        );
+    }
+
+    #[test]
+    fn flatten_writes_win_ansi_bytes_with_a_declared_encoding() {
+        let blank = blank_acroform(&["name"]);
+        let filled = fill_acroform(&blank, &fields(&[("name", "José Núñez")])).unwrap();
+        let flat = flatten(&filled).unwrap();
+
+        // The overlay font must declare the encoding its bytes use…
+        let doc = Document::load_mem(&flat).unwrap();
+        let declares = doc.objects.values().any(|o| {
+            o.as_dict().is_ok_and(|d| {
+                d.get(b"BaseFont").and_then(Object::as_name).ok() == Some(b"Helvetica")
+                    && d.get(b"Encoding").and_then(Object::as_name).ok() == Some(b"WinAnsiEncoding")
+            })
+        });
+        assert!(declares, "overlay Helvetica must declare /WinAnsiEncoding");
+
+        // …and the Tj operand must be WinAnsi bytes (é = 0xE9), not raw
+        // UTF-8 (0xC3 0xA9), which StandardEncoding-era viewers would
+        // render as two unrelated glyphs.
+        let mut operands: Vec<Vec<u8>> = Vec::new();
+        for pid in doc.page_iter() {
+            for sid in doc.get_page_contents(pid) {
+                let Ok(stream) = doc.get_object(sid).and_then(Object::as_stream) else {
+                    continue;
+                };
+                let data = stream
+                    .decompressed_content()
+                    .unwrap_or_else(|_| stream.content.clone());
+                let Ok(content) = Content::decode(&data) else {
+                    continue;
+                };
+                for op in content.operations {
+                    if op.operator == "Tj" {
+                        if let Some(Object::String(b, _)) = op.operands.first() {
+                            operands.push(b.clone());
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            operands
+                .iter()
+                .any(|b| b.as_slice() == b"Jos\xe9 N\xfa\xf1ez"),
+            "overlay text must be WinAnsi-encoded, got {operands:?}"
+        );
+
+        // The round-trip guard reads it back as the original text.
+        assert!(page_text(&flat).unwrap().contains("José Núñez"));
+    }
+
+    #[test]
+    fn flatten_rejects_a_value_outside_win_ansi_loudly() {
+        // A glyph WinAnsi cannot carry must fail the flatten, never
+        // silently garble a packet on its way to a government office.
+        let blank = blank_acroform(&["name"]);
+        let filled = fill_acroform(&blank, &fields(&[("name", "日本商事")])).unwrap();
+        let err = flatten(&filled).unwrap_err();
+        assert!(
+            matches!(err, PdfError::UnencodableChar { ch: '日', .. }),
+            "expected UnencodableChar, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn flatten_is_idempotent() {
+        let blank = blank_acroform(&["x"]);
+        let filled = fill_acroform(&blank, &fields(&[("x", "hello")])).unwrap();
+        let once = flatten(&filled).unwrap();
+        let twice = flatten(&once).unwrap();
+        assert!(field_names(&twice).unwrap().is_empty());
+        assert!(
+            page_text(&twice).unwrap().contains("hello"),
+            "re-flattening a flat form neither errors nor drops content"
+        );
+    }
+
+    #[test]
+    fn flatten_without_an_acroform_is_a_loud_error() {
+        // A Typst-rendered PDF has no AcroForm to flatten.
+        let plain = crate::render("Nothing to flatten here.").unwrap();
+        assert!(matches!(flatten(&plain).unwrap_err(), PdfError::NoAcroForm));
+    }
+
+    #[test]
+    fn flatten_stamps_a_checked_box_appearance_onto_the_page() {
+        // A checkbox whose on-state carries a real appearance stream: after
+        // flattening, the field is gone but its appearance is drawn onto the
+        // page (a `Do` of the stamped XObject), so the visible check survives.
+        let blank = blank_acroform_with(&[FieldSpec::Checkbox {
+            name: "box".into(),
+            on_state: "Yes".into(),
+        }]);
+        let mut doc = Document::load_mem(&blank).unwrap();
+        let mut sdict = Dictionary::new();
+        sdict.set("Type", Object::Name(b"XObject".to_vec()));
+        sdict.set("Subtype", Object::Name(b"Form".to_vec()));
+        sdict.set(
+            "BBox",
+            Object::Array(vec![
+                Object::Integer(0),
+                Object::Integer(0),
+                Object::Integer(14),
+                Object::Integer(14),
+            ]),
+        );
+        let ap_id = doc.add_object(Object::Stream(Stream::new(
+            sdict,
+            b"q 0 0 0 rg 2 2 10 10 re f Q".to_vec(),
+        )));
+        // Point the checkbox's /AP /N /Yes at the real stream.
+        let ids: Vec<_> = doc.objects.keys().copied().collect();
+        for id in ids {
+            if let Some(Object::Dictionary(d)) = doc.objects.get_mut(&id) {
+                if d.get(b"T").and_then(Object::as_str).ok() == Some(b"box".as_slice()) {
+                    if let Ok(Object::Dictionary(ap)) = d.get_mut(b"AP") {
+                        if let Ok(Object::Dictionary(n)) = ap.get_mut(b"N") {
+                            n.set("Yes", Object::Reference(ap_id));
+                        }
+                    }
+                }
+            }
+        }
+        let mut bytes = Vec::new();
+        doc.save_to(&mut bytes).unwrap();
+
+        let filled = fill_acroform(&bytes, &fields(&[("box", "Yes")])).unwrap();
+        assert_eq!(
+            read_widget_appearance_state(&filled, "box", None).as_deref(),
+            Some("Yes")
+        );
+
+        let flat = flatten(&filled).unwrap();
+        assert!(field_names(&flat).unwrap().is_empty());
+        let out = Document::load_mem(&flat).unwrap();
+        let stamped = out.page_iter().any(|pid| {
+            out.get_page_content(pid)
+                .is_ok_and(|c| String::from_utf8_lossy(&c).contains("NavFlatX0"))
+        });
+        assert!(
+            stamped,
+            "the checked box's appearance must be stamped onto the page as an XObject"
         );
     }
 }

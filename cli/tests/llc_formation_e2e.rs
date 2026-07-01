@@ -5,9 +5,10 @@
 //! This proves the formation flow through the **CLI surface** the prompt
 //! specifies — `notation create` → `intake answer` (the seven `nv__llc_formation`
 //! questions, including a `people_list` row) → `notation status` →
-//! `notation approve` → `notation document` — and asserts with
-//! `pdf::read_field_value` that the downloaded bytes are the official
-//! Nevada SoS packet carrying the founder's answers, the same assertions
+//! `notation approve` → `notation document` — and asserts the downloaded
+//! bytes are the official Nevada SoS packet, flattened past staff review:
+//! no interactive fields survive, yet every founder answer still reads back
+//! as static page text, the same guarantee
 //! `features/tests/nest_formation.rs` makes, now proven through the binary.
 //!
 //! Both the interactive walk (scripted stdin) and the non-interactive
@@ -142,24 +143,32 @@ fn notation_id_from(stdout: &str) -> Uuid {
         .unwrap_or_else(|| panic!("no notation id in notation-create output:\n{stdout}"))
 }
 
-/// Assert the downloaded packet is the official Nevada SoS form carrying
-/// the founder's answers — the same fields `nest_formation.rs` checks.
+/// Assert the downloaded packet is the official Nevada SoS form, flattened
+/// past staff review: no interactive fields survive (nothing can re-edit an
+/// approved value on the way to the government office), yet the founder's
+/// answers still read back as static page content — the entity name on the
+/// Initial List and the managing member in the Articles.
 fn assert_filled_packet(bytes: &[u8]) {
     assert!(bytes.starts_with(b"%PDF"), "the download is a PDF");
-    assert_eq!(
-        pdf::read_field_value(bytes, "NAME OF ENTITY").as_deref(),
-        Some("Bright Star Ventures"),
-        "entity name lands on the Initial List",
+    assert!(
+        pdf::field_names(bytes)
+            .expect("field names readable")
+            .is_empty(),
+        "the filed packet is flattened — no interactive fields survive staff review",
     );
     assert_eq!(
-        pdf::read_field_value(bytes, "managers_b").as_deref(),
-        Some("members"),
-        "the member-managed box is checked",
+        pdf::widget_annotation_count(bytes).expect("widget count readable"),
+        0,
+        "no widget annotation survives for a viewer to rebuild an editable field from",
     );
-    assert_eq!(
-        pdf::read_field_value(bytes, "Name3").as_deref(),
-        Some("Libra"),
-        "the managing member fills slot 1 of the Articles",
+    let text = pdf::page_text(bytes).expect("extract flattened page text");
+    assert!(
+        text.contains("Bright Star Ventures"),
+        "entity name lands on the Initial List as static content:\n{text}",
+    );
+    assert!(
+        text.contains("Libra"),
+        "the managing member fills slot 1 of the Articles:\n{text}",
     );
 }
 
