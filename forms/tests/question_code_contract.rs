@@ -10,7 +10,7 @@
 //! Today the three NV blanks still carry a `<code>.fields.toml` that maps
 //! their hostile `OmniForm` `/T` names onto question references; the human
 //! re-authoring that makes the PDF `/T` names *be* question codes is a
-//! sequenced follow-on (see `docs/forms-acroform-contract.md`). This guard
+//! sequenced follow-on (see `docs/gov-forms.md`). This guard
 //! pins the layer that exists today: it fails CI if a `.fields.toml`
 //! references a question the notation never declares, or if a notation
 //! declares a state whose type is not canonical. Either way a mis-map
@@ -64,14 +64,19 @@ fn state_type(state: &str) -> &str {
 
 /// A `.fields.toml` question reference resolves to a declared state when
 /// its leading segment (before any dotted `.part`) either *is* a state or
-/// is the `__role` suffix of one — mirroring `fieldmap::answer_for`, which
-/// looks an answer up by exact key or by `__{question}` suffix.
+/// is the `__role` suffix of *exactly one* — mirroring `fieldmap::answer_for`,
+/// which looks an answer up by exact key, else by a `__{question}` suffix that
+/// must match a single key (an ambiguous suffix returns `None` at runtime, so
+/// the guard must treat it as unresolved too, not silently pass).
 fn resolves_to_state(question: &str, states: &BTreeSet<&str>) -> bool {
     let head = question.split('.').next().unwrap_or(question);
-    states.contains(head)
-        || states
-            .iter()
-            .any(|s| s.strip_suffix(head).is_some_and(|p| p.ends_with("__")))
+    if states.contains(head) {
+        return true;
+    }
+    let mut suffixed = states
+        .iter()
+        .filter(|s| s.strip_suffix(head).is_some_and(|p| p.ends_with("__")));
+    suffixed.next().is_some() && suffixed.next().is_none()
 }
 
 #[test]
