@@ -152,7 +152,7 @@ with `git status --porcelain` — paths should drain group by group until the wo
 | `ci` | `.github/workflows/` and CI plumbing |
 | `perf` | a performance improvement |
 | `style` | formatting only, no code change |
-| `build` | build system / Dockerfiles / Cargo manifests (non-dep) |
+| `build` | build system / Containerfiles / Cargo manifests (non-dep) |
 
 Scope is the crate or area — `web`, `store`, `cli`, `views`, `deps`, `mcp`, etc. Keep it to the one thing the commit
 touches. Use `!` after the type/scope (e.g. `feat(store)!:`) or a `BREAKING CHANGE:` body trailer for a breaking change.

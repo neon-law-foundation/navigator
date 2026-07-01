@@ -174,26 +174,6 @@ or the glossary — the issue is the working space, the repo is the durable reco
 
 ## Agent environment notes
 
-### Cursor Cloud agent VM
-
-A committed [`.cursor/environment.json`](.cursor/environment.json) + [`.cursor/Dockerfile`](.cursor/Dockerfile) define
-the agent base image, so build + lint + test work out of the box. The image bakes the pinned Rust 1.96.0 toolchain
-(rustfmt + clippy), the native build deps (`build-essential`, `pkg-config`, `libssl-dev`, `libpq-dev`,
-`protobuf-compiler`), and a local PostgreSQL seeded with a superuser role/db `navigator` (password `navigator`). On each
-boot `install` runs `cargo fetch` and `start` runs `sudo service postgresql start`; `TEST_DATABASE_URL` is preset in the
-image. Editing the Dockerfile triggers an image rebuild on the *next* agent — it does not change a running agent.
-
-So the Rust gate (see [`AGENTS.md`](AGENTS.md) and [`docs/test-database.md`](docs/test-database.md)) runs directly when
-Rust files or build/runtime configuration changed:
-
-```bash
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace   # TEST_DATABASE_URL already targets the baked local Postgres
-```
-
-`cargo test` creates a per-run `test_<id>` schema against that one server, so there is no per-binary testcontainer.
-
 ### Pull request walkthrough artifacts
 
 When a change affects public UI or portal UI, **always** capture a **live** walkthrough from the running app and put it

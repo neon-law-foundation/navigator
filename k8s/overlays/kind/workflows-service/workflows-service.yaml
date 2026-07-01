@@ -10,7 +10,7 @@
 # declared. No Jobs to maintain.
 #
 # Image: `navigator-workflows-service:dev` is built by
-# `images/Dockerfile.workflows-service` (see `navigator image-workflows-service`).
+# `images/Containerfile.workflows-service` (see `navigator image-workflows-service`).
 # Pin a tag in production; `:dev` is the local-KIND convention used
 # by `kind load docker-image …`.
 

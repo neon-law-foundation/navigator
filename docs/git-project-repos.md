@@ -123,7 +123,7 @@ to git's reference server gets the full, battle-tested protocol for free. **Fall
 `gix` server-side support lands; the handler is the only thing that would change.
 
 **Cost owned explicitly — the runtime image must carry `git`.** The current prod runtime is
-`gcr.io/distroless/static:nonroot` (`images/Dockerfile.web`), which has no shell and no `git` binary;
+`gcr.io/distroless/static:nonroot` (`images/Containerfile.web`), which has no shell and no `git` binary;
 `web/src/git_meta.rs` already documents this. The git-serving path therefore runs from a minimal base image that
 includes the `git` binary (e.g. `gcr.io/distroless/base` with `git` and its runtime deps copied in, or a
 `debian:stable-slim` + `git`). This is a real, named cost of the transport choice.
@@ -279,7 +279,7 @@ Per the engineering council's Libra: ship fetch before push (clone-only is usefu
 ## Deploying the git-serving tier
 
 The transport and `commit_as` shell the `git` binary, which `gcr.io/distroless/static` (the `navigator-web` runtime)
-does not carry. The git-serving tier therefore runs from [`images/Dockerfile.git`](../images/Dockerfile.git) — the
+does not carry. The git-serving tier therefore runs from [`images/Containerfile.git`](../images/Containerfile.git) — the
 *same* musl-static `web` binary on a `debian:stable-slim` + `git` base. Reference GKE manifests are in
 [`examples/deploy/k8s/gke/git/git-serving.yaml`](../examples/deploy/k8s/gke/git/git-serving.yaml): a `replicas: 1`
 `Recreate` Deployment with an RWO PVC mounted at `NAVIGATOR_GIT_REPO_ROOT`, a Service, and a `VolumeSnapshot` for the

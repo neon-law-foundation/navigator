@@ -358,22 +358,6 @@ Full teardown — only when you want a clean rebuild or to reclaim the cluster's
 cargo run --release -p cli -- down   # kills port-forwards, then `kind delete cluster`
 ```
 
-### Devcontainer (optional)
-
-If you don't want to install `kind` / `kubectl` natively, the `tools/dev/Dockerfile` bundles them with the pinned Rust
-toolchain:
-
-```bash
-docker build -t navigator-devx:dev -f tools/dev/Dockerfile .
-docker run --rm -it \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v "$PWD":/work -w /work --network host \
-    navigator-devx:dev \
-    cargo run --release -p cli -- start-dev-server
-```
-
-`--network host` is what lets the browser on the host reach the port-forwards started inside the container.
-
 ## 7c. One environment per git worktree (Codex / parallel agents)
 
 When several agents (or you, across several Codex worktrees) work in parallel, each worktree needs its **own** running

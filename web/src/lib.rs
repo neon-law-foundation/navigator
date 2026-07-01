@@ -2878,7 +2878,7 @@ async fn nebula_certificate_submit(
 /// Under the ghcr model an image is pulled by that dated tag, so `release`
 /// is what a `ship` rolls onto and what an operator pins — it is the
 /// deploy's identity. The git fields stay alongside it for traceability:
-/// `images/Dockerfile.web` turns the `GIT_SHA`/`BUILD_TIME` build-args
+/// `images/Containerfile.web` turns the `GIT_SHA`/`BUILD_TIME` build-args
 /// (set by CI to the released commit) into `NAVIGATOR_GIT_SHA` /
 /// `NAVIGATOR_BUILD_TIME`. All three are baked into the image bytes, so
 /// they cannot drift from what was deployed. A local `cargo run` honestly
