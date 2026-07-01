@@ -350,9 +350,10 @@ pub async fn answer_step(
 /// Unlike [`answer_step`], the client surface does **not** drive the
 /// questionnaire runtime — that pointer is staff's progress toward the
 /// post-intake workflow. The client's answers are written straight to the
-/// `answers` table ([`record_client_answer`]); the latest answer per code
-/// is what the document renders, so a client edit lands without disturbing
-/// staff's walk.
+/// `answers` table ([`record_client_answer`]); reads key the latest answer
+/// by the authored questionnaire state (`state_name`), with a bare-code
+/// fallback only for rows that predate state-scoped answer writes, so a
+/// client edit lands without disturbing staff's walk.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClientIntakeStep {
     /// The client should answer (or confirm) this question. `prior_value`
@@ -810,7 +811,7 @@ async fn localized_prompt(
 mod tests {
     use super::{
         answer_step, answered_client_states, current_step, start_notation, AnswerAuthor, NextStep,
-        NotationSessionError, QuestionDescriptor, QuestionnaireDefinition,
+        NotationSessionError, QuestionDescriptor, QuestionnaireDefinition, StateName,
     };
     use crate::questionnaire_spec_from_yaml;
     use crate::runtime::InMemoryRuntime;
@@ -1540,6 +1541,84 @@ mod tests {
         .notation_id
     }
 
+    async fn seed_client_question(db: &store::Db, code: &str, answer_type: &str) -> Uuid {
+        question::ActiveModel {
+            code: ActiveValue::Set(code.into()),
+            prompt: ActiveValue::Set(format!("Prompt for {code}")),
+            answer_type: ActiveValue::Set(answer_type.into()),
+            audience: ActiveValue::Set(store::entity::question::AUDIENCE_BOTH.into()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap()
+        .id
+    }
+
+    async fn start_snapshot_notation(
+        db: &store::Db,
+        yaml: &str,
+        prompts: BTreeMap<String, String>,
+    ) -> (Uuid, Uuid) {
+        let template_row = template::ActiveModel {
+            code: ActiveValue::Set(format!("state_scope_test_{}", Uuid::now_v7())),
+            title: ActiveValue::Set("State scope test".into()),
+            respondent_type: ActiveValue::Set("person".into()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+        let person_id = seed_person(db, "state-scope@example.com").await;
+        let definition = QuestionnaireDefinition {
+            spec: questionnaire_spec_from_yaml(yaml).unwrap(),
+            prompts,
+            prompt_translations: BTreeMap::new(),
+            audiences: BTreeMap::new(),
+            choices: BTreeMap::new(),
+        };
+        let notation_id = notation::ActiveModel {
+            template_id: ActiveValue::Set(template_row.id),
+            person_id: ActiveValue::Set(person_id),
+            entity_id: ActiveValue::Set(None),
+            project_id: ActiveValue::Set(seed_project(db).await),
+            state: ActiveValue::Set(StateName::BEGIN.into()),
+            questionnaire_snapshot: ActiveValue::Set(Some(
+                serde_json::to_value(&definition).unwrap(),
+            )),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap()
+        .id;
+        (notation_id, person_id)
+    }
+
+    async fn insert_answer(
+        db: &store::Db,
+        notation_id: Uuid,
+        person_id: Uuid,
+        question_id: Uuid,
+        state_name: Option<&str>,
+        value: &str,
+        source: &str,
+    ) {
+        answer::ActiveModel {
+            question_id: ActiveValue::Set(question_id),
+            person_id: ActiveValue::Set(person_id),
+            notation_id: ActiveValue::Set(Some(notation_id)),
+            state_name: ActiveValue::Set(state_name.map(ToString::to_string)),
+            value: ActiveValue::Set(answer::primitive(value)),
+            source: ActiveValue::Set(source.to_string()),
+            authored_by_person_id: ActiveValue::Set(None),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+    }
+
     #[tokio::test]
     async fn client_intake_walks_only_client_facing_questions() {
         let db = db().await;
@@ -1647,6 +1726,189 @@ mod tests {
         assert_eq!(answer::display_value(&latest.value), "Libra Prime");
         assert_eq!(latest.notation_id, Some(id));
         assert_eq!(latest.source, SOURCE_CLIENT);
+    }
+
+    #[tokio::test]
+    async fn client_intake_duplicate_custom_states_prefill_by_state_name() {
+        let db = db().await;
+        let custom_q = seed_client_question(&db, "custom_text", "string").await;
+        let (id, person) = start_snapshot_notation(
+            &db,
+            "questionnaire:\n  BEGIN:\n    _: custom_text__mission_statement\n  \
+             custom_text__mission_statement:\n    _: custom_text__revenue_strategy\n  \
+             custom_text__revenue_strategy:\n    _: END\n  END: {}\n",
+            BTreeMap::from([
+                (
+                    "mission_statement".to_string(),
+                    "Mission statement?".to_string(),
+                ),
+                (
+                    "revenue_strategy".to_string(),
+                    "Revenue strategy?".to_string(),
+                ),
+            ]),
+        )
+        .await;
+        insert_answer(
+            &db,
+            id,
+            person,
+            custom_q,
+            Some("custom_text__mission_statement"),
+            "Expand legal access",
+            SOURCE_STAFF,
+        )
+        .await;
+        insert_answer(
+            &db,
+            id,
+            person,
+            custom_q,
+            Some("custom_text__revenue_strategy"),
+            "Flat-fee retainers",
+            SOURCE_STAFF,
+        )
+        .await;
+
+        let step = client_intake_step(&db, None, id).await.unwrap();
+        let ClientIntakeStep::NeedsAnswer {
+            question,
+            prior_value,
+            position,
+            total,
+        } = step
+        else {
+            panic!("expected mission statement question");
+        };
+        assert_eq!(question.code, "custom_text__mission_statement");
+        assert_eq!(prior_value.as_deref(), Some("Expand legal access"));
+        assert_eq!((position, total), (1, 2));
+
+        record_client_answer(
+            &db,
+            None,
+            id,
+            "custom_text__mission_statement",
+            "Client-approved mission",
+            person,
+        )
+        .await
+        .unwrap();
+        let step = client_intake_step(&db, None, id).await.unwrap();
+        let ClientIntakeStep::NeedsAnswer {
+            question,
+            prior_value,
+            position,
+            total,
+        } = step
+        else {
+            panic!("expected revenue strategy question");
+        };
+        assert_eq!(question.code, "custom_text__revenue_strategy");
+        assert_eq!(prior_value.as_deref(), Some("Flat-fee retainers"));
+        assert_eq!((position, total), (2, 2));
+    }
+
+    #[tokio::test]
+    async fn client_intake_duplicate_entity_states_prefill_by_state_name() {
+        let db = db().await;
+        let entity_q = seed_client_question(&db, "entity", "entity").await;
+        let (id, person) = start_snapshot_notation(
+            &db,
+            "questionnaire:\n  BEGIN:\n    _: entity__company\n  \
+             entity__company:\n    _: entity__subsidiary\n  \
+             entity__subsidiary:\n    _: END\n  END: {}\n",
+            BTreeMap::from([
+                ("company".to_string(), "Company?".to_string()),
+                ("subsidiary".to_string(), "Subsidiary?".to_string()),
+            ]),
+        )
+        .await;
+        insert_answer(
+            &db,
+            id,
+            person,
+            entity_q,
+            Some("entity__company"),
+            "Neon Law LLC",
+            SOURCE_STAFF,
+        )
+        .await;
+        insert_answer(
+            &db,
+            id,
+            person,
+            entity_q,
+            Some("entity__subsidiary"),
+            "Neon Law Labs LLC",
+            SOURCE_STAFF,
+        )
+        .await;
+
+        let step = client_intake_step(&db, None, id).await.unwrap();
+        let ClientIntakeStep::NeedsAnswer {
+            question,
+            prior_value,
+            ..
+        } = step
+        else {
+            panic!("expected entity__company");
+        };
+        assert_eq!(question.code, "entity__company");
+        assert_eq!(prior_value.as_deref(), Some("Neon Law LLC"));
+
+        record_client_answer(&db, None, id, "entity__company", "Neon Law LLC", person)
+            .await
+            .unwrap();
+        let step = client_intake_step(&db, None, id).await.unwrap();
+        let ClientIntakeStep::NeedsAnswer {
+            question,
+            prior_value,
+            position,
+            total,
+        } = step
+        else {
+            panic!("expected entity__subsidiary");
+        };
+        assert_eq!(question.code, "entity__subsidiary");
+        assert_eq!(prior_value.as_deref(), Some("Neon Law Labs LLC"));
+        assert_eq!((position, total), (2, 2));
+    }
+
+    #[tokio::test]
+    async fn client_intake_null_state_prefill_is_legacy_bare_code_fallback() {
+        let db = db().await;
+        let custom_q = seed_client_question(&db, "custom_text", "string").await;
+        let (id, person) = start_snapshot_notation(
+            &db,
+            "questionnaire:\n  BEGIN:\n    _: custom_text__mission_statement\n  \
+             custom_text__mission_statement:\n    _: custom_text__revenue_strategy\n  \
+             custom_text__revenue_strategy:\n    _: END\n  END: {}\n",
+            BTreeMap::new(),
+        )
+        .await;
+        insert_answer(
+            &db,
+            id,
+            person,
+            custom_q,
+            None,
+            "Legacy bare-code value",
+            SOURCE_STAFF,
+        )
+        .await;
+
+        let step = client_intake_step(&db, None, id).await.unwrap();
+        let ClientIntakeStep::NeedsAnswer {
+            question,
+            prior_value,
+            ..
+        } = step
+        else {
+            panic!("expected first custom_text state");
+        };
+        assert_eq!(question.code, "custom_text__mission_statement");
+        assert_eq!(prior_value.as_deref(), Some("Legacy bare-code value"));
     }
 
     #[tokio::test]
