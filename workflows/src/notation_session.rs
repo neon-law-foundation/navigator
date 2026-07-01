@@ -413,6 +413,7 @@ pub async fn client_intake_step(
     // pre-fill) and the set of codes the client has answered themselves.
     let answers = answer::Entity::find()
         .filter(answer::Column::PersonId.eq(person_id))
+        .filter(answer::Column::NotationId.eq(notation_id))
         .order_by_asc(answer::Column::Id)
         .all(db)
         .await?;
@@ -1449,6 +1450,25 @@ mod tests {
         (started.notation_id, person_id)
     }
 
+    async fn start_audienced_retainer_for_person(
+        db: &store::Db,
+        runtime: &InMemoryRuntime,
+        person_id: Uuid,
+    ) -> Uuid {
+        start_notation(
+            db,
+            runtime,
+            None,
+            "onboarding__retainer",
+            person_id,
+            seed_project(db).await,
+            None,
+        )
+        .await
+        .unwrap()
+        .notation_id
+    }
+
     #[tokio::test]
     async fn client_intake_walks_only_client_facing_questions() {
         let db = db().await;
@@ -1491,6 +1511,45 @@ mod tests {
             client_intake_step(&db, None, id).await.unwrap(),
             ClientIntakeStep::Complete { total: 2 }
         ));
+    }
+
+    #[tokio::test]
+    async fn client_intake_progress_is_scoped_to_notation() {
+        let db = db().await;
+        let runtime = InMemoryRuntime::new();
+        seed_retainer_template(&db).await;
+        seed_retainer_questions_with_audiences(&db).await;
+        let person = seed_person(&db, "libra@example.com").await;
+        let first_id = start_audienced_retainer_for_person(&db, &runtime, person).await;
+        let second_id = start_audienced_retainer_for_person(&db, &runtime, person).await;
+
+        record_client_answer(&db, None, first_id, "client_name", "Libra", person)
+            .await
+            .unwrap();
+        record_client_answer(
+            &db,
+            None,
+            first_id,
+            "client_email",
+            "libra@example.com",
+            person,
+        )
+        .await
+        .unwrap();
+
+        let step = client_intake_step(&db, None, second_id).await.unwrap();
+        let ClientIntakeStep::NeedsAnswer {
+            question,
+            prior_value,
+            position,
+            total,
+        } = step
+        else {
+            panic!("expected second notation to still need client_name");
+        };
+        assert_eq!(question.code, "client_name");
+        assert_eq!(prior_value, None);
+        assert_eq!((position, total), (1, 2));
     }
 
     #[tokio::test]

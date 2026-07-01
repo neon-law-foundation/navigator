@@ -100,7 +100,7 @@ impl MigrationTrait for Migration {
         .await?;
         db.execute(Statement::from_string(
             backend,
-            "ALTER TABLE answers DROP CONSTRAINT fk_answers_notation".to_string(),
+            "ALTER TABLE answers DROP CONSTRAINT IF EXISTS fk_answers_notation".to_string(),
         ))
         .await?;
         db.execute(Statement::from_string(

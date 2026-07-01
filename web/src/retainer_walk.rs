@@ -807,6 +807,7 @@ pub async fn step_get(
     let prior_answer = answer::Entity::find()
         .filter(answer::Column::QuestionId.eq(question.id))
         .filter(answer::Column::PersonId.eq(person_id))
+        .filter(answer::Column::NotationId.eq(notation_id))
         .order_by_desc(answer::Column::Id)
         .one(&state.db)
         .await

@@ -1304,21 +1304,6 @@ async fn seed_answers(db: &DatabaseConnection, report: &mut SeedReport) -> anyho
         else {
             continue;
         };
-        // Answers are append-only at every walker write site; this guard
-        // is only the seed pass's own idempotency (`seed_canonical`
-        // re-running inserts no new rows), keyed on the fixture's identity
-        // — not a domain dedup. These fixtures are person-scoped (no
-        // Notation behind them), so `notation_id` and `state_name` stay
-        // null.
-        if answer::Entity::find()
-            .filter(answer::Column::QuestionId.eq(q.id))
-            .filter(answer::Column::PersonId.eq(p.id))
-            .one(db)
-            .await?
-            .is_some()
-        {
-            continue;
-        }
         answer::ActiveModel {
             question_id: ActiveValue::Set(q.id),
             person_id: ActiveValue::Set(p.id),

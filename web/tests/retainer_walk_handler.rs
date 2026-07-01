@@ -142,6 +142,63 @@ async fn step_get_at_begin_renders_the_first_question() {
 }
 
 #[tokio::test]
+async fn step_get_prefill_is_scoped_to_current_notation() {
+    let (app, db, nid, _runtime) = build_app_and_notation().await;
+    let notation = entity::notation::Entity::find_by_id(nid)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    let other_notation = entity::notation::ActiveModel {
+        template_id: ActiveValue::Set(notation.template_id),
+        person_id: ActiveValue::Set(notation.person_id),
+        entity_id: ActiveValue::Set(notation.entity_id),
+        project_id: ActiveValue::Set(notation.project_id),
+        state: ActiveValue::Set("BEGIN".into()),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let client_name = entity::question::Entity::find()
+        .filter(entity::question::Column::Code.eq("client_name"))
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    entity::answer::ActiveModel {
+        question_id: ActiveValue::Set(client_name.id),
+        person_id: ActiveValue::Set(notation.person_id),
+        notation_id: ActiveValue::Set(Some(other_notation.id)),
+        state_name: ActiveValue::Set(Some("client_name".into())),
+        value: ActiveValue::Set(entity::answer::primitive("Other matter client")),
+        source: ActiveValue::Set(entity::answer::SOURCE_STAFF.into()),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri(format!("/portal/admin/notations/{nid}/step"))
+                .header("authorization", "Bearer dev")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let html = body_string(resp).await;
+    assert!(html.contains("client_name"), "html: {html}");
+    assert!(
+        !html.contains("Other matter client"),
+        "stale answer from another notation leaked into prefill: {html}"
+    );
+}
+
+#[tokio::test]
 async fn step_post_writes_answer_signals_runtime_and_redirects_to_next_question() {
     let (app, db, nid, runtime) = build_app_and_notation().await;
 
