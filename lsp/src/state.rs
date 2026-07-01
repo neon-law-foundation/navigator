@@ -12,10 +12,10 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use lsp_types::{
-    CodeAction, CodeActionKind, CodeActionOrCommand, Diagnostic, DidChangeTextDocumentParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, Hover, HoverContents, MarkupContent,
-    MarkupKind, OneOf, PublishDiagnosticsParams, ServerCapabilities, TextDocumentSyncCapability,
-    TextDocumentSyncKind, Uri, WorkspaceEdit,
+    CodeAction, CodeActionKind, CodeActionOrCommand, CompletionItem, CompletionItemKind,
+    Diagnostic, DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    Hover, HoverContents, MarkupContent, MarkupKind, OneOf, PublishDiagnosticsParams,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, Uri, WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -64,8 +64,35 @@ impl Server {
                 },
             )),
             hover_provider: Some(lsp_types::HoverProviderCapability::Simple(true)),
+            completion_provider: Some(lsp_types::CompletionOptions::default()),
             ..ServerCapabilities::default()
         }
+    }
+
+    /// Completion at `position`: inside a template's `questionnaire:` block,
+    /// offer the registered `<type>` vocabulary (the Slice-4 registry,
+    /// mirrored in `rules`) so authors compose `<type>__<role>` states from
+    /// real types. Empty everywhere else.
+    #[must_use]
+    pub fn completion(&self, uri: &Uri, position: lsp_types::Position) -> Vec<CompletionItem> {
+        let Some(text) = self.documents.get(uri) else {
+            return Vec::new();
+        };
+        let Some(byte) = position_to_byte(text, position) else {
+            return Vec::new();
+        };
+        if !in_frontmatter_block(text, byte, "questionnaire:") {
+            return Vec::new();
+        }
+        rules::REGISTERED_QUESTION_TYPES
+            .iter()
+            .map(|ty| CompletionItem {
+                label: (*ty).to_string(),
+                kind: Some(CompletionItemKind::VALUE),
+                detail: rules::describe_question_type(ty),
+                ..CompletionItem::default()
+            })
+            .collect()
     }
 
     /// Open a document and return the diagnostics-publish
@@ -190,7 +217,7 @@ impl Server {
         let path = uri_to_path(uri);
         let byte = position_to_byte(text, position)?;
 
-        let step = workflow_step_hover(text, byte);
+        let step = workflow_step_hover(text, byte).or_else(|| question_type_hover(text, byte));
         let (_file, violations) = lint_buffer(path, text.clone());
         let violation = violations
             .iter()
@@ -233,7 +260,7 @@ impl Server {
 /// and the markdown body (`**prefix** — status\n\nsummary`), or `None`
 /// when the cursor isn't on a known step in that block.
 fn workflow_step_hover(text: &str, byte: usize) -> Option<(std::ops::Range<usize>, String)> {
-    if !in_workflow_block(text, byte) {
+    if !in_frontmatter_block(text, byte, "workflow:") {
         return None;
     }
     let range = identifier_at(text, byte)?;
@@ -244,6 +271,21 @@ fn workflow_step_hover(text: &str, byte: usize) -> Option<(std::ops::Range<usize
         step.status.label(),
         step.summary,
     );
+    Some((range, body))
+}
+
+/// Hover doc for a question type, when `byte` falls on a state name inside a
+/// template's `questionnaire:` block. Reads the `<type>` prefix off the state
+/// and shows its registry description (kind/shape) — the way hovering a
+/// workflow step shows what it does.
+fn question_type_hover(text: &str, byte: usize) -> Option<(std::ops::Range<usize>, String)> {
+    if !in_frontmatter_block(text, byte, "questionnaire:") {
+        return None;
+    }
+    let range = identifier_at(text, byte)?;
+    let state = &text[range.clone()];
+    let ty = state.split_once("__").map_or(state, |(t, _)| t);
+    let body = rules::describe_question_type(ty)?;
     Some((range, body))
 }
 
@@ -264,9 +306,10 @@ fn identifier_at(text: &str, byte: usize) -> Option<std::ops::Range<usize>> {
 }
 
 /// True when `byte` lies on an indented line inside the frontmatter's
-/// top-level `workflow:` block — so a question code or a body word that
-/// happens to share a step name doesn't get a workflow-step hover.
-fn in_workflow_block(text: &str, byte: usize) -> bool {
+/// top-level `block_key` block (e.g. `workflow:` or `questionnaire:`) — so a
+/// body word or a word under a different key doesn't pick up that block's
+/// hover.
+fn in_frontmatter_block(text: &str, byte: usize, block_key: &str) -> bool {
     if !text.starts_with("---\n") {
         return false;
     }
@@ -285,8 +328,8 @@ fn in_workflow_block(text: &str, byte: usize) -> bool {
         let indented = line.starts_with([' ', '\t']);
         if !indented && line.trim_end().ends_with(':') {
             // A top-level key resets the block: we're in it only under
-            // `workflow:` itself.
-            in_block = line.trim_end() == "workflow:";
+            // `block_key` itself.
+            in_block = line.trim_end() == block_key;
         }
         if byte >= offset && byte < line_end {
             return in_block && indented;
@@ -475,6 +518,106 @@ mod tests {
         let info = r.server_info.unwrap();
         assert_eq!(info.name, "navigator-lsp");
         assert!(info.version.is_some());
+    }
+
+    /// A notation template with a questionnaire + workflow block and one
+    /// typed questionnaire state, for the completion/hover/diagnostics tests.
+    const TEMPLATE: &str = "---\ntitle: T\nquestionnaire:\n  BEGIN:\n    _: entity__company\n  entity__company:\n    _: END\n  END: {}\nworkflow:\n  BEGIN:\n    _: staff_review\n  staff_review:\n    _: END\n  END: {}\n---\n\nBody.\n";
+
+    #[test]
+    fn capabilities_advertise_completion() {
+        assert!(Server::capabilities().completion_provider.is_some());
+    }
+
+    #[test]
+    fn completion_offers_registered_types_inside_the_questionnaire_block() {
+        let mut server = Server::new();
+        open(&mut server, "file:///t.md", TEMPLATE);
+        let uri = Uri::from_str("file:///t.md").unwrap();
+        // Line 4 (0-based) is `    _: entity__company`, inside questionnaire.
+        let items = server.completion(
+            &uri,
+            Position {
+                line: 4,
+                character: 6,
+            },
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"entity"), "labels: {labels:?}");
+        assert!(labels.contains(&"custom_datetime"), "labels: {labels:?}");
+        assert!(labels.contains(&"people"), "labels: {labels:?}");
+    }
+
+    #[test]
+    fn completion_is_empty_outside_the_questionnaire_block() {
+        let mut server = Server::new();
+        open(&mut server, "file:///t.md", TEMPLATE);
+        let uri = Uri::from_str("file:///t.md").unwrap();
+        // Line 16 is the body line `Body.` — not in the questionnaire block.
+        let items = server.completion(
+            &uri,
+            Position {
+                line: 16,
+                character: 1,
+            },
+        );
+        assert!(items.is_empty(), "got {} items", items.len());
+    }
+
+    #[test]
+    fn hover_shows_the_question_type_over_a_questionnaire_state() {
+        let mut server = Server::new();
+        open(&mut server, "file:///t.md", TEMPLATE);
+        let uri = Uri::from_str("file:///t.md").unwrap();
+        // Line 5 (0-based) is `  entity__company:`; hover inside `entity`.
+        let h = server
+            .hover(
+                &uri,
+                Position {
+                    line: 5,
+                    character: 4,
+                },
+            )
+            .expect("expected a question-type hover");
+        match h.contents {
+            lsp_types::HoverContents::Markup(m) => {
+                assert!(
+                    m.value.contains("registered question type"),
+                    "got: {}",
+                    m.value
+                );
+                assert!(m.value.contains("entity"), "got: {}", m.value);
+            }
+            other => panic!("expected markup hover, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn diagnostics_surface_n113_for_an_unregistered_typed_state() {
+        let mut server = Server::new();
+        let uri = Uri::from_str("file:///bad.md").unwrap();
+        let bad = TEMPLATE.replace("entity__company", "bogus__company");
+        let out = server.did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri,
+                language_id: "markdown".to_string(),
+                version: 0,
+                text: bad,
+            },
+        });
+        let Outgoing::Notification { params, .. } = out else {
+            panic!("expected notification");
+        };
+        let codes: Vec<String> = params["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|d| d["code"].as_str().map(str::to_string))
+            .collect();
+        assert!(
+            codes.iter().any(|c| c == "N113"),
+            "expected N113 in {codes:?}"
+        );
     }
 
     #[test]

@@ -55,11 +55,13 @@ title: <human-readable name>
 code: <category>__<specifier>    # stable id, snake_case, double underscore
 respondent_type: person | entity | person_and_entity
 confidential: true | false
-questionnaire:                   # state machine of question codes
+questionnaire:                   # state machine of typed question states
   BEGIN:
-    _: first_question_code       # `_` is "respondent answered"
-  first_question_code:
-    _: next_question_code
+    _: person__client            # a glossary Person — `_` is "respondent answered"
+  person__client:
+    _: custom_single_choice__fee_status   # custom only where no glossary type fits
+  custom_single_choice__fee_status:
+    _: END
   END: {}
 workflow:                        # state machine of workflow states
   BEGIN:
@@ -67,8 +69,8 @@ workflow:                        # state machine of workflow states
   END: {}
 ```
 
-Body uses `{{question_code}}` placeholders that are substituted with the respondent's answers. The template is **inert
-until a Notation binds a respondent to it.**
+Body uses `{{type__role}}` placeholders (and `{{#for x in people__…}}…{{/for}}` for a plural answer) that are
+substituted with the respondent's answers. The template is **inert until a Notation binds a respondent to it.**
 
 **The template body is English-only.** The notation a client signs is the binding artifact, so it is always English —
 only the questionnaire *prompt* may carry an attorney-reviewed localized variant (the `question_translations` table) so
@@ -87,13 +89,38 @@ The template's job is to turn validated answers into a **candidate document**. T
 advances through staff review, signature, and filing — so the template body must compile into a complete legal document
 with only the answers as input.
 
-### 3. Questions — `store/seeds/Question.yaml`
+### 3. Question types — the closed registry, glossary-first
 
-Every `question_code` referenced in a template's `questionnaire:` must exist in
-[`store/seeds/Question.yaml`](../../../store/seeds/Question.yaml) with an `answer_type` (`string`, `text`, `int`,
-`bool`, `choice`). The form layer in [`views/src/pages/admin/retainers.rs`](../../../views/src/pages/admin/retainers.rs)
-picks the input widget from `answer_type`. Reuse existing question codes across templates wherever the prompt is
-identical — `client_name`, `client_email`, `principal_office`, `member_list` are already shared.
+A questionnaire state is `<type>__<role>` (`person__trustor`, `entity__company`, `address__for_company`). The `<type>`
+is a **closed registry** — [`store::question_registry::QuestionType`](../../../store/src/question_registry.rs), mirrored
+in [`store/seeds/Question.yaml`](../../../store/seeds/Question.yaml) — of glossary ORM models (record/reference types),
+their plural "list" forms (`people`, `entities`, …), and a small set of `custom_*` primitives. There are **no bespoke
+per-matter question codes**: you compose the questionnaire out of the registry, never by inventing a `client_name` or
+`trustee_name` code.
+
+**Prefer the glossary — both its models *and their fields* — and reach for `custom_*` only when nothing in the glossary
+fits.** Ask two questions, in order, before you ever type `custom_`:
+
+1. **Is the answer a glossary model?** Use its type. A trustee is a [Person](../../../docs/glossary.md#person) →
+   `person__trustee`; the company is an [Entity](../../../docs/glossary.md#entity) → `entity__company`; a mailing
+   address → `address__for_company`; several members → `people__members`; a state of licensure →
+   `jurisdiction__licensure`.
+2. **Is the answer a *field* of a glossary model?** Use the model and read the field with a dotted placeholder — do
+   **not** capture it as free text. A trustee's name is `person__trustee` rendered `{{person__trustee.name}}`; an
+   entity's legal name is `{{entity__company.name}}`; an address's city is `{{address__for_company.city}}`; a license
+   number is `{{credential__bar.license_number}}`. `custom_text__trustee_name` is precisely the mistake this rule
+   exists to prevent — a name is a field of a Person, not a custom string. Check the glossary term's **Schema** link
+   (`store::entity::…`) for the fields a type exposes.
+
+Only when the answer is **neither a glossary model nor a field of one** is it custom: a fee status
+(`custom_single_choice__fee_status`), a one-off date (`custom_datetime__filed_on`), a consent flag
+(`custom_yes_no__recording_consent`). The custom family is `custom_text`, `custom_yes_no`, `custom_single_choice`,
+`custom_multiple_choice`, `custom_usd`, `custom_datetime`.
+
+A `custom_*__<key>` state carries its prompt (and, for `custom_single_choice`, its `choices:`) in the **template**
+frontmatter, not the seed. `N113` rejects an unregistered `<type>`, `N114` orders `__for_` children after their parent,
+and `N115` resolves the body placeholders/iterators — so a glossary-grounded questionnaire is checked at
+`navigator validate`. Full grammar: [`docs/notation-authoring.md`](../../../docs/notation-authoring.md).
 
 ### 4. Workflow YAML — compose from the shared step library
 

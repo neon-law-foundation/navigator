@@ -37,6 +37,6 @@ Feature: Northstar estate-plan workflow shape
 
   Scenario: The estate questionnaire captures recording consent first
     Then the onboarding__estate questionnaire routes:
-      | from              | condition | to                |
-      | BEGIN             | _         | recording_consent |
-      | recording_consent | _         | testator_name     |
+      | from                            | condition | to                              |
+      | BEGIN                           | _         | custom_yes_no__recording_consent |
+      | custom_yes_no__recording_consent | _        | custom_text__testator_name      |

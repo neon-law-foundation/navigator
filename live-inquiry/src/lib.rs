@@ -280,7 +280,7 @@ fn normalize_inquiries(
         if next == "END" {
             break;
         }
-        let Some(question) = questions.get(next) else {
+        let Some(question) = question_for_state(next, questions) else {
             bail!("questionnaire references unknown question `{next}`");
         };
         inquiries.push(Inquiry {
@@ -298,6 +298,16 @@ fn normalize_inquiries(
         current = next.clone();
     }
     Ok(inquiries)
+}
+
+fn question_for_state<'a>(
+    state: &str,
+    questions: &'a BTreeMap<String, QuestionSeed>,
+) -> Option<&'a QuestionSeed> {
+    questions.get(state).or_else(|| {
+        let (question_type, _) = state.split_once("__")?;
+        questions.get(question_type)
+    })
 }
 
 pub fn segment_transcript(transcript: &str) -> Vec<TranscriptSegment> {
@@ -382,13 +392,13 @@ fn proposed_answer(
     segments: &[TranscriptSegment],
 ) -> (Option<String>, Vec<String>) {
     let lower = transcript.to_lowercase();
-    if code == "recording_consent" && lower.contains("consent") {
+    if prompt_key(code) == "recording_consent" && lower.contains("consent") {
         return (
             Some("Yes".to_string()),
             evidence_segments(segments, &["consent"], None),
         );
     }
-    for label in labels_for(code) {
+    for label in labels_for(prompt_key(code)) {
         if let Some(value) = value_after_label(&lower, transcript, label) {
             return (
                 Some(value.clone()),
@@ -397,6 +407,10 @@ fn proposed_answer(
         }
     }
     (None, Vec::new())
+}
+
+fn prompt_key(code: &str) -> &str {
+    code.rsplit_once("__").map_or(code, |(_, key)| key)
 }
 
 fn labels_for(code: &str) -> &'static [&'static str] {
@@ -503,10 +517,10 @@ mod tests {
             questionnaire: serde_yaml::from_str(
                 r"
 BEGIN:
-  _: recording_consent
-recording_consent:
-  _: testator_name
-testator_name:
+  _: custom_yes_no__recording_consent
+custom_yes_no__recording_consent:
+  _: custom_text__testator_name
+custom_text__testator_name:
   _: END
 END: {}
 ",
@@ -522,40 +536,46 @@ END: {}
                 .iter()
                 .map(|inquiry| inquiry.code.as_str())
                 .collect::<Vec<_>>(),
-            vec!["recording_consent", "testator_name"]
+            vec![
+                "custom_yes_no__recording_consent",
+                "custom_text__testator_name"
+            ]
         );
-        assert_eq!(inquiries[1].prompt, "What is your full legal name?");
+        assert_eq!(
+            inquiries[1].prompt,
+            "What text should be added for {{for_label}}?"
+        );
     }
 
     #[test]
     fn coverage_finds_answers_and_evidence_segments() {
         let inquiries = vec![
             Inquiry {
-                code: "recording_consent".to_string(),
+                code: "custom_yes_no__recording_consent".to_string(),
                 prompt: "Do you consent to recording this sitting?".to_string(),
                 answer_type: "yes_no".to_string(),
                 source: InquirySource::TemplateQuestion {
                     template_code: "onboarding__estate".to_string(),
-                    question_code: "recording_consent".to_string(),
+                    question_code: "custom_yes_no__recording_consent".to_string(),
                 },
             },
             Inquiry {
-                code: "executor_name".to_string(),
+                code: "custom_text__executor_name".to_string(),
                 prompt: "Who is the executor of your will?".to_string(),
                 answer_type: "string".to_string(),
                 source: InquirySource::TemplateQuestion {
                     template_code: "onboarding__estate".to_string(),
-                    question_code: "executor_name".to_string(),
+                    question_code: "custom_text__executor_name".to_string(),
                 },
             },
             Inquiry {
-                code: "financial_agent".to_string(),
+                code: "custom_text__financial_agent".to_string(),
                 prompt: "Who is your financial agent under a durable power of attorney?"
                     .to_string(),
                 answer_type: "string".to_string(),
                 source: InquirySource::TemplateQuestion {
                     template_code: "onboarding__estate".to_string(),
-                    question_code: "financial_agent".to_string(),
+                    question_code: "custom_text__financial_agent".to_string(),
                 },
             },
         ];

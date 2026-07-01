@@ -607,9 +607,21 @@ block must declare a `sent_for_signature` (or `sent_for_signature__*`) [State](#
 
 ## State
 
-One named position in a Workflow Spec (e.g. `intake_persisted`, `staff_review`, `sent_for_signature`). Notation rows
-carry the current state as a string. State names use the `<prefix>__<discriminator>` form so the runtime can pick the
-right [Actor Class](#actor-class) per state.
+One named position in a questionnaire or workflow machine. Notation rows carry the current state as a string. State
+names use the `<prefix>__<discriminator>` form so the runtime can pick the right [Actor Class](#actor-class) per state.
+A **workflow** state's prefix is a step from the workflow-step catalog (`staff_review`, `sent_for_signature`); a
+**questionnaire** state's prefix is a [Question Type](#question-type) and its discriminator is the role
+(`entity__company`), so two answers of one type stay distinct.
+
+## Question Type
+
+The `<type>` half of a questionnaire [State](#state) name (`<type>__<role>`) — a closed set defined by
+[`store::question_registry::QuestionType`](../store/src/question_registry.rs). Each type is a **record** (creates or
+links a `store::entity` row — `person`, `entity`, `address`, …), a **reference** (selects a seeded row — `jurisdiction`,
+`product`, …), or a **custom** primitive (`custom_text`, `custom_single_choice`, `custom_datetime`, …). Record and
+reference types pair a singular with an explicit plural/aggregate (`person`→`people`). `N113` grounds every typed state
+to this registry, `N114` orders `__for_` children after their parent, and `N115` resolves body paths and iterators
+against the declared states. See [`notation-authoring.md`](notation-authoring.md).
 
 ## Analysis
 

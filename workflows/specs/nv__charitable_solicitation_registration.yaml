@@ -1,13 +1,14 @@
 questionnaire:
   BEGIN:
-    _: annual_or_amended
-  annual_or_amended:
+    _: custom_single_choice__annual_or_amended
+  custom_single_choice__annual_or_amended:
     _: custom_text__fundraising_activities
   custom_text__fundraising_activities:
     _: END
   END: {}
 prompts:
   fundraising_activities: What are the fundraising activities?
+  annual_or_amended: Is this an original annual application or is it an amendment to a previous application?
 workflow:
   BEGIN:
     _: staff_review

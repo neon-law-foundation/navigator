@@ -303,22 +303,15 @@ mod tests {
         .insert(db)
         .await
         .unwrap();
-        for code in [
-            "client_name",
-            "client_email",
-            "project_name",
-            "product_description",
-        ] {
-            question::ActiveModel {
-                code: ActiveValue::Set(code.into()),
-                prompt: ActiveValue::Set(format!("Prompt for {code}")),
-                answer_type: ActiveValue::Set("string".into()),
-                ..Default::default()
-            }
-            .insert(db)
-            .await
-            .unwrap();
+        question::ActiveModel {
+            code: ActiveValue::Set("custom_text".into()),
+            prompt: ActiveValue::Set("Prompt for custom text".into()),
+            answer_type: ActiveValue::Set("string".into()),
+            ..Default::default()
         }
+        .insert(db)
+        .await
+        .unwrap();
         seed_firm_principal(db).await;
     }
 
@@ -391,7 +384,7 @@ mod tests {
         assert!(out["structuredContent"]["notation_id"].is_string());
         assert_eq!(
             out["structuredContent"]["next_question"]["code"],
-            "client_name"
+            "custom_text__client_name"
         );
     }
 

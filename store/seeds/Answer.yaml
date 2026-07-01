@@ -4,12 +4,12 @@ lookup_fields:
   - person_email
   - value
 records:
-  - question_code: personal_name
+  - question_code: custom_text
     person_email: nick@neonlaw.com
     value: "Nick Shook"
-  - question_code: personal_ssn
+  - question_code: custom_text
     person_email: nick@neonlaw.com
     value: "000-00-0000"
-  - question_code: staff_review
+  - question_code: custom_single_choice
     person_email: nick@neonlaw.com
     value: "approved"

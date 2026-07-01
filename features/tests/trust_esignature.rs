@@ -180,13 +180,11 @@ async fn assert_notation_state(world: &mut TrustWorld, expected: String) {
 
 #[then("the trust notation has a signature request id")]
 async fn assert_signature_request_id(world: &mut TrustWorld) {
-    let row = entity::notation::Entity::find_by_id(world.notation_id())
-        .one(world.db())
+    let request_id = store::signatures::request_id_for_notation(world.db(), world.notation_id())
         .await
-        .unwrap()
-        .expect("notation row");
+        .unwrap();
     assert!(
-        row.signature_request_id.is_some(),
+        request_id.is_some(),
         "the generalized send path must have stamped a provider envelope id"
     );
 }

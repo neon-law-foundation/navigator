@@ -22,13 +22,6 @@ pub struct Model {
     pub project_id: Uuid,
     /// `draft`, `staff_review`, `signed`, …
     pub state: String,
-    /// Opaque e-signature provider request id (DocuSign `envelopeId`),
-    /// set when the retainer reaches `sent_for_signature__pending`. The
-    /// inbound completion webhook (`web::esignature_webhook`) resolves a
-    /// provider callback back to this notation by matching on this
-    /// column. `None` for notations not yet sent for signature. See
-    /// `m20260621_add_signature_request_id_to_notations`.
-    pub signature_request_id: Option<String>,
     /// How the client receives this notation when it is sent for
     /// signature: [`DELIVERY_EMBEDDED`] (captive — signs inside Neon Law Navigator,
     /// not emailed) or [`DELIVERY_EMAILED`] (DocuSign emails a signing

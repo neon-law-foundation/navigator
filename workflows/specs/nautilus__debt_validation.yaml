@@ -1,17 +1,23 @@
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: collector_name
-  collector_name:
-    _: alleged_account
-  alleged_account:
-    _: original_creditor
-  original_creditor:
-    _: disputed_reason
-  disputed_reason:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__collector_name
+  custom_text__collector_name:
+    _: custom_text__alleged_account
+  custom_text__alleged_account:
+    _: custom_text__original_creditor
+  custom_text__original_creditor:
+    _: custom_text__disputed_reason
+  custom_text__disputed_reason:
     _: END
   END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  collector_name: What is the name of the debt collector contacting you?
+  alleged_account: What account or reference number is the collector using?
+  original_creditor: Who is the original creditor, if you know?
+  disputed_reason: What do you dispute about this debt?
 workflow:
   BEGIN:
     intake_submitted: document_open__debt_validation

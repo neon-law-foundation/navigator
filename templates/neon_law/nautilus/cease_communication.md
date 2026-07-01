@@ -4,12 +4,15 @@ respondent_type: person
 code: nautilus__cease_communication
 jurisdiction: US
 confidential: true
+prompts:
+  client_name: What is the client's full legal name?
+  collector_name: What is the name of the debt collector contacting you?
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: collector_name
-  collector_name:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__collector_name
+  custom_text__collector_name:
     _: END
   END: {}
 workflow:
@@ -25,10 +28,11 @@ workflow:
   END: {}
 ---
 
-To: `{{collector_name}}` \
-Re: `{{client_name}}`
+To: `{{custom_text__collector_name}}` \
+Re: `{{custom_text__client_name}}`
 
-We represent `{{client_name}}`, who has elected to stop your communications about the debt you are collecting.
+We represent `{{custom_text__client_name}}`, who has elected to stop your communications about the debt you are
+collecting.
 
 Under the federal Fair Debt Collection Practices Act, 15 U.S.C. § 1692c(c), this is written notice that the Client
 refuses further communication about this debt. Cease communicating with the Client about it, except as § 1692c(c)

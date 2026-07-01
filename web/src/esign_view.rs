@@ -42,10 +42,14 @@ pub async fn sign_get(
         return (StatusCode::NOT_FOUND, "notation not found").into_response();
     };
 
-    // The envelope must already exist (the retainer walk persists the id
-    // when it parks at `sent_for_signature__pending`). No id → there is
-    // nothing to sign yet.
-    let Some(request_id) = notation_row.signature_request_id.clone() else {
+    // The envelope must already exist (the retainer walk records the id in
+    // `signatures` when it parks at `sent_for_signature__pending`). No id →
+    // there is nothing to sign yet.
+    let Some(request_id) = store::signatures::request_id_for_notation(&state.db, notation_id)
+        .await
+        .ok()
+        .flatten()
+    else {
         return (
             StatusCode::CONFLICT,
             "this matter has not been sent for signature yet",

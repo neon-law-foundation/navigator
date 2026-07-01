@@ -4,16 +4,21 @@ respondent_type: person_and_entity
 code: onboarding__retainer_namesake
 jurisdiction: US
 confidential: true
+prompts:
+  client_name: What is the client's full legal name?
+  client_email: What is the client's email address?
+  project_name: What is the project name for this engagement?
+  product_description: Describe the services this retainer covers.
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: client_email
-  client_email:
-    _: project_name
-  project_name:
-    _: product_description
-  product_description:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__client_email
+  custom_text__client_email:
+    _: custom_text__project_name
+  custom_text__project_name:
+    _: custom_text__product_description
+  custom_text__product_description:
     _: END
   END: {}
 workflow:
@@ -31,14 +36,15 @@ workflow:
     signature_declined: END
   END: {}
 ---
-This Engagement Agreement (the "Agreement") is entered into between Neon Law (the "Firm") and `{{client_name}}` (the
-"Client"), reachable at `{{client_email}}`, for **Neon Law Namesake** — a United States trademark application — on the
-matter referred to as `{{project_name}}`.
+This Engagement Agreement (the "Agreement") is entered into between Neon Law (the "Firm") and
+`{{custom_text__client_name}}` (the "Client"), reachable at `{{custom_text__client_email}}`, for
+**Neon Law Namesake** — a United States trademark application — on the matter referred to as
+`{{custom_text__project_name}}`.
 
 **The work and the fee.** The Firm will prepare and file a trademark application with the United States Patent and
 Trademark Office (USPTO) for one class of goods or services, and handle the routine correspondence to register it:
-`{{product_description}}`. This is a flat fee for one class, billed once when the matter closes; the USPTO filing fee
-for the class is passed through at cost, and each additional class is a separate flat fee.
+`{{custom_text__product_description}}`. This is a flat fee for one class, billed once when the matter closes; the USPTO
+filing fee for the class is passed through at cost, and each additional class is a separate flat fee.
 
 **Scope of the engagement.** The Firm's representation is limited to preparing and filing the application in one class
 and the routine prosecution to registration described above and in the clauses of this Agreement. A substantive refusal,
@@ -74,8 +80,8 @@ Washington State Bar Association. You keep those rights in full.
 
 **Reaching the Firm.** Email to **support@neonlaw.com** is the best and primary way to reach the Firm. You consent to
 electronic communication at that address and understand that routine correspondence, documents, and questions about your
-matter flow through it. The Firm sends invoices and case correspondence to you at `{{client_email}}`; you reach the Firm
-at support@neonlaw.com.
+matter flow through it. The Firm sends invoices and case correspondence to you at `{{custom_text__client_email}}`; you
+reach the Firm at support@neonlaw.com.
 
 **Firm-wide conflicts.** Neon Law is a small firm, and we treat a conflict for any one of our attorneys as a conflict
 for the entire firm. Before we take on a new matter, we check it against all of our current and former matters across
@@ -89,7 +95,7 @@ privileged correspondence we exchange with you — for ten years after your matt
 file at any point during that period. After ten years, the Firm securely destroys the file and its contents.
 
 The Client acknowledges receipt of the Firm's privacy notice and agrees to electronic delivery of invoices and case
-correspondence at `{{client_email}}`.
+correspondence at `{{custom_text__client_email}}`.
 
 The Client and the Firm execute this Agreement electronically as of the dates signed below.
 

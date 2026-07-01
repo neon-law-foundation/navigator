@@ -6,12 +6,15 @@ jurisdiction: NV
 confidential: false
 questionnaire:
   BEGIN:
-    _: trustee_name
-  trustee_name:
-    _: trust_property
-  trust_property:
+    _: custom_text__trustee_name
+  custom_text__trustee_name:
+    _: custom_text__trust_property
+  custom_text__trust_property:
     _: END
   END: {}
+prompts:
+  trustee_name: Who is the trustee of the trust?
+  trust_property: What property does the trust hold as its corpus?
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__trustee
@@ -29,8 +32,8 @@ workflow:
 ---
 
 This Revocable Living Trust Agreement (the "Trust") is established under the laws of the State of Nevada by the settlor,
-who also serves as trustee, `{{trustee_name}}` (the "Trustee"). The Trustee holds the following property as the corpus
-of the Trust: `{{trust_property}}`.
+who also serves as trustee, `{{custom_text__trustee_name}}` (the "Trustee"). The Trustee holds the following property as
+the corpus of the Trust: `{{custom_text__trust_property}}`.
 
 The Trust is revocable: the settlor may amend or revoke it in whole or in part at any time during the settlor's lifetime
 by a signed writing delivered to the Trustee. The Trustee holds and administers the trust property for the benefit of

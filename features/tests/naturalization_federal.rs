@@ -270,7 +270,7 @@ async fn assert_certificate_document(world: &mut NaturalizationWorld) {
     );
 }
 
-#[then("the applicant's twelve intake answers are on file")]
+#[then("the applicant's eleven intake answers are on file")]
 async fn assert_answers(world: &mut NaturalizationWorld) {
     let person_id = world.person_id.expect("person seeded");
     let rows = entity::answer::Entity::find()
@@ -278,7 +278,7 @@ async fn assert_answers(world: &mut NaturalizationWorld) {
         .all(&world.journey().db)
         .await
         .expect("query answers");
-    assert_eq!(rows.len(), 12, "expected twelve N-400 intake answers");
+    assert_eq!(rows.len(), 11, "expected eleven N-400 intake answers");
 }
 
 #[tokio::main]

@@ -6,26 +6,36 @@ respondent_type: person
 confidential: true
 questionnaire:
   BEGIN:
-    _: nonprofit_legal_name
-  nonprofit_legal_name:
-    _: nonprofit_state
-  nonprofit_state:
-    _: worker_legal_name
-  worker_legal_name:
-    _: worker_title
-  worker_title:
-    _: worker_duties
-  worker_duties:
-    _: engagement_start_date
-  engagement_start_date:
-    _: contractor_term
-  contractor_term:
-    _: contractor_rate
-  contractor_rate:
-    _: termination_notice_days
-  termination_notice_days:
+    _: custom_text__nonprofit_legal_name
+  custom_text__nonprofit_legal_name:
+    _: custom_text__nonprofit_state
+  custom_text__nonprofit_state:
+    _: custom_text__worker_legal_name
+  custom_text__worker_legal_name:
+    _: custom_text__worker_title
+  custom_text__worker_title:
+    _: custom_text__worker_duties
+  custom_text__worker_duties:
+    _: custom_datetime__engagement_start_date
+  custom_datetime__engagement_start_date:
+    _: custom_text__contractor_term
+  custom_text__contractor_term:
+    _: custom_text__contractor_rate
+  custom_text__contractor_rate:
+    _: custom_text__termination_notice_days
+  custom_text__termination_notice_days:
     _: END
   END: {}
+prompts:
+  nonprofit_legal_name: What is the full legal name of the nonprofit organization?
+  nonprofit_state: In which U.S. state is the nonprofit incorporated?
+  worker_legal_name: What is the worker's full legal name?
+  worker_title: What is the position or title?
+  worker_duties: Summarize the duties or scope of work.
+  engagement_start_date: What is the start date?
+  contractor_term: What is the term of the engagement?
+  contractor_rate: What is the contractor's compensation?
+  termination_notice_days: How many days' written notice may either party give to end the engagement?
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__worker
@@ -41,15 +51,15 @@ workflow:
 
 # Independent Contractor Agreement
 
-This Independent Contractor Agreement (this "Agreement") is between `{{nonprofit_legal_name}}`, a nonprofit corporation
-organized under the laws of the State of `{{nonprofit_state}}` (the "Organization"), and `{{worker_legal_name}}` (the
-"Contractor"). The Organization and the Contractor agree as follows.
+This Independent Contractor Agreement (this "Agreement") is between `{{custom_text__nonprofit_legal_name}}`, a
+nonprofit corporation organized under the laws of the State of `{{custom_text__nonprofit_state}}` (the "Organization"),
+and `{{custom_text__worker_legal_name}}` (the "Contractor"). The Organization and the Contractor agree as follows.
 
 ## 1. Services
 
-The Contractor will provide the following services in the role of `{{worker_title}}`: `{{worker_duties}}`. The
-Contractor controls the manner and means by which the services are performed and supplies the Contractor's own tools and
-work methods.
+The Contractor will provide the following services in the role of `{{custom_text__worker_title}}`:
+`{{custom_text__worker_duties}}`. The Contractor controls the manner and means by which the services are performed and
+supplies the Contractor's own tools and work methods.
 
 ## 2. Independent contractor status
 
@@ -68,17 +78,18 @@ The parties intend a true independent-contractor relationship and will conduct t
 
 ## 3. Term
 
-This engagement begins on `{{engagement_start_date}}` and continues `{{contractor_term}}`.
+This engagement begins on `{{custom_datetime__engagement_start_date}}` and continues `{{custom_text__contractor_term}}`.
 
 ## 4. Compensation
 
-The Organization will pay the Contractor `{{contractor_rate}}`. The Contractor will submit invoices for services
-performed, and the Organization will pay undisputed invoices within thirty (30) days of receipt.
+The Organization will pay the Contractor `{{custom_text__contractor_rate}}`. The Contractor will submit invoices for
+services performed, and the Organization will pay undisputed invoices within thirty (30) days of receipt.
 
 ## 5. Termination
 
-Either party may end this engagement, for convenience, on `{{termination_notice_days}}` days' written notice. On
-termination, the Organization will pay the Contractor for services properly performed through the termination date.
+Either party may end this engagement, for convenience, on `{{custom_text__termination_notice_days}}` days' written
+notice. On termination, the Organization will pay the Contractor for services properly performed through the termination
+date.
 
 ## 6. Confidentiality
 
@@ -92,13 +103,13 @@ work product to the Organization and will sign documents reasonably needed to co
 
 ## 8. General
 
-This Agreement is governed by the laws of the State of `{{nonprofit_state}}`. It is the entire agreement between the
-parties about these services and supersedes any prior understanding. If any provision is held unenforceable, the rest
-remains in effect.
+This Agreement is governed by the laws of the State of `{{custom_text__nonprofit_state}}`. It is the entire agreement
+between the parties about these services and supersedes any prior understanding. If any provision is held
+unenforceable, the rest remains in effect.
 
 ## Signatures
 
-**`{{nonprofit_legal_name}}`**
+**`{{custom_text__nonprofit_legal_name}}`**
 
 By: ______________________________  Date: ______________
 
@@ -110,4 +121,4 @@ Title: ______________________________
 
 ______________________________  Date: ______________
 
-`{{worker_legal_name}}`
+`{{custom_text__worker_legal_name}}`

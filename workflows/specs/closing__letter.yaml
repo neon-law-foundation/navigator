@@ -1,19 +1,26 @@
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: project_name
-  project_name:
-    _: matter_summary
-  matter_summary:
-    _: fee_status
-  fee_status:
-    _: file_retention
-  file_retention:
-    _: next_obligation
-  next_obligation:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__project_name
+  custom_text__project_name:
+    _: custom_text__matter_summary
+  custom_text__matter_summary:
+    _: custom_single_choice__fee_status
+  custom_single_choice__fee_status:
+    _: custom_text__file_retention
+  custom_text__file_retention:
+    _: custom_text__next_obligation
+  custom_text__next_obligation:
     _: END
   END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  project_name: What is the project name for this engagement?
+  matter_summary: Summarize the matter and the work the firm completed.
+  fee_status: What is the fee status as the matter closes?
+  file_retention: How will the client's file be retained or returned?
+  next_obligation: What is the client's next obligation or deadline, if any?
 workflow:
   BEGIN:
     close_requested: staff_review

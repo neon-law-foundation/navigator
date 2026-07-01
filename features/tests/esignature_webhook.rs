@@ -170,12 +170,19 @@ async fn park_retainer(world: &mut WebhookWorld, envelope_id: String) {
         "workflow should be parked before the callback"
     );
 
-    // Persist the parked state + the provider's envelope id, exactly as
-    // the retainer walk does at send time.
+    // Persist the parked state + record the provider's envelope id in
+    // `signatures`, exactly as the retainer walk does at send time.
     let mut active: entity::notation::ActiveModel = notation.into();
     active.state = ActiveValue::Set(PARKED.into());
-    active.signature_request_id = ActiveValue::Set(Some(envelope_id));
     active.update(&db).await.unwrap();
+    store::signatures::record_request(
+        &db,
+        notation_id,
+        store::entity::signature::SignatureProvider::DocuSign,
+        &envelope_id,
+    )
+    .await
+    .unwrap();
 
     world.notation_id = Some(notation_id);
 }
