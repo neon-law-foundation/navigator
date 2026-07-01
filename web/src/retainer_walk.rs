@@ -801,11 +801,14 @@ pub async fn step_get(
         None => None,
     };
 
-    // Pre-fill any prior answer for this (question, person) pair
-    // so navigating back re-displays without mutating durable
-    // state.
+    // Pre-fill any prior answer for this (state, person) pair so navigating
+    // back re-displays without mutating durable state. Scoped on the full
+    // `state_name` (not just `question_id`): several states share one
+    // registry question (the four retainer fields are all `custom_text`), so
+    // keying on the question alone would bleed one field's answer into another.
     let prior_answer = answer::Entity::find()
         .filter(answer::Column::QuestionId.eq(question.id))
+        .filter(answer::Column::StateName.eq(question.code.clone()))
         .filter(answer::Column::PersonId.eq(person_id))
         .filter(answer::Column::NotationId.eq(notation_id))
         .order_by_desc(answer::Column::Id)

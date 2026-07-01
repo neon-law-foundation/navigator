@@ -136,7 +136,7 @@ async fn step_get_at_begin_renders_the_first_question() {
     assert_eq!(resp.status(), StatusCode::OK);
     let html = body_string(resp).await;
     // First question after BEGIN is client_name.
-    assert!(html.contains("client_name"), "html: {html}");
+    assert!(html.contains("custom_text__client_name"), "html: {html}");
     assert!(html.contains("step 1 of 4"));
     assert!(html.contains(format!("/portal/admin/notations/{nid}/step").as_str()));
 }
@@ -161,7 +161,7 @@ async fn step_get_prefill_is_scoped_to_current_notation() {
     .await
     .unwrap();
     let client_name = entity::question::Entity::find()
-        .filter(entity::question::Column::Code.eq("client_name"))
+        .filter(entity::question::Column::Code.eq("custom_text"))
         .one(&db)
         .await
         .unwrap()
@@ -170,7 +170,7 @@ async fn step_get_prefill_is_scoped_to_current_notation() {
         question_id: ActiveValue::Set(client_name.id),
         person_id: ActiveValue::Set(notation.person_id),
         notation_id: ActiveValue::Set(Some(other_notation.id)),
-        state_name: ActiveValue::Set(Some("client_name".into())),
+        state_name: ActiveValue::Set(Some("custom_text__client_name".into())),
         value: ActiveValue::Set(entity::answer::primitive("Other matter client")),
         source: ActiveValue::Set(entity::answer::SOURCE_STAFF.into()),
         ..Default::default()
@@ -191,7 +191,7 @@ async fn step_get_prefill_is_scoped_to_current_notation() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let html = body_string(resp).await;
-    assert!(html.contains("client_name"), "html: {html}");
+    assert!(html.contains("custom_text__client_name"), "html: {html}");
     assert!(
         !html.contains("Other matter client"),
         "stale answer from another notation leaked into prefill: {html}"
@@ -234,7 +234,7 @@ async fn step_post_writes_answer_signals_runtime_and_redirects_to_next_question(
         StateMachineRuntime::events(runtime.as_ref(), MachineKind::Questionnaire, nid).await;
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].from, StateName::begin());
-    assert_eq!(events[0].to.as_str(), "client_name");
+    assert_eq!(events[0].to.as_str(), "custom_text__client_name");
     assert_eq!(events[0].condition, "_");
 
     // Answer row landed: `answers` is application data, written by
@@ -252,7 +252,7 @@ async fn step_post_writes_answer_signals_runtime_and_redirects_to_next_question(
     );
     assert_eq!(
         our_answers[0].state_name.as_deref(),
-        Some("client_name"),
+        Some("custom_text__client_name"),
         "the walked state name is recorded on the answer"
     );
 
@@ -269,7 +269,7 @@ async fn step_post_writes_answer_signals_runtime_and_redirects_to_next_question(
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let html = body_string(resp).await;
-    assert!(html.contains("client_email"));
+    assert!(html.contains("custom_text__client_email"));
     assert!(html.contains("step 2 of 4"));
 }
 
@@ -405,7 +405,7 @@ async fn start_get_renders_the_minimal_create_form() {
         "the closing letter must not be a matter-open option",
     );
     // The walker collects these; they must NOT be on the create form.
-    assert!(!html.contains("name=\"client_name\""));
+    assert!(!html.contains("name=\"custom_text__client_name\""));
     assert!(!html.contains("name=\"project_name\""));
 }
 
