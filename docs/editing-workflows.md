@@ -68,9 +68,11 @@ The body is plain markdown rendered two ways: to HTML for the on-screen preview 
   the PDF.
 
 Signature placeholders are role-scoped and carry a dot — `{{client.signature}}`, `{{firm.signature}}`,
-`{{client.date}}`. They expand to anchored Typst blocks plus the e-signature manifest; data placeholders (no dot) are
-substituted first, so the two never collide. Turning a stub into the real document is *only* a body edit — the
-questionnaire and workflow, and every journey that exercises them, are untouched.
+`{{client.date}}`. They expand to anchored Typst blocks plus the e-signature manifest. Data placeholders are evaluated
+first through the shared notation evaluator — bare values, dotted fields such as `{{person__client.name}}`, and
+aggregate loops such as `{{#for m in people__members}}...{{/for}}` — then signature anchors expand second, so the two
+never collide. Turning a stub into the real document is *only* a body edit — the questionnaire and workflow, and every
+journey that exercises them, are untouched.
 
 ## Changing the workflow composition
 

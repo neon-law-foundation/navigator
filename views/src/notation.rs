@@ -4,8 +4,8 @@
 //! evaluated by [`fill`] (the shared evaluator this render path and the
 //! form-fill path both meet):
 //!
-//! - **Bare** — `{{code}}` / `{{type__role}}` substitutes the context
-//!   value for that key.
+//! - **Bare or dotted** — `{{code}}`, `{{type__role}}`, and
+//!   `{{type__role.field}}` substitute the context value for that key.
 //! - **Iterator** — `{{#for x in people__members}} … {{x.name}} … {{/for}}`
 //!   walks an aggregate answer (a JSON array stored under the state key) and
 //!   renders the inner block once per row, resolving `{{x.part}}` against
@@ -25,7 +25,7 @@ const FOR_OPEN: &str = "{{#for ";
 const FOR_CLOSE: &str = "{{/for}}";
 
 /// Evaluate `body` against `context` — expand `{{#for …}}` iterators over
-/// aggregate answers, then substitute every remaining bare `{{key}}`. The
+/// aggregate answers, then substitute every remaining `{{key}}`. The
 /// pure string half of [`render_filled_in`], shared so the render path
 /// gains the iteration + dotted `row.part` capability of the form-fill path.
 #[must_use]
@@ -163,6 +163,8 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::render_filled_in;
+    use rules::Rule;
+    use std::path::PathBuf;
 
     fn ctx(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
         pairs
@@ -177,6 +179,18 @@ mod tests {
             .into_string();
         assert!(html.contains("Hello Libra."), "got: {html}");
         assert!(!html.contains("{{"));
+    }
+
+    #[test]
+    fn substitutes_a_dotted_placeholder() {
+        let filled = super::fill(
+            "Client: {{person__client.name}} <{{person__client.email}}>.",
+            &ctx(&[
+                ("person__client.name", "Libra Prime"),
+                ("person__client.email", "libra@example.com"),
+            ]),
+        );
+        assert_eq!(filled, "Client: Libra Prime <libra@example.com>.");
     }
 
     #[test]
@@ -268,5 +282,41 @@ The retainer covers the project {{project_name}}.";
             ("people__members", r#"[{"name": "Aries"}]"#),
         ]);
         assert_eq!(super::fill(body, &context), "Roster: Aries ");
+    }
+
+    #[test]
+    fn n115_valid_body_uses_the_shared_evaluator() {
+        let body = "Client: {{person__client.name}}\n\
+Members:\n{{#for m in people__members}}- {{m.name}} from {{m.city}}\n{{/for}}";
+        let source = rules::SourceFile {
+            path: PathBuf::from("test.md"),
+            contents: format!(
+                "---\nquestionnaire:\n  BEGIN:\n    _: person__client\n  \
+person__client:\n    _: people__members\n  people__members:\n    _: END\n  END: {{}}\n---\n\n{body}\n"
+            ),
+        };
+        assert!(
+            rules::F115PathResolution.lint(&source).is_empty(),
+            "fixture must be accepted by N115"
+        );
+
+        let filled = super::fill(
+            body,
+            &ctx(&[
+                ("person__client.name", "Libra Prime"),
+                (
+                    "people__members",
+                    r#"[{"name":"Aries","city":"Las Vegas"},{"name":"Virgo","city":"Reno"}]"#,
+                ),
+            ]),
+        );
+
+        assert!(filled.contains("Client: Libra Prime"));
+        assert!(filled.contains("- Aries from Las Vegas"));
+        assert!(filled.contains("- Virgo from Reno"));
+        assert!(
+            !filled.contains("{{"),
+            "all N115-valid data grammar should render: {filled}"
+        );
     }
 }

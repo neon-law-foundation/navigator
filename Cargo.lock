@@ -9781,6 +9781,7 @@ dependencies = [
  "maud",
  "pulldown-cmark",
  "regex",
+ "rules",
  "serde_yaml",
  "uuid",
 ]

@@ -1,13 +1,10 @@
 //! `N107` — notation template signature placeholders must resolve.
 //!
 //! A *signature placeholder* is a `{{ … }}` token whose trimmed inner
-//! text contains a `.` — e.g. `{{client.signature}}`. The dot is the
-//! discriminator that separates a signature placeholder from an
-//! ordinary *data* placeholder like `{{client_name}}` (no dot), which
-//! the renderer string-substitutes with a questionnaire answer. Data
-//! placeholders carry `snake_case` question codes and never contain a
-//! dot (see `store/seeds`), so the dot is a safe sentinel; if that
-//! ever changes, this rule's discriminator changes with it.
+//! text names a signer and field — e.g. `{{client.signature}}`. Dotted
+//! data paths such as `{{person__client.name}}` and aggregate loop
+//! variables such as `{{m.name}}` belong to `N115`, so this rule skips
+//! questionnaire states and lexical `#for` variables.
 //!
 //! The placeholder splits on the **first** dot into `<signer>.<field>`:
 //!
@@ -47,6 +44,8 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 
 use crate::{frontmatter, Rule, SourceFile, Violation};
+
+const FOR_OPEN: &str = "{{#for ";
 
 pub struct F107SignaturePlaceholders;
 
@@ -115,6 +114,24 @@ pub fn signature_placeholders(contents: &str) -> Vec<SignaturePlaceholder> {
     out
 }
 
+/// Lexical variables introduced by `{{#for <var> in <state>}}` blocks.
+fn loop_variables(contents: &str) -> std::collections::BTreeSet<String> {
+    let mut vars = std::collections::BTreeSet::new();
+    let mut rest = contents;
+    while let Some(start) = rest.find(FOR_OPEN) {
+        let after_open = &rest[start + FOR_OPEN.len()..];
+        let Some(header_len) = after_open.find("}}") else {
+            break;
+        };
+        let header = after_open[..header_len].trim();
+        if let Some((var, _state)) = header.split_once(" in ") {
+            vars.insert(var.trim().to_string());
+        }
+        rest = &after_open[header_len + 2..];
+    }
+    vars
+}
+
 #[derive(Debug, Deserialize)]
 struct FrontmatterShape {
     #[serde(default)]
@@ -151,11 +168,14 @@ impl Rule for F107SignaturePlaceholders {
             .into_iter()
             .flat_map(|q| q.keys().map(String::as_str))
             .collect();
+        let loop_variables = loop_variables(&file.contents);
         let mut violations = Vec::new();
         let mut saw_valid_block = false;
 
         for ph in &placeholders {
-            if questionnaire_states.contains(ph.signer.as_str()) {
+            if questionnaire_states.contains(ph.signer.as_str())
+                || loop_variables.contains(ph.signer.as_str())
+            {
                 continue;
             }
             let signer_ok = Self::SIGNERS.contains(&ph.signer.as_str());
@@ -303,6 +323,15 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].signer, "client");
         assert_eq!(found[0].field, "signature");
+    }
+
+    #[test]
+    fn loop_variable_paths_are_not_signature_placeholders() {
+        let body = "---\nquestionnaire:\n  BEGIN:\n    _: people__members\n  people__members:\n    _: END\n  END: {}\nworkflow:\n  BEGIN:\n    intake_submitted: staff_review\n  staff_review:\n    approved: END\n  END: {}\n---\n{{#for m in people__members}}{{m.name}} from {{m.city}}{{/for}}";
+        assert!(
+            F107SignaturePlaceholders.lint(&file(body)).is_empty(),
+            "loop row fields are N115 data grammar, not N107 signature grammar"
+        );
     }
 
     #[test]

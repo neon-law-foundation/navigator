@@ -2081,15 +2081,13 @@ async fn drive_closing_workflow(
     Ok(s)
 }
 
-/// Substitute `{{question_code}}` placeholders in the markdown body
-/// the same way `views::notation::render_filled_in` does, but return
-/// plain text suitable for feeding into the Typst compiler.
+/// Evaluate data placeholders in the markdown body with the same grammar
+/// preview uses, but return plain text suitable for feeding into the Typst
+/// compiler. Signature placeholders stay in place for
+/// `signature_render::expand_signatures`, so final PDFs process data first
+/// and signature anchors second.
 fn substitute_template_body(body: &str, ctx: &BTreeMap<String, String>) -> String {
-    let mut out = body.to_string();
-    for (code, value) in ctx {
-        out = out.replace(&format!("{{{{{code}}}}}"), value);
-    }
-    out
+    views::notation::fill(body, ctx)
 }
 
 /// The captive `clientUserId` for the client recipient of `notation_id`.
@@ -2337,7 +2335,7 @@ fn progress_for(spec: &workflows::QuestionnaireSpec, current_state: &StateName) 
 
 #[cfg(test)]
 mod tests {
-    use super::{context_from_answers, progress_for};
+    use super::{context_from_answers, progress_for, substitute_template_body};
     use std::collections::BTreeMap;
     use store::entity::answer;
     use uuid::Uuid;
@@ -2446,6 +2444,37 @@ mod tests {
             ctx.get("person__client.email").map(String::as_str),
             Some("libra@example.com")
         );
+    }
+
+    #[test]
+    fn final_document_payload_uses_shared_data_evaluator_before_signature_anchors() {
+        let body = "Client: {{person__client.name}}\n\
+Members:\n{{#for m in people__members}}- {{m.name}} from {{m.city}}\n{{/for}}\n\
+Sign: {{client.signature}}";
+        let ctx = BTreeMap::from([
+            ("person__client.name".to_string(), "Libra Prime".to_string()),
+            (
+                "people__members".to_string(),
+                r#"[{"name":"Aries","city":"Las Vegas"},{"name":"Virgo","city":"Reno"}]"#
+                    .to_string(),
+            ),
+        ]);
+
+        let data_filled = substitute_template_body(body, &ctx);
+        assert!(data_filled.contains("Client: Libra Prime"));
+        assert!(data_filled.contains("- Aries from Las Vegas"));
+        assert!(data_filled.contains("- Virgo from Reno"));
+        assert!(
+            data_filled.contains("{{client.signature}}"),
+            "signature placeholders are expanded after data fill"
+        );
+
+        let (typst_source, fields) = crate::signature_render::expand_signatures(&data_filled);
+        assert!(!typst_source.contains("{{person__client.name}}"));
+        assert!(!typst_source.contains("{{#for"));
+        assert!(!typst_source.contains("{{client.signature}}"));
+        assert!(typst_source.contains("nlsig-client-signature-1"));
+        assert_eq!(fields.len(), 1);
     }
 
     /// A bound Person carrying a distinct name/email, so a fixture can tell

@@ -41,6 +41,36 @@ Pay the sum of `{{amount}}` to **NEON LAW** without delay.
 - Second point
 ";
 
+const VALID_TYPED: &str = "\
+---
+title: Typed Demand
+respondent_type: entity
+code: test__typed_demand
+confidential: true
+questionnaire:
+  BEGIN:
+    _: person__client
+  person__client:
+    _: people__members
+  people__members:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    intake_submitted: staff_review
+  staff_review:
+    approved: END
+    rejected: END
+  END: {}
+---
+
+Client: {{person__client.name}}
+
+Members:
+{{#for m in people__members}}- {{m.name}} from {{m.city}}
+{{/for}}
+";
+
 fn write(dir: &TempDir, name: &str, body: &str) -> std::path::PathBuf {
     let path = dir.path().join(name);
     fs::write(&path, body).expect("write fixture");
@@ -124,6 +154,30 @@ fn answer_substitutes_a_placeholder() {
     // The rendered PDF compresses text, so we can't grep the value out;
     // success plus a valid PDF is the contract. The substitution logic
     // itself is unit-tested in the pdf crate's markdown round-trip.
+    assert_eq!(&fs::read(&out).unwrap()[..4], b"%PDF");
+}
+
+#[test]
+fn render_uses_shared_notation_evaluator_for_dotted_fields_and_loops() {
+    let work = TempDir::new().unwrap();
+    let src = write(&work, "typed_demand.md", VALID_TYPED);
+    let out = work.path().join("typed_demand.pdf");
+    let result = render(&[
+        src.as_os_str(),
+        "--out".as_ref(),
+        out.as_ref(),
+        "--answer".as_ref(),
+        "person__client.name=Libra Prime".as_ref(),
+        "--answer".as_ref(),
+        r#"people__members=[{"name":"Aries","city":"Las Vegas"},{"name":"Virgo","city":"Reno"}]"#
+            .as_ref(),
+    ]);
+    assert!(
+        result.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
     assert_eq!(&fs::read(&out).unwrap()[..4], b"%PDF");
 }
 
