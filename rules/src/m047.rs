@@ -48,7 +48,9 @@ impl Rule for M047SingleTrailingNewline {
         // of trailing newlines with a single one. Covers both "missing"
         // (empty run → insert `\n`) and "too many" (collapse to one).
         let trimmed_len = contents.trim_end_matches('\n').len();
-        Some(TextEdit {
+        // Skip a no-op edit when the file already ends with exactly one
+        // `\n`, consistent with the other `fix()` impls in this crate.
+        (&contents[trimmed_len..] != "\n").then_some(TextEdit {
             range: trimmed_len..contents.len(),
             new_text: "\n".to_string(),
         })
@@ -129,5 +131,21 @@ mod tests {
         // A once-fixed file lints clean, so there is nothing left to fix.
         let once = fixed("hello\n\n\n");
         assert!(M047SingleTrailingNewline.lint(&file(&once)).is_empty());
+    }
+
+    #[test]
+    fn fix_declines_a_noop_when_already_correct() {
+        // lint() produces no violation here, but a caller invoking fix()
+        // directly must get None rather than a redundant `\n` → `\n` edit,
+        // matching the guard on the other fix() impls in this crate.
+        let f = file("hello\n");
+        let v = crate::Violation {
+            code: M047SingleTrailingNewline::CODE,
+            path: f.path.clone(),
+            line: 1,
+            range: 0..f.contents.len(),
+            message: "unused".to_string(),
+        };
+        assert!(M047SingleTrailingNewline.fix(&f, &v).is_none());
     }
 }
