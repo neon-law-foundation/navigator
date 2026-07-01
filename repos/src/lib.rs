@@ -321,14 +321,24 @@ impl RepoStore {
         }
 
         for (path, bytes) in files {
+            // `--no-filters` stores the bytes verbatim, bypassing the
+            // repo's `info/attributes`. The seeded LFS routing there
+            // drives the *client* smart-HTTP transport (the client's
+            // git-lfs cleans a binary to a pointer and uploads the
+            // object via the batch API) and `check-attr`/diff/archive —
+            // it must NOT act on this server-side plumbing commit, or a
+            // host with git-lfs configured would clean the document to a
+            // pointer whose bytes were never uploaded, and `read_head_tree`
+            // (documents.zip) would hand the client pointer text instead
+            // of the file. The commit log is the matter's audit trail, so
+            // the blob must be the exact bytes we were given.
             let oid_raw = capture(
                 &[
                     "-C",
                     &repo_str,
                     "hash-object",
                     "-w",
-                    "--path",
-                    path,
+                    "--no-filters",
                     "--stdin",
                 ],
                 &[],
@@ -830,6 +840,51 @@ mod tests {
         assert_eq!(files[0].1, b"the trust bytes");
         assert_eq!(files[1].0, "will.txt");
         assert_eq!(files[1].1, b"the last will");
+    }
+
+    #[test]
+    fn commit_as_stores_binary_bytes_verbatim_even_with_an_lfs_clean_filter() {
+        // The seeded LFS routing (`info/attributes`) plus a configured
+        // `filter.lfs.clean` (git-lfs is installed on CI and prod hosts)
+        // would otherwise clean a committed binary to an LFS pointer whose
+        // object bytes were never uploaded — corrupting the documents.zip
+        // read path. `commit_as` must store the exact bytes regardless.
+        let root = TempDir::new().unwrap();
+        let store = RepoStore::new(root.path());
+        let project = Uuid::now_v7();
+        let bare = store.ensure(project).unwrap();
+
+        // Simulate git-lfs: a clean filter that rewrites any input to a
+        // fixed pointer-like string. Set repo-locally so the test needs
+        // no git-lfs binary and no global config mutation.
+        assert!(
+            git(
+                &bare,
+                &["config", "filter.lfs.clean", "sed s/.*/LFSPOINTER/"]
+            )
+            .0
+        );
+
+        let pdf = b"the real pdf bytes".to_vec();
+        store
+            .commit_as(
+                project,
+                Author {
+                    name: "Libra",
+                    email: "libra@example.com",
+                },
+                "add a signed pdf",
+                &[("contract.pdf", &pdf)],
+            )
+            .unwrap();
+
+        let files = store.read_head_tree(project).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].0, "contract.pdf");
+        assert_eq!(
+            files[0].1, pdf,
+            "the clean filter mangled the blob — commit_as must hash binary bytes verbatim"
+        );
     }
 
     #[test]
