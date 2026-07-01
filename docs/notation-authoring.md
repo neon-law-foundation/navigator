@@ -100,6 +100,22 @@ Every type is one of three kinds:
   `custom_single_choice`, `custom_multiple_choice`, `custom_usd`, `custom_datetime`. A custom state reads
   `custom_<type>__<prompt_key>` and needs a matching `prompts:` entry (`N104`).
 
+**Prefer the glossary — both its models *and their fields* — and reach for `custom_*` only when nothing in the glossary
+fits.** The registry exists so a questionnaire is composed of real domain nouns, not free text. Two checks, in order,
+before any `custom_`:
+
+1. **Is the answer a glossary model?** Use the type — a trustee is `person__trustee`, the company `entity__company`, its
+   office `address__for_company`, its members `people__members`, its state of licensure `jurisdiction__licensure`.
+2. **Is the answer a *field* of a glossary model?** Use the model and read the field with a dotted placeholder, never a
+   custom string: a trustee's name is `{{person__trustee.name}}`, the entity's legal name `{{entity__company.name}}`,
+   the office city `{{address__for_company.city}}`, a bar number `{{credential__bar.license_number}}`. Each glossary
+   term's **Schema** link (`store::entity::…`) is the list of fields a type exposes. `custom_text__trustee_name` is the
+   anti-pattern — a name is a field of a Person, not free text.
+
+Only a value that is **neither a glossary model nor a field of one** is custom — a fee status
+(`custom_single_choice__fee_status`), a one-off date (`custom_datetime__filed_on`), a consent flag
+(`custom_yes_no__recording_consent`). This keeps answers queryable, linkable, and glossary-grounded.
+
 **Singular and plural.** Each record/reference type has a singular form (one row) and an explicit aggregate form (an
 array of the singular's shape) collected under one question — `person`→`people`, `entity`→`entities`,
 `address`→`addresses`, and so on. Add a plural only where a matter actually collects several.
