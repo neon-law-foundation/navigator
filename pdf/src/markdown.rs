@@ -12,12 +12,12 @@
 //! equivalent Typst markup, escaping every character Typst would
 //! otherwise treat as syntax. It covers the constructs that appear in
 //! notation bodies (headings, paragraphs, strong/emphasis, ordered and
-//! unordered lists, block quotes, inline code, links, horizontal
+//! unordered lists, block quotes, inline code, links, tables, horizontal
 //! rules); inline raw HTML is dropped rather than leaked as literal
 //! tags. Placeholder tokens (`{{name}}`) pass through verbatim — the
 //! caller substitutes them before conversion.
 
-use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Alignment, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 /// Convert a Markdown `body` to Typst markup suitable for
 /// [`crate::render`].
@@ -28,6 +28,7 @@ use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 pub fn to_typst(body: &str) -> String {
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_STRIKETHROUGH);
+    opts.insert(Options::ENABLE_TABLES);
     let parser = Parser::new_ext(body, opts);
 
     let mut out = String::with_capacity(body.len() + body.len() / 8);
@@ -92,9 +93,48 @@ fn start_tag(out: &mut String, tag: &Tag, list_stack: &mut Vec<Option<u64>>) {
             out.push_str(&typst_string(dest_url));
             out.push_str(")[");
         }
+        // A Markdown table becomes a centered Typst `#table(..)`: one
+        // column per alignment slot, centered by default unless the
+        // author set per-column alignment, then a flat cell stream Typst
+        // lays out row by row. Header cells are wrapped in
+        // `table.header(..)` so Typst treats them as the header row
+        // (repeated when the table breaks across pages); each cell's
+        // inline markup (strong, links, escaped currency) is emitted by
+        // the same handlers as prose.
+        Tag::Table(alignments) => {
+            out.push_str("\n#align(center)[#table(\n  columns: ");
+            out.push_str(&alignments.len().to_string());
+            out.push_str(",\n");
+            if alignments.iter().all(|a| *a == Alignment::None) {
+                out.push_str("  align: center,\n");
+            } else {
+                out.push_str("  align: (");
+                for (i, alignment) in alignments.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    out.push_str(typst_align(*alignment));
+                }
+                out.push_str("),\n");
+            }
+        }
+        Tag::TableHead => out.push_str("  table.header("),
+        Tag::TableRow => out.push_str("  "),
+        Tag::TableCell => out.push('['),
         // Headings/paragraphs inside other blocks and unhandled tags
         // contribute their text via Text events; no wrapper needed.
         _ => {}
+    }
+}
+
+/// Map a Markdown column alignment to the Typst `align` keyword. A
+/// column with no explicit alignment (`None`) uses Navigator's default
+/// centered table-cell alignment.
+fn typst_align(alignment: Alignment) -> &'static str {
+    match alignment {
+        Alignment::None | Alignment::Center => "center",
+        Alignment::Left => "left",
+        Alignment::Right => "right",
     }
 }
 
@@ -110,8 +150,11 @@ fn end_tag(out: &mut String, tag: TagEnd, list_stack: &mut Vec<Option<u64>>) {
                 out.push('\n');
             }
         }
-        TagEnd::Item => out.push('\n'),
+        TagEnd::Item | TagEnd::TableRow => out.push('\n'),
         TagEnd::BlockQuote(_) => out.push_str("]\n\n"),
+        TagEnd::Table => out.push_str(")]\n\n"),
+        TagEnd::TableHead => out.push_str("),\n"),
+        TagEnd::TableCell => out.push_str("], "),
         _ => {}
     }
 }
@@ -265,6 +308,50 @@ mod tests {
         let out = to_typst("> noted");
         assert!(out.starts_with("#quote(block: true)["), "got: {out}");
         assert!(out.contains("noted"));
+    }
+
+    #[test]
+    fn table_becomes_typst_table_call() {
+        // A GFM table must reach Typst as `#table(..)`, not leak its
+        // `| .. |` pipes into the page as literal prose. The header row
+        // is wrapped in `table.header(..)`; body cells follow as a flat
+        // stream that Typst lays out `columns`-wide.
+        let out = to_typst("| A | B |\n| - | - |\n| 1 | 2 |");
+        assert!(out.contains("#align(center)[#table("), "got: {out}");
+        assert!(out.contains("columns: 2"), "got: {out}");
+        assert!(out.contains("align: center"), "got: {out}");
+        assert!(out.contains("table.header([A], [B], )"), "got: {out}");
+        assert!(out.contains("[1], [2],"), "got: {out}");
+    }
+
+    #[test]
+    fn table_cells_carry_inline_markup_and_escapes() {
+        // Cell content flows through the same inline handlers as prose:
+        // `**bold**` collapses to Typst `*bold*`, and a `$` (Typst math)
+        // is escaped so a currency figure renders verbatim.
+        let out = to_typst("| Filing | Fee |\n| - | - |\n| List | **$150.00** |");
+        assert!(out.contains(r"[*\$150.00*]"), "got: {out}");
+    }
+
+    #[test]
+    fn table_column_alignment_maps_to_typst_align() {
+        // Explicit `:--` / `:--:` / `--:` alignment markers force the
+        // tuple, mapping left/center/right per column.
+        let out = to_typst("| A | B | C |\n| :-- | :--: | --: |\n| 1 | 2 | 3 |");
+        assert!(out.contains("align: (left, center, right)"), "got: {out}");
+        crate::render(&out).expect("converted aligned table must compile through Typst");
+    }
+
+    #[test]
+    fn table_output_is_typst_compilable() {
+        // The safety net: a real fee table (header, currency, a bold
+        // total row) must compile all the way through Typst.
+        let md = "\
+| Nevada Secretary of State filing | Fee |\n\
+| - | - |\n\
+| Articles of Organization | $75.00 |\n\
+| **Total state filing fees** | **$425.00** |";
+        crate::render(&to_typst(md)).expect("a converted table must compile through Typst");
     }
 
     #[test]

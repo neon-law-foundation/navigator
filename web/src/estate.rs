@@ -75,24 +75,30 @@ pub trait EstateExtractor: Send + Sync {
 /// already-paid Gemini Enterprise, behind the same trait.
 pub struct StubEstateExtractor;
 
-/// `(question_code, &[label aliases])`. The first label found wins.
+/// `(state_name, &[label aliases])`. The first label found wins. The state
+/// name matches the `custom_*__<role>` placeholders in the northstar
+/// instrument bodies and disambiguates the several roles that share one
+/// registry question.
 const STUB_LABELS: &[(&str, &[&str])] = &[
     (
-        "testator_name",
+        "custom_text__testator_name",
         &["testator", "full legal name", "my name is"],
     ),
-    ("executor_name", &["executor"]),
-    ("successor_trustee", &["successor trustee", "trustee"]),
-    ("guardian_for_minors", &["guardian"]),
+    ("custom_text__executor_name", &["executor"]),
     (
-        "residuary_beneficiary",
+        "custom_text__successor_trustee",
+        &["successor trustee", "trustee"],
+    ),
+    ("custom_text__guardian_for_minors", &["guardian"]),
+    (
+        "custom_text__residuary_beneficiary",
         &["residuary beneficiary", "beneficiary"],
     ),
     (
-        "healthcare_agent",
+        "custom_text__healthcare_agent",
         &["health-care agent", "healthcare agent", "health care agent"],
     ),
-    ("financial_agent", &["financial agent"]),
+    ("custom_text__financial_agent", &["financial agent"]),
 ];
 
 impl EstateExtractor for StubEstateExtractor {
@@ -102,7 +108,10 @@ impl EstateExtractor for StubEstateExtractor {
 
         // Two-party-consent confirmation: any mention of consent.
         if lower.contains("consent") {
-            out.push(("recording_consent".to_string(), "Yes".to_string()));
+            out.push((
+                "custom_yes_no__recording_consent".to_string(),
+                "Yes".to_string(),
+            ));
         }
 
         for (code, labels) in STUB_LABELS {
@@ -468,23 +477,28 @@ fn not_found() -> Response {
         .into_response()
 }
 
-/// Insert one machine-extracted answer for the respondent. No-op when the
+/// Insert one machine-extracted answer for the respondent, keyed by the
+/// questionnaire `state_name` (`custom_text__testator_name`). The registry
+/// question is resolved from the typed prefix before `__`. No-op when the
 /// question code isn't seeded (the suite-coverage test guarantees the
 /// estate codes are, so this only guards against drift).
 async fn write_extracted_answer(
     db: &store::Db,
     notation_id: Uuid,
     respondent_id: Uuid,
-    code: &str,
+    state_name: &str,
     value: &str,
 ) -> Result<(), sea_orm::DbErr> {
+    let registry_code = state_name
+        .split_once("__")
+        .map_or(state_name, |(code, _)| code);
     let Some(q) = question::Entity::find()
-        .filter(question::Column::Code.eq(code))
+        .filter(question::Column::Code.eq(registry_code))
         .one(db)
         .await?
     else {
         tracing::warn!(
-            code,
+            code = registry_code,
             "extracted answer for an unseeded question code — skipped"
         );
         return Ok(());
@@ -493,8 +507,7 @@ async fn write_extracted_answer(
         question_id: ActiveValue::Set(q.id),
         person_id: ActiveValue::Set(respondent_id),
         notation_id: ActiveValue::Set(Some(notation_id)),
-        // Estate intake codes are bare, so the state name is the code.
-        state_name: ActiveValue::Set(Some(code.to_string())),
+        state_name: ActiveValue::Set(Some(state_name.to_string())),
         value: ActiveValue::Set(answer::primitive(value)),
         source: ActiveValue::Set(answer::SOURCE_EXTRACTED.to_string()),
         authored_by_person_id: ActiveValue::Set(None),
@@ -560,27 +573,37 @@ mod tests {
         let pairs = StubEstateExtractor.extract(t);
         let map: BTreeMap<_, _> = pairs.into_iter().collect();
         assert_eq!(
-            map.get("recording_consent").map(String::as_str),
+            map.get("custom_yes_no__recording_consent")
+                .map(String::as_str),
             Some("Yes")
         );
-        assert_eq!(map.get("executor_name").map(String::as_str), Some("Aries"));
         assert_eq!(
-            map.get("successor_trustee").map(String::as_str),
+            map.get("custom_text__executor_name").map(String::as_str),
+            Some("Aries")
+        );
+        assert_eq!(
+            map.get("custom_text__successor_trustee")
+                .map(String::as_str),
             Some("Capricorn")
         );
         assert_eq!(
-            map.get("residuary_beneficiary").map(String::as_str),
+            map.get("custom_text__residuary_beneficiary")
+                .map(String::as_str),
             Some("Gemini")
         );
         // Nothing said about a financial agent → absent (a coverage gap).
-        assert!(!map.contains_key("financial_agent"));
+        assert!(!map.contains_key("custom_text__financial_agent"));
     }
 
     #[test]
     fn substitute_fills_known_codes_and_blanks_the_rest() {
-        let body = "Executor {{executor_name}} and agent {{financial_agent}}.";
+        let body =
+            "Executor {{custom_text__executor_name}} and agent {{custom_text__financial_agent}}.";
         let mut answers = BTreeMap::new();
-        answers.insert("executor_name".to_string(), "Aries".to_string());
+        answers.insert(
+            "custom_text__executor_name".to_string(),
+            "Aries".to_string(),
+        );
         let out = substitute(body, &answers);
         assert!(out.contains("Executor Aries"));
         assert!(out.contains("________"));
@@ -589,7 +612,8 @@ mod tests {
 
     #[test]
     fn data_placeholders_skips_signature_anchors() {
-        let codes = data_placeholders("{{testator_name}} signs {{client.signature}} once.");
-        assert_eq!(codes, vec!["testator_name".to_string()]);
+        let codes =
+            data_placeholders("{{custom_text__testator_name}} signs {{client.signature}} once.");
+        assert_eq!(codes, vec!["custom_text__testator_name".to_string()]);
     }
 }

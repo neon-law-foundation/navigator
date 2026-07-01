@@ -53,13 +53,6 @@ impl MutableWorld {
             self.notation_id(),
         )
     }
-    async fn notation(&self) -> entity::notation::Model {
-        entity::notation::Entity::find_by_id(self.notation_id())
-            .one(&self.journey().db)
-            .await
-            .expect("query notation")
-            .expect("notation row")
-    }
 }
 
 #[given(regex = r#"^a retainer matter opened for "[^"]+" <([^>]+)>$"#)]
@@ -172,7 +165,10 @@ async fn awaiting_review(world: &mut MutableWorld) {
 #[then("the matter has no signature request yet")]
 async fn no_signature_yet(world: &mut MutableWorld) {
     assert!(
-        world.notation().await.signature_request_id.is_none(),
+        store::signatures::request_id_for_notation(&world.journey().db, world.notation_id())
+            .await
+            .unwrap()
+            .is_none(),
         "a notation carrying custom content must not be sent before review",
     );
 }
@@ -213,7 +209,10 @@ async fn attorney_approves(world: &mut MutableWorld) {
 #[then("the matter has a signature request")]
 async fn has_signature(world: &mut MutableWorld) {
     assert!(
-        world.notation().await.signature_request_id.is_some(),
+        store::signatures::request_id_for_notation(&world.journey().db, world.notation_id())
+            .await
+            .unwrap()
+            .is_some(),
         "the approved document must have been sent for signature",
     );
 }

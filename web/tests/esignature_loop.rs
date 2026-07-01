@@ -195,7 +195,13 @@ async fn full_signature_loop_reaches_end_through_real_provider_and_webhook() {
         .unwrap()
         .unwrap();
     assert_eq!(row.state, "sent_for_signature__pending");
-    assert_eq!(row.signature_request_id.as_deref(), Some(ENVELOPE_ID));
+    assert_eq!(
+        store::signatures::request_id_for_notation(&db, nid)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(ENVELOPE_ID)
+    );
 
     // End-to-end anchor proof: the retainer template's signature blocks
     // travelled template -> Typst -> rendered PDF -> DocuSign envelope.

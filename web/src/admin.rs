@@ -2103,10 +2103,13 @@ async fn projects_create_staff_only(
         rows.person_id,
         staffer,
         &[
-            ("client_name", client.name.trim()),
-            ("client_email", client.email.trim()),
-            ("project_name", input.name.trim()),
-            ("product_description", input.scope_of_services.trim()),
+            ("custom_text__client_name", client.name.trim()),
+            ("custom_text__client_email", client.email.trim()),
+            ("custom_text__project_name", input.name.trim()),
+            (
+                "custom_text__product_description",
+                input.scope_of_services.trim(),
+            ),
         ],
     )
     .await

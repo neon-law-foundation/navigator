@@ -4,16 +4,21 @@ respondent_type: person_and_entity
 code: onboarding__retainer
 jurisdiction: NV
 confidential: true
+prompts:
+  client_name: What is the client's full legal name?
+  client_email: What is the client's email address?
+  project_name: What is the project name for this engagement?
+  product_description: Describe the services this retainer covers.
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: client_email
-  client_email:
-    _: project_name
-  project_name:
-    _: product_description
-  product_description:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__client_email
+  custom_text__client_email:
+    _: custom_text__project_name
+  custom_text__project_name:
+    _: custom_text__product_description
+  custom_text__product_description:
     _: END
   END: {}
 workflow:
@@ -32,11 +37,12 @@ workflow:
   END: {}
 ---
 
-This Engagement Agreement (the "Agreement") is entered into between Neon Law (the "Firm") and `{{client_name}}` (the
-"Client"), reachable at `{{client_email}}`, for legal services rendered on the matter referred to as `{{project_name}}`.
+This Engagement Agreement (the "Agreement") is entered into between Neon Law (the "Firm") and
+`{{custom_text__client_name}}` (the "Client"), reachable at `{{custom_text__client_email}}`, for legal services rendered
+on the matter referred to as `{{custom_text__project_name}}`.
 
-The Firm will provide the following services: `{{product_description}}`. Fees are billed monthly against the rate sheet
-attached to this Agreement; expenses are passed through at cost.
+The Firm will provide the following services: `{{custom_text__product_description}}`. Fees are billed monthly against
+the rate sheet attached to this Agreement; expenses are passed through at cost.
 
 **Scope of the engagement.** The Firm's representation is limited to the services described above and in the clauses of
 this Agreement. Work outside that scope — including any new matter, dispute, or proceeding — requires a separate written
@@ -61,7 +67,7 @@ privileged correspondence we exchange with you — for ten years after your matt
 file at any point during that period. After ten years, the Firm securely destroys the file and its contents.
 
 The Client acknowledges receipt of the Firm's privacy notice and agrees to electronic delivery of invoices and case
-correspondence at `{{client_email}}`.
+correspondence at `{{custom_text__client_email}}`.
 
 The Client and the Firm execute this Agreement electronically as of the dates signed below.
 

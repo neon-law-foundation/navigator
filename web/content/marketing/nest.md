@@ -33,7 +33,10 @@ single-purpose venture should not require a maze of hourly calls before it can s
 
 We form the Nevada entity, write the operating agreement or bylaws, serve as registered agent, file the Washoe County
 license, and give the entity a Reno business address, mailbox, and coworking desk. Most clients choose a Nevada LLC, but
-the same fee can stand up a nonprofit corporation or another simple form when that is the right shape.
+the same fee can stand up a nonprofit corporation or another simple form when that is the right shape. We form in
+Nevada, not Delaware, and we are not alone — [a16z is leaving Delaware for
+Nevada](https://a16z.com/were-leaving-delaware-and-we-think-you-should-consider-leaving-too/) for the predictability of
+its business courts.
 
 The point is steadiness: one scope, one yearly fee, and routine non-litigation legal work for the entity that holds the
 asset. If you are building a scaling software or emerging-technology company with employees, investors, a cap table, and

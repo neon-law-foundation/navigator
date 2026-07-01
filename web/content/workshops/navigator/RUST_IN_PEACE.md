@@ -185,20 +185,20 @@ From `templates/forms/united_states/nevada/state/nv__llc_formation.md`:
 ```yaml
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: client_email
-  client_email:
-    _: entity_name
-  entity_name:
-    _: registered_agent
-  registered_agent:
-    _: management_structure
-  management_structure:
-    _: managing_members
-  managing_members:
-    _: formation_date
-  formation_date:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__client_email
+  custom_text__client_email:
+    _: custom_text__entity_name
+  custom_text__entity_name:
+    _: custom_text__registered_agent
+  custom_text__registered_agent:
+    _: custom_single_choice__management_structure
+  custom_single_choice__management_structure:
+    _: people__managing_members
+  people__managing_members:
+    _: custom_datetime__formation_date
+  custom_datetime__formation_date:
     _: END
   END: {}
 ```
@@ -288,9 +288,11 @@ From `web/src/retainer_walk.rs`:
 
 ```rust
     // Idempotency: this notation already has an envelope out. Reuse the
-    // persisted id, fire nothing, send nothing — the post-state is
+    // recorded id, fire nothing, send nothing — the post-state is
     // whatever the notation already records.
-    if let Some(existing) = notation_row.signature_request_id.clone() {
+    if let Some(existing) =
+        store::signatures::request_id_for_notation(&state.db, notation_id).await?
+    {
         return Ok((
             StateName::from(notation_row.state.as_str()),
             crate::signature::SignatureRequestId(existing),

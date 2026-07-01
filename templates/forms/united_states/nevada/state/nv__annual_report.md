@@ -7,12 +7,18 @@ origin_url: https://www.nvsos.gov/businesses/commercial-recordings/forms-fees/al
 confidential: false
 questionnaire:
   BEGIN:
-    _: annual_or_amended
-  annual_or_amended:
+    _: custom_single_choice__annual_or_amended
+  custom_single_choice__annual_or_amended:
     _: people__managers
   people__managers:
     _: END
   END: {}
+prompts:
+  annual_or_amended: Is this an original annual application or is it an amendment to a previous application?
+choices:
+  annual_or_amended:
+    original: Original Application
+    amended: Amendment to Previous Application
 workflow:
   BEGIN:
     _: staff_review
@@ -24,5 +30,6 @@ workflow:
 ---
 
 Annual List for `{{entity_name}}`, filed with the Nevada Secretary of State for the period ending
-`{{annual_or_amended}}`. The current managers and members of the company are: `{{people__managers}}`. The registered
+`{{custom_single_choice__annual_or_amended}}`. The current managers and members of the company are:
+`{{people__managers}}`. The registered
 agent remains the one of record unless updated by a separate filing.

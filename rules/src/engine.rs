@@ -416,19 +416,20 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
         E002EventTemplateExclusive, F101FrontmatterTitle, F102RespondentType,
         F103SnakeCaseFilename, F104FlowQuestionCodes, F105ConfidentialRequired,
         F106StaffReviewRequired, F107SignaturePlaceholders, F108TemplateCodeRequired,
-        F109OutputFormat, F110JurisdictionPath, F112WorkflowStepNotBuilt, M001HeadingIncrement,
-        M003HeadingStyle, M004ULStyle, M005ListIndent, M007ULIndent, M009NoTrailingSpaces,
-        M010NoHardTabs, M011NoReversedLinks, M012NoMultipleBlanks, M018NoMissingSpaceATX,
-        M019NoMultipleSpaceATX, M020NoMissingSpaceClosedATX, M021NoMultipleSpaceClosedATX,
-        M022BlanksAroundHeadings, M023HeadingStartLeft, M024NoDuplicateHeading,
-        M026NoTrailingPunctuation, M027NoMultipleSpaceBlockquote, M028NoBlanksBlockquote,
-        M029OLPrefix, M030ListMarkerSpace, M031BlanksAroundFences, M032BlanksAroundLists,
-        M034NoBareUrls, M035HRStyle, M037NoSpaceInEmphasis, M038NoSpaceInCode, M039NoSpaceInLinks,
-        M040FencedCodeLanguage, M042NoEmptyLinks, M045NoAltText, M046CodeBlockStyle,
-        M047SingleTrailingNewline, M048CodeFenceStyle, M049EmphasisStyle, M050StrongStyle,
-        M051LinkFragments, M052ReferenceLinksImages, M053LinkImageReferenceDefinitions,
-        M054LinkImageStyle, M055TablePipeStyle, M056TableColumnCount, M058BlanksAroundTables,
-        M059DescriptiveLinkText, M060TableColumnStyle, S101LineLength,
+        F109OutputFormat, F110JurisdictionPath, F112WorkflowStepNotBuilt, F113TypeGrounding,
+        F114ForParentOrdering, F115PathResolution, M001HeadingIncrement, M003HeadingStyle,
+        M004ULStyle, M005ListIndent, M007ULIndent, M009NoTrailingSpaces, M010NoHardTabs,
+        M011NoReversedLinks, M012NoMultipleBlanks, M018NoMissingSpaceATX, M019NoMultipleSpaceATX,
+        M020NoMissingSpaceClosedATX, M021NoMultipleSpaceClosedATX, M022BlanksAroundHeadings,
+        M023HeadingStartLeft, M024NoDuplicateHeading, M026NoTrailingPunctuation,
+        M027NoMultipleSpaceBlockquote, M028NoBlanksBlockquote, M029OLPrefix, M030ListMarkerSpace,
+        M031BlanksAroundFences, M032BlanksAroundLists, M034NoBareUrls, M035HRStyle,
+        M037NoSpaceInEmphasis, M038NoSpaceInCode, M039NoSpaceInLinks, M040FencedCodeLanguage,
+        M042NoEmptyLinks, M045NoAltText, M046CodeBlockStyle, M047SingleTrailingNewline,
+        M048CodeFenceStyle, M049EmphasisStyle, M050StrongStyle, M051LinkFragments,
+        M052ReferenceLinksImages, M053LinkImageReferenceDefinitions, M054LinkImageStyle,
+        M055TablePipeStyle, M056TableColumnCount, M058BlanksAroundTables, M059DescriptiveLinkText,
+        M060TableColumnStyle, S101LineLength,
     };
     vec![
         Box::new(S101LineLength::default()),
@@ -443,6 +444,9 @@ pub fn navigator_default_rules() -> Vec<Box<dyn Rule>> {
         Box::new(F109OutputFormat),
         Box::new(F110JurisdictionPath),
         Box::new(F112WorkflowStepNotBuilt),
+        Box::new(F113TypeGrounding),
+        Box::new(F114ForParentOrdering),
+        Box::new(F115PathResolution),
         // Mutual exclusivity runs on templates too: a template that wrongly
         // declares a `starts_at` timestamp is flagged here (the event side
         // is enforced by `navigator_event_rules`).
@@ -872,11 +876,11 @@ mod tests {
     /// silently reorders or drops a rule.
     const EXPECTED_DEFAULT_RULE_CODES: &[&str] = &[
         "S101", "N101", "N102", "N103", "N104", "N105", "N106", "N107", "N108", "N109", "N110",
-        "N112", "E002", "M001", "M003", "M004", "M005", "M007", "M009", "M010", "M011", "M012",
-        "M018", "M019", "M020", "M021", "M022", "M023", "M024", "M026", "M027", "M028", "M029",
-        "M030", "M031", "M032", "M034", "M035", "M037", "M038", "M039", "M040", "M042", "M045",
-        "M046", "M047", "M048", "M049", "M050", "M051", "M052", "M053", "M054", "M055", "M056",
-        "M058", "M059", "M060",
+        "N112", "N113", "N114", "N115", "E002", "M001", "M003", "M004", "M005", "M007", "M009",
+        "M010", "M011", "M012", "M018", "M019", "M020", "M021", "M022", "M023", "M024", "M026",
+        "M027", "M028", "M029", "M030", "M031", "M032", "M034", "M035", "M037", "M038", "M039",
+        "M040", "M042", "M045", "M046", "M047", "M048", "M049", "M050", "M051", "M052", "M053",
+        "M054", "M055", "M056", "M058", "M059", "M060",
     ];
 
     #[test]
@@ -1154,9 +1158,11 @@ respondent_type: person
 confidential: true
 questionnaire:
   BEGIN:
-    created: client_name
-  client_name:
+    created: custom_text__client_name
+  custom_text__client_name:
     answered: END
+prompts:
+  client_name: What is the client's name?
 workflow:
   BEGIN:
     created: staff_review
@@ -1227,9 +1233,11 @@ jurisdiction: NV
 confidential: true
 questionnaire:
   BEGIN:
-    created: client_name
-  client_name:
+    created: custom_text__client_name
+  custom_text__client_name:
     answered: END
+prompts:
+  client_name: What is the client's name?
 workflow:
   BEGIN:
     created: staff_review

@@ -1,12 +1,13 @@
 questionnaire:
   BEGIN:
-    _: datetime__tax_year
-  datetime__tax_year:
+    _: custom_datetime__tax_year
+  custom_datetime__tax_year:
     _: custom_usd__gross_revenue
   custom_usd__gross_revenue:
     _: END
   END: {}
 prompts:
+  tax_year: What tax year does this return cover?
   gross_revenue: What is the gross revenue?
 workflow:
   BEGIN:

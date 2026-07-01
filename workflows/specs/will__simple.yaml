@@ -1,13 +1,17 @@
 questionnaire:
   BEGIN:
-    _: testator_name
-  testator_name:
-    _: executor_name
-  executor_name:
-    _: residuary_beneficiary
-  residuary_beneficiary:
+    _: custom_text__testator_name
+  custom_text__testator_name:
+    _: custom_text__executor_name
+  custom_text__executor_name:
+    _: custom_text__residuary_beneficiary
+  custom_text__residuary_beneficiary:
     _: END
   END: {}
+prompts:
+  testator_name: What is your full legal name?
+  executor_name: Who is the executor of your will?
+  residuary_beneficiary: Who receives the remainder of your estate?
 workflow:
   BEGIN:
     _: testator_signature

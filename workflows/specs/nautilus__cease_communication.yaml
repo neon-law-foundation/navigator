@@ -1,11 +1,14 @@
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: collector_name
-  collector_name:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__collector_name
+  custom_text__collector_name:
     _: END
   END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  collector_name: What is the name of the debt collector contacting you?
 workflow:
   BEGIN:
     intake_submitted: document_open__cease_communication

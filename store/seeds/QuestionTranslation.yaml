@@ -12,10 +12,6 @@ lookup_fields:
   - code
   - locale
 records:
-  - code: personal_name
-    locale: es
-    prompt: ¿Cuál es su nombre?
-    help_text: Incluya su nombre, segundo nombre y apellido.
   - code: entity
     locale: es
     prompt: ¿Qué entidad corresponde a {{for_label}}?
@@ -24,7 +20,7 @@ records:
     locale: es
     prompt: ¿Quiénes son las personas para {{for_label}}?
     help_text: Liste cada persona con los datos necesarios para este documento o trámite.
-  - code: datetime
+  - code: custom_datetime
     locale: es
     prompt: ¿Qué fecha u hora corresponde a {{for_label}}?
     help_text: Ingrese la fecha, hora, año o período de presentación que solicita la pregunta.
@@ -36,7 +32,7 @@ records:
     locale: es
     prompt: ¿La respuesta es sí o no para {{for_label}}?
     help_text: Use esto solo cuando la plantilla necesite una respuesta única de sí o no y no exista un código reutilizable.
-  - code: custom_radio
+  - code: custom_single_choice
     locale: es
     prompt: ¿Qué opción corresponde a {{for_label}}?
     help_text: Use esto solo cuando la plantilla tenga opciones únicas y no exista un código reutilizable.
@@ -44,21 +40,3 @@ records:
     locale: es
     prompt: ¿Qué cantidad en dólares corresponde a {{for_label}}?
     help_text: Ingrese una cantidad en dólares estadounidenses con dos decimales.
-  - code: client_name
-    locale: es
-    prompt: ¿Cuál es el nombre legal completo del cliente?
-    help_text: >-
-      Incluya el primer nombre, el segundo nombre y el apellido del cliente tal
-      como desea que aparezcan en el contrato de representación.
-  - code: client_email
-    locale: es
-    prompt: ¿Cuál es el correo electrónico del cliente?
-    help_text: A esta dirección se envían las facturas y las solicitudes de firma.
-  - code: project_name
-    locale: es
-    prompt: ¿Cuál es el nombre del proyecto para este encargo?
-    help_text: Un nombre breve del asunto que el personal usará para referirse a este encargo.
-  - code: product_description
-    locale: es
-    prompt: Describa los servicios que cubre este contrato de representación.
-    help_text: Un párrafo breve que el personal y el cliente acuerdan.

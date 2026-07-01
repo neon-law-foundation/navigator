@@ -20,6 +20,9 @@ pub mod f108;
 pub mod f109;
 pub mod f110;
 pub mod f112;
+pub mod f113;
+pub mod f114;
+pub mod f115;
 pub mod frontmatter;
 pub mod m001;
 pub mod m003;
@@ -85,6 +88,9 @@ pub use f108::F108TemplateCodeRequired;
 pub use f109::F109OutputFormat;
 pub use f110::{F110JurisdictionPath, JURISDICTIONS};
 pub use f112::{workflow_step_not_built, F112WorkflowStepNotBuilt, WORKFLOW_STEPS_NOT_BUILT};
+pub use f113::{describe_question_type, F113TypeGrounding, REGISTERED_QUESTION_TYPES};
+pub use f114::{F114ForParentOrdering, AGGREGATE_QUESTION_TYPES};
+pub use f115::F115PathResolution;
 pub use m001::M001HeadingIncrement;
 pub use m003::M003HeadingStyle;
 pub use m004::M004ULStyle;
@@ -248,6 +254,9 @@ pub fn description_for_code(code: &str) -> &'static str {
         "N110" => "Notation template must live under neon_law/forms and declare jurisdiction",
         "N111" => "Notation template `code` must be unique across the tree",
         "N112" => "Workflow step is allowed but its automation is not built yet",
+        "N113" => "Questionnaire state type must be a registered question type",
+        "N114" => "`__for_` child state must follow a role-matched person/entity parent",
+        "N115" => "Template data path or iterator must resolve against a typed questionnaire state",
         "E001" => "Event must declare both a `starts_at` timestamp and a `timezone`",
         "E002" => "A file is either an event or a notation template, never both",
         "E003" => "Event must declare a `location_address` or a `meeting_url`",
