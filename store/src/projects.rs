@@ -76,9 +76,53 @@ pub async fn close_for_notation(
     Ok(Some(project_id))
 }
 
+/// Stamp `git_initialized_at` the first time a matter's bare repo is
+/// created. Returns the effective timestamp (`Some`), or `None` if the
+/// Project no longer exists.
+///
+/// Idempotent and monotonic, enforced *atomically*: the write is a single
+/// conditional `UPDATE ... WHERE git_initialized_at IS NULL`, so only the
+/// first writer sets the column and a concurrent eager-provision replay can
+/// never overwrite the original first-creation timestamp. An already-stamped
+/// Project is left untouched and its existing stamp is returned. Because the
+/// bulk update bypasses the entity's active-model behavior, `updated_at` is
+/// bumped in the same statement.
+///
+/// # Errors
+///
+/// Propagates any database error.
+pub async fn mark_git_initialized(
+    db: &Db,
+    project_id: Uuid,
+    when: chrono::DateTime<chrono::Utc>,
+) -> Result<Option<String>, sea_orm::DbErr> {
+    use sea_orm::sea_query::Expr;
+
+    let stamp = when.to_rfc3339();
+    let res = project::Entity::update_many()
+        .col_expr(
+            project::Column::GitInitializedAt,
+            Expr::value(stamp.clone()),
+        )
+        .col_expr(project::Column::UpdatedAt, Expr::value(stamp.clone()))
+        .filter(project::Column::Id.eq(project_id))
+        .filter(project::Column::GitInitializedAt.is_null())
+        .exec(db)
+        .await?;
+    if res.rows_affected == 1 {
+        return Ok(Some(stamp));
+    }
+    // No row stamped: the Project is either already stamped (return its
+    // existing first-creation timestamp) or gone (`None`).
+    Ok(project::Entity::find_by_id(project_id)
+        .one(db)
+        .await?
+        .and_then(|p| p.git_initialized_at))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{close_for_notation, sole_open_matter_for_person};
+    use super::{close_for_notation, mark_git_initialized, sole_open_matter_for_person};
     use crate::entity::{notation, person, project, template};
     use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait};
 
@@ -170,6 +214,43 @@ mod tests {
         assert_eq!(
             row.status, "archived",
             "close must not walk back from archived"
+        );
+    }
+
+    #[tokio::test]
+    async fn mark_git_initialized_stamps_once_and_is_idempotent() {
+        let db = crate::test_support::pg().await;
+        let (_notation_id, project_id) = seed_open_matter(&db).await;
+
+        // A freshly-opened matter carries no repo stamp.
+        let before = project::Entity::find_by_id(project_id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(before.git_initialized_at.is_none());
+
+        let t1 = chrono::Utc::now();
+        let first = mark_git_initialized(&db, project_id, t1).await.unwrap();
+        assert_eq!(first, Some(t1.to_rfc3339()));
+        let row = project::Entity::find_by_id(project_id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            row.git_initialized_at.as_deref(),
+            Some(t1.to_rfc3339().as_str())
+        );
+
+        // A later call (a replay of eager provisioning, or a lazy init on
+        // first clone) must NOT rewrite the original first-creation stamp.
+        let t2 = t1 + chrono::Duration::hours(1);
+        let second = mark_git_initialized(&db, project_id, t2).await.unwrap();
+        assert_eq!(
+            second,
+            Some(t1.to_rfc3339()),
+            "stamp records first creation, not last touch"
         );
     }
 
