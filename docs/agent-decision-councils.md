@@ -131,4 +131,4 @@ a real strategic fork.
 ## Website publication
 
 This file is top-level `docs/*.md`, so it is automatically published at `/docs/agent-decision-councils`. Keep council
-guidance here so Claude, Codex, Cursor, Gemini, and future LLM agents can all read the same concise protocol.
+guidance here so Claude, Codex, Gemini, and future LLM agents can all read the same concise protocol.

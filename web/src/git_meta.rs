@@ -6,7 +6,7 @@
 //!
 //! # Production caveat
 //!
-//! The production Dockerfile bundles `.git/` via `.dockerignore`-NOT,
+//! The production `Containerfile.web` bundles `.git/` via `.dockerignore`-NOT,
 //! and the runtime image is `gcr.io/distroless/static`, which carries
 //! no `git` binary. So at request time in production this helper
 //! returns `None`. That is intentional: callers must treat the date as

@@ -1,8 +1,8 @@
 # navigator-lsp
 
 Language Server Protocol entry point for Neon Law Navigator's markdown rules. One binary, JSON-RPC over stdio, no
-telemetry. Any LSP-aware editor (Neovim, Helix, VS Code, Zed, Emacs, Cursor) attaches by registering `navigator-lsp`
-against `*.md`.
+telemetry. Any LSP-aware editor (Neovim, Helix, VS Code, Zed, Emacs) attaches by registering `navigator-lsp` against
+`*.md`.
 
 ## What it provides
 

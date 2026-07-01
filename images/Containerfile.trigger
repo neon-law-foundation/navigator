@@ -11,7 +11,7 @@
 # `workflows-service` worker, not in these pods. Built as a static musl
 # binary; runs on `gcr.io/distroless/cc` because reqwest's TLS needs the
 # dynamic loader. The whole workspace is copied (the build context is the
-# repo root) so the same Dockerfile builds any crate's `trigger` bin.
+# repo root) so the same Containerfile builds any crate's `trigger` bin.
 
 FROM rust:1.96-bookworm AS builder
 

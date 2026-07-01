@@ -16,7 +16,7 @@
 #   kubectl create job --from=cronjob/recurring-trigger recurring-manual -n navigator
 #
 # Image `navigator-recurring-billing-trigger:dev` is built from the shared
-# `images/Dockerfile.trigger`
+# `images/Containerfile.trigger`
 # (--build-arg CRATE=billing-workflows --build-arg BIN=recurring-trigger).
 apiVersion: batch/v1
 kind: CronJob

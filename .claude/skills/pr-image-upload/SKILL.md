@@ -7,8 +7,8 @@ description: >
   session) and returns a real `https://github.com/user-attachments/assets/…` URL to drop into the body. Trigger as the
   embed half of [[create-pr]] Step 6 (after [[web-preview]] captures the visual), when a reviewer comment on a PR asks
   for a "live walkthrough"/screenshot during [[review-pr]], or any time you have a `/tmp` image that must appear in a
-  PR/issue body or comment. This is the LOCAL/`gh` path; inside Cursor Cloud the PR tool resolves `/tmp` paths itself,
-  so use its artifact tags there instead. Capture lives in [[web-preview]] §3/§5; this skill only hosts + embeds it.
+  PR/issue body or comment. This is the LOCAL/`gh` path for hosting and embedding a capture. Capture lives in
+  [[web-preview]] §3/§5; this skill only hosts + embeds it.
 ---
 
 # Embedding screenshots in a PR body from the CLI
@@ -69,6 +69,4 @@ changed states ([[web-preview]]), embed them in the PR body with this skill, the
   choice — the Keychain prompt is the consent gate.
 - **Never** commit the capture, push an image-hosting branch, or create a release/tag to host it — user-attachments has
   zero repo pollution and is the only sanctioned host. (See [[web-preview]] §6 and `CLAUDE.md`.)
-- **Cursor Cloud:** skip this skill — that environment's PR tool resolves `/tmp`/artifact paths into hosted links on its
-  own; use its `<img src="/tmp/…">` / artifact tags as documented in `CLAUDE.md`.
 - The asset URL is scoped to the repo it was uploaded against — always pass the right `--repo`.

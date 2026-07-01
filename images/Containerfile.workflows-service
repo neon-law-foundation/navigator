@@ -5,14 +5,14 @@
 # runtime image can be `gcr.io/distroless/cc` (the SDK pulls in TLS,
 # which needs `cc`-flavored distroless rather than `static`).
 #
-# Image conventions match Dockerfile (the `web` image): same Rust
+# Image conventions match Containerfile.web (the `web` image): same Rust
 # toolchain pin (rust-toolchain.toml → 1.96.0), same musl target,
 # same distroless base family.
 
 FROM rust:1.96-bookworm AS builder
 
 # The musl target is chosen from BuildKit's automatic TARGETARCH so the
-# SAME Dockerfile builds a native aarch64 image on an Apple-Silicon dev
+# SAME Containerfile builds a native aarch64 image on an Apple-Silicon dev
 # laptop (for local KIND) and an x86_64 image in CI / for GKE Autopilot
 # (amd64). Building x86_64-musl on an arm64 host is a cross-compile that
 # breaks aws-lc-sys's C build (`musl-gcc` rejects the x86-only `-m64`);
@@ -31,10 +31,10 @@ RUN apt-get update \
 WORKDIR /src
 
 # Copy the full workspace in one layer and build. The previous
-# stub-prime variant of this Dockerfile drifted every time a new
+# stub-prime variant of this Containerfile drifted every time a new
 # workspace member (archives, lsp) or BDD runner landed — the
 # real builder couldn't see them and `cargo build` failed at
-# resolve time. Single COPY + build mirrors the `web` Dockerfile
+# resolve time. Single COPY + build mirrors the `web` Containerfile
 # and still benefits from layer caching when nothing changes.
 #
 # `rust-toolchain.toml` must land BEFORE `rustup target add`: the override

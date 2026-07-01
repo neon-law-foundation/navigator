@@ -152,7 +152,7 @@ with `git status --porcelain` — paths should drain group by group until the wo
 | `ci` | `.github/workflows/` and CI plumbing |
 | `perf` | a performance improvement |
 | `style` | formatting only, no code change |
-| `build` | build system / Dockerfiles / Cargo manifests (non-dep) |
+| `build` | build system / Containerfiles / Cargo manifests (non-dep) |
 
 Scope is the crate or area — `web`, `store`, `cli`, `views`, `deps`, `mcp`, etc. Keep it to the one thing the commit
 touches. Use `!` after the type/scope (e.g. `feat(store)!:`) or a `BREAKING CHANGE:` body trailer for a breaking change.
@@ -183,9 +183,8 @@ output land in `/tmp/navigator-screenshots/`, never the repo.
 Surfacing it for review (step 2) is the load-bearing part — a human (or the next agent) sees the change before it
 merges. Keep the capture in `/tmp`; **do not commit it or create an image-hosting branch.** To make the image actually
 render on the github.com PR page, embed it from the CLI with [[pr-image-upload]] — it uploads the `/tmp` capture to
-GitHub's `user-attachments` CDN and returns a real URL for the body (zero repo pollution, no drag-drop). Inside Cursor
-Cloud, skip that and use the artifact tags its PR tool resolves (see `CLAUDE.md`). See [[web-preview]] §5–6 for the
-WebDriver+`gifski` recipe and the sharing rules.
+GitHub's `user-attachments` CDN and returns a real URL for the body (zero repo pollution, no drag-drop). See
+[[web-preview]] §5–6 for the WebDriver+`gifski` recipe and the sharing rules.
 
 ## Step 7 — Push and open the PR against `main`
 

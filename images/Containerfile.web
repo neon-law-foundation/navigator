@@ -10,7 +10,7 @@
 FROM rust:1.96-bookworm AS builder
 
 # Toolchain prep: musl target + musl gcc for any C deps. The musl target
-# is chosen from BuildKit's automatic TARGETARCH so the SAME Dockerfile
+# is chosen from BuildKit's automatic TARGETARCH so the SAME Containerfile
 # builds a native aarch64 image on an Apple-Silicon dev laptop (for local
 # KIND) and an x86_64 image in CI / for GKE Autopilot (amd64). Building
 # x86_64-musl on an arm64 host is a cross-compile that breaks aws-lc-sys's

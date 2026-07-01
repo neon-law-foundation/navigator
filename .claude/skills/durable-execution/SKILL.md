@@ -6,12 +6,12 @@ description: >
   workflows-service bin), the service inventory, the six-hourly Heartbeat liveness canary, the three start modes, and
   how to investigate a stalled workflow by following the evidence — commit history, GitHub Actions runs, pod and Cloud
   logs, and Google Cloud (Trace, GKE, the Restate console) — then pin the fix with a guard test so it can't recur.
-  Trigger when touching workflows-service, a *-trigger CronJob, the image Dockerfiles, when re-registering with Restate,
-  when a scheduled or manual workflow "didn't run", or when adding a workspace crate (it must enter the Dockerfile COPY
-  lists). This engine executes BINDING legal artifacts (retainer dispatch, signatures, filings, the matter-close
-  invoice), so an outage is a diligence concern, not a backlog item. Debugging surfaces carry invocation ids and service
-  names, NEVER client content. To *add* a new workflow use create-legal-workflow; this skill keeps the existing ones
-  alive.
+  Trigger when touching workflows-service, a *-trigger CronJob, the image Containerfiles, when re-registering with
+  Restate, when a scheduled or manual workflow "didn't run", or when adding a workspace crate (it must enter the
+  Containerfile COPY lists). This engine executes BINDING legal artifacts (retainer dispatch, signatures, filings, the
+  matter-close invoice), so an outage is a diligence concern, not a backlog item. Debugging surfaces carry invocation
+  ids and service names, NEVER client content. To *add* a new workflow use create-legal-workflow; this skill keeps the
+  existing ones alive.
 ---
 
 # durable-execution
@@ -33,7 +33,7 @@ playbook.
   triages the cluster slice fast; confirm against the evidence.
 - **Fix the root cause, then guard it.** Pin every fix with a test or manifest field, in the same PR, so the same outage
   can't recur — that is how the failure list shrinks instead of repeating.
-- **Adding a workspace crate?** Add it to every workspace-building Dockerfile's COPY list or the next trigger build
+- **Adding a workspace crate?** Add it to every workspace-building Containerfile's COPY list or the next trigger build
   takes every trigger image down (the `cli::devx` test guards this). Image builds belong to `deploy.yml`'s daily tag
   flow.
 - **Debugging stays identifier-and-status only — never client content** (the standing no-content rule).

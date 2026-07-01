@@ -149,7 +149,7 @@ github.com PR page it must be hosted by GitHub, and the only clean way is GitHub
 [[pr-image-upload]] skill drives it from the CLI by replaying the browser upload flow with your github.com session — so
 you can embed the `/tmp` capture into the PR body yourself, no drag-drop required. Avoid the tempting `pr-assets`
 orphan-branch trick — it works, but leaves a stray binary-accumulating branch on the remote that someone has to remember
-to delete. (Inside Cursor Cloud, skip [[pr-image-upload]] and use the artifact tags its PR tool resolves.)
+to delete.
 
 ## CSP gotcha (front-end JS)
 

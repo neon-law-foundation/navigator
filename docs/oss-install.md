@@ -138,12 +138,12 @@ kubectl apply -k /tmp/my-overlay
 
 ## 5. Build and push the image
 
-The Dockerfile at the repo root produces a single multi-stage image with both `web` and `workflows-service` binaries
-inside. Tag it for your registry and push:
+The `images/Containerfile.web` recipe produces the multi-stage `navigator-web` image (build context is the repo root).
+Tag it for your registry and push:
 
 ```bash
 TAG=$(git rev-parse --short HEAD)
-docker build -t my-registry/navigator-web:$TAG .
+docker build -f images/Containerfile.web -t my-registry/navigator-web:$TAG .
 docker push my-registry/navigator-web:$TAG
 ```
 

@@ -284,7 +284,7 @@ const MCP_METER: &str = "navigator.mcp";
 /// Counter: how many times a tool was invoked over the `/mcp` JSON-RPC surface,
 /// dimensioned by `tool` and `outcome`. The A2A surface already audits its tool
 /// calls; this is the matching signal for the *direct* `/mcp` callers (Claude.ai
-/// Connectors, Claude Code, Cursor, LibreChat) so neither protocol surface that
+/// Connectors, Claude Code, LibreChat) so neither protocol surface that
 /// shares the one tool catalog is blind in prod.
 pub const MCP_TOOL_CALLED: &str = "navigator.mcp.tool.called";
 

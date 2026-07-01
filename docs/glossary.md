@@ -37,7 +37,7 @@ routing.
   JSON-RPC at `/api/aida/rpc`. Used by Gemini Enterprise and any other A2A-compatible orchestrator. A free-form
   `message/send` is interpreted by a pluggable [`AgentRouter`](../web/src/agent_router.rs) (Vertex AI Gemini Flash in
   prod) that maps the user's text to one of the declared tools.
-- **MCP** — JSON-RPC at `/mcp`. Used by Claude.ai Connectors, Claude Code, LibreChat, Cursor, and other Anthropic-stack
+- **MCP** — JSON-RPC at `/mcp`. Used by Claude.ai Connectors, Claude Code, LibreChat, and other Anthropic-stack
   clients. The MCP-side LLM (e.g. Claude) does its own tool routing client-side; our server just dispatches the named
   tool.
 

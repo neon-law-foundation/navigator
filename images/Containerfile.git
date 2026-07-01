@@ -2,7 +2,7 @@
 #
 # Git-serving image for the per-Project repos.
 #
-# This is the SAME `web` binary as `Dockerfile`, but on a runtime base
+# This is the SAME `web` binary as `Containerfile.web`, but on a runtime base
 # that carries the `git` binary. The smart-HTTP transport
 # (`web::git_http`) shells `git upload-pack` / `git receive-pack`, and
 # server-side commits (`repos::commit_as`) shell `git` plumbing — none
@@ -16,7 +16,7 @@
 # `NAVIGATOR_GIT_REPO_ROOT`, which the stateless `web` tier proxies
 # `/projects/<id>.git/*` to.
 
-# ---------- Stage 1: builder (mirrors Dockerfile) ----------
+# ---------- Stage 1: builder (mirrors Containerfile.web) ----------
 FROM rust:1.96-bookworm AS builder
 
 RUN apt-get update \
@@ -78,7 +78,7 @@ COPY --from=builder /src/web/public  /app/public
 COPY --from=builder /src/web/content /app/content
 COPY --from=builder /src/templates   /app/templates
 
-# Same asset env as `Dockerfile`, plus the repo-volume root. The repo
+# Same asset env as `Containerfile.web`, plus the repo-volume root. The repo
 # root is overridden to the PVC mount by the Deployment; this default
 # lets the image run standalone for a smoke test.
 ENV NAVIGATOR_PUBLIC_DIR=/app/public \
