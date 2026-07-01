@@ -503,9 +503,16 @@ pub(crate) async fn seed_staff_answers(
     authored_by: Option<Uuid>,
     answers: &[(&str, &str)],
 ) -> Result<(), sea_orm::DbErr> {
-    for (code, value) in answers {
+    for (state_name, value) in answers {
+        // The caller passes questionnaire state names (`custom_text__client_name`);
+        // the registry question code is the typed prefix before `__`. Look the
+        // question up by that code, and record the full state name on the answer
+        // so the several states sharing one registry question stay distinct.
+        let registry_code = state_name
+            .split_once("__")
+            .map_or(*state_name, |(code, _)| code);
         let Some(q) = question::Entity::find()
-            .filter(question::Column::Code.eq(*code))
+            .filter(question::Column::Code.eq(registry_code))
             .one(txn)
             .await?
         else {
@@ -515,9 +522,7 @@ pub(crate) async fn seed_staff_answers(
             question_id: ActiveValue::Set(q.id),
             person_id: ActiveValue::Set(person_id),
             notation_id: ActiveValue::Set(Some(notation_id)),
-            // These retainer codes are bare (`client_name`), so the state
-            // name is the code itself — no `__role` discriminator.
-            state_name: ActiveValue::Set(Some((*code).to_string())),
+            state_name: ActiveValue::Set(Some((*state_name).to_string())),
             value: ActiveValue::Set(answer::primitive(value)),
             source: ActiveValue::Set(store::entity::answer::SOURCE_STAFF.to_string()),
             authored_by_person_id: ActiveValue::Set(authored_by),

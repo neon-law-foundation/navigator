@@ -7,6 +7,7 @@
 //! the webhook that resolves and stamps, the admin/status reads) goes
 //! through so the correlation key stays in one place.
 
+use sea_orm::sea_query::OnConflict;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use uuid::Uuid;
 
@@ -15,24 +16,35 @@ use crate::Db;
 
 /// Record the provider's request id for a Notation when the envelope is
 /// created. Idempotent on `(provider, provider_id)`: re-recording the same
-/// envelope returns the existing row rather than inserting a duplicate.
+/// envelope returns the existing row rather than inserting a duplicate. The
+/// insert is a single atomic `ON CONFLICT DO UPDATE … RETURNING`, so two
+/// concurrent callers for one envelope can't race a check-then-insert.
 pub async fn record_request(
     db: &Db,
     notation_id: Uuid,
     provider: SignatureProvider,
     provider_id: &str,
 ) -> Result<signature::Model, sea_orm::DbErr> {
-    if let Some(existing) = by_provider(db, provider, provider_id).await? {
-        return Ok(existing);
-    }
-    signature::ActiveModel {
+    let now = chrono::Utc::now().to_rfc3339();
+    let row = signature::ActiveModel {
+        id: ActiveValue::Set(Uuid::now_v7()),
         notation_id: ActiveValue::Set(notation_id),
         provider: ActiveValue::Set(provider),
         provider_id: ActiveValue::Set(provider_id.to_string()),
+        inserted_at: ActiveValue::Set(now.clone()),
+        updated_at: ActiveValue::Set(now),
         ..Default::default()
-    }
-    .insert(db)
-    .await
+    };
+    signature::Entity::insert(row)
+        .on_conflict(
+            // Self-update on the conflict target so RETURNING yields the
+            // already-recorded row instead of erroring on DO NOTHING.
+            OnConflict::columns([signature::Column::Provider, signature::Column::ProviderId])
+                .update_column(signature::Column::ProviderId)
+                .to_owned(),
+        )
+        .exec_with_returning(db)
+        .await
 }
 
 /// The signature row for `(provider, provider_id)`, if any — the webhook's

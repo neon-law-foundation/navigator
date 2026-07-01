@@ -52,7 +52,9 @@ fn expand_loops(body: &str, context: &BTreeMap<String, String>) -> String {
         };
         let header = after_open[..header_len].trim();
         let block_start = start + FOR_OPEN.len() + header_len + 2;
-        let Some(close_rel) = rest[block_start..].find(FOR_CLOSE) else {
+        // Match the *balanced* `{{/for}}` so a nested loop's close doesn't
+        // terminate the outer one.
+        let Some(close_rel) = matching_close(&rest[block_start..]) else {
             break;
         };
         let block = &rest[block_start..block_start + close_rel];
@@ -66,6 +68,30 @@ fn expand_loops(body: &str, context: &BTreeMap<String, String>) -> String {
     }
     out.push_str(rest);
     out
+}
+
+/// The byte offset of the `{{/for}}` that balances the loop whose body
+/// starts at the front of `s` (depth 1 already open), or `None` if it never
+/// closes. Nested `{{#for …}}` raise the depth so an inner close doesn't
+/// terminate the outer loop.
+fn matching_close(s: &str) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut i = 0;
+    while i < s.len() {
+        if s[i..].starts_with(FOR_OPEN) {
+            depth += 1;
+            i += FOR_OPEN.len();
+        } else if s[i..].starts_with(FOR_CLOSE) {
+            depth -= 1;
+            if depth == 0 {
+                return Some(i);
+            }
+            i += FOR_CLOSE.len();
+        } else {
+            i += 1;
+        }
+    }
+    None
 }
 
 /// Render `block` once per row of the aggregate answer at `state`, resolving
@@ -83,7 +109,8 @@ fn render_loop(var: &str, state: &str, block: &str, context: &BTreeMap<String, S
             let needle = format!("{{{{{var}.{part}}}}}");
             piece = piece.replace(&needle, &yaml_scalar(value));
         }
-        out.push_str(&piece);
+        // Recurse so a nested `{{#for …}}` inside this row's block expands.
+        out.push_str(&expand_loops(&piece, context));
     }
     out
 }
@@ -221,6 +248,15 @@ The retainer covers the project {{project_name}}.";
             &ctx(&[]),
         );
         assert_eq!(filled, "[]");
+    }
+
+    #[test]
+    fn nested_for_loops_match_balanced_closes() {
+        // The inner `{{/for}}` must not terminate the outer loop.
+        let body = "{{#for g in groups}}[{{g.title}}: {{#for m in groups}}{{m.title}} {{/for}}]{{/for}}";
+        let context = ctx(&[("groups", r#"[{"title": "A"}, {"title": "B"}]"#)]);
+        let filled = super::fill(body, &context);
+        assert_eq!(filled, "[A: A B ][B: A B ]", "got: {filled}");
     }
 
     #[test]

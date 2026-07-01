@@ -3,6 +3,7 @@
 //! notarization records a row here, correlated back from the provider by
 //! `(provider, provider_id)`.
 
+use sea_orm::sea_query::OnConflict;
 use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
 use uuid::Uuid;
 
@@ -11,24 +12,35 @@ use crate::entity::signature::SignatureProvider;
 use crate::Db;
 
 /// Record the provider's request id for a Notation's notarization.
-/// Idempotent on `(provider, provider_id)`.
+/// Idempotent on `(provider, provider_id)` via a single atomic
+/// `ON CONFLICT DO UPDATE … RETURNING` (no check-then-insert race).
 pub async fn record_request(
     db: &Db,
     notation_id: Uuid,
     provider: SignatureProvider,
     provider_id: &str,
 ) -> Result<notarization::Model, sea_orm::DbErr> {
-    if let Some(existing) = by_provider(db, provider, provider_id).await? {
-        return Ok(existing);
-    }
-    notarization::ActiveModel {
+    let now = chrono::Utc::now().to_rfc3339();
+    let row = notarization::ActiveModel {
+        id: ActiveValue::Set(Uuid::now_v7()),
         notation_id: ActiveValue::Set(notation_id),
         provider: ActiveValue::Set(provider),
         provider_id: ActiveValue::Set(provider_id.to_string()),
+        inserted_at: ActiveValue::Set(now.clone()),
+        updated_at: ActiveValue::Set(now),
         ..Default::default()
-    }
-    .insert(db)
-    .await
+    };
+    notarization::Entity::insert(row)
+        .on_conflict(
+            OnConflict::columns([
+                notarization::Column::Provider,
+                notarization::Column::ProviderId,
+            ])
+            .update_column(notarization::Column::ProviderId)
+            .to_owned(),
+        )
+        .exec_with_returning(db)
+        .await
 }
 
 /// The notarization row for `(provider, provider_id)`, if any.
