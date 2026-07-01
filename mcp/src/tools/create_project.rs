@@ -154,6 +154,11 @@ pub async fn call(db: &Db, arguments: &Value) -> Result<Value, ToolError> {
     .insert(db)
     .await?;
 
+    // Stand up the matter's append-only git repo so a freshly created
+    // project has a ready repo. Best-effort through the one shared
+    // provisioning path (never fails the tool call).
+    store::projects::provision_repo_eager(db, inserted.id).await;
+
     let summary = format!(
         "Created project id={} ({}, status={}, entity_id={}).",
         inserted.id, inserted.name, inserted.status, inserted.entity_id

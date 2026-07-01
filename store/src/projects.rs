@@ -120,9 +120,75 @@ pub async fn mark_git_initialized(
         .and_then(|p| p.git_initialized_at))
 }
 
+/// Provision a Project's append-only bare git repo and stamp
+/// `git_initialized_at` — the **one** provisioning path shared by every
+/// eager create path (a freshly opened matter gets a ready repo) and the
+/// lazy git transport (first authorized clone/push). The bare repo is
+/// created by [`repos::RepoStore::ensure`] (no second `git init`) and the
+/// column is stamped by [`mark_git_initialized`]; both halves are
+/// idempotent, so a repeat call is a no-op that preserves the original
+/// first-creation timestamp.
+///
+/// Returns the bare repo's on-disk path. The repo lives on the git volume
+/// named by [`repos::REPO_ROOT_ENV`]; [`repos::RepoError::RootUnset`]
+/// surfaces when that volume is not configured (a CLI/seed/remote-DB
+/// context with no git mount) — eager callers swallow that via
+/// [`provision_repo_eager`], while the transport treats it as a hard
+/// error.
+///
+/// # Errors
+/// [`repos::RepoError`] when the git volume is unconfigured or a `git`
+/// invocation fails. A failure to *stamp* the column is logged, not
+/// returned — the repo is what the caller needs, and the stamp reconciles
+/// on the next call.
+pub async fn provision_repo(
+    db: &Db,
+    project_id: Uuid,
+) -> Result<std::path::PathBuf, repos::RepoError> {
+    provision_repo_in(db, repos::RepoStore::from_env()?, project_id).await
+}
+
+/// [`provision_repo`] against an explicit [`repos::RepoStore`] — the seam
+/// tests use to root the repo in a temp dir without touching the
+/// process-global env var.
+async fn provision_repo_in(
+    db: &Db,
+    store: repos::RepoStore,
+    project_id: Uuid,
+) -> Result<std::path::PathBuf, repos::RepoError> {
+    // `ensure` shells to `git` (blocking); keep it off the async runtime.
+    let path = tokio::task::spawn_blocking(move || store.ensure(project_id))
+        .await
+        .map_err(|e| repos::RepoError::Io(std::io::Error::other(e.to_string())))??;
+    if let Err(e) = mark_git_initialized(db, project_id, chrono::Utc::now()).await {
+        tracing::error!(error = %e, %project_id, "provision_repo: stamping git_initialized_at failed");
+    }
+    Ok(path)
+}
+
+/// Eagerly provision at project-creation time, swallowing every failure —
+/// a fresh matter gets a ready repo, but provisioning never fails matter
+/// creation. When the git volume is not mounted in this context
+/// ([`repos::RepoError::RootUnset`] — the CLI, seeds, a remote prod DB),
+/// it is a debug-level no-op: the lazy git transport creates the repo on
+/// first access instead.
+pub async fn provision_repo_eager(db: &Db, project_id: Uuid) {
+    match provision_repo(db, project_id).await {
+        Ok(_) => {}
+        Err(repos::RepoError::RootUnset) => {
+            tracing::debug!(%project_id, "eager repo provisioning skipped: git volume not configured");
+        }
+        Err(e) => {
+            tracing::error!(error = %e, %project_id, "eager repo provisioning failed; repo will be created lazily on first git access");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{close_for_notation, mark_git_initialized, sole_open_matter_for_person};
+    use super::{
+        close_for_notation, mark_git_initialized, provision_repo_in, sole_open_matter_for_person,
+    };
     use crate::entity::{notation, person, project, template};
     use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait};
 
@@ -252,6 +318,47 @@ mod tests {
             Some(t1.to_rfc3339()),
             "stamp records first creation, not last touch"
         );
+    }
+
+    #[tokio::test]
+    async fn provision_repo_creates_the_bare_repo_and_stamps_then_is_idempotent() {
+        let db = crate::test_support::pg().await;
+        let (_notation_id, project_id) = seed_open_matter(&db).await;
+        let root = tempfile::TempDir::new().unwrap();
+        let store = repos::RepoStore::new(root.path());
+
+        // Fresh matter: no repo on disk, no stamp.
+        assert!(!store.exists(project_id));
+
+        let path = provision_repo_in(&db, store.clone(), project_id)
+            .await
+            .unwrap();
+
+        // The bare repo now exists, and the column is stamped.
+        assert!(store.exists(project_id));
+        assert!(path.join("HEAD").is_file());
+        let stamp = project::Entity::find_by_id(project_id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .git_initialized_at
+            .expect("git_initialized_at stamped");
+        chrono::DateTime::parse_from_rfc3339(&stamp).expect("RFC 3339");
+
+        // A second call (the lazy transport hitting an already-created repo)
+        // is a no-op that preserves the first-creation stamp.
+        provision_repo_in(&db, store.clone(), project_id)
+            .await
+            .unwrap();
+        let stamp2 = project::Entity::find_by_id(project_id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .git_initialized_at
+            .unwrap();
+        assert_eq!(stamp, stamp2, "first-creation stamp must not be rewritten");
     }
 
     /// Open one more matter for `person_id` so a person can have several.

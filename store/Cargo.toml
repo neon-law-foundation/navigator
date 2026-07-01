@@ -23,6 +23,10 @@ async-trait.workspace = true
 chrono.workspace = true
 cloud.workspace = true
 petgraph.workspace = true
+# The bare-repo store: `store::projects::provision_repo` shells to `git`
+# through here so eager creation and the lazy git transport share one
+# provisioning path (docs/git-project-repos.md §6).
+repos.workspace = true
 # `with-chrono` maps the `events` table's `starts_at` / `ends_at`
 # `timestamp` columns to `chrono::NaiveDateTime`; `postgres-array`
 # maps `events.registrations` (`text[]`) to `Vec<String>`. Both are
