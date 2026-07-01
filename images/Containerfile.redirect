@@ -7,7 +7,7 @@
 # `chat.neonlaw.com` → Gemini Enterprise landing) and ships no
 # templates / assets / DB — distroless/static is enough.
 #
-# Same single-COPY-then-build layout as Dockerfile.workflows-service
+# Same single-COPY-then-build layout as Containerfile.workflows-service
 # so the build context is identical and `docker buildx` caches stay
 # warm across the images.
 

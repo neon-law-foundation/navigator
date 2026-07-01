@@ -16,7 +16,7 @@
 #   kubectl create job --from=cronjob/billing-digest-trigger billing-digest-manual -n navigator
 #
 # Image `navigator-billing-digest-trigger:dev` is built by
-# `navigator image-billing-digest-trigger` from the shared `images/Dockerfile.trigger`
+# `navigator image-billing-digest-trigger` from the shared `images/Containerfile.trigger`
 # (--build-arg CRATE=billing-workflows --build-arg BIN=billing-digest-trigger).
 apiVersion: batch/v1
 kind: CronJob

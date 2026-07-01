@@ -8,7 +8,7 @@
 //! one-way (`/send`): Restate runs the query → email steps on the
 //! `workflows-service` worker and owns the retry schedule.
 //!
-//! Built from the shared `images/Dockerfile.trigger`
+//! Built from the shared `images/Containerfile.trigger`
 //! (`--build-arg CRATE=billing-workflows --build-arg BIN=billing-digest-trigger`).
 //!
 //! Auth is the shared [`workflows::start_workflow`] bearer handling — attached

@@ -203,8 +203,8 @@ Don't pattern-match against a catalog of past outages — read what the system i
 through the stages above. Four sources, in the order that usually pays off:
 
 - **Commit history.** `git log` / `git blame` on `workflows-service`, the `*-trigger` manifests, and
-  `images/Dockerfile.*`. A durable-execution break is almost always a recent diff, not spontaneous — find what changed
-  since the last run that worked.
+  `images/Containerfile.*`. A durable-execution break is almost always a recent diff, not spontaneous — find what
+  changed since the last run that worked.
 - **GitHub Actions.** The `ci` and `deploy` runs (`gh run list`, `gh run view <id> --log`). Did the worker and trigger
   images actually build and publish, and did the deploy job succeed? A red or skipped deploy explains a stale image
   faster than any cluster probe.
@@ -222,8 +222,8 @@ language. Triage with it, then confirm against the evidence above.
 We don't re-litigate the same outage. Every failure we've actually hit is pinned by a test or a manifest field so it
 can't silently recur; when you fix a new one, add its guard in the same PR.
 
-- **Every workspace member is in every workspace-building Dockerfile.** Add a crate → add `COPY <crate> <crate>` to
-  `images/Dockerfile.{trigger,workflows-service,web}`. Guarded by
+- **Every workspace member is in every workspace-building Containerfile.** Add a crate → add `COPY <crate> <crate>` to
+  `images/Containerfile.{trigger,workflows-service,web}`. Guarded by
   `every_workspace_member_is_copied_into_each_workspace_image` in `cli::devx`.
 - **Registered workflow names are PascalCase** and the registry matches `main.rs`'s `.bind(...)` calls — guarded by the
   `workflows_service::registry` tests (template filenames follow the separate snake_case convention `N103` enforces).

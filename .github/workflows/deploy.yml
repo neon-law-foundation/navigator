@@ -108,9 +108,9 @@ jobs:
       matrix:
         include:
           - image: navigator-web
-            dockerfile: images/Dockerfile.web
+            dockerfile: images/Containerfile.web
           - image: navigator-workflows-service
-            dockerfile: images/Dockerfile.workflows-service
+            dockerfile: images/Containerfile.workflows-service
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
@@ -453,19 +453,19 @@ jobs:
       matrix:
         include:
           - image: navigator-web
-            dockerfile: images/Dockerfile.web
+            dockerfile: images/Containerfile.web
             arch: amd64
             runner: ubuntu-latest
           - image: navigator-workflows-service
-            dockerfile: images/Dockerfile.workflows-service
+            dockerfile: images/Containerfile.workflows-service
             arch: amd64
             runner: ubuntu-latest
           - image: navigator-web
-            dockerfile: images/Dockerfile.web
+            dockerfile: images/Containerfile.web
             arch: arm64
             runner: ubuntu-24.04-arm
           - image: navigator-workflows-service
-            dockerfile: images/Dockerfile.workflows-service
+            dockerfile: images/Containerfile.workflows-service
             arch: arm64
             runner: ubuntu-24.04-arm
     steps:
@@ -493,7 +493,7 @@ jobs:
       # the trigger CronJobs self-report their release in logs/traces — the
       # headless counterpart to web's `GET /version`. The web image additionally
       # gets GIT_SHA/BUILD_TIME for the `/version` commit fields (only its
-      # Dockerfile declares those ARGs).
+      # Containerfile declares those ARGs).
       - name: compose build-args
         id: ba
         run: |
@@ -572,30 +572,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Trigger images: shared Dockerfile.trigger, one per CronJob,
+          # Trigger images: shared Containerfile.trigger, one per CronJob,
           # selected by CRATE (workspace crate) + BIN (its trigger binary).
           - image: navigator-heartbeat-trigger
-            dockerfile: images/Dockerfile.trigger
+            dockerfile: images/Containerfile.trigger
             build-args: |
               CRATE=workflows-service
               BIN=heartbeat-trigger
           - image: navigator-archives-trigger
-            dockerfile: images/Dockerfile.trigger
+            dockerfile: images/Containerfile.trigger
             build-args: |
               CRATE=archives
               BIN=trigger
           - image: navigator-statutes-trigger
-            dockerfile: images/Dockerfile.trigger
+            dockerfile: images/Containerfile.trigger
             build-args: |
               CRATE=statutes
               BIN=trigger
           - image: navigator-reconcile-invoices-trigger
-            dockerfile: images/Dockerfile.trigger
+            dockerfile: images/Containerfile.trigger
             build-args: |
               CRATE=billing-workflows
               BIN=reconcile-trigger
           - image: navigator-billing-digest-trigger
-            dockerfile: images/Dockerfile.trigger
+            dockerfile: images/Containerfile.trigger
             build-args: |
               CRATE=billing-workflows
               BIN=billing-digest-trigger

@@ -39,10 +39,6 @@ KIND, then writes `.devx/env` for the host-side `web` process. The cluster is a 
 between sessions and re-run `start-dev-server` to restore port-forwards after a sleep or reboot (it reuses the existing
 cluster). See [`RUNBOOK.md`](RUNBOOK.md#keep-the-deps-up-across-sessions-the-persistent-fixture).
 
-Cursor Cloud is the exception documented in [`../AGENTS.md`](../AGENTS.md): KIND does not work there because the VM
-cannot initialize the KIND node's cgroup stack under `fuse-overlayfs`. On that VM, use the standalone-container recipe
-in `AGENTS.md` and the baked local Postgres.
-
 Scratch artifacts go under `/tmp`, never the repo. Screenshots normally go under `/tmp/navigator-screenshots/`.
 
 The KIND **dependency tier** is the exception to "local stacks are task resources": it is a reusable dev fixture, so

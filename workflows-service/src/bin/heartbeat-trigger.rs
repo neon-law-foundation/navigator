@@ -2,7 +2,7 @@
 //! durable-execution liveness workflow.
 //!
 //! Fires one `Heartbeat` invocation against the Restate ingress, then exits.
-//! Built from the shared `images/Dockerfile.trigger`
+//! Built from the shared `images/Containerfile.trigger`
 //! (`--build-arg CRATE=workflows-service --build-arg BIN=heartbeat-trigger`).
 //!
 //! Cadence is every six hours (the `CronJob` schedule). The workflow key is

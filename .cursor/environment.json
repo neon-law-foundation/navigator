@@ -1,8 +1,0 @@
-{
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": "."
-  },
-  "install": "cargo fetch",
-  "start": "sudo service postgresql start"
-}

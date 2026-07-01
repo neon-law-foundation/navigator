@@ -9,7 +9,7 @@
 #
 # Topology (the engineering council's resolution of the riskiest §4
 # question): this is the SAME `web` binary as `navigator-web`, but
-#   - built from `images/Dockerfile.git` (carries the `git` binary), and
+#   - built from `images/Containerfile.git` (carries the `git` binary), and
 #   - pinned to `replicas: 1` with `strategy: Recreate`, mounting an
 #     RWO PersistentVolume at NAVIGATOR_GIT_REPO_ROOT,
 # so exactly one writer ever touches a bare repo (no concurrent
@@ -58,7 +58,7 @@ spec:
       serviceAccountName: navigator-web
       containers:
         - name: git
-          # Built from images/Dockerfile.git; same tag scheme as navigator-web.
+          # Built from images/Containerfile.git; same tag scheme as navigator-web.
           image: ghcr.io/neon-law-foundation/navigator-git:YY.M.D
           imagePullPolicy: Always
           ports:

@@ -1805,13 +1805,13 @@ mod tests {
     use super::*;
     use std::sync::Mutex;
 
-    /// Every workspace member crate must be `COPY`'d into each Dockerfile that
+    /// Every workspace member crate must be `COPY`'d into each Containerfile that
     /// runs `cargo build` against the whole workspace — otherwise cargo can't
     /// load the workspace manifest and the image build dies with
     /// `failed to read <member>/Cargo.toml`. This is the exact failure that
     /// took every `*-trigger` image (and the nightly archives email) down when
     /// the `forms` crate was added without updating the COPY lists. This test
-    /// is the guard that bug had no test for. `Dockerfile.redirect` builds only
+    /// is the guard that bug had no test for. `Containerfile.redirect` builds only
     /// the `cloud` bin in a trimmed context and is intentionally excluded.
     #[test]
     fn every_workspace_member_is_copied_into_each_workspace_image() {
@@ -1836,11 +1836,11 @@ mod tests {
             members.len()
         );
         for df in [
-            "images/Dockerfile.trigger",
-            "images/Dockerfile.workflows-service",
-            "images/Dockerfile.web",
+            "images/Containerfile.trigger",
+            "images/Containerfile.workflows-service",
+            "images/Containerfile.web",
         ] {
-            let content = std::fs::read_to_string(root.join(df)).expect("read Dockerfile");
+            let content = std::fs::read_to_string(root.join(df)).expect("read Containerfile");
             for m in &members {
                 assert!(
                     content.contains(&format!("COPY {m} ")),

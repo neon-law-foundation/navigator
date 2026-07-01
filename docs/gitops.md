@@ -124,7 +124,7 @@ the full **KIND integration** suite, then builds and pushes every image — the 
 `navigator-workflows-service`) and the five CronJob trigger images (`navigator-*-trigger`) — to **ghcr.io** tagged with
 that release version plus `latest`. The service images publish as linux/amd64 + linux/arm64 manifest lists from native
 runners, so Apple-Silicon KIND pulls do not rely on emulation; the trigger images stay amd64-only because their CronJobs
-are rare local paths and their shared Dockerfile is x86_64-pinned. In parallel with image publishing, it builds the
+are rare local paths and their shared Containerfile is x86_64-pinned. In parallel with image publishing, it builds the
 public `navigator` CLI and `navigator-lsp` binaries on native Linux, macOS, and Windows runners, records GitHub artifact
 attestations for the downloadable archives, and attaches those six archives to the GitHub Release for that version. Once
 the Release is up, a `homebrew-tap` job cross-pollinates the public
