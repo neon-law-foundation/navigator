@@ -175,6 +175,13 @@ impl RepoStore {
     pub fn ensure(&self, project_id: Uuid) -> Result<PathBuf, RepoError> {
         let path = self.path_for(project_id);
         if path.join("HEAD").is_file() {
+            // Self-heal the LFS routing on every access: the guard above
+            // keys on `HEAD`, which `git init --bare` writes *before* the
+            // routing is seeded, so a repo whose creation failed after
+            // `HEAD` (or one predating LFS seeding) would otherwise be
+            // served forever without routing. `ensure_lfs_attributes`
+            // only writes when the file is absent or wrong.
+            ensure_lfs_attributes(&path)?;
             return Ok(path);
         }
         std::fs::create_dir_all(&self.root)?;
@@ -199,7 +206,7 @@ impl RepoStore {
         // Let the smart-HTTP transport accept pushes to this repo.
         run_git(&["-C", &path_str, "config", "http.receivepack", "true"])?;
         install_pre_receive_hook(&path)?;
-        install_lfs_attributes(&path)?;
+        ensure_lfs_attributes(&path)?;
 
         tracing::info!(%project_id, path = %path_str, "created append-only bare repo");
         Ok(path)
@@ -474,12 +481,20 @@ fn install_pre_receive_hook(repo: &Path) -> Result<(), RepoError> {
 }
 
 /// Seed the repo's server-side `info/attributes` with the Git LFS
-/// routing rules ([`LFS_ATTRIBUTES`]). `git init --bare` already creates
-/// the `info/` directory, but `create_dir_all` keeps this robust.
-fn install_lfs_attributes(repo: &Path) -> Result<(), RepoError> {
+/// routing rules ([`LFS_ATTRIBUTES`]) unless they are already present and
+/// current. Idempotent and self-healing: it restores routing for a repo
+/// created before LFS seeding, or one whose creation failed after `HEAD`
+/// was written (a truncated or stale file is rewritten too). `git init
+/// --bare` already creates the `info/` directory, but `create_dir_all`
+/// keeps this robust.
+fn ensure_lfs_attributes(repo: &Path) -> Result<(), RepoError> {
     let info = repo.join("info");
+    let attributes = info.join("attributes");
+    if std::fs::read_to_string(&attributes).is_ok_and(|c| c == LFS_ATTRIBUTES) {
+        return Ok(());
+    }
     std::fs::create_dir_all(&info)?;
-    std::fs::write(info.join("attributes"), LFS_ATTRIBUTES)?;
+    std::fs::write(&attributes, LFS_ATTRIBUTES)?;
     Ok(())
 }
 
@@ -670,6 +685,16 @@ mod tests {
         assert_eq!(check_filter(&repo, "notes.txt"), "unspecified");
 
         // Idempotent: a second ensure leaves routing in place.
+        store.ensure(project).unwrap();
+        assert_eq!(check_filter(&repo, "deed.pdf"), "lfs");
+
+        // Self-heal: `ensure`'s idempotency guard keys on `HEAD`, which
+        // exists before routing is seeded — so a repo left without
+        // routing (a creation that failed after `HEAD`, or one predating
+        // LFS seeding) must have it restored on the next access rather
+        // than served unrouted forever.
+        std::fs::remove_file(repo.join("info").join("attributes")).unwrap();
+        assert_eq!(check_filter(&repo, "deed.pdf"), "unspecified");
         store.ensure(project).unwrap();
         assert_eq!(check_filter(&repo, "deed.pdf"), "lfs");
     }
