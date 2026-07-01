@@ -1,20 +1,20 @@
 ---
-title: "1337 Lawyers"
+title: "Litigation"
 slug: litigation
 hero_image: wa-capitol-blossoms
 description: >
-  1337 Lawyers is Neon Law's litigation practice for high-stakes technology disputes, quoted as a flat fee per phase
-  after a case assessment.
+  Neon Law's litigation practice for high-stakes technology disputes — big-law-trained litigators, a flat fee per phase,
+  and AI workflows that do the heavy lifting.
 pricing:
-  - title: "1337 Lawyers"
+  - title: "Litigation"
     price: "Flat fee per phase"
     cadence: " quoted after assessment"
-    blurb: "Our litigation practice for high-stakes technology disputes."
+    blurb: "Big-law-trained litigators for high-stakes technology disputes, billed as a flat fee per phase."
     features:
       - "Commercial, IP and trade-secret, software and SaaS contract, and founder and equity disputes"
-      - "A licensed attorney quotes each phase up front after the Phase 0 case assessment"
-      - "AI-assisted discovery and evidence workflows help make fixed per-phase pricing predictable"
-      - "Phases are billed one at a time, in advance"
+      - "A big-law-trained attorney quotes each phase up front after the Phase 0 case assessment"
+      - "AI workflows run discovery, document review, and evidence organization to save you time and cost"
+      - "Phases are billed one at a time, in advance — no hourly meter"
       - "Outside our lane, conflicted, or at capacity? We refer you to trial counsel we trust"
     cta_label: "Book a Consultation"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
@@ -23,21 +23,24 @@ pricing:
 
 # When your company is under attack, we take the fight
 
-When your intellectual property, a contract, or the company you built is under attack, you need a lawyer who will stand
-in the fight with you. 1337 Lawyers is Neon Law's litigation practice, and our practice focuses on high-stakes
-technology disputes — the matters where a software company's future turns on the outcome.
+When your intellectual property, a contract, or the company you built is under attack, you need a litigator who will
+stand in the fight with you. Neon Law's litigation practice focuses on high-stakes technology disputes — the matters
+where a software company's future turns on the outcome.
 
 [[pricing]]
 
-Try 1337 Lawyers when the company is under attack and the outcome matters more than the noise around it. Litigation is
-expensive because uncertainty is expensive; our answer is to quote the fight one phase at a time.
+Our litigators are big-law-trained, and over their careers they have recovered millions of dollars for clients. That
+experience now runs on a model built for technology companies: flat-fee, AI-accelerated, and focused on the disputes
+that decide a company's future. *Prior results do not guarantee a similar outcome; every matter turns on its own facts.*
 
-The name is a numeronym: **1337** reads as *l33t*, the hacker shorthand our clients grew up writing. The billing model
-is plain: after a Phase 0 case assessment, we quote the next phase before it begins, bill that phase in advance, and
-move one phase at a time. There is no hourly meter and no surprise bill.
+You get a flat fee per phase — no hourly meter, no surprise invoice. After a Phase 0 case assessment, we quote the next
+phase before it begins and bill it in advance, one phase at a time. You know the price of the fight in front of you
+before you commit to it.
 
-We use AI where it actually helps: discovery, document review, deposition preparation, and evidence organization. The
-tooling does not replace judgment; it makes fixed per-phase pricing more predictable.
+AI does the heavy lifting. Discovery, document review, deposition preparation, and evidence organization run through AI
+workflows built for technology matters — the phases that carry the most cost. That saves you time and money, and it
+sharpens the case: more of the record reviewed, faster. The tooling does not replace judgment; it frees a
+big-law-trained litigator to spend their hours where they matter most.
 
 Our litigation practice focuses on technology and the companies that build it:
 

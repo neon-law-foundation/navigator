@@ -1,20 +1,20 @@
 ---
-title: "1337 Lawyers"
+title: "Litigio"
 slug: litigation
 hero_image: wa-capitol-blossoms
 description: >
-  1337 Lawyers es la práctica de litigio de Neon Law para disputas tecnológicas de alto riesgo, cotizada como tarifa
-  fija por fase después de evaluar el caso.
+  La práctica de litigio de Neon Law para disputas tecnológicas de alto riesgo — litigantes formados en grandes firmas,
+  una tarifa fija por fase y flujos de IA que hacen el trabajo pesado.
 pricing:
-  - title: "1337 Lawyers"
+  - title: "Litigio"
     price: "Tarifa fija por fase"
     cadence: " cotizada después de evaluar el caso"
-    blurb: "Nuestra práctica de litigio para disputas tecnológicas de alto riesgo."
+    blurb: "Litigantes formados en grandes firmas para disputas tecnológicas de alto riesgo, con tarifa fija por fase."
     features:
       - "Disputas comerciales, de propiedad intelectual y secretos, de contratos de software y SaaS, y societarias"
-      - "Un abogado con licencia cotiza cada fase después de la evaluación de Fase 0"
-      - "Los flujos de IA para pruebas y discovery ayudan a que el precio por fase sea predecible"
-      - "Las fases se facturan una a la vez, por adelantado"
+      - "Un abogado formado en grandes firmas cotiza cada fase después de la evaluación de Fase 0"
+      - "Flujos de IA hacen discovery, revisión de documentos y organización de pruebas para ahorrarle tiempo y costo"
+      - "Las fases se facturan una a la vez, por adelantado — sin contador por hora"
       - "¿Fuera de nuestra área, con conflicto o sin capacidad? Le referimos a abogados litigantes de confianza"
     cta_label: "Reserve una consulta"
     cta_href: "https://calendar.app.google/GueqKHiAuqXEwkRG8"
@@ -23,21 +23,25 @@ pricing:
 
 # Cuando atacan a su empresa, damos la pelea
 
-Cuando atacan su propiedad intelectual, un contrato o la empresa que construyó, necesita un abogado que dé la pelea a su
-lado. 1337 Lawyers es la práctica de litigio de Neon Law, y nuestra práctica se concentra en disputas tecnológicas de
-alto riesgo —los asuntos donde el futuro de una empresa de software depende del resultado.
+Cuando atacan su propiedad intelectual, un contrato o la empresa que construyó, necesita un litigante que dé la pelea a
+su lado. La práctica de litigio de Neon Law se concentra en disputas tecnológicas de alto riesgo —los asuntos donde el
+futuro de una empresa de software depende del resultado.
 
 [[pricing]]
 
-Pruebe 1337 Lawyers cuando atacan a la empresa y el resultado importa más que el ruido alrededor. El litigio es caro
-porque la incertidumbre es cara; nuestra respuesta es cotizar la pelea una fase a la vez.
+Nuestros litigantes se formaron en grandes firmas, y a lo largo de sus carreras han recuperado millones de dólares para
+sus clientes. Esa experiencia ahora corre sobre un modelo hecho para empresas de tecnología: tarifa fija, acelerado por
+IA, y enfocado en las disputas que definen el futuro de una empresa. *Los resultados anteriores no garantizan un
+resultado similar; cada asunto depende de sus propios hechos.*
 
-El nombre es un numerónimo: **1337** se lee *l33t*, la jerga hacker con la que crecieron nuestros clientes. El modelo de
-facturación es claro: después de una evaluación de Fase 0, cotizamos la siguiente fase antes de que empiece, facturamos
-esa fase por adelantado y avanzamos una fase a la vez. No hay contador por hora ni factura sorpresa.
+Usted recibe una tarifa fija por fase —sin contador por hora, sin factura sorpresa. Después de una evaluación de Fase 0,
+cotizamos la siguiente fase antes de que empiece y la facturamos por adelantado, una fase a la vez. Conoce el precio de
+la pelea que tiene enfrente antes de comprometerse.
 
-Usamos IA donde de verdad ayuda: discovery, revisión de documentos, preparación de deposiciones y organización de
-pruebas. La herramienta no reemplaza el juicio; hace más predecible el precio fijo por fase.
+La IA hace el trabajo pesado. Discovery, revisión de documentos, preparación de deposiciones y organización de pruebas
+corren a través de flujos de IA hechos para asuntos tecnológicos —las fases que cargan el mayor costo. Eso le ahorra
+tiempo y dinero, y agudiza el caso: más del expediente revisado, más rápido. La herramienta no reemplaza el juicio;
+libera al litigante formado en grandes firmas para dedicar sus horas donde más importan.
 
 Nuestra práctica de litigio se concentra en la tecnología y las empresas que la construyen:
 
