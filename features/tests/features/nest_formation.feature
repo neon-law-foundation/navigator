@@ -23,7 +23,6 @@ Feature: Nest formation, end to end
     And the founder answers the formation questionnaire:
       | value                  |
       | Libra                  |
-      | libra@example.com      |
       | Bright Star Ventures   |
       | Neon Law Registered Agent |
       | members                |
@@ -34,7 +33,7 @@ Feature: Nest formation, end to end
     When the attorney files the Articles with the Nevada Secretary of State
     Then the formation workflow reaches END
     And a filing was recorded with the "Nevada Secretary of State"
-    And the founder's seven onboarding answers are on file
+    And the founder's six onboarding answers are on file
 
   Scenario: The recurring annual-report obligation also files with the state
     Then the "nv__annual_report" workflow ends at a Secretary-of-State filing

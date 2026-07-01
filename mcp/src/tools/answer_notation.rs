@@ -193,6 +193,24 @@ mod tests {
         .await
         .unwrap();
         question::ActiveModel {
+            code: ActiveValue::Set("person".into()),
+            prompt: ActiveValue::Set("Who is the person?".into()),
+            answer_type: ActiveValue::Set("person".into()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+        question::ActiveModel {
+            code: ActiveValue::Set("project".into()),
+            prompt: ActiveValue::Set("What is the project?".into()),
+            answer_type: ActiveValue::Set("project".into()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+        question::ActiveModel {
             code: ActiveValue::Set("custom_text".into()),
             prompt: ActiveValue::Set("Prompt for custom text".into()),
             answer_type: ActiveValue::Set("string".into()),
@@ -270,7 +288,7 @@ mod tests {
         seed(&db).await;
         let runtime = InMemoryRuntime::new();
         let (id, code) = start_retainer(&db, &runtime).await;
-        assert_eq!(code, "custom_text__client_name");
+        assert_eq!(code, "person__client");
 
         let out = call(
             &db,
@@ -287,7 +305,7 @@ mod tests {
         assert_eq!(out["structuredContent"]["status"], "needs_answer");
         assert_eq!(
             out["structuredContent"]["next_question"]["code"],
-            "custom_text__client_email"
+            "project__engagement"
         );
     }
 
@@ -298,9 +316,8 @@ mod tests {
         let runtime = InMemoryRuntime::new();
         let (id, mut code) = start_retainer(&db, &runtime).await;
         let values = [
-            ("custom_text__client_name", "Libra"),
-            ("custom_text__client_email", "libra@example.com"),
-            ("custom_text__project_name", "Apollo"),
+            ("person__client", "Libra"),
+            ("project__engagement", "Apollo"),
             ("custom_text__product_description", "rocket"),
         ];
         let mut last: Value = Value::Null;
@@ -350,10 +367,7 @@ mod tests {
         .unwrap_err();
         match err {
             ToolError::InvalidArguments(m) => {
-                assert!(
-                    m.contains("custom_text__client_name")
-                        && m.contains("custom_text__project_name")
-                );
+                assert!(m.contains("person__client") && m.contains("custom_text__project_name"));
             }
             other => panic!("expected InvalidArguments, got {other:?}"),
         }
@@ -370,7 +384,7 @@ mod tests {
             None,
             &json!({
                 "notation_id": Uuid::nil(),
-                "question_code": "custom_text__client_name",
+                "question_code": "person__client",
                 "value": "Libra",
             }),
         )

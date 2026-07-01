@@ -15,10 +15,9 @@ Feature: Neon Law Nautilus correspondence workflows
     Given the bundled template "neon_law/nautilus/notice_of_representation.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                             | to                               |
-      | BEGIN                            | custom_text__client_name         |
-      | custom_text__client_name         | custom_text__client_email        |
-      | custom_text__client_email        | custom_text__collector_name      |
-      | custom_text__collector_name      | address__collector_address       |
+      | BEGIN                            | person__client                   |
+      | person__client                   | entity__collector                |
+      | entity__collector                | address__collector_address       |
       | address__collector_address       | custom_text__alleged_account     |
       | custom_text__alleged_account     | custom_yes_no__consent_to_represent |
       | custom_yes_no__consent_to_represent | END                           |
@@ -48,11 +47,11 @@ Feature: Neon Law Nautilus correspondence workflows
     Given the bundled template "neon_law/nautilus/debt_validation.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                         | to                           |
-      | BEGIN                        | custom_text__client_name     |
-      | custom_text__client_name     | custom_text__collector_name  |
-      | custom_text__collector_name  | custom_text__alleged_account |
-      | custom_text__alleged_account | custom_text__original_creditor |
-      | custom_text__original_creditor | custom_text__disputed_reason |
+      | BEGIN                        | person__client               |
+      | person__client               | entity__collector            |
+      | entity__collector            | custom_text__alleged_account |
+      | custom_text__alleged_account | entity__original_creditor    |
+      | entity__original_creditor    | custom_text__disputed_reason |
       | custom_text__disputed_reason | END                          |
 
   Scenario: Debt validation letter is attorney-reviewed before it is mailed
@@ -79,9 +78,9 @@ Feature: Neon Law Nautilus correspondence workflows
     Given the bundled template "neon_law/nautilus/cease_communication.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                        | to                          |
-      | BEGIN                       | custom_text__client_name    |
-      | custom_text__client_name    | custom_text__collector_name |
-      | custom_text__collector_name | END                         |
+      | BEGIN                       | person__client              |
+      | person__client              | entity__collector           |
+      | entity__collector           | END                         |
     And every workflow state resolves to a StepKind
     And the workflow gates every outbound letter behind attorney review
 
@@ -92,8 +91,8 @@ Feature: Neon Law Nautilus correspondence workflows
     Given the bundled template "neon_law/nautilus/fcra_dispute.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                          | to                            |
-      | BEGIN                         | custom_text__client_name      |
-      | custom_text__client_name      | custom_single_choice__credit_bureau |
+      | BEGIN                         | person__client                |
+      | person__client                | custom_single_choice__credit_bureau |
       | custom_single_choice__credit_bureau | custom_text__tradeline  |
       | custom_text__tradeline        | custom_text__report_error     |
       | custom_text__report_error     | END                           |
@@ -113,9 +112,9 @@ Feature: Neon Law Nautilus correspondence workflows
     Given the bundled template "neon_law/nautilus/settlement_letter.md"
     Then the questionnaire transitions, in BEGIN-first order, are:
       | from                          | to                            |
-      | BEGIN                         | custom_text__client_name      |
-      | custom_text__client_name      | custom_text__collector_name   |
-      | custom_text__collector_name   | custom_text__settlement_target |
+      | BEGIN                         | person__client                |
+      | person__client                | entity__collector             |
+      | entity__collector             | custom_text__settlement_target |
       | custom_text__settlement_target | custom_text__settlement_terms |
       | custom_text__settlement_terms | custom_yes_no__client_authorization |
       | custom_yes_no__client_authorization | END                     |

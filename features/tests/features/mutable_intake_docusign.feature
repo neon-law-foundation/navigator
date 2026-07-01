@@ -16,12 +16,10 @@ Feature: Mutable two-sided intake assembles and sends through DocuSign
     When the client answers their part of the intake:
       | value             |
       | Libra Prime       |
-      | libra@example.com |
     And staff add the custom clause "This engagement is governed by Nevada law."
     And staff finish the intake walk:
       | value              |
       | Libra Prime        |
-      | libra@example.com  |
       | Estate Plan        |
       | Drafting and review |
     Then the matter is awaiting attorney review

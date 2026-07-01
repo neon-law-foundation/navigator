@@ -1,13 +1,11 @@
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
-    _: custom_text__entity_name
-  custom_text__entity_name:
-    _: custom_text__registered_agent
-  custom_text__registered_agent:
+    _: person__client
+  person__client:
+    _: entity__company
+  entity__company:
+    _: person__registered_agent
+  person__registered_agent:
     _: custom_single_choice__management_structure
   custom_single_choice__management_structure:
     _: people__managing_members
@@ -23,6 +21,10 @@ prompts:
   registered_agent: Who is the registered agent?
   management_structure: How will the company be managed?
   formation_date: When was the formation date?
+choices:
+  management_structure:
+    members: Managed by its members — the owners
+    managers: Managed by appointed managers
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__organizer

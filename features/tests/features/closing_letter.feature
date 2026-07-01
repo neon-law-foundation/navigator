@@ -14,7 +14,7 @@ Feature: Closing letter walk
   Scenario: First GET renders the first question
     When the staff visits /portal/admin/notations/:id/step
     Then the response status is 200
-    And the page asks the "custom_text__client_name" question
+    And the page asks the "person__client" question
     And the page shows "What is the client's full legal name?"
     And the page shows "Closing Letter — step 1 of 6"
 

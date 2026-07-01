@@ -1,9 +1,9 @@
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__project_name
-  custom_text__project_name:
+    _: person__client
+  person__client:
+    _: project__engagement
+  project__engagement:
     _: custom_text__matter_summary
   custom_text__matter_summary:
     _: custom_single_choice__fee_status

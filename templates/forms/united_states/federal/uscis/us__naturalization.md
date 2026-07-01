@@ -7,10 +7,8 @@ origin_url: https://www.uscis.gov/n-400
 confidential: true
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
+    _: person__client
+  person__client:
     _: custom_datetime__date_of_birth
   custom_datetime__date_of_birth:
     _: custom_text__country_of_birth
@@ -82,7 +80,7 @@ workflow:
 ---
 
 This naturalization engagement (the "Engagement") prepares and files Form N-400, Application for Naturalization, with
-U.S. Citizenship and Immigration Services ("USCIS") on behalf of `{{custom_text__client_name}}` (the "Applicant").
+U.S. Citizenship and Immigration Services ("USCIS") on behalf of `{{person__client.name}}` (the "Applicant").
 
 The Applicant was born on `{{custom_datetime__date_of_birth}}` in `{{custom_text__country_of_birth}}`, is a citizen or
 national of `{{custom_text__country_of_citizenship}}`, and became a lawful permanent resident on
@@ -98,7 +96,7 @@ After the Applicant signs, the firm files the Form N-400 with USCIS and stays wi
 follows: the biometrics appointment, the interview and civics test, and the oath ceremony. The Engagement concludes when
 USCIS issues the Applicant's Certificate of Naturalization (Form N-550) — the lifelong proof of U.S. citizenship.
 
-Appointment notices and confirmations are sent to the Applicant at `{{custom_text__client_email}}`, and the firm reaches
+Appointment notices and confirmations are sent to the Applicant at `{{person__client.email}}`, and the firm reaches
 the Applicant by phone at `{{custom_text__daytime_phone}}`. The Applicant reported roughly
 `{{custom_text__time_outside_us}}` days outside the United States in the last five years; the attorney reviews the exact
 travel dates against the continuous-residence requirement before filing.

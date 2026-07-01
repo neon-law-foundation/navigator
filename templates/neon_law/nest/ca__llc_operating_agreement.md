@@ -24,5 +24,5 @@ workflow:
   END: {}
 ---
 
-Operating agreement for `{{entity__company}}`, a California limited liability company with its principal office at
+Operating agreement for `{{entity__company.name}}`, a California limited liability company with its principal office at
 `{{address__principal_office}}`. The agreement is signed by the members listed in `{{people__members}}`.

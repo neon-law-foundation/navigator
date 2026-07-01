@@ -156,7 +156,6 @@ From `features/tests/features/nest_formation.feature`:
     And the founder answers the formation questionnaire:
       | value                  |
       | Libra                  |
-      | libra@example.com      |
       | Bright Star Ventures   |
       | Neon Law Registered Agent |
       | members                |
@@ -167,7 +166,7 @@ From `features/tests/features/nest_formation.feature`:
     When the attorney files the Articles with the Nevada Secretary of State
     Then the formation workflow reaches END
     And a filing was recorded with the "Nevada Secretary of State"
-    And the founder's seven onboarding answers are on file
+    And the founder's six onboarding answers are on file
 ```
 
 ---
@@ -178,21 +177,19 @@ against a real Postgres on every `cargo test`. The feature is the contract; the 
 ## Step 3 — the template: a questionnaire and a workflow
 
 The template is one markdown file with two machine-readable graphs: a questionnaire graph (what we ask) and a workflow
-graph (what we do). The Nest questionnaire is seven answers, in order.
+graph (what we do). The Nest questionnaire is six answers, in order.
 
 From `templates/forms/united_states/nevada/state/nv__llc_formation.md`:
 
 ```yaml
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
-    _: custom_text__entity_name
-  custom_text__entity_name:
-    _: custom_text__registered_agent
-  custom_text__registered_agent:
+    _: person__client
+  person__client:
+    _: entity__company
+  entity__company:
+    _: person__registered_agent
+  person__registered_agent:
     _: custom_single_choice__management_structure
   custom_single_choice__management_structure:
     _: people__managing_members

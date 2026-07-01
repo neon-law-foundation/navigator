@@ -1,13 +1,13 @@
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__collector_name
-  custom_text__collector_name:
+    _: person__client
+  person__client:
+    _: entity__collector
+  entity__collector:
     _: custom_text__alleged_account
   custom_text__alleged_account:
-    _: custom_text__original_creditor
-  custom_text__original_creditor:
+    _: entity__original_creditor
+  entity__original_creditor:
     _: custom_text__disputed_reason
   custom_text__disputed_reason:
     _: END

@@ -37,9 +37,11 @@ fn read(path: &Path) -> String {
     std::fs::read_to_string(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
 }
 
-/// Every `{{ … }}` data placeholder in a template body — the trimmed
-/// inner token, excluding signature placeholders (those contain a `.`,
-/// e.g. `{{client.signature}}`; see `rules::f107`).
+/// Every `{{ … }}` data placeholder in a template body, normalized to
+/// its questionnaire state. Dotted glossary fields such as
+/// `{{person__testator.name}}` are backed by the `person__testator`
+/// state; signature anchors such as `{{client.signature}}` are not data
+/// questions and are skipped.
 fn data_placeholders(body: &str) -> BTreeSet<String> {
     let mut out = BTreeSet::new();
     let mut rest = body;
@@ -47,12 +49,23 @@ fn data_placeholders(body: &str) -> BTreeSet<String> {
         let after = &rest[open + 2..];
         let Some(close) = after.find("}}") else { break };
         let token = after[..close].trim();
-        if !token.is_empty() && !token.contains('.') {
+        if let Some(token) = normalize_data_placeholder(token) {
             out.insert(token.to_string());
         }
         rest = &after[close + 2..];
     }
     out
+}
+
+fn normalize_data_placeholder(token: &str) -> Option<&str> {
+    if token.is_empty() {
+        return None;
+    }
+    let (head, field) = token.split_once('.').unwrap_or((token, ""));
+    if matches!(head, "client" | "firm") && matches!(field, "signature" | "date") {
+        return None;
+    }
+    Some(head)
 }
 
 /// The question codes the canonical `Question.yaml` seed declares.
@@ -70,6 +83,17 @@ fn question_type(state_name: &str) -> &str {
 
 fn prompt_key(state_name: &str) -> Option<&str> {
     state_name.split_once("__").map(|(_, key)| key)
+}
+
+fn prompt_keys(state_name: &str) -> Vec<String> {
+    let Some(key) = prompt_key(state_name) else {
+        return Vec::new();
+    };
+    let mut keys = vec![key.to_string()];
+    if question_type(state_name) == "person" {
+        keys.push(format!("{key}_name"));
+    }
+    keys
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -122,10 +146,12 @@ fn estate_suite_questions_are_all_asked_and_seeded() {
             "Estate asks `{state_name}` but no question type `{typ}` is seeded in \
              store/seeds/Question.yaml"
         );
-        if let Some(key) = prompt_key(state_name) {
+        let prompt_keys = prompt_keys(state_name);
+        if !prompt_keys.is_empty() {
             assert!(
-                prompts.contains(key),
-                "Estate asks `{state_name}` but does not declare prompts.{key}"
+                prompt_keys.iter().any(|key| prompts.contains(key)),
+                "Estate asks `{state_name}` but does not declare one of prompts.{}",
+                prompt_keys.join(" / prompts.")
             );
         }
     }

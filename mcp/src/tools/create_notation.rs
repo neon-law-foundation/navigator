@@ -304,6 +304,24 @@ mod tests {
         .await
         .unwrap();
         question::ActiveModel {
+            code: ActiveValue::Set("person".into()),
+            prompt: ActiveValue::Set("Who is the person?".into()),
+            answer_type: ActiveValue::Set("person".into()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+        question::ActiveModel {
+            code: ActiveValue::Set("project".into()),
+            prompt: ActiveValue::Set("What is the project?".into()),
+            answer_type: ActiveValue::Set("project".into()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+        question::ActiveModel {
             code: ActiveValue::Set("custom_text".into()),
             prompt: ActiveValue::Set("Prompt for custom text".into()),
             answer_type: ActiveValue::Set("string".into()),
@@ -384,7 +402,7 @@ mod tests {
         assert!(out["structuredContent"]["notation_id"].is_string());
         assert_eq!(
             out["structuredContent"]["next_question"]["code"],
-            "custom_text__client_name"
+            "person__client"
         );
     }
 

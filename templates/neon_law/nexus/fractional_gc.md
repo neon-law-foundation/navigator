@@ -16,12 +16,10 @@ prompts:
   product_description: Describe the services this retainer covers.
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
-    _: custom_text__entity_name
-  custom_text__entity_name:
+    _: person__client
+  person__client:
+    _: entity__company
+  entity__company:
     _: custom_text__product_description
   custom_text__product_description:
     _: END
@@ -42,8 +40,8 @@ workflow:
   END: {}
 ---
 
-This engagement letter retains Neon Law as fractional general counsel for `{{custom_text__entity_name}}` (the
-"Company"), the ongoing legal partner for `{{custom_text__client_name}}`. Neon Law Nexus is a flat **\$2,222 per
+This engagement letter retains Neon Law as fractional general counsel for `{{entity__company.name}}` (the
+"Company"), the ongoing legal partner for `{{person__client.name}}`. Neon Law Nexus is a flat **\$2,222 per
 month**. It is a continuing relationship, not a single matter: routine contracts, corporate housekeeping, and the
 day-to-day legal questions a growing company runs into, with a licensed attorney in the loop for anything that needs
 legal judgment.

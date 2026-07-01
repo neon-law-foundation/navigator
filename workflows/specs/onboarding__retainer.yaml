@@ -1,11 +1,9 @@
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
-    _: custom_text__project_name
-  custom_text__project_name:
+    _: person__client
+  person__client:
+    _: project__engagement
+  project__engagement:
     _: custom_text__product_description
   custom_text__product_description:
     _: END
@@ -21,6 +19,11 @@ prompt_translations:
     client_email: ¿Cuál es la dirección de correo electrónico del cliente?
     project_name: ¿Cuál es el nombre del proyecto para este encargo?
     product_description: Describa los servicios que cubre este acuerdo de representación.
+audiences:
+  client_name: client
+  client_email: client
+  project_name: staff
+  product_description: staff
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__client

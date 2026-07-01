@@ -9,14 +9,12 @@ output: form
 form: nv__profit_corp_formation
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
-    _: custom_text__entity_name
-  custom_text__entity_name:
-    _: custom_text__registered_agent
-  custom_text__registered_agent:
+    _: person__client
+  person__client:
+    _: entity__company
+  entity__company:
+    _: person__registered_agent
+  person__registered_agent:
     _: people__directors
   people__directors:
     _: people__corporate_officers
@@ -52,11 +50,11 @@ workflow:
   END: {}
 ---
 
-This Nevada entity formation engagement (the "Engagement") incorporates `{{custom_text__entity_name}}`, a Nevada profit
-corporation, for `{{custom_text__client_name}}` (the "Incorporator"). Neon Law's flat Nest fee is **\$1,111 per year**.
+This Nevada entity formation engagement (the "Engagement") incorporates `{{entity__company.name}}`, a Nevada profit
+corporation, for `{{person__client.name}}` (the "Incorporator"). Neon Law's flat Nest fee is **\$1,111 per year**.
 That fee covers the Articles of Incorporation, the Initial List of Officers, and the State Business License application
 filed with the Nevada Secretary of State, together with the corporation's registered agent of record,
-`{{custom_text__registered_agent}}`.
+`{{person__registered_agent.name}}`.
 
 The corporation's board of directors:
 
@@ -74,7 +72,7 @@ Your answers above are placed onto the Secretary of State's own formation packet
 publishes — and a licensed Neon Law attorney reviews the **filled packet** before anything is signed or filed. Nothing
 reaches a government office unreviewed. The Incorporator signs below and the firm countersigns; Neon Law then files the
 packet with the Nevada Secretary of State and returns the stamped formation record. Confirmations go to
-`{{custom_text__client_email}}`.
+`{{person__client.email}}`.
 
 {{client.signature}}
 

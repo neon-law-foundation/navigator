@@ -97,7 +97,7 @@ async fn open_matter(world: &mut IntakeWorld, email: String) {
 
 #[given(regex = r#"^staff pre-filled the client's name as "([^"]+)"$"#)]
 async fn staff_prefill(world: &mut IntakeWorld, value: String) {
-    // The walker's first question is custom_text__client_name; staff answering it
+    // The walker's first question is person__client; staff answering it
     // records a staff-sourced answer the client will later confirm.
     let path = format!(
         "/portal/admin/notations/{}/step",
@@ -158,9 +158,13 @@ async fn asks_question(world: &mut IntakeWorld, code: String) {
     // rendered intake body carries it.
     let yaml = bundled_spec_yaml(TEMPLATE_CODE).expect("retainer bundled spec");
     let overrides = prompt_overrides_from_yaml(yaml).expect("parse prompt overrides");
-    let role = code
-        .split_once("__")
-        .map_or(code.as_str(), |(_, role)| role);
+    let role = match code.as_str() {
+        "person__client" => "client_name",
+        "project__engagement" => "project_name",
+        _ => code
+            .split_once("__")
+            .map_or(code.as_str(), |(_, role)| role),
+    };
     let prompt = overrides
         .get(role)
         .unwrap_or_else(|| panic!("no prompt override for state {code}"));
@@ -190,25 +194,25 @@ async fn intake_complete(world: &mut IntakeWorld) {
 
 #[then(regex = r#"^the client's name answer on file is "([^"]+)" from the client$"#)]
 async fn name_answer_on_file(world: &mut IntakeWorld, value: String) {
-    // The `custom_text__client_name` state resolves to the canonical
-    // `custom_text` registry question; the per-state `state_name` column
-    // is what pins the answer to the client-name question specifically.
+    // The `person__client` state resolves to the canonical `person`
+    // registry question; the per-state `state_name` column pins the
+    // answer to this role specifically.
     let q = entity::question::Entity::find()
-        .filter(entity::question::Column::Code.eq("custom_text"))
+        .filter(entity::question::Column::Code.eq("person"))
         .one(&world.journey().db)
         .await
         .expect("query question")
-        .expect("custom_text seeded");
+        .expect("person seeded");
     let latest = entity::answer::Entity::find()
         .filter(entity::answer::Column::QuestionId.eq(q.id))
-        .filter(entity::answer::Column::StateName.eq("custom_text__client_name"))
+        .filter(entity::answer::Column::StateName.eq("person__client"))
         .filter(entity::answer::Column::PersonId.eq(world.client().id))
         .filter(entity::answer::Column::NotationId.eq(world.notation_id))
         .order_by_desc(entity::answer::Column::Id)
         .one(&world.journey().db)
         .await
         .expect("query answers")
-        .expect("a client_name answer exists");
+        .expect("a person__client answer exists");
     assert_eq!(entity::answer::display_value(&latest.value), value);
     assert_eq!(latest.source, entity::answer::SOURCE_CLIENT);
     assert_eq!(latest.authored_by_person_id, Some(world.client().id));

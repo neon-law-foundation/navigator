@@ -1,5 +1,5 @@
 //! The `people_list` question widget — a bounded set of person rows
-//! (name + mailing address + optional title) for questions like "who
+//! (name + contact details + mailing address + optional title) for questions like "who
 //! are the managing members?".
 //!
 //! Each vendored government form prints a fixed number of officer /
@@ -16,9 +16,11 @@ use maud::{html, Markup};
 /// `PERSON_ROW_PARTS` (grounded by a test in `web::people_list_answer`); the
 /// labels are this render layer's presentation, so `views` stays decoupled
 /// from `store`. Must stay in lock-step with `forms::fieldmap`'s `PersonRow`.
-pub const PARTS: [(&str, &str); 7] = [
+pub const PARTS: [(&str, &str); 9] = [
     ("name", "Full legal name"),
+    ("email", "Email"),
     ("title", "Title (officers only)"),
+    ("phone", "Phone"),
     ("street", "Street address"),
     ("city", "City"),
     ("state", "State"),

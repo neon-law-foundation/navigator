@@ -105,12 +105,11 @@ async fn open_engagement(world: &mut NexusWorld) {
         .unwrap_or_else(|| panic!("unexpected redirect: {location}"));
     let notation_id = Uuid::parse_str(id).expect("notation id");
 
-    // Walk the four onboarding questions; the last drives the workflow to
+    // Walk the three onboarding questions; the last drives the workflow to
     // the signature wait.
     let path = format!("/portal/admin/notations/{notation_id}/step");
     for value in [
         "Sagittarius",
-        FOUNDER_EMAIL,
         "Horizon Robotics LLC",
         "Outside general counsel: contracts, corporate housekeeping, day-to-day questions",
     ] {

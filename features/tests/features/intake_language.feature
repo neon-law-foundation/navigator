@@ -18,7 +18,6 @@ Feature: Questionnaire intake in the client's own language
     When the staff submits the full questionnaire:
       | value                       |
       | Gemini                      |
-      | gemini@example.com          |
       | Plan patrimonial            |
       | Constitución de fideicomiso |
     Then the final response status is 200

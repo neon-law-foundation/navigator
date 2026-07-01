@@ -1,9 +1,7 @@
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
+    _: person__client
+  person__client:
     _: custom_datetime__date_of_birth
   custom_datetime__date_of_birth:
     _: custom_text__country_of_birth

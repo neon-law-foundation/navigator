@@ -8,20 +8,20 @@ questionnaire:
   BEGIN:
     _: custom_yes_no__recording_consent
   custom_yes_no__recording_consent:
-    _: custom_text__testator_name
-  custom_text__testator_name:
-    _: custom_text__executor_name
-  custom_text__executor_name:
-    _: custom_text__successor_trustee
-  custom_text__successor_trustee:
-    _: custom_text__guardian_for_minors
-  custom_text__guardian_for_minors:
-    _: custom_text__residuary_beneficiary
-  custom_text__residuary_beneficiary:
-    _: custom_text__healthcare_agent
-  custom_text__healthcare_agent:
-    _: custom_text__financial_agent
-  custom_text__financial_agent:
+    _: person__testator
+  person__testator:
+    _: person__executor
+  person__executor:
+    _: person__successor_trustee
+  person__successor_trustee:
+    _: person__guardian_for_minors
+  person__guardian_for_minors:
+    _: person__residuary_beneficiary
+  person__residuary_beneficiary:
+    _: person__healthcare_agent
+  person__healthcare_agent:
+    _: person__financial_agent
+  person__financial_agent:
     _: END
   END: {}
 prompts:
@@ -53,9 +53,9 @@ workflow:
   END: {}
 ---
 
-# Northstar Estate Plan for {{custom_text__testator_name}}
+# Northstar Estate Plan for {{person__testator.name}}
 
-This is the plan of `{{custom_text__testator_name}}` (the "Client"), prepared by Neon Law from one recorded sitting.
+This is the plan of `{{person__testator.name}}` (the "Client"), prepared by Neon Law from one recorded sitting.
 The plan is one flat fee and three instruments: a **will**, a **revocable living trust**, and **health and financial
 directives**. This summary names the people the Client chose; the full instruments are generated as separate drafts for
 the Client to read and comment on before signing.
@@ -65,17 +65,17 @@ The Client confirmed at the start of the recording that the sitting could be rec
 
 ## The people in this plan
 
-- **Executor of the will** — `{{custom_text__executor_name}}`, who will carry out the will through probate if probate is
+- **Executor of the will** — `{{person__executor.name}}`, who will carry out the will through probate if probate is
   needed.
-- **Successor trustee of the trust** — `{{custom_text__successor_trustee}}`, who steps in to manage the trust when the
+- **Successor trustee of the trust** — `{{person__successor_trustee.name}}`, who steps in to manage the trust when the
   Client no longer can, so the estate stays out of probate.
-- **Guardian for minor children** — `{{custom_text__guardian_for_minors}}`, nominated to raise any minor children of the
+- **Guardian for minor children** — `{{person__guardian_for_minors.name}}`, nominated to raise any minor children of the
   Client.
-- **Residuary beneficiary** — `{{custom_text__residuary_beneficiary}}`, who receives what remains of the estate after
+- **Residuary beneficiary** — `{{person__residuary_beneficiary.name}}`, who receives what remains of the estate after
   specific gifts.
-- **Health-care agent** — `{{custom_text__healthcare_agent}}`, who makes medical decisions under the advance health-care
+- **Health-care agent** — `{{person__healthcare_agent.name}}`, who makes medical decisions under the advance health-care
   directive when the Client cannot speak for themselves.
-- **Financial agent** — `{{custom_text__financial_agent}}`, who acts under the durable financial power of attorney.
+- **Financial agent** — `{{person__financial_agent.name}}`, who acts under the durable financial power of attorney.
 
 ## How the plan is finished
 

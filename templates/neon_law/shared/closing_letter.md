@@ -18,10 +18,10 @@ choices:
     waived: Fees waived
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__project_name
-  custom_text__project_name:
+    _: person__client
+  person__client:
+    _: project__engagement
+  project__engagement:
     _: custom_text__matter_summary
   custom_text__matter_summary:
     _: custom_single_choice__fee_status
@@ -45,8 +45,8 @@ workflow:
   END: {}
 ---
 
-This letter confirms that Neon Law (the "Firm") has completed its work for `{{custom_text__client_name}}` (the "Client")
-on the matter referred to as `{{custom_text__project_name}}`, and that the Firm's representation of the Client on this
+This letter confirms that Neon Law (the "Firm") has completed its work for `{{person__client.name}}` (the "Client")
+on the matter referred to as `{{project__engagement.name}}`, and that the Firm's representation of the Client on this
 matter is now concluded.
 
 Summary of the work completed: `{{custom_text__matter_summary}}`.

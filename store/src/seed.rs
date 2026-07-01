@@ -1685,7 +1685,7 @@ mod tests {
         assert!(tmpl.project_id.is_none(), "bundled templates are shared");
         // The body now lives in a blob — fetch it via the storage
         // accessor. Just the markdown body, no frontmatter, so the
-        // renderer's `{{custom_text__client_name}}` interpolation finds
+        // renderer's dotted glossary interpolation finds
         // its targets.
         let body = crate::templates::body(&db, &fs_storage().await, &tmpl)
             .await
@@ -1695,9 +1695,9 @@ mod tests {
             "body should not include the YAML frontmatter; got {:?}",
             &body[..body.len().min(20)]
         );
-        assert!(body.contains("{{custom_text__client_name}}"));
-        assert!(body.contains("{{custom_text__client_email}}"));
-        assert!(body.contains("{{custom_text__project_name}}"));
+        assert!(body.contains("{{person__client.name}}"));
+        assert!(body.contains("{{person__client.email}}"));
+        assert!(body.contains("{{project__engagement.name}}"));
         assert!(body.contains("{{custom_text__product_description}}"));
     }
 

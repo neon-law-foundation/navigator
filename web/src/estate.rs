@@ -76,29 +76,28 @@ pub trait EstateExtractor: Send + Sync {
 pub struct StubEstateExtractor;
 
 /// `(state_name, &[label aliases])`. The first label found wins. The state
-/// name matches the `custom_*__<role>` placeholders in the northstar
-/// instrument bodies and disambiguates the several roles that share one
-/// registry question.
+/// name matches the typed glossary roles in the northstar instrument bodies
+/// and disambiguates the several roles that share one registry question.
 const STUB_LABELS: &[(&str, &[&str])] = &[
     (
-        "custom_text__testator_name",
+        "person__testator",
         &["testator", "full legal name", "my name is"],
     ),
-    ("custom_text__executor_name", &["executor"]),
+    ("person__executor", &["executor"]),
     (
-        "custom_text__successor_trustee",
+        "person__successor_trustee",
         &["successor trustee", "trustee"],
     ),
-    ("custom_text__guardian_for_minors", &["guardian"]),
+    ("person__guardian_for_minors", &["guardian"]),
     (
-        "custom_text__residuary_beneficiary",
+        "person__residuary_beneficiary",
         &["residuary beneficiary", "beneficiary"],
     ),
     (
-        "custom_text__healthcare_agent",
+        "person__healthcare_agent",
         &["health-care agent", "healthcare agent", "health care agent"],
     ),
-    ("custom_text__financial_agent", &["financial agent"]),
+    ("person__financial_agent", &["financial agent"]),
 ];
 
 impl EstateExtractor for StubEstateExtractor {
@@ -200,7 +199,8 @@ pub async fn drive_estate_pipeline(
             continue;
         }
         write_extracted_answer(&state.db, notation_id, respondent_id, &code, &value).await?;
-        answers.insert(code, value);
+        answers.insert(code.clone(), value.clone());
+        answers.insert(format!("{code}.name"), value);
     }
 
     // inputs_ready → document_drafts__estate.
@@ -478,7 +478,7 @@ fn not_found() -> Response {
 }
 
 /// Insert one machine-extracted answer for the respondent, keyed by the
-/// questionnaire `state_name` (`custom_text__testator_name`). The registry
+/// questionnaire `state_name` (`person__testator`). The registry
 /// question is resolved from the typed prefix before `__`. No-op when the
 /// question code isn't seeded (the suite-coverage test guarantees the
 /// estate codes are, so this only guards against drift).
@@ -529,7 +529,7 @@ fn substitute(body: &str, answers: &BTreeMap<String, String>) -> String {
     out
 }
 
-/// Every `{{ … }}` data placeholder (no `.`, i.e. not a signature anchor).
+/// Every `{{ … }}` data placeholder, skipping signature/date anchors.
 fn data_placeholders(body: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut rest = body;
@@ -537,12 +537,19 @@ fn data_placeholders(body: &str) -> Vec<String> {
         let after = &rest[open + 2..];
         let Some(close) = after.find("}}") else { break };
         let token = after[..close].trim();
-        if !token.is_empty() && !token.contains('.') && !out.iter().any(|c| c == token) {
+        if !token.is_empty() && !is_signature_anchor(token) && !out.iter().any(|c| c == token) {
             out.push(token.to_string());
         }
         rest = &after[close + 2..];
     }
     out
+}
+
+fn is_signature_anchor(token: &str) -> bool {
+    let Some((signer, field)) = token.split_once('.') else {
+        return false;
+    };
+    matches!(signer, "client" | "firm") && matches!(field, "signature" | "date" | "initials")
 }
 
 /// Mirror the runtime's resulting state onto the `notations` row.
@@ -578,32 +585,26 @@ mod tests {
             Some("Yes")
         );
         assert_eq!(
-            map.get("custom_text__executor_name").map(String::as_str),
+            map.get("person__executor").map(String::as_str),
             Some("Aries")
         );
         assert_eq!(
-            map.get("custom_text__successor_trustee")
-                .map(String::as_str),
+            map.get("person__successor_trustee").map(String::as_str),
             Some("Capricorn")
         );
         assert_eq!(
-            map.get("custom_text__residuary_beneficiary")
-                .map(String::as_str),
+            map.get("person__residuary_beneficiary").map(String::as_str),
             Some("Gemini")
         );
         // Nothing said about a financial agent → absent (a coverage gap).
-        assert!(!map.contains_key("custom_text__financial_agent"));
+        assert!(!map.contains_key("person__financial_agent"));
     }
 
     #[test]
     fn substitute_fills_known_codes_and_blanks_the_rest() {
-        let body =
-            "Executor {{custom_text__executor_name}} and agent {{custom_text__financial_agent}}.";
+        let body = "Executor {{person__executor.name}} and agent {{person__financial_agent.name}}.";
         let mut answers = BTreeMap::new();
-        answers.insert(
-            "custom_text__executor_name".to_string(),
-            "Aries".to_string(),
-        );
+        answers.insert("person__executor.name".to_string(), "Aries".to_string());
         let out = substitute(body, &answers);
         assert!(out.contains("Executor Aries"));
         assert!(out.contains("________"));
@@ -612,8 +613,7 @@ mod tests {
 
     #[test]
     fn data_placeholders_skips_signature_anchors() {
-        let codes =
-            data_placeholders("{{custom_text__testator_name}} signs {{client.signature}} once.");
-        assert_eq!(codes, vec!["custom_text__testator_name".to_string()]);
+        let codes = data_placeholders("{{person__testator.name}} signs {{client.signature}} once.");
+        assert_eq!(codes, vec!["person__testator.name".to_string()]);
     }
 }

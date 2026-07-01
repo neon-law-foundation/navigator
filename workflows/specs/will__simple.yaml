@@ -1,11 +1,11 @@
 questionnaire:
   BEGIN:
-    _: custom_text__testator_name
-  custom_text__testator_name:
-    _: custom_text__executor_name
-  custom_text__executor_name:
-    _: custom_text__residuary_beneficiary
-  custom_text__residuary_beneficiary:
+    _: person__testator
+  person__testator:
+    _: person__executor
+  person__executor:
+    _: person__residuary_beneficiary
+  person__residuary_beneficiary:
     _: END
   END: {}
 prompts:

@@ -24,11 +24,11 @@ literal = "NRS 86"
 
 [[field]]
 name = "1 Name of Entity If foreign name in home jurisdiction"
-question = "entity_name"
+question = "entity__company.name"
 
 [[field]]
 name = "Name of Registered Agent"
-question = "registered_agent"
+question = "person__registered_agent.name"
 
 [[field]] # 5. Management — checked when manager-managed.
 name = "managers_a"
@@ -196,7 +196,7 @@ part = "country"
 
 [[field]]
 name = "NAME OF ENTITY"
-question = "entity_name"
+question = "entity__company.name"
 
 [[field]] # Entity type: Limited-Liability Company.
 name = "entityType_2"

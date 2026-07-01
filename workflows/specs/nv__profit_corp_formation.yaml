@@ -1,13 +1,11 @@
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__client_email
-  custom_text__client_email:
-    _: custom_text__entity_name
-  custom_text__entity_name:
-    _: custom_text__registered_agent
-  custom_text__registered_agent:
+    _: person__client
+  person__client:
+    _: entity__company
+  entity__company:
+    _: person__registered_agent
+  person__registered_agent:
     _: people__directors
   people__directors:
     _: people__corporate_officers

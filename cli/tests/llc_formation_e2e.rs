@@ -186,7 +186,7 @@ async fn forms_an_llc_through_the_cli_with_answer_flags() {
     assert!(ok, "notation create failed:\n{out}");
     let id = notation_id_from(&out).to_string();
 
-    // 2. Answer all seven questions non-interactively: six scalars in
+    // 2. Answer all six questions non-interactively: five scalars in
     //    order + one people_list row via --person.
     let (ok, out) = run_cli(
         &creds,
@@ -198,8 +198,6 @@ async fn forms_an_llc_through_the_cli_with_answer_flags() {
             &base,
             "--answer",
             "Libra",
-            "--answer",
-            "libra@example.com",
             "--answer",
             "Bright Star Ventures",
             "--answer",
@@ -273,12 +271,11 @@ async fn forms_an_llc_through_the_interactive_cli_walk() {
     assert!(ok, "notation create failed:\n{out}");
     let id = notation_id_from(&out).to_string();
 
-    // Scripted stdin: five scalars, then the people_list row (name, then
+    // Scripted stdin: four scalars, then the people_list row (name, then
     // title/street/city/state/zip/country, then a blank name to end), then
     // the final scalar. A blank line is an empty answer for that prompt.
     let stdin = concat!(
         "Libra\n",
-        "libra@example.com\n",
         "Bright Star Ventures\n",
         "Neon Law Registered Agent\n",
         "members\n",

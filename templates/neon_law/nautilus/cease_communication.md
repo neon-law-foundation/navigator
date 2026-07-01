@@ -9,10 +9,10 @@ prompts:
   collector_name: What is the name of the debt collector contacting you?
 questionnaire:
   BEGIN:
-    _: custom_text__client_name
-  custom_text__client_name:
-    _: custom_text__collector_name
-  custom_text__collector_name:
+    _: person__client
+  person__client:
+    _: entity__collector
+  entity__collector:
     _: END
   END: {}
 workflow:
@@ -28,10 +28,10 @@ workflow:
   END: {}
 ---
 
-To: `{{custom_text__collector_name}}` \
-Re: `{{custom_text__client_name}}`
+To: `{{entity__collector.name}}` \
+Re: `{{person__client.name}}`
 
-We represent `{{custom_text__client_name}}`, who has elected to stop your communications about the debt you are
+We represent `{{person__client.name}}`, who has elected to stop your communications about the debt you are
 collecting.
 
 Under the federal Fair Debt Collection Practices Act, 15 U.S.C. § 1692c(c), this is written notice that the Client

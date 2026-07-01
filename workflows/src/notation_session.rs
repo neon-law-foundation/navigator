@@ -30,7 +30,8 @@ use store::Db;
 use crate::runtime::{StateMachineRuntime, WorkflowRuntimeError};
 use crate::spec::{MachineKind, QuestionnaireSpec, StateName, WorkflowSpecError};
 use crate::specs::{
-    bundled_spec_yaml, prompt_overrides_from_template, prompt_overrides_from_yaml,
+    audiences_from_template, audiences_from_yaml, bundled_spec_yaml, choices_from_template,
+    choices_from_yaml, prompt_overrides_from_template, prompt_overrides_from_yaml,
     prompt_translations_from_template, prompt_translations_from_yaml,
     questionnaire_spec_from_template, questionnaire_spec_from_yaml,
 };
@@ -46,6 +47,7 @@ pub struct QuestionDescriptor {
     pub code: String,
     pub prompt: String,
     pub answer_type: String,
+    pub choices: Vec<QuestionChoice>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -54,6 +56,16 @@ struct QuestionnaireDefinition {
     prompts: BTreeMap<String, String>,
     #[serde(default)]
     prompt_translations: BTreeMap<String, BTreeMap<String, String>>,
+    #[serde(default)]
+    audiences: BTreeMap<String, String>,
+    #[serde(default)]
+    choices: BTreeMap<String, BTreeMap<String, String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct QuestionChoice {
+    pub value: String,
+    pub label: String,
 }
 
 /// Where the questionnaire is after a `start_notation` /
@@ -278,7 +290,7 @@ pub async fn answer_step(
         // The walked state name carries the `<type>__<role>` discriminator
         // (`entity__company`); the question row points at the bare code.
         state_name: ActiveValue::Set(Some(question_code.to_string())),
-        value: ActiveValue::Set(answer::primitive(value)),
+        value: ActiveValue::Set(answer_value_for_state(question_code, value)),
         source: ActiveValue::Set(author.source.to_string()),
         authored_by_person_id: ActiveValue::Set(author.authored_by),
         ..Default::default()
@@ -325,6 +337,7 @@ pub async fn answer_step(
             &locale,
             &definition.prompts,
             &definition.prompt_translations,
+            &definition.choices,
         )
         .await?,
     })
@@ -411,9 +424,14 @@ pub async fn client_intake_step(
     let client_codes: Vec<String> = codes
         .iter()
         .filter(|c| {
-            by_code
-                .get(question_code_for_state(c))
-                .is_some_and(|q| store::entity::question::is_client_facing(&q.audience))
+            metadata_lookup(&definition.audiences, c).map_or_else(
+                || {
+                    by_code
+                        .get(question_code_for_state(c))
+                        .is_some_and(|q| store::entity::question::is_client_facing(&q.audience))
+                },
+                |audience| store::entity::question::is_client_facing(audience),
+            )
         })
         .cloned()
         .collect();
@@ -454,6 +472,7 @@ pub async fn client_intake_step(
             &locale,
             &definition.prompts,
             &definition.prompt_translations,
+            &definition.choices,
         )
         .await?;
         return Ok(ClientIntakeStep::NeedsAnswer {
@@ -496,7 +515,9 @@ pub async fn record_client_answer(
         .one(db)
         .await?
         .ok_or_else(|| NotationSessionError::QuestionNotSeeded(question_code.into()))?;
-    if !store::entity::question::is_client_facing(&question_row.audience) {
+    let audience = metadata_lookup(&definition.audiences, question_code)
+        .map_or(question_row.audience.as_str(), String::as_str);
+    if !store::entity::question::is_client_facing(audience) {
         return Err(NotationSessionError::QuestionNotClientFacing(
             question_code.into(),
         ));
@@ -506,7 +527,7 @@ pub async fn record_client_answer(
         person_id: ActiveValue::Set(notation_row.person_id),
         notation_id: ActiveValue::Set(Some(notation_id)),
         state_name: ActiveValue::Set(Some(question_code.to_string())),
-        value: ActiveValue::Set(answer::primitive(value)),
+        value: ActiveValue::Set(answer_value_for_state(question_code, value)),
         source: ActiveValue::Set(answer::SOURCE_CLIENT.to_string()),
         authored_by_person_id: ActiveValue::Set(Some(authored_by)),
         ..Default::default()
@@ -559,6 +580,8 @@ async fn questionnaire_definition_for(
             spec: questionnaire_spec_from_yaml(yaml)?,
             prompts: prompt_overrides_from_yaml(yaml)?,
             prompt_translations: prompt_translations_from_yaml(yaml)?,
+            audiences: audiences_from_yaml(yaml)?,
+            choices: choices_from_yaml(yaml)?,
         });
     }
     let storage = storage.ok_or_else(|| {
@@ -571,6 +594,8 @@ async fn questionnaire_definition_for(
         spec: questionnaire_spec_from_template(&body)?,
         prompts: prompt_overrides_from_template(&body)?,
         prompt_translations: prompt_translations_from_template(&body)?,
+        audiences: audiences_from_template(&body)?,
+        choices: choices_from_template(&body)?,
     })
 }
 
@@ -606,6 +631,7 @@ async fn next_step_from(
             locale,
             &definition.prompts,
             &definition.prompt_translations,
+            &definition.choices,
         )
         .await?,
     })
@@ -626,6 +652,7 @@ async fn load_question(
     locale: &str,
     prompts: &BTreeMap<String, String>,
     prompt_translations: &BTreeMap<String, BTreeMap<String, String>>,
+    choices: &BTreeMap<String, BTreeMap<String, String>>,
 ) -> Result<QuestionDescriptor, NotationSessionError> {
     let code = question_code_for_state(state.as_str());
     let row = question::Entity::find()
@@ -650,6 +677,7 @@ async fn load_question(
         code: state.0.clone(),
         prompt,
         answer_type: row.answer_type,
+        choices: choices_for_state(choices, state.as_str()),
     })
 }
 
@@ -657,16 +685,38 @@ fn question_code_for_state(state: &str) -> &str {
     state.split_once("__").map_or(state, |(code, _)| code)
 }
 
+fn answer_value_for_state(state: &str, value: &str) -> serde_json::Value {
+    match question_code_for_state(state) {
+        "person" | "entity" | "project" | "jurisdiction" => {
+            serde_json::json!({ "value": value, "name": value })
+        }
+        _ => answer::primitive(value),
+    }
+}
+
+fn role_key_for_state(state: &str) -> &str {
+    state.split_once("__").map_or(state, |(_, role)| role)
+}
+
 fn prompt_override_for_state<'a>(
     prompts: &'a BTreeMap<String, String>,
     state: &str,
 ) -> Option<&'a str> {
-    let (prefix, prompt_key) = state.split_once("__")?;
-    if prefix.starts_with("custom_") {
-        prompts.get(prompt_key).map(String::as_str)
-    } else {
-        None
-    }
+    metadata_lookup(prompts, state).map(String::as_str)
+}
+
+fn choices_for_state(
+    choices: &BTreeMap<String, BTreeMap<String, String>>,
+    state: &str,
+) -> Vec<QuestionChoice> {
+    metadata_lookup(choices, state)
+        .into_iter()
+        .flat_map(|entries| entries.iter())
+        .map(|(value, label)| QuestionChoice {
+            value: value.clone(),
+            label: label.clone(),
+        })
+        .collect()
 }
 
 fn prompt_translation_for_state<'a>(
@@ -677,11 +727,29 @@ fn prompt_translation_for_state<'a>(
     if locale == "en" {
         return None;
     }
-    let (_, prompt_key) = state.split_once("__")?;
     prompt_translations
         .get(locale)
-        .and_then(|translations| translations.get(prompt_key))
+        .and_then(|translations| metadata_lookup(translations, state))
         .map(String::as_str)
+}
+
+fn metadata_lookup<'a, T>(map: &'a BTreeMap<String, T>, state: &str) -> Option<&'a T> {
+    metadata_keys_for_state(state)
+        .into_iter()
+        .find_map(|key| map.get(key))
+}
+
+fn metadata_keys_for_state(state: &str) -> Vec<&str> {
+    let role = role_key_for_state(state);
+    let ty = question_code_for_state(state);
+    match (ty, role) {
+        ("person", "client") => vec!["client", "client_name"],
+        ("project", "engagement") => vec!["engagement", "project_name"],
+        ("entity", "company") => vec!["company", "entity_name"],
+        ("entity", "nonprofit") => vec!["nonprofit", "nonprofit_legal_name"],
+        ("person", "worker") => vec!["worker", "worker_legal_name"],
+        _ => vec![role],
+    }
 }
 
 fn answered_client_states(
@@ -819,19 +887,13 @@ mod tests {
     }
 
     async fn seed_retainer_questions(db: &store::Db) {
-        // After the vocabulary collapse the retainer walks `custom_text__*`
-        // states (client_name, client_email, project_name,
-        // product_description), all sharing the `custom_text` registry
-        // question — seeding it once resolves every retainer state.
+        seed_question(db, "person").await;
+        seed_question(db, "project").await;
         seed_question(db, "custom_text").await;
     }
 
-    /// The retainer's four states share the `custom_text` question after the
-    /// vocabulary collapse; per-state audience (client vs staff) is no longer
-    /// expressible on a single shared question and is a follow-up (audience
-    /// must move onto the template state like the per-state prompt metadata).
     async fn seed_retainer_questions_with_audiences(db: &store::Db) {
-        seed_question(db, "custom_text").await;
+        seed_retainer_questions(db).await;
     }
 
     #[tokio::test]
@@ -869,7 +931,7 @@ mod tests {
             NextStep::NeedsAnswer {
                 question: QuestionDescriptor { code, .. },
             } => {
-                assert_eq!(code, "custom_text__client_name");
+                assert_eq!(code, "person__client");
             }
             NextStep::QuestionnaireComplete => {
                 panic!("expected NeedsAnswer, got QuestionnaireComplete")
@@ -910,18 +972,20 @@ mod tests {
         );
 
         // Overwrite the snapshot with a *different* questionnaire that starts
-        // at custom_text__client_email. The template's bundled spec still
-        // starts at custom_text__client_name, so if resolution re-read the
+        // at project__engagement. The template's bundled spec still
+        // starts at person__client, so if resolution re-read the
         // template it would ask that; reading the frozen snapshot asks
-        // custom_text__client_email.
+        // project__engagement.
         let alt = QuestionnaireDefinition {
             spec: questionnaire_spec_from_yaml(
-                "questionnaire:\n  BEGIN:\n    _: custom_text__client_email\n  \
-                 custom_text__client_email:\n    _: END\n  END: {}\n",
+                "questionnaire:\n  BEGIN:\n    _: project__engagement\n  \
+                 project__engagement:\n    _: END\n  END: {}\n",
             )
             .unwrap(),
             prompts: BTreeMap::new(),
             prompt_translations: BTreeMap::new(),
+            audiences: BTreeMap::new(),
+            choices: BTreeMap::new(),
         };
         let mut active: notation::ActiveModel = row.into();
         active.questionnaire_snapshot = ActiveValue::Set(Some(serde_json::to_value(&alt).unwrap()));
@@ -930,7 +994,7 @@ mod tests {
         let next = current_step(&db, &runtime, None, nid).await.unwrap();
         match next {
             NextStep::NeedsAnswer { question } => assert_eq!(
-                question.code, "custom_text__client_email",
+                question.code, "project__engagement",
                 "resolution must read the frozen snapshot, not the template"
             ),
             NextStep::QuestionnaireComplete => panic!("expected NeedsAnswer"),
@@ -1054,7 +1118,7 @@ mod tests {
             &runtime,
             None,
             started.notation_id,
-            "custom_text__client_name",
+            "person__client",
             "Gemini",
             AnswerAuthor::staff(None),
         )
@@ -1062,7 +1126,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             prompt_of(&next),
-            "¿Cuál es la dirección de correo electrónico del cliente?"
+            "¿Cuál es el nombre del proyecto para este encargo?"
         );
     }
 
@@ -1114,7 +1178,7 @@ mod tests {
             &runtime,
             None,
             id,
-            "custom_text__client_name",
+            "person__client",
             "Libra",
             AnswerAuthor::staff(None),
         )
@@ -1122,7 +1186,7 @@ mod tests {
         .unwrap();
         match next {
             NextStep::NeedsAnswer { question } => {
-                assert_eq!(question.code, "custom_text__client_email");
+                assert_eq!(question.code, "project__engagement");
             }
             NextStep::QuestionnaireComplete => {
                 panic!("expected NeedsAnswer(client_email), got QuestionnaireComplete");
@@ -1154,7 +1218,7 @@ mod tests {
             &runtime,
             None,
             started.notation_id,
-            "custom_text__project_name",
+            "project__engagement",
             "anything",
             AnswerAuthor::staff(None),
         )
@@ -1162,8 +1226,8 @@ mod tests {
         .unwrap_err();
         match err {
             NotationSessionError::QuestionMismatch { expected, got } => {
-                assert_eq!(expected, "custom_text__client_name");
-                assert_eq!(got, "custom_text__project_name");
+                assert_eq!(expected, "person__client");
+                assert_eq!(got, "project__engagement");
             }
             other => panic!("expected QuestionMismatch, got {other:?}"),
         }
@@ -1190,9 +1254,8 @@ mod tests {
         let id = started.notation_id;
 
         let walk = [
-            ("custom_text__client_name", "Libra"),
-            ("custom_text__client_email", "libra@example.com"),
-            ("custom_text__project_name", "Apollo"),
+            ("person__client", "Libra"),
+            ("project__engagement", "Apollo"),
             ("custom_text__product_description", "rocket"),
         ];
         let mut last = NextStep::QuestionnaireComplete;
@@ -1243,9 +1306,8 @@ mod tests {
         .unwrap();
         let id = started.notation_id;
         for (code, value) in [
-            ("custom_text__client_name", "Libra"),
-            ("custom_text__client_email", "libra@example.com"),
-            ("custom_text__project_name", "Apollo"),
+            ("person__client", "Libra"),
+            ("project__engagement", "Apollo"),
             ("custom_text__product_description", "rocket"),
         ] {
             answer_step(
@@ -1266,7 +1328,7 @@ mod tests {
             &runtime,
             None,
             id,
-            "custom_text__client_name",
+            "person__client",
             "again",
             AnswerAuthor::staff(None),
         )
@@ -1297,7 +1359,7 @@ mod tests {
         // Before any answer: should be client_name.
         match current_step(&db, &runtime, None, id).await.unwrap() {
             NextStep::NeedsAnswer { question } => {
-                assert_eq!(question.code, "custom_text__client_name");
+                assert_eq!(question.code, "person__client");
             }
             NextStep::QuestionnaireComplete => {
                 panic!("expected NeedsAnswer(client_name), got QuestionnaireComplete");
@@ -1308,7 +1370,7 @@ mod tests {
             &runtime,
             None,
             id,
-            "custom_text__client_name",
+            "person__client",
             "Libra",
             AnswerAuthor::staff(None),
         )
@@ -1317,7 +1379,7 @@ mod tests {
         // After one answer: should be client_email.
         match current_step(&db, &runtime, None, id).await.unwrap() {
             NextStep::NeedsAnswer { question } => {
-                assert_eq!(question.code, "custom_text__client_email");
+                assert_eq!(question.code, "project__engagement");
             }
             NextStep::QuestionnaireComplete => {
                 panic!("expected NeedsAnswer(client_email), got QuestionnaireComplete");
@@ -1362,17 +1424,15 @@ mod tests {
             &runtime,
             None,
             started.notation_id,
-            "custom_text__client_name",
+            "person__client",
             "Libra",
             AnswerAuthor::client(Some(person_id)),
         )
         .await
         .unwrap();
 
-        // The four retainer states share the `custom_text` question after the
-        // collapse; the answer is disambiguated by its `state_name`.
         let q = question::Entity::find()
-            .filter(question::Column::Code.eq("custom_text"))
+            .filter(question::Column::Code.eq("person"))
             .one(&db)
             .await
             .unwrap()
@@ -1380,17 +1440,14 @@ mod tests {
         let rows = answer::Entity::find()
             .filter(answer::Column::QuestionId.eq(q.id))
             .filter(answer::Column::PersonId.eq(person_id))
-            .filter(answer::Column::StateName.eq("custom_text__client_name"))
+            .filter(answer::Column::StateName.eq("person__client"))
             .all(&db)
             .await
             .unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(answer::display_value(&rows[0].value), "Libra");
         assert_eq!(rows[0].notation_id, Some(started.notation_id));
-        assert_eq!(
-            rows[0].state_name.as_deref(),
-            Some("custom_text__client_name")
-        );
+        assert_eq!(rows[0].state_name.as_deref(), Some("person__client"));
         // person_id is the respondent; source + authored_by record who
         // actually entered it.
         assert_eq!(rows[0].source, SOURCE_CLIENT);
@@ -1425,7 +1482,7 @@ mod tests {
             &runtime,
             None,
             started.notation_id,
-            "custom_text__client_name",
+            "person__client",
             "Libra",
             AnswerAuthor::staff(Some(staff_id)),
         )
@@ -1484,13 +1541,12 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "TODO(#235 follow-up): per-state audience must move onto the template state"]
     async fn client_intake_walks_only_client_facing_questions() {
         let db = db().await;
         let runtime = InMemoryRuntime::new();
         let (id, person) = start_audienced_retainer(&db, &runtime).await;
 
-        // Only the two client-facing questions are offered, in order.
+        // Only the client-facing person question is offered.
         let step = client_intake_step(&db, None, id).await.unwrap();
         let ClientIntakeStep::NeedsAnswer {
             question,
@@ -1501,42 +1557,21 @@ mod tests {
         else {
             panic!("expected NeedsAnswer(client_name)");
         };
-        assert_eq!(question.code, "custom_text__client_name");
-        assert_eq!((position, total), (1, 2));
+        assert_eq!(question.code, "person__client");
+        assert_eq!((position, total), (1, 1));
 
-        record_client_answer(&db, None, id, "custom_text__client_name", "Libra", person)
+        record_client_answer(&db, None, id, "person__client", "Libra", person)
             .await
             .unwrap();
-        let step = client_intake_step(&db, None, id).await.unwrap();
-        let ClientIntakeStep::NeedsAnswer {
-            question, position, ..
-        } = step
-        else {
-            panic!("expected NeedsAnswer(client_email)");
-        };
-        assert_eq!(question.code, "custom_text__client_email");
-        assert_eq!(position, 2);
-
-        record_client_answer(
-            &db,
-            None,
-            id,
-            "custom_text__client_email",
-            "libra@example.com",
-            person,
-        )
-        .await
-        .unwrap();
-        // The staff-only project_name / product_description are never
-        // offered to the client; their part is done.
+        // The staff-only project / product-description states are never
+        // offered to the client.
         assert!(matches!(
             client_intake_step(&db, None, id).await.unwrap(),
-            ClientIntakeStep::Complete { total: 2 }
+            ClientIntakeStep::Complete { total: 1 }
         ));
     }
 
     #[tokio::test]
-    #[ignore = "TODO(#235 follow-up): per-state audience must move onto the template state"]
     async fn client_intake_progress_is_scoped_to_notation() {
         let db = db().await;
         let runtime = InMemoryRuntime::new();
@@ -1546,27 +1581,9 @@ mod tests {
         let first_id = start_audienced_retainer_for_person(&db, &runtime, person).await;
         let second_id = start_audienced_retainer_for_person(&db, &runtime, person).await;
 
-        record_client_answer(
-            &db,
-            None,
-            first_id,
-            "custom_text__client_name",
-            "Libra",
-            person,
-        )
-        .await
-        .unwrap();
-        record_client_answer(
-            &db,
-            None,
-            first_id,
-            "custom_text__client_email",
-            "libra@example.com",
-            person,
-        )
-        .await
-        .unwrap();
-
+        record_client_answer(&db, None, first_id, "person__client", "Libra", person)
+            .await
+            .unwrap();
         let step = client_intake_step(&db, None, second_id).await.unwrap();
         let ClientIntakeStep::NeedsAnswer {
             question,
@@ -1577,9 +1594,9 @@ mod tests {
         else {
             panic!("expected second notation to still need client_name");
         };
-        assert_eq!(question.code, "custom_text__client_name");
+        assert_eq!(question.code, "person__client");
         assert_eq!(prior_value, None);
-        assert_eq!((position, total), (1, 2));
+        assert_eq!((position, total), (1, 1));
     }
 
     #[tokio::test]
@@ -1594,7 +1611,7 @@ mod tests {
             &runtime,
             None,
             id,
-            "custom_text__client_name",
+            "person__client",
             "Staff-typed Libra",
             AnswerAuthor::staff(None),
         )
@@ -1613,20 +1630,13 @@ mod tests {
         else {
             panic!("expected NeedsAnswer(client_name) pre-filled");
         };
-        assert_eq!(question.code, "custom_text__client_name");
+        assert_eq!(question.code, "person__client");
         assert_eq!(prior_value.as_deref(), Some("Staff-typed Libra"));
 
         // The client corrects it; the latest answer (client-sourced) wins.
-        record_client_answer(
-            &db,
-            None,
-            id,
-            "custom_text__client_name",
-            "Libra Prime",
-            person,
-        )
-        .await
-        .unwrap();
+        record_client_answer(&db, None, id, "person__client", "Libra Prime", person)
+            .await
+            .unwrap();
         let latest = answer::Entity::find()
             .filter(answer::Column::PersonId.eq(person))
             .order_by_desc(answer::Column::Id)
@@ -1640,18 +1650,16 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "TODO(#235 follow-up): per-state audience must move onto the template state"]
     async fn record_client_answer_rejects_staff_only_question() {
         let db = db().await;
         let runtime = InMemoryRuntime::new();
         let (id, person) = start_audienced_retainer(&db, &runtime).await;
-        let err =
-            record_client_answer(&db, None, id, "custom_text__project_name", "sneaky", person)
-                .await
-                .unwrap_err();
+        let err = record_client_answer(&db, None, id, "project__engagement", "sneaky", person)
+            .await
+            .unwrap_err();
         assert!(matches!(
             err,
-            NotationSessionError::QuestionNotClientFacing(c) if c == "custom_text__project_name"
+            NotationSessionError::QuestionNotClientFacing(c) if c == "project__engagement"
         ));
     }
 

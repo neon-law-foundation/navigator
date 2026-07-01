@@ -15,14 +15,12 @@ prompts:
   pay_schedule: How often is the employee paid?
 questionnaire:
   BEGIN:
-    _: custom_text__nonprofit_legal_name
-  custom_text__nonprofit_legal_name:
-    _: custom_text__nonprofit_state
-  custom_text__nonprofit_state:
-    _: custom_text__worker_legal_name
-  custom_text__worker_legal_name:
-    _: custom_text__worker_title
-  custom_text__worker_title:
+    _: entity__nonprofit
+  entity__nonprofit:
+    _: jurisdiction__nonprofit
+  jurisdiction__nonprofit:
+    _: person__worker
+  person__worker:
     _: custom_text__worker_duties
   custom_text__worker_duties:
     _: custom_datetime__engagement_start_date
@@ -48,13 +46,13 @@ workflow:
 
 # At-Will Employment Agreement
 
-This Employment Agreement (this "Agreement") is between `{{custom_text__nonprofit_legal_name}}`, a nonprofit
-corporation organized under the laws of the State of `{{custom_text__nonprofit_state}}` (the "Organization"), and
-`{{custom_text__worker_legal_name}}` (the "Employee"). The Organization and the Employee agree as follows.
+This Employment Agreement (this "Agreement") is between `{{entity__nonprofit.name}}`, a nonprofit
+corporation organized under the laws of the State of `{{jurisdiction__nonprofit.name}}` (the "Organization"), and
+`{{person__worker.name}}` (the "Employee"). The Organization and the Employee agree as follows.
 
 ## 1. Position and duties
 
-The Organization employs the Employee as `{{custom_text__worker_title}}`, beginning on
+The Organization employs the Employee as `{{person__worker.title}}`, beginning on
 `{{custom_datetime__engagement_start_date}}`. The Employee's duties are: `{{custom_text__worker_duties}}`. The Employee
 will report to the Organization's board of directors or its designee and will perform the duties faithfully,
 competently, and in the Organization's best interest.
@@ -92,14 +90,14 @@ conflict of interest policy.
 
 ## 7. General
 
-This Agreement is governed by the laws of the State of `{{custom_text__nonprofit_state}}`. It is the entire agreement
+This Agreement is governed by the laws of the State of `{{jurisdiction__nonprofit.name}}`. It is the entire agreement
 between the parties about the Employee's employment and supersedes any prior understanding. If any provision is held
 unenforceable,
 the rest remains in effect.
 
 ## Signatures
 
-**`{{custom_text__nonprofit_legal_name}}`**
+**`{{entity__nonprofit.name}}`**
 
 By: ______________________________  Date: ______________
 
@@ -111,4 +109,4 @@ Title: ______________________________
 
 ______________________________  Date: ______________
 
-`{{custom_text__worker_legal_name}}`
+`{{person__worker.name}}`

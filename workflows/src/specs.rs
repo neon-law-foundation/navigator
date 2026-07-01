@@ -216,6 +216,22 @@ pub fn prompt_translations_from_yaml(
     Ok(wrapper.prompt_translations)
 }
 
+/// Parse the optional `audiences:` map from a standalone spec YAML.
+pub fn audiences_from_yaml(yaml: &str) -> Result<BTreeMap<String, String>, WorkflowSpecError> {
+    let wrapper: AudienceFrontmatter =
+        serde_yaml::from_str(yaml).map_err(|e| WorkflowSpecError::Yaml(e.to_string()))?;
+    Ok(wrapper.audiences)
+}
+
+/// Parse the optional `choices:` map from a standalone spec YAML.
+pub fn choices_from_yaml(
+    yaml: &str,
+) -> Result<BTreeMap<String, BTreeMap<String, String>>, WorkflowSpecError> {
+    let wrapper: ChoiceFrontmatter =
+        serde_yaml::from_str(yaml).map_err(|e| WorkflowSpecError::Yaml(e.to_string()))?;
+    Ok(wrapper.choices)
+}
+
 /// Extract the `workflow:` block from a notation template's YAML
 /// frontmatter and parse it as a [`WorkflowSpec`]. Used by the
 /// integrity / shape-lock tests, which validate that every template's
@@ -257,6 +273,26 @@ pub fn prompt_translations_from_template(
     prompt_translations_from_yaml(frontmatter)
 }
 
+/// Extract the optional `audiences:` map from a notation template's
+/// YAML frontmatter.
+pub fn audiences_from_template(
+    markdown: &str,
+) -> Result<BTreeMap<String, String>, WorkflowSpecError> {
+    let frontmatter = extract_frontmatter(markdown)
+        .ok_or_else(|| WorkflowSpecError::Yaml("template has no YAML frontmatter".into()))?;
+    audiences_from_yaml(frontmatter)
+}
+
+/// Extract the optional `choices:` map from a notation template's YAML
+/// frontmatter.
+pub fn choices_from_template(
+    markdown: &str,
+) -> Result<BTreeMap<String, BTreeMap<String, String>>, WorkflowSpecError> {
+    let frontmatter = extract_frontmatter(markdown)
+        .ok_or_else(|| WorkflowSpecError::Yaml("template has no YAML frontmatter".into()))?;
+    choices_from_yaml(frontmatter)
+}
+
 #[derive(Deserialize)]
 struct WorkflowFrontmatter {
     workflow: WorkflowSpec,
@@ -277,6 +313,18 @@ struct PromptFrontmatter {
 struct PromptTranslationFrontmatter {
     #[serde(default)]
     prompt_translations: BTreeMap<String, BTreeMap<String, String>>,
+}
+
+#[derive(Deserialize)]
+struct AudienceFrontmatter {
+    #[serde(default)]
+    audiences: BTreeMap<String, String>,
+}
+
+#[derive(Deserialize)]
+struct ChoiceFrontmatter {
+    #[serde(default)]
+    choices: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 fn extract_frontmatter(contents: &str) -> Option<&str> {
@@ -302,15 +350,14 @@ mod tests {
     }
 
     #[test]
-    fn retainer_intake_questionnaire_walks_client_name_to_product_description() {
+    fn retainer_intake_questionnaire_walks_client_to_product_description() {
         let q = retainer_intake_questionnaire();
-        // BEGIN → client_name → client_email → project_name →
-        // product_description → END. Walk via the `_` condition.
+        // BEGIN → client → engagement → product_description → END.
+        // Walk via the `_` condition.
         let mut here = StateName::begin();
         let order = [
-            "custom_text__client_name",
-            "custom_text__client_email",
-            "custom_text__project_name",
+            "person__client",
+            "project__engagement",
             "custom_text__product_description",
             "END",
         ];

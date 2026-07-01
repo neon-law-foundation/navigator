@@ -518,12 +518,13 @@ pub(crate) async fn seed_staff_answers(
         else {
             continue;
         };
+        let answer_value = seed_staff_answer_value(txn, person_id, state_name, value).await?;
         answer::ActiveModel {
             question_id: ActiveValue::Set(q.id),
             person_id: ActiveValue::Set(person_id),
             notation_id: ActiveValue::Set(Some(notation_id)),
             state_name: ActiveValue::Set(Some((*state_name).to_string())),
-            value: ActiveValue::Set(answer::primitive(value)),
+            value: ActiveValue::Set(answer_value),
             source: ActiveValue::Set(store::entity::answer::SOURCE_STAFF.to_string()),
             authored_by_person_id: ActiveValue::Set(authored_by),
             ..Default::default()
@@ -532,6 +533,33 @@ pub(crate) async fn seed_staff_answers(
         .await?;
     }
     Ok(())
+}
+
+async fn seed_staff_answer_value(
+    txn: &DatabaseTransaction,
+    person_id: Uuid,
+    state_name: &str,
+    value: &str,
+) -> Result<serde_json::Value, sea_orm::DbErr> {
+    if state_name == "person__client" {
+        if let Some(client) = person::Entity::find_by_id(person_id).one(txn).await? {
+            return Ok(serde_json::json!({
+                "value": client.name,
+                "id": client.id,
+                "name": client.name,
+                "email": client.email,
+                "title": client.title,
+                "phone": client.phone,
+            }));
+        }
+    }
+    let registry_code = state_name
+        .split_once("__")
+        .map_or(state_name, |(code, _)| code);
+    if matches!(registry_code, "person" | "entity" | "project") {
+        return Ok(serde_json::json!({ "value": value, "name": value }));
+    }
+    Ok(answer::primitive(value))
 }
 
 /// Template code for the firm-signed matter-close letter.
@@ -880,9 +908,10 @@ pub async fn step_get(
 fn step_json(notation_id: Uuid, step: Result<NextStep, NotationSessionError>) -> Response {
     match step {
         Ok(NextStep::NeedsAnswer { question }) => {
-            let choices: Vec<serde_json::Value> = store::seed::question_choices(&question.code)
+            let choices: Vec<serde_json::Value> = question
+                .choices
                 .into_iter()
-                .map(|(value, label)| serde_json::json!({ "value": value, "label": label }))
+                .map(|choice| serde_json::json!({ "value": choice.value, "label": choice.label }))
                 .collect();
             axum::Json(serde_json::json!({
                 "notation_id": notation_id,
@@ -2203,10 +2232,37 @@ fn context_from_answers(
         // Storing the state on the row is what stops two records of one
         // type collapsing — no insertion-order alignment needed.
         if let Some(key) = a.state_name.clone().or_else(|| code.cloned()) {
-            ctx.insert(key, display);
+            ctx.insert(key.clone(), display);
+            insert_dotted_answer_fields(&mut ctx, &key, &a.value);
         }
     }
     ctx
+}
+
+fn insert_dotted_answer_fields(
+    ctx: &mut BTreeMap<String, String>,
+    key: &str,
+    value: &serde_json::Value,
+) {
+    let Some(fields) = value.as_object() else {
+        return;
+    };
+    for (field, value) in fields {
+        if field == "value" {
+            continue;
+        }
+        ctx.insert(format!("{key}.{field}"), json_scalar(value));
+    }
+}
+
+fn json_scalar(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Null => String::new(),
+        other => other.to_string(),
+    }
 }
 
 /// Record the e-signature provider's request id in `signatures` so a
@@ -2301,21 +2357,39 @@ mod tests {
         }
     }
 
-    #[test]
-    fn progress_for_begin_is_step_1() {
-        let spec = retainer_intake_questionnaire();
-        assert_eq!(progress_for(&spec, &StateName::begin()), (1, 4));
+    fn record_answer_row(
+        question_id: Uuid,
+        state_name: &str,
+        value: serde_json::Value,
+    ) -> answer::Model {
+        answer::Model {
+            id: Uuid::now_v7(),
+            question_id,
+            person_id: Uuid::nil(),
+            notation_id: Some(Uuid::nil()),
+            state_name: Some(state_name.to_string()),
+            value,
+            source: answer::SOURCE_STAFF.to_string(),
+            authored_by_person_id: None,
+            inserted_at: String::new(),
+            updated_at: String::new(),
+        }
     }
 
     #[test]
-    fn progress_for_client_name_state_is_step_2() {
-        // After answering client_name (state machine moved to
-        // `client_name`), the next question is client_email — the
-        // walker should display "step 2 of 4."
+    fn progress_for_begin_is_step_1() {
+        let spec = retainer_intake_questionnaire();
+        assert_eq!(progress_for(&spec, &StateName::begin()), (1, 3));
+    }
+
+    #[test]
+    fn progress_for_client_state_is_step_2() {
+        // After answering the client identity question, the next question is
+        // the engagement name — the walker should display "step 2 of 3."
         let spec = retainer_intake_questionnaire();
         assert_eq!(
-            progress_for(&spec, &StateName::from("custom_text__client_name")),
-            (2, 4)
+            progress_for(&spec, &StateName::from("person__client")),
+            (2, 3)
         );
     }
 
@@ -2324,7 +2398,7 @@ mod tests {
         let spec = retainer_intake_questionnaire();
         assert_eq!(
             progress_for(&spec, &StateName::from("custom_text__product_description")),
-            (4, 4)
+            (3, 3)
         );
     }
 
@@ -2343,6 +2417,32 @@ mod tests {
             Some("Libra LLC")
         );
         assert_eq!(ctx.get("entity").map(String::as_str), Some("Libra LLC"));
+    }
+
+    #[test]
+    fn context_expands_singular_record_answer_fields() {
+        let person_q = Uuid::now_v7();
+        let code_by_id = BTreeMap::from([(person_q, "person".to_string())]);
+        let answers = [record_answer_row(
+            person_q,
+            "person__client",
+            serde_json::json!({
+                "id": Uuid::now_v7(),
+                "name": "Libra",
+                "email": "libra@example.com",
+            }),
+        )];
+
+        let ctx = context_from_answers(&answers, &code_by_id);
+
+        assert_eq!(
+            ctx.get("person__client.name").map(String::as_str),
+            Some("Libra")
+        );
+        assert_eq!(
+            ctx.get("person__client.email").map(String::as_str),
+            Some("libra@example.com")
+        );
     }
 
     #[test]

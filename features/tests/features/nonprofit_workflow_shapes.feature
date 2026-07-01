@@ -16,8 +16,8 @@ Feature: Bundled-template workflow composition (Foundation / nonprofit)
       | from                           | to                             |
       | BEGIN                          | custom_text__mission_statement |
       | custom_text__mission_statement | people__board_members         |
-      | people__board_members          | custom_text__registered_agent |
-      | custom_text__registered_agent  | END                           |
+      | people__board_members          | person__registered_agent      |
+      | person__registered_agent       | END                           |
 
   Scenario: Nevada 501(c)(3) formation workflow signs, reviews, and mails the articles
     Given the bundled template "forms/united_states/nevada/state/nv__nonprofit_501c3_formation.md"
