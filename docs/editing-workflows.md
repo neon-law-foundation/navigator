@@ -48,10 +48,13 @@ The `questionnaire:` block is a linear state machine of question codes walked on
    row, and rule `N104` validates the code exists. If you need a new code, add a record to `Question.yaml` (and a row to
    `QuestionTranslation.yaml` for every non-English locale, so the questionnaire still reads in the client's language —
    see [`i18n.md`](i18n.md)).
-3. When using a `custom_*__prompt_key` state, add a sibling `prompts:` map in both files with that English prompt key,
-   for example `fundraising_activities: What are the fundraising activities?`. `N104` rejects custom states without this
-   prompt entry.
-4. Reference the answer in the body as `{{question_code}}`; it is substituted at render time.
+3. When using a custom state, add a sibling `prompts:` map in both files with that English prompt key, for example
+   `fundraising_activities: What are the fundraising activities?`. `N104` rejects custom states without this prompt
+   entry. The custom family is `custom_text`, `custom_yes_no`, `custom_single_choice`, `custom_multiple_choice`,
+   `custom_usd`, and `custom_datetime` — one-off primitives with no reusable question code
+   (`custom_<type>__<prompt_key>`).
+4. Reference the answer in the body as `{{question_code}}` (or `{{type__role.field}}` / `{{#for … }}` for a typed or
+   plural answer); it is substituted at render time.
 
 A questionnaire that reuses only seeded codes needs no other change. New codes are the only reason to touch the seed.
 

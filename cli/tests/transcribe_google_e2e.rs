@@ -76,8 +76,8 @@ title: Live Speech E2E
 code: live_speech_e2e
 questionnaire:
   BEGIN:
-    _: recording_consent
-  recording_consent:
+    _: custom_yes_no__recording_consent
+  custom_yes_no__recording_consent:
     _: END
   END: {}
 ---
@@ -123,5 +123,8 @@ questionnaire:
 
     let findings = json["findings"].as_array().expect("findings array");
     assert_eq!(findings.len(), 1, "template has one inquiry");
-    assert_eq!(findings[0]["inquiry_code"], "recording_consent");
+    assert_eq!(
+        findings[0]["inquiry_code"],
+        "custom_yes_no__recording_consent"
+    );
 }

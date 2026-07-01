@@ -260,7 +260,10 @@ async fn cli_bearer_opens_matter_then_approve_parks_and_send_dispatches_once() {
         .unwrap()
         .unwrap();
     assert_eq!(row.state, "document_open__retainer_pdf");
-    assert!(row.signature_request_id.is_none());
+    assert!(store::signatures::request_id_for_notation(&db, notation_id)
+        .await
+        .unwrap()
+        .is_none());
 
     // Status now shows the parked-and-rendered state: document_ready:true,
     // still no envelope.
@@ -280,7 +283,10 @@ async fn cli_bearer_opens_matter_then_approve_parks_and_send_dispatches_once() {
         .unwrap()
         .unwrap();
     assert_eq!(row.state, "sent_for_signature__pending");
-    assert!(row.signature_request_id.is_some());
+    assert!(store::signatures::request_id_for_notation(&db, notation_id)
+        .await
+        .unwrap()
+        .is_some());
 
     // The status JSON now carries the signature request id.
     let sent_json = get_status().await;

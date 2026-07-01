@@ -12,15 +12,15 @@ Feature: Retainer intake walk
   Scenario: First GET renders the first question
     When the staff visits /portal/admin/notations/:id/step
     Then the response status is 200
-    And the page asks the "client_name" question
+    And the page asks the "custom_text__client_name" question
     And the page shows "step 1 of 4"
 
-  Scenario: Answering the first question advances to client_email
+  Scenario: Answering the first question advances to custom_text__client_email
     When the staff submits "Libra" to /portal/admin/notations/:id/step
     Then the response status is 303
     And the response redirects back to /portal/admin/notations/:id/step
     And the questionnaire runtime has recorded 1 transition
-    And the last transition lands on "client_name"
+    And the last transition lands on "custom_text__client_name"
     And an answer row exists with value "Libra"
 
   Scenario: Walking all four questions drives the workflow through END

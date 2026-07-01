@@ -26,7 +26,6 @@ Feature: Naturalization, end to end (Form N-400 → Certificate of Naturalizatio
       | 1990-04-12        |
       | Mexico            |
       | Mexico            |
-      | A123456789        |
       | 2019-03-01        |
       | 702-555-0100      |
       | five_year         |
@@ -43,4 +42,4 @@ Feature: Naturalization, end to end (Form N-400 → Certificate of Naturalizatio
     Then the naturalization workflow reaches END
     And a USCIS filing was recorded
     And the issued Certificate of Naturalization is filed in the matter
-    And the applicant's twelve intake answers are on file
+    And the applicant's eleven intake answers are on file

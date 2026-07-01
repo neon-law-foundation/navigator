@@ -8,8 +8,8 @@ use std::io::{self, BufRead, Write};
 use anyhow::{Context, Result};
 use lsp::Server;
 use lsp_types::{
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    HoverParams, InitializeParams,
+    CompletionParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, HoverParams, InitializeParams,
 };
 use serde_json::{json, Value};
 
@@ -116,6 +116,18 @@ fn handle(server: &mut Server, message: &Value) -> Result<Option<Value>> {
                 "jsonrpc": "2.0",
                 "id": id,
                 "result": hover,
+            })))
+        }
+        "textDocument/completion" => {
+            let params: CompletionParams = serde_json::from_value(params)?;
+            let items = server.completion(
+                &params.text_document_position.text_document.uri,
+                params.text_document_position.position,
+            );
+            Ok(Some(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": items,
             })))
         }
         _ => {

@@ -13,6 +13,7 @@
 //! fixture repository lives at `templates/<category>/<name>.md`.
 
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use rules::{navigator_default_rules_with_codes, DefaultFileFilter, FileFilter, Violation};
@@ -29,7 +30,9 @@ use walkdir::WalkDir;
 /// directory has been imported so N104 can flag unknown codes.
 pub async fn load_question_codes(db: &DatabaseConnection) -> anyhow::Result<Vec<String>> {
     let rows = question::Entity::find().all(db).await?;
-    Ok(rows.into_iter().map(|q| q.code).collect())
+    let mut codes: BTreeSet<String> = rules::canonical_question_codes().into_iter().collect();
+    codes.extend(rows.into_iter().map(|q| q.code));
+    Ok(codes.into_iter().collect())
 }
 
 /// Outcome of a single import run: how many templates and questions

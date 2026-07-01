@@ -7,20 +7,23 @@
 //! question the suite needs, so the extraction step has a value for
 //! every `{{placeholder}}` the instruments render. This test pins that
 //! invariant at authoring time, cross-file, so a hand-edit that adds a
-//! placeholder without asking the question (or asks a question nothing
-//! is seeded for) fails fast:
+//! placeholder without asking the question (or asks a state with an
+//! unregistered question type) fails fast:
 //!
 //! 1. Every data `{{placeholder}}` in an instrument body is a question
 //!    the sitting actually asks (it appears in `neon_law/northstar/estate_plan.md`).
-//! 2. Every question the sitting asks is seeded in `Question.yaml` with
-//!    a prompt, so the extractor and the questionnaire can resolve it.
+//! 2. Every question state the sitting asks uses a seeded type prefix and
+//!    declares a template prompt, so the extractor and questionnaire can
+//!    resolve it.
 //!
 //! No hard-coded code list: the asked set is derived from the Estate
-//! template itself, the union the suite needs from the instrument
-//! bodies, and the seeded set from `Question.yaml`.
+//! template itself, the union the suite needs from the instrument bodies,
+//! and the seeded type set from `Question.yaml`.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+
+use serde::Deserialize;
 
 fn workspace_root() -> PathBuf {
     // store/ is one level below the workspace root.
@@ -53,11 +56,39 @@ fn data_placeholders(body: &str) -> BTreeSet<String> {
 }
 
 /// The question codes the canonical `Question.yaml` seed declares.
-fn seeded_question_codes() -> BTreeSet<String> {
+fn seeded_question_types() -> BTreeSet<String> {
     let yaml = read(&workspace_root().join("store/seeds/Question.yaml"));
     yaml.lines()
         .filter_map(|l| l.trim().strip_prefix("- code:"))
         .map(|c| c.trim().to_string())
+        .collect()
+}
+
+fn question_type(state_name: &str) -> &str {
+    state_name.split("__").next().unwrap_or(state_name)
+}
+
+fn prompt_key(state_name: &str) -> Option<&str> {
+    state_name.split_once("__").map(|(_, key)| key)
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct TemplateFrontmatter {
+    #[serde(default)]
+    prompts: std::collections::BTreeMap<String, String>,
+}
+
+fn frontmatter_prompts(template: &str) -> BTreeSet<String> {
+    let Some(rest) = template.strip_prefix("---\n") else {
+        return BTreeSet::new();
+    };
+    let Some((fm, _)) = rest.split_once("\n---") else {
+        return BTreeSet::new();
+    };
+    serde_yaml::from_str::<TemplateFrontmatter>(fm)
+        .expect("estate template frontmatter should parse")
+        .prompts
+        .into_keys()
         .collect()
 }
 
@@ -71,23 +102,32 @@ const INSTRUMENTS: &[&str] = &[
 #[test]
 fn estate_suite_questions_are_all_asked_and_seeded() {
     let root = workspace_root();
-    let asked = data_placeholders(&read(
-        &root.join("templates/neon_law/northstar/estate_plan.md"),
-    ));
+    let estate_plan = read(&root.join("templates/neon_law/northstar/estate_plan.md"));
+    let asked = data_placeholders(&estate_plan);
     assert!(
         !asked.is_empty(),
         "the Estate onboarding template declares no questions — wrong path?"
     );
 
-    let seeded = seeded_question_codes();
+    let seeded = seeded_question_types();
+    let prompts = frontmatter_prompts(&estate_plan);
 
-    // (2) Every question the sitting asks is seeded with a prompt.
-    for code in &asked {
+    // (2) Every question state the sitting asks uses a seeded type
+    // prefix, and every discriminated custom state declares its prompt
+    // in the template frontmatter.
+    for state_name in &asked {
+        let typ = question_type(state_name);
         assert!(
-            seeded.contains(code),
-            "Estate asks `{code}` but no question with that code is seeded in \
+            seeded.contains(typ),
+            "Estate asks `{state_name}` but no question type `{typ}` is seeded in \
              store/seeds/Question.yaml"
         );
+        if let Some(key) = prompt_key(state_name) {
+            assert!(
+                prompts.contains(key),
+                "Estate asks `{state_name}` but does not declare prompts.{key}"
+            );
+        }
     }
 
     // (1) Every instrument placeholder is a question the sitting asks —

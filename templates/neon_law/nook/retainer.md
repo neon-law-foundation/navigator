@@ -4,16 +4,21 @@ respondent_type: person_and_entity
 code: onboarding__retainer_nook
 jurisdiction: NV
 confidential: true
+prompts:
+  client_name: What is the client's full legal name?
+  client_email: What is the client's email address?
+  project_name: What is the project name for this engagement?
+  product_description: Describe the services this retainer covers.
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: client_email
-  client_email:
-    _: project_name
-  project_name:
-    _: product_description
-  product_description:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__client_email
+  custom_text__client_email:
+    _: custom_text__project_name
+  custom_text__project_name:
+    _: custom_text__product_description
+  custom_text__product_description:
     _: END
   END: {}
 workflow:
@@ -31,13 +36,14 @@ workflow:
     signature_declined: END
   END: {}
 ---
-This Engagement Agreement (the "Agreement") is entered into between Neon Law (the "Firm") and `{{client_name}}` (the
-"Client"), reachable at `{{client_email}}`, for **Neon Law Nook** — a brokerless real-estate closing — on the matter
-referred to as `{{project_name}}`.
+This Engagement Agreement (the "Agreement") is entered into between Neon Law (the "Firm") and
+`{{custom_text__client_name}}` (the "Client"), reachable at `{{custom_text__client_email}}`, for **Neon Law Nook** — a
+brokerless real-estate closing — on the matter referred to as `{{custom_text__project_name}}`.
 
 **The work and the fee.** For a sale the buyer and seller have already agreed on, with no broker on either side, the
 Firm drafts the purchase agreement from the terms you have agreed on, prepares the deed and the closing documents,
-coordinates the closing and the settlement of funds, and records the deed with the county: `{{product_description}}`.
+coordinates the closing and the settlement of funds, and records the deed with the county:
+`{{custom_text__product_description}}`.
 This is one flat legal fee — `$9,999` — paid once when the matter closes, not a percentage of the sale price. County
 recording fees and any transfer tax are billed at cost on top of the flat fee.
 
@@ -77,8 +83,8 @@ Washington State Bar Association. You keep those rights in full.
 
 **Reaching the Firm.** Email to **support@neonlaw.com** is the best and primary way to reach the Firm. You consent to
 electronic communication at that address and understand that routine correspondence, documents, and questions about your
-matter flow through it. The Firm sends invoices and case correspondence to you at `{{client_email}}`; you reach the Firm
-at support@neonlaw.com.
+matter flow through it. The Firm sends invoices and case correspondence to you at `{{custom_text__client_email}}`; you
+reach the Firm at support@neonlaw.com.
 
 **Firm-wide conflicts.** Neon Law is a small firm, and we treat a conflict for any one of our attorneys as a conflict
 for the entire firm. Before we take on a new matter, we check it against all of our current and former matters across
@@ -92,7 +98,7 @@ privileged correspondence we exchange with you — for ten years after your matt
 file at any point during that period. After ten years, the Firm securely destroys the file and its contents.
 
 The Client acknowledges receipt of the Firm's privacy notice and agrees to electronic delivery of invoices and case
-correspondence at `{{client_email}}`.
+correspondence at `{{custom_text__client_email}}`.
 
 The Client and the Firm execute this Agreement electronically as of the dates signed below.
 

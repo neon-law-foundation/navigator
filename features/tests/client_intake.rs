@@ -14,6 +14,7 @@ use features::journey::{answer_body, client, Journey};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use store::entity;
 use uuid::Uuid;
+use workflows::{bundled_spec_yaml, prompt_overrides_from_yaml};
 
 const TEMPLATE_CODE: &str = "onboarding__retainer";
 
@@ -96,7 +97,7 @@ async fn open_matter(world: &mut IntakeWorld, email: String) {
 
 #[given(regex = r#"^staff pre-filled the client's name as "([^"]+)"$"#)]
 async fn staff_prefill(world: &mut IntakeWorld, value: String) {
-    // The walker's first question is client_name; staff answering it
+    // The walker's first question is custom_text__client_name; staff answering it
     // records a staff-sourced answer the client will later confirm.
     let path = format!(
         "/portal/admin/notations/{}/step",
@@ -151,16 +152,22 @@ async fn stranger_opens_intake(world: &mut IntakeWorld) {
 
 #[then(regex = r#"^the intake asks the "([^"]+)" question$"#)]
 async fn asks_question(world: &mut IntakeWorld, code: String) {
-    let prompt = entity::question::Entity::find()
-        .filter(entity::question::Column::Code.eq(code.as_str()))
-        .one(&world.journey().db)
-        .await
-        .expect("query question")
-        .expect("question seeded")
-        .prompt;
+    // A `custom_*__<role>` state renders its template prompt override
+    // (keyed by the `<role>` after `__`), not the canonical registry
+    // prompt — so resolve the override the walker shows and assert the
+    // rendered intake body carries it.
+    let yaml = bundled_spec_yaml(TEMPLATE_CODE).expect("retainer bundled spec");
+    let overrides = prompt_overrides_from_yaml(yaml).expect("parse prompt overrides");
+    let role = code
+        .split_once("__")
+        .map_or(code.as_str(), |(_, role)| role);
+    let prompt = overrides
+        .get(role)
+        .unwrap_or_else(|| panic!("no prompt override for state {code}"));
     assert!(
-        world.last_body.contains(&prompt),
-        "intake body did not contain the {code} prompt {prompt:?}",
+        world.last_body.contains(prompt),
+        "intake body did not ask the {code} question (prompt {prompt:?}), got:\n{}",
+        world.last_body,
     );
 }
 
@@ -183,14 +190,18 @@ async fn intake_complete(world: &mut IntakeWorld) {
 
 #[then(regex = r#"^the client's name answer on file is "([^"]+)" from the client$"#)]
 async fn name_answer_on_file(world: &mut IntakeWorld, value: String) {
+    // The `custom_text__client_name` state resolves to the canonical
+    // `custom_text` registry question; the per-state `state_name` column
+    // is what pins the answer to the client-name question specifically.
     let q = entity::question::Entity::find()
-        .filter(entity::question::Column::Code.eq("client_name"))
+        .filter(entity::question::Column::Code.eq("custom_text"))
         .one(&world.journey().db)
         .await
         .expect("query question")
-        .expect("client_name seeded");
+        .expect("custom_text seeded");
     let latest = entity::answer::Entity::find()
         .filter(entity::answer::Column::QuestionId.eq(q.id))
+        .filter(entity::answer::Column::StateName.eq("custom_text__client_name"))
         .filter(entity::answer::Column::PersonId.eq(world.client().id))
         .filter(entity::answer::Column::NotationId.eq(world.notation_id))
         .order_by_desc(entity::answer::Column::Id)

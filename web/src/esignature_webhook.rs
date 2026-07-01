@@ -36,7 +36,7 @@ use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
-use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait};
 
 use store::entity::{notation, person};
 use workflows::{MachineKind, StateMachineRuntime};
@@ -206,13 +206,20 @@ async fn advance(
     envelope_id: &str,
     condition: &str,
 ) -> Result<(), WebhookError> {
-    let Some(row) = notation::Entity::find()
-        .filter(notation::Column::SignatureRequestId.eq(envelope_id))
+    let provider = store::entity::signature::SignatureProvider::DocuSign;
+    let Some(signature) = store::signatures::by_provider(&state.db, provider, envelope_id)
+        .await
+        .map_err(|e| WebhookError::Database(e.to_string()))?
+    else {
+        tracing::warn!(%envelope_id, "esignature webhook: no signature for envelope id");
+        return Ok(());
+    };
+    let Some(row) = notation::Entity::find_by_id(signature.notation_id)
         .one(&state.db)
         .await
         .map_err(|e| WebhookError::Database(e.to_string()))?
     else {
-        tracing::warn!(%envelope_id, "esignature webhook: no notation for envelope id");
+        tracing::warn!(%envelope_id, "esignature webhook: signature envelope points at a missing notation");
         return Ok(());
     };
 
@@ -246,6 +253,23 @@ async fn advance(
     // the GCS source-of-truth can be backfilled. Declines have no
     // executed document, so they skip this.
     if condition == SIGNATURE_RECEIVED {
+        // Stamp the completion time on the signature so the executed record
+        // carries when it was signed. Best-effort: the workflow already
+        // advanced, so a stamp failure must not fail the webhook.
+        if let Err(e) = store::signatures::stamp_signed(
+            &state.db,
+            provider,
+            envelope_id,
+            &chrono::Utc::now().to_rfc3339(),
+        )
+        .await
+        {
+            tracing::error!(
+                %envelope_id, error = %e,
+                "esignature webhook: stamping signed_at failed (signature still recorded)"
+            );
+        }
+
         if let Err(e) = archive_completed_documents(state, envelope_id, notation_id).await {
             tracing::error!(
                 %envelope_id, error = %e,

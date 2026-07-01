@@ -186,6 +186,19 @@ impl PersonRow {
     }
 }
 
+fn answer_for<'a>(answers: &'a BTreeMap<String, String>, question: &str) -> Option<&'a String> {
+    if let Some(answer) = answers.get(question) {
+        return Some(answer);
+    }
+    let suffix = format!("__{question}");
+    let mut matches = answers
+        .iter()
+        .filter(|(key, _)| key.ends_with(&suffix))
+        .map(|(_, value)| value);
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first)
+}
+
 /// Resolve a field map against the respondent's answers into the
 /// `field name → value` map `pdf::fill_acroform` consumes.
 ///
@@ -205,8 +218,7 @@ pub fn resolve(
         // The presence gate runs first: a slot-label rule for a row the
         // respondent never provided is skipped entirely.
         if let (Some(list_question), Some(row)) = (&rule.present_in, rule.row_present) {
-            let present = answers
-                .get(list_question)
+            let present = answer_for(answers, list_question)
                 .filter(|a| !a.is_empty())
                 .map(|a| {
                     serde_json::from_str::<Vec<PersonRow>>(a).map(|rows| {
@@ -233,7 +245,7 @@ pub fn resolve(
             continue;
         }
         let question = rule.question.as_deref().unwrap_or_default();
-        let Some(answer) = answers.get(question).filter(|a| !a.is_empty()) else {
+        let Some(answer) = answer_for(answers, question).filter(|a| !a.is_empty()) else {
             continue;
         };
 
@@ -347,6 +359,41 @@ mod tests {
             "unmatched box untouched"
         );
         assert_eq!(resolved["Title"], "Managing Member");
+    }
+
+    #[test]
+    fn typed_state_answers_resolve_by_prompt_key_suffix() {
+        let map = parse(
+            r#"
+            form_code = "t"
+            [[field]]
+            name = "Entity"
+            question = "entity_name"
+            [[field]]
+            name = "managers_b"
+            question = "management_structure"
+            checked_when = "members"
+            on_state = "members"
+            [[field]]
+            name = "Name"
+            question = "managing_members"
+            row = 0
+            part = "name"
+            "#,
+        );
+        let people = r#"[{"name": "Aries Client"}]"#;
+        let resolved = resolve(
+            &map,
+            &answers(&[
+                ("custom_text__entity_name", "Neon Demo LLC"),
+                ("custom_single_choice__management_structure", "members"),
+                ("people__managing_members", people),
+            ]),
+        )
+        .unwrap();
+        assert_eq!(resolved["Entity"], "Neon Demo LLC");
+        assert_eq!(resolved["managers_b"], "members");
+        assert_eq!(resolved["Name"], "Aries Client");
     }
 
     #[test]

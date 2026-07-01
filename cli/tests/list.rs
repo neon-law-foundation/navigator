@@ -55,11 +55,12 @@ async fn list_questions_prints_every_canonical_code() {
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
     for code in [
-        "personal_name",
-        "personal_ssn",
-        "entity_name",
+        "person",
+        "people",
+        "entity",
+        "custom_text",
+        "custom_single_choice",
         "staff_review",
-        "registered_agent",
         "testator_signature", // only added by the notation import (will workflow state)
     ] {
         assert!(
@@ -83,7 +84,7 @@ async fn list_against_fresh_db_auto_seeds() {
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        stdout.contains("personal_name"),
+        stdout.contains("custom_text"),
         "fresh DB list must contain canonical questions:\n{stdout}"
     );
 }

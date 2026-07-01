@@ -1584,6 +1584,7 @@ fn parse_decimal_to_cents(s: &str) -> i64 {
 mod tests {
     use super::seed_canonical;
     use crate::entity::{jurisdiction, person, question, template};
+    use crate::question_registry::QuestionType;
     use crate::test_support::pg;
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
@@ -1605,25 +1606,18 @@ mod tests {
         let report = seed_canonical(&db, &fs_storage().await)
             .await
             .expect("seed");
-        // The canonical question catalog grows whenever a bundled
-        // template adds a questionnaire prompt (the retainer + closing
-        // walkers, then Nautilus, Northstar, the i18n set, …), so this
-        // is a *floor*, not an exact count — 41 distinct codes at the
-        // time of writing. A floor tolerates that growth while still
-        // catching a regression that drops a question; the code-presence
-        // checks below pin the load-bearing prompts by name.
+        // The canonical question catalog is the closed type registry.
+        // Template-specific prompt keys live after the `__` discriminator
+        // in state names rather than as seeded question rows.
+        let expected = QuestionType::all_tokens().len();
         let qs = question::Entity::find().all(&db).await.unwrap();
-        assert!(
-            qs.len() >= 41,
-            "expected at least 41 distinct questions, found {}",
-            qs.len()
-        );
-        assert!(qs.iter().any(|q| q.code == "personal_name"));
-        assert!(qs.iter().any(|q| q.code == "staff_review"));
-        assert!(qs.iter().any(|q| q.code == "client_name"));
-        assert!(qs.iter().any(|q| q.code == "product_description"));
-        assert!(qs.iter().any(|q| q.code == "matter_summary"));
-        assert!(report.questions_inserted >= 41);
+        assert_eq!(qs.len(), expected);
+        assert!(qs.iter().any(|q| q.code == "person"));
+        assert!(qs.iter().any(|q| q.code == "people"));
+        assert!(qs.iter().any(|q| q.code == "custom_text"));
+        assert!(qs.iter().any(|q| q.code == "custom_single_choice"));
+        assert!(qs.iter().any(|q| q.code == "custom_datetime"));
+        assert_eq!(report.questions_inserted, expected);
     }
 
     #[tokio::test]
@@ -1691,7 +1685,8 @@ mod tests {
         assert!(tmpl.project_id.is_none(), "bundled templates are shared");
         // The body now lives in a blob — fetch it via the storage
         // accessor. Just the markdown body, no frontmatter, so the
-        // renderer's `{{client_name}}` interpolation finds its targets.
+        // renderer's `{{custom_text__client_name}}` interpolation finds
+        // its targets.
         let body = crate::templates::body(&db, &fs_storage().await, &tmpl)
             .await
             .expect("template body in storage");
@@ -1700,10 +1695,10 @@ mod tests {
             "body should not include the YAML frontmatter; got {:?}",
             &body[..body.len().min(20)]
         );
-        assert!(body.contains("{{client_name}}"));
-        assert!(body.contains("{{client_email}}"));
-        assert!(body.contains("{{project_name}}"));
-        assert!(body.contains("{{product_description}}"));
+        assert!(body.contains("{{custom_text__client_name}}"));
+        assert!(body.contains("{{custom_text__client_email}}"));
+        assert!(body.contains("{{custom_text__project_name}}"));
+        assert!(body.contains("{{custom_text__product_description}}"));
     }
 
     #[tokio::test]
@@ -1935,29 +1930,67 @@ mod tests {
     }
 
     #[test]
-    fn question_choices_reads_ordered_radio_choices_from_the_canonical_seed() {
+    fn question_choices_is_empty_after_the_vocabulary_collapse() {
         use super::question_choices;
-        // `management_structure` is the `nv__llc_formation` radio; its
-        // choices must come back in YAML order (members before managers),
-        // value-keyed, so a terminal renders them like the web walker would.
-        let choices = question_choices("management_structure");
-        assert_eq!(
-            choices,
-            vec![
-                (
-                    "members".to_string(),
-                    "Managed by its members — the owners".to_string(),
-                ),
-                (
-                    "managers".to_string(),
-                    "Managed by appointed managers".to_string(),
-                ),
-            ],
-        );
-        // A free-text question carries no choices; neither does an unknown
-        // code. Both answer with an empty vec rather than panicking.
-        assert!(question_choices("entity_name").is_empty());
+        // With the vocabulary collapsed to the registry, no seeded question
+        // carries a `choices:` block — a one-off choice set (`fee_status`,
+        // `management_structure`, …) lives in the template that asks it, as a
+        // `custom_single_choice__<key>` state. So the seed reader is empty for
+        // every code, and an unknown code still answers with an empty vec
+        // rather than panicking.
+        assert!(question_choices("custom_single_choice").is_empty());
+        assert!(question_choices("custom_text").is_empty());
         assert!(question_choices("no_such_question_code").is_empty());
+    }
+
+    /// The seed vocabulary is exactly the closed registry — every question
+    /// is a glossary ORM model (record/reference), its plural list form, or
+    /// a `custom_*` primitive. No bespoke per-matter codes. This grounds
+    /// `Question.yaml` to `store::question_registry::QuestionType` so the two
+    /// can never drift (issue #235).
+    #[test]
+    fn question_yaml_is_exactly_the_registry() {
+        use std::collections::BTreeSet;
+        let codes: BTreeSet<String> =
+            super::parse::<super::QuestionRec>(super::canonical::QUESTION, "Question.yaml")
+                .unwrap()
+                .into_iter()
+                .map(|q| q.code)
+                .collect();
+        let registry: BTreeSet<String> = crate::question_registry::QuestionType::all_tokens()
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        assert_eq!(
+            codes, registry,
+            "Question.yaml codes must be exactly store::question_registry::QuestionType"
+        );
+    }
+
+    /// Every localized prompt maps to a real question code — no orphaned
+    /// translations after a rename.
+    #[test]
+    fn question_translations_reference_only_real_codes() {
+        use std::collections::BTreeSet;
+        let codes: BTreeSet<String> =
+            super::parse::<super::QuestionRec>(super::canonical::QUESTION, "Question.yaml")
+                .unwrap()
+                .into_iter()
+                .map(|q| q.code)
+                .collect();
+        let translated: BTreeSet<String> = super::parse::<super::QuestionTranslationRec>(
+            super::canonical::QUESTION_TRANSLATION,
+            "QuestionTranslation.yaml",
+        )
+        .unwrap()
+        .into_iter()
+        .map(|q| q.code)
+        .collect();
+        let orphans: Vec<&String> = translated.difference(&codes).collect();
+        assert!(
+            orphans.is_empty(),
+            "QuestionTranslation codes with no matching Question code: {orphans:?}"
+        );
     }
 
     #[test]

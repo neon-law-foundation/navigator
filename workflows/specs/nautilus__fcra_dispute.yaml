@@ -1,15 +1,20 @@
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: credit_bureau
-  credit_bureau:
-    _: tradeline
-  tradeline:
-    _: report_error
-  report_error:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_single_choice__credit_bureau
+  custom_single_choice__credit_bureau:
+    _: custom_text__tradeline
+  custom_text__tradeline:
+    _: custom_text__report_error
+  custom_text__report_error:
     _: END
   END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  credit_bureau: Which credit bureau is reporting the error?
+  tradeline: Which account on your credit report is wrong?
+  report_error: What is wrong with how this account is reported?
 workflow:
   BEGIN:
     intake_submitted: document_open__fcra_dispute

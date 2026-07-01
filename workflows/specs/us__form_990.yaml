@@ -1,12 +1,13 @@
 questionnaire:
   BEGIN:
-    _: datetime__tax_year
-  datetime__tax_year:
+    _: custom_datetime__tax_year
+  custom_datetime__tax_year:
     _: custom_text__revenue_strategy
   custom_text__revenue_strategy:
     _: END
   END: {}
 prompts:
+  tax_year: What tax year does this return cover?
   revenue_strategy: What is the revenue strategy?
 workflow:
   BEGIN:

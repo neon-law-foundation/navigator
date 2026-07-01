@@ -7,14 +7,19 @@ origin_url: https://www.nvsos.gov/businesses/commercial-recordings/forms-fees/al
 confidential: false
 questionnaire:
   BEGIN:
-    _: annual_or_amended
-  annual_or_amended:
+    _: custom_single_choice__annual_or_amended
+  custom_single_choice__annual_or_amended:
     _: custom_text__fundraising_activities
   custom_text__fundraising_activities:
     _: END
   END: {}
 prompts:
   fundraising_activities: What are the fundraising activities?
+  annual_or_amended: Is this an original annual application or is it an amendment to a previous application?
+choices:
+  annual_or_amended:
+    original: Original Application
+    amended: Amendment to Previous Application
 workflow:
   BEGIN:
     _: staff_review
@@ -26,6 +31,6 @@ workflow:
 ---
 
 Nevada Charitable Solicitation Registration Statement for `{{entity_name}}` filed with the Secretary of State for the
-period ending `{{annual_or_amended}}`. The organization's fundraising activities during the period are:
-`{{custom_text__fundraising_activities}}`. This registration is required of any nonprofit that solicits contributions
-from Nevada residents, and is renewed annually.
+period ending `{{custom_single_choice__annual_or_amended}}`. The organization's fundraising activities during the
+period are: `{{custom_text__fundraising_activities}}`. This registration is required of any nonprofit that solicits
+contributions from Nevada residents, and is renewed annually.

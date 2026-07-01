@@ -1,31 +1,43 @@
 questionnaire:
   BEGIN:
-    _: client_name
-  client_name:
-    _: client_email
-  client_email:
-    _: date_of_birth
-  date_of_birth:
-    _: country_of_birth
-  country_of_birth:
-    _: country_of_citizenship
-  country_of_citizenship:
-    _: a_number
-  a_number:
-    _: lpr_since
-  lpr_since:
-    _: daytime_phone
-  daytime_phone:
-    _: eligibility_basis
-  eligibility_basis:
-    _: marital_status
-  marital_status:
-    _: time_outside_us
-  time_outside_us:
-    _: good_moral_character
-  good_moral_character:
+    _: custom_text__client_name
+  custom_text__client_name:
+    _: custom_text__client_email
+  custom_text__client_email:
+    _: custom_datetime__date_of_birth
+  custom_datetime__date_of_birth:
+    _: custom_text__country_of_birth
+  custom_text__country_of_birth:
+    _: custom_text__country_of_citizenship
+  custom_text__country_of_citizenship:
+    _: custom_datetime__lpr_since
+  custom_datetime__lpr_since:
+    _: custom_text__daytime_phone
+  custom_text__daytime_phone:
+    _: custom_single_choice__eligibility_basis
+  custom_single_choice__eligibility_basis:
+    _: custom_single_choice__marital_status
+  custom_single_choice__marital_status:
+    _: custom_text__time_outside_us
+  custom_text__time_outside_us:
+    _: custom_yes_no__good_moral_character
+  custom_yes_no__good_moral_character:
     _: END
   END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  client_email: What is the client's email address?
+  date_of_birth: What is your date of birth?
+  country_of_birth: In what country were you born?
+  country_of_citizenship: Of what country are you currently a citizen or national?
+  lpr_since: On what date did you become a lawful permanent resident?
+  daytime_phone: What is the best daytime phone number to reach you?
+  eligibility_basis: Which path to naturalization are you applying under?
+  marital_status: What is your current marital status?
+  time_outside_us: About how many total days have you spent outside the United States in the last five years?
+  good_moral_character: >-
+    Is there anything in your history — arrests, citations, or unpaid taxes — your attorney should know before we
+    file?
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__applicant

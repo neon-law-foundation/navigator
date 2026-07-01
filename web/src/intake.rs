@@ -190,7 +190,7 @@ pub async fn intake_save(
         // Already done — nothing to save.
         return Redirect::to(&back).into_response();
     };
-    let value = if question.answer_type == "people_list" {
+    let value = if store::question_registry::answer_type_is_aggregate(&question.answer_type) {
         crate::people_list_answer::assemble(&body)
     } else {
         body.get("value").cloned().unwrap_or_default()
