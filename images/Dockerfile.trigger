@@ -27,12 +27,18 @@ ARG BIN=trigger
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends musl-tools pkg-config \
-    && rm -rf /var/lib/apt/lists/* \
-    && rustup target add x86_64-unknown-linux-musl
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 
+# `rust-toolchain.toml` must land BEFORE `rustup target add`: the override
+# pins a specific 1.96.0 toolchain that rustup re-syncs the first time cargo
+# runs in this dir. Adding the target beforehand (against the base image's
+# default toolchain) leaves the re-synced toolchain without the musl std,
+# and `cargo build --target …-musl` then fails with `can't find crate for
+# std`. Adding it here attaches the target to the toolchain the build uses.
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+RUN rustup target add x86_64-unknown-linux-musl
 COPY rules             rules
 COPY store             store
 COPY repos             repos
