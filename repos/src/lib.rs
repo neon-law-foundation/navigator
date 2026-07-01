@@ -64,6 +64,19 @@ pub struct ExpungeOutcome {
 /// a tmp/hostPath dir in KIND) and never hard-coded.
 pub const REPO_ROOT_ENV: &str = "NAVIGATOR_GIT_REPO_ROOT";
 
+/// Git LFS routing seeded into every repo's `info/attributes` at
+/// creation (design §5). PDFs, docx, and images go through Git LFS —
+/// their bytes live in `cloud::StorageService` (see `web::git_lfs`)
+/// while only a small pointer rides the pack history. Writing this
+/// server-side means `git check-attr` (and diff/archive) route binaries
+/// to LFS on a fresh, empty repo, before any commit exists.
+const LFS_ATTRIBUTES: &str = "\
+*.pdf filter=lfs diff=lfs merge=lfs -text\n\
+*.docx filter=lfs diff=lfs merge=lfs -text\n\
+*.png filter=lfs diff=lfs merge=lfs -text\n\
+*.jpg filter=lfs diff=lfs merge=lfs -text\n\
+*.jpeg filter=lfs diff=lfs merge=lfs -text\n";
+
 /// The append-only `pre-receive` hook. Rejects any pushed ref that is
 /// not `refs/heads/main`; the config guards (`denyNonFastForwards`,
 /// `denyDeletes`) cover force-push and deletion of `main` itself.
@@ -186,6 +199,7 @@ impl RepoStore {
         // Let the smart-HTTP transport accept pushes to this repo.
         run_git(&["-C", &path_str, "config", "http.receivepack", "true"])?;
         install_pre_receive_hook(&path)?;
+        install_lfs_attributes(&path)?;
 
         tracing::info!(%project_id, path = %path_str, "created append-only bare repo");
         Ok(path)
@@ -459,6 +473,16 @@ fn install_pre_receive_hook(repo: &Path) -> Result<(), RepoError> {
     Ok(())
 }
 
+/// Seed the repo's server-side `info/attributes` with the Git LFS
+/// routing rules ([`LFS_ATTRIBUTES`]). `git init --bare` already creates
+/// the `info/` directory, but `create_dir_all` keeps this robust.
+fn install_lfs_attributes(repo: &Path) -> Result<(), RepoError> {
+    let info = repo.join("info");
+    std::fs::create_dir_all(&info)?;
+    std::fs::write(info.join("attributes"), LFS_ATTRIBUTES)?;
+    Ok(())
+}
+
 /// Run `git <args>`, mapping a non-zero exit to [`RepoError::Git`].
 fn run_git(args: &[&str]) -> Result<(), RepoError> {
     let output = Command::new("git").args(args).output()?;
@@ -585,6 +609,69 @@ mod tests {
         // Idempotent: a second call returns the same path, no error.
         let again = store.ensure(project).unwrap();
         assert_eq!(again, path);
+    }
+
+    /// Resolve the `filter` attribute git applies to `path` in the bare
+    /// repo — `git check-attr` reads `info/attributes` server-side, so
+    /// this answers "is this path routed through LFS?" on a fresh, empty
+    /// repo without git-lfs installed.
+    fn check_filter(repo: &Path, path: &str) -> String {
+        let out = Command::new("git")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_SYSTEM", "/dev/null")
+            .args([
+                "-C",
+                repo.to_str().unwrap(),
+                "check-attr",
+                "filter",
+                "--",
+                path,
+            ])
+            .output()
+            .expect("run git check-attr");
+        assert!(
+            out.status.success(),
+            "git check-attr failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        // Output shape: `<path>: filter: <value>`; take the value.
+        String::from_utf8_lossy(&out.stdout)
+            .rsplit(": ")
+            .next()
+            .unwrap_or_default()
+            .trim()
+            .to_string()
+    }
+
+    #[test]
+    fn ensure_seeds_lfs_routing_for_binaries() {
+        let root = TempDir::new().unwrap();
+        let store = RepoStore::new(root.path());
+        let project = Uuid::now_v7();
+        let repo = store.ensure(project).unwrap();
+
+        // Every binary type §5 names routes to the lfs filter on a fresh,
+        // empty repo — no commit, no git-lfs binary required.
+        for name in [
+            "deed.pdf",
+            "brief.docx",
+            "seal.png",
+            "scan.jpg",
+            "photo.jpeg",
+        ] {
+            assert_eq!(
+                check_filter(&repo, name),
+                "lfs",
+                "{name} should route through Git LFS"
+            );
+        }
+
+        // Text and other files are untouched — LFS is for binaries only.
+        assert_eq!(check_filter(&repo, "notes.txt"), "unspecified");
+
+        // Idempotent: a second ensure leaves routing in place.
+        store.ensure(project).unwrap();
+        assert_eq!(check_filter(&repo, "deed.pdf"), "lfs");
     }
 
     #[test]
