@@ -171,6 +171,12 @@ impl Rule for F107SignaturePlaceholders {
         let loop_variables = loop_variables(&file.contents);
         let mut violations = Vec::new();
         let mut saw_valid_block = false;
+        // A *relevant* anchor is any placeholder that survives the
+        // data-grammar filter above — a candidate signature token, valid
+        // (`{{client.signature}}`) or malformed (`{{spouse.signature}}`).
+        // Loop row tokens (`{{m.name}}`) and questionnaire-state paths are
+        // N115 data grammar, so they never count as a signature anchor.
+        let mut saw_relevant_anchor = false;
 
         for ph in &placeholders {
             if questionnaire_states.contains(ph.signer.as_str())
@@ -178,6 +184,7 @@ impl Rule for F107SignaturePlaceholders {
             {
                 continue;
             }
+            saw_relevant_anchor = true;
             let signer_ok = Self::SIGNERS.contains(&ph.signer.as_str());
             let field_ok = Self::FIELDS.contains(&ph.field.as_str());
             let line = line_at(&file.contents, ph.offset);
@@ -244,11 +251,15 @@ impl Rule for F107SignaturePlaceholders {
         // Reverse: a signing State must have a body anchor for its tab to
         // land on — otherwise the provider gets a signing step with no
         // placed signature field (the live retainer bug). We key off "no
-        // signature token at all", not "no *valid* one": a malformed
+        // *relevant* signature token", not "no valid one": a malformed
         // token (`{{spouse.signature}}`) already draws its own
         // unknown-signer violation, so adding "no anchor" on top would be
-        // contradictory noise.
-        if has_signing_state && placeholders.is_empty() {
+        // contradictory noise. Keying off `placeholders.is_empty()` alone
+        // would let a signing template that uses a `{{#for}}` loop but
+        // forgets its real signature block slip through — the loop row
+        // tokens are data grammar, not anchors, so they must not satisfy
+        // this check.
+        if has_signing_state && !saw_relevant_anchor {
             violations.push(Violation {
                 code: Self::CODE,
                 path: file.path.clone(),
@@ -432,6 +443,30 @@ mod tests {
             !v.iter().any(|x| x.message.contains("no signature anchor")),
             "reverse check must not fire when a (malformed) anchor is present",
         );
+    }
+
+    #[test]
+    fn signing_state_with_only_loop_tokens_still_flags_missing_anchor() {
+        // A signing workflow whose body uses a `{{#for}}` loop but forgets
+        // its real signature block. The loop row tokens (`{{m.name}}`) are
+        // N115 data grammar, not signature anchors, so the reverse check
+        // must still fire — else `expand_signatures` places zero tabs and
+        // the template reaches the provider with a signing step and nowhere
+        // to sign (the very bug this guard exists to catch).
+        let body = "---\ntitle: Retainer\nquestionnaire:\n  BEGIN:\n    _: people__members\n  \
+                    people__members:\n    _: END\n  END: {}\nworkflow:\n  BEGIN:\n    \
+                    created: sent_for_signature__pending\n  \
+                    sent_for_signature__pending:\n    signature_received: END\n  \
+                    END: {}\n---\nMembers:\n{{#for m in people__members}}- {{m.name}}\n{{/for}}\n";
+        let v = F107SignaturePlaceholders.lint(&file(body));
+        assert_eq!(v.len(), 1, "{v:?}");
+        assert_eq!(v[0].code, "N107");
+        assert!(
+            v[0].message.contains("no signature anchor"),
+            "message was: {}",
+            v[0].message
+        );
+        assert_eq!(v[0].line, 1);
     }
 
     #[test]

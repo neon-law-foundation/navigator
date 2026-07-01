@@ -74,19 +74,28 @@ fn expand_loops(body: &str, context: &BTreeMap<String, String>) -> String {
 /// starts at the front of `s` (depth 1 already open), or `None` if it never
 /// closes. Nested `{{#for …}}` raise the depth so an inner close doesn't
 /// terminate the outer loop.
+///
+/// Scans over `s.as_bytes()` so the single-byte `i += 1` step can never
+/// land mid-codepoint — a loop body carrying an em-dash, curly quote, or
+/// accented letter (routine in legal copy) must not panic the binding
+/// document path. The markers are ASCII, so a returned offset is always a
+/// char boundary safe to slice on.
 fn matching_close(s: &str) -> Option<usize> {
+    let bytes = s.as_bytes();
+    let open = FOR_OPEN.as_bytes();
+    let close = FOR_CLOSE.as_bytes();
     let mut depth = 1usize;
     let mut i = 0;
-    while i < s.len() {
-        if s[i..].starts_with(FOR_OPEN) {
+    while i < bytes.len() {
+        if bytes[i..].starts_with(open) {
             depth += 1;
-            i += FOR_OPEN.len();
-        } else if s[i..].starts_with(FOR_CLOSE) {
+            i += open.len();
+        } else if bytes[i..].starts_with(close) {
             depth -= 1;
             if depth == 0 {
                 return Some(i);
             }
-            i += FOR_CLOSE.len();
+            i += close.len();
         } else {
             i += 1;
         }
@@ -272,6 +281,30 @@ The retainer covers the project {{project_name}}.";
         let context = ctx(&[("groups", r#"[{"title": "A"}, {"title": "B"}]"#)]);
         let filled = super::fill(body, &context);
         assert_eq!(filled, "[A: A B ][B: A B ]", "got: {filled}");
+    }
+
+    #[test]
+    fn for_loop_body_with_non_ascii_does_not_panic() {
+        // A loop body carrying non-ASCII bytes (em-dash, curly quote,
+        // accented letter — routine in legal copy) once panicked the
+        // byte-at-a-time close scan mid-codepoint. It must render.
+        let body = "{{#for m in people__members}}— {{m.name}} “résumé” … {{/for}}";
+        let context = ctx(&[(
+            "people__members",
+            r#"[{"name": "Aríes"}, {"name": "Libra"}]"#,
+        )]);
+        let filled = super::fill(body, &context);
+        assert_eq!(filled, "— Aríes “résumé” … — Libra “résumé” … ");
+    }
+
+    #[test]
+    fn nested_for_loops_with_non_ascii_match_balanced_closes() {
+        // The mid-codepoint hazard also has to stay safe when a non-ASCII
+        // byte sits between a nested open and the balancing close.
+        let body = "{{#for g in groups}}«{{#for m in groups}}{{m.title}}·{{/for}}»{{/for}}";
+        let context = ctx(&[("groups", r#"[{"title": "Á"}, {"title": "B"}]"#)]);
+        let filled = super::fill(body, &context);
+        assert_eq!(filled, "«Á·B·»«Á·B·»", "got: {filled}");
     }
 
     #[test]
