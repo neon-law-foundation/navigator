@@ -23,6 +23,7 @@ pub mod f112;
 pub mod f113;
 pub mod f114;
 pub mod f115;
+pub mod f116;
 pub mod frontmatter;
 pub mod links;
 pub mod m001;
@@ -96,6 +97,7 @@ pub use f112::{workflow_step_not_built, F112WorkflowStepNotBuilt, WORKFLOW_STEPS
 pub use f113::{describe_question_type, F113TypeGrounding, REGISTERED_QUESTION_TYPES};
 pub use f114::{F114ForParentOrdering, AGGREGATE_QUESTION_TYPES};
 pub use f115::F115PathResolution;
+pub use f116::F116StaffReviewGatesSubmission;
 pub use m001::M001HeadingIncrement;
 pub use m003::M003HeadingStyle;
 pub use m004::M004ULStyle;
@@ -266,6 +268,7 @@ pub fn description_for_code(code: &str) -> &'static str {
         "N113" => "Questionnaire state type must be a registered question type",
         "N114" => "`__for_` child state must follow a role-matched person/entity parent",
         "N115" => "Template data path or iterator must resolve against a typed questionnaire state",
+        "N116" => "Notation workflow must gate every outbound submission behind staff review",
         "E001" => "Event must declare both a `starts_at` timestamp and a `timezone`",
         "E002" => "A file is either an event or a notation template, never both",
         "E003" => "Event must declare a `location_address` or a `meeting_url`",
