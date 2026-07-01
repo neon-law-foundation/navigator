@@ -1,28 +1,115 @@
 //! Notation renderer — fills in a template body with a context map.
 //!
-//! A template body is plain text with `{{var_name}}` placeholders.
-//! The renderer substitutes each placeholder with the matching
-//! context value (or leaves it untouched if the key is missing —
-//! callers asserting on completeness can grep the rendered output)
-//! and emits a maud [`Markup`] block ready to embed in a page.
+//! A template body is plain text with three placeholder grammars, all
+//! evaluated by [`fill`] (the shared evaluator this render path and the
+//! form-fill path both meet):
 //!
-//! Unfilled placeholders are *not* an error; rendering a partly-
-//! filled notation is a valid intermediate state. Tests use the
-//! "no `{{` left in the output" assertion to detect missing keys.
+//! - **Bare** — `{{code}}` / `{{type__role}}` substitutes the context
+//!   value for that key.
+//! - **Iterator** — `{{#for x in people__members}} … {{x.name}} … {{/for}}`
+//!   walks an aggregate answer (a JSON array stored under the state key) and
+//!   renders the inner block once per row, resolving `{{x.part}}` against
+//!   that row.
+//! - **Dotted `row.part`** — inside a loop, `{{x.part}}` reads a field off
+//!   the current row (the same `row`/`part` access `forms::resolve` does).
+//!
+//! Unfilled placeholders are *not* an error; rendering a partly-filled
+//! notation is a valid intermediate state. Tests use the "no `{{` left in
+//! the output" assertion to detect missing keys.
 
 use std::collections::BTreeMap;
 
 use maud::{html, Markup};
 
-/// Render `body` with `context` substituted into every `{{key}}`
-/// placeholder. The result is wrapped in an `<article class="notation">`
-/// container with one `<p>` per paragraph (blank-line-separated).
+const FOR_OPEN: &str = "{{#for ";
+const FOR_CLOSE: &str = "{{/for}}";
+
+/// Evaluate `body` against `context` — expand `{{#for …}}` iterators over
+/// aggregate answers, then substitute every remaining bare `{{key}}`. The
+/// pure string half of [`render_filled_in`], shared so the render path
+/// gains the iteration + dotted `row.part` capability of the form-fill path.
 #[must_use]
-pub fn render_filled_in(body: &str, context: &BTreeMap<String, String>) -> Markup {
-    let mut filled = body.to_string();
+pub fn fill(body: &str, context: &BTreeMap<String, String>) -> String {
+    let expanded = expand_loops(body, context);
+    let mut filled = expanded;
     for (k, v) in context {
         filled = filled.replace(&format!("{{{{{k}}}}}"), v);
     }
+    filled
+}
+
+/// Expand every `{{#for <var> in <state>}} … {{/for}}` block by rendering
+/// its body once per row of the aggregate answer stored under `<state>`
+/// (a JSON array; parsed via `serde_yaml`, a JSON superset). `{{var.part}}`
+/// inside the block resolves to that row's `part` field.
+fn expand_loops(body: &str, context: &BTreeMap<String, String>) -> String {
+    let mut out = String::new();
+    let mut rest = body;
+    while let Some(start) = rest.find(FOR_OPEN) {
+        let after_open = &rest[start + FOR_OPEN.len()..];
+        let Some(header_len) = after_open.find("}}") else {
+            break;
+        };
+        let header = after_open[..header_len].trim();
+        let block_start = start + FOR_OPEN.len() + header_len + 2;
+        let Some(close_rel) = rest[block_start..].find(FOR_CLOSE) else {
+            break;
+        };
+        let block = &rest[block_start..block_start + close_rel];
+        let close_end = block_start + close_rel + FOR_CLOSE.len();
+
+        out.push_str(&rest[..start]);
+        if let Some((var, state)) = header.split_once(" in ") {
+            out.push_str(&render_loop(var.trim(), state.trim(), block, context));
+        }
+        rest = &rest[close_end..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Render `block` once per row of the aggregate answer at `state`, resolving
+/// `{{var.part}}` against each row.
+fn render_loop(var: &str, state: &str, block: &str, context: &BTreeMap<String, String>) -> String {
+    let Some(json) = context.get(state) else {
+        return String::new();
+    };
+    let rows: Vec<BTreeMap<String, serde_yaml::Value>> =
+        serde_yaml::from_str(json).unwrap_or_default();
+    let mut out = String::new();
+    for row in &rows {
+        let mut piece = block.to_string();
+        for (part, value) in row {
+            let needle = format!("{{{{{var}.{part}}}}}");
+            piece = piece.replace(&needle, &yaml_scalar(value));
+        }
+        out.push_str(&piece);
+    }
+    out
+}
+
+/// The string form of a row field value — a YAML/JSON string unwraps to its
+/// inner text; anything else falls back to its compact form.
+fn yaml_scalar(value: &serde_yaml::Value) -> String {
+    match value {
+        serde_yaml::Value::String(s) => s.clone(),
+        serde_yaml::Value::Bool(b) => b.to_string(),
+        serde_yaml::Value::Number(n) => n.to_string(),
+        serde_yaml::Value::Null => String::new(),
+        other => serde_yaml::to_string(other)
+            .unwrap_or_default()
+            .trim()
+            .to_string(),
+    }
+}
+
+/// Render `body` with `context` evaluated into it (bare substitution plus
+/// `{{#for …}}` iteration — see [`fill`]). The result is wrapped in an
+/// `<article class="notation">` container with one `<p>` per paragraph
+/// (blank-line-separated).
+#[must_use]
+pub fn render_filled_in(body: &str, context: &BTreeMap<String, String>) -> Markup {
+    let filled = fill(body, context);
     let paragraphs: Vec<&str> = filled
         .split("\n\n")
         .map(str::trim)
@@ -111,5 +198,38 @@ The retainer covers the project {{project_name}}.";
     fn wraps_in_notation_article_class() {
         let html = render_filled_in("body", &ctx(&[])).into_string();
         assert!(html.contains("<article class=\"notation\">"), "got: {html}");
+    }
+
+    #[test]
+    fn for_loop_iterates_an_aggregate_answer_with_dotted_row_part() {
+        let body = "Members: {{#for m in people__members}}{{m.name}} of {{m.city}}; {{/for}}done.";
+        let context = ctx(&[(
+            "people__members",
+            r#"[{"name": "Aries", "city": "Las Vegas"}, {"name": "Libra", "city": "Reno"}]"#,
+        )]);
+        let filled = super::fill(body, &context);
+        assert_eq!(
+            filled, "Members: Aries of Las Vegas; Libra of Reno; done.",
+            "got: {filled}"
+        );
+    }
+
+    #[test]
+    fn for_loop_over_a_missing_aggregate_renders_nothing() {
+        let filled = super::fill(
+            "[{{#for m in people__members}}{{m.name}}{{/for}}]",
+            &ctx(&[]),
+        );
+        assert_eq!(filled, "[]");
+    }
+
+    #[test]
+    fn bare_and_loop_placeholders_compose() {
+        let body = "{{title}}: {{#for m in people__members}}{{m.name}} {{/for}}";
+        let context = ctx(&[
+            ("title", "Roster"),
+            ("people__members", r#"[{"name": "Aries"}]"#),
+        ]);
+        assert_eq!(super::fill(body, &context), "Roster: Aries ");
     }
 }
