@@ -272,7 +272,7 @@ async fn authorize(
     match store::projects::provision_repo(&state.db, project_id).await {
         Ok(path) => Ok(path),
         Err(repos::RepoError::RootUnset) => {
-            tracing::error!("git transport: repo root misconfigured");
+            tracing::error!(%project_id, "git transport: repo root misconfigured");
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "repo storage unavailable",
