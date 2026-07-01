@@ -1149,20 +1149,29 @@ mod tests {
         // A friendly, unaffiliated nod to neon.law, the German law firm that
         // shares our name: we disclaim any connection but point EU/DE matters
         // their way. The link is an off-site anchor (opens safely), and the
-        // flag emoji render as Unicode 🇩🇪 / 🇪🇺.
-        let footer = firm_footer();
-        assert!(
-            footer.contains("is not affiliated with"),
-            "footer should carry the NEON disclaimer: {footer}"
-        );
-        assert!(
-            footer.contains("href=\"https://neon.law\"") && footer.contains(">NEON "),
-            "footer should link the German NEON firm off-site: {footer}"
-        );
-        assert!(
-            footer.contains('\u{1F1E9}') && footer.contains('\u{1F1EA}'),
-            "footer should include the DE/EU flag emoji: {footer}"
-        );
+        // flag emoji render as Unicode 🇩🇪 / 🇪🇺. The nod lives in the one
+        // shared footer block, so it must render on both firm- and
+        // Foundation-branded pages.
+        for (brand, footer) in [("firm", firm_footer()), ("foundation", foundation_footer())] {
+            assert!(
+                footer.contains("is not affiliated with"),
+                "{brand} footer should carry the NEON disclaimer: {footer}"
+            );
+            assert!(
+                footer.contains("href=\"https://neon.law\"") && footer.contains(">NEON "),
+                "{brand} footer should link the German NEON firm off-site: {footer}"
+            );
+            // Assert BOTH flags independently: 🇩🇪 is U+1F1E9 U+1F1EA and 🇪🇺
+            // is U+1F1EA U+1F1FA, so the two flags share U+1F1EA — checking
+            // only U+1F1E9 + U+1F1EA would pass on the German flag alone.
+            // U+1F1FA is unique to the EU flag, so it pins the EU flag too.
+            assert!(
+                footer.contains('\u{1F1E9}')
+                    && footer.contains('\u{1F1EA}')
+                    && footer.contains('\u{1F1FA}'),
+                "{brand} footer should include the DE/EU flag emoji: {footer}"
+            );
+        }
     }
 
     #[test]
