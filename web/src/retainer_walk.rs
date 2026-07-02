@@ -2346,11 +2346,11 @@ fn questionnaire_chain(spec: &workflows::QuestionnaireSpec) -> Vec<StateName> {
 
 /// `(current, total)` for the progress indicator.
 ///
-/// `total` is the count of *question* states in the spec — every
-/// state name except `BEGIN` and `END`. `current` is `1 + index of
-/// the next question after `current_state` among the question
-/// states, ordered by walking the spec from BEGIN. If
-/// `current_state` is `BEGIN`, we're on question 1.
+/// `total` is the length of the [`questionnaire_chain`] — which the
+/// corpus test holds equal to the count of every declared state
+/// except `BEGIN` and `END` for every shipped template. `current` is
+/// `1 + index of the next question after `current_state` on that
+/// chain. If `current_state` is `BEGIN`, we're on question 1.
 fn progress_for(spec: &workflows::QuestionnaireSpec, current_state: &StateName) -> (usize, usize) {
     let order = questionnaire_chain(spec);
     let total = order.len();
@@ -2413,10 +2413,28 @@ mod tests {
                     workflows::questionnaire_spec_from_template(&markdown).unwrap_or_else(|e| {
                         panic!("questionnaire in {} did not parse: {e}", path.display())
                     });
-                let chain: BTreeSet<String> = questionnaire_chain(&spec)
-                    .iter()
-                    .map(|s| s.as_str().to_string())
-                    .collect();
+                let order = questionnaire_chain(&spec);
+                // The chain must end because it reached END — not because
+                // it hit a cycle or a state with no `_` transition. A
+                // cycle with a non-`_` escape to END passes the
+                // END-reachability corpus test in `workflows` yet loops
+                // the walker forever; this closes that gap.
+                let last = order.last().cloned().unwrap_or_else(StateName::begin);
+                let after_last = spec
+                    .transitions_from(&last)
+                    .and_then(|t| t.lookup("_"))
+                    .cloned();
+                assert_eq!(
+                    after_last,
+                    Some(StateName::end()),
+                    "{}: the `_` chain out of BEGIN must terminate at END, but after \
+                     `{}` it {:?}",
+                    path.display(),
+                    last.as_str(),
+                    after_last.as_ref().map(workflows::StateName::as_str),
+                );
+                let chain: BTreeSet<String> =
+                    order.iter().map(|s| s.as_str().to_string()).collect();
                 let declared: BTreeSet<String> = spec
                     .inner()
                     .states
