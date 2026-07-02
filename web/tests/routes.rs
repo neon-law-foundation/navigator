@@ -2243,7 +2243,7 @@ code: trusts__nevada\n\
 confidential: false\n\
 questionnaire:\n  \
   BEGIN:\n    \
-    next: END\n  \
+    _: END\n  \
   END: {}\n\
 workflow:\n  \
   BEGIN:\n    \
