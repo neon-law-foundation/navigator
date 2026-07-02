@@ -147,12 +147,16 @@ fn chain_broken_message(state: &str) -> String {
 
 /// 1-based line of the indented questionnaire state key `state`, so the
 /// squiggle lands on the offending state rather than the frontmatter
-/// delimiter. Falls back to line 1 when the key can't be located.
+/// delimiter. Matches both the block form (`state:`) and the inline
+/// form (`state: {}` — how a dead-end state is usually written, and the
+/// dead end is exactly what `QuestionnaireChainBroken` flags). Falls
+/// back to line 1 when the key can't be located.
 fn questionnaire_state_line(contents: &str, state: &str) -> usize {
     let key = format!("{state}:");
     for (idx, raw) in contents.lines().enumerate() {
         let trimmed = raw.trim_start();
-        if trimmed.len() < raw.len() && trimmed == key {
+        if trimmed.len() < raw.len() && (trimmed == key || trimmed.starts_with(&format!("{key} ")))
+        {
             return idx + 1;
         }
     }
@@ -246,6 +250,25 @@ questionnaire:
         let v = F118QuestionnaireLinearity.lint(&file(body));
         assert_eq!(v.len(), 1, "{v:?}");
         assert!(v[0].message.contains("stops or cycles"), "{}", v[0].message);
+    }
+
+    #[test]
+    fn a_dead_end_state_is_flagged_on_its_inline_entry_line() {
+        // A dead end is usually written inline (`state: {}`), which the
+        // line lookup must still locate — the squiggle belongs on the
+        // stranding state, not the frontmatter delimiter.
+        let body = "---
+questionnaire:
+  BEGIN:
+    _: person__client
+  person__client: {}
+  END: {}
+---
+";
+        let v = F118QuestionnaireLinearity.lint(&file(body));
+        assert_eq!(v.len(), 1, "{v:?}");
+        assert!(v[0].message.contains("stops or cycles"), "{}", v[0].message);
+        assert_eq!(v[0].line, 5, "{v:?}");
     }
 
     #[test]
