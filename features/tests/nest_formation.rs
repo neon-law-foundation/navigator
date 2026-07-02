@@ -145,22 +145,24 @@ async fn assert_filled_packet(world: &mut NestWorld) {
         .await
         .expect("the rendered packet is persisted");
     assert!(stored.bytes.starts_with(b"%PDF"));
-    // The artifact is the state's own AcroForm packet, filled from the
-    // questionnaire answers via the field map — not a Typst rendering.
-    assert_eq!(
-        pdf::read_field_value(&stored.bytes, "NAME OF ENTITY").as_deref(),
-        Some("Bright Star Ventures"),
-        "entity name lands on the Initial List"
+    // The artifact came through the AcroForm fill (sha-pin-verified pull
+    // from the assets lane), then `pdf::flatten` past staff review: no
+    // interactive field survives for a downstream tool to re-edit, and
+    // the founder's answers read back as static page content.
+    assert!(
+        pdf::field_names(&stored.bytes)
+            .expect("field names readable")
+            .is_empty(),
+        "the filed packet is flattened — no interactive fields survive staff review"
     );
-    assert_eq!(
-        pdf::read_field_value(&stored.bytes, "managers_b").as_deref(),
-        Some("members"),
-        "the member-managed box is checked"
+    let text = pdf::page_text(&stored.bytes).expect("extract flattened page text");
+    assert!(
+        text.contains("Bright Star Ventures"),
+        "entity name lands as static content:\n{text}"
     );
-    assert_eq!(
-        pdf::read_field_value(&stored.bytes, "Name3").as_deref(),
-        Some("Libra"),
-        "the managing member fills slot 1 of the Articles"
+    assert!(
+        text.contains("Libra"),
+        "the managing member lands as static content:\n{text}"
     );
 }
 

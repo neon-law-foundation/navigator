@@ -38,6 +38,8 @@ Subcommands split by whether they need a database:
 | `assets build`   | no        | Transcodes source photos into AVIF/WebP/JPEG.                              |
 | `assets upload`  | no        | Pushes built variants to the public assets bucket.                         |
 | `assets pull`    | no        | Restores `web/public/img/` from the assets bucket for local dev.           |
+| `forms sync`     | no        | Vendors blank government forms to the assets bucket; writes/verifies pins. |
+| `forms fields`   | no        | Prints a pin-verified blank's `AcroForm` `/T` names, one per line.         |
 | `import`         | **yes**   | Writes into `--database-url` Postgres.                                     |
 | `list`           | **yes**   | Auto-runs migrate + seed before printing.                                  |
 | `docs erd`       | **yes**   | Introspects `pg_catalog` + `information_schema`.                           |

@@ -85,6 +85,8 @@ pub fn app_state_with_email(
     );
     AppState {
         db,
+        assets_storage: storage.clone(),
+        forms_registry: Arc::new(forms::registry().expect("forms registry loads")),
         workshops: WorkshopIndex::empty(),
         docs: web::DocsIndex::empty(),
         marketing: MarketingIndex::empty(),

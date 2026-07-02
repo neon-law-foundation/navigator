@@ -28,6 +28,8 @@ pub mod fs;
 pub mod gcs;
 pub mod redirect;
 pub mod speech;
+#[cfg(feature = "test-support")]
+pub mod test_support;
 
 pub use audio::{decode_to_mono_pcm16, AudioError, DecodedAudio};
 pub use fs::FsStorage;
@@ -158,6 +160,18 @@ pub async fn from_env() -> Result<Arc<dyn StorageService>, StorageError> {
 /// backend is identical to [`from_env`] — dev/KIND keep one storage root.
 pub async fn exports_from_env() -> Result<Arc<dyn StorageService>, StorageError> {
     backend_from_env(GcsStorageConfig::exports_from_env).await
+}
+
+/// Like [`from_env`], but the GCS bucket comes from
+/// `NAVIGATOR_ASSETS_BUCKET` (falling back to `NAVIGATOR_STORAGE_BUCKET`
+/// — see [`GcsStorageConfig::assets_from_env`]).
+///
+/// The public-assets lane: blank government forms live only in the
+/// public `<project>-assets` bucket, and `web` pulls them through this
+/// handle at fill time. The `fs` backend is identical to [`from_env`] —
+/// dev/KIND keep one storage root.
+pub async fn assets_from_env() -> Result<Arc<dyn StorageService>, StorageError> {
+    backend_from_env(GcsStorageConfig::assets_from_env).await
 }
 
 /// Shared backend selection: `fs` unless `NAVIGATOR_STORAGE_BACKEND` names

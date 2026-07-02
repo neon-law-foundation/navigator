@@ -12,14 +12,16 @@ path = "src/lib.rs"
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
 toml.workspace = true
 
 [dev-dependencies]
+cloud = { path = "../cloud", features = ["test-support"] }
 pdf = { path = "../pdf" }
 rules = { path = "../rules" }
 serde_yaml.workspace = true
-sha2.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

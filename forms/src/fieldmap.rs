@@ -1,9 +1,9 @@
 //! Field maps: questionnaire answers → `AcroForm` field values.
 //!
-//! Each vendored form carries a `<code>.fields.toml` beside the blank PDF,
-//! mapping the form's exact `/T` field names (derived from a
-//! dump of the vendored bytes — see the vendoring workflow: the
-//! canonical example is on disk, **no guessing**) to answer sources.
+//! Each vendored form carries a `<code>.fields.toml` beside its catalog
+//! `.md` and `.sha256` pin, mapping the form's exact `/T` field names
+//! (derived from a dump of the pinned blank — `navigator forms fields
+//! <code>` prints them, **no guessing**) to answer sources.
 //! Real government field names are hostile (`undefined`, `City_5`,
 //! `Name of Registered Agenl` — a typo printed in the official form),
 //! which is exactly why the map is data the guard tests pin, not code.
@@ -308,10 +308,10 @@ mod tests {
     #[test]
     fn every_bundled_form_has_a_parsing_field_map() {
         for form in crate::registry().expect("registry") {
-            let map = field_map(form.meta.code)
+            let map = field_map(form.code)
                 .expect("map parses")
                 .expect("map exists for every fill=acroform form");
-            assert_eq!(map.form_code, form.meta.code);
+            assert_eq!(map.form_code, form.code);
             assert!(!map.field.is_empty());
         }
     }

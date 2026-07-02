@@ -76,6 +76,11 @@ impl Journey {
             None,
             sessions.clone(),
         );
+        // Blank government forms live only in the assets bucket, sha-
+        // pinned; stage synthetic blanks (with matching pins) on the
+        // journey's storage root so formation fills run against the same
+        // pull-and-verify seam production uses.
+        state.forms_registry = web::test_support::stage_blank_forms(storage.as_ref()).await;
         // Override the app's billing + signature providers with ones we
         // keep concrete handles to, so a journey can assert the
         // matter-close fee and the e-signature envelope.

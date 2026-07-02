@@ -1396,11 +1396,12 @@ async fn render_and_park(
 }
 
 /// Build the `DocumentPayload::Acroform` JSON for a template with a
-/// `form:` binding: resolve the field map against the answers, ensure
-/// the vendored blank bytes exist in documents storage (an idempotent
-/// put — same path in FsStorage, KIND, and prod), and point the worker
-/// at the per-notation output key. Every resolution failure is loud:
-/// a mis-mapped form must park the matter, never fill a blank.
+/// `form:` binding: resolve the field map against the answers, pull the
+/// blank from the public assets bucket, verify it against the repo's
+/// `.sha256` pin, and stage the verified bytes in documents storage for
+/// the worker. Every failure is loud — a missing bucket object, a pin
+/// mismatch, or a mis-mapped form must park the matter, never fill a
+/// blank and never fall back to other bytes.
 async fn acroform_payload(
     state: &AdminState,
     notation_id: Uuid,
@@ -1411,27 +1412,39 @@ async fn acroform_payload(
         form_code: form_code.to_string(),
         reason,
     };
-    let form = forms::get(form_code)
-        .map_err(|e| form_err(e.to_string()))?
+    let form = state
+        .forms_registry
+        .iter()
+        .find(|f| f.code == form_code)
         .ok_or_else(|| form_err("not in the vendored forms registry".into()))?;
     let map = forms::field_map(form_code)
         .map_err(|e| form_err(e.to_string()))?
         .ok_or_else(|| form_err("no field map vendored for this form".into()))?;
     let fields = forms::resolve(&map, ctx).map_err(|e| form_err(e.to_string()))?;
 
-    let blank_form_key = form.meta.object_path.to_string();
-    let legacy_blank_form_key = format!("templates/{}", form.meta.object_path);
-    let blank_form_key = if state.storage.exists(&blank_form_key).await? {
-        blank_form_key
-    } else if state.storage.exists(&legacy_blank_form_key).await? {
-        legacy_blank_form_key
-    } else {
-        state
-            .storage
-            .put(&blank_form_key, form.bytes, "application/pdf")
-            .await?;
-        blank_form_key
-    };
+    // Always-pull: the assets bucket is the only source of the blank.
+    let blank = state
+        .assets_storage
+        .get(form.object_path)
+        .await
+        .map_err(|e| match e {
+            cloud::StorageError::NotFound(_) => form_err(format!(
+                "blank not in the assets bucket at `{}` — vendor it with `navigator forms sync`",
+                form.object_path
+            )),
+            other => WorkflowDriveError::Storage(other),
+        })?;
+    form.verify(&blank.bytes)
+        .map_err(|e| form_err(e.to_string()))?;
+
+    // Stage the just-verified bytes where the worker reads
+    // `blank_form_key` (the private documents lane), overwriting
+    // unconditionally so a re-vendored blank + new pin propagates.
+    let blank_form_key = form.object_path.to_string();
+    state
+        .storage
+        .put(&blank_form_key, &blank.bytes, "application/pdf")
+        .await?;
     serde_json::to_string(&workflows::DocumentPayload::Acroform {
         storage_key: document_pdf_storage_key(notation_id),
         blank_form_key,

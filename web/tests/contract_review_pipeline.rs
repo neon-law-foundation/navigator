@@ -34,6 +34,8 @@ async fn admin_state(db: store::Db) -> web::admin::AdminState {
         signature_provider: Arc::new(web::signature::StubSignatureProvider::new()),
         retainer_intake_questionnaire: workflows::retainer_intake_questionnaire(),
         questionnaire_runtime: inner,
+        assets_storage: storage.clone(),
+        forms_registry: Arc::new(forms::registry().unwrap()),
         storage,
         email,
         billing_provider: Arc::new(web::billing::StubBillingProvider::new()),

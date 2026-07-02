@@ -26,6 +26,7 @@ cloud.workspace = true
 cucumber.workspace = true
 pdf.workspace = true
 fantoccini = { workspace = true, optional = true }
+forms.workspace = true
 futures.workspace = true
 http-body-util.workspace = true
 import.workspace = true

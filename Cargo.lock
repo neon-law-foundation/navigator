@@ -1456,6 +1456,7 @@ dependencies = [
  "symphonia",
  "telemetry",
  "tempfile",
+ "testcontainers",
  "thiserror 2.0.18",
  "tokio",
  "tower",
@@ -2594,6 +2595,7 @@ dependencies = [
  "cloud",
  "cucumber",
  "fantoccini",
+ "forms",
  "futures",
  "http-body-util",
  "import",
@@ -2805,6 +2807,7 @@ dependencies = [
 name = "forms"
 version = "0.1.0"
 dependencies = [
+ "cloud",
  "pdf",
  "rules",
  "serde",
@@ -2812,6 +2815,7 @@ dependencies = [
  "serde_yaml",
  "sha2 0.11.0",
  "thiserror 2.0.18",
+ "tokio",
  "toml 1.1.2+spec-1.1.0",
 ]
 

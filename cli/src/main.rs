@@ -544,13 +544,28 @@ enum AssetsAction {
 
 #[derive(Subcommand)]
 enum FormsAction {
-    /// Push every vendored blank (the `forms` registry bundled from
-    /// `templates/forms/`) to the assets bucket at the matching
-    /// object path. Idempotent — existing keys are skipped.
-    /// Auth is ADC; the emulator endpoint is honored via
-    /// `NAVIGATOR_STORAGE_ENDPOINT`.
+    /// Vendor + verify the blank government forms in the assets
+    /// bucket. For each registry form: a local working copy at
+    /// `templates/<object_path>` (untracked) is uploaded and its
+    /// repo `.sha256` pin rewritten; without one, the bucket object
+    /// is pulled and verified against the pin. A missing object or a
+    /// pin mismatch fails loudly. Auth is ADC; the emulator endpoint
+    /// is honored via `NAVIGATOR_STORAGE_ENDPOINT`.
     Sync {
         /// Target bucket. Defaults to `NAVIGATOR_ASSETS_BUCKET`.
+        #[arg(long, env = "NAVIGATOR_ASSETS_BUCKET")]
+        bucket: Option<String>,
+    },
+    /// Print a blank's `AcroForm` `/T` field names, one per line,
+    /// pulled from the assets bucket and verified against the repo
+    /// `.sha256` pin first — the ground truth for authoring a
+    /// `.fields.toml` or re-authoring the field layer (`/T` name =
+    /// question code). No guessing: these are the names on the exact
+    /// bytes the workflows fill.
+    Fields {
+        /// Form code, e.g. `nv__llc_formation`.
+        code: String,
+        /// Source bucket. Defaults to `NAVIGATOR_ASSETS_BUCKET`.
         #[arg(long, env = "NAVIGATOR_ASSETS_BUCKET")]
         bucket: Option<String>,
     },
@@ -1053,7 +1068,10 @@ fn main() -> ExitCode {
             AssetsAction::Pull { out, bucket } => assets::run_pull(&out, bucket),
         },
         Command::Forms { action } => match action {
-            FormsAction::Sync { bucket } => forms_sync::run_sync(bucket),
+            FormsAction::Sync { bucket } => forms_sync::run_sync(bucket.as_deref()),
+            FormsAction::Fields { code, bucket } => {
+                forms_sync::run_fields(&code, bucket.as_deref())
+            }
         },
         Command::Lsp { action } => match action {
             LspAction::Publish { dir, bucket } => lsp_publish::run_publish(&dir, bucket),

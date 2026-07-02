@@ -90,6 +90,31 @@ impl GcsStorageConfig {
         })
     }
 
+    /// Assets-lane variant: resolves the bucket from
+    /// `NAVIGATOR_ASSETS_BUCKET` (the public `<project>-assets` bucket)
+    /// falling back to `NAVIGATOR_STORAGE_BUCKET` — the single-bucket
+    /// KIND/dev topology, where fake-gcs's `navigator` bucket carries
+    /// every lane. `NAVIGATOR_DOCUMENTS_BUCKET` is deliberately NOT in
+    /// this chain: the private documents bucket must never shadow the
+    /// public assets one.
+    pub fn assets_from_env() -> Result<Self, StorageError> {
+        Self::assets_from_lookup(|k| std::env::var(k).ok())
+    }
+
+    /// See [`assets_from_env`](Self::assets_from_env).
+    pub fn assets_from_lookup<F: Fn(&str) -> Option<String>>(get: F) -> Result<Self, StorageError> {
+        let bucket = get("NAVIGATOR_ASSETS_BUCKET")
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| get("NAVIGATOR_STORAGE_BUCKET"))
+            .ok_or(StorageError::MissingEnv(
+                "NAVIGATOR_ASSETS_BUCKET or NAVIGATOR_STORAGE_BUCKET",
+            ))?;
+        Ok(Self {
+            bucket,
+            endpoint: Self::endpoint(&get),
+        })
+    }
+
     /// The emulator endpoint override, treating an empty string as unset.
     ///
     /// A Kubernetes env var declared with no `value:` arrives as `""`, and
@@ -404,6 +429,32 @@ mod tests {
             HashMap::from([("NAVIGATOR_STORAGE_BUCKET", "proj-exports")]);
         let cfg = GcsStorageConfig::from_lookup(|k| map.get(k).map(|s| (*s).to_string())).unwrap();
         assert_eq!(cfg.bucket, "proj-exports");
+    }
+
+    #[test]
+    fn assets_lane_prefers_assets_bucket_and_ignores_documents_bucket() {
+        use std::collections::HashMap;
+        // The fill path pulls blank government forms from the PUBLIC
+        // assets bucket; the private documents bucket must never shadow
+        // it, even on a pod that sets all three vars.
+        let map: HashMap<&str, &str> = HashMap::from([
+            ("NAVIGATOR_ASSETS_BUCKET", "proj-assets"),
+            ("NAVIGATOR_DOCUMENTS_BUCKET", "proj-documents"),
+            ("NAVIGATOR_STORAGE_BUCKET", "navigator"),
+        ]);
+        let cfg =
+            GcsStorageConfig::assets_from_lookup(|k| map.get(k).map(|s| (*s).to_string())).unwrap();
+        assert_eq!(cfg.bucket, "proj-assets");
+        // KIND/dev single-bucket topology: only the generic var is set.
+        let map: HashMap<&str, &str> = HashMap::from([("NAVIGATOR_STORAGE_BUCKET", "navigator")]);
+        let cfg =
+            GcsStorageConfig::assets_from_lookup(|k| map.get(k).map(|s| (*s).to_string())).unwrap();
+        assert_eq!(cfg.bucket, "navigator");
+        let err = GcsStorageConfig::assets_from_lookup(|_| None).unwrap_err();
+        assert!(matches!(
+            err,
+            StorageError::MissingEnv("NAVIGATOR_ASSETS_BUCKET or NAVIGATOR_STORAGE_BUCKET")
+        ));
     }
 
     #[test]

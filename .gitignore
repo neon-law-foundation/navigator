@@ -51,6 +51,13 @@
 # Default local object-storage root (cloud::from_env fs backend)
 var/
 
+# Government form blanks are working copies, not source: the canonical
+# bytes live in the public assets bucket, pinned by the tracked sibling
+# `.sha256` files. `navigator forms sync` uploads a local blank and
+# records its pin; only text (`.md`, `.fields.toml`, `.sha256`) is
+# committed.
+/templates/forms/**/*.pdf
+
 # No other language, rust only
 node_modules/
 package.json
