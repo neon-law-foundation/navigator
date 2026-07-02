@@ -45,8 +45,8 @@ pub mod markdown;
 
 pub use acroform::{
     blank_acroform, blank_acroform_with, field_names, fill_acroform, flatten, page_text,
-    read_field_value, read_field_values, read_widget_appearance_state, widget_annotation_count,
-    FieldSpec,
+    read_field_value, read_field_values, read_widget_appearance_state, reauthor,
+    widget_annotation_count, FieldSpec, RadioMergeSpec, ReauthorSpec,
 };
 pub use certificate::{render_certificate, CertificateParams};
 pub use format::{render_document, Letterhead, OutputFormat};
@@ -117,6 +117,17 @@ pub enum PdfError {
     /// office.
     #[error("`{ch}` (in `{value}`) has no WinAnsi byte for the flattened overlay")]
     UnencodableChar { ch: char, value: String },
+    /// A form field the [`acroform::reauthor`] spec does not cover —
+    /// every field of a blank that files must be renamed, merged,
+    /// pre-printed, or explicitly namespaced; an unaccounted field means
+    /// the plan was guessed, never a silent pass-through.
+    #[error("field `{0}` is not accounted for by the re-author spec")]
+    UnaccountedField(String),
+    /// A structural conflict while re-authoring (duplicate source `/T`,
+    /// a merge across mismatched field types, …) — refused loudly, never
+    /// guessed on a document that files.
+    #[error("re-author: {0}")]
+    Reauthor(String),
 }
 
 /// How a redacted passage is rendered in the output PDF.
