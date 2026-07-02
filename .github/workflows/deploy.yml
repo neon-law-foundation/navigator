@@ -111,6 +111,12 @@ jobs:
             dockerfile: images/Containerfile.web
           - image: navigator-workflows-service
             dockerfile: images/Containerfile.workflows-service
+          # The git-serving tier (same web binary, git-bearing base) — the
+          # single mounted writer every repo-touching surface needs. The
+          # KIND gate runs its web pod from this image because the
+          # distroless navigator-web cannot shell `git`.
+          - image: navigator-git
+            dockerfile: images/Containerfile.git
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
@@ -210,15 +216,18 @@ jobs:
           # in lockstep with the local KIND node image.
           node_image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
       - name: pull service images and load into kind
-        # The parallel `build` job pushed both images under the per-run
+        # The parallel `build` job pushed the images under the per-run
         # ephemeral tag; pull them, retag to the `:dev` names the KIND
         # manifests reference (imagePullPolicy: IfNotPresent), and load them
         # into the node. `set -euo pipefail` so a failed pull fails the step.
+        # navigator-git is loaded because the KIND web pod runs from it
+        # (k8s/overlays/kind/web-repos.yaml): repo provisioning shells `git`,
+        # which the distroless navigator-web image does not carry.
         run: |
           set -euo pipefail
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           tag="ci-${{ github.sha }}"
-          for img in navigator-web navigator-workflows-service; do
+          for img in navigator-web navigator-workflows-service navigator-git; do
               ref="ghcr.io/${owner}/${img}:${tag}"
               echo "::group::load ${img}"
               docker pull "$ref"
@@ -468,6 +477,14 @@ jobs:
             dockerfile: images/Containerfile.workflows-service
             arch: arm64
             runner: ubuntu-24.04-arm
+          - image: navigator-git
+            dockerfile: images/Containerfile.git
+            arch: amd64
+            runner: ubuntu-latest
+          - image: navigator-git
+            dockerfile: images/Containerfile.git
+            arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
@@ -531,6 +548,7 @@ jobs:
         image:
           - navigator-web
           - navigator-workflows-service
+          - navigator-git
     steps:
       - uses: docker/setup-buildx-action@v4
       - name: log in to ghcr.io
