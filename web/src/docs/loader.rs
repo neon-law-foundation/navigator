@@ -64,6 +64,10 @@ const MANIFEST: &[(&str, &str)] = &[
     doc!("index", "docs/index.md"),
     doc!("live-inquiry-coverage", "docs/live-inquiry-coverage.md"),
     doc!("multi-cloud", "docs/multi-cloud.md"),
+    doc!(
+        "naturalization-intake-demo",
+        "docs/naturalization-intake-demo.md"
+    ),
     doc!("nautilus-design", "docs/nautilus-design.md"),
     doc!("nautilus-workflows", "docs/nautilus-workflows.md"),
     doc!("northstar-estate-flow", "docs/northstar-estate-flow.md"),
