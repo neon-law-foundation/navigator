@@ -81,6 +81,15 @@ where
     )
 }
 
+/// Timing-safe bearer check: compare SHA-256 digests, not plaintexts. A
+/// byte-wise `==` on the raw strings short-circuits at the first
+/// difference, leaking match-prefix length through latency; digest
+/// inequality position reveals nothing about the token.
+fn token_matches(presented: &str, expected: &str) -> bool {
+    use sha2::{Digest as _, Sha256};
+    Sha256::digest(presented.as_bytes()) == Sha256::digest(expected.as_bytes())
+}
+
 async fn ensure(
     config: Arc<WriterConfig>,
     headers: HeaderMap,
@@ -90,7 +99,7 @@ async fn ensure(
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .is_some_and(|presented| presented == config.token);
+        .is_some_and(|presented| token_matches(presented, &config.token));
     if !authorized {
         return (StatusCode::UNAUTHORIZED, "invalid writer token").into_response();
     }
