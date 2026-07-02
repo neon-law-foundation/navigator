@@ -1627,18 +1627,27 @@ mod tests {
             .await
             .expect("seed");
         let js = jurisdiction::Entity::find().all(&db).await.unwrap();
-        // 50 states + DC + United States + Germany = 53 rows.
-        assert_eq!(js.len(), 53);
+        // 50 states + DC + the ISO 3166-1 country set (alpha-3 codes,
+        // with United States and Germany on their pre-ISO codes).
+        assert_eq!(js.len(), 248);
         let codes: Vec<&str> = js.iter().map(|j| j.code.as_str()).collect();
-        for code in ["NV", "CA", "NY", "TX", "WY", "DC", "US", "GMBH"] {
+        for code in [
+            "NV", "CA", "NY", "TX", "WY", "DC", "US", "GMBH", "MEX", "CAN", "GBR",
+        ] {
             assert!(codes.contains(&code), "expected `{code}` in jurisdictions");
         }
         // `jurisdiction_type` is reconciled with the seed: states are
-        // `state`, the federal sovereigns are `country`.
+        // `state`, sovereigns are `country` — the boundary the `country`
+        // question type's option filter rides on.
         let by_code = |c: &str| js.iter().find(|j| j.code == c).unwrap();
         assert_eq!(by_code("NV").jurisdiction_type, "state");
         assert_eq!(by_code("US").jurisdiction_type, "country");
         assert_eq!(by_code("GMBH").jurisdiction_type, "country");
+        assert_eq!(by_code("MEX").jurisdiction_type, "country");
+        // The state Georgia and the country Georgia stay distinct by
+        // name, so a name-keyed answer can never be ambiguous.
+        assert_eq!(by_code("GA").name, "Georgia");
+        assert_eq!(by_code("GEO").name, "Georgia (country)");
     }
 
     #[tokio::test]
