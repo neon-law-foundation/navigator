@@ -24,6 +24,18 @@ pub const REPO_PROVISIONING_FAILURE_MESSAGE: &str =
 /// rolling back the database transaction.
 pub const REPO_PROVISIONING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
+/// Env var naming the base URL of the **single mounted writer** — the `web`
+/// deployment that mounts the repo volume (`git-serving` in prod). Processes
+/// without the volume provision matter repos through it.
+pub const GIT_WRITER_URL_ENV: &str = "NAVIGATOR_GIT_WRITER_URL";
+
+/// Env var carrying the bearer token the writer's ensure endpoint requires.
+/// Both sides read it from the same secret (`navigator-web-secrets` in prod).
+pub const GIT_WRITER_TOKEN_ENV: &str = "NAVIGATOR_GIT_WRITER_TOKEN";
+
+/// Path of the repo-ensure endpoint the writer serves (`web::git_writer`).
+pub const GIT_WRITER_ENSURE_PATH: &str = "/git-writer/ensure";
+
 #[derive(Debug, thiserror::Error)]
 pub enum ProvisionRepoError {
     #[error(transparent)]
@@ -32,8 +44,153 @@ pub enum ProvisionRepoError {
     NotFound { project_id: Uuid },
     #[error("timed out provisioning git repo for project {project_id}")]
     Timeout { project_id: Uuid },
+    #[error(
+        "git repo provisioning is not configured: set {} (this process mounts the repo volume) \
+         or {GIT_WRITER_URL_ENV} + {GIT_WRITER_TOKEN_ENV} (provision through the single mounted \
+         writer)",
+        repos::REPO_ROOT_ENV
+    )]
+    NotConfigured,
+    #[error("git writer request failed: {0}")]
+    RemoteWriter(String),
     #[error(transparent)]
     Db(#[from] sea_orm::DbErr),
+}
+
+/// Wire request of the writer's ensure endpoint. Carries only the project id
+/// — never client content.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EnsureRepoRequest {
+    pub project_id: Uuid,
+}
+
+/// Wire response of the writer's ensure endpoint: the bare repo's path on
+/// the writer's volume (informational — callers treat success as the signal).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EnsureRepoResponse {
+    pub path: String,
+}
+
+/// Where a matter's bare repo gets created — the env-selected seam between
+/// "this process mounts the repo volume" and "this process asks the single
+/// mounted writer to create it" (docs/git-project-repos.md §6), the same
+/// shape as `cloud::StorageService`'s backend selection.
+///
+/// Exactly one deployment per environment mounts the RWO repo volume
+/// (`git-serving` in prod; the sole in-cluster `web` pod in KIND; host-side
+/// `web` and the CLI in dev). That process resolves `Local` from
+/// [`repos::REPO_ROOT_ENV`] and runs `git init` itself. Every other process
+/// resolves `Remote` and drives the writer's [`GIT_WRITER_ENSURE_PATH`]
+/// endpoint — the filesystem half only. In **both** variants the
+/// `git_initialized_at` stamp happens on the caller's own open transaction,
+/// so a rollback can never commit a Project row without its repo.
+#[derive(Clone, Debug)]
+pub enum RepoEnsurer {
+    /// This process mounts the repo volume; create the bare repo in-process.
+    Local(repos::RepoStore),
+    /// Ask the single mounted writer over HTTP.
+    Remote(RemoteWriter),
+}
+
+/// HTTP client half of [`RepoEnsurer::Remote`].
+#[derive(Clone, Debug)]
+pub struct RemoteWriter {
+    base_url: String,
+    token: String,
+    client: reqwest::Client,
+}
+
+impl RemoteWriter {
+    /// Build a writer client from its base URL + shared bearer token.
+    #[must_use]
+    pub fn new(base_url: impl Into<String>, token: impl Into<String>) -> Self {
+        Self {
+            base_url: base_url.into(),
+            token: token.into(),
+            client: reqwest::Client::new(),
+        }
+    }
+
+    async fn ensure(&self, project_id: Uuid) -> Result<std::path::PathBuf, ProvisionRepoError> {
+        let url = format!(
+            "{}{GIT_WRITER_ENSURE_PATH}",
+            self.base_url.trim_end_matches('/')
+        );
+        let resp = self
+            .client
+            .post(&url)
+            .bearer_auth(&self.token)
+            .json(&EnsureRepoRequest { project_id })
+            .send()
+            .await
+            .map_err(|e| ProvisionRepoError::RemoteWriter(e.to_string()))?;
+        if !resp.status().is_success() {
+            return Err(ProvisionRepoError::RemoteWriter(format!(
+                "{} {}",
+                resp.status(),
+                resp.text().await.unwrap_or_default()
+            )));
+        }
+        let body: EnsureRepoResponse = resp
+            .json()
+            .await
+            .map_err(|e| ProvisionRepoError::RemoteWriter(e.to_string()))?;
+        Ok(std::path::PathBuf::from(body.path))
+    }
+}
+
+impl RepoEnsurer {
+    /// Resolve the ensurer from the process environment. [`RepoEnsurer::Local`]
+    /// wins when [`repos::REPO_ROOT_ENV`] is set (a process with the volume
+    /// never needs the network); otherwise [`GIT_WRITER_URL_ENV`] +
+    /// [`GIT_WRITER_TOKEN_ENV`] select [`RepoEnsurer::Remote`].
+    ///
+    /// # Errors
+    /// [`ProvisionRepoError::NotConfigured`] when neither is set — matter
+    /// creation surfaces turn this into the shared 503 +
+    /// [`REPO_PROVISIONING_FAILURE_MESSAGE`].
+    pub fn from_env() -> Result<Self, ProvisionRepoError> {
+        Self::from_lookup(|k| std::env::var(k).ok())
+    }
+
+    /// [`RepoEnsurer::from_env`] against any `key -> Option<value>` lookup —
+    /// the seam tests use to avoid mutating process env vars.
+    ///
+    /// # Errors
+    /// See [`RepoEnsurer::from_env`].
+    pub fn from_lookup<F: Fn(&str) -> Option<String>>(get: F) -> Result<Self, ProvisionRepoError> {
+        if let Some(root) = get(repos::REPO_ROOT_ENV).filter(|s| !s.is_empty()) {
+            return Ok(Self::Local(repos::RepoStore::new(root)));
+        }
+        let url = get(GIT_WRITER_URL_ENV).filter(|s| !s.is_empty());
+        let token = get(GIT_WRITER_TOKEN_ENV).filter(|s| !s.is_empty());
+        match (url, token) {
+            (Some(url), Some(token)) => Ok(Self::Remote(RemoteWriter::new(url, token))),
+            _ => Err(ProvisionRepoError::NotConfigured),
+        }
+    }
+
+    /// Create the bare repo for `project_id` (idempotent), locally or through
+    /// the mounted writer. Filesystem only — the caller stamps
+    /// `git_initialized_at` on its own transaction.
+    ///
+    /// # Errors
+    /// [`ProvisionRepoError::Repo`] for local git/filesystem failures,
+    /// [`ProvisionRepoError::RemoteWriter`] for writer transport/HTTP
+    /// failures.
+    pub async fn ensure(&self, project_id: Uuid) -> Result<std::path::PathBuf, ProvisionRepoError> {
+        match self {
+            // `ensure` shells to `git` (blocking); keep it off the async runtime.
+            Self::Local(store) => {
+                let store = store.clone();
+                tokio::task::spawn_blocking(move || store.ensure(project_id))
+                    .await
+                    .map_err(|e| repos::RepoError::Io(std::io::Error::other(e.to_string())))?
+                    .map_err(Into::into)
+            }
+            Self::Remote(writer) => writer.ensure(project_id).await,
+        }
+    }
 }
 
 /// The notation id of the person's **sole open matter**, for auto-routing an
@@ -198,29 +355,22 @@ async fn provision_repo_in(
 /// caller can roll the transaction back and avoid committing a Project row
 /// whose document workspace is missing.
 ///
-/// In `workflows-service`, call this from inside one stable `ctx.run` step so
-/// a replay reuses the journaled result instead of re-running `git init` or the
-/// stamp.
-///
 /// # Errors
-/// Returns [`ProvisionRepoError`] when the repo volume is not configured, git
-/// or filesystem setup fails, the timeout elapses, or the stamp write fails.
+/// Returns [`ProvisionRepoError`] when repo provisioning is not configured,
+/// git / filesystem / writer-transport setup fails, the timeout elapses, or
+/// the stamp write fails.
 pub async fn provision_repo_hard<C>(
     db: &C,
-    store: repos::RepoStore,
+    ensurer: &RepoEnsurer,
     project_id: Uuid,
     timeout: std::time::Duration,
 ) -> Result<std::path::PathBuf, ProvisionRepoError>
 where
     C: ConnectionTrait,
 {
-    let path = tokio::time::timeout(timeout, async move {
-        tokio::task::spawn_blocking(move || store.ensure(project_id))
-            .await
-            .map_err(|e| repos::RepoError::Io(std::io::Error::other(e.to_string())))?
-    })
-    .await
-    .map_err(|_| ProvisionRepoError::Timeout { project_id })??;
+    let path = tokio::time::timeout(timeout, ensurer.ensure(project_id))
+        .await
+        .map_err(|_| ProvisionRepoError::Timeout { project_id })??;
     if mark_git_initialized(db, project_id, chrono::Utc::now())
         .await?
         .is_none()
@@ -230,7 +380,8 @@ where
     Ok(path)
 }
 
-/// [`provision_repo_hard`] using the process repo store and workspace timeout.
+/// [`provision_repo_hard`] using the env-resolved [`RepoEnsurer`] and
+/// workspace timeout.
 ///
 /// # Errors
 /// See [`provision_repo_hard`].
@@ -243,7 +394,7 @@ where
 {
     provision_repo_hard(
         db,
-        repos::RepoStore::from_env()?,
+        &RepoEnsurer::from_env()?,
         project_id,
         REPO_PROVISIONING_TIMEOUT,
     )
@@ -254,7 +405,7 @@ where
 mod tests {
     use super::{
         close_for_notation, mark_git_initialized, provision_repo_hard, provision_repo_in,
-        sole_open_matter_for_person, ProvisionRepoError,
+        sole_open_matter_for_person, ProvisionRepoError, RepoEnsurer,
     };
     use crate::entity::{notation, person, project, template};
     use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait};
@@ -433,11 +584,16 @@ mod tests {
         let db = crate::test_support::pg().await;
         let (_notation_id, project_id) = seed_open_matter(&db).await;
         let file_root = tempfile::NamedTempFile::new().unwrap();
-        let store = repos::RepoStore::new(file_root.path());
+        let ensurer = RepoEnsurer::Local(repos::RepoStore::new(file_root.path()));
 
-        let err = provision_repo_hard(&db, store, project_id, std::time::Duration::from_secs(10))
-            .await
-            .unwrap_err();
+        let err = provision_repo_hard(
+            &db,
+            &ensurer,
+            project_id,
+            std::time::Duration::from_secs(10),
+        )
+        .await
+        .unwrap_err();
 
         assert!(
             matches!(err, ProvisionRepoError::Repo(repos::RepoError::Io(_))),
@@ -459,11 +615,11 @@ mod tests {
         let db = crate::test_support::pg().await;
         let missing_project_id = uuid::Uuid::now_v7();
         let root = tempfile::tempdir().unwrap();
-        let store = repos::RepoStore::new(root.path());
+        let ensurer = RepoEnsurer::Local(repos::RepoStore::new(root.path()));
 
         let err = provision_repo_hard(
             &db,
-            store,
+            &ensurer,
             missing_project_id,
             std::time::Duration::from_secs(10),
         )
@@ -560,5 +716,149 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(missing, None);
+    }
+
+    fn lookup<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+        move |k: &str| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == k)
+                .map(|(_, v)| (*v).to_string())
+        }
+    }
+
+    #[test]
+    fn ensurer_resolves_local_when_repo_root_is_set() {
+        let ensurer = RepoEnsurer::from_lookup(lookup(&[(repos::REPO_ROOT_ENV, "/var/repos")]));
+        assert!(matches!(ensurer, Ok(RepoEnsurer::Local(_))));
+    }
+
+    #[test]
+    fn ensurer_prefers_local_when_both_are_configured() {
+        // A process with the volume never needs the network.
+        let ensurer = RepoEnsurer::from_lookup(lookup(&[
+            (repos::REPO_ROOT_ENV, "/var/repos"),
+            (super::GIT_WRITER_URL_ENV, "http://navigator-git:3001"),
+            (super::GIT_WRITER_TOKEN_ENV, "t0ken"),
+        ]));
+        assert!(matches!(ensurer, Ok(RepoEnsurer::Local(_))));
+    }
+
+    #[test]
+    fn ensurer_resolves_remote_from_writer_url_and_token() {
+        let ensurer = RepoEnsurer::from_lookup(lookup(&[
+            (super::GIT_WRITER_URL_ENV, "http://navigator-git:3001"),
+            (super::GIT_WRITER_TOKEN_ENV, "t0ken"),
+        ]));
+        assert!(matches!(ensurer, Ok(RepoEnsurer::Remote(_))));
+    }
+
+    #[test]
+    fn ensurer_requires_both_writer_url_and_token() {
+        for partial in [
+            vec![(super::GIT_WRITER_URL_ENV, "http://navigator-git:3001")],
+            vec![(super::GIT_WRITER_TOKEN_ENV, "t0ken")],
+            vec![],
+            // Empty strings are a *present but useless* deploy bug — treat
+            // them as absent rather than building a client that can't work.
+            vec![
+                (super::GIT_WRITER_URL_ENV, ""),
+                (super::GIT_WRITER_TOKEN_ENV, "t0ken"),
+            ],
+            vec![(repos::REPO_ROOT_ENV, "")],
+        ] {
+            let err = RepoEnsurer::from_lookup(lookup(&partial)).unwrap_err();
+            assert!(
+                matches!(err, ProvisionRepoError::NotConfigured),
+                "expected NotConfigured for {partial:?}, got {err:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn remote_ensure_posts_bearer_and_project_id_to_the_writer() {
+        use wiremock::matchers::{body_partial_json, header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let project_id = uuid::Uuid::now_v7();
+        let writer = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(super::GIT_WRITER_ENSURE_PATH))
+            .and(header("authorization", "Bearer t0ken"))
+            .and(body_partial_json(
+                serde_json::json!({ "project_id": project_id }),
+            ))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(
+                    serde_json::json!({ "path": "/var/lib/navigator/git-repos/x.git" }),
+                ),
+            )
+            .expect(1)
+            .mount(&writer)
+            .await;
+
+        let ensurer = RepoEnsurer::Remote(super::RemoteWriter::new(writer.uri(), "t0ken"));
+        let path = ensurer.ensure(project_id).await.unwrap();
+        assert_eq!(
+            path,
+            std::path::PathBuf::from("/var/lib/navigator/git-repos/x.git")
+        );
+    }
+
+    #[tokio::test]
+    async fn remote_ensure_failure_surfaces_as_remote_writer_error() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let writer = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(super::GIT_WRITER_ENSURE_PATH))
+            .respond_with(ResponseTemplate::new(500).set_body_string("volume gone"))
+            .mount(&writer)
+            .await;
+
+        let ensurer = RepoEnsurer::Remote(super::RemoteWriter::new(writer.uri(), "t0ken"));
+        let err = ensurer.ensure(uuid::Uuid::now_v7()).await.unwrap_err();
+        assert!(matches!(err, ProvisionRepoError::RemoteWriter(_)));
+    }
+
+    #[tokio::test]
+    async fn hard_provision_through_the_remote_writer_stamps_in_the_caller_txn() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let db = crate::test_support::pg().await;
+        let (_notation_id, project_id) = seed_open_matter(&db).await;
+        let writer = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(super::GIT_WRITER_ENSURE_PATH))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "path": "/repos/remote.git" })),
+            )
+            .expect(1)
+            .mount(&writer)
+            .await;
+
+        let ensurer = RepoEnsurer::Remote(super::RemoteWriter::new(writer.uri(), "t0ken"));
+        provision_repo_hard(
+            &db,
+            &ensurer,
+            project_id,
+            std::time::Duration::from_secs(10),
+        )
+        .await
+        .unwrap();
+
+        let stamp = project::Entity::find_by_id(project_id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .git_initialized_at;
+        assert!(
+            stamp.is_some(),
+            "the caller-side stamp must happen even when the filesystem half is remote"
+        );
     }
 }

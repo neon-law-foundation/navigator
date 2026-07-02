@@ -27,6 +27,9 @@ petgraph.workspace = true
 # through here so eager creation and the lazy git transport share one
 # provisioning path (docs/git-project-repos.md §6).
 repos.workspace = true
+# `RepoEnsurer::Remote` — surfaces without the repo volume provision matter
+# repos through the single mounted writer's HTTP endpoint.
+reqwest.workspace = true
 # `with-chrono` maps the `events` table's `starts_at` / `ends_at`
 # `timestamp` columns to `chrono::NaiveDateTime`; `postgres-array`
 # maps `events.registrations` (`text[]`) to `Vec<String>`. Both are
@@ -50,6 +53,7 @@ uuid.workspace = true
 # deps come along via the feature so non-test consumers stay clean.
 store = { path = ".", features = ["test-support"] }
 tempfile.workspace = true
+wiremock.workspace = true
 
 [lints]
 workspace = true
