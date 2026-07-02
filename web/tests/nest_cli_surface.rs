@@ -27,6 +27,11 @@ use workflows::{DispatchingRuntime, InMemoryRuntime, StateMachineRuntime};
 const SESSION_KEY: &str = "nest-cli-surface-key-not-for-production";
 
 async fn build_app() -> axum::Router {
+    let repo_root =
+        std::env::temp_dir().join(format!("navigator-nest-cli-repos-{}", uuid::Uuid::now_v7()));
+    std::fs::create_dir_all(&repo_root).unwrap();
+    std::env::set_var("NAVIGATOR_GIT_REPO_ROOT", &repo_root);
+
     let db = store::test_support::pg().await;
     let storage: Arc<dyn cloud::StorageService> = Arc::new(
         cloud::FsStorage::new(std::env::temp_dir().join("navigator-nest-cli-surface"))
