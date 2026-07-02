@@ -259,6 +259,7 @@ async fn foundation_transparency_renders_minutes_under_nested_route() {
     assert!(body.contains("neon-law-foundation/navigator"));
 
     let flat_minutes = app
+        .clone()
         .oneshot(
             Request::builder()
                 .uri("/foundation/transparency/26q2")
@@ -268,6 +269,18 @@ async fn foundation_transparency_renders_minutes_under_nested_route() {
         .await
         .unwrap();
     assert_eq!(flat_minutes.status(), StatusCode::NOT_FOUND);
+
+    // The retired `minutes-YYYY-qN` flat slugs must stay dead.
+    let old_slug = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/transparency/minutes-2026-q2")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(old_slug.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
