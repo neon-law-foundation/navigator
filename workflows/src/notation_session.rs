@@ -27,7 +27,7 @@ use uuid::Uuid;
 use store::entity::{answer, notation, person, question, question_translation, template};
 use store::Db;
 
-use crate::runtime::{StateMachineRuntime, WorkflowRuntimeError};
+use crate::runtime::{SignalContext, StateMachineRuntime, WorkflowRuntimeError};
 use crate::spec::{MachineKind, QuestionnaireSpec, StateName, WorkflowSpecError};
 use crate::specs::{
     audiences_from_template, audiences_from_yaml, bundled_spec_yaml, choices_from_template,
@@ -309,8 +309,17 @@ pub async fn answer_step(
             definition.spec.inner(),
         )
         .await?;
+    let signal_context = SignalContext {
+        acting_person_id: author.authored_by.unwrap_or(person_id),
+    };
     runtime
-        .signal(MachineKind::Questionnaire, notation_id, "_", Some(value))
+        .signal_with_context(
+            MachineKind::Questionnaire,
+            notation_id,
+            "_",
+            Some(value),
+            signal_context,
+        )
         .await?;
 
     // If the next transition would land at END, fire the final
@@ -323,7 +332,13 @@ pub async fn answer_step(
         .cloned();
     if matches!(&next_after, Some(s) if s == &StateName::end()) {
         runtime
-            .signal(MachineKind::Questionnaire, notation_id, "_", None)
+            .signal_with_context(
+                MachineKind::Questionnaire,
+                notation_id,
+                "_",
+                None,
+                signal_context,
+            )
             .await?;
         return Ok(NextStep::QuestionnaireComplete);
     }

@@ -16,7 +16,9 @@
 //! resumed, errored) extend the schema additively.
 
 use sea_orm::entity::prelude::*;
-use sea_orm::{ActiveValue, ColumnTrait, ConnectionTrait, DbErr, QueryFilter, QueryOrder};
+use sea_orm::{
+    ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
+};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -33,6 +35,10 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub notation_id: Uuid,
+    /// FK -> persons.id for the human who caused this transition.
+    pub acting_person_id: Uuid,
+    /// FK -> templates.id pinned by the notation at transition time.
+    pub template_version_id: Uuid,
     /// Lowercase machine-kind token — `"questionnaire"` or
     /// `"workflow"`. Mirrors `workflows::MachineKind::as_str`.
     pub machine_kind: String,
@@ -60,6 +66,18 @@ pub enum Relation {
         to = "super::notation::Column::Id"
     )]
     Notation,
+    #[sea_orm(
+        belongs_to = "super::person::Entity",
+        from = "Column::ActingPersonId",
+        to = "super::person::Column::Id"
+    )]
+    ActingPerson,
+    #[sea_orm(
+        belongs_to = "super::template::Entity",
+        from = "Column::TemplateVersionId",
+        to = "super::template::Column::Id"
+    )]
+    TemplateVersion,
 }
 
 impl Related<super::notation::Entity> for Entity {
@@ -107,13 +125,14 @@ pub async fn is_complete(
 /// reads as one logical record at the call site.
 pub struct TransitionRecord<'a> {
     pub notation_id: Uuid,
+    pub acting_person_id: Option<Uuid>,
     pub machine_kind: &'a str,
     pub from_state: &'a str,
     pub to_state: &'a str,
     pub condition: &'a str,
-    /// Opaque JSON text — typically `Some(r#"{"answer_value":"…"}"#)`
-    /// for a questionnaire signal that carries a respondent's
-    /// answer, `None` for a workflow signal.
+    /// Opaque JSON text. It may carry event metadata, but must not
+    /// be logged or traced because questionnaire events can include
+    /// client-provided answer content.
     pub payload_json: Option<String>,
     /// RFC 3339 / ISO 8601. Callers from the Restate worker pass
     /// `chrono::Utc::now().to_rfc3339()` so a replay reuses the
@@ -126,14 +145,25 @@ pub async fn append_event<C>(db: &C, record: TransitionRecord<'_>) -> Result<Mod
 where
     C: ConnectionTrait,
 {
+    let notation = super::notation::Entity::find_by_id(record.notation_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| DbErr::RecordNotFound(format!("notation {}", record.notation_id)))?;
+    let acting_person_id = record.acting_person_id.unwrap_or(notation.person_id);
+    let payload = record.payload_json.or_else(|| {
+        (record.machine_kind == MACHINE_WORKFLOW)
+            .then(|| workflow_payload(acting_person_id, notation.template_id))
+    });
     ActiveModel {
         id: ActiveValue::Set(Uuid::now_v7()),
         notation_id: ActiveValue::Set(record.notation_id),
+        acting_person_id: ActiveValue::Set(acting_person_id),
+        template_version_id: ActiveValue::Set(notation.template_id),
         machine_kind: ActiveValue::Set(record.machine_kind.to_string()),
         from_state: ActiveValue::Set(record.from_state.to_string()),
         to_state: ActiveValue::Set(record.to_state.to_string()),
         condition: ActiveValue::Set(record.condition.to_string()),
-        payload: ActiveValue::Set(record.payload_json),
+        payload: ActiveValue::Set(payload),
         recorded_at: ActiveValue::Set(record.recorded_at.to_string()),
         ..Default::default()
     }
@@ -146,4 +176,16 @@ where
 #[must_use]
 pub fn answer_payload(answer_value: &str) -> String {
     serde_json::json!({ "answer_value": answer_value }).to_string()
+}
+
+/// Encode a workflow transition payload with only operational
+/// identifiers and transition metadata. Client content and rendered
+/// documents stay out of the journal payload.
+#[must_use]
+pub fn workflow_payload(acting_person_id: Uuid, template_version_id: Uuid) -> String {
+    serde_json::json!({
+        "acting_person_id": acting_person_id,
+        "template_version_id": template_version_id,
+    })
+    .to_string()
 }

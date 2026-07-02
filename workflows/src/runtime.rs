@@ -40,6 +40,13 @@ pub struct WorkflowEvent {
     pub condition: String,
 }
 
+/// Attribution metadata carried with a state-machine signal when a
+/// caller knows which Person caused the transition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignalContext {
+    pub acting_person_id: Uuid,
+}
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum WorkflowRuntimeError {
     #[error("unknown state `{0:?}`")]
@@ -84,6 +91,18 @@ pub trait StateMachineRuntime: Send + Sync {
         condition: &str,
         payload: Option<&str>,
     ) -> Result<StateName, WorkflowRuntimeError>;
+
+    async fn signal_with_context(
+        &self,
+        kind: MachineKind,
+        notation_id: Uuid,
+        condition: &str,
+        payload: Option<&str>,
+        context: SignalContext,
+    ) -> Result<StateName, WorkflowRuntimeError> {
+        let _context = context;
+        self.signal(kind, notation_id, condition, payload).await
+    }
 
     /// Current state for `(kind, notation_id)`, or `None` if it
     /// was never started.

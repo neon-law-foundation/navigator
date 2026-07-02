@@ -379,7 +379,7 @@ mod tests {
 
     /// Helper for the journal tests: seed a Libra and a fresh
     /// retainer Notation so the events can FK into a real row.
-    async fn seed_notation_for_event_tests(db: &super::Db) -> uuid::Uuid {
+    async fn seed_notation_for_event_tests(db: &super::Db) -> (uuid::Uuid, uuid::Uuid, uuid::Uuid) {
         use crate::entity::{notation, person, project, template};
         let libra = person::ActiveModel {
             name: ActiveValue::Set("Libra".into()),
@@ -410,7 +410,7 @@ mod tests {
         .insert(db)
         .await
         .unwrap();
-        notation::ActiveModel {
+        let notation_id = notation::ActiveModel {
             template_id: ActiveValue::Set(tmpl.id),
             person_id: ActiveValue::Set(libra.id),
             entity_id: ActiveValue::Set(None),
@@ -421,17 +421,20 @@ mod tests {
         .insert(db)
         .await
         .unwrap()
-        .id
+        .id;
+        (notation_id, libra.id, tmpl.id)
     }
 
     #[tokio::test]
     async fn notation_events_journal_appends_in_id_order() {
         use crate::entity::notation_event::{self, MACHINE_QUESTIONNAIRE};
         let db = pg().await;
-        let nid = seed_notation_for_event_tests(&db).await;
+        let (nid, person_id, template_id) = seed_notation_for_event_tests(&db).await;
 
         let make = |from: &str, to: &str, recorded: &str| notation_event::ActiveModel {
             notation_id: ActiveValue::Set(nid),
+            acting_person_id: ActiveValue::Set(person_id),
+            template_version_id: ActiveValue::Set(template_id),
             machine_kind: ActiveValue::Set(MACHINE_QUESTIONNAIRE.into()),
             from_state: ActiveValue::Set(from.into()),
             to_state: ActiveValue::Set(to.into()),
@@ -472,7 +475,7 @@ mod tests {
             self, latest_for_kind, MACHINE_QUESTIONNAIRE, MACHINE_WORKFLOW,
         };
         let db = pg().await;
-        let nid = seed_notation_for_event_tests(&db).await;
+        let (nid, person_id, template_id) = seed_notation_for_event_tests(&db).await;
 
         // Three questionnaire events; one workflow event interleaved.
         for (kind, from, to, t) in [
@@ -493,6 +496,8 @@ mod tests {
         ] {
             notation_event::ActiveModel {
                 notation_id: ActiveValue::Set(nid),
+                acting_person_id: ActiveValue::Set(person_id),
+                template_version_id: ActiveValue::Set(template_id),
                 machine_kind: ActiveValue::Set((*kind).into()),
                 from_state: ActiveValue::Set(from.to_string()),
                 to_state: ActiveValue::Set(to.to_string()),
@@ -524,7 +529,7 @@ mod tests {
     async fn latest_for_kind_returns_none_when_machine_has_not_started() {
         use crate::entity::notation_event::{latest_for_kind, MACHINE_QUESTIONNAIRE};
         let db = pg().await;
-        let nid = seed_notation_for_event_tests(&db).await;
+        let (nid, _, _) = seed_notation_for_event_tests(&db).await;
         let none = latest_for_kind(&db, nid, MACHINE_QUESTIONNAIRE)
             .await
             .unwrap();
@@ -535,10 +540,12 @@ mod tests {
     async fn is_complete_flips_to_true_when_latest_event_lands_at_end() {
         use crate::entity::notation_event::{self, is_complete, MACHINE_QUESTIONNAIRE};
         let db = pg().await;
-        let nid = seed_notation_for_event_tests(&db).await;
+        let (nid, person_id, template_id) = seed_notation_for_event_tests(&db).await;
 
         notation_event::ActiveModel {
             notation_id: ActiveValue::Set(nid),
+            acting_person_id: ActiveValue::Set(person_id),
+            template_version_id: ActiveValue::Set(template_id),
             machine_kind: ActiveValue::Set(MACHINE_QUESTIONNAIRE.into()),
             from_state: ActiveValue::Set("BEGIN".into()),
             to_state: ActiveValue::Set("client_name".into()),
@@ -554,6 +561,8 @@ mod tests {
 
         notation_event::ActiveModel {
             notation_id: ActiveValue::Set(nid),
+            acting_person_id: ActiveValue::Set(person_id),
+            template_version_id: ActiveValue::Set(template_id),
             machine_kind: ActiveValue::Set(MACHINE_QUESTIONNAIRE.into()),
             from_state: ActiveValue::Set("client_name".into()),
             to_state: ActiveValue::Set("END".into()),
@@ -574,7 +583,7 @@ mod tests {
         // notation_id must not bleed into each other.
         use crate::entity::notation_event::{self, latest_for_kind, MACHINE_QUESTIONNAIRE};
         let db = pg().await;
-        let a = seed_notation_for_event_tests(&db).await;
+        let (a, person_id, template_id) = seed_notation_for_event_tests(&db).await;
 
         // Second notation reusing the first person/template.
         let b = crate::entity::notation::ActiveModel {
@@ -614,6 +623,8 @@ mod tests {
         for (nid, to) in [(a, "client_name"), (b, "client_email")] {
             notation_event::ActiveModel {
                 notation_id: ActiveValue::Set(nid),
+                acting_person_id: ActiveValue::Set(person_id),
+                template_version_id: ActiveValue::Set(template_id),
                 machine_kind: ActiveValue::Set(MACHINE_QUESTIONNAIRE.into()),
                 from_state: ActiveValue::Set("BEGIN".into()),
                 to_state: ActiveValue::Set(to.into()),
