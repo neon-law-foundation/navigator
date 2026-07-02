@@ -89,7 +89,7 @@ fn workspace_root() -> anyhow::Result<PathBuf> {
 /// `NAVIGATOR_ASSETS_BUCKET` env var — the public `<project>-assets`
 /// bucket, deliberately distinct from the documents bucket so blanks
 /// never land in the confidential lane (and vice versa).
-pub fn run_sync(bucket: Option<String>) -> ExitCode {
+pub fn run_sync(bucket: Option<&str>) -> ExitCode {
     with_assets_storage("forms sync", bucket, |storage| async move {
         let items = items_from_registry(&workspace_root()?)?;
         let mut vendored = 0usize;
@@ -122,7 +122,7 @@ pub fn run_sync(bucket: Option<String>) -> ExitCode {
 
 /// Entry point for `cli forms fields <code>`: pull the blank, verify
 /// its pin, and print its `AcroForm` `/T` names one per line.
-pub fn run_fields(code: &str, bucket: Option<String>) -> ExitCode {
+pub fn run_fields(code: &str, bucket: Option<&str>) -> ExitCode {
     let code = code.to_string();
     with_assets_storage("forms fields", bucket, |storage| async move {
         let form = forms::get(&code)?
@@ -141,21 +141,37 @@ pub fn run_fields(code: &str, bucket: Option<String>) -> ExitCode {
     })
 }
 
+/// Resolve the assets-lane config: `--bucket` wins; otherwise the same
+/// lane resolution `web` uses — `NAVIGATOR_ASSETS_BUCKET`, falling back
+/// to `NAVIGATOR_STORAGE_BUCKET` in the single-bucket KIND/dev topology.
+fn assets_config<G: Fn(&str) -> Option<String>>(
+    bucket: Option<&str>,
+    get: G,
+) -> Result<GcsStorageConfig, cloud::StorageError> {
+    GcsStorageConfig::assets_from_lookup(|key| {
+        if key == "NAVIGATOR_ASSETS_BUCKET" {
+            if let Some(b) = bucket.map(str::trim).filter(|b| !b.is_empty()) {
+                return Some(b.to_string());
+            }
+        }
+        get(key)
+    })
+}
+
 /// Shared bucket + runtime scaffolding for the `forms` subcommands.
-fn with_assets_storage<F, Fut>(what: &str, bucket: Option<String>, run: F) -> ExitCode
+fn with_assets_storage<F, Fut>(what: &str, bucket: Option<&str>, run: F) -> ExitCode
 where
     F: FnOnce(std::sync::Arc<GcsStorage>) -> Fut,
     Fut: std::future::Future<Output = anyhow::Result<()>>,
 {
-    let bucket = match bucket.or_else(|| std::env::var("NAVIGATOR_ASSETS_BUCKET").ok()) {
-        Some(b) if !b.trim().is_empty() => b,
-        _ => {
-            eprintln!(
-                "navigator: {what}: no bucket — pass --bucket or set NAVIGATOR_ASSETS_BUCKET"
-            );
-            return ExitCode::from(2);
-        }
+    let Ok(cfg) = assets_config(bucket, |key| std::env::var(key).ok()) else {
+        eprintln!(
+            "navigator: {what}: no bucket — pass --bucket or set NAVIGATOR_ASSETS_BUCKET \
+             (or NAVIGATOR_STORAGE_BUCKET)"
+        );
+        return ExitCode::from(2);
     };
+    let bucket = cfg.bucket.clone();
     let runtime = match tokio::runtime::Runtime::new() {
         Ok(rt) => rt,
         Err(e) => {
@@ -164,12 +180,6 @@ where
         }
     };
     runtime.block_on(async move {
-        let cfg = GcsStorageConfig {
-            bucket: bucket.clone(),
-            endpoint: std::env::var("NAVIGATOR_STORAGE_ENDPOINT")
-                .ok()
-                .filter(|s| !s.trim().is_empty()),
-        };
         let storage = match GcsStorage::new_from_config(cfg).await {
             Ok(s) => std::sync::Arc::new(s),
             Err(e) => {
@@ -245,8 +255,36 @@ async fn sync_one(storage: &dyn StorageService, item: &SyncItem) -> anyhow::Resu
 
 #[cfg(test)]
 mod tests {
-    use super::{sync_one, SyncItem, SyncOutcome};
+    use super::{assets_config, sync_one, SyncItem, SyncOutcome};
     use cloud::StorageService;
+
+    #[test]
+    fn assets_config_prefers_flag_then_assets_then_storage_bucket() {
+        let env = |vars: &'static [(&'static str, &'static str)]| {
+            move |key: &str| {
+                vars.iter()
+                    .find(|(k, _)| *k == key)
+                    .map(|(_, v)| (*v).to_string())
+            }
+        };
+        // --bucket wins over both env vars.
+        let cfg = assets_config(
+            Some("flag-bucket"),
+            env(&[
+                ("NAVIGATOR_ASSETS_BUCKET", "assets-bucket"),
+                ("NAVIGATOR_STORAGE_BUCKET", "storage-bucket"),
+            ]),
+        )
+        .unwrap();
+        assert_eq!(cfg.bucket, "flag-bucket");
+        // No flag: the assets bucket, then — single-bucket KIND/dev —
+        // the same NAVIGATOR_STORAGE_BUCKET fallback `web` uses.
+        let cfg =
+            assets_config(None, env(&[("NAVIGATOR_STORAGE_BUCKET", "storage-bucket")])).unwrap();
+        assert_eq!(cfg.bucket, "storage-bucket");
+        // A blank flag is not a bucket.
+        assert!(assets_config(Some("  "), env(&[])).is_err());
+    }
 
     fn item(dir: &std::path::Path, with_blank: Option<&[u8]>, pinned: &str) -> SyncItem {
         let local_blank = dir.join("nv__test.pdf");

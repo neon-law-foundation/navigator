@@ -93,46 +93,59 @@ pub async fn app_state(db: store::Db) -> AppState {
 /// helper builds a genuinely fillable stand-in from the form's own
 /// `.fields.toml` (a text widget per mapped field; a checkbox where the
 /// rule is `checked_when`-shaped), so the full pull → verify → fill →
-/// flatten pipeline runs against the storage seam. The pin strings leak
-/// (`Box::leak`) to satisfy `FormMeta`'s `&'static` fields — a few bytes
-/// per test process, test-only.
+/// flatten pipeline runs against the storage seam. The synthetic blanks
+/// are deterministic, so they are built once per process (`OnceLock`);
+/// the pin strings leak (`Box::leak`) exactly once to satisfy
+/// `FormMeta`'s `&'static` fields.
 ///
 /// # Panics
 ///
 /// Panics on any staging failure — test scaffolding fails loudly.
 pub async fn stage_blank_forms(storage: &dyn cloud::StorageService) -> Arc<Vec<forms::FormMeta>> {
-    let mut staged = Vec::new();
-    for form in forms::registry().expect("forms registry loads") {
-        let map = forms::field_map(form.code)
-            .expect("field map parses")
-            .expect("every vendored form has a field map");
-        let mut seen = std::collections::BTreeSet::new();
-        let specs: Vec<pdf::FieldSpec> = map
-            .field
-            .iter()
-            .filter(|rule| seen.insert(rule.name.clone()))
-            .map(|rule| match (&rule.checked_when, &rule.on_state) {
-                (Some(_), Some(on_state)) => pdf::FieldSpec::Checkbox {
-                    name: rule.name.clone(),
-                    on_state: on_state.clone(),
-                },
-                _ => pdf::FieldSpec::Text {
-                    name: rule.name.clone(),
-                },
+    static STAGED: std::sync::OnceLock<Vec<(forms::FormMeta, Vec<u8>)>> =
+        std::sync::OnceLock::new();
+    let staged = STAGED.get_or_init(|| {
+        forms::registry()
+            .expect("forms registry loads")
+            .into_iter()
+            .map(|form| {
+                let map = forms::field_map(form.code)
+                    .expect("field map parses")
+                    .expect("every vendored form has a field map");
+                let mut seen = std::collections::BTreeSet::new();
+                let specs: Vec<pdf::FieldSpec> = map
+                    .field
+                    .iter()
+                    .filter(|rule| seen.insert(rule.name.clone()))
+                    .map(|rule| match (&rule.checked_when, &rule.on_state) {
+                        (Some(_), Some(on_state)) => pdf::FieldSpec::Checkbox {
+                            name: rule.name.clone(),
+                            on_state: on_state.clone(),
+                        },
+                        _ => pdf::FieldSpec::Text {
+                            name: rule.name.clone(),
+                        },
+                    })
+                    .collect();
+                let bytes = pdf::blank_acroform_with(&specs);
+                let pin: &'static str = Box::leak(forms::sha256_hex(&bytes).into_boxed_str());
+                (
+                    forms::FormMeta {
+                        sha256_pin: pin,
+                        ..form
+                    },
+                    bytes,
+                )
             })
-            .collect();
-        let bytes = pdf::blank_acroform_with(&specs);
+            .collect()
+    });
+    for (form, bytes) in staged {
         storage
-            .put(form.object_path, &bytes, "application/pdf")
+            .put(form.object_path, bytes, "application/pdf")
             .await
             .expect("stage synthetic blank");
-        let pin: &'static str = Box::leak(forms::sha256_hex(&bytes).into_boxed_str());
-        staged.push(forms::FormMeta {
-            sha256_pin: pin,
-            ..form
-        });
     }
-    Arc::new(staged)
+    Arc::new(staged.iter().map(|(form, _)| form.clone()).collect())
 }
 
 // --- OIDC id_token test crypto -------------------------------------------

@@ -1068,8 +1068,10 @@ fn main() -> ExitCode {
             AssetsAction::Pull { out, bucket } => assets::run_pull(&out, bucket),
         },
         Command::Forms { action } => match action {
-            FormsAction::Sync { bucket } => forms_sync::run_sync(bucket),
-            FormsAction::Fields { code, bucket } => forms_sync::run_fields(&code, bucket),
+            FormsAction::Sync { bucket } => forms_sync::run_sync(bucket.as_deref()),
+            FormsAction::Fields { code, bucket } => {
+                forms_sync::run_fields(&code, bucket.as_deref())
+            }
         },
         Command::Lsp { action } => match action {
             LspAction::Publish { dir, bucket } => lsp_publish::run_publish(&dir, bucket),
