@@ -415,6 +415,8 @@ erDiagram
         CHARACTER VARYING recorded_at
         TEXT inserted_at
         TEXT updated_at
+        UUID acting_person_id FK
+        UUID template_version_id FK
     }
     notations {
         UUID id PK
@@ -716,6 +718,8 @@ erDiagram
     notations ||--o{ notation_clauses : "notation_id"
     persons ||--o{ notation_clauses : "authored_by_person_id"
     notations ||--o{ notation_events : "notation_id"
+    persons ||--o{ notation_events : "acting_person_id"
+    templates ||--o{ notation_events : "template_version_id"
     templates ||--o{ notations : "template_id"
     persons ||--o{ notations : "person_id"
     entities ||--o{ notations : "entity_id"
@@ -741,4 +745,5 @@ erDiagram
     persons ||--o{ testimonials : "person_id"
     products ||--o{ testimonials : "product_code"
     projects ||--o{ xero_invoices : "project_id"
+
 ```

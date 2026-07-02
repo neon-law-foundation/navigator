@@ -67,7 +67,9 @@ pub use notation_session::{
 pub use notify::{
     ops_slack_text, CapturingNotifier, Notifier, NotifyError, SlackNotifier, SlackOpsDelivery,
 };
-pub use runtime::{InMemoryRuntime, StateMachineRuntime, WorkflowEvent, WorkflowRuntimeError};
+pub use runtime::{
+    InMemoryRuntime, SignalContext, StateMachineRuntime, WorkflowEvent, WorkflowRuntimeError,
+};
 pub use runtime_dispatching::DispatchingRuntime;
 pub use runtime_restate::{RestateRuntime, DEFAULT_BROKER_URL, DEFAULT_SERVICE};
 pub use spec::{

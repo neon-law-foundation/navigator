@@ -27,13 +27,18 @@
 use axum::extract::{Extension, Form, Path, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
-use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
 use serde::Deserialize;
 use std::collections::HashSet;
 use uuid::Uuid;
 
 use store::contract_reviews::{self, Finding};
-use store::entity::{contract_review, notation, notation_event, person::Role, playbook};
+use store::entity::{
+    contract_review, notation,
+    notation_event::{self, append_event, TransitionRecord},
+    person::Role,
+    playbook,
+};
 use store::playbooks::{SEVERITY_HIGH, SEVERITY_LOW, SEVERITY_MEDIUM};
 use store::Db;
 use views::pages::admin::contract_reviews as views_reviews;
@@ -448,14 +453,12 @@ async fn record_finding_decision(
     accepted: bool,
     session: Option<&SessionData>,
 ) {
-    let by = session
-        .and_then(|s| s.person_id.map(|p| p.to_string()))
-        .unwrap_or_else(|| "unknown".to_string());
+    let acting_person_id = session.and_then(|s| s.person_id);
     let payload = serde_json::json!({
         "index": idx,
         "clause_ref": clause_ref,
         "accepted": accepted,
-        "by_person_id": by,
+        "acting_person_id": acting_person_id,
     })
     .to_string();
     let condition = if accepted {
@@ -463,17 +466,18 @@ async fn record_finding_decision(
     } else {
         FINDING_REJECTED
     };
-    let active = notation_event::ActiveModel {
-        notation_id: ActiveValue::Set(notation_id),
-        machine_kind: ActiveValue::Set(MACHINE_CONTRACT_REVIEW.to_string()),
-        from_state: ActiveValue::Set("staff_review".to_string()),
-        to_state: ActiveValue::Set("staff_review".to_string()),
-        condition: ActiveValue::Set(condition.to_string()),
-        payload: ActiveValue::Set(Some(payload)),
-        recorded_at: ActiveValue::Set(chrono::Utc::now().to_rfc3339()),
-        ..Default::default()
+    let recorded_at = chrono::Utc::now().to_rfc3339();
+    let event = TransitionRecord {
+        notation_id,
+        acting_person_id,
+        machine_kind: MACHINE_CONTRACT_REVIEW,
+        from_state: "staff_review",
+        to_state: "staff_review",
+        condition,
+        payload_json: Some(payload),
+        recorded_at: &recorded_at,
     };
-    if let Err(e) = active.insert(db).await {
+    if let Err(e) = append_event(db, event).await {
         tracing::error!(error = %e, %notation_id, idx, "record finding decision failed");
     }
 }

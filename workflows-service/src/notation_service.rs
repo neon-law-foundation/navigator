@@ -78,6 +78,8 @@ pub struct QuestionnaireSignalBody {
     pub condition: String,
     #[serde(default)]
     pub value: Option<String>,
+    #[serde(default)]
+    pub acting_person_id: Option<uuid::Uuid>,
 }
 
 /// JSON request body for `workflow_signal`. The optional `value`
@@ -92,6 +94,8 @@ pub struct WorkflowSignalBody {
     pub condition: String,
     #[serde(default)]
     pub value: Option<String>,
+    #[serde(default)]
+    pub acting_person_id: Option<uuid::Uuid>,
     #[serde(default)]
     pub ephemeral: bool,
 }
@@ -227,6 +231,7 @@ impl Notation for NotationService {
                     db.as_ref(),
                     TransitionRecord {
                         notation_id,
+                        acting_person_id: body.acting_person_id,
                         machine_kind: MachineKind::Questionnaire.as_str(),
                         from_state: &from_str,
                         to_state: &to_str,
@@ -319,12 +324,14 @@ impl Notation for NotationService {
                 let from_str = from.clone();
                 let to_str = next.as_str().to_string();
                 let condition = body.condition.clone();
+                let acting_person_id = body.acting_person_id;
                 ctx.run(|| async move {
                     let recorded_at = chrono::Utc::now().to_rfc3339();
                     append_event(
                         db.as_ref(),
                         TransitionRecord {
                             notation_id,
+                            acting_person_id,
                             machine_kind: MachineKind::Workflow.as_str(),
                             from_state: &from_str,
                             to_state: &to_str,

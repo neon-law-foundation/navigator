@@ -71,6 +71,7 @@ mod m20260729_answers_notation_scoped_jsonb;
 mod m20260730_template_versions;
 mod m20260731_add_questionnaire_snapshot_to_notations;
 mod m20260801_create_signatures_and_notarizations;
+mod m20260802_harden_notation_events_journal;
 
 pub struct Migrator;
 
@@ -145,6 +146,7 @@ impl sea_orm_migration::MigratorTrait for Migrator {
             Box::new(m20260730_template_versions::Migration),
             Box::new(m20260731_add_questionnaire_snapshot_to_notations::Migration),
             Box::new(m20260801_create_signatures_and_notarizations::Migration),
+            Box::new(m20260802_harden_notation_events_journal::Migration),
         ]
     }
 }

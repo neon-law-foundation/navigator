@@ -51,7 +51,9 @@
 <path class="e" d="M254,2187 L678,703" marker-end="url(#arrow)"/>
 <path class="e" d="M638,2143 L998,2095" marker-end="url(#arrow)"/>
 <path class="e" d="M638,2209 L678,2479" marker-end="url(#arrow)"/>
-<path class="e" d="M870,2143 L998,2095" marker-end="url(#arrow)"/>
+<path class="e" d="M926,2143 L998,2095" marker-end="url(#arrow)"/>
+<path class="e" d="M926,2341 L678,2479" marker-end="url(#arrow)"/>
+<path class="e" d="M926,2363 L374,3817" marker-end="url(#arrow)"/>
 <path class="e" d="M1254,2143 L374,3817" marker-end="url(#arrow)"/>
 <path class="e" d="M1254,2165 L678,2479" marker-end="url(#arrow)"/>
 <path class="e" d="M1254,2187 L678,1043" marker-end="url(#arrow)"/>
@@ -754,29 +756,33 @@
 <text class="ct" x="252" y="177" text-anchor="end">varchar</text>
 </g>
 <g transform="translate(678,2080)">
-<rect class="t" width="192" height="250"/>
-<rect class="tt" width="192" height="30"/>
-<text class="tn" x="96" y="20" text-anchor="middle">notation_events</text>
+<rect class="t" width="248" height="294"/>
+<rect class="tt" width="248" height="30"/>
+<text class="tn" x="124" y="20" text-anchor="middle">notation_events</text>
 <text class="cn" x="12" y="45">id</text>
-<text class="cpk" x="180" y="45" text-anchor="end">uuid PK</text>
+<text class="cpk" x="236" y="45" text-anchor="end">uuid PK</text>
 <text class="cn" x="12" y="67">notation_id</text>
-<text class="cfk" x="180" y="67" text-anchor="end">uuid FK</text>
+<text class="cfk" x="236" y="67" text-anchor="end">uuid FK</text>
 <text class="cn" x="12" y="89">machine_kind</text>
-<text class="ct" x="180" y="89" text-anchor="end">varchar</text>
+<text class="ct" x="236" y="89" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="111">from_state</text>
-<text class="ct" x="180" y="111" text-anchor="end">varchar</text>
+<text class="ct" x="236" y="111" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="133">to_state</text>
-<text class="ct" x="180" y="133" text-anchor="end">varchar</text>
+<text class="ct" x="236" y="133" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="155">condition</text>
-<text class="ct" x="180" y="155" text-anchor="end">varchar</text>
+<text class="ct" x="236" y="155" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="177">payload</text>
-<text class="ct" x="180" y="177" text-anchor="end">text</text>
+<text class="ct" x="236" y="177" text-anchor="end">text</text>
 <text class="cn" x="12" y="199">recorded_at</text>
-<text class="ct" x="180" y="199" text-anchor="end">varchar</text>
+<text class="ct" x="236" y="199" text-anchor="end">varchar</text>
 <text class="cn" x="12" y="221">inserted_at</text>
-<text class="ct" x="180" y="221" text-anchor="end">text</text>
+<text class="ct" x="236" y="221" text-anchor="end">text</text>
 <text class="cn" x="12" y="243">updated_at</text>
-<text class="ct" x="180" y="243" text-anchor="end">text</text>
+<text class="ct" x="236" y="243" text-anchor="end">text</text>
+<text class="cn" x="12" y="265">acting_person_id</text>
+<text class="cfk" x="236" y="265" text-anchor="end">uuid FK</text>
+<text class="cn" x="12" y="287">template_version_id</text>
+<text class="cfk" x="236" y="287" text-anchor="end">uuid FK</text>
 </g>
 <g transform="translate(998,2080)">
 <rect class="t" width="256" height="360"/>

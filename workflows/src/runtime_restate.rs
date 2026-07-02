@@ -48,7 +48,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::runtime::{StateMachineRuntime, WorkflowEvent, WorkflowRuntimeError};
+use crate::runtime::{SignalContext, StateMachineRuntime, WorkflowEvent, WorkflowRuntimeError};
 use crate::spec::{MachineKind, StateName, WorkflowSpec};
 
 /// Default service name registered with Restate.
@@ -215,6 +215,7 @@ impl RestateRuntime {
         condition: &str,
         payload: Option<&str>,
         ephemeral: bool,
+        context: Option<SignalContext>,
     ) -> Result<StateName, WorkflowRuntimeError> {
         let url = self.handler_url(kind, notation_id, "signal");
         let resp: SignalResponse = self
@@ -223,6 +224,7 @@ impl RestateRuntime {
                 &SignalBody {
                     condition,
                     value: payload,
+                    acting_person_id: context.map(|c| c.acting_person_id),
                     ephemeral,
                 },
             )
@@ -243,6 +245,8 @@ struct SignalBody<'a> {
     condition: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
     value: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    acting_person_id: Option<Uuid>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     ephemeral: bool,
 }
@@ -291,7 +295,19 @@ impl StateMachineRuntime for RestateRuntime {
         condition: &str,
         payload: Option<&str>,
     ) -> Result<StateName, WorkflowRuntimeError> {
-        self.signal_with_ephemeral(kind, notation_id, condition, payload, false)
+        self.signal_with_ephemeral(kind, notation_id, condition, payload, false, None)
+            .await
+    }
+
+    async fn signal_with_context(
+        &self,
+        kind: MachineKind,
+        notation_id: Uuid,
+        condition: &str,
+        payload: Option<&str>,
+        context: SignalContext,
+    ) -> Result<StateName, WorkflowRuntimeError> {
+        self.signal_with_ephemeral(kind, notation_id, condition, payload, false, Some(context))
             .await
     }
 
@@ -302,7 +318,7 @@ impl StateMachineRuntime for RestateRuntime {
         condition: &str,
         payload: Option<&str>,
     ) -> Result<StateName, WorkflowRuntimeError> {
-        self.signal_with_ephemeral(kind, notation_id, condition, payload, true)
+        self.signal_with_ephemeral(kind, notation_id, condition, payload, true, None)
             .await
     }
 
@@ -322,7 +338,7 @@ impl StateMachineRuntime for RestateRuntime {
 #[cfg(test)]
 mod tests {
     use super::{RestateRuntime, DEFAULT_BROKER_URL, DEFAULT_SERVICE};
-    use crate::runtime::{StateMachineRuntime, WorkflowRuntimeError};
+    use crate::runtime::{SignalContext, StateMachineRuntime, WorkflowRuntimeError};
     use crate::spec::{MachineKind, QuestionnaireSpec, StateName, WorkflowSpec};
     use serde_json::json;
     use uuid::Uuid;
@@ -333,6 +349,7 @@ mod tests {
     const N7: Uuid = Uuid::from_u128(7);
     const N7_PATH: &str = "00000000-0000-0000-0000-000000000007";
     const N42: Uuid = Uuid::from_u128(42);
+    const PERSON: Uuid = Uuid::from_u128(99);
     const N42_PATH: &str = "00000000-0000-0000-0000-00000000002a";
 
     const SPEC: &str = "
@@ -476,6 +493,36 @@ END: {}
                 .await
                 .unwrap();
         assert_eq!(next.as_str(), "client_name");
+    }
+
+    #[tokio::test]
+    async fn signal_with_context_threads_acting_person_into_post_body() {
+        let broker = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(format!("/notation/{N7_PATH}/workflow_signal")))
+            .and(body_partial_json(json!({
+                "condition": "approved",
+                "acting_person_id": PERSON
+            })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"next_state": "END"})))
+            .expect(1)
+            .mount(&broker)
+            .await;
+
+        let rt = RestateRuntime::new(broker.uri(), "notation");
+        let next = StateMachineRuntime::signal_with_context(
+            &rt,
+            MachineKind::Workflow,
+            N7,
+            "approved",
+            None,
+            SignalContext {
+                acting_person_id: PERSON,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(next.as_str(), "END");
     }
 
     #[tokio::test]

@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 use crate::dispatch::{dispatch_step, StepDeps};
 use crate::email::EmailService;
-use crate::runtime::{StateMachineRuntime, WorkflowEvent, WorkflowRuntimeError};
+use crate::runtime::{SignalContext, StateMachineRuntime, WorkflowEvent, WorkflowRuntimeError};
 use crate::spec::{MachineKind, StateName, WorkflowSpec};
 
 /// Wraps an [`InMemoryRuntime`]-style runtime to add in-process
@@ -130,6 +130,37 @@ impl StateMachineRuntime for DispatchingRuntime {
         // The firm signing the closing letter closes the matter. Mirror
         // of the `workflows-service` worker, so the dev/KIND/test path
         // flips `projects.status` too.
+        if matches!(kind, MachineKind::Workflow) {
+            if let Some(from) = from.as_ref().filter(|s| crate::closes_matter(s)) {
+                let db = self.db.as_ref().ok_or_else(|| {
+                    WorkflowRuntimeError::Transport(format!(
+                        "closing a matter (leaving {}) requires a database \
+                         (DispatchingRuntime::with_db)",
+                        from.as_str()
+                    ))
+                })?;
+                crate::close_matter(db, notation_id)
+                    .await
+                    .map_err(|e| WorkflowRuntimeError::Transport(format!("close matter: {e}")))?;
+            }
+        }
+        Ok(next)
+    }
+
+    async fn signal_with_context(
+        &self,
+        kind: MachineKind,
+        notation_id: Uuid,
+        condition: &str,
+        payload: Option<&str>,
+        context: SignalContext,
+    ) -> Result<StateName, WorkflowRuntimeError> {
+        let from = self.inner.current_state(kind, notation_id).await;
+        let next = self
+            .inner
+            .signal_with_context(kind, notation_id, condition, payload, context)
+            .await?;
+        self.maybe_dispatch(notation_id, &next, payload).await?;
         if matches!(kind, MachineKind::Workflow) {
             if let Some(from) = from.as_ref().filter(|s| crate::closes_matter(s)) {
                 let db = self.db.as_ref().ok_or_else(|| {
