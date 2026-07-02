@@ -183,7 +183,7 @@ fn up_dev(root: &Path, no_deps: bool, base_cfg: &KindConfig) -> Result<()> {
     })?;
     eprintln!("==> migrated {db_name} to the latest schema");
 
-    let env_body = super::render_env_for(base_cfg, &db_name, web_port);
+    let env_body = super::render_env_for(base_cfg, &db_name, web_port, root);
     write_worktree_env(root, &env_body)?;
     write_descriptor(
         root,

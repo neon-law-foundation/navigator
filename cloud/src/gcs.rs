@@ -134,6 +134,11 @@ impl GcsStorageConfig {
 pub struct GcsStorage {
     client: Arc<GcsClient>,
     bucket: Arc<String>,
+    /// True when an endpoint override (emulator) is configured. The
+    /// anonymous emulator client has no signing identity, so
+    /// [`StorageService::signed_url`] reports `Unsupported` and callers
+    /// fall back to streaming the bytes through the app.
+    emulator: bool,
 }
 
 impl GcsStorage {
@@ -159,6 +164,7 @@ impl GcsStorage {
         Ok(Self {
             client: Arc::new(GcsClient::new(client_config)),
             bucket: Arc::new(cfg.bucket),
+            emulator: cfg.endpoint.is_some(),
         })
     }
 }
@@ -322,11 +328,15 @@ impl StorageService for GcsStorage {
     }
 
     async fn signed_url(&self, key: &str, expires_in: Duration) -> Result<String, StorageError> {
-        // V4 signed URL caps at 7 days; the caller picks the
-        // window. ADC-backed credentials sign; the fake-gcs-server
-        // path (anonymous client) cannot sign and will surface a
-        // Gcs error here — acceptable, the dev binary uses
-        // FsStorage in that mode anyway.
+        // The anonymous emulator client (fake-gcs-server) has no
+        // signing identity; report `Unsupported` so callers stream
+        // the bytes through the app instead of failing the request.
+        if self.emulator {
+            return Err(StorageError::Unsupported(
+                "signed URLs against an emulator endpoint",
+            ));
+        }
+        // V4 signed URL caps at 7 days; the caller picks the window.
         let opts = SignedURLOptions {
             expires: expires_in,
             ..SignedURLOptions::default()
@@ -364,8 +374,9 @@ fn map_gcs_error(e: &GcsHttpError, key: &str) -> StorageError {
 
 #[cfg(test)]
 mod tests {
-    use super::GcsStorageConfig;
-    use crate::StorageError;
+    use super::{GcsStorage, GcsStorageConfig};
+    use crate::{StorageError, StorageService};
+    use std::time::Duration;
 
     #[test]
     fn gcs_config_reports_missing_bucket() {
@@ -475,6 +486,25 @@ mod tests {
         assert_eq!(exports.bucket, "proj-exports");
         let documents = GcsStorageConfig::from_lookup(lookup).unwrap();
         assert_eq!(documents.bucket, "proj-documents");
+    }
+
+    #[tokio::test]
+    async fn signed_url_is_unsupported_against_an_emulator_endpoint() {
+        // The KIND dev loop runs the GCS backend against fake-gcs-server,
+        // which has no signing identity. `signed_url` must report
+        // `Unsupported` (so `web` streams the bytes) instead of a signer
+        // error the caller treats as a 500.
+        let storage = GcsStorage::new_from_config(GcsStorageConfig {
+            bucket: "navigator".into(),
+            endpoint: Some("http://localhost:30443".into()),
+        })
+        .await
+        .unwrap();
+        let err = storage
+            .signed_url("notations/x/document.pdf", Duration::from_mins(1))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, StorageError::Unsupported(_)), "got {err:?}");
     }
 
     #[test]

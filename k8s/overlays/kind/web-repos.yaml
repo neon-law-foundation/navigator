@@ -1,0 +1,27 @@
+# Per-Project bare git repos for the in-cluster navigator-web.
+# Matter creation hard-depends on this volume
+# (`store::projects::provision_repo_hard`); without it every retainer
+# start / `notation create` 503s. KIND-only: `emptyDir` matches the
+# stack's ephemerality (see deps/fake-gcs-server.yaml), and keeping it
+# out of `k8s/base` keeps the production overlay's repo-volume
+# topology an explicit decision (#279) rather than an inherited
+# default.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  template:
+    spec:
+      containers:
+        - name: web
+          env:
+            - name: NAVIGATOR_GIT_REPO_ROOT
+              value: /var/lib/navigator/repos
+          volumeMounts:
+            - name: repos
+              mountPath: /var/lib/navigator/repos
+      volumes:
+        - name: repos
+          emptyDir: {}

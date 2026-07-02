@@ -88,6 +88,15 @@ spec:
               value: SG.kind-stub
             - name: SENDGRID_INBOUND_SECRET
               value: kind-stub
+            # Per-Project bare git repos for the durable provisioning
+            # handler (`store::projects::provision_repo_hard`).
+            # `emptyDir` matches the KIND stack's ephemerality;
+            # production mounts a PersistentVolume.
+            - name: NAVIGATOR_GIT_REPO_ROOT
+              value: /var/lib/navigator/repos
+          volumeMounts:
+            - name: repos
+              mountPath: /var/lib/navigator/repos
           readinessProbe:
             tcpSocket:
               port: 9080
@@ -98,3 +107,6 @@ spec:
               port: 9080
             initialDelaySeconds: 30
             periodSeconds: 10
+      volumes:
+        - name: repos
+          emptyDir: {}

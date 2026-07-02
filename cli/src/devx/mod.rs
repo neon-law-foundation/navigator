@@ -341,10 +341,7 @@ pub fn dispatch(command: crate::Command) -> Result<()> {
     match command {
         crate::Command::StartDevServer => up(&cfg),
         crate::Command::Down => down(&cfg),
-        crate::Command::Env => {
-            print_env(&cfg);
-            Ok(())
-        }
+        crate::Command::Env => print_env(&cfg),
         crate::Command::Status => {
             status(&cfg);
             Ok(())
@@ -826,7 +823,7 @@ fn up(cfg: &KindConfig) -> Result<()> {
     wait_for_tcp("127.0.0.1", cfg.fake_gcs_port)?;
     wait_for_tcp("127.0.0.1", cfg.otlp_port)?;
 
-    state.write_env(&render_env(cfg))?;
+    state.write_env(&render_env(cfg, &root))?;
 
     print_chrome_summary(cfg);
     Ok(())
@@ -1274,8 +1271,9 @@ fn down(cfg: &KindConfig) -> Result<()> {
     Ok(())
 }
 
-fn print_env(cfg: &KindConfig) {
-    print!("{}", render_env(cfg));
+fn print_env(cfg: &KindConfig) -> Result<()> {
+    print!("{}", render_env(cfg, &workspace_root()?));
+    Ok(())
 }
 
 fn status(cfg: &KindConfig) {
@@ -1306,8 +1304,8 @@ fn status(cfg: &KindConfig) {
 
 // ---------- helpers ----------
 
-fn render_env(cfg: &KindConfig) -> String {
-    render_env_for(cfg, "navigator", cfg.web_port)
+fn render_env(cfg: &KindConfig, root: &Path) -> String {
+    render_env_for(cfg, "navigator", cfg.web_port, root)
 }
 
 /// Like [`render_env`] but parameterized by the Postgres database name and
@@ -1315,7 +1313,10 @@ fn render_env(cfg: &KindConfig) -> String {
 /// on `cfg.web_port`; `worktree-env` threads a per-worktree database
 /// (`navigator_<slug>`) and a per-worktree port through the same renderer
 /// so the two paths can never drift in how they wire `web` to the deps.
-fn render_env_for(cfg: &KindConfig, db_name: &str, web_port: u16) -> String {
+/// `root` is the workspace (or worktree) root; the per-Project git repos
+/// land under its `.devx/repos/<db_name>`, keyed by database so parallel
+/// worktrees never share a repo volume.
+fn render_env_for(cfg: &KindConfig, db_name: &str, web_port: u16, root: &Path) -> String {
     // NAVIGATOR_SEED_FILE is intentionally omitted: the canonical
     // seed lives in `store/seeds/*.yaml` as one file per entity,
     // not the single base.yaml the in-cluster Deployment `ConfigMap`
@@ -1333,8 +1334,20 @@ fn render_env_for(cfg: &KindConfig, db_name: &str, web_port: u16) -> String {
     // SENDGRID_INBOUND_SECRET stubs are required for the binary to
     // boot; the actual email backend defaults to CapturingEmail
     // because NAVIGATOR_EMAIL_BACKEND is unset.
-    let lines: [(&str, String); 15] = [
+    // `NAVIGATOR_GIT_REPO_ROOT` is where `repos::RepoStore` keeps each
+    // Project's bare repo. Matter creation hard-depends on it
+    // (`store::projects::provision_repo_hard_from_env`), so a host-side
+    // `web` without it 503s every `notation create` / retainer start.
+    let lines: [(&str, String); 16] = [
         ("PORT", web_port.to_string()),
+        (
+            "NAVIGATOR_GIT_REPO_ROOT",
+            root.join(".devx")
+                .join("repos")
+                .join(db_name)
+                .display()
+                .to_string(),
+        ),
         (
             "DATABASE_URL",
             format!(
@@ -1458,7 +1471,7 @@ fn print_chrome_summary(cfg: &KindConfig) {
         "Open Grafana → Explore, pick the Tempo datasource, and search service.name=navigator-web."
     );
     eprintln!();
-    eprintln!("Tear down with: cargo run --release -p devx -- down");
+    eprintln!("Tear down with: cargo run --release -p cli -- down");
     eprintln!();
 }
 
@@ -2107,8 +2120,9 @@ mod tests {
         cfg.fake_gcs_port = 31443;
         cfg.restate_ingress_port = 19080;
         cfg.otlp_port = 14317;
-        let env = render_env(&cfg);
+        let env = render_env(&cfg, Path::new("/ws"));
         assert!(env.contains("PORT=4001"));
+        assert!(env.contains("NAVIGATOR_GIT_REPO_ROOT=/ws/.devx/repos/navigator"));
         assert!(env.contains("OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:14317"));
         assert!(env.contains("localhost:25432/navigator"));
         assert!(env.contains("NAVIGATOR_OPA_URL=http://localhost:18181"));
