@@ -21,6 +21,7 @@
 //! a marketing fragment — only the directory layout, not the file, carries the
 //! category.
 
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -187,6 +188,7 @@ fn parse_minutes_stem(stem: &str) -> Option<(String, u32)> {
 /// boots cleanly.
 pub fn load_dir(dir: &Path) -> Result<TransparencyIndex, ContentLoadError> {
     let mut docs = Vec::new();
+    let mut seen_slugs = HashSet::new();
     if !dir.exists() {
         return Ok(TransparencyIndex::empty());
     }
@@ -251,6 +253,10 @@ pub fn load_dir(dir: &Path) -> Result<TransparencyIndex, ContentLoadError> {
             marketing::loader::parse(&raw, &slug).ok_or(ContentLoadError::MissingFrontmatter {
                 path: path.display().to_string(),
             })?;
+        if !seen_slugs.insert(slug.clone()) {
+            tracing::warn!(file = name, slug, "skipping duplicate transparency slug");
+            continue;
+        }
         docs.push(TransparencyDoc {
             slug,
             path: canonical_path,
@@ -367,5 +373,27 @@ mod tests {
         let minutes: Vec<&str> = ix.minutes().iter().map(|d| d.slug.as_str()).collect();
         assert_eq!(minutes, vec!["26q2", "21q1"]);
         assert!(ix.get("notes").is_none());
+    }
+
+    #[test]
+    fn load_dir_skips_duplicate_slugs() {
+        let tmp = TempDir::new().unwrap();
+        let doc = |title: &str, body: &str| format!("---\ntitle: {title}\n---\n{body}\n");
+        fs::create_dir(tmp.path().join("minutes")).unwrap();
+        fs::write(
+            tmp.path().join("minutes/2026-q2.md"),
+            doc("Q2 2026", "legacy"),
+        )
+        .unwrap();
+        fs::write(
+            tmp.path().join("minutes/26Q2_minutes.md"),
+            doc("Q2 2026 Duplicate", "compact"),
+        )
+        .unwrap();
+
+        let ix = load_dir(tmp.path()).unwrap();
+        let minutes: Vec<&str> = ix.minutes().iter().map(|d| d.slug.as_str()).collect();
+        assert_eq!(minutes, vec!["26q2"]);
+        assert!(ix.get("26q2").is_some());
     }
 }
