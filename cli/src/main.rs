@@ -569,6 +569,21 @@ enum FormsAction {
         #[arg(long, env = "NAVIGATOR_ASSETS_BUCKET")]
         bucket: Option<String>,
     },
+    /// Re-author a blank's field layer so its `AcroForm` `/T` names
+    /// *are* questionnaire state paths (#256): the form's
+    /// `.fields.toml` — the recorded human mapping judgment — drives
+    /// every rename, checkbox-pair → radio merge, and pre-printed
+    /// literal; unmapped fields land in the `unmapped__` namespace.
+    /// Writes the transformed working copy to `templates/<object_path>`
+    /// plus its diffable `.fields` manifest; visual QA, `forms sync`,
+    /// and deleting the consumed `.fields.toml` remain human steps.
+    ReAuthor {
+        /// Form code, e.g. `nv__llc_formation`.
+        code: String,
+        /// Source bucket. Defaults to `NAVIGATOR_ASSETS_BUCKET`.
+        #[arg(long, env = "NAVIGATOR_ASSETS_BUCKET")]
+        bucket: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1071,6 +1086,9 @@ fn main() -> ExitCode {
             FormsAction::Sync { bucket } => forms_sync::run_sync(bucket.as_deref()),
             FormsAction::Fields { code, bucket } => {
                 forms_sync::run_fields(&code, bucket.as_deref())
+            }
+            FormsAction::ReAuthor { code, bucket } => {
+                forms_sync::run_reauthor(&code, bucket.as_deref())
             }
         },
         Command::Lsp { action } => match action {

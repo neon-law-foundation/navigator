@@ -104,12 +104,6 @@ pub enum FieldMapError {
 /// The bundled field maps, keyed by `form_code`.
 const BUNDLED_MAPS: &[(&str, &str)] = &[
     (
-        "nv__llc_formation",
-        include_str!(
-            "../../templates/forms/united_states/nevada/state/nv__llc_formation.fields.toml"
-        ),
-    ),
-    (
         "nv__profit_corp_formation",
         include_str!(
             "../../templates/forms/united_states/nevada/state/nv__profit_corp_formation.fields.toml"
@@ -154,7 +148,7 @@ pub fn field_map(form_code: &str) -> Result<Option<FieldMap>, FieldMapError> {
 
 /// One row of a `people_list` answer.
 #[derive(Debug, Deserialize)]
-struct PersonRow {
+pub(crate) struct PersonRow {
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
@@ -172,7 +166,7 @@ struct PersonRow {
 }
 
 impl PersonRow {
-    fn part(&self, part: &str) -> Option<&str> {
+    pub(crate) fn part(&self, part: &str) -> Option<&str> {
         match part {
             "name" => self.name.as_deref(),
             "street" => self.street.as_deref(),
@@ -306,13 +300,23 @@ mod tests {
     }
 
     #[test]
-    fn every_bundled_form_has_a_parsing_field_map() {
+    fn every_bundled_form_fills_through_a_map_or_a_reauthored_manifest() {
         for form in crate::registry().expect("registry") {
-            let map = field_map(form.code)
-                .expect("map parses")
-                .expect("map exists for every fill=acroform form");
-            assert_eq!(map.form_code, form.code);
-            assert!(!map.field.is_empty());
+            match field_map(form.code).expect("map parses") {
+                Some(map) => {
+                    assert_eq!(map.form_code, form.code);
+                    assert!(!map.field.is_empty());
+                }
+                None => {
+                    let manifest = crate::reauthor::manifest(form.code).unwrap_or_else(|| {
+                        panic!(
+                            "{}: neither a .fields.toml nor a .fields manifest",
+                            form.code
+                        )
+                    });
+                    assert!(!manifest.is_empty());
+                }
+            }
         }
     }
 

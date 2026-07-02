@@ -205,12 +205,14 @@ literal = "Limited-Liability Company"
 # Officer slots — for an LLC these are the managers / managing members.
 # Slot 1's `City` / `State` are unmapped (shared widget, see header).
 
-[[field]]
+[[field]] # Slot 1's title is the member's own `title` row part
+# ("Manager" / "Managing Member"), entered at intake and confirmed at
+# staff review — a person fact, not a value derived from the management
+# structure choice.
 name = "Title"
-question = "management_structure"
-value_map = { managers = "Manager", members = "Managing Member" }
-present_in = "managing_members"
-row_present = 0
+question = "managing_members"
+row = 0
+part = "title"
 
 [[field]]
 name = "Name"
@@ -236,12 +238,14 @@ question = "managing_members"
 row = 0
 part = "country"
 
-[[field]]
+[[field]] # Slot 2's title is the member's own `title` row part
+# ("Manager" / "Managing Member"), entered at intake and confirmed at
+# staff review — a person fact, not a value derived from the management
+# structure choice.
 name = "Title_2"
-question = "management_structure"
-value_map = { managers = "Manager", members = "Managing Member" }
-present_in = "managing_members"
-row_present = 1
+question = "managing_members"
+row = 1
+part = "title"
 
 [[field]]
 name = "Name_2"
@@ -279,12 +283,14 @@ question = "managing_members"
 row = 1
 part = "country"
 
-[[field]]
+[[field]] # Slot 3's title is the member's own `title` row part
+# ("Manager" / "Managing Member"), entered at intake and confirmed at
+# staff review — a person fact, not a value derived from the management
+# structure choice.
 name = "Title_3"
-question = "management_structure"
-value_map = { managers = "Manager", members = "Managing Member" }
-present_in = "managing_members"
-row_present = 2
+question = "managing_members"
+row = 2
+part = "title"
 
 [[field]]
 name = "Name_3"

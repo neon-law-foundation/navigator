@@ -141,6 +141,108 @@ pub fn run_fields(code: &str, bucket: Option<&str>) -> ExitCode {
     })
 }
 
+/// Entry point for `cli forms re-author <code>` (#256 item 1): pull the
+/// blank, verify its pin, and transform its field layer so the AcroForm
+/// `/T` names *are* questionnaire state paths — the recorded judgment in
+/// the form's `.fields.toml` drives every rename, radio merge, and
+/// pre-printed literal, and every unmapped field lands in the
+/// `unmapped__` namespace. Writes the re-authored working copy to
+/// `templates/<object_path>` plus its diffable `.fields` manifest, then
+/// prints the human steps that remain: visual QA of the filled blank,
+/// `navigator forms sync` to vendor + re-pin, and deleting the
+/// `.fields.toml` the transform just consumed.
+pub fn run_reauthor(code: &str, bucket: Option<&str>) -> ExitCode {
+    let code = code.to_string();
+    with_assets_storage("forms re-author", bucket, |storage| async move {
+        let root = workspace_root()?;
+        let form = forms::get(&code)?
+            .ok_or_else(|| anyhow::anyhow!("`{code}` is not in the vendored forms registry"))?;
+        let map = forms::field_map(&code)?.ok_or_else(|| {
+            anyhow::anyhow!(
+                "`{code}` has no `.fields.toml` — its judgment layer is the transform's \
+                 input, so a form without one is already re-authored (or never mapped)"
+            )
+        })?;
+
+        let blank = storage.get(form.object_path).await.map_err(|e| {
+            anyhow::anyhow!(
+                "pull `{}`: {e} — vendor the blank with `navigator forms sync`",
+                form.object_path
+            )
+        })?;
+        // The pin file wins over the compiled-in pin, exactly like
+        // `sync`, so a re-vendor earlier in this checkout verifies
+        // without a rebuild.
+        let local_blank = root.join("templates").join(form.object_path);
+        let pin_file = local_blank.with_extension("sha256");
+        let pinned = std::fs::read_to_string(&pin_file).map_or_else(
+            |_| form.pinned_sha256().to_string(),
+            |s| s.trim().to_string(),
+        );
+        forms::verify_sha256(&pinned, &blank.bytes)?;
+
+        let states = questionnaire_states(&root, form.object_path)?;
+        let names = pdf::field_names(&blank.bytes)?;
+        let plan = forms::reauthor::plan(&map, &names, &states)?;
+        let spec = pdf::ReauthorSpec {
+            renames: plan.renames,
+            radios: plan
+                .radios
+                .into_iter()
+                .map(|(name, members)| pdf::RadioMergeSpec { name, members })
+                .collect(),
+            literals: plan.literals,
+        };
+        let reauthored = pdf::reauthor(&blank.bytes, &spec)?;
+
+        if let Some(parent) = local_blank.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&local_blank, &reauthored)?;
+        let mut manifest = pdf::field_names(&reauthored)?;
+        manifest.sort();
+        let manifest_path = local_blank.with_extension("fields");
+        std::fs::write(&manifest_path, manifest.join("\n") + "\n")?;
+
+        println!(
+            "navigator: forms re-author: `{code}` re-authored ({} fields)",
+            manifest.len()
+        );
+        println!("  working copy: {}", local_blank.display());
+        println!("  manifest:     {}", manifest_path.display());
+        println!("  next: fill the working copy with sample answers and visually QA it,");
+        println!("        then `navigator forms sync` to vendor + re-pin, and delete the");
+        println!("        `.fields.toml` this transform consumed.");
+        Ok(())
+    })
+}
+
+/// The sibling notation's declared questionnaire states — the resolution
+/// target for every `.fields.toml` question reference (the same read the
+/// `question_code_contract` guard performs).
+fn questionnaire_states(root: &Path, object_path: &str) -> anyhow::Result<Vec<String>> {
+    #[derive(serde::Deserialize)]
+    struct Notation {
+        questionnaire: std::collections::BTreeMap<String, serde_yaml::Value>,
+    }
+    let md = root
+        .join("templates")
+        .join(object_path.replace(".pdf", ".md"));
+    let contents = std::fs::read_to_string(&md)
+        .map_err(|e| anyhow::anyhow!("read notation {}: {e}", md.display()))?;
+    let fm = contents
+        .strip_prefix("---\n")
+        .and_then(|rest| rest.find("\n---").map(|end| &rest[..end]))
+        .ok_or_else(|| anyhow::anyhow!("{}: no `---` frontmatter block", md.display()))?;
+    let notation: Notation = serde_yaml::from_str(fm)
+        .map_err(|e| anyhow::anyhow!("{}: parse frontmatter: {e}", md.display()))?;
+    Ok(notation
+        .questionnaire
+        .into_keys()
+        .filter(|s| s != "BEGIN" && s != "END")
+        .collect())
+}
+
 /// Resolve the assets-lane config: `--bucket` wins; otherwise the same
 /// lane resolution `web` uses — `NAVIGATOR_ASSETS_BUCKET`, falling back
 /// to `NAVIGATOR_STORAGE_BUCKET` in the single-bucket KIND/dev topology.
