@@ -165,6 +165,24 @@ pub fn enforce_prod_invariants<F: Fn(&str) -> Option<String>>(
                 .into(),
         ),
     }
+    // Repo provisioning is a hard dependency of matter creation: a `web`
+    // process must either mount the repo volume (the single writer) or be
+    // able to reach it — otherwise every matter-open surface 503s at
+    // request time instead of failing loudly at boot.
+    let mounts_repo_volume = get(repos::REPO_ROOT_ENV).is_some_and(|s| !s.is_empty());
+    let reaches_the_writer = get(store::projects::GIT_WRITER_URL_ENV)
+        .is_some_and(|s| !s.is_empty())
+        && get(store::projects::GIT_WRITER_TOKEN_ENV).is_some_and(|s| !s.is_empty());
+    if !mounts_repo_volume && !reaches_the_writer {
+        violations.push(format!(
+            "{root} (mount the repo volume) or {url} + {token} (route to the single mounted \
+             writer) must be set — matter creation hard-blocks on repo provisioning and every \
+             create surface would 503",
+            root = repos::REPO_ROOT_ENV,
+            url = store::projects::GIT_WRITER_URL_ENV,
+            token = store::projects::GIT_WRITER_TOKEN_ENV,
+        ));
+    }
     if get("OIDC_DISABLED")
         .as_deref()
         .is_some_and(|v| v == "true" || v == "1")
@@ -284,8 +302,38 @@ mod tests {
             ("SENDGRID_EVENTS_PUBLIC_KEY", "base64-spki"),
             ("DOCUSIGN_HMAC_KEY", "hmac-secret"),
             ("SESSION_SECRET", SECRET32),
+            ("NAVIGATOR_GIT_REPO_ROOT", "/var/lib/navigator/git-repos"),
         ]));
         assert!(result.is_ok(), "{result:?}");
+    }
+
+    #[test]
+    fn prod_invariants_accept_the_remote_writer_instead_of_the_volume() {
+        // The stateless `web` tier mounts no repo volume; it reaches the
+        // single mounted writer instead. Both env vars are required — a
+        // URL without the bearer can't make an authorized call.
+        let base = [
+            ("RESTATE_BROKER_URL", "http://restate:9070"),
+            ("NAVIGATOR_OPA_URL", "http://opa:8181"),
+            ("NAVIGATOR_STORAGE_BACKEND", "gcs"),
+            ("SENDGRID_API_KEY", "SG.test"),
+            ("SENDGRID_INBOUND_SECRET", "secret"),
+            ("SENDGRID_EVENTS_SECRET", "secret"),
+            ("SENDGRID_EVENTS_PUBLIC_KEY", "base64-spki"),
+            ("DOCUSIGN_HMAC_KEY", "hmac-secret"),
+            ("SESSION_SECRET", SECRET32),
+        ];
+
+        let mut with_writer = base.to_vec();
+        with_writer.push(("NAVIGATOR_GIT_WRITER_URL", "http://navigator-git:3001"));
+        with_writer.push(("NAVIGATOR_GIT_WRITER_TOKEN", "t0ken"));
+        assert!(enforce_prod_invariants(lookup(&with_writer)).is_ok());
+
+        let mut url_only = base.to_vec();
+        url_only.push(("NAVIGATOR_GIT_WRITER_URL", "http://navigator-git:3001"));
+        let err = enforce_prod_invariants(lookup(&url_only)).unwrap_err();
+        assert_eq!(err.violations.len(), 1);
+        assert!(err.violations[0].starts_with("NAVIGATOR_GIT_REPO_ROOT"));
     }
 
     #[test]
@@ -293,7 +341,11 @@ mod tests {
         // Operators should not have to fix one var, redeploy, fix
         // the next. Every missing var must surface in a single error.
         let err = enforce_prod_invariants(|_| None).unwrap_err();
-        assert_eq!(err.violations.len(), 9);
+        assert_eq!(err.violations.len(), 10);
+        assert!(err
+            .violations
+            .iter()
+            .any(|v| v.starts_with("NAVIGATOR_GIT_REPO_ROOT")));
         assert!(err
             .violations
             .iter()
@@ -345,6 +397,7 @@ mod tests {
             ("SENDGRID_EVENTS_PUBLIC_KEY", "base64-spki"),
             ("DOCUSIGN_HMAC_KEY", "hmac-secret"),
             ("SESSION_SECRET", SECRET32),
+            ("NAVIGATOR_GIT_REPO_ROOT", "/var/lib/navigator/git-repos"),
             ("OIDC_JWKS_URL", "https://idp/jwks"),
             ("OIDC_AUDIENCE", "navigator-web"),
             ("OIDC_ISSUER", "https://idp"),
@@ -375,6 +428,7 @@ mod tests {
             ("SENDGRID_EVENTS_PUBLIC_KEY", "base64-spki"),
             ("DOCUSIGN_HMAC_KEY", "hmac-secret"),
             ("SESSION_SECRET", SECRET32),
+            ("NAVIGATOR_GIT_REPO_ROOT", "/var/lib/navigator/git-repos"),
             ("OIDC_JWKS_URL", "https://idp/jwks"),
         ]))
         .unwrap_err();
@@ -402,6 +456,7 @@ mod tests {
             ("SENDGRID_EVENTS_PUBLIC_KEY", "base64-spki"),
             ("DOCUSIGN_HMAC_KEY", "hmac-secret"),
             ("SESSION_SECRET", SECRET32),
+            ("NAVIGATOR_GIT_REPO_ROOT", "/var/lib/navigator/git-repos"),
         ]))
         .unwrap_err();
         assert_eq!(err.violations.len(), 1);

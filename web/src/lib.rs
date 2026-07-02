@@ -48,6 +48,7 @@ pub mod expunge_route;
 pub mod git_http;
 pub mod git_lfs;
 pub mod git_meta;
+pub mod git_writer;
 mod github_stars;
 pub mod google_oauth;
 pub mod gov_forms;
@@ -877,6 +878,9 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
         // is applied); the sub-routers below are already state-applied.
         .merge(git_http::routes())
         .merge(git_lfs::routes())
+        // Present only on the single mounted writer (repo root + writer
+        // token configured); the stateless tier 404s the path.
+        .merge(git_writer::routes())
         .with_state(state)
         .merge(api)
         .merge(api_docs)
