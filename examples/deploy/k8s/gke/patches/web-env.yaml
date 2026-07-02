@@ -10,7 +10,9 @@
 # RESTATE_BROKER_URL, RESTATE_AUTH_TOKEN, SENDGRID_API_KEY,
 # DOCUSIGN_ACCESS_TOKEN, DOCUSIGN_HMAC_KEY — the last required by the
 # `enforce_prod_invariants` boot check — XERO_TENANT_ID + XERO_CLIENT_ID
-# + XERO_CLIENT_SECRET for the Xero billing custom connection, and
+# + XERO_CLIENT_SECRET for the Xero billing custom connection,
+# NAVIGATOR_GIT_WRITER_TOKEN — the shared bearer the git writer's ensure
+# endpoint requires (see the NAVIGATOR_GIT_WRITER_URL entry below), and
 # optionally SENDGRID_FROM_EMAIL) come in via `envFrom` from the
 # `navigator-web-secrets` Kubernetes Secret. That Secret is
 # currently maintained out-of-band via `kubectl create secret
@@ -74,6 +76,18 @@ spec:
               value: YOUR_PROJECT_ID-assets
             - name: NAVIGATOR_SEED_FILE
               value: /seed/base.yaml
+            # Matter creation hard-blocks on repo provisioning (#271), and
+            # this stateless tier mounts no repo volume. It provisions
+            # through the single mounted writer (`navigator-git`) instead:
+            # `store::projects::RepoEnsurer::Remote` POSTs the writer's
+            # /git-writer/ensure endpoint with the shared bearer.
+            # NAVIGATOR_GIT_WRITER_TOKEN comes in via `envFrom` from
+            # `navigator-web-secrets` (add the key alongside the Restate/
+            # SendGrid values; both this Deployment and `navigator-git`
+            # read the same Secret). `enforce_prod_invariants` refuses to
+            # boot without either this pair or NAVIGATOR_GIT_REPO_ROOT.
+            - name: NAVIGATOR_GIT_WRITER_URL
+              value: http://navigator-git:3001
             - name: OTEL_SERVICE_NAME
               value: navigator-web
             # OTEL_EXPORTER_OTLP_ENDPOINT is NOT declared inline: it comes in

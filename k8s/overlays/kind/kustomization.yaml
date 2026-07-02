@@ -27,7 +27,7 @@ resources:
   - heartbeat-trigger
 
 patches:
-  # KIND-only repo volume for navigator-web (matter creation
-  # hard-depends on it); see web-repos.yaml for why this is an
-  # overlay patch and not part of `base`.
+  # KIND's navigator-web is the single mounted writer: the git-bearing
+  # `navigator-git:dev` image plus the repo volume (matter creation
+  # hard-depends on it). See web-repos.yaml for the full why.
   - path: web-repos.yaml
