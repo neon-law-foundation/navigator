@@ -36,11 +36,10 @@ updates:
         patterns:
           - "*"
 
-  # Base images for the container builds under images/ and tools/dev/.
+  # Base images for the container builds under images/.
   - package-ecosystem: "docker"
     directories:
       - "/images"
-      - "/tools/dev"
     schedule:
       interval: "weekly"
     groups:
