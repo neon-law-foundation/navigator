@@ -13,8 +13,8 @@
 //! - One markdown file per governance document at the top level
 //!   (`bylaws.md`, `conflict_of_interest.md`) → [`DocCategory::Governance`].
 //! - One markdown file per quarter under `minutes/`, named `YYYY-qN.md`
-//!   (`2021-q1.md`) → [`DocCategory::Minutes`], served at the slug
-//!   `minutes-YYYY-qN`.
+//!   (`2021-q1.md`) or `YYQN_minutes.md` (`26Q2_minutes.md`) →
+//!   [`DocCategory::Minutes`], served under `/foundation/transparency/minutes/`.
 //!
 //! Front-matter (`title`, `description`) and the markdown body are parsed by
 //! the shared [`marketing::loader`], so a document file is shaped exactly like
@@ -47,10 +47,11 @@ pub enum DocCategory {
 /// front-matter plus body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransparencyDoc {
-    /// Routing key, served at `/foundation/transparency/<slug>`. Governance
-    /// docs use the kebab-cased file stem (`conflict-of-interest`); minutes
-    /// are prefixed (`minutes-2021-q1`) so the two namespaces never collide.
+    /// Routing key. Governance docs use the kebab-cased file stem
+    /// (`conflict-of-interest`); minutes use the compact quarter key (`26q2`).
     pub slug: String,
+    /// Canonical path for this document.
+    pub path: String,
     /// Document title (front-matter `title`).
     pub title: String,
     /// One-line summary (front-matter `description`); used for the index
@@ -142,17 +143,43 @@ fn governance_priority(slug: &str) -> u32 {
     }
 }
 
-/// Parse a minutes file stem (`2021-q1`) into a `year * 10 + quarter` sort
-/// key. Returns `None` when the stem isn't `YYYY-qN` with `N` in `1..=4`, so
-/// the loader skips the file with a warning rather than failing the boot.
-fn parse_minutes_stem(stem: &str) -> Option<u32> {
+fn parse_legacy_minutes_stem(stem: &str) -> Option<(String, u32)> {
     let (year_part, quarter_part) = stem.split_once('-')?;
     let year: u32 = year_part.parse().ok()?;
     let quarter: u32 = quarter_part.strip_prefix('q')?.parse().ok()?;
     if !(1..=4).contains(&quarter) {
         return None;
     }
-    Some(year * 10 + quarter)
+    Some((
+        format!("{:02}q{quarter}", year.checked_sub(2000)?),
+        year * 10 + quarter,
+    ))
+}
+
+fn parse_compact_minutes_stem(stem: &str) -> Option<(String, u32)> {
+    let (key, suffix) = stem.split_once('_')?;
+    if suffix != "minutes" {
+        return None;
+    }
+    let mut chars = key.chars();
+    let y1 = chars.next()?.to_digit(10)?;
+    let y2 = chars.next()?.to_digit(10)?;
+    if !chars.next()?.eq_ignore_ascii_case(&'q') {
+        return None;
+    }
+    let quarter = chars.next()?.to_digit(10)?;
+    if chars.next().is_some() || !(1..=4).contains(&quarter) {
+        return None;
+    }
+    let year = 2000 + y1 * 10 + y2;
+    Some((format!("{:02}q{quarter}", year - 2000), year * 10 + quarter))
+}
+
+/// Parse a minutes file stem into `(route slug, sort key)`. Supports the
+/// existing `YYYY-qN` files and the compact `YYQN_minutes` filename used for
+/// newly approved minutes.
+fn parse_minutes_stem(stem: &str) -> Option<(String, u32)> {
+    parse_compact_minutes_stem(stem).or_else(|| parse_legacy_minutes_stem(stem))
 }
 
 /// Walk `dir` for transparency documents. Returns an empty index (not an
@@ -191,20 +218,29 @@ pub fn load_dir(dir: &Path) -> Result<TransparencyIndex, ContentLoadError> {
             .and_then(|n| n.to_str())
             == Some("minutes");
 
-        let (slug, category, sort_key) = if in_minutes {
-            let Some(sort_key) = parse_minutes_stem(stem) else {
-                tracing::warn!(file = name, "skipping minutes file: name is not YYYY-qN.md");
+        let (slug, canonical_path, category, sort_key) = if in_minutes {
+            let Some((slug, sort_key)) = parse_minutes_stem(stem) else {
+                tracing::warn!(
+                    file = name,
+                    "skipping minutes file: name is not YYYY-qN.md or YYQN_minutes.md"
+                );
                 continue;
             };
             (
-                format!("minutes-{}", views::slug::to_url(stem)),
+                slug.clone(),
+                format!("/foundation/transparency/minutes/{slug}"),
                 DocCategory::Minutes,
                 sort_key,
             )
         } else {
             let slug = views::slug::to_url(stem);
             let priority = governance_priority(&slug);
-            (slug, DocCategory::Governance, priority)
+            (
+                slug.clone(),
+                format!("/foundation/transparency/{slug}"),
+                DocCategory::Governance,
+                priority,
+            )
         };
 
         let raw = std::fs::read_to_string(path).map_err(|e| ContentLoadError::Io {
@@ -217,6 +253,7 @@ pub fn load_dir(dir: &Path) -> Result<TransparencyIndex, ContentLoadError> {
             })?;
         docs.push(TransparencyDoc {
             slug,
+            path: canonical_path,
             title: doc.title,
             description: doc.description,
             category,
@@ -244,10 +281,21 @@ mod tests {
 
     #[test]
     fn parses_minutes_stem_into_sort_key() {
-        assert_eq!(parse_minutes_stem("2021-q1"), Some(20211));
-        assert_eq!(parse_minutes_stem("2026-q2"), Some(20262));
+        assert_eq!(
+            parse_minutes_stem("2021-q1"),
+            Some(("21q1".to_string(), 20211))
+        );
+        assert_eq!(
+            parse_minutes_stem("2026-q2"),
+            Some(("26q2".to_string(), 20262))
+        );
+        assert_eq!(
+            parse_minutes_stem("26Q2_minutes"),
+            Some(("26q2".to_string(), 20262))
+        );
         assert!(parse_minutes_stem("2021-q5").is_none());
         assert!(parse_minutes_stem("2021-q0").is_none());
+        assert!(parse_minutes_stem("26Q5_minutes").is_none());
         assert!(parse_minutes_stem("notaquarter").is_none());
         assert!(parse_minutes_stem("2021-x1").is_none());
     }
@@ -256,8 +304,8 @@ mod tests {
     fn bundled_foundation_directory_loads_cleanly() {
         // Guards the real `web/content/foundation/` tree and documents the
         // authoring contract by example: top-level files are governance docs,
-        // files under `minutes/` are quarterly board minutes served at the
-        // `minutes-YYYY-qN` slug.
+        // files under `minutes/` are quarterly board minutes served under
+        // `/foundation/transparency/minutes/`.
         let ix = load_dir(std::path::Path::new(crate::DEFAULT_FOUNDATION_DIR)).unwrap();
         let bylaws = ix.get("bylaws").expect("bylaws governance doc loads");
         assert_eq!(bylaws.category, DocCategory::Governance);
@@ -267,15 +315,19 @@ mod tests {
         assert!(ix.get("conflict-of-interest").is_some());
 
         let q1_2021 = ix
-            .get("minutes-2021-q1")
-            .expect("first quarter of minutes loads at minutes-2021-q1");
+            .get("21q1")
+            .expect("first quarter of minutes loads at 21q1");
         assert_eq!(q1_2021.category, DocCategory::Minutes);
 
         // Twenty-two quarters, Q1 2021 through Q2 2026, newest first.
         let minutes = ix.minutes();
         assert_eq!(minutes.len(), 22);
-        assert_eq!(minutes.first().unwrap().slug, "minutes-2026-q2");
-        assert_eq!(minutes.last().unwrap().slug, "minutes-2021-q1");
+        assert_eq!(minutes.first().unwrap().slug, "26q2");
+        assert_eq!(
+            minutes.first().unwrap().path,
+            "/foundation/transparency/minutes/26q2"
+        );
+        assert_eq!(minutes.last().unwrap().slug, "21q1");
 
         // Governance order: bylaws before the conflict policy.
         let gov = ix.governance();
@@ -301,7 +353,7 @@ mod tests {
         )
         .unwrap();
         fs::write(
-            tmp.path().join("minutes/2026-q2.md"),
+            tmp.path().join("minutes/26Q2_minutes.md"),
             doc("Q2 2026", "newer"),
         )
         .unwrap();
@@ -313,7 +365,7 @@ mod tests {
         let gov: Vec<&str> = ix.governance().iter().map(|d| d.slug.as_str()).collect();
         assert_eq!(gov, vec!["bylaws"]);
         let minutes: Vec<&str> = ix.minutes().iter().map(|d| d.slug.as_str()).collect();
-        assert_eq!(minutes, vec!["minutes-2026-q2", "minutes-2021-q1"]);
-        assert!(ix.get("minutes-notes").is_none());
+        assert_eq!(minutes, vec!["26q2", "21q1"]);
+        assert!(ix.get("notes").is_none());
     }
 }

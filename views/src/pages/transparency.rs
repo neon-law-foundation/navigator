@@ -1,6 +1,6 @@
 //! `/foundation/transparency` — the Foundation's public-disclosure hub, and
-//! `/foundation/transparency/:slug` — one governance document or quarterly
-//! board-minutes page.
+//! `/foundation/transparency/:slug` — one governance document, and
+//! `/foundation/transparency/minutes/:slug` — one quarterly board-minutes page.
 //!
 //! Rendered under the Foundation brand. The page separates the documents a
 //! 501(c)(3) must make public under IRC §6104(d) — the exemption application,
@@ -226,8 +226,16 @@ mod tests {
             ),
         ];
         let minutes = vec![
-            link("minutes-2026-q2", "Board Meeting Minutes — Q2 2026", ""),
-            link("minutes-2021-q1", "Board Meeting Minutes — Q1 2021", ""),
+            DocLink {
+                href: "/foundation/transparency/minutes/26q2".to_string(),
+                title: "Board Meeting Minutes — Q2 2026".to_string(),
+                description: String::new(),
+            },
+            DocLink {
+                href: "/foundation/transparency/minutes/21q1".to_string(),
+                title: "Board Meeting Minutes — Q1 2021".to_string(),
+                description: String::new(),
+            },
         ];
         let content = IndexContent {
             determination_letter_href: "/public/foundation/determination-letter.pdf",
@@ -237,7 +245,7 @@ mod tests {
         let html = render_index(&content, crate::AuthState::Anonymous).into_string();
         assert!(html.contains("href=\"/foundation/transparency/bylaws\""));
         assert!(html.contains("href=\"/foundation/transparency/conflict-of-interest\""));
-        assert!(html.contains("href=\"/foundation/transparency/minutes-2026-q2\""));
+        assert!(html.contains("href=\"/foundation/transparency/minutes/26q2\""));
         assert!(html.contains("Board Meeting Minutes — Q1 2021"));
         // Links out to the reusable agreement Notations.
         assert!(html.contains("href=\"/foundation/notations\""));

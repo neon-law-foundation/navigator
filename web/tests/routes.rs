@@ -191,8 +191,15 @@ async fn foundation_transparency_lists_required_and_voluntary_disclosures() {
     assert!(body.contains("href=\"/public/foundation/determination-letter.pdf\""));
     assert!(body.contains("href=\"/foundation/transparency/bylaws\""));
     assert!(body.contains("href=\"/foundation/transparency/conflict-of-interest\""));
-    assert!(body.contains("href=\"/foundation/transparency/minutes-2026-q2\""));
-    assert!(body.contains("href=\"/foundation/transparency/minutes-2021-q1\""));
+    assert!(body.contains("href=\"/foundation/transparency/minutes/26q2\""));
+    assert!(body.contains("href=\"/foundation/transparency/minutes/21q1\""));
+    let q2 = body
+        .find("href=\"/foundation/transparency/minutes/26q2\"")
+        .expect("Q2 2026 minutes link renders");
+    let q1 = body
+        .find("href=\"/foundation/transparency/minutes/26q1\"")
+        .expect("Q1 2026 minutes link renders");
+    assert!(q2 < q1, "Q2 2026 minutes should render before Q1 2026");
 }
 
 #[tokio::test]
@@ -226,6 +233,41 @@ async fn foundation_transparency_renders_one_document_and_404s_unknown_slug() {
         .await
         .unwrap();
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn foundation_transparency_renders_minutes_under_nested_route() {
+    let app = web::build_router(
+        state_with_bundled_foundation_docs().await,
+        std::path::Path::new(web::DEFAULT_PUBLIC_DIR),
+    );
+    let minutes = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/transparency/minutes/26q2")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(minutes.status(), StatusCode::OK);
+    let body = body_string(minutes).await;
+    assert!(body.contains("<title>Neon Law Foundation | Board Meeting Minutes — Q2 2026</title>"));
+    assert!(body.contains("April 15, 2026"));
+    assert!(body.contains("Google Meet"));
+    assert!(body.contains("neon-law-foundation/navigator"));
+
+    let flat_minutes = app
+        .oneshot(
+            Request::builder()
+                .uri("/foundation/transparency/26q2")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(flat_minutes.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
