@@ -28,6 +28,8 @@ pub const REPO_PROVISIONING_TIMEOUT: std::time::Duration = std::time::Duration::
 pub enum ProvisionRepoError {
     #[error(transparent)]
     Repo(#[from] repos::RepoError),
+    #[error("project {project_id} was not found while provisioning git repo")]
+    NotFound { project_id: Uuid },
     #[error("timed out provisioning git repo for project {project_id}")]
     Timeout { project_id: Uuid },
     #[error(transparent)]
@@ -221,7 +223,12 @@ where
     })
     .await
     .map_err(|_| ProvisionRepoError::Timeout { project_id })??;
-    mark_git_initialized(db, project_id, chrono::Utc::now()).await?;
+    if mark_git_initialized(db, project_id, chrono::Utc::now())
+        .await?
+        .is_none()
+    {
+        return Err(ProvisionRepoError::NotFound { project_id });
+    }
     Ok(path)
 }
 
@@ -464,6 +471,32 @@ mod tests {
         assert!(
             row.git_initialized_at.is_none(),
             "failed hard provision must not stamp the project",
+        );
+    }
+
+    #[tokio::test]
+    async fn hard_provision_fails_when_project_row_is_missing() {
+        let db = crate::test_support::pg().await;
+        let missing_project_id = uuid::Uuid::now_v7();
+        let root = tempfile::tempdir().unwrap();
+        let store = repos::RepoStore::new(root.path());
+
+        let err = provision_repo_hard(
+            &db,
+            store,
+            missing_project_id,
+            std::time::Duration::from_secs(10),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            matches!(
+                err,
+                ProvisionRepoError::NotFound { project_id }
+                    if project_id == missing_project_id
+            ),
+            "expected missing project row to fail provisioning, got {err:?}",
         );
     }
 

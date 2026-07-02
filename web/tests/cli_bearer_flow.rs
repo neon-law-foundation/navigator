@@ -40,7 +40,7 @@ const SESSION_KEY: &str = "cli-bearer-test-key-not-for-production";
 async fn build_app(tag: &str) -> (axum::Router, store::Db, Arc<StubSignatureProvider>) {
     let repo_root = std::env::temp_dir().join(format!(
         "navigator-cli-bearer-repos-{tag}-{}",
-        std::process::id(),
+        uuid::Uuid::now_v7(),
     ));
     std::fs::create_dir_all(&repo_root).unwrap();
     std::env::set_var("NAVIGATOR_GIT_REPO_ROOT", &repo_root);
