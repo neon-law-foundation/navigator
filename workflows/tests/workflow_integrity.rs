@@ -6,12 +6,15 @@
 //! violate:
 //!
 //! 1. The frontmatter parses (both `workflow:` and, when declared,
-//!    `questionnaire:`).
-//! 2. The state machine has both `BEGIN` and `END`.
+//!    `questionnaire:` — the questionnaire parse alone carries its whole
+//!    invariant set, since `QuestionnaireSpec::validate` enforces
+//!    BEGIN/END, resolving targets, and the linear `_` chain at parse
+//!    time).
+//! 2. The workflow machine has both `BEGIN` and `END`.
 //! 3. `END` is reachable from `BEGIN` via the transition graph.
 //! 4. Every transition target appears as a state in the machine.
-//! 5. Every non-`END` state's prefix resolves to a known `StepKind`
-//!    (no silent "unrouted" states).
+//! 5. Every non-`END` workflow state's prefix resolves to a known
+//!    `StepKind` (no silent "unrouted" states).
 //!
 //! Failures point at the offending file + state so the next agent
 //! to hand-author a workflow knows exactly what to fix.
@@ -20,8 +23,8 @@ use std::collections::{BTreeSet, VecDeque};
 use std::path::{Path, PathBuf};
 
 use workflows::{
-    questionnaire_spec_from_template, step_kind_for, workflow_spec_from_template,
-    QuestionnaireSpec, StateName, WorkflowSpec,
+    questionnaire_spec_from_template, step_kind_for, workflow_spec_from_template, StateName,
+    WorkflowSpec,
 };
 
 fn templates_root() -> PathBuf {
@@ -81,7 +84,6 @@ fn check_machine_invariants(
     template_path: &Path,
     states: impl Iterator<Item = String>,
     spec: &WorkflowSpec,
-    require_step_kinds: bool,
 ) {
     let state_names: BTreeSet<String> = states.collect();
     assert!(
@@ -118,12 +120,7 @@ fn check_machine_invariants(
     );
 
     // Workflow states must resolve to a known step kind so the
-    // runtime knows which actor drives each transition. Questionnaire
-    // states are question codes (respondent-driven by answer
-    // submission, not by step prefix) and are skipped.
-    if !require_step_kinds {
-        return;
-    }
+    // runtime knows which actor drives each transition.
     for state in spec.states.keys() {
         if state.as_str() == "END" {
             continue;
@@ -136,12 +133,6 @@ fn check_machine_invariants(
             state.as_str(),
             state.prefix(),
         );
-    }
-}
-
-fn questionnaire_as_workflow_spec(q: &QuestionnaireSpec) -> WorkflowSpec {
-    WorkflowSpec {
-        states: q.inner().states.clone(),
     }
 }
 
@@ -185,24 +176,17 @@ fn every_bundled_template_has_a_coherent_workflow_and_questionnaire() {
             path,
             workflow.states.keys().map(|s| s.as_str().to_string()),
             &workflow,
-            true,
         );
 
-        // Questionnaire is optional today (only the Retainer template
-        // declares one), so a parse failure is only fatal if the
-        // template actually carries a `questionnaire:` block.
+        // A questionnaire block only needs to *parse*: the strict parse
+        // itself now carries the whole invariant set — BEGIN/END,
+        // resolving targets, and the linear `_` chain covering every
+        // state (`QuestionnaireSpec::validate`) — so parsing the corpus
+        // is the guard.
         if markdown.contains("questionnaire:") {
-            let q = questionnaire_spec_from_template(&markdown).unwrap_or_else(|e| {
+            questionnaire_spec_from_template(&markdown).unwrap_or_else(|e| {
                 panic!("questionnaire in {} did not parse: {e}", path.display())
             });
-            let q_as_workflow = questionnaire_as_workflow_spec(&q);
-            check_machine_invariants(
-                "questionnaire",
-                path,
-                q_as_workflow.states.keys().map(|s| s.as_str().to_string()),
-                &q_as_workflow,
-                false,
-            );
         }
     }
 }

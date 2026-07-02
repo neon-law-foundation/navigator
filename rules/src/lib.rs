@@ -25,6 +25,7 @@ pub mod f114;
 pub mod f115;
 pub mod f116;
 pub mod f117;
+pub mod f118;
 pub mod frontmatter;
 pub mod links;
 pub mod m001;
@@ -100,6 +101,7 @@ pub use f114::{F114ForParentOrdering, AGGREGATE_QUESTION_TYPES};
 pub use f115::F115PathResolution;
 pub use f116::F116StaffReviewGatesSubmission;
 pub use f117::F117GlossaryBackedCustomText;
+pub use f118::F118QuestionnaireLinearity;
 pub use m001::M001HeadingIncrement;
 pub use m003::M003HeadingStyle;
 pub use m004::M004ULStyle;
@@ -272,6 +274,7 @@ pub fn description_for_code(code: &str) -> &'static str {
         "N115" => "Template data path or iterator must resolve against a typed questionnaire state",
         "N116" => "Notation workflow must gate every outbound submission behind staff review",
         "N117" => "`custom_text__*` states must not model glossary-backed nouns",
+        "N118" => "Questionnaire must be one linear `_` chain from BEGIN to END",
         "E001" => "Event must declare both a `starts_at` timestamp and a `timezone`",
         "E002" => "A file is either an event or a notation template, never both",
         "E003" => "Event must declare a `location_address` or a `meeting_url`",

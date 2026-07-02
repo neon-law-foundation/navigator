@@ -191,10 +191,13 @@ pub fn workflow_spec_from_yaml(yaml: &str) -> Result<WorkflowSpec, WorkflowSpecE
 }
 
 /// Parse a standalone spec YAML and return the questionnaire spec.
+/// Applies the full questionnaire validation
+/// ([`QuestionnaireSpec::validate`]): base shape plus the
+/// linear-`_`-chain invariant.
 pub fn questionnaire_spec_from_yaml(yaml: &str) -> Result<QuestionnaireSpec, WorkflowSpecError> {
     let wrapper: QuestionnaireFrontmatter =
         serde_yaml::from_str(yaml).map_err(|e| WorkflowSpecError::Yaml(e.to_string()))?;
-    wrapper.questionnaire.inner().validate()?;
+    wrapper.questionnaire.validate()?;
     Ok(wrapper.questionnaire)
 }
 

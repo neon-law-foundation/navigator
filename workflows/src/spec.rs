@@ -151,6 +151,21 @@ pub enum WorkflowSpecError {
         condition: String,
         to: String,
     },
+    #[error(
+        "questionnaire state `{state}` has condition `{condition}` — `_` (\"the respondent \
+         answered\") is the only questionnaire condition"
+    )]
+    QuestionnaireCondition { state: String, condition: String },
+    #[error(
+        "questionnaire state `{state}` is not on the `_` chain from BEGIN — the walker would \
+         never ask it and the rendered step total would lie"
+    )]
+    QuestionnaireOffChain { state: String },
+    #[error(
+        "questionnaire `_` chain from BEGIN stops or cycles at `{state}` before reaching END — \
+         the walker would strand the respondent there"
+    )]
+    QuestionnaireChainBroken { state: String },
     #[error("yaml parse error: {0}")]
     Yaml(String),
 }
@@ -221,19 +236,96 @@ impl WorkflowSpec {
 ///
 /// State names are bare question codes (no `__discriminator`
 /// suffix in practice — questionnaires only ever ask one
-/// respondent), and the canonical transition condition is the
-/// underscore literal `_` since the only signal that advances a
-/// questionnaire is "the respondent answered."
+/// respondent), and `_` is the **only** transition condition since
+/// the only signal that advances a questionnaire is "the respondent
+/// answered." [`QuestionnaireSpec::validate`] enforces that shape at
+/// parse time: a questionnaire is one linear `_` chain from `BEGIN`
+/// to `END` covering every declared state, so the walker's
+/// "step N of M" total and END-reachability hold by construction.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct QuestionnaireSpec(pub WorkflowSpec);
 
 impl QuestionnaireSpec {
-    /// Parse from a YAML document. Reuses [`WorkflowSpec`]'s
-    /// validation: `BEGIN` and `END` required, every transition
-    /// target must resolve.
+    /// Parse from a YAML document. Applies [`WorkflowSpec`]'s
+    /// validation (`BEGIN`/`END` required, every transition target
+    /// resolves) plus questionnaire linearity — see
+    /// [`QuestionnaireSpec::validate`].
     pub fn from_yaml(yaml: &str) -> Result<Self, WorkflowSpecError> {
-        WorkflowSpec::from_yaml(yaml).map(Self)
+        let spec = Self(WorkflowSpec::from_yaml(yaml)?);
+        spec.validate()?;
+        Ok(spec)
+    }
+
+    /// Validate the questionnaire shape on top of the base
+    /// [`WorkflowSpec::validate`] checks:
+    ///
+    /// 1. `_` is the only transition condition anywhere;
+    /// 2. the `_` chain out of `BEGIN` terminates at `END` (no dead
+    ///    end, no cycle);
+    /// 3. every declared state except `BEGIN`/`END` sits on that
+    ///    chain.
+    ///
+    /// Deserializing the transparent serde shape bypasses this, so
+    /// every constructor that accepts authored YAML must call it.
+    ///
+    /// # Errors
+    /// The `Questionnaire*` variants of [`WorkflowSpecError`], plus
+    /// anything [`WorkflowSpec::validate`] returns.
+    pub fn validate(&self) -> Result<(), WorkflowSpecError> {
+        self.0.validate()?;
+        for (state, transitions) in &self.0.states {
+            for condition in transitions.conditions() {
+                if condition != "_" {
+                    return Err(WorkflowSpecError::QuestionnaireCondition {
+                        state: state.as_str().to_string(),
+                        condition: condition.to_string(),
+                    });
+                }
+            }
+        }
+
+        // Walk the `_` chain from BEGIN. Condition-uniqueness above
+        // means at most one `_` per state, so the walk is
+        // deterministic; collect the question states it visits.
+        let mut on_chain: std::collections::BTreeSet<StateName> = std::collections::BTreeSet::new();
+        let mut here = StateName::begin();
+        loop {
+            let Some(next) = self
+                .0
+                .transitions_from(&here)
+                .and_then(|t| t.lookup("_"))
+                .cloned()
+            else {
+                // Dead end before END — BEGIN itself when empty, or a
+                // question with no outgoing `_`.
+                return Err(WorkflowSpecError::QuestionnaireChainBroken {
+                    state: here.as_str().to_string(),
+                });
+            };
+            if next == StateName::end() {
+                break;
+            }
+            if !on_chain.insert(next.clone()) {
+                // Revisiting a state = a cycle that never reaches END.
+                return Err(WorkflowSpecError::QuestionnaireChainBroken {
+                    state: next.as_str().to_string(),
+                });
+            }
+            here = next;
+        }
+
+        for state in self.0.states.keys() {
+            if *state == StateName::begin() || *state == StateName::end() {
+                continue;
+            }
+            if !on_chain.contains(state) {
+                return Err(WorkflowSpecError::QuestionnaireOffChain {
+                    state: state.as_str().to_string(),
+                });
+            }
+        }
+        Ok(())
     }
 
     /// Borrow the underlying [`WorkflowSpec`] — useful when a
@@ -372,6 +464,100 @@ END: {}
     fn questionnaire_spec_reuses_workflow_spec_validation_for_missing_begin() {
         let err = QuestionnaireSpec::from_yaml("END: {}\n").unwrap_err();
         assert!(matches!(err, WorkflowSpecError::MissingBegin));
+    }
+
+    #[test]
+    fn questionnaire_rejects_any_condition_other_than_underscore() {
+        let err = QuestionnaireSpec::from_yaml(
+            "
+BEGIN:
+  _: client_name
+client_name:
+  skip: END
+  _: END
+END: {}
+",
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                WorkflowSpecError::QuestionnaireCondition { state, condition }
+                    if state == "client_name" && condition == "skip"
+            ),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn questionnaire_rejects_a_state_off_the_underscore_chain() {
+        // `orphan` is declared and dangling-free (it points at END) but
+        // the walker would never ask it — the step total would lie.
+        let err = QuestionnaireSpec::from_yaml(
+            "
+BEGIN:
+  _: client_name
+client_name:
+  _: END
+orphan:
+  _: END
+END: {}
+",
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                WorkflowSpecError::QuestionnaireOffChain { state } if state == "orphan"
+            ),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn questionnaire_rejects_a_chain_that_dead_ends_before_end() {
+        let err = QuestionnaireSpec::from_yaml(
+            "
+BEGIN:
+  _: client_name
+client_name: {}
+END: {}
+",
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                WorkflowSpecError::QuestionnaireChainBroken { state } if state == "client_name"
+            ),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn questionnaire_rejects_a_chain_that_cycles_before_end() {
+        let err = QuestionnaireSpec::from_yaml(
+            "
+BEGIN:
+  _: client_name
+client_name:
+  _: client_email
+client_email:
+  _: client_name
+END: {}
+",
+        )
+        .unwrap_err();
+        assert!(
+            matches!(&err, WorkflowSpecError::QuestionnaireChainBroken { .. }),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn an_empty_questionnaire_that_goes_straight_to_end_is_linear() {
+        let q = QuestionnaireSpec::from_yaml("BEGIN:\n  _: END\nEND: {}\n").expect("valid");
+        assert!(q.is_terminal(&StateName::end()));
     }
 
     #[test]

@@ -72,7 +72,9 @@ Frontmatter fields:
 - `origin_url` — forms only; the HTTPS government page where the blank form can be obtained.
 - `form` — forms only; the bundled form code, matching `code` and the filename stem.
 - `questionnaire:` — the intake state machine: `BEGIN → typed_state → … → END`. Each step's `_:` is the "answered"
-  transition. State names are `<type>__<role>`; the prefix before `__` must be a registered Question Type.
+  transition — and the **only** condition a questionnaire may use: the block must be one linear `_` chain from `BEGIN`
+  to `END` covering every declared state. `QuestionnaireSpec` rejects anything else at parse time, and `N118` flags it
+  at authoring time. State names are `<type>__<role>`; the prefix before `__` must be a registered Question Type.
 - `workflow:` — the post-intake state machine: render, staff review, signature, filing. Transitions fire on named
   signals (`approved`, `pdf_persisted`, `signature_received`).
 
