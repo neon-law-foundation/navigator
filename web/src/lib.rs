@@ -2515,22 +2515,21 @@ Important notes:
 
 ## Services And Classes
 
-- [Neon Law services]({base}/services): Flat-fee legal services built around Navigator.
+- [{firm} services]({base}/services): Flat-fee legal services built around Navigator.
 - [Nebula workshops]({base}/foundation/nebula): Classes, show-and-tells, and practical training for lawyers using AI and Navigator.
-- [Contact Neon Law]({base}/contact): Ask about legal services, training, or implementation help.
-"
+- [Contact {firm}]({base}/contact): Ask about legal services, training, or implementation help.
+",
+        firm = views::brand::FIRM_BRAND.site_name,
     );
 
-    if workshops
+    let corpus: Vec<_> = workshops
         .materials()
         .iter()
-        .any(|m| m.category != "presentations")
-    {
+        .filter(|m| m.category != "presentations")
+        .collect();
+    if !corpus.is_empty() {
         out.push_str("\n## Workshop Corpus\n\n");
-        for m in workshops.materials() {
-            if m.category == "presentations" {
-                continue;
-            }
+        for m in corpus {
             let _ = writeln!(
                 out,
                 "- [{}]({base}{NEBULA_BASE}/{}/{}.md): {}",

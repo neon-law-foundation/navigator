@@ -1763,6 +1763,10 @@ async fn llms_txt_indexes_the_markdown_corpus_with_absolute_urls() {
     ));
     assert!(body.contains("https://www.example.com/services"));
     assert!(body.contains("https://www.example.com/contact"));
+    // Firm mentions come from the rebrand seam, not a hardcoded name.
+    let firm = views::brand::FIRM_BRAND.site_name;
+    assert!(body.contains(&format!("[{firm} services](")));
+    assert!(body.contains(&format!("[Contact {firm}](")));
     assert!(body.contains("## Workshop Corpus"));
     assert!(!body.contains("Rust in Peace"));
     // Every entry is an absolute link to a `.md` twin. With no
