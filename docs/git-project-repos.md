@@ -292,9 +292,8 @@ does not carry. The git-serving tier therefore runs from [`images/Containerfile.
 [`examples/deploy/k8s/gke/git/git-serving.yaml`](../examples/deploy/k8s/gke/git/git-serving.yaml): a `replicas: 1`
 `Recreate` Deployment with an RWO PVC mounted at `NAVIGATOR_GIT_REPO_ROOT`, a Service, and a `VolumeSnapshot` for the
 backup story (distinct from Cloud SQL's). Add one ingress prefix rule (`/projects` → `navigator-git`) so the stateless
-`navigator-web` tier proxies the whole transport + LFS surface to the single writer. The manifests are not yet wired
-into the overlay's `kustomization.yaml` — apply and validate them on the cluster (the PVC bind, the snapshot schedule,
-the ingress split are machine-side checks), then wire them in.
+`navigator-web` tier proxies the whole transport + LFS surface to the single writer. The manifests are wired into the
+GKE overlay; validate the PVC bind, snapshot schedule, and ingress split on the cluster before rollout.
 
 In **dev/KIND** the `web` binary runs on the host (`kind-local-dev`), so there is no git-serving pod: point
 `NAVIGATOR_GIT_REPO_ROOT` at a local directory in `.devx/env` and the host binary serves repos from there against the
@@ -305,6 +304,4 @@ in-cluster deps.
 - Repoint the Northstar review (`review_documents`, HTML-in-DB — decide whether it maps to the repo), and build the
   client-facing "Download all my documents" ZIP export. The governed-expunge primitive is built (see §9); only its
   `/admin` HTTP route + the client "Delete this document" button remain.
-- Wire `examples/deploy/k8s/gke/git/git-serving.yaml` into the overlay `kustomization.yaml` and the ingress once it is
-  validated on the cluster.
 - Revisit `jj-lib` for server-side commit authoring when its public API stabilizes.

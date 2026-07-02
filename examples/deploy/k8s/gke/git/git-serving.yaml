@@ -1,11 +1,9 @@
 # Per-Project git-serving tier — single-writer Deployment + RWO PVC.
 #
 # Reference manifests for the stateful git tier described in
-# docs/git-project-repos.md §4. NOT wired into kustomization.yaml yet:
-# the RWO PVC + the ingress path split need cluster-specific validation
-# (`kubectl apply -f` this file, confirm the PVC binds and the volume
-# snapshots run, then add the ingress route). Apply + validate on the
-# cluster — that's a machine action, not a repo concern.
+# docs/git-project-repos.md §4. The GKE overlay includes this file and
+# routes `/projects/*` here through ingress/ingress.yaml; validate the
+# PVC bind and snapshot behavior on the cluster before rollout.
 #
 # Topology (the engineering council's resolution of the riskiest §4
 # question): this is the SAME `web` binary as `navigator-web`, but
@@ -14,7 +12,7 @@
 #     RWO PersistentVolume at NAVIGATOR_GIT_REPO_ROOT,
 # so exactly one writer ever touches a bare repo (no concurrent
 # receive-pack corruption). The stateless `navigator-web` tier proxies
-# `/projects/<id>.git/*` here via the ingress path rule at the bottom.
+# `/projects/<id>.git/*` here via the GKE ingress.
 #
 # Because it's the full `web` binary, it needs the same Secret/env as
 # `navigator-web` (DB, session key, OPA, OAuth, DocuSign boot
@@ -112,6 +110,8 @@ kind: Service
 metadata:
   name: navigator-git
   namespace: navigator
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
 spec:
   selector:
     app: navigator-git
@@ -133,20 +133,3 @@ metadata:
 spec:
   source:
     persistentVolumeClaimName: navigator-git-repos
-# ---------------------------------------------------------------------
-# Ingress route split (add to ingress/ingress.yaml, do NOT duplicate the
-# host): route the git smart-HTTP + LFS paths to navigator-git, leaving
-# everything else on navigator-web.
-#
-#   - path: /projects
-#     pathType: Prefix
-#     backend:
-#       service:
-#         name: navigator-git
-#         port:
-#           number: 3001
-#
-# `/projects/<id>.git/info/refs`, `/git-upload-pack`, `/git-receive-pack`
-# and `/info/lfs/...` all live under `/projects`, so the single prefix
-# rule covers the whole transport + LFS surface.
-# ---------------------------------------------------------------------

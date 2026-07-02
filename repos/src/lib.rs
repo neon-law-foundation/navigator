@@ -175,16 +175,20 @@ impl RepoStore {
     pub fn ensure(&self, project_id: Uuid) -> Result<PathBuf, RepoError> {
         let path = self.path_for(project_id);
         if path.join("HEAD").is_file() {
-            // Self-heal the LFS routing on every access: the guard above
-            // keys on `HEAD`, which `git init --bare` writes *before* the
-            // routing is seeded, so a repo whose creation failed after
-            // `HEAD` (or one predating LFS seeding) would otherwise be
-            // served forever without routing. `ensure_lfs_attributes`
-            // only writes when the file is absent or wrong.
+            ensure_private_dir(&self.root)?;
+            ensure_private_dir(&path)?;
+            // Self-heal the repo invariants on every access: the guard
+            // above keys on `HEAD`, which `git init --bare` writes
+            // *before* the mode and LFS routing are confirmed, so a repo
+            // whose creation failed after `HEAD` (or one predating these
+            // guards) would otherwise be served forever without them.
+            // `ensure_lfs_attributes` only writes when the file is absent
+            // or wrong.
             ensure_lfs_attributes(&path)?;
             return Ok(path);
         }
-        std::fs::create_dir_all(&self.root)?;
+        ensure_private_dir(&self.root)?;
+        ensure_private_dir(&path)?;
         let path_str = path.to_string_lossy().into_owned();
 
         run_git(&[
@@ -476,6 +480,26 @@ impl RepoStore {
     }
 }
 
+fn ensure_private_dir(path: &Path) -> Result<(), RepoError> {
+    std::fs::create_dir_all(path)?;
+    set_private_dir_mode(path)
+}
+
+#[cfg(unix)]
+fn set_private_dir_mode(path: &Path) -> Result<(), RepoError> {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let mut permissions = std::fs::metadata(path)?.permissions();
+    permissions.set_mode(0o700);
+    std::fs::set_permissions(path, permissions)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_private_dir_mode(_path: &Path) -> Result<(), RepoError> {
+    Ok(())
+}
+
 /// Write the append-only `pre-receive` hook and mark it executable.
 fn install_pre_receive_hook(repo: &Path) -> Result<(), RepoError> {
     let hooks = repo.join("hooks");
@@ -634,6 +658,53 @@ mod tests {
         // Idempotent: a second call returns the same path, no error.
         let again = store.ensure(project).unwrap();
         assert_eq!(again, path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ensure_creates_repo_root_and_project_repo_private() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let root = TempDir::new().unwrap();
+        std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        let store = RepoStore::new(root.path());
+        let project = Uuid::now_v7();
+
+        let repo = store.ensure(project).unwrap();
+
+        assert_eq!(
+            std::fs::metadata(root.path()).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        assert_eq!(
+            std::fs::metadata(repo).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ensure_repairs_existing_repo_root_and_project_repo_modes() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let root = TempDir::new().unwrap();
+        let store = RepoStore::new(root.path());
+        let project = Uuid::now_v7();
+        let repo = store.ensure(project).unwrap();
+
+        std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::set_permissions(&repo, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        store.ensure(project).unwrap();
+
+        assert_eq!(
+            std::fs::metadata(root.path()).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
+        assert_eq!(
+            std::fs::metadata(repo).unwrap().permissions().mode() & 0o777,
+            0o700
+        );
     }
 
     /// Resolve the `filter` attribute git applies to `path` in the bare
