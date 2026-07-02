@@ -740,7 +740,11 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
             .route("/foundation/transparency", get(foundation_transparency))
             .route(
                 "/foundation/transparency/{slug}",
-                get(foundation_transparency_doc),
+                get(foundation_transparency_governance_doc),
+            )
+            .route(
+                "/foundation/transparency/minutes/{slug}",
+                get(foundation_transparency_minutes_doc),
             )
             .route(
                 "/navigator",
@@ -1208,7 +1212,7 @@ async fn foundation_transparency(
     MaybeAuth(auth): MaybeAuth,
 ) -> Markup {
     let to_link = |d: &transparency::TransparencyDoc| views::pages::transparency::DocLink {
-        href: format!("/foundation/transparency/{}", d.slug),
+        href: d.path.clone(),
         title: d.title.clone(),
         description: d.description.clone(),
     };
@@ -1222,32 +1226,49 @@ async fn foundation_transparency(
     views::pages::transparency::render_index(&content, auth)
 }
 
-/// `GET /foundation/transparency/{slug}` — one transparency document
-/// (`bylaws`, `conflict-of-interest`, or `minutes-YYYY-qN`), or a 404 page
-/// when the slug is unknown.
-async fn foundation_transparency_doc(
+fn render_transparency_doc(
+    doc: &TransparencyDoc,
+    auth: views::AuthState,
+) -> axum::response::Response {
+    let canonical = doc.path.clone();
+    (
+        StatusCode::OK,
+        views::pages::transparency::render_doc(
+            &views::pages::transparency::DocContent {
+                title: &doc.title,
+                description: &doc.description,
+                canonical_path: &canonical,
+                body_html: &doc.body_html,
+            },
+            auth,
+        ),
+    )
+        .into_response()
+}
+
+/// `GET /foundation/transparency/{slug}` — one governance document
+/// (`bylaws`, `conflict-of-interest`), or a 404 page when the slug is unknown.
+async fn foundation_transparency_governance_doc(
     State(transparency): State<TransparencyIndex>,
     MaybeAuth(auth): MaybeAuth,
     AxumPath(slug): AxumPath<String>,
 ) -> impl IntoResponse {
     match transparency.get(&slug) {
-        Some(doc) => {
-            let canonical = format!("/foundation/transparency/{}", doc.slug);
-            (
-                StatusCode::OK,
-                views::pages::transparency::render_doc(
-                    &views::pages::transparency::DocContent {
-                        title: &doc.title,
-                        description: &doc.description,
-                        canonical_path: &canonical,
-                        body_html: &doc.body_html,
-                    },
-                    auth,
-                ),
-            )
-                .into_response()
-        }
-        None => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
+        Some(doc) if doc.category == DocCategory::Governance => render_transparency_doc(doc, auth),
+        None | Some(_) => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
+    }
+}
+
+/// `GET /foundation/transparency/minutes/{slug}` — one quarterly board-minutes
+/// document, or a 404 page when the slug is unknown.
+async fn foundation_transparency_minutes_doc(
+    State(transparency): State<TransparencyIndex>,
+    MaybeAuth(auth): MaybeAuth,
+    AxumPath(slug): AxumPath<String>,
+) -> impl IntoResponse {
+    match transparency.get(&slug) {
+        Some(doc) if doc.category == DocCategory::Minutes => render_transparency_doc(doc, auth),
+        None | Some(_) => (StatusCode::NOT_FOUND, views::not_found_page()).into_response(),
     }
 }
 
