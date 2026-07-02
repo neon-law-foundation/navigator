@@ -2480,12 +2480,57 @@ async fn llms_txt(
 ) -> impl IntoResponse {
     use std::fmt::Write as _;
     let base = resolve_base_url(&canonical_host, &headers);
-    let brand = &*views::brand::FIRM_BRAND;
-    let mut out = format!("# {}\n\n> {}\n", brand.site_name, brand.tagline);
+    let mut out = format!(
+        "\
+# Neon Law Navigator
 
-    if !workshops.materials().is_empty() {
-        out.push_str("\n## Nebula\n\n");
+> Open-source legal automation for treating legal documents like code: markdown Templates declare intake and workflow; running Notations collect answers, fill forms, route staff review, and produce documents through the Navigator CLI and web app.
+
+Important notes:
+- This is not legal advice; attorney review remains required.
+- A Template is a markdown file with YAML frontmatter, `questionnaire:`, `workflow:`, and `{{{{placeholders}}}}`.
+- A Notation is a running instance of a Template, bound to a matter and respondent.
+- When writing notation, ground questionnaire states and placeholders in the Navigator glossary before inventing `custom_*` fields.
+- Use the Navigator CLI to validate templates, render documents, walk intake, fill forms, and download generated packets.
+
+## Core Concepts
+
+- [Glossary]({base}/docs/glossary): Canonical Navigator nouns and fields. Use these to ground questionnaire states, placeholders, parties, projects, roles, documents, answers, and workflow terms.
+- [Notation vocabulary]({base}/docs/notation): Template, Notation, Questionnaire, Question, Answer, and Rule.
+- [Authoring notations]({base}/docs/notation-authoring): How to write legal-document Templates in markdown, declare intake, compose workflows, and validate them.
+- [Navigator CLI]({base}/foundation/navigator/cli): Validate markdown templates, render PDFs, create Notations, answer intake questions, approve packets, and download filled documents.
+- [Template gallery]({base}/templates): Public examples of legal documents written as markdown notation.
+
+## Use The CLI
+
+- [Using Neon Law Navigator]({base}/foundation/nebula/workshops/use-the-navigator.md): Hands-on class for building and running a notation.
+- [Deploying Neon Law Navigator]({base}/foundation/nebula/workshops/deploy-the-navigator.md): Stand up your own Navigator instance.
+- [Raw public Form 990 template]({base}/api/templates/forms/united-states/federal/irs/us--form-990): Example raw markdown Template served for LLMs and tools.
+- [Navigator repository](https://github.com/neon-law-foundation/navigator): Source code, templates, rules engine, CLI, and contribution workflow.
+
+## Contribute
+
+- [Contributing to Neon Law Navigator]({base}/foundation/nebula/workshops/contribute-to-the-navigator.md): Open issues, share template improvements, join classes, or contribute code.
+- [Contributor agreement](https://github.com/neon-law-foundation/navigator/blob/main/CONTRIBUTING.md): License and feedback terms for code, templates, and suggestions.
+
+## Services And Classes
+
+- [Neon Law services]({base}/services): Flat-fee legal services built around Navigator.
+- [Nebula workshops]({base}/foundation/nebula): Classes, show-and-tells, and practical training for lawyers using AI and Navigator.
+- [Contact Neon Law]({base}/contact): Ask about legal services, training, or implementation help.
+"
+    );
+
+    if workshops
+        .materials()
+        .iter()
+        .any(|m| m.category != "presentations")
+    {
+        out.push_str("\n## Workshop Corpus\n\n");
         for m in workshops.materials() {
+            if m.category == "presentations" {
+                continue;
+            }
             let _ = writeln!(
                 out,
                 "- [{}]({base}{NEBULA_BASE}/{}/{}.md): {}",
