@@ -241,6 +241,6 @@ async fn assert_workflow_routes(_world: &mut TrustWorld, step: &Step) {
 #[tokio::main]
 async fn main() {
     TrustWorld::cucumber()
-        .run("tests/features/trust_esignature.feature")
+        .run_and_exit("tests/features/trust_esignature.feature")
         .await;
 }

@@ -247,6 +247,6 @@ async fn assert_relay(world: &mut EmailWorld) {
 #[tokio::main]
 async fn main() {
     EmailWorld::cucumber()
-        .run("tests/features/inbound_email_round_trip.feature")
+        .run_and_exit("tests/features/inbound_email_round_trip.feature")
         .await;
 }

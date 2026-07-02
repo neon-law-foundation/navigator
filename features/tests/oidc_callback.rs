@@ -188,6 +188,6 @@ async fn assert_role_preserved(world: &mut OidcWorld, role: String) {
 #[tokio::main]
 async fn main() {
     OidcWorld::cucumber()
-        .run("tests/features/oidc_callback.feature")
+        .run_and_exit("tests/features/oidc_callback.feature")
         .await;
 }

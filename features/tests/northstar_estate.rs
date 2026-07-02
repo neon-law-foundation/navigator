@@ -276,6 +276,6 @@ async fn assert_fee(world: &mut NorthstarWorld, cents: i64) {
 #[tokio::main]
 async fn main() {
     NorthstarWorld::cucumber()
-        .run("tests/features/northstar_estate.feature")
+        .run_and_exit("tests/features/northstar_estate.feature")
         .await;
 }

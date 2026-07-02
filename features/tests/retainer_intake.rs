@@ -322,6 +322,6 @@ async fn assert_post_end_redirect(world: &mut RetainerWorld) {
 #[tokio::main]
 async fn main() {
     RetainerWorld::cucumber()
-        .run("tests/features/retainer_intake.feature")
+        .run_and_exit("tests/features/retainer_intake.feature")
         .await;
 }

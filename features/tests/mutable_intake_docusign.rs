@@ -258,6 +258,6 @@ async fn document_carries_clause(world: &mut MutableWorld) {
 #[tokio::main]
 async fn main() {
     MutableWorld::cucumber()
-        .run("tests/features/mutable_intake_docusign.feature")
+        .run_and_exit("tests/features/mutable_intake_docusign.feature")
         .await;
 }

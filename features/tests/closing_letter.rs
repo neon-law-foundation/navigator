@@ -250,6 +250,6 @@ async fn assert_last_state(world: &mut ClosingWorld, name: String) {
 #[tokio::main]
 async fn main() {
     ClosingWorld::cucumber()
-        .run("tests/features/closing_letter.feature")
+        .run_and_exit("tests/features/closing_letter.feature")
         .await;
 }

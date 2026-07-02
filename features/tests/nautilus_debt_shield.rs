@@ -265,6 +265,6 @@ async fn assert_no_cut(_world: &mut NautilusWorld, savings: i64) {
 #[tokio::main]
 async fn main() {
     NautilusWorld::cucumber()
-        .run("tests/features/nautilus_debt_shield.feature")
+        .run_and_exit("tests/features/nautilus_debt_shield.feature")
         .await;
 }

@@ -220,6 +220,6 @@ async fn assert_last_state(world: &mut LangWorld, name: String) {
 #[tokio::main]
 async fn main() {
     LangWorld::cucumber()
-        .run("tests/features/intake_language.feature")
+        .run_and_exit("tests/features/intake_language.feature")
         .await;
 }

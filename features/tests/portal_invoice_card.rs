@@ -280,6 +280,6 @@ fn truncated(s: &str) -> String {
 #[tokio::main]
 async fn main() {
     CardWorld::cucumber()
-        .run("tests/features/portal_invoice_card.feature")
+        .run_and_exit("tests/features/portal_invoice_card.feature")
         .await;
 }

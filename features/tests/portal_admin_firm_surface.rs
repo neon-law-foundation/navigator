@@ -172,6 +172,6 @@ fn truncate(s: &str) -> String {
 #[tokio::main]
 async fn main() {
     FirmWorld::cucumber()
-        .run("tests/features/portal_admin_firm_surface.feature")
+        .run_and_exit("tests/features/portal_admin_firm_surface.feature")
         .await;
 }

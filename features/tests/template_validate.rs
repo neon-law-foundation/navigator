@@ -78,6 +78,6 @@ async fn assert_message(world: &mut ValidateWorld, needle: String) {
 #[tokio::main]
 async fn main() {
     ValidateWorld::cucumber()
-        .run("tests/features/template_validate.feature")
+        .run_and_exit("tests/features/template_validate.feature")
         .await;
 }

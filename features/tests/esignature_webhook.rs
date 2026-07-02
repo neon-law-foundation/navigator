@@ -269,6 +269,6 @@ async fn assert_row_state(world: &mut WebhookWorld, state: String) {
 #[tokio::main]
 async fn main() {
     WebhookWorld::cucumber()
-        .run("tests/features/esignature_webhook.feature")
+        .run_and_exit("tests/features/esignature_webhook.feature")
         .await;
 }

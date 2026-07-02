@@ -220,6 +220,6 @@ async fn assert_captured_body_contains(world: &mut WelcomeWorld, needle: String)
 #[tokio::main]
 async fn main() {
     WelcomeWorld::cucumber()
-        .run("tests/features/onboarding_welcome.feature")
+        .run_and_exit("tests/features/onboarding_welcome.feature")
         .await;
 }

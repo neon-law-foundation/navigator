@@ -77,6 +77,6 @@ async fn assert_funnel(world: &mut SpanishWorld, prefix: String) {
 #[tokio::main]
 async fn main() {
     SpanishWorld::cucumber()
-        .run("tests/features/spanish_client_journey.feature")
+        .run_and_exit("tests/features/spanish_client_journey.feature")
         .await;
 }

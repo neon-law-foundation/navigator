@@ -227,6 +227,6 @@ fn truncated(s: &str) -> String {
 #[tokio::main]
 async fn main() {
     DetailWorld::cucumber()
-        .run("tests/features/portal_projects_detail.feature")
+        .run_and_exit("tests/features/portal_projects_detail.feature")
         .await;
 }

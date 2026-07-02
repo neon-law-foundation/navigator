@@ -260,3 +260,46 @@ pub async fn drive_verified_oauth(
 pub fn form_encode(s: &str) -> String {
     s.replace(' ', "%20").replace('@', "%40")
 }
+
+#[cfg(test)]
+mod runner_exit_tests {
+    /// Every cucumber runner must use `run_and_exit`, not `run`: with
+    /// `harness = false`, `run` prints step failures but the process
+    /// still exits 0, so a red scenario scrolls through a green CI job
+    /// (#276). Scans the real runner sources so a new feature binary
+    /// can't reintroduce the silent-pass.
+    #[test]
+    fn every_cucumber_runner_propagates_failure_through_its_exit_code() {
+        let tests_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
+        let mut runners = 0usize;
+        for entry in std::fs::read_dir(&tests_dir).expect("read features/tests") {
+            let path = entry.expect("dir entry").path();
+            if path.extension().and_then(|s| s.to_str()) != Some("rs") {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).expect("read runner source");
+            if !source.contains("cucumber()") {
+                continue;
+            }
+            runners += 1;
+            // `.run(` (no closing quote) also catches a variable-path
+            // call like `.run(path)`, and is not a substring of
+            // `.run_and_exit(`, so the two checks are exact.
+            assert!(
+                !source.contains(".run("),
+                "{}: uses `.run(...)`, which exits 0 even when scenarios fail — \
+                 use `.run_and_exit(...)` so CI sees the failure",
+                path.display(),
+            );
+            assert!(
+                source.contains(".run_and_exit("),
+                "{}: cucumber runner without `.run_and_exit(...)`",
+                path.display(),
+            );
+        }
+        assert!(
+            runners > 10,
+            "expected to scan the cucumber runner corpus, found {runners} — wrong path?"
+        );
+    }
+}
