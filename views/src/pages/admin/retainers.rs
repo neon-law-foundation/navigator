@@ -184,6 +184,10 @@ pub struct QuestionStep<'a> {
     pub answer_type: &'a str,
     /// Prior answer to pre-fill (e.g. the user navigated back).
     pub prior_answer: Option<&'a str>,
+    /// Seeded option names for a `country` question (empty for every
+    /// other `answer_type`); the select posts the chosen name as
+    /// `value`, so the stored answer matches a jurisdictions row.
+    pub country_options: &'a [String],
     /// `(current, total)` — staff-visible progress indicator.
     pub progress: (usize, usize),
     pub csrf_token: &'a str,
@@ -224,6 +228,21 @@ pub fn question_step(view: &QuestionStep<'_>) -> Markup {
                 .placeholder("0.00")
                 .help("Enter dollars and cents, e.g. 1250.00.")
                 .required()],
+            None,
+        ),
+        "custom_phone" => (
+            vec![Field::input(view.question_prompt, "value", prior, "tel")
+                .placeholder("(702) 555-0100")
+                .help("Include the country code if the number is outside the U.S.")
+                .required()],
+            None,
+        ),
+        "country" => (
+            vec![Field::country_select(
+                view.question_prompt,
+                view.country_options,
+                view.prior_answer,
+            )],
             None,
         ),
         "bool" | "yes_no" => (
@@ -337,6 +356,7 @@ mod tests {
             question_prompt: "What is the client's email address?",
             answer_type: "string",
             prior_answer: None,
+            country_options: &[],
             progress: (2, 4),
             csrf_token: "",
             error: None,
@@ -364,6 +384,7 @@ mod tests {
             question_prompt: "Client name",
             answer_type: "string",
             prior_answer: Some("Libra"),
+            country_options: &[],
             progress: (1, 4),
             csrf_token: "",
             error: None,
@@ -381,12 +402,52 @@ mod tests {
             question_prompt: "Describe the services",
             answer_type: "text",
             prior_answer: None,
+            country_options: &[],
             progress: (4, 4),
             csrf_token: "",
             error: None,
         })
         .into_string();
         assert!(html.contains("<textarea"));
+    }
+
+    #[test]
+    fn question_step_renders_country_select_with_preselected_prior() {
+        let options = vec!["Canada".to_string(), "Mexico".to_string()];
+        let html = question_step(&QuestionStep {
+            notation_id: ID1,
+            flow_label: "Application for Naturalization",
+            question_code: "country__of_birth",
+            question_prompt: "In what country were you born?",
+            answer_type: "country",
+            prior_answer: Some("Mexico"),
+            country_options: &options,
+            progress: (3, 10),
+            csrf_token: "",
+            error: None,
+        })
+        .into_string();
+        assert!(html.contains("<select"), "{html}");
+        assert!(html.contains("Select a country…"), "{html}");
+        assert!(html.contains("value=\"Mexico\" selected"), "{html}");
+    }
+
+    #[test]
+    fn question_step_renders_tel_input_for_custom_phone() {
+        let html = question_step(&QuestionStep {
+            notation_id: ID1,
+            flow_label: "Application for Naturalization",
+            question_code: "custom_phone__daytime_phone",
+            question_prompt: "What is the best daytime phone number to reach you?",
+            answer_type: "custom_phone",
+            prior_answer: None,
+            country_options: &[],
+            progress: (5, 10),
+            csrf_token: "",
+            error: None,
+        })
+        .into_string();
+        assert!(html.contains("type=\"tel\""), "{html}");
     }
 
     #[test]
@@ -398,6 +459,7 @@ mod tests {
             question_prompt: "Client name",
             answer_type: "string",
             prior_answer: None,
+            country_options: &[],
             progress: (1, 4),
             csrf_token: "TOKEN_VALUE",
             error: None,

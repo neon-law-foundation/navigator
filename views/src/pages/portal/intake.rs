@@ -30,6 +30,10 @@ pub struct IntakeStep<'a> {
     /// Any current answer to pre-fill — including one staff entered on
     /// the client's behalf, which the client confirms or corrects.
     pub prior_value: Option<&'a str>,
+    /// Seeded option names for a `country` question (empty for every
+    /// other `answer_type`); the select posts the chosen name as
+    /// `value`, so the stored answer matches a jurisdictions row.
+    pub country_options: &'a [String],
     /// `(current, total)` — client-facing progress.
     pub progress: (usize, usize),
     pub csrf_token: &'a str,
@@ -73,6 +77,21 @@ pub fn intake_step(view: &IntakeStep<'_>) -> Markup {
                 .placeholder("0.00")
                 .help("Enter dollars and cents, e.g. 1250.00.")
                 .required()],
+            None,
+        ),
+        "custom_phone" => (
+            vec![Field::input(view.question_prompt, "value", prior, "tel")
+                .placeholder("(702) 555-0100")
+                .help("Include the country code if the number is outside the U.S.")
+                .required()],
+            None,
+        ),
+        "country" => (
+            vec![Field::country_select(
+                view.question_prompt,
+                view.country_options,
+                view.prior_value,
+            )],
             None,
         ),
         "bool" | "yes_no" => (
@@ -150,4 +169,54 @@ pub fn intake_complete(view: &IntakeComplete<'_>) -> Markup {
     PageLayout::new(&page_title)
         .with_auth(crate::AuthState::Authenticated)
         .render(&body)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ID1: Uuid = Uuid::from_u128(1);
+
+    fn step<'a>(
+        answer_type: &'a str,
+        prior: Option<&'a str>,
+        options: &'a [String],
+    ) -> IntakeStep<'a> {
+        IntakeStep {
+            project_id: ID1,
+            notation_id: ID1,
+            flow_label: "Application for Naturalization",
+            question_code: "country__of_birth",
+            question_prompt: "In what country were you born?",
+            answer_type,
+            prior_value: prior,
+            country_options: options,
+            progress: (3, 10),
+            csrf_token: "",
+            error: None,
+        }
+    }
+
+    #[test]
+    fn country_question_renders_a_select_of_seeded_names() {
+        let options = vec!["Canada".to_string(), "Mexico".to_string()];
+        let html = intake_step(&step("country", None, &options)).into_string();
+        assert!(html.contains("<select"), "{html}");
+        assert!(html.contains("Select a country…"), "{html}");
+        assert!(html.contains("value=\"Canada\""), "{html}");
+        assert!(html.contains("value=\"Mexico\""), "{html}");
+    }
+
+    #[test]
+    fn country_question_preselects_the_prior_answer() {
+        let options = vec!["Canada".to_string(), "Mexico".to_string()];
+        let html = intake_step(&step("country", Some("Mexico"), &options)).into_string();
+        assert!(html.contains("value=\"Mexico\" selected"), "{html}");
+    }
+
+    #[test]
+    fn custom_phone_question_renders_a_tel_input() {
+        let html = intake_step(&step("custom_phone", None, &[])).into_string();
+        assert!(html.contains("type=\"tel\""), "{html}");
+    }
 }
