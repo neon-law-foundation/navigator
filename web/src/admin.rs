@@ -2088,15 +2088,20 @@ async fn projects_create_staff_only(
         return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
     }
 
+    if let Err(e) = store::projects::provision_repo_hard_from_env(&txn, project_id).await {
+        tracing::error!(error = %e, %project_id, "projects_create: repo provisioning failed");
+        return retainer_form_error(
+            &state,
+            &input,
+            store::projects::REPO_PROVISIONING_FAILURE_MESSAGE,
+        )
+        .await;
+    }
+
     if let Err(e) = txn.commit().await {
         tracing::error!(error = %e, "projects_create: commit failed");
         return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
     }
-
-    // Stand up the matter's append-only git repo now that the row is
-    // committed — every matter is a repo the moment it exists. Best-effort
-    // through the one shared provisioning path.
-    store::projects::provision_repo_eager(&state.db, project_id).await;
 
     // Drive the workflow to the `staff_review` gate (never auto-send),
     // then land staff on the review/approve screen. The human approve

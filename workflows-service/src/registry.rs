@@ -34,6 +34,7 @@ pub const WORKFLOW_SERVICES: &[&str] = &[
     "RecurringBilling",
     "ReconcileInvoices",
     "Heartbeat",
+    "ProjectProvisioning",
 ];
 
 /// Virtual-object services bound by the worker. Lowercase by deliberate

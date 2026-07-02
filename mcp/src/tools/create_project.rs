@@ -9,7 +9,7 @@
 //!
 //! [Matter]: ../../../docs/glossary.md#matter
 
-use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait};
+use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait, TransactionTrait};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use store::entity::{entity as ent, person, project};
@@ -74,6 +74,23 @@ struct Args {
 }
 
 pub async fn call(db: &Db, arguments: &Value) -> Result<Value, ToolError> {
+    call_inner(db, None, arguments).await
+}
+
+#[cfg(test)]
+async fn call_with_repo_store(
+    db: &Db,
+    repo_store: repos::RepoStore,
+    arguments: &Value,
+) -> Result<Value, ToolError> {
+    call_inner(db, Some(repo_store), arguments).await
+}
+
+async fn call_inner(
+    db: &Db,
+    repo_store: Option<repos::RepoStore>,
+    arguments: &Value,
+) -> Result<Value, ToolError> {
     let args: Args = super::decode_args(arguments)?;
 
     let name = args.name.trim().to_string();
@@ -143,6 +160,7 @@ pub async fn call(db: &Db, arguments: &Value) -> Result<Value, ToolError> {
         )));
     }
 
+    let txn = db.begin().await?;
     let inserted = project::ActiveModel {
         name: ActiveValue::Set(name),
         status: ActiveValue::Set(status),
@@ -151,13 +169,11 @@ pub async fn call(db: &Db, arguments: &Value) -> Result<Value, ToolError> {
         client_dri_person_id: ActiveValue::Set(Some(client.id)),
         ..Default::default()
     }
-    .insert(db)
+    .insert(&txn)
     .await?;
 
-    // Stand up the matter's append-only git repo so a freshly created
-    // project has a ready repo. Best-effort through the one shared
-    // provisioning path (never fails the tool call).
-    store::projects::provision_repo_eager(db, inserted.id).await;
+    provision_created_project(&txn, resolve_repo_store(repo_store)?, inserted.id).await?;
+    txn.commit().await?;
 
     let summary = format!(
         "Created project id={} ({}, status={}, entity_id={}).",
@@ -175,9 +191,47 @@ pub async fn call(db: &Db, arguments: &Value) -> Result<Value, ToolError> {
     }))
 }
 
+fn resolve_repo_store(repo_store: Option<repos::RepoStore>) -> Result<repos::RepoStore, ToolError> {
+    repo_store.map_or_else(
+        || {
+            repos::RepoStore::from_env().map_err(|e| {
+                ToolError::Internal(format!(
+                    "{} ({e})",
+                    store::projects::REPO_PROVISIONING_FAILURE_MESSAGE
+                ))
+            })
+        },
+        Ok,
+    )
+}
+
+async fn provision_created_project<C>(
+    db: &C,
+    repo_store: repos::RepoStore,
+    project_id: Uuid,
+) -> Result<(), ToolError>
+where
+    C: sea_orm::ConnectionTrait,
+{
+    store::projects::provision_repo_hard(
+        db,
+        repo_store,
+        project_id,
+        store::projects::REPO_PROVISIONING_TIMEOUT,
+    )
+    .await
+    .map(|_| ())
+    .map_err(|e| {
+        ToolError::Internal(format!(
+            "{} ({e})",
+            store::projects::REPO_PROVISIONING_FAILURE_MESSAGE
+        ))
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{call, descriptor};
+    use super::{call, call_with_repo_store, descriptor};
     use crate::tools::ToolError;
     use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait};
     use serde_json::json;
@@ -262,8 +316,10 @@ mod tests {
         let eid = seed_entity(&db).await;
         let cid = seed_client(&db).await;
         seed_firm_principal(&db).await;
-        let r = call(
+        let repo_root = tempfile::tempdir().unwrap();
+        let r = call_with_repo_store(
             &db,
+            repos::RepoStore::new(repo_root.path()),
             &json!({ "name": "Sison", "entity_id": eid, "client_dri_person_id": cid }),
         )
         .await
@@ -281,13 +337,40 @@ mod tests {
         let eid = seed_entity(&db).await;
         let cid = seed_client(&db).await;
         seed_firm_principal(&db).await;
-        let r = call(
+        let repo_root = tempfile::tempdir().unwrap();
+        let r = call_with_repo_store(
             &db,
+            repos::RepoStore::new(repo_root.path()),
             &json!({ "name": "ShookEstate", "entity_id": eid, "client_dri_person_id": cid }),
         )
         .await
         .unwrap();
         assert_eq!(r["structuredContent"]["entity_id"], eid.to_string());
+    }
+
+    #[tokio::test]
+    async fn repo_provisioning_failure_rolls_back_project() {
+        let db = db().await;
+        let eid = seed_entity(&db).await;
+        let cid = seed_client(&db).await;
+        seed_firm_principal(&db).await;
+        let file_root = tempfile::NamedTempFile::new().unwrap();
+
+        let err = call_with_repo_store(
+            &db,
+            repos::RepoStore::new(file_root.path()),
+            &json!({ "name": "No Repo", "entity_id": eid, "client_dri_person_id": cid }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("secure document workspace was not ready"),
+            "error should use workspace-ready message: {err}",
+        );
+        let all = project::Entity::find().all(&db).await.unwrap();
+        assert!(all.is_empty(), "project insert must roll back");
     }
 
     #[tokio::test]

@@ -19,7 +19,10 @@ use statutes::workflow::{Statutes, StatutesService};
 use workflows::{EmailService, SlackOpsDelivery};
 use workflows_service::heartbeat::{Heartbeat, HeartbeatService};
 use workflows_service::notation_service::Notation;
-use workflows_service::{email_from_env, notifier_from_env, NotationService};
+use workflows_service::{
+    email_from_env, notifier_from_env, NotationService, ProjectProvisioning,
+    ProjectProvisioningService,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -107,7 +110,8 @@ async fn main() -> anyhow::Result<()> {
             .bind(MatterCloseInvoiceService::new(db.clone()).serve())
             // Client-facing invoices → plain backend (no Slack mirror).
             .bind(RecurringBillingService::new(db.clone(), email).serve())
-            .bind(ReconcileInvoicesService::new(db).serve())
+            .bind(ReconcileInvoicesService::new(db.clone()).serve())
+            .bind(ProjectProvisioningService::new(db.clone()).serve())
             .build(),
     )
     .listen_and_serve(listen)

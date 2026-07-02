@@ -29,6 +29,13 @@ struct Fixture {
 }
 
 async fn build() -> Fixture {
+    let repo_root = std::env::temp_dir().join(format!(
+        "navigator-estate-gates-repos-{}",
+        uuid::Uuid::now_v7()
+    ));
+    std::fs::create_dir_all(&repo_root).unwrap();
+    std::env::set_var("NAVIGATOR_GIT_REPO_ROOT", &repo_root);
+
     let db = store::test_support::pg().await;
     let storage: Arc<dyn cloud::StorageService> = Arc::new(
         cloud::FsStorage::new(std::env::temp_dir().join("navigator-estate-gates-test"))

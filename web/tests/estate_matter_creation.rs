@@ -14,7 +14,8 @@
 //! `transcript_uploaded` through the same runtime and assert it
 //! advances onto `document_intake__transcript`.
 
-use std::sync::Arc;
+use std::path::PathBuf;
+use std::sync::{Arc, OnceLock};
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -27,6 +28,21 @@ use workflows::{MachineKind, StateMachineRuntime};
 /// mint a logged-in staff cookie against it.
 const SESSION_KEY: &str = "test-session-key-not-for-production";
 
+/// `NAVIGATOR_GIT_REPO_ROOT` is process-global, so this test binary uses one
+/// stable repo root instead of per-test roots that can race under tokio.
+fn repo_root() -> &'static PathBuf {
+    static REPO_ROOT: OnceLock<PathBuf> = OnceLock::new();
+    REPO_ROOT.get_or_init(|| {
+        let repo_root = std::env::temp_dir().join(format!(
+            "navigator-estate-creation-repos-{}",
+            uuid::Uuid::now_v7()
+        ));
+        std::fs::create_dir_all(&repo_root).unwrap();
+        std::env::set_var("NAVIGATOR_GIT_REPO_ROOT", &repo_root);
+        repo_root
+    })
+}
+
 /// Build the app with the `onboarding__estate` template seeded (no
 /// notation yet — creation is what the test exercises). Returns the
 /// router, the db, and the shared workflow runtime so the test can
@@ -35,6 +51,7 @@ async fn build_app() -> (axum::Router, store::Db, Arc<dyn StateMachineRuntime>) 
     use sea_orm::{ActiveModelTrait, ActiveValue};
     use store::entity::template;
 
+    let _repo_root = repo_root();
     let db = store::test_support::pg().await;
     // Every matter now carries a NOT NULL staff DRI; the self-serve walk
     // resolves it to the firm principal (by role) when no staffer is in the
