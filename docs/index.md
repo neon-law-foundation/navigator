@@ -81,6 +81,7 @@ These are the terms agents most often need before making a decision. The full al
 ## Legal workflows and documents
 
 - [`retainer_intake.md`](retainer_intake.md) — retainer intake state machine.
+  [`naturalization-intake-demo.md`](naturalization-intake-demo.md) — walk the N-400 intake locally with the CLI.
   [`northstar-estate-flow.md`](northstar-estate-flow.md) — estate-planning flow.
   [`nautilus-design.md`](nautilus-design.md) — Nautilus design. [`nautilus-workflows.md`](nautilus-workflows.md) —
   Nautilus workflow details. [`gov-forms.md`](gov-forms.md) — government form provenance.
