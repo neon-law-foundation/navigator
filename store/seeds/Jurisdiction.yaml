@@ -160,3 +160,590 @@ records:
   - name: Germany
     code: GMBH
     jurisdiction_type: country
+  # Countries (ISO 3166-1, alpha-3 codes — alpha-2 would collide with the
+  # state codes above, e.g. CA). United States and Germany are seeded above.
+  - name: Afghanistan
+    code: AFG
+    jurisdiction_type: country
+  - name: Albania
+    code: ALB
+    jurisdiction_type: country
+  - name: Algeria
+    code: DZA
+    jurisdiction_type: country
+  - name: Andorra
+    code: AND
+    jurisdiction_type: country
+  - name: Angola
+    code: AGO
+    jurisdiction_type: country
+  - name: Antigua and Barbuda
+    code: ATG
+    jurisdiction_type: country
+  - name: Argentina
+    code: ARG
+    jurisdiction_type: country
+  - name: Armenia
+    code: ARM
+    jurisdiction_type: country
+  - name: Australia
+    code: AUS
+    jurisdiction_type: country
+  - name: Austria
+    code: AUT
+    jurisdiction_type: country
+  - name: Azerbaijan
+    code: AZE
+    jurisdiction_type: country
+  - name: Bahamas
+    code: BHS
+    jurisdiction_type: country
+  - name: Bahrain
+    code: BHR
+    jurisdiction_type: country
+  - name: Bangladesh
+    code: BGD
+    jurisdiction_type: country
+  - name: Barbados
+    code: BRB
+    jurisdiction_type: country
+  - name: Belarus
+    code: BLR
+    jurisdiction_type: country
+  - name: Belgium
+    code: BEL
+    jurisdiction_type: country
+  - name: Belize
+    code: BLZ
+    jurisdiction_type: country
+  - name: Benin
+    code: BEN
+    jurisdiction_type: country
+  - name: Bhutan
+    code: BTN
+    jurisdiction_type: country
+  - name: Bolivia
+    code: BOL
+    jurisdiction_type: country
+  - name: Bosnia and Herzegovina
+    code: BIH
+    jurisdiction_type: country
+  - name: Botswana
+    code: BWA
+    jurisdiction_type: country
+  - name: Brazil
+    code: BRA
+    jurisdiction_type: country
+  - name: Brunei Darussalam
+    code: BRN
+    jurisdiction_type: country
+  - name: Bulgaria
+    code: BGR
+    jurisdiction_type: country
+  - name: Burkina Faso
+    code: BFA
+    jurisdiction_type: country
+  - name: Burundi
+    code: BDI
+    jurisdiction_type: country
+  - name: Cabo Verde
+    code: CPV
+    jurisdiction_type: country
+  - name: Cambodia
+    code: KHM
+    jurisdiction_type: country
+  - name: Cameroon
+    code: CMR
+    jurisdiction_type: country
+  - name: Canada
+    code: CAN
+    jurisdiction_type: country
+  - name: Central African Republic
+    code: CAF
+    jurisdiction_type: country
+  - name: Chad
+    code: TCD
+    jurisdiction_type: country
+  - name: Chile
+    code: CHL
+    jurisdiction_type: country
+  - name: China
+    code: CHN
+    jurisdiction_type: country
+  - name: Colombia
+    code: COL
+    jurisdiction_type: country
+  - name: Comoros
+    code: COM
+    jurisdiction_type: country
+  - name: Congo
+    code: COG
+    jurisdiction_type: country
+  - name: Congo, Democratic Republic of the
+    code: COD
+    jurisdiction_type: country
+  - name: Costa Rica
+    code: CRI
+    jurisdiction_type: country
+  - name: Côte d'Ivoire
+    code: CIV
+    jurisdiction_type: country
+  - name: Croatia
+    code: HRV
+    jurisdiction_type: country
+  - name: Cuba
+    code: CUB
+    jurisdiction_type: country
+  - name: Cyprus
+    code: CYP
+    jurisdiction_type: country
+  - name: Czechia
+    code: CZE
+    jurisdiction_type: country
+  - name: Denmark
+    code: DNK
+    jurisdiction_type: country
+  - name: Djibouti
+    code: DJI
+    jurisdiction_type: country
+  - name: Dominica
+    code: DMA
+    jurisdiction_type: country
+  - name: Dominican Republic
+    code: DOM
+    jurisdiction_type: country
+  - name: Ecuador
+    code: ECU
+    jurisdiction_type: country
+  - name: Egypt
+    code: EGY
+    jurisdiction_type: country
+  - name: El Salvador
+    code: SLV
+    jurisdiction_type: country
+  - name: Equatorial Guinea
+    code: GNQ
+    jurisdiction_type: country
+  - name: Eritrea
+    code: ERI
+    jurisdiction_type: country
+  - name: Estonia
+    code: EST
+    jurisdiction_type: country
+  - name: Eswatini
+    code: SWZ
+    jurisdiction_type: country
+  - name: Ethiopia
+    code: ETH
+    jurisdiction_type: country
+  - name: Fiji
+    code: FJI
+    jurisdiction_type: country
+  - name: Finland
+    code: FIN
+    jurisdiction_type: country
+  - name: France
+    code: FRA
+    jurisdiction_type: country
+  - name: Gabon
+    code: GAB
+    jurisdiction_type: country
+  - name: Gambia
+    code: GMB
+    jurisdiction_type: country
+  - name: Georgia (country)
+    code: GEO
+    jurisdiction_type: country
+  - name: Ghana
+    code: GHA
+    jurisdiction_type: country
+  - name: Greece
+    code: GRC
+    jurisdiction_type: country
+  - name: Grenada
+    code: GRD
+    jurisdiction_type: country
+  - name: Guatemala
+    code: GTM
+    jurisdiction_type: country
+  - name: Guinea
+    code: GIN
+    jurisdiction_type: country
+  - name: Guinea-Bissau
+    code: GNB
+    jurisdiction_type: country
+  - name: Guyana
+    code: GUY
+    jurisdiction_type: country
+  - name: Haiti
+    code: HTI
+    jurisdiction_type: country
+  - name: Holy See
+    code: VAT
+    jurisdiction_type: country
+  - name: Honduras
+    code: HND
+    jurisdiction_type: country
+  - name: Hungary
+    code: HUN
+    jurisdiction_type: country
+  - name: Iceland
+    code: ISL
+    jurisdiction_type: country
+  - name: India
+    code: IND
+    jurisdiction_type: country
+  - name: Indonesia
+    code: IDN
+    jurisdiction_type: country
+  - name: Iran
+    code: IRN
+    jurisdiction_type: country
+  - name: Iraq
+    code: IRQ
+    jurisdiction_type: country
+  - name: Ireland
+    code: IRL
+    jurisdiction_type: country
+  - name: Israel
+    code: ISR
+    jurisdiction_type: country
+  - name: Italy
+    code: ITA
+    jurisdiction_type: country
+  - name: Jamaica
+    code: JAM
+    jurisdiction_type: country
+  - name: Japan
+    code: JPN
+    jurisdiction_type: country
+  - name: Jordan
+    code: JOR
+    jurisdiction_type: country
+  - name: Kazakhstan
+    code: KAZ
+    jurisdiction_type: country
+  - name: Kenya
+    code: KEN
+    jurisdiction_type: country
+  - name: Kiribati
+    code: KIR
+    jurisdiction_type: country
+  - name: Korea, North
+    code: PRK
+    jurisdiction_type: country
+  - name: Korea, South
+    code: KOR
+    jurisdiction_type: country
+  - name: Kosovo
+    code: XKX
+    jurisdiction_type: country
+  - name: Kuwait
+    code: KWT
+    jurisdiction_type: country
+  - name: Kyrgyzstan
+    code: KGZ
+    jurisdiction_type: country
+  - name: Laos
+    code: LAO
+    jurisdiction_type: country
+  - name: Latvia
+    code: LVA
+    jurisdiction_type: country
+  - name: Lebanon
+    code: LBN
+    jurisdiction_type: country
+  - name: Lesotho
+    code: LSO
+    jurisdiction_type: country
+  - name: Liberia
+    code: LBR
+    jurisdiction_type: country
+  - name: Libya
+    code: LBY
+    jurisdiction_type: country
+  - name: Liechtenstein
+    code: LIE
+    jurisdiction_type: country
+  - name: Lithuania
+    code: LTU
+    jurisdiction_type: country
+  - name: Luxembourg
+    code: LUX
+    jurisdiction_type: country
+  - name: Madagascar
+    code: MDG
+    jurisdiction_type: country
+  - name: Malawi
+    code: MWI
+    jurisdiction_type: country
+  - name: Malaysia
+    code: MYS
+    jurisdiction_type: country
+  - name: Maldives
+    code: MDV
+    jurisdiction_type: country
+  - name: Mali
+    code: MLI
+    jurisdiction_type: country
+  - name: Malta
+    code: MLT
+    jurisdiction_type: country
+  - name: Marshall Islands
+    code: MHL
+    jurisdiction_type: country
+  - name: Mauritania
+    code: MRT
+    jurisdiction_type: country
+  - name: Mauritius
+    code: MUS
+    jurisdiction_type: country
+  - name: Mexico
+    code: MEX
+    jurisdiction_type: country
+  - name: Micronesia
+    code: FSM
+    jurisdiction_type: country
+  - name: Moldova
+    code: MDA
+    jurisdiction_type: country
+  - name: Monaco
+    code: MCO
+    jurisdiction_type: country
+  - name: Mongolia
+    code: MNG
+    jurisdiction_type: country
+  - name: Montenegro
+    code: MNE
+    jurisdiction_type: country
+  - name: Morocco
+    code: MAR
+    jurisdiction_type: country
+  - name: Mozambique
+    code: MOZ
+    jurisdiction_type: country
+  - name: Myanmar
+    code: MMR
+    jurisdiction_type: country
+  - name: Namibia
+    code: NAM
+    jurisdiction_type: country
+  - name: Nauru
+    code: NRU
+    jurisdiction_type: country
+  - name: Nepal
+    code: NPL
+    jurisdiction_type: country
+  - name: Netherlands
+    code: NLD
+    jurisdiction_type: country
+  - name: New Zealand
+    code: NZL
+    jurisdiction_type: country
+  - name: Nicaragua
+    code: NIC
+    jurisdiction_type: country
+  - name: Niger
+    code: NER
+    jurisdiction_type: country
+  - name: Nigeria
+    code: NGA
+    jurisdiction_type: country
+  - name: North Macedonia
+    code: MKD
+    jurisdiction_type: country
+  - name: Norway
+    code: NOR
+    jurisdiction_type: country
+  - name: Oman
+    code: OMN
+    jurisdiction_type: country
+  - name: Pakistan
+    code: PAK
+    jurisdiction_type: country
+  - name: Palau
+    code: PLW
+    jurisdiction_type: country
+  - name: Palestine
+    code: PSE
+    jurisdiction_type: country
+  - name: Panama
+    code: PAN
+    jurisdiction_type: country
+  - name: Papua New Guinea
+    code: PNG
+    jurisdiction_type: country
+  - name: Paraguay
+    code: PRY
+    jurisdiction_type: country
+  - name: Peru
+    code: PER
+    jurisdiction_type: country
+  - name: Philippines
+    code: PHL
+    jurisdiction_type: country
+  - name: Poland
+    code: POL
+    jurisdiction_type: country
+  - name: Portugal
+    code: PRT
+    jurisdiction_type: country
+  - name: Qatar
+    code: QAT
+    jurisdiction_type: country
+  - name: Romania
+    code: ROU
+    jurisdiction_type: country
+  - name: Russia
+    code: RUS
+    jurisdiction_type: country
+  - name: Rwanda
+    code: RWA
+    jurisdiction_type: country
+  - name: Saint Kitts and Nevis
+    code: KNA
+    jurisdiction_type: country
+  - name: Saint Lucia
+    code: LCA
+    jurisdiction_type: country
+  - name: Saint Vincent and the Grenadines
+    code: VCT
+    jurisdiction_type: country
+  - name: Samoa
+    code: WSM
+    jurisdiction_type: country
+  - name: San Marino
+    code: SMR
+    jurisdiction_type: country
+  - name: Sao Tome and Principe
+    code: STP
+    jurisdiction_type: country
+  - name: Saudi Arabia
+    code: SAU
+    jurisdiction_type: country
+  - name: Senegal
+    code: SEN
+    jurisdiction_type: country
+  - name: Serbia
+    code: SRB
+    jurisdiction_type: country
+  - name: Seychelles
+    code: SYC
+    jurisdiction_type: country
+  - name: Sierra Leone
+    code: SLE
+    jurisdiction_type: country
+  - name: Singapore
+    code: SGP
+    jurisdiction_type: country
+  - name: Slovakia
+    code: SVK
+    jurisdiction_type: country
+  - name: Slovenia
+    code: SVN
+    jurisdiction_type: country
+  - name: Solomon Islands
+    code: SLB
+    jurisdiction_type: country
+  - name: Somalia
+    code: SOM
+    jurisdiction_type: country
+  - name: South Africa
+    code: ZAF
+    jurisdiction_type: country
+  - name: South Sudan
+    code: SSD
+    jurisdiction_type: country
+  - name: Spain
+    code: ESP
+    jurisdiction_type: country
+  - name: Sri Lanka
+    code: LKA
+    jurisdiction_type: country
+  - name: Sudan
+    code: SDN
+    jurisdiction_type: country
+  - name: Suriname
+    code: SUR
+    jurisdiction_type: country
+  - name: Sweden
+    code: SWE
+    jurisdiction_type: country
+  - name: Switzerland
+    code: CHE
+    jurisdiction_type: country
+  - name: Syria
+    code: SYR
+    jurisdiction_type: country
+  - name: Taiwan
+    code: TWN
+    jurisdiction_type: country
+  - name: Tajikistan
+    code: TJK
+    jurisdiction_type: country
+  - name: Tanzania
+    code: TZA
+    jurisdiction_type: country
+  - name: Thailand
+    code: THA
+    jurisdiction_type: country
+  - name: Timor-Leste
+    code: TLS
+    jurisdiction_type: country
+  - name: Togo
+    code: TGO
+    jurisdiction_type: country
+  - name: Tonga
+    code: TON
+    jurisdiction_type: country
+  - name: Trinidad and Tobago
+    code: TTO
+    jurisdiction_type: country
+  - name: Tunisia
+    code: TUN
+    jurisdiction_type: country
+  - name: Turkey
+    code: TUR
+    jurisdiction_type: country
+  - name: Turkmenistan
+    code: TKM
+    jurisdiction_type: country
+  - name: Tuvalu
+    code: TUV
+    jurisdiction_type: country
+  - name: Uganda
+    code: UGA
+    jurisdiction_type: country
+  - name: Ukraine
+    code: UKR
+    jurisdiction_type: country
+  - name: United Arab Emirates
+    code: ARE
+    jurisdiction_type: country
+  - name: United Kingdom
+    code: GBR
+    jurisdiction_type: country
+  - name: Uruguay
+    code: URY
+    jurisdiction_type: country
+  - name: Uzbekistan
+    code: UZB
+    jurisdiction_type: country
+  - name: Vanuatu
+    code: VUT
+    jurisdiction_type: country
+  - name: Venezuela
+    code: VEN
+    jurisdiction_type: country
+  - name: Vietnam
+    code: VNM
+    jurisdiction_type: country
+  - name: Yemen
+    code: YEM
+    jurisdiction_type: country
+  - name: Zambia
+    code: ZMB
+    jurisdiction_type: country
+  - name: Zimbabwe
+    code: ZWE
+    jurisdiction_type: country

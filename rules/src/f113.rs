@@ -48,6 +48,7 @@ pub const REGISTERED_QUESTION_TYPES: &[&str] = &[
     "issuances",
     // reference — singular
     "jurisdiction",
+    "country",
     "entity_type",
     "product",
     "statute",
@@ -59,6 +60,7 @@ pub const REGISTERED_QUESTION_TYPES: &[&str] = &[
     "statutes",
     // custom primitives
     "custom_text",
+    "custom_phone",
     "custom_yes_no",
     "custom_single_choice",
     "custom_multiple_choice",

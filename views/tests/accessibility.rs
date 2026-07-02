@@ -264,6 +264,7 @@ fn retainer_forms_are_accessible() {
             question_prompt: "What is the client's email address?",
             answer_type,
             prior_answer: None,
+            country_options: &[],
             progress: (2, 4),
             csrf_token: "TOK",
             error: None,
