@@ -49,6 +49,11 @@ async fn build_app() -> axum::Router {
         // actually populated.
         auth: AuthConfig::new(false, Some("unused-hs256-secret")),
         sessions: SessionStore::new(SESSION_KEY),
+        // The blank NV packet is pulled from the assets lane and
+        // verified against its pin at fill time; stage synthetic blanks
+        // with matching pins on this test's storage root.
+        assets_storage: storage.clone(),
+        forms_registry: web::test_support::stage_blank_forms(storage.as_ref()).await,
         storage,
         workflow_runtime,
         questionnaire_runtime: runtime,

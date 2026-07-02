@@ -60,6 +60,15 @@ async fn main() -> anyhow::Result<()> {
         .context("waiting for object storage to become ready")?;
     tracing::info!("object storage ready");
 
+    // Public-assets lane: blank government forms are pulled from here at
+    // fill/download time and verified against their repo `.sha256` pins.
+    // A distinct bucket in prod (`NAVIGATOR_ASSETS_BUCKET`); the same
+    // root as `storage` for the fs backend and single-bucket KIND.
+    let assets_storage = cloud::assets_from_env()
+        .await
+        .context("configuring public-assets object storage")?;
+    tracing::info!("assets object storage configured");
+
     let seed_report = store::seed::seed_canonical(&db, &storage)
         .await
         .context("seeding canonical fixtures")?;
@@ -306,6 +315,10 @@ async fn main() -> anyhow::Result<()> {
         sessions,
         oauth,
         storage,
+        assets_storage,
+        forms_registry: std::sync::Arc::new(
+            forms::registry().context("loading the vendored forms registry")?,
+        ),
         policy,
         workflow_runtime,
         questionnaire_runtime,

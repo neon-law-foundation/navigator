@@ -48,6 +48,8 @@ async fn harness() -> Harness {
         retainer_intake_questionnaire: workflows::retainer_intake_questionnaire(),
         questionnaire_runtime: inner.clone(),
         storage: storage.clone(),
+        assets_storage: storage.clone(),
+        forms_registry: Arc::new(forms::registry().unwrap()),
         email: email.clone(),
         billing_provider: Arc::new(web::billing::StubBillingProvider::new()),
         contract_reviewer: Arc::new(web::contract_review::StubContractReviewer),

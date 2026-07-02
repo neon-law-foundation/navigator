@@ -83,13 +83,13 @@ fn resolves_to_state(question: &str, states: &BTreeSet<&str>) -> bool {
 fn every_notation_state_is_a_canonical_question_type() {
     let canonical: BTreeSet<String> = rules::canonical_question_codes().into_iter().collect();
     for form in forms::registry().expect("registry loads") {
-        for state in questionnaire_states(form.meta.object_path) {
+        for state in questionnaire_states(form.object_path) {
             let ty = state_type(&state);
             assert!(
                 canonical.contains(ty),
                 "{}: questionnaire state `{state}` has type `{ty}`, which is not a \
                  canonical question code in store/seeds/Question.yaml",
-                form.meta.code
+                form.code
             );
         }
     }
@@ -98,9 +98,9 @@ fn every_notation_state_is_a_canonical_question_type() {
 #[test]
 fn every_mapped_question_resolves_to_a_declared_state() {
     for form in forms::registry().expect("registry loads") {
-        let states = questionnaire_states(form.meta.object_path);
+        let states = questionnaire_states(form.object_path);
         let states: BTreeSet<&str> = states.iter().map(String::as_str).collect();
-        let map = forms::field_map(form.meta.code)
+        let map = forms::field_map(form.code)
             .expect("map parses")
             .expect("every vendored form has a map");
         for rule in &map.field {
@@ -113,9 +113,9 @@ fn every_mapped_question_resolves_to_a_declared_state() {
                     "{}: field `{}` references question `{question}`, which no \
                      questionnaire state in {}.md declares — the map was guessed, \
                      the question was renamed, or the notation drifted",
-                    form.meta.code,
+                    form.code,
                     rule.name,
-                    form.meta.code
+                    form.code
                 );
             }
         }

@@ -9,6 +9,12 @@ publish.workspace = true
 [lib]
 path = "src/lib.rs"
 
+[features]
+# Test-only fake-gcs-server harness (`cloud::test_support`), feature-
+# gated (like `store`'s) so production consumers don't pull
+# `testcontainers` into their build graph.
+test-support = ["dep:testcontainers"]
+
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
@@ -27,6 +33,7 @@ symphonia.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 telemetry.workspace = true
+testcontainers = { workspace = true, optional = true }
 tracing.workspace = true
 walkdir.workspace = true
 tracing-subscriber.workspace = true

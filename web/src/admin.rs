@@ -111,6 +111,15 @@ pub struct AdminState {
     /// Object storage seam — the retainer workflow's
     /// `document_open__retainer_pdf` step writes the rendered PDF here.
     pub storage: Arc<dyn cloud::StorageService>,
+    /// Public-assets storage — blank government forms are pulled from
+    /// this lane at fill and download time and verified against their
+    /// repo `.sha256` pins. Same `Arc` as `AppState.assets_storage`.
+    pub assets_storage: Arc<dyn cloud::StorageService>,
+    /// Vendored-forms registry the fill + download paths consult
+    /// (`forms::registry()` in production; a test harness swaps in
+    /// entries pinned to synthetic staged blanks). Same `Arc` as
+    /// `AppState.forms_registry`.
+    pub forms_registry: Arc<Vec<forms::FormMeta>>,
     /// Outbound email backend — same `Arc` as `AppState.email`,
     /// passed through so the admin "Send welcome" handler reaches
     /// the audited [`crate::email::LoggingEmail`] decorator.
@@ -173,8 +182,9 @@ pub fn routes(
     r = register_firm_routes(r, "/portal/admin");
     r = register_project_routes(r, "/portal/projects");
     // Blank government forms — any authenticated person (OPA's
-    // `/portal/forms` rule); the bytes come from the bundled `forms`
-    // registry, the same canonical examples the workflows fill.
+    // `/portal/forms` rule); the bytes are pulled from the public
+    // assets bucket and verified against the repo's `.sha256` pins,
+    // the same pull-and-verify path the workflows fill through.
     r = r
         .route("/portal/forms", get(crate::gov_forms::index_get))
         .route("/portal/forms/{file}", get(crate::gov_forms::download_get));

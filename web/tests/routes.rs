@@ -105,6 +105,12 @@ async fn state_with_workshops(materials: Vec<WorkshopMaterial>) -> AppState {
                 .await
                 .unwrap(),
         ),
+        assets_storage: std::sync::Arc::new(
+            cloud::FsStorage::new(std::env::temp_dir().join("navigator-web-test-storage"))
+                .await
+                .unwrap(),
+        ),
+        forms_registry: std::sync::Arc::new(forms::registry().unwrap()),
         policy: web::policy::PolicyClient::passthrough(),
         workflow_runtime: std::sync::Arc::new(workflows::InMemoryRuntime::new()),
         questionnaire_runtime: std::sync::Arc::new(workflows::InMemoryRuntime::new()),
@@ -552,6 +558,12 @@ async fn health_returns_503_when_db_is_down() {
                 .await
                 .unwrap(),
         ),
+        assets_storage: std::sync::Arc::new(
+            cloud::FsStorage::new(std::env::temp_dir().join("navigator-web-test-storage"))
+                .await
+                .unwrap(),
+        ),
+        forms_registry: std::sync::Arc::new(forms::registry().unwrap()),
         policy: web::policy::PolicyClient::passthrough(),
         workflow_runtime: std::sync::Arc::new(workflows::InMemoryRuntime::new()),
         questionnaire_runtime: std::sync::Arc::new(workflows::InMemoryRuntime::new()),

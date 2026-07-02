@@ -268,6 +268,14 @@ pub struct AppState {
     /// Object storage backend (filesystem in dev, Google Cloud
     /// Storage in production via the `cloud` crate).
     pub storage: std::sync::Arc<dyn cloud::StorageService>,
+    /// Public-assets object storage (`cloud::assets_from_env`) — the
+    /// lane blank government forms are pulled from at fill and download
+    /// time, verified against their repo `.sha256` pins. A distinct
+    /// bucket from `storage` in production; the same root in dev/KIND.
+    pub assets_storage: std::sync::Arc<dyn cloud::StorageService>,
+    /// Vendored-forms registry (`forms::registry()` in production; a
+    /// test harness swaps in entries pinned to synthetic staged blanks).
+    pub forms_registry: std::sync::Arc<Vec<forms::FormMeta>>,
     /// Policy decision client (OPA sidecar at `NAVIGATOR_OPA_URL`).
     pub policy: policy::PolicyClient,
     /// Durable runtime for both timelines (workflow + questionnaire).
@@ -499,6 +507,8 @@ pub fn build_router(state: AppState, public_dir: &Path) -> Router {
         retainer_intake_questionnaire: workflows::retainer_intake_questionnaire(),
         questionnaire_runtime: state.questionnaire_runtime.clone(),
         storage: state.storage.clone(),
+        assets_storage: state.assets_storage.clone(),
+        forms_registry: state.forms_registry.clone(),
         email: state.email.clone(),
         billing_provider: state.billing_provider.clone(),
         contract_reviewer: state.contract_reviewer.clone(),

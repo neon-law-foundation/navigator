@@ -11,9 +11,9 @@
 //! Jurisdiction is explicit metadata, not a deep practice-area path. A
 //! form template at `templates/forms/united_states/nevada/state/
 //! nv__llc_formation.md` therefore declares `jurisdiction: NV` and
-//! `code: nv__llc_formation`; the sibling blank PDF is stored at the
-//! matching bucket key `forms/united_states/nevada/state/
-//! nv__llc_formation.pdf`.
+//! `code: nv__llc_formation`; the blank PDF lives in the public assets
+//! bucket at the matching key `forms/united_states/nevada/state/
+//! nv__llc_formation.pdf`, pinned by the sibling `.sha256` file.
 
 use crate::{frontmatter, line_byte_range, Rule, SourceFile, Violation};
 use std::path::Path;

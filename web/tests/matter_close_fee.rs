@@ -41,6 +41,8 @@ async fn build_state() -> (AdminState, store::Db, Arc<StubBillingProvider>) {
         signature_provider: Arc::new(StubSignatureProvider::new()),
         retainer_intake_questionnaire: workflows::retainer_intake_questionnaire(),
         questionnaire_runtime: runtime,
+        assets_storage: storage.clone(),
+        forms_registry: Arc::new(forms::registry().unwrap()),
         storage,
         email,
         billing_provider: billing.clone(),

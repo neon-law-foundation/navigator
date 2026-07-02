@@ -1,32 +1,42 @@
 # Government Forms: Vendor, Map, Fill, File
 
 Neon Law Navigator fills official government PDF forms from questionnaire answers and files them through a staff-gated
-workflow. The repository path is the storage contract: a blank at
-`templates/forms/united_states/nevada/state/nv__llc_formation.pdf` syncs to
-`forms/united_states/nevada/state/nv__llc_formation.pdf` in the public assets bucket.
+workflow. The blank PDF bytes live **only** in the public GCS assets bucket — these are public government documents, so
+a public bucket is correct — and the repository keeps the diffable text: the markdown catalog card, the `.fields.toml`
+map, and a `.sha256` pin of the canonical blank. The repository path is still the storage contract: the pin at
+`templates/forms/united_states/nevada/state/nv__llc_formation.sha256` pins the bucket object at
+`forms/united_states/nevada/state/nv__llc_formation.pdf`.
 
 ## Pipeline
 
 ```text
 government website (`origin_url`)
+   │  human downloads / re-authors the blank
+   ▼
+templates/forms/<country>/<jurisdiction>/<office>/<code>.pdf   (untracked working copy)
+   │
+   │  navigator forms sync — uploads, writes the sibling .sha256 pin
+   ▼
+public assets bucket: forms/<country>/<jurisdiction>/<office>/<code>.pdf
+   │
+   │  repo keeps: <code>.md  <code>.fields.toml  <code>.sha256
+   ▼
+forms crate registry (metadata + pin) + field-map resolution
    │
    ▼
-templates/forms/<country>/<jurisdiction>/<office>/<code>.pdf
-templates/forms/<country>/<jurisdiction>/<office>/<code>.fields.toml
-templates/forms/<country>/<jurisdiction>/<office>/<code>.md
-   │
-   ▼
-forms crate registry + field-map resolution
-   │
-   ▼
-web::retainer_walk::render_and_park
-   │
+web::retainer_walk::acroform_payload
+   │  StorageService::get(object_path) → sha256(bytes) == pin, or fail loudly
    ▼
 staff_review → workflows::dispatch_document_open → pdf::fill_acroform → pdf::flatten
    │
    ▼
 signature / filing
 ```
+
+The fill path **always pulls**: there are no baked-in bytes and no fallback. A blank missing from the bucket, or one
+whose bytes fail the pin, parks the matter with a loud error — `web` never fills against bytes it hasn't pinned. The
+verified bytes are staged into the private documents lane at the same key for the worker's `dispatch_document_open`
+fill, so what the worker fills is byte-identical to what was verified.
 
 The `.md` file is the catalog card and workflow. It declares the form identity:
 
@@ -38,7 +48,27 @@ form: nv__llc_formation
 ```
 
 `code`, the filename stem, and the `form:` binding match. `origin_url` points at the government page where the blank can
-be obtained. Git records the vendored bytes; the URL records provenance.
+be obtained. The bucket holds the vendored bytes; the `.sha256` pin records exactly which bytes; the URL records
+provenance.
+
+## Vendoring — `navigator forms sync` and `navigator forms fields`
+
+`navigator forms sync` closes the loop in both directions, per registry form:
+
+- **With a working copy** at `templates/<object_path>` (untracked — `.gitignore` keeps every `templates/forms/**/*.pdf`
+  out of the tree): upload it to the bucket and rewrite the sibling `.sha256` pin to match. Commit the pin (and any map
+  change) in the same PR; rebuild so the registry bakes the new pin in.
+- **Without one**: pull the bucket object and verify it against the pin. A missing object or a mismatch exits non-zero —
+  the same bytes the fill path would refuse.
+
+`navigator forms fields <code>` pulls the blank, verifies its pin, and prints the AcroForm `/T` field names one per line
+— the ground truth for authoring a `.fields.toml` or re-authoring the field layer (`/T` name = question code, the
+sequenced follow-on below). No guessing: these are the names on the exact bytes the workflows fill.
+
+Both subcommands target `NAVIGATOR_ASSETS_BUCKET` (or `--bucket`) and honor the `NAVIGATOR_STORAGE_ENDPOINT` emulator
+override, so the same commands vendor into KIND's fake-gcs `navigator` bucket. Before its first filing, a fresh
+environment downloads each blank from its `origin_url` to the working-copy path and runs the sync. An offline mode (a
+warmed local cache) is deliberately not built.
 
 ## Field Maps
 
@@ -71,6 +101,20 @@ only questions the questionnaire actually asks, of types the workspace actually 
 A guessed map, a renamed question, or a notation that drifted from its map fails CI here — before a mis-mapped field can
 mis-fill a filing.
 
+## The Guard / Verify Split
+
+CI stays offline; the network truth is checked at vendor time:
+
+- **`cargo test` (offline)** — the question-code contract above, the pin-shape guard
+  (`forms/tests/vendored_forms.rs`), and the fill round-trip (`forms/tests/fill_round_trip.rs`), which stages a
+  synthetic blank built from each form's own `.fields.toml` in a `fake-gcs-server` container and runs the full
+  production pipeline against the `cloud::StorageService` seam: pull → verify pin → resolve → fill → flatten. The web,
+  CLI, and journey e2e suites stage the same synthetic blanks (`web::test_support::stage_blank_forms`) under their own
+  pins, so the formation flows exercise the pull-and-verify gate end to end.
+- **`navigator forms sync` (network)** — asserts the bucket's actual bytes match the repo pins; `navigator forms fields`
+  reads the field names off those exact bytes. A re-vendor that changes the bytes without updating the pin fails here,
+  and the fill path refuses the same bytes in production.
+
 ## Sequenced Follow-Ons
 
 The end state is that the AcroForm `/T` names **are** the question-code paths, retiring the `.fields.toml` indirection:
@@ -78,7 +122,8 @@ a human re-authors each government blank's field layer (Acrobat "Prepare Form" /
 `entity__company.name`, a radio group named `custom_single_choice__management_structure` carries its choices as
 on-states, and dotted `people__managing_members.0.address.city` addresses list rows. Named fields give radio exclusivity
 and comb fields for free and break loudly on a re-vendor. Until that re-authoring lands, the three NV blanks keep their
-`.fields.toml` on the path above, and the guard test pins that layer.
+`.fields.toml` on the path above, and the guard test pins that layer. Re-authoring happens on the working copy of each
+blank; `navigator forms sync` then vendors it up and records the new pin.
 
 The filled packet is **flattened** before it is persisted. Because a form's fill state (`document_open__*_pdf`) sits
 past `staff_review` in every packet's workflow spec, `dispatch_document_open` runs `pdf::flatten` right after
@@ -89,20 +134,18 @@ the way to a government office, and a viewer that ignores `/NeedAppearances` sho
 form. Overlay text is written in `WinAnsiEncoding` (declared on the overlay font), so accented names render correctly
 everywhere; a character outside that encoding fails the flatten loudly instead of filing a garbled glyph.
 
-One further follow-on is tracked, not yet built:
-
-- **Blank in GCS, repo stays text-only.** The vendored PDF is binary, re-vendored often, and never diffs — a candidate
-  to move out of git and pull through `cloud::StorageService` at fill time, pinned by a sibling `.sha256` so a silent
-  re-vendor fails loudly instead of mis-filling. The repo would keep only diffable text (`.md`, the field manifest, the
-  sha pin). Trade-off: filling then requires the blank present in the bucket or a warmed cache.
-
 ## Runtime Storage
 
-Blank forms are public assets. `navigator forms sync` uploads each registry entry to its `object_path`:
+Blank forms are public assets. `navigator forms sync` vendors each registry entry to its `object_path` in the public
+assets bucket:
 
 ```text
 forms/united_states/nevada/state/nv__llc_formation.pdf
 ```
+
+At fill time `web` pulls the blank from that bucket (`cloud::assets_from_env` — `NAVIGATOR_ASSETS_BUCKET`, falling back
+to `NAVIGATOR_STORAGE_BUCKET` in the single-bucket KIND/dev topology), verifies the pin, and stages the verified bytes
+at the same key in the private documents lane for the worker.
 
 Filled forms are client documents. They are rendered into the private documents bucket at:
 
@@ -119,9 +162,10 @@ notations/<notation-id>/certificate-of-completion.pdf
 
 ## Adding A Form
 
-1. Download the blank from the government `origin_url`.
-2. Store it at the bucket-shaped repo path under `templates/forms/`.
+1. Download the blank from the government `origin_url` to the bucket-shaped repo path under `templates/forms/` (it
+   stays untracked).
+2. Run `navigator forms sync` — it uploads the blank and writes the sibling `.sha256` pin (tracked).
 3. Add a sibling markdown template with matching `code`, `jurisdiction`, `origin_url`, and `form`.
-4. Add a sibling field map if the PDF is fillable.
-5. Add the PDF and field map to the `forms` crate registry.
+4. Add a sibling field map if the PDF is fillable — `navigator forms fields <code>` prints the real `/T` names.
+5. Add the form's metadata (with its `include_str!` pin) and field map to the `forms` crate registry.
 6. Run `cargo test -p forms` and `cargo run -p cli -- validate templates`.

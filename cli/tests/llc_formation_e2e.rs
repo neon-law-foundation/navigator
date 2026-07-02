@@ -6,9 +6,9 @@
 //! specifies — `notation create` → `intake answer` (the seven `nv__llc_formation`
 //! questions, including a `people_list` row) → `notation status` →
 //! `notation approve` → `notation document` — and asserts the downloaded
-//! bytes are the official Nevada SoS packet, flattened past staff review:
-//! no interactive fields survive, yet every founder answer still reads back
-//! as static page text, the same guarantee
+//! bytes came through the sha-pin-verified AcroForm fill, flattened past
+//! staff review: no interactive fields survive, yet every founder answer
+//! still reads back as static page text, the same guarantee
 //! `features/tests/nest_formation.rs` makes, now proven through the binary.
 //!
 //! Both the interactive walk (scripted stdin) and the non-interactive
@@ -55,6 +55,11 @@ async fn build_app(tag: &str) -> axum::Router {
     let state = AppState {
         auth: AuthConfig::new(false, Some("unused-hs256-secret")),
         sessions: SessionStore::new(SESSION_KEY),
+        // The blank NV packet is pulled from the assets lane and
+        // verified against its pin at fill time; stage synthetic blanks
+        // with matching pins on this test's storage root.
+        assets_storage: storage.clone(),
+        forms_registry: web::test_support::stage_blank_forms(storage.as_ref()).await,
         storage,
         workflow_runtime,
         questionnaire_runtime: runtime,
@@ -143,11 +148,13 @@ fn notation_id_from(stdout: &str) -> Uuid {
         .unwrap_or_else(|| panic!("no notation id in notation-create output:\n{stdout}"))
 }
 
-/// Assert the downloaded packet is the official Nevada SoS form, flattened
-/// past staff review: no interactive fields survive (nothing can re-edit an
-/// approved value on the way to the government office), yet the founder's
-/// answers still read back as static page content — the entity name on the
-/// Initial List and the managing member in the Articles.
+/// Assert the downloaded packet came through the government-form fill
+/// path, flattened past staff review: no interactive fields survive
+/// (nothing can re-edit an approved value on the way to the government
+/// office), yet the founder's answers still read back as static page
+/// content. The blank is the staged sha-pinned stand-in — production
+/// pulls the official bytes from the assets bucket through the same
+/// verify-then-fill seam.
 fn assert_filled_packet(bytes: &[u8]) {
     assert!(bytes.starts_with(b"%PDF"), "the download is a PDF");
     assert!(

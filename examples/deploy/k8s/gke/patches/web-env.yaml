@@ -66,6 +66,12 @@ spec:
             # `cloud::GcsStorageConfig` ahead of NAVIGATOR_STORAGE_BUCKET.
             - name: NAVIGATOR_DOCUMENTS_BUCKET
               value: YOUR_PROJECT_ID-documents
+            # Public assets bucket — blank government forms are pulled
+            # from here at fill/download time and verified against the
+            # repo's `.sha256` pins (`cloud::assets_from_env`). Vendored
+            # by `navigator forms sync`.
+            - name: NAVIGATOR_ASSETS_BUCKET
+              value: YOUR_PROJECT_ID-assets
             - name: NAVIGATOR_SEED_FILE
               value: /seed/base.yaml
             - name: OTEL_SERVICE_NAME
