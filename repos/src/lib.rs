@@ -482,7 +482,22 @@ impl RepoStore {
 
 fn ensure_private_dir(path: &Path) -> Result<(), RepoError> {
     std::fs::create_dir_all(path)?;
-    set_private_dir_mode(path)
+    tolerate_unowned_mount(set_private_dir_mode(path))
+}
+
+/// `chmod` requires *ownership*, and a Kubernetes volume mount point
+/// (the KIND `emptyDir`, a prod PVC) is owned by the kubelet (root)
+/// with the pod's `fsGroup` granted group access — so the non-root
+/// service gets `EPERM` tightening the mode of the root it was handed,
+/// while every directory the store creates itself chmods fine. The
+/// volume's mode is the platform's decision there; treat the denial as
+/// "already as private as this mount gets" and let any real access
+/// problem surface loudly on the next filesystem operation.
+fn tolerate_unowned_mount(result: Result<(), RepoError>) -> Result<(), RepoError> {
+    match result {
+        Err(RepoError::Io(e)) if e.kind() == std::io::ErrorKind::PermissionDenied => Ok(()),
+        other => other,
+    }
 }
 
 #[cfg(unix)]
@@ -1034,5 +1049,26 @@ mod tests {
         // Deleting main: denyDeletes rejects it.
         let (ok, _) = git(work.path(), &["push", "origin", "--delete", "main"]);
         assert!(!ok, "deleting main must be rejected");
+    }
+
+    /// The 0700 tightening of a Kubernetes volume mount root gets EPERM
+    /// (root-owned, fsGroup-shared) — that denial must not fail matter
+    /// creation, while every other chmod failure still surfaces.
+    #[test]
+    fn a_chmod_permission_denial_on_the_mount_root_is_tolerated() {
+        use super::{tolerate_unowned_mount, RepoError};
+        assert!(
+            tolerate_unowned_mount(Err(RepoError::Io(std::io::Error::from(
+                std::io::ErrorKind::PermissionDenied
+            ))))
+            .is_ok()
+        );
+        assert!(
+            tolerate_unowned_mount(Err(RepoError::Io(std::io::Error::from(
+                std::io::ErrorKind::NotFound
+            ))))
+            .is_err()
+        );
+        assert!(tolerate_unowned_mount(Ok(())).is_ok());
     }
 }
