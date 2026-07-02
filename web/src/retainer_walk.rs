@@ -2321,14 +2321,13 @@ async fn sync_notation_state(
     Ok(())
 }
 
-/// `(current, total)` for the progress indicator.
-///
-/// `total` is the count of *question* states in the spec — every
-/// state name except `BEGIN` and `END`. `current` is `1 + index of
-/// the next question after `current_state` among the question
-/// states, ordered by walking the spec from BEGIN. If
-/// `current_state` is `BEGIN`, we're on question 1.
-fn progress_for(spec: &workflows::QuestionnaireSpec, current_state: &StateName) -> (usize, usize) {
+/// The linear question order the walker presents: follow the `_`
+/// transition from BEGIN until END. This chain is the source of the
+/// rendered "step N of M", so it must cover every question state the
+/// spec declares — the corpus test
+/// `every_shipped_questionnaire_renders_an_honest_step_count` holds
+/// the two shapes equal for every shipped template.
+fn questionnaire_chain(spec: &workflows::QuestionnaireSpec) -> Vec<StateName> {
     let mut order: Vec<StateName> = Vec::new();
     let mut here = StateName::begin();
     while let Some(next) = spec
@@ -2336,12 +2335,24 @@ fn progress_for(spec: &workflows::QuestionnaireSpec, current_state: &StateName) 
         .and_then(|t| t.lookup("_"))
         .cloned()
     {
-        if next == StateName::end() {
+        if next == StateName::end() || order.contains(&next) {
             break;
         }
         order.push(next.clone());
         here = next;
     }
+    order
+}
+
+/// `(current, total)` for the progress indicator.
+///
+/// `total` is the length of the [`questionnaire_chain`] — which the
+/// corpus test holds equal to the count of every declared state
+/// except `BEGIN` and `END` for every shipped template. `current` is
+/// `1 + index of the next question after `current_state` on that
+/// chain. If `current_state` is `BEGIN`, we're on question 1.
+fn progress_for(spec: &workflows::QuestionnaireSpec, current_state: &StateName) -> (usize, usize) {
+    let order = questionnaire_chain(spec);
     let total = order.len();
     let current = if current_state == &StateName::begin() {
         1
@@ -2357,11 +2368,101 @@ fn progress_for(spec: &workflows::QuestionnaireSpec, current_state: &StateName) 
 
 #[cfg(test)]
 mod tests {
-    use super::{context_from_answers, progress_for, substitute_template_body};
-    use std::collections::BTreeMap;
+    use super::{
+        context_from_answers, progress_for, questionnaire_chain, substitute_template_body,
+    };
+    use std::collections::{BTreeMap, BTreeSet};
     use store::entity::answer;
     use uuid::Uuid;
     use workflows::{retainer_intake_questionnaire, StateName};
+
+    /// Every shipped template's rendered "step N of M" must count every
+    /// question state the template declares. The walker derives M from
+    /// the `_` chain out of BEGIN ([`questionnaire_chain`]); a state
+    /// reachable only off that chain (or an interrupted chain) renders a
+    /// wrong total, and the drift previously surfaced only in the
+    /// deploy-time browser e2e. Set equality, not count equality, so an
+    /// off-chain state can never cancel against a stray on-chain one.
+    #[test]
+    fn every_shipped_questionnaire_renders_an_honest_step_count() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("web crate lives one level below the workspace root")
+            .join("templates");
+        let mut checked = 0usize;
+        let mut stack = vec![root.clone()];
+        while let Some(dir) = stack.pop() {
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if path.extension().and_then(|s| s.to_str()) != Some("md") {
+                    continue;
+                }
+                let markdown = std::fs::read_to_string(&path)
+                    .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+                if !markdown.starts_with("---\n") || !markdown.contains("questionnaire:") {
+                    continue;
+                }
+                let spec =
+                    workflows::questionnaire_spec_from_template(&markdown).unwrap_or_else(|e| {
+                        panic!("questionnaire in {} did not parse: {e}", path.display())
+                    });
+                let order = questionnaire_chain(&spec);
+                // The chain must end because it reached END — not because
+                // it hit a cycle or a state with no `_` transition. A
+                // cycle with a non-`_` escape to END passes the
+                // END-reachability corpus test in `workflows` yet loops
+                // the walker forever; this closes that gap.
+                let last = order.last().cloned().unwrap_or_else(StateName::begin);
+                let after_last = spec
+                    .transitions_from(&last)
+                    .and_then(|t| t.lookup("_"))
+                    .cloned();
+                assert_eq!(
+                    after_last,
+                    Some(StateName::end()),
+                    "{}: the `_` chain out of BEGIN must terminate at END, but after \
+                     `{}` it {:?}",
+                    path.display(),
+                    last.as_str(),
+                    after_last.as_ref().map(workflows::StateName::as_str),
+                );
+                let chain: BTreeSet<String> =
+                    order.iter().map(|s| s.as_str().to_string()).collect();
+                let declared: BTreeSet<String> = spec
+                    .inner()
+                    .states
+                    .keys()
+                    .filter(|s| **s != StateName::begin() && **s != StateName::end())
+                    .map(|s| s.as_str().to_string())
+                    .collect();
+                assert_eq!(
+                    chain,
+                    declared,
+                    "{}: the rendered step total counts {} question(s) but the questionnaire \
+                     declares {} — every question state must sit on the `_` chain from BEGIN \
+                     (off-chain: {:?}; on-chain but undeclared: {:?})",
+                    path.display(),
+                    chain.len(),
+                    declared.len(),
+                    declared.difference(&chain).collect::<Vec<_>>(),
+                    chain.difference(&declared).collect::<Vec<_>>(),
+                );
+                checked += 1;
+            }
+        }
+        assert!(
+            checked > 0,
+            "no questionnaire-bearing templates found under {} — wrong path?",
+            root.display(),
+        );
+    }
 
     /// Build an answer row carrying `state_name` and a primitive value, as
     /// the walker write sites now do.
