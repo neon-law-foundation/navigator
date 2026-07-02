@@ -282,14 +282,17 @@ mod runner_exit_tests {
                 continue;
             }
             runners += 1;
+            // `.run(` (no closing quote) also catches a variable-path
+            // call like `.run(path)`, and is not a substring of
+            // `.run_and_exit(`, so the two checks are exact.
             assert!(
-                !source.contains(".run(\""),
+                !source.contains(".run("),
                 "{}: uses `.run(...)`, which exits 0 even when scenarios fail — \
                  use `.run_and_exit(...)` so CI sees the failure",
                 path.display(),
             );
             assert!(
-                source.contains(".run_and_exit(\""),
+                source.contains(".run_and_exit("),
                 "{}: cucumber runner without `.run_and_exit(...)`",
                 path.display(),
             );
