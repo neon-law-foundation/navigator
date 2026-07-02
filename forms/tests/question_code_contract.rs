@@ -100,9 +100,9 @@ fn every_mapped_question_resolves_to_a_declared_state() {
     for form in forms::registry().expect("registry loads") {
         let states = questionnaire_states(form.object_path);
         let states: BTreeSet<&str> = states.iter().map(String::as_str).collect();
-        let map = forms::field_map(form.code)
-            .expect("map parses")
-            .expect("every vendored form has a map");
+        let Some(map) = forms::field_map(form.code).expect("map parses") else {
+            continue; // re-authored — the manifest guard below covers it
+        };
         for rule in &map.field {
             // A literal carries no question reference — it fills a fixed
             // value the blank can't pre-print, so there is nothing to
@@ -120,4 +120,38 @@ fn every_mapped_question_resolves_to_a_declared_state() {
             }
         }
     }
+}
+
+/// The re-authored contract: a form with no `.fields.toml` carries a
+/// `.fields` manifest of its blank's actual `/T` names, and every one of
+/// them either *is* a declared questionnaire state path or sits in the
+/// reserved `unmapped__` namespace — the same assertion the map guard
+/// makes, moved onto the names of the bytes we file (#256 item 1).
+#[test]
+fn every_reauthored_field_name_is_a_declared_state_path_or_unmapped() {
+    let mut reauthored = 0usize;
+    for form in forms::registry().expect("registry loads") {
+        if forms::field_map(form.code).expect("map parses").is_some() {
+            continue;
+        }
+        reauthored += 1;
+        let manifest = forms::manifest(form.code)
+            .unwrap_or_else(|| panic!("{}: map-less form has no .fields manifest", form.code));
+        let states = questionnaire_states(form.object_path);
+        let states: BTreeSet<&str> = states.iter().map(String::as_str).collect();
+        for name in manifest {
+            if name.starts_with(forms::UNMAPPED_PREFIX) {
+                continue;
+            }
+            let head = name.split('.').next().unwrap_or(name);
+            assert!(
+                states.contains(head),
+                "{}: re-authored field `{name}` does not carry a declared \
+                 questionnaire state — the blank was re-authored against a \
+                 different notation, or the notation drifted",
+                form.code
+            );
+        }
+    }
+    assert!(reauthored >= 1, "nv__llc_formation is re-authored");
 }

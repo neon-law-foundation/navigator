@@ -16,29 +16,75 @@ use std::collections::BTreeMap;
 
 use cloud::StorageService;
 
-/// A synthetic, genuinely fillable blank for `form_code`, with one
-/// widget per `.fields.toml` rule: a checkbox (with the rule's
-/// on-state) for `checked_when`-shaped rules, a text field otherwise.
-fn synthetic_blank(form_code: &str) -> Vec<u8> {
-    let map = forms::field_map(form_code)
-        .expect("map parses")
-        .expect("every vendored form has a map");
-    let mut seen = std::collections::BTreeSet::new();
-    let specs: Vec<pdf::FieldSpec> = map
-        .field
+/// A synthetic, genuinely fillable blank for `form_code`. A mapped form
+/// gets one widget per `.fields.toml` rule (a checkbox with the rule's
+/// on-state for `checked_when` shapes, a text field otherwise); a
+/// re-authored form gets one widget per `.fields` manifest name — a
+/// radio group (options from the sibling notation's `choices:`) for
+/// `custom_single_choice__*` names, a text field for everything else,
+/// `unmapped__*` included (those fields exist on the real blank too;
+/// the resolver just never fills them).
+fn synthetic_blank(form_code: &str, object_path: &str) -> Vec<u8> {
+    if let Some(map) = forms::field_map(form_code).expect("map parses") {
+        let mut seen = std::collections::BTreeSet::new();
+        let specs: Vec<pdf::FieldSpec> = map
+            .field
+            .iter()
+            .filter(|rule| seen.insert(rule.name.clone()))
+            .map(|rule| match (&rule.checked_when, &rule.on_state) {
+                (Some(_), Some(on_state)) => pdf::FieldSpec::Checkbox {
+                    name: rule.name.clone(),
+                    on_state: on_state.clone(),
+                },
+                _ => pdf::FieldSpec::Text {
+                    name: rule.name.clone(),
+                },
+            })
+            .collect();
+        return pdf::blank_acroform_with(&specs);
+    }
+    let manifest = forms::manifest(form_code).expect("map-less form has a manifest");
+    let choices = template_choices(object_path);
+    let specs: Vec<pdf::FieldSpec> = manifest
         .iter()
-        .filter(|rule| seen.insert(rule.name.clone()))
-        .map(|rule| match (&rule.checked_when, &rule.on_state) {
-            (Some(_), Some(on_state)) => pdf::FieldSpec::Checkbox {
-                name: rule.name.clone(),
-                on_state: on_state.clone(),
-            },
-            _ => pdf::FieldSpec::Text {
-                name: rule.name.clone(),
-            },
+        .map(|name| {
+            let role = name.strip_prefix("custom_single_choice__");
+            match role.and_then(|r| choices.get(r)) {
+                Some(options) => pdf::FieldSpec::Radio {
+                    name: (*name).to_string(),
+                    options: options.clone(),
+                },
+                None => pdf::FieldSpec::Text {
+                    name: (*name).to_string(),
+                },
+            }
         })
         .collect();
     pdf::blank_acroform_with(&specs)
+}
+
+/// The sibling notation's `choices:` block — the on-state vocabulary a
+/// re-authored radio group carries.
+fn template_choices(object_path: &str) -> BTreeMap<String, Vec<String>> {
+    #[derive(serde::Deserialize)]
+    struct Fm {
+        #[serde(default)]
+        choices: BTreeMap<String, BTreeMap<String, String>>,
+    }
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("templates")
+        .join(object_path.replace(".pdf", ".md"));
+    let contents = std::fs::read_to_string(&path).expect("sibling notation");
+    let fm = contents
+        .strip_prefix("---\n")
+        .and_then(|rest| rest.find("\n---").map(|end| &rest[..end]))
+        .expect("frontmatter");
+    let fm: Fm = serde_yaml::from_str(fm).expect("frontmatter parses");
+    fm.choices
+        .into_iter()
+        .map(|(role, options)| (role, options.into_keys().collect()))
+        .collect()
 }
 
 fn two_people() -> String {
@@ -53,14 +99,19 @@ fn two_people() -> String {
 
 fn sample_answers(form_code: &str) -> BTreeMap<String, String> {
     let pairs: Vec<(&str, String)> = match form_code {
+        // Re-authored: the keys are the canonical state paths the /T
+        // names carry.
         "nv__llc_formation" => vec![
             ("entity__company.name", "Neon Demo LLC".to_string()),
             (
                 "person__registered_agent.name",
                 "Neon Law Services".to_string(),
             ),
-            ("management_structure", "members".to_string()),
-            ("managing_members", two_people()),
+            (
+                "custom_single_choice__management_structure",
+                "members".to_string(),
+            ),
+            ("people__managing_members", two_people()),
         ],
         "nv__profit_corp_formation" => vec![
             ("entity__company.name", "Neon Demo Corp".to_string()),
@@ -96,7 +147,7 @@ async fn every_packet_round_trips_from_the_storage_seam() {
     let storage: &dyn StorageService = &gcs.storage;
 
     for form in forms::registry().expect("registry loads") {
-        let staged = synthetic_blank(form.code);
+        let staged = synthetic_blank(form.code, form.object_path);
         storage
             .put(form.object_path, &staged, "application/pdf")
             .await
@@ -108,10 +159,11 @@ async fn every_packet_round_trips_from_the_storage_seam() {
         let blank = storage.get(form.object_path).await.expect("pull blank");
         forms::verify_sha256(&pin, &blank.bytes).expect("staged bytes verify against their pin");
 
-        let map = forms::field_map(form.code)
-            .expect("map parses")
-            .expect("map exists");
-        let resolved = forms::resolve(&map, &sample_answers(form.code)).expect("answers resolve");
+        // The exact resolution entry `web::retainer_walk::acroform_payload`
+        // calls — map-driven or manifest-driven per form.
+        let resolved = forms::fill_values(form.code, &sample_answers(form.code))
+            .expect("answers resolve")
+            .expect("every vendored form fills");
         assert!(
             !resolved.is_empty(),
             "{}: sample answers resolved to nothing",
@@ -175,7 +227,7 @@ async fn tampered_or_missing_blanks_fail_loudly_before_any_fill() {
     );
 
     // Staged bytes that fail the pin: verification refuses them.
-    let staged = synthetic_blank(form.code);
+    let staged = synthetic_blank(form.code, form.object_path);
     let pin = forms::sha256_hex(&staged);
     storage
         .put(form.object_path, b"%PDF-1.5 re-vendored", "application/pdf")
@@ -187,49 +239,71 @@ async fn tampered_or_missing_blanks_fail_loudly_before_any_fill() {
     assert_ne!(err.actual, err.pinned);
 }
 
-/// Map-resolution behavior that needs no bytes at all: filled slots and
-/// their printed titles follow the people-list presence gates.
+/// Resolution behavior that needs no bytes at all: filled slots and
+/// their printed titles follow the people-list rows. A slot's title is
+/// the member's own `title` row part — a person fact entered at intake,
+/// not a value derived from the management-structure choice — and a row
+/// the respondent never gave fills nothing.
 #[test]
 fn single_member_llc_leaves_empty_slots_and_their_titles_blank() {
-    let one_person = r#"[{"name": "Pisces Founder", "street": "9 Quiet Rd",
-        "city": "Henderson", "state": "NV", "zip": "89002", "country": "USA"}]"#;
+    let one_person = r#"[{"name": "Pisces Founder", "title": "Managing Member",
+        "street": "9 Quiet Rd", "city": "Henderson", "state": "NV",
+        "zip": "89002", "country": "USA"}]"#;
     let answers: BTreeMap<String, String> = [
-        ("entity_name", "Solo Founder LLC".to_string()),
-        ("registered_agent", "Neon Law Services".to_string()),
-        ("management_structure", "members".to_string()),
-        ("managing_members", one_person.to_string()),
+        ("entity__company.name", "Solo Founder LLC".to_string()),
+        (
+            "person__registered_agent.name",
+            "Neon Law Services".to_string(),
+        ),
+        (
+            "custom_single_choice__management_structure",
+            "members".to_string(),
+        ),
+        ("people__managing_members", one_person.to_string()),
     ]
     .into_iter()
     .map(|(k, v)| (k.to_string(), v))
     .collect();
-    let map = forms::field_map("nv__llc_formation").unwrap().unwrap();
-    let resolved = forms::resolve(&map, &answers).unwrap();
-    assert_eq!(resolved["Title"], "Managing Member");
+    let resolved = forms::fill_values("nv__llc_formation", &answers)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        resolved["people__managing_members.0.title"],
+        "Managing Member"
+    );
     assert!(
-        !resolved.contains_key("Title_2"),
+        !resolved.contains_key("people__managing_members.1.title"),
         "an empty officer slot must not carry a printed title"
     );
-    assert!(!resolved.contains_key("Name_2"));
+    assert!(!resolved.contains_key("people__managing_members.1.name"));
 }
 
-/// The fill itself still rejects bad inputs loudly — a wrong checkbox
+/// The fill itself still rejects bad inputs loudly — a wrong radio
 /// state and a misspelled field name are `pdf` errors, not silent
 /// blanks. (Field-shape truth for the canonical blanks is `navigator
-/// forms sync`/`fields` territory; the shapes here come from the map.)
+/// forms sync`/`fields` territory; the shapes here come from the
+/// manifest + the notation's choices.)
 #[test]
 fn wrong_states_and_misspelled_names_are_loud_fill_errors() {
-    let blank = synthetic_blank("nv__llc_formation");
+    let blank = synthetic_blank(
+        "nv__llc_formation",
+        "forms/united_states/nevada/state/nv__llc_formation.pdf",
+    );
     let fill = |pairs: &[(&str, &str)]| -> BTreeMap<String, String> {
         pairs
             .iter()
             .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
             .collect()
     };
-    let err = pdf::fill_acroform(&blank, &fill(&[("managers_a", "Yes")])).unwrap_err();
+    let err = pdf::fill_acroform(
+        &blank,
+        &fill(&[("custom_single_choice__management_structure", "Yes")]),
+    )
+    .unwrap_err();
     match err {
         pdf::PdfError::InvalidChoice { field, allowed, .. } => {
-            assert_eq!(field, "managers_a");
-            assert_eq!(allowed, vec!["managers"]);
+            assert_eq!(field, "custom_single_choice__management_structure");
+            assert_eq!(allowed, vec!["managers", "members"]);
         }
         other => panic!("expected InvalidChoice, got {other:?}"),
     }

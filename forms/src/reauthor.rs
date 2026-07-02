@@ -1,9 +1,9 @@
 //! Re-authoring plans and map-less filling (#256 item 1).
 //!
-//! A re-authored blank's AcroForm `/T` names *are* questionnaire state
+//! A re-authored blank's `AcroForm` `/T` names *are* questionnaire state
 //! paths, so the `.fields.toml` indirection retires: [`plan`] turns a
 //! form's existing map — the recorded human judgment about every hostile
-//! OmniForm name — into the exact field-layer transformation
+//! `OmniForm` name — into the exact field-layer transformation
 //! `pdf::reauthor` applies, and [`resolve_reauthored`] fills straight
 //! from the `/T` names afterwards. The repo keeps a diffable `.fields`
 //! manifest (one `/T` per line, [`manifest`]) as the offline mirror of

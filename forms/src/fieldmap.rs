@@ -302,20 +302,17 @@ mod tests {
     #[test]
     fn every_bundled_form_fills_through_a_map_or_a_reauthored_manifest() {
         for form in crate::registry().expect("registry") {
-            match field_map(form.code).expect("map parses") {
-                Some(map) => {
-                    assert_eq!(map.form_code, form.code);
-                    assert!(!map.field.is_empty());
-                }
-                None => {
-                    let manifest = crate::reauthor::manifest(form.code).unwrap_or_else(|| {
-                        panic!(
-                            "{}: neither a .fields.toml nor a .fields manifest",
-                            form.code
-                        )
-                    });
-                    assert!(!manifest.is_empty());
-                }
+            if let Some(map) = field_map(form.code).expect("map parses") {
+                assert_eq!(map.form_code, form.code);
+                assert!(!map.field.is_empty());
+            } else {
+                let manifest = crate::reauthor::manifest(form.code).unwrap_or_else(|| {
+                    panic!(
+                        "{}: neither a .fields.toml nor a .fields manifest",
+                        form.code
+                    )
+                });
+                assert!(!manifest.is_empty());
             }
         }
     }

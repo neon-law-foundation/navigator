@@ -1421,10 +1421,12 @@ async fn acroform_payload(
         .iter()
         .find(|f| f.code == form_code)
         .ok_or_else(|| form_err("not in the vendored forms registry".into()))?;
-    let map = forms::field_map(form_code)
+    // A `.fields.toml`-mapped form resolves through its map; a
+    // re-authored form's `/T` names are the data paths themselves and
+    // resolve through its `.fields` manifest.
+    let fields = forms::fill_values(form_code, ctx)
         .map_err(|e| form_err(e.to_string()))?
-        .ok_or_else(|| form_err("no field map vendored for this form".into()))?;
-    let fields = forms::resolve(&map, ctx).map_err(|e| form_err(e.to_string()))?;
+        .ok_or_else(|| form_err("no field map or manifest vendored for this form".into()))?;
 
     // Always-pull: the assets bucket is the only source of the blank.
     let blank = state

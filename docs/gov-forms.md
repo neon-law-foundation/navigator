@@ -2,8 +2,9 @@
 
 Neon Law Navigator fills official government PDF forms from questionnaire answers and files them through a staff-gated
 workflow. The blank PDF bytes live **only** in the public GCS assets bucket — these are public government documents, so
-a public bucket is correct — and the repository keeps the diffable text: the markdown catalog card, the `.fields.toml`
-map, and a `.sha256` pin of the canonical blank. The repository path is still the storage contract: the pin at
+a public bucket is correct — and the repository keeps the diffable text: the markdown catalog card, the field layer's
+text mirror (a `.fields.toml` map, or the `.fields` manifest of a re-authored blank), and a `.sha256` pin of the
+canonical blank. The repository path is still the storage contract: the pin at
 `templates/forms/united_states/nevada/state/nv__llc_formation.sha256` pins the bucket object at
 `forms/united_states/nevada/state/nv__llc_formation.pdf`.
 
@@ -19,7 +20,7 @@ templates/forms/<country>/<jurisdiction>/<office>/<code>.pdf   (untracked workin
    ▼
 public assets bucket: forms/<country>/<jurisdiction>/<office>/<code>.pdf
    │
-   │  repo keeps: <code>.md  <code>.fields.toml  <code>.sha256
+   │  repo keeps: <code>.md  <code>.fields.toml | <code>.fields  <code>.sha256
    ▼
 forms crate registry (metadata + pin) + field-map resolution
    │
@@ -65,17 +66,29 @@ provenance.
 — the ground truth for authoring a `.fields.toml` or re-authoring the field layer (`/T` name = question code, the
 sequenced follow-on below). No guessing: these are the names on the exact bytes the workflows fill.
 
-Both subcommands target `NAVIGATOR_ASSETS_BUCKET` (or `--bucket`) and honor the `NAVIGATOR_STORAGE_ENDPOINT` emulator
-override, so the same commands vendor into KIND's fake-gcs `navigator` bucket. Before its first filing, a fresh
+`navigator forms re-author <code>` (#256 item 1) retires a form's `.fields.toml`: it pulls the blank, verifies its pin,
+and transforms the field layer so the `/T` names *are* questionnaire state paths — the map's recorded judgment drives
+every rename (several hostile names collapsing onto one state merge into one multi-widget field), every checkbox-pair →
+radio merge (`custom_single_choice__management_structure`, choice values as on-states), and every pre-printed literal
+(`NRS 86` becomes static content); every field the map never covered lands in the reserved `unmapped__` namespace, so
+"unmapped" is a decision the guard checks, not a comment. The transform is deterministic and refuses loudly on anything
+it cannot cleanly express. It writes the working copy plus the sorted `.fields` manifest; visual QA of a sample fill,
+`navigator forms sync`, and deleting the consumed `.fields.toml` remain the human steps.
+
+All three subcommands target `NAVIGATOR_ASSETS_BUCKET` (or `--bucket`) and honor the `NAVIGATOR_STORAGE_ENDPOINT`
+emulator override, so the same commands vendor into KIND's fake-gcs `navigator` bucket. Before its first filing, a fresh
 environment downloads each blank from its `origin_url` to the working-copy path and runs the sync. An offline mode (a
 warmed local cache) is deliberately not built.
 
-## Field Maps
+## Field Maps and Manifests
 
-Each fillable form carries a sibling `<code>.fields.toml` mapping exact AcroForm `/T` names to answer sources. Real
-government field names can be hostile (`undefined`, `City_5`, misspellings baked into the official file), so maps are
-data and tests pin them. `forms::resolve` converts questionnaire answers into the field map consumed by
-`pdf::fill_acroform`.
+A fillable form carries exactly one sibling text mirror of its field layer. A **re-authored** form (today:
+`nv__llc_formation`) carries a `.fields` manifest — its blank's actual `/T` names, one per line — and fills with no map
+at all: `forms::resolve_reauthored` reads each name as its own data path (`entity__company.name`,
+`people__managing_members.0.title`, a bare `custom_single_choice__*` radio state), skipping the `unmapped__` namespace.
+A **mapped** form carries a `<code>.fields.toml` mapping exact AcroForm `/T` names to answer sources. Real government
+field names can be hostile (`undefined`, `City_5`, misspellings baked into the official file), so maps are data and
+tests pin them. `forms::resolve` converts questionnaire answers into the field map consumed by `pdf::fill_acroform`.
 
 Payment-card fields and staff-side acceptance pages stay unmapped. If a government PDF reuses the same widget across
 sub-forms, the unsafe field stays unmapped until a staff review path can handle it deliberately.
@@ -97,6 +110,9 @@ only questions the questionnaire actually asks, of types the workspace actually 
   notation-template linter uses).
 - **`every_mapped_question_resolves_to_a_declared_state`** — every `question` (and `present_in`) in each `.fields.toml`
   resolves to a state that form's notation declares.
+- **`every_reauthored_field_name_is_a_declared_state_path_or_unmapped`** — the same assertion moved onto the names
+  of the bytes we file: every `.fields` manifest entry either carries a declared questionnaire state or sits in the
+  `unmapped__` namespace.
 
 A guessed map, a renamed question, or a notation that drifted from its map fails CI here — before a mis-mapped field can
 mis-fill a filing.
@@ -105,25 +121,25 @@ mis-fill a filing.
 
 CI stays offline; the network truth is checked at vendor time:
 
-- **`cargo test` (offline)** — the question-code contract above, the pin-shape guard
-  (`forms/tests/vendored_forms.rs`), and the fill round-trip (`forms/tests/fill_round_trip.rs`), which stages a
-  synthetic blank built from each form's own `.fields.toml` in a `fake-gcs-server` container and runs the full
-  production pipeline against the `cloud::StorageService` seam: pull → verify pin → resolve → fill → flatten. The web,
-  CLI, and journey e2e suites stage the same synthetic blanks (`web::test_support::stage_blank_forms`) under their own
-  pins, so the formation flows exercise the pull-and-verify gate end to end.
+- **`cargo test` (offline)** — the question-code contract above, the pin-shape guard (`forms/tests/vendored_forms.rs`),
+  and the fill round-trip (`forms/tests/fill_round_trip.rs`), which stages a synthetic blank built from each form's own
+  field-layer mirror (`.fields.toml` rules, or `.fields` manifest names plus the notation's `choices:` for radio groups)
+  in a `fake-gcs-server` container and runs the full production pipeline against the `cloud::StorageService` seam: pull
+  → verify pin → resolve → fill → flatten. The web, CLI, and journey e2e suites stage the same synthetic blanks
+  (`web::test_support::stage_blank_forms`) under their own pins, so the formation flows exercise the pull-and-verify
+  gate end to end.
 - **`navigator forms sync` (network)** — asserts the bucket's actual bytes match the repo pins; `navigator forms fields`
   reads the field names off those exact bytes. A re-vendor that changes the bytes without updating the pin fails here,
   and the fill path refuses the same bytes in production.
 
 ## Sequenced Follow-Ons
 
-The end state is that the AcroForm `/T` names **are** the question-code paths, retiring the `.fields.toml` indirection:
-a human re-authors each government blank's field layer (Acrobat "Prepare Form" / `pdftk`) so `/T` names become
-`entity__company.name`, a radio group named `custom_single_choice__management_structure` carries its choices as
-on-states, and dotted `people__managing_members.0.address.city` addresses list rows. Named fields give radio exclusivity
-and comb fields for free and break loudly on a re-vendor. Until that re-authoring lands, the three NV blanks keep their
-`.fields.toml` on the path above, and the guard test pins that layer. Re-authoring happens on the working copy of each
-blank; `navigator forms sync` then vendors it up and records the new pin.
+The end state is that every fillable blank's AcroForm `/T` names **are** the question-code paths. `nv__llc_formation` is
+there — re-authored by `navigator forms re-author`, its `.fields.toml` retired for the `.fields` manifest.
+`nv__profit_corp_formation` and `nv__business_trust_formation` keep their `.fields.toml` on the path above until each
+takes the same pass (the profit-corp map still carries `value_map` slot-label rules the planner refuses by design;
+re-express them as the person row's own `title` part first, as the LLC map did). Re-authoring happens on the working
+copy of each blank; `navigator forms sync` then vendors it up and records the new pin.
 
 The filled packet is **flattened** before it is persisted. Because a form's fill state (`document_open__*_pdf`) sits
 past `staff_review` in every packet's workflow spec, `dispatch_document_open` runs `pdf::flatten` right after

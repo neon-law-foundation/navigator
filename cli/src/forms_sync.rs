@@ -142,7 +142,7 @@ pub fn run_fields(code: &str, bucket: Option<&str>) -> ExitCode {
 }
 
 /// Entry point for `cli forms re-author <code>` (#256 item 1): pull the
-/// blank, verify its pin, and transform its field layer so the AcroForm
+/// blank, verify its pin, and transform its field layer so the `AcroForm`
 /// `/T` names *are* questionnaire state paths — the recorded judgment in
 /// the form's `.fields.toml` drives every rename, radio merge, and
 /// pre-printed literal, and every unmapped field lands in the
