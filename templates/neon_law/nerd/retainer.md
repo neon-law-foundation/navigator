@@ -10,14 +10,11 @@ questionnaire:
   person__client:
     _: project__engagement
   project__engagement:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 prompts:
   client_name: What is the client's full legal name?
   project_name: What is the project name for this engagement?
-  product_description: Describe the services this retainer covers.
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__client
@@ -39,8 +36,8 @@ Nerd** (the "Firm"), and `{{person__client.name}}` (the "Client"), reachable at
 `{{project__engagement.name}}`.
 
 **The work and the fee.** The Firm provides expert analysis, a written report, and — where the engagement calls for it —
-testimony by deposition or at trial, on the software and data-access matter described here:
-`{{custom_text__product_description}}`.
+testimony by deposition or at trial, on the software and data-access matter described here.
+The project-specific scope is recorded in the custom clauses below.
 This is an evaluation undertaken for use by you and, where you designate, the tribunal and other parties (RPC 2.3). The
 Firm's work is billed by the hour at `$1,337` per hour against the engagement's rate sheet, with costs and expenses
 passed through at cost. **The fee is earned for the time and analysis and is never contingent on the conclusions the

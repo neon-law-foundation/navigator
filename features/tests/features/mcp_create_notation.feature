@@ -18,10 +18,6 @@ Feature: MCP conversational notation creation
     And the MCP next question is "project__engagement"
 
     When the LLM calls aida_answer_notation with code "project__engagement" value "Apollo"
-    Then the MCP response status is "needs_answer"
-    And the MCP next question is "custom_text__product_description"
-
-    When the LLM calls aida_answer_notation with code "custom_text__product_description" value "rocket"
     Then the MCP response status is "complete"
     And the notation has reached the questionnaire END state
 
@@ -29,5 +25,5 @@ Feature: MCP conversational notation creation
     When the LLM calls aida_create_notation for "onboarding__retainer" as "libra@example.com"
     Then the MCP response status is "needs_answer"
 
-    When the LLM calls aida_answer_notation with code "custom_text__project_name" value "Apollo"
+    When the LLM calls aida_answer_notation with code "custom_text__settlement_terms" value "Apollo"
     Then the MCP tool error mentions "person__client"

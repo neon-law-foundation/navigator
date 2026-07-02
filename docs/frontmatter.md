@@ -63,11 +63,9 @@ code: onboarding__retainer
 jurisdiction: NV
 confidential: true
 questionnaire:
-  BEGIN:               { _: client_name }
-  client_name:         { _: client_email }
-  client_email:        { _: project_name }
-  project_name:        { _: product_description }
-  product_description: { _: END }
+  BEGIN:               { _: person__client }
+  person__client:      { _: project__engagement }
+  project__engagement: { _: END }
   END: {}
 workflow:
   BEGIN:                       { intake_submitted: intake_persisted__client }
@@ -101,8 +99,8 @@ the checker stops you. A blueprint with questions but no path — or a path but 
 half-built document should never reach a client. This is a guardrail, not a nicety.
 
 The body below the frontmatter is the legal prose, in English, carrying `{{placeholder}}` slots that the questionnaire
-answers fill in (`{{client_name}}`, `{{project_name}}`, and so on). Authoring that body, and the full list of structural
-checks, is covered in <notation-authoring.md>.
+answers fill in (`{{person__client.name}}`, `{{project__engagement.name}}`, and so on). Authoring that body, and the
+full list of structural checks, is covered in <notation-authoring.md>.
 
 ### How the finished document looks: `output`
 

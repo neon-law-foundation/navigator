@@ -1272,7 +1272,6 @@ mod tests {
         let walk = [
             ("person__client", "Libra"),
             ("project__engagement", "Apollo"),
-            ("custom_text__product_description", "rocket"),
         ];
         let mut last = NextStep::QuestionnaireComplete;
         for (i, (code, value)) in walk.iter().enumerate() {
@@ -1324,7 +1323,6 @@ mod tests {
         for (code, value) in [
             ("person__client", "Libra"),
             ("project__engagement", "Apollo"),
-            ("custom_text__product_description", "rocket"),
         ] {
             answer_step(
                 &db,

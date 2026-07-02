@@ -2059,7 +2059,8 @@ async fn projects_create_staff_only(
 
     // Seed the retainer questionnaire from the form so the assembled
     // agreement renders complete at the review screen: the matter's own
-    // name is the `project_name`; the scope fills `product_description`.
+    // name is the `project__engagement`; scope prose renders through the
+    // seeded custom clause at `{{custom_clauses}}`.
     let staffer = session.as_deref().and_then(|s| s.person_id);
     if let Err(e) = crate::retainer_walk::seed_staff_answers(
         &txn,
@@ -2069,10 +2070,6 @@ async fn projects_create_staff_only(
         &[
             ("person__client", client.name.trim()),
             ("project__engagement", input.name.trim()),
-            (
-                "custom_text__product_description",
-                input.scope_of_services.trim(),
-            ),
         ],
     )
     .await

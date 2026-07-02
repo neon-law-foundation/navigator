@@ -118,8 +118,8 @@ async fn import_writes_each_fixture_template_and_question_to_postgres() {
 
     let questions = question::Entity::find().all(&s.db).await.unwrap();
     let q_codes: Vec<&str> = questions.iter().map(|q| q.code.as_str()).collect();
-    // Spot-check typed question prefixes that come from custom fixture
-    // states such as `custom_text__trustee_name` and
+    // Spot-check typed question prefixes that come from fixture states such
+    // as `person__trustee` and
     // `custom_single_choice__annual_or_amended`.
     assert!(q_codes.contains(&"custom_text"));
     assert!(q_codes.contains(&"custom_yes_no"));

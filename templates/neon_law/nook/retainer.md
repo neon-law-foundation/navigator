@@ -7,15 +7,12 @@ confidential: true
 prompts:
   client_name: What is the client's full legal name?
   project_name: What is the project name for this engagement?
-  product_description: Describe the services this retainer covers.
 questionnaire:
   BEGIN:
     _: person__client
   person__client:
     _: project__engagement
   project__engagement:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 workflow:
@@ -39,8 +36,8 @@ brokerless real-estate closing — on the matter referred to as `{{project__enga
 
 **The work and the fee.** For a sale the buyer and seller have already agreed on, with no broker on either side, the
 Firm drafts the purchase agreement from the terms you have agreed on, prepares the deed and the closing documents,
-coordinates the closing and the settlement of funds, and records the deed with the county:
-`{{custom_text__product_description}}`.
+coordinates the closing and the settlement of funds, and records the deed with the county.
+The project-specific scope is recorded in the custom clauses below.
 This is one flat legal fee — `$9,999` — paid once when the matter closes, not a percentage of the sale price. County
 recording fees and any transfer tax are billed at cost on top of the flat fee.
 

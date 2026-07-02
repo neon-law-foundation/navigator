@@ -16,9 +16,8 @@ Feature: Questionnaire intake in the client's own language
 
   Scenario: Walking the questionnaire in Spanish reaches END
     When the staff submits the full questionnaire:
-      | value                       |
-      | Gemini                      |
-      | Plan patrimonial            |
-      | Constitución de fideicomiso |
+      | value            |
+      | Gemini           |
+      | Plan patrimonial |
     Then the final response status is 200
     And the last questionnaire transition lands on "END"

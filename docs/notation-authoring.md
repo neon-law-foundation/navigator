@@ -45,11 +45,9 @@ jurisdiction: US
 code: onboarding__retainer
 confidential: true
 questionnaire:            # the intake Q&A — what we ask the client
-  BEGIN:                { _: client_name }
-  client_name:          { _: client_email }
-  client_email:         { _: project_name }
-  project_name:         { _: product_description }
-  product_description:  { _: END }
+  BEGIN:                { _: person__client }
+  person__client:       { _: project__engagement }
+  project__engagement:  { _: END }
   END: {}
 workflow:                 # what happens after intake — render, review, sign
   BEGIN:                       { intake_submitted: intake_persisted__client }
@@ -60,8 +58,9 @@ workflow:                 # what happens after intake — render, review, sign
   END: {}
 ```
 
-The body below the frontmatter is plain prose carrying the same `{{code}}` placeholders. At render time each is replaced
-with the client's answer — `{{client_name}}` becomes the actual name, `{{project_name}}` the matter.
+The body below the frontmatter is plain prose carrying placeholders for declared answers. At render time each is
+replaced with the client's answer — `{{person__client.name}}` becomes the actual name and `{{project__engagement.name}}`
+the matter.
 
 Frontmatter fields:
 
@@ -72,8 +71,8 @@ Frontmatter fields:
 - `confidential` — an explicit `true`/`false` decision, never defaulted (N105).
 - `origin_url` — forms only; the HTTPS government page where the blank form can be obtained.
 - `form` — forms only; the bundled form code, matching `code` and the filename stem.
-- `questionnaire:` — the intake state machine: `BEGIN → question_code → … → END`. Each step's `_:` is the "answered"
-  transition. State names are `<question_code>__<discriminator>`; the prefix before `__` must be a real Question `code`.
+- `questionnaire:` — the intake state machine: `BEGIN → typed_state → … → END`. Each step's `_:` is the "answered"
+  transition. State names are `<type>__<role>`; the prefix before `__` must be a registered Question Type.
 - `workflow:` — the post-intake state machine: render, staff review, signature, filing. Transitions fire on named
   signals (`approved`, `pdf_persisted`, `signature_received`).
 
@@ -115,6 +114,12 @@ before any `custom_`:
 Only a value that is **neither a glossary model nor a field of one** is custom — a fee status
 (`custom_single_choice__fee_status`), a one-off date (`custom_datetime__filed_on`), a consent flag
 (`custom_yes_no__recording_consent`). This keeps answers queryable, linkable, and glossary-grounded.
+
+`custom_text` has one extra guardrail: `N117` rejects obvious glossary nouns in custom text roles. Do not write
+`custom_text__client_name`, `custom_text__client_email`, `custom_text__healthcare_agent`, or
+`custom_text__trustee_name`. Do not use `custom_text__product_description`. Use `person__client`,
+`person__healthcare_agent`, `person__trustee`, and their dotted fields, or product/project render context such as the
+retainer's `{{custom_clauses}}` slot.
 
 **Singular and plural.** Each record/reference type has a singular form (one row) and an explicit aggregate form (an
 array of the singular's shape) collected under one question — `person`→`people`, `entity`→`entities`,

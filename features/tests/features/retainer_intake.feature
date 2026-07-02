@@ -13,7 +13,7 @@ Feature: Retainer intake walk
     When the staff visits /portal/admin/notations/:id/step
     Then the response status is 200
     And the page asks the "person__client" question
-    And the page shows "step 1 of 3"
+    And the page shows "step 1 of 2"
 
   Scenario: Answering the first question advances to project__engagement
     When the staff submits "Libra" to /portal/admin/notations/:id/step
@@ -23,14 +23,13 @@ Feature: Retainer intake walk
     And the last transition lands on "person__client"
     And an answer row exists with value "Libra"
 
-  Scenario: Walking all three questions drives the workflow through END
+  Scenario: Walking all two questions drives the workflow through END
     When the staff submits the full questionnaire:
-      | value             |
-      | Libra             |
-      | Estate plan       |
-      | Trust formation   |
+      | value       |
+      | Libra       |
+      | Estate plan |
     Then the final response status is 200
-    And the questionnaire runtime has recorded 4 transitions
+    And the questionnaire runtime has recorded 3 transitions
     And the last transition lands on "END"
     And a GET to /portal/admin/notations/:id/step now redirects to /portal/admin
 

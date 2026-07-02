@@ -10,14 +10,11 @@ questionnaire:
   person__client:
     _: project__engagement
   project__engagement:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 prompts:
   client_name: What is the client's full legal name?
   project_name: What is the project name for this engagement?
-  product_description: Describe the services this retainer covers.
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__client
@@ -38,8 +35,9 @@ This Engagement Agreement (the "Agreement") is entered into between Neon Law (th
 an uncontested divorce — on the matter referred to as `{{project__engagement.name}}`.
 
 **The work and the fee.** The Firm will prepare and file the documents to dissolve a marriage where both spouses have
-already agreed on every term — the division of property and debts, any support, and any arrangements for children:
-`{{custom_text__product_description}}`. This is a flat fee for the uncontested dissolution, billed once when the matter
+already agreed on every term — the division of property and debts, any support, and any arrangements for children.
+Project-specific scope is recorded in the custom clauses below.
+This is a flat fee for the uncontested dissolution, billed once when the matter
 closes; the court's filing fees and any service-of-process costs are passed through at cost on top of the flat fee.
 
 **Scope of the engagement.** The Firm's representation is limited to preparing and filing the uncontested dissolution
