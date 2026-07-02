@@ -245,11 +245,13 @@ mod tests {
     /// `(notation_id, first_question_code)`.
     async fn start_retainer(db: &store::Db, runtime: &InMemoryRuntime) -> (Uuid, String) {
         let eid = store::test_support::seed_entity(db).await;
-        let out = create_notation::call(
+        let repo_root = tempfile::tempdir().unwrap();
+        let out = create_notation::call_with_repo_store(
             db,
             runtime,
             None,
             None,
+            repos::RepoStore::new(repo_root.path()),
             &json!({
                 "template_code": "onboarding__retainer",
                 "person_email": "libra@example.com",

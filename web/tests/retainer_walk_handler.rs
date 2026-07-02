@@ -29,6 +29,13 @@ use workflows::{InMemoryRuntime, MachineKind, StateMachineRuntime, StateName};
 const TEMPLATE_CODE: &str = "onboarding__retainer";
 
 async fn build_app_and_notation() -> (axum::Router, store::Db, uuid::Uuid, Arc<InMemoryRuntime>) {
+    let repo_root = std::env::temp_dir().join(format!(
+        "navigator-retainer-walk-repos-{}",
+        uuid::Uuid::now_v7()
+    ));
+    std::fs::create_dir_all(&repo_root).unwrap();
+    std::env::set_var("NAVIGATOR_GIT_REPO_ROOT", &repo_root);
+
     let db = store::test_support::pg().await;
     // Template bodies seed into blob storage; the app reads them back
     // from the same handle, so seed and AppState share one storage.

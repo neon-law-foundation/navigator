@@ -6,11 +6,33 @@
 //! when the firm signs its closing letter. Archival (the Drive cold
 //! store) is a separate downstream step and is left untouched here.
 
-use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
+};
 use uuid::Uuid;
 
 use crate::entity::{notation, project};
 use crate::Db;
+
+/// Client-facing message when a matter cannot be opened because its git
+/// repository is not ready. Keep this deliberately plain: the client/staff
+/// action is to retry or ask support, not to reason about git.
+pub const REPO_PROVISIONING_FAILURE_MESSAGE: &str =
+    "We couldn't open this matter because its secure document workspace was not ready. Please try again in a moment.";
+
+/// How long matter creation waits for the bare repo to become ready before
+/// rolling back the database transaction.
+pub const REPO_PROVISIONING_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProvisionRepoError {
+    #[error(transparent)]
+    Repo(#[from] repos::RepoError),
+    #[error("timed out provisioning git repo for project {project_id}")]
+    Timeout { project_id: Uuid },
+    #[error(transparent)]
+    Db(#[from] sea_orm::DbErr),
+}
 
 /// The notation id of the person's **sole open matter**, for auto-routing an
 /// inbound message to a matter without manual triage. Returns `Some` only
@@ -91,11 +113,14 @@ pub async fn close_for_notation(
 /// # Errors
 ///
 /// Propagates any database error.
-pub async fn mark_git_initialized(
-    db: &Db,
+pub async fn mark_git_initialized<C>(
+    db: &C,
     project_id: Uuid,
     when: chrono::DateTime<chrono::Utc>,
-) -> Result<Option<String>, sea_orm::DbErr> {
+) -> Result<Option<String>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
     use sea_orm::sea_query::Expr;
 
     let stamp = when.to_rfc3339();
@@ -166,6 +191,60 @@ async fn provision_repo_in(
     Ok(path)
 }
 
+/// Provision a Project repo as a hard dependency of matter creation.
+///
+/// Call this while the surrounding create transaction is still open. If repo
+/// creation or the `git_initialized_at` stamp fails, return the error so the
+/// caller can roll the transaction back and avoid committing a Project row
+/// whose document workspace is missing.
+///
+/// In `workflows-service`, call this from inside one stable `ctx.run` step so
+/// a replay reuses the journaled result instead of re-running `git init` or the
+/// stamp.
+///
+/// # Errors
+/// Returns [`ProvisionRepoError`] when the repo volume is not configured, git
+/// or filesystem setup fails, the timeout elapses, or the stamp write fails.
+pub async fn provision_repo_hard<C>(
+    db: &C,
+    store: repos::RepoStore,
+    project_id: Uuid,
+    timeout: std::time::Duration,
+) -> Result<std::path::PathBuf, ProvisionRepoError>
+where
+    C: ConnectionTrait,
+{
+    let path = tokio::time::timeout(timeout, async move {
+        tokio::task::spawn_blocking(move || store.ensure(project_id))
+            .await
+            .map_err(|e| repos::RepoError::Io(std::io::Error::other(e.to_string())))?
+    })
+    .await
+    .map_err(|_| ProvisionRepoError::Timeout { project_id })??;
+    mark_git_initialized(db, project_id, chrono::Utc::now()).await?;
+    Ok(path)
+}
+
+/// [`provision_repo_hard`] using the process repo store and workspace timeout.
+///
+/// # Errors
+/// See [`provision_repo_hard`].
+pub async fn provision_repo_hard_from_env<C>(
+    db: &C,
+    project_id: Uuid,
+) -> Result<std::path::PathBuf, ProvisionRepoError>
+where
+    C: ConnectionTrait,
+{
+    provision_repo_hard(
+        db,
+        repos::RepoStore::from_env()?,
+        project_id,
+        REPO_PROVISIONING_TIMEOUT,
+    )
+    .await
+}
+
 /// Eagerly provision at project-creation time, swallowing every failure —
 /// a fresh matter gets a ready repo, but provisioning never fails matter
 /// creation. When the git volume is not mounted in this context
@@ -187,7 +266,8 @@ pub async fn provision_repo_eager(db: &Db, project_id: Uuid) {
 #[cfg(test)]
 mod tests {
     use super::{
-        close_for_notation, mark_git_initialized, provision_repo_in, sole_open_matter_for_person,
+        close_for_notation, mark_git_initialized, provision_repo_hard, provision_repo_in,
+        sole_open_matter_for_person, ProvisionRepoError,
     };
     use crate::entity::{notation, person, project, template};
     use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait};
@@ -359,6 +439,32 @@ mod tests {
             .git_initialized_at
             .unwrap();
         assert_eq!(stamp, stamp2, "first-creation stamp must not be rewritten");
+    }
+
+    #[tokio::test]
+    async fn hard_provision_returns_error_instead_of_swallowing_repo_failures() {
+        let db = crate::test_support::pg().await;
+        let (_notation_id, project_id) = seed_open_matter(&db).await;
+        let file_root = tempfile::NamedTempFile::new().unwrap();
+        let store = repos::RepoStore::new(file_root.path());
+
+        let err = provision_repo_hard(&db, store, project_id, std::time::Duration::from_secs(10))
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(err, ProvisionRepoError::Repo(repos::RepoError::Io(_))),
+            "expected filesystem error from invalid repo root, got {err:?}",
+        );
+        let row = project::Entity::find_by_id(project_id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            row.git_initialized_at.is_none(),
+            "failed hard provision must not stamp the project",
+        );
     }
 
     /// Open one more matter for `person_id` so a person can have several.

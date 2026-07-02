@@ -38,6 +38,13 @@ use workflows::{DispatchingRuntime, InMemoryRuntime, StateMachineRuntime};
 const SESSION_KEY: &str = "cli-bearer-test-key-not-for-production";
 
 async fn build_app(tag: &str) -> (axum::Router, store::Db, Arc<StubSignatureProvider>) {
+    let repo_root = std::env::temp_dir().join(format!(
+        "navigator-cli-bearer-repos-{tag}-{}",
+        std::process::id(),
+    ));
+    std::fs::create_dir_all(&repo_root).unwrap();
+    std::env::set_var("NAVIGATOR_GIT_REPO_ROOT", &repo_root);
+
     let db = store::test_support::pg().await;
     let storage: Arc<dyn cloud::StorageService> = Arc::new(
         cloud::FsStorage::new(std::env::temp_dir().join(format!("navigator-cli-bearer-{tag}")))

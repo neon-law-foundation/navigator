@@ -15,6 +15,7 @@ axum.workspace = true
 cloud.workspace = true
 import.workspace = true
 reqwest.workspace = true
+repos = { workspace = true }
 rules.workspace = true
 sea-orm.workspace = true
 serde.workspace = true
@@ -30,6 +31,7 @@ workflows.workspace = true
 [dev-dependencies]
 http-body-util.workspace = true
 store = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
 tower.workspace = true
 
 [lints]

@@ -9,7 +9,7 @@ use std::process::Command;
 
 use assert_cmd::cargo::cargo_bin;
 use sea_orm::{ActiveModelTrait, ActiveValue};
-use store::entity::person;
+use store::entity::{person, project};
 use store::test_support::{schema, Schema};
 
 /// Insert a `role = client` person with `email` into the per-test
@@ -30,6 +30,7 @@ async fn seed_client(s: &Schema, name: &str, email: &str) {
 async fn create_project_inserts_row_linked_to_seeded_entity() {
     let s = schema().await;
     seed_client(&s, "Estate Client", "estate.client@example.com").await;
+    let repo_root = tempfile::tempdir().expect("repo root tempdir");
     let out = Command::new(cargo_bin("navigator"))
         .args([
             "project",
@@ -43,6 +44,7 @@ async fn create_project_inserts_row_linked_to_seeded_entity() {
             "--database-url",
         ])
         .arg(&s.url)
+        .env("NAVIGATOR_GIT_REPO_ROOT", repo_root.path())
         .output()
         .expect("run navigator project create");
     assert!(
@@ -74,7 +76,6 @@ async fn create_project_inserts_row_linked_to_seeded_entity() {
 #[tokio::test]
 async fn create_project_eagerly_provisions_the_git_repo() {
     use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-    use store::entity::project;
 
     let s = schema().await;
     seed_client(&s, "Repo Client", "repo.client@example.com").await;
@@ -159,6 +160,7 @@ async fn create_project_with_skip_migrate_and_seed_uses_existing_schema() {
     // First pass: prime the schema with migrate+seed via the default mode.
     let s = schema().await;
     seed_client(&s, "Prime Client", "prime.client@example.com").await;
+    let repo_root = tempfile::tempdir().expect("repo root tempdir");
     let prime = Command::new(cargo_bin("navigator"))
         .args([
             "project",
@@ -172,6 +174,7 @@ async fn create_project_with_skip_migrate_and_seed_uses_existing_schema() {
             "--database-url",
         ])
         .arg(&s.url)
+        .env("NAVIGATOR_GIT_REPO_ROOT", repo_root.path())
         .output()
         .expect("prime run");
     assert!(
@@ -198,6 +201,7 @@ async fn create_project_with_skip_migrate_and_seed_uses_existing_schema() {
             "--database-url",
         ])
         .arg(&s.url)
+        .env("NAVIGATOR_GIT_REPO_ROOT", repo_root.path())
         .output()
         .expect("run navigator project create --skip-migrate-and-seed");
     assert!(
@@ -207,6 +211,46 @@ async fn create_project_with_skip_migrate_and_seed_uses_existing_schema() {
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(stdout.contains("Shook Estate Production"));
+}
+
+#[tokio::test]
+async fn create_project_rolls_back_when_repo_provisioning_fails() {
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+    let s = schema().await;
+    seed_client(&s, "Rollback Client", "rollback.client@example.com").await;
+    let file_root = tempfile::NamedTempFile::new().expect("repo root file");
+    let out = Command::new(cargo_bin("navigator"))
+        .args([
+            "project",
+            "create",
+            "--name",
+            "Rollback Matter",
+            "--entity-name",
+            "shook.family",
+            "--client-email",
+            "rollback.client@example.com",
+            "--database-url",
+        ])
+        .arg(&s.url)
+        .env("NAVIGATOR_GIT_REPO_ROOT", file_root.path())
+        .output()
+        .expect("run navigator project create");
+    assert!(
+        !out.status.success(),
+        "create should fail when repo provisioning fails",
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("secure document workspace was not ready"),
+        "error should use the client-facing workspace message: {stderr}",
+    );
+    let row = project::Entity::find()
+        .filter(project::Column::Name.eq("Rollback Matter"))
+        .one(&s.db)
+        .await
+        .expect("query project");
+    assert!(row.is_none(), "project row must roll back on repo failure");
 }
 
 #[tokio::test]

@@ -29,7 +29,14 @@ pub mod webdriver;
 /// connection. The seed pass is left to the caller — only the
 /// retainer-intake scenarios need the canonical templates.
 pub async fn in_memory_db() -> Db {
+    init_repo_root();
     store::test_support::pg().await
+}
+
+fn init_repo_root() {
+    let root = std::env::temp_dir().join(format!("navigator-feature-repos-{}", std::process::id()));
+    std::fs::create_dir_all(&root).expect("create feature repo root");
+    std::env::set_var("NAVIGATOR_GIT_REPO_ROOT", root);
 }
 
 /// Assemble an [`AppState`] suitable for `oneshot` tests. Callers

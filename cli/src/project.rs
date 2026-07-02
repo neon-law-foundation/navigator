@@ -8,6 +8,7 @@
 
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    TransactionTrait,
 };
 use store::entity::{entity as entities, person, project};
 use uuid::Uuid;
@@ -83,6 +84,7 @@ pub async fn create(
             conflict.summary_lines().join("\n")
         );
     }
+    let txn = db.begin().await?;
     let inserted = project::ActiveModel {
         name: ActiveValue::Set(name.to_string()),
         status: ActiveValue::Set(status.to_string()),
@@ -91,15 +93,18 @@ pub async fn create(
         client_dri_person_id: ActiveValue::Set(Some(client.id)),
         ..Default::default()
     }
-    .insert(db)
+    .insert(&txn)
     .await?;
 
-    // Eagerly stand up the matter's append-only git repo through the one
-    // shared provisioning path. Best-effort: a CLI run against a Postgres
-    // with no attached repo volume (e.g. a remote prod DB, where
-    // `NAVIGATOR_GIT_REPO_ROOT` is unset) skips, and `web` materializes the
-    // repo lazily on first clone. Idempotent, so a re-run is a no-op.
-    store::projects::provision_repo_eager(db, inserted.id).await;
+    store::projects::provision_repo_hard_from_env(&txn, inserted.id)
+        .await
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "{} ({e})",
+                store::projects::REPO_PROVISIONING_FAILURE_MESSAGE
+            )
+        })?;
+    txn.commit().await?;
 
     Ok(CreatedProject {
         id: inserted.id,

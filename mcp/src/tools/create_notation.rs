@@ -18,7 +18,10 @@
 //! email MUST match an existing `persons` row.
 
 use sea_orm::sea_query::{Expr, Func};
-use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter, QueryOrder,
+    TransactionTrait,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use store::entity::{entity as ent, person, project};
@@ -95,6 +98,29 @@ pub async fn call(
     principal: Option<&Principal>,
     arguments: &Value,
 ) -> Result<Value, ToolError> {
+    call_inner(db, runtime, storage, principal, None, arguments).await
+}
+
+#[cfg(test)]
+pub(super) async fn call_with_repo_store(
+    db: &Db,
+    runtime: &dyn StateMachineRuntime,
+    storage: Option<&std::sync::Arc<dyn cloud::StorageService>>,
+    principal: Option<&Principal>,
+    repo_store: repos::RepoStore,
+    arguments: &Value,
+) -> Result<Value, ToolError> {
+    call_inner(db, runtime, storage, principal, Some(repo_store), arguments).await
+}
+
+async fn call_inner(
+    db: &Db,
+    runtime: &dyn StateMachineRuntime,
+    storage: Option<&std::sync::Arc<dyn cloud::StorageService>>,
+    principal: Option<&Principal>,
+    repo_store: Option<repos::RepoStore>,
+    arguments: &Value,
+) -> Result<Value, ToolError> {
     let args: Args = super::decode_args(arguments)?;
 
     let template_code = args.template_code.trim();
@@ -136,12 +162,21 @@ pub async fn call(
     if ent::Entity::find_by_id(entity_id).one(db).await?.is_none() {
         return Err(ToolError::NotFound(format!("entity_id={entity_id}")));
     }
+    if store::entity::template::Entity::find()
+        .filter(store::entity::template::Column::Code.eq(template_code))
+        .one(db)
+        .await?
+        .is_none()
+    {
+        return Err(ToolError::NotFound(format!("template `{template_code}`")));
+    }
 
     // An Engagement opens a Project alongside its Notation. The
     // glossary's rule — every Notation belongs to exactly one
     // Project — is enforced by the schema; this is where the MCP
     // surface satisfies it.
-    let project_id = open_project_for_engagement(db, &email, template_code, entity_id).await?;
+    let project_id =
+        open_project_for_engagement(db, repo_store, &email, template_code, entity_id).await?;
 
     let outcome = notation_session::start_notation(
         db,
@@ -197,6 +232,7 @@ pub async fn call(
 /// list can see what the matter is at a glance.
 async fn open_project_for_engagement(
     db: &Db,
+    repo_store: Option<repos::RepoStore>,
     email: &str,
     template_code: &str,
     entity_id: Uuid,
@@ -223,6 +259,16 @@ async fn open_project_for_engagement(
             "no firm principal to assign as staff DRI — seed a staff/admin person first".into(),
         )
     })?;
+    let repo_store = match repo_store {
+        Some(store) => store,
+        None => repos::RepoStore::from_env().map_err(|e| {
+            ToolError::Internal(format!(
+                "{} ({e})",
+                store::projects::REPO_PROVISIONING_FAILURE_MESSAGE
+            ))
+        })?,
+    };
+    let txn = db.begin().await?;
     let row = project::ActiveModel {
         name: ActiveValue::Set(format!("{template_code} for {email}")),
         status: ActiveValue::Set("open".into()),
@@ -231,11 +277,22 @@ async fn open_project_for_engagement(
         client_dri_person_id: ActiveValue::Set(Some(client_dri)),
         ..Default::default()
     }
-    .insert(db)
+    .insert(&txn)
     .await?;
-    // Stand up the engagement's git repo (best-effort through the one
-    // shared provisioning path).
-    store::projects::provision_repo_eager(db, row.id).await;
+    store::projects::provision_repo_hard(
+        &txn,
+        repo_store,
+        row.id,
+        store::projects::REPO_PROVISIONING_TIMEOUT,
+    )
+    .await
+    .map_err(|e| {
+        ToolError::Internal(format!(
+            "{} ({e})",
+            store::projects::REPO_PROVISIONING_FAILURE_MESSAGE
+        ))
+    })?;
+    txn.commit().await?;
     Ok(row.id)
 }
 
@@ -282,12 +339,12 @@ fn map_notation_err(err: NotationSessionError) -> ToolError {
 
 #[cfg(test)]
 mod tests {
-    use super::{call, descriptor};
+    use super::{call, call_with_repo_store, descriptor};
     use crate::principal::Principal;
     use crate::tools::ToolError;
     use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
     use serde_json::json;
-    use store::entity::{person, question, template};
+    use store::entity::{person, project, question, template};
     use uuid::Uuid;
     use workflows::InMemoryRuntime;
 
@@ -386,12 +443,14 @@ mod tests {
         seed_person(&db, "libra@example.com").await;
         let eid = store::test_support::seed_entity(&db).await;
         let runtime = InMemoryRuntime::new();
+        let repo_root = tempfile::tempdir().unwrap();
 
-        let out = call(
+        let out = call_with_repo_store(
             &db,
             &runtime,
             None,
             None,
+            repos::RepoStore::new(repo_root.path()),
             &json!({
                 "template_code": "onboarding__retainer",
                 "person_email": "libra@example.com",
@@ -421,12 +480,14 @@ mod tests {
         let eid = store::test_support::seed_entity(&db).await;
         let runtime = InMemoryRuntime::new();
         let principal = Principal::new("libra@example.com");
+        let repo_root = tempfile::tempdir().unwrap();
 
-        let out = call(
+        let out = call_with_repo_store(
             &db,
             &runtime,
             None,
             Some(&principal),
+            repos::RepoStore::new(repo_root.path()),
             &json!({
                 "template_code": "onboarding__retainer",
                 "person_email": "mallory@example.com",
@@ -484,11 +545,13 @@ mod tests {
         seed_person(&db, "Libra@Example.com").await;
         let eid = store::test_support::seed_entity(&db).await;
         let runtime = InMemoryRuntime::new();
-        let out = call(
+        let repo_root = tempfile::tempdir().unwrap();
+        let out = call_with_repo_store(
             &db,
             &runtime,
             None,
             None,
+            repos::RepoStore::new(repo_root.path()),
             &json!({
                 "template_code": "onboarding__retainer",
                 "person_email": "libra@example.COM",
@@ -498,6 +561,39 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(out["structuredContent"]["status"], "needs_answer");
+    }
+
+    #[tokio::test]
+    async fn repo_provisioning_failure_rolls_back_project() {
+        let db = db().await;
+        seed_retainer(&db).await;
+        seed_person(&db, "libra@example.com").await;
+        let eid = store::test_support::seed_entity(&db).await;
+        let runtime = InMemoryRuntime::new();
+        let file_root = tempfile::NamedTempFile::new().unwrap();
+
+        let err = call_with_repo_store(
+            &db,
+            &runtime,
+            None,
+            None,
+            repos::RepoStore::new(file_root.path()),
+            &json!({
+                "template_code": "onboarding__retainer",
+                "person_email": "libra@example.com",
+                "entity_id": eid,
+            }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("secure document workspace was not ready"),
+            "error should use workspace-ready message: {err}",
+        );
+        let projects = project::Entity::find().all(&db).await.unwrap();
+        assert!(projects.is_empty(), "project insert must roll back");
     }
 
     #[tokio::test]

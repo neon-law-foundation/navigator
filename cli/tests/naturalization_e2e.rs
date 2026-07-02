@@ -54,6 +54,13 @@ const ANSWERS: [&str; 12] = [
 /// `StubSignatureProvider`. Auth is ENFORCED (HS256) so the CLI's
 /// `Authorization: Bearer <SessionData>` is exercised for real.
 async fn build_app(tag: &str) -> axum::Router {
+    let repo_root = std::env::temp_dir().join(format!(
+        "navigator-cli-naturalization-repos-{tag}-{}",
+        Uuid::now_v7()
+    ));
+    std::fs::create_dir_all(&repo_root).unwrap();
+    std::env::set_var("NAVIGATOR_GIT_REPO_ROOT", &repo_root);
+
     let db = store::test_support::pg().await;
     let storage: Arc<dyn cloud::StorageService> = Arc::new(
         cloud::FsStorage::new(std::env::temp_dir().join(format!("navigator-cli-natz-e2e-{tag}")))
