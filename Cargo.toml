@@ -51,7 +51,7 @@ include_dir = "0.7"
 # Pure-Rust PDF read-modify-write, used by `pdf::fill_acroform` to
 # populate fillable government forms (AcroForm `/Fields`). Distinct from
 # the Typst `render` path, which only emits fresh PDFs.
-lopdf = "0.42"
+lopdf = "0.43"
 parquet = { version = "59", default-features = false, features = ["arrow", "snap"] }
 # In-memory graph for the pre-matter conflict check (`store::conflicts`).
 # Postgres stays the source of truth; petgraph is a transient view built
