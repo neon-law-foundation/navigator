@@ -894,6 +894,8 @@ pub async fn step_get(
         "step_get: rendering question",
     );
 
+    let country_options =
+        crate::intake::jurisdiction_option_names(&state.db, &question.answer_type).await;
     views::pages::admin::retainers::question_step(&views::pages::admin::retainers::QuestionStep {
         notation_id,
         flow_label,
@@ -901,6 +903,7 @@ pub async fn step_get(
         question_prompt: &question.prompt,
         answer_type: &question.answer_type,
         prior_answer: prior_answer.as_deref(),
+        country_options: &country_options,
         progress,
         csrf_token: token,
         error: None,
@@ -1020,6 +1023,18 @@ pub async fn step_post(
     } else {
         body.get("value").cloned().unwrap_or_default()
     };
+
+    // A reference answer must name a seeded row (e.g. a `country`
+    // question). The select enforces this in the browser; a
+    // hand-crafted POST just doesn't advance — the redirect re-renders
+    // the same step.
+    if crate::intake::rejected_reference_answer(&state.db, &question.answer_type, &value)
+        .await
+        .is_some()
+    {
+        return Redirect::to(&format!("/portal/admin/notations/{notation_id}/step"))
+            .into_response();
+    }
 
     let next = match notation_session::answer_step(
         &state.db,

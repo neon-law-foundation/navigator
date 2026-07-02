@@ -11,14 +11,14 @@ questionnaire:
   person__client:
     _: custom_datetime__date_of_birth
   custom_datetime__date_of_birth:
-    _: custom_text__country_of_birth
-  custom_text__country_of_birth:
-    _: custom_text__country_of_citizenship
-  custom_text__country_of_citizenship:
+    _: country__of_birth
+  country__of_birth:
+    _: country__of_citizenship
+  country__of_citizenship:
     _: custom_datetime__lpr_since
   custom_datetime__lpr_since:
-    _: custom_text__daytime_phone
-  custom_text__daytime_phone:
+    _: custom_phone__daytime_phone
+  custom_phone__daytime_phone:
     _: custom_single_choice__eligibility_basis
   custom_single_choice__eligibility_basis:
     _: custom_single_choice__marital_status
@@ -32,8 +32,8 @@ questionnaire:
 prompts:
   client_name: What is the client's full legal name?
   date_of_birth: What is your date of birth?
-  country_of_birth: In what country were you born?
-  country_of_citizenship: Of what country are you currently a citizen or national?
+  of_birth: In what country were you born?
+  of_citizenship: Of what country are you currently a citizen or national?
   lpr_since: On what date did you become a lawful permanent resident?
   daytime_phone: What is the best daytime phone number to reach you?
   eligibility_basis: Which path to naturalization are you applying under?
@@ -81,8 +81,8 @@ workflow:
 This naturalization engagement (the "Engagement") prepares and files Form N-400, Application for Naturalization, with
 U.S. Citizenship and Immigration Services ("USCIS") on behalf of `{{person__client.name}}` (the "Applicant").
 
-The Applicant was born on `{{custom_datetime__date_of_birth}}` in `{{custom_text__country_of_birth}}`, is a citizen or
-national of `{{custom_text__country_of_citizenship}}`, and became a lawful permanent resident on
+The Applicant was born on `{{custom_datetime__date_of_birth}}` in `{{country__of_birth.name}}`, is a citizen or
+national of `{{country__of_citizenship.name}}`, and became a lawful permanent resident on
 `{{custom_datetime__lpr_since}}`. The Applicant is `{{custom_single_choice__marital_status}}` and applies under the
 `{{custom_single_choice__eligibility_basis}}` path to naturalization.
 
@@ -96,7 +96,7 @@ follows: the biometrics appointment, the interview and civics test, and the oath
 USCIS issues the Applicant's Certificate of Naturalization (Form N-550) — the lifelong proof of U.S. citizenship.
 
 Appointment notices and confirmations are sent to the Applicant at `{{person__client.email}}`, and the firm reaches
-the Applicant by phone at `{{custom_text__daytime_phone}}`. The Applicant reported roughly
+the Applicant by phone at `{{custom_phone__daytime_phone}}`. The Applicant reported roughly
 `{{custom_text__time_outside_us}}` days outside the United States in the last five years; the attorney reviews the exact
 travel dates against the continuous-residence requirement before filing.
 

@@ -165,6 +165,21 @@ impl<'a> Field<'a> {
         Self::new(label, name, FieldKind::Checkbox { value, checked })
     }
 
+    /// The `country` question widget both walkers share: a required
+    /// `value` select over the seeded country names, preselecting any
+    /// prior answer. The chosen *name* is what posts, so the stored
+    /// answer matches a `jurisdictions` row.
+    #[must_use]
+    pub fn country_select(
+        label: &'a str,
+        country_names: &'a [String],
+        prior: Option<&'a str>,
+    ) -> Self {
+        let mut options = vec![Choice::new("", "Select a country…")];
+        options.extend(country_names.iter().map(|name| Choice::new(name, name)));
+        Self::select(label, "value", options, prior.filter(|v| !v.is_empty())).required()
+    }
+
     /// Mark the field `required` (HTML5 + visual).
     #[must_use]
     pub fn required(mut self) -> Self {
