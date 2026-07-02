@@ -83,6 +83,10 @@ pub(crate) const WORKFLOWS_PUBLIC_URL: &str = "https://workflows.example.com/";
 // the local cluster, so they need no local tag constant here.
 const WEB_IMAGE: &str = "navigator-web:dev";
 const WORKFLOWS_SERVICE_IMAGE: &str = "navigator-workflows-service:dev";
+// The git-bearing web image (images/Containerfile.git). The full overlay's
+// web Deployment runs from it (k8s/overlays/kind/web-repos.yaml): repo
+// provisioning shells `git`, which the distroless web image doesn't carry.
+const GIT_IMAGE: &str = "navigator-git:dev";
 
 // Kustomize overlay roots. `Up` applies the deps-only overlay (no
 // in-cluster `web`). `Deploy` applies the full overlay including
@@ -875,6 +879,7 @@ fn deploy(cfg: &KindConfig, tag_override: Option<&str>) -> Result<()> {
     // ImagePullBackOff.
     ghcr::ensure_tag_published(&owner, "navigator-web", &tag)?;
     ghcr::ensure_tag_published(&owner, "navigator-workflows-service", &tag)?;
+    ghcr::ensure_tag_published(&owner, "navigator-git", &tag)?;
     pull_retag_load(&owner, "navigator-web", &tag, WEB_IMAGE, cfg)?;
     pull_retag_load(
         &owner,
@@ -883,6 +888,7 @@ fn deploy(cfg: &KindConfig, tag_override: Option<&str>) -> Result<()> {
         WORKFLOWS_SERVICE_IMAGE,
         cfg,
     )?;
+    pull_retag_load(&owner, "navigator-git", &tag, GIT_IMAGE, cfg)?;
     apply_kustomize(&root, &cfg.full_overlay)?;
     eprintln!("==> waiting for navigator-web rollout");
     run(Command::new("kubectl")
@@ -1335,9 +1341,11 @@ fn render_env_for(cfg: &KindConfig, db_name: &str, web_port: u16, root: &Path) -
     // boot; the actual email backend defaults to CapturingEmail
     // because NAVIGATOR_EMAIL_BACKEND is unset.
     // `NAVIGATOR_GIT_REPO_ROOT` is where `repos::RepoStore` keeps each
-    // Project's bare repo. Matter creation hard-depends on it
-    // (`store::projects::provision_repo_hard_from_env`), so a host-side
-    // `web` without it 503s every `notation create` / retainer start.
+    // Project's bare repo. Matter creation hard-depends on repo
+    // provisioning (`store::projects::RepoEnsurer`); the host-side `web`
+    // is dev's single mounted writer, and `enforce_prod_invariants`
+    // refuses to boot a `web` with neither this volume nor the
+    // remote-writer wiring.
     let lines: [(&str, String); 16] = [
         ("PORT", web_port.to_string()),
         (
@@ -1852,6 +1860,7 @@ mod tests {
             "images/Containerfile.trigger",
             "images/Containerfile.workflows-service",
             "images/Containerfile.web",
+            "images/Containerfile.git",
         ] {
             let content = std::fs::read_to_string(root.join(df)).expect("read Containerfile");
             for m in &members {

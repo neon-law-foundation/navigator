@@ -204,14 +204,19 @@ themselves do not live in a bucket.
   `m20260719_drop_git_default_branch_from_projects`; `drive_folder_id` and the retired `drive_syncs` table were likewise
   dropped (the latter in `m20260718_drop_drive_syncs` — see the note above).
 - **Provisioning is a hard dependency of matter creation.** `store::projects::provision_repo_hard` creates the bare repo
-  (via `repos::RepoStore::ensure`) and stamps `git_initialized_at` before the surrounding create transaction commits —
-  no second `git init`, and no committed Project row whose repo is missing. Every project-creation path uses that hard
-  contract (the web matter-open form, the self-serve retainer walk, the `aida_create_project` / `aida_create_notation`
-  MCP tools, and the `project` CLI subcommand). The `ProjectProvisioning` Restate workflow wraps the same `ensure` →
-  `mark_git_initialized` sequence in `ctx.run("create-project-repo")` for durable callers, so replay reuses the
-  journaled result instead of re-running the filesystem or database side effect. The smart-HTTP transport still calls
-  the idempotent `provision_repo` path for older rows whose repo predates hard provisioning; new matter creation fails
-  with the shared workspace-not-ready message if the repo cannot be provisioned within the create timeout.
+  and stamps `git_initialized_at` before the surrounding create transaction commits — no second `git init`, and no
+  committed Project row whose repo is missing. Every project-creation path uses that hard contract (the web matter-open
+  form, the self-serve retainer walk, the `aida_create_project` / `aida_create_notation` MCP tools, and the `project`
+  CLI subcommand). The filesystem half goes through `store::projects::RepoEnsurer`, an env-selected seam: a process that
+  mounts the repo volume (`NAVIGATOR_GIT_REPO_ROOT`) runs `repos::RepoStore::ensure` in-process, and a process that does
+  not (the stateless `web` tier in prod) POSTs `/git-writer/ensure` on the single mounted writer
+  (`NAVIGATOR_GIT_WRITER_URL` + the shared bearer in `NAVIGATOR_GIT_WRITER_TOKEN`; served by `web::git_writer` only when
+  the pod holds both the volume and the token). In both variants the `git_initialized_at` stamp happens on the caller's
+  open transaction, so a failed create rolls back whole. The smart-HTTP transport still calls the idempotent
+  `provision_repo` path for older rows whose repo predates hard provisioning; new matter creation fails with the shared
+  workspace-not-ready message if the repo cannot be provisioned within the create timeout, and
+  `web::config::enforce_prod_invariants` refuses to boot a `web` process that has neither the volume nor the writer
+  wiring.
 - A `git_access_tokens` table holds PATs: `id`, `person_id`, `project_id` (nullable = all the person's projects),
   `token_hash`, `scope` (`read` | `write`), `expires_at`, `inserted_at`/`updated_at`. Tokens are stored hashed; the
   plaintext is shown once at mint time.
@@ -296,9 +301,18 @@ backup story (distinct from Cloud SQL's). Add one ingress prefix rule (`/project
 `navigator-web` tier proxies the whole transport + LFS surface to the single writer. The manifests are wired into the
 GKE overlay; validate the PVC bind, snapshot schedule, and ingress split on the cluster before rollout.
 
+The stateless `navigator-web` tier mounts no repo volume; it provisions matter repos through the writer instead (§6):
+its Deployment sets `NAVIGATOR_GIT_WRITER_URL=http://navigator-git:3001`, and `NAVIGATOR_GIT_WRITER_TOKEN` — the shared
+bearer both Deployments read — lives in the `navigator-web-secrets` Secret (one `kubectl create secret` key next to the
+Restate/SendGrid values). The ensure endpoint is reachable only through the in-cluster Service: the ingress routes just
+`/projects/*` to `navigator-git`, and the route mounts only on a pod holding both the volume and the token.
+
 In **dev/KIND** the `web` binary runs on the host (`kind-local-dev`), so there is no git-serving pod: point
 `NAVIGATOR_GIT_REPO_ROOT` at a local directory in `.devx/env` and the host binary serves repos from there against the
-in-cluster deps.
+in-cluster deps. The in-cluster KIND `web` pod is likewise its own writer — `k8s/overlays/kind/web-repos.yaml` runs it
+from the git-bearing `navigator-git:dev` image (the distroless web image carries no `git`) with an `emptyDir` at
+`NAVIGATOR_GIT_REPO_ROOT` and `fsGroup: 65532` so the nonroot uid owns the mount — so no remote hop exists in KIND: same
+code, one fewer network edge.
 
 ## Follow-ups (not done here)
 

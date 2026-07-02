@@ -1,11 +1,20 @@
-# Per-Project bare git repos for the in-cluster navigator-web.
-# Matter creation hard-depends on this volume
-# (`store::projects::provision_repo_hard`); without it every retainer
-# start / `notation create` 503s. KIND-only: `emptyDir` matches the
-# stack's ephemerality (see deps/fake-gcs-server.yaml), and keeping it
-# out of `k8s/base` keeps the production overlay's repo-volume
-# topology an explicit decision (#279) rather than an inherited
-# default.
+# The in-cluster navigator-web is KIND's single mounted writer — the same
+# shape prod's `git-serving` Deployment runs (the full `web` binary with the
+# repo volume): matter creation hard-depends on repo provisioning
+# (`store::projects::RepoEnsurer`), and provisioning shells `git`.
+#
+# Two things make the pod *capable*, not just configured:
+#   - the image is `navigator-git:dev` (images/Containerfile.git — the same
+#     `web` binary on a git-bearing base); the distroless `navigator-web`
+#     image carries no `git` and can never provision;
+#   - `fsGroup: 65532` chowns the volume to the image's nonroot uid, so
+#     `RepoStore`'s 0700 tightening doesn't fail with EPERM on a
+#     root-owned mount (the failure deploy run 28595858505 caught).
+#
+# KIND-only: `emptyDir` matches the stack's ephemerality (see
+# deps/fake-gcs-server.yaml), and keeping it out of `k8s/base` keeps the
+# production repo-volume topology an explicit decision (#279) rather than
+# an inherited default.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,8 +23,11 @@ metadata:
 spec:
   template:
     spec:
+      securityContext:
+        fsGroup: 65532
       containers:
         - name: web
+          image: navigator-git:dev
           env:
             - name: NAVIGATOR_GIT_REPO_ROOT
               value: /var/lib/navigator/repos

@@ -54,6 +54,13 @@ spec:
         app: navigator-git
     spec:
       serviceAccountName: navigator-web
+      # The image runs as `nonroot` (uid 65532) and `repos::RepoStore`
+      # tightens the repo root to 0700 on every ensure; a PD-backed PVC
+      # mounts root-owned, so without fsGroup the chmod fails with EPERM
+      # and every matter open 503s (the KIND gate caught exactly this on
+      # an emptyDir — deploy run 28595858505).
+      securityContext:
+        fsGroup: 65532
       containers:
         - name: git
           # Built from images/Containerfile.git; same tag scheme as navigator-web.
@@ -64,7 +71,13 @@ spec:
           envFrom:
             # Same secrets as navigator-web — this is the web binary, so
             # the boot invariants (DOCUSIGN_HMAC_KEY, session key, …) and
-            # the DB / OPA / OAuth config must all be present.
+            # the DB / OPA / OAuth config must all be present. The Secret
+            # also carries NAVIGATOR_GIT_WRITER_TOKEN: combined with
+            # NAVIGATOR_GIT_REPO_ROOT below it makes this pod the single
+            # mounted writer, so `web::git_writer` serves the authed
+            # /git-writer/ensure endpoint the stateless tier provisions
+            # matter repos through (cluster-internal; the ingress routes
+            # only /projects/* here).
             - secretRef:
                 name: navigator-web-secrets
           env:

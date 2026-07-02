@@ -259,9 +259,9 @@ async fn open_project_for_engagement(
             "no firm principal to assign as staff DRI — seed a staff/admin person first".into(),
         )
     })?;
-    let repo_store = match repo_store {
-        Some(store) => store,
-        None => repos::RepoStore::from_env().map_err(|e| {
+    let ensurer = match repo_store {
+        Some(store) => store::projects::RepoEnsurer::Local(store),
+        None => store::projects::RepoEnsurer::from_env().map_err(|e| {
             ToolError::Internal(format!(
                 "{} ({e})",
                 store::projects::REPO_PROVISIONING_FAILURE_MESSAGE
@@ -281,7 +281,7 @@ async fn open_project_for_engagement(
     .await?;
     store::projects::provision_repo_hard(
         &txn,
-        repo_store,
+        &ensurer,
         row.id,
         store::projects::REPO_PROVISIONING_TIMEOUT,
     )

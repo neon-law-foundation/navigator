@@ -7874,6 +7874,7 @@ dependencies = [
  "cloud",
  "petgraph",
  "repos",
+ "reqwest 0.13.4",
  "sea-orm",
  "sea-orm-migration",
  "serde",
@@ -7888,6 +7889,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+ "wiremock",
 ]
 
 [[package]]

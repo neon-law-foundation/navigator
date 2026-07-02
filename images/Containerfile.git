@@ -19,9 +19,18 @@
 # ---------- Stage 1: builder (mirrors Containerfile.web) ----------
 FROM rust:1.96-bookworm AS builder
 
+# Musl target chosen from BuildKit's TARGETARCH, exactly as in
+# Containerfile.web, so the same file builds native aarch64 locally and
+# amd64/arm64 in CI's publish matrix.
+ARG TARGETARCH
 RUN apt-get update \
     && apt-get install -y --no-install-recommends musl-tools \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && case "$TARGETARCH" in \
+         amd64) echo x86_64-unknown-linux-musl  > /tmp/rust-target ;; \
+         arm64) echo aarch64-unknown-linux-musl > /tmp/rust-target ;; \
+         *) echo "unsupported TARGETARCH: ${TARGETARCH:-unset}" >&2; exit 1 ;; \
+       esac
 
 WORKDIR /src
 
@@ -32,30 +41,38 @@ WORKDIR /src
 # and `cargo build --target …-musl` then fails with `can't find crate for
 # std`. Adding it here attaches the target to the toolchain the build uses.
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
-RUN rustup target add x86_64-unknown-linux-musl
+RUN rustup target add "$(cat /tmp/rust-target)"
 COPY rules             rules
 COPY store             store
 COPY repos             repos
+COPY import            import
 COPY cli               cli
 COPY web               web
 COPY views             views
 COPY README.md         README.md
+COPY telemetry         telemetry
+COPY forms             forms
 COPY workflows         workflows
 COPY workflows-service workflows-service
 COPY cloud             cloud
 COPY mcp               mcp
 COPY features          features
 COPY lsp               lsp
+COPY live-inquiry      live-inquiry
 COPY pdf               pdf
 COPY templates templates
 COPY archives          archives
-COPY import            import
 COPY statutes          statutes
 COPY billing           billing
 COPY billing-workflows billing-workflows
+# `web::docs` bakes the docs tree into the binary with
+# include_str!(concat!(CARGO_MANIFEST_DIR, "/../docs/…")). Those files
+# live outside any crate dir, so they must be staged explicitly or the
+# builder fails to resolve the include paths.
 COPY docs              docs
 
-RUN cargo build --release --target x86_64-unknown-linux-musl -p web
+RUN cargo build --release --target "$(cat /tmp/rust-target)" -p web \
+    && cp "target/$(cat /tmp/rust-target)/release/web" /usr/local/bin/web
 
 # ---------- Stage 2: runtime (git-bearing) ----------
 #
@@ -73,10 +90,19 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY --from=builder /src/target/x86_64-unknown-linux-musl/release/web /app/web
+COPY --from=builder /usr/local/bin/web /app/web
 COPY --from=builder /src/web/public  /app/public
 COPY --from=builder /src/web/content /app/content
 COPY --from=builder /src/templates   /app/templates
+
+# Release provenance for `GET /version`, mirroring Containerfile.web —
+# this is the same binary and the publish step passes the same build-args.
+ARG RELEASE_TAG=unknown
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+ENV NAVIGATOR_RELEASE_TAG=$RELEASE_TAG \
+    NAVIGATOR_GIT_SHA=$GIT_SHA \
+    NAVIGATOR_BUILD_TIME=$BUILD_TIME
 
 # Same asset env as `Containerfile.web`, plus the repo-volume root. The repo
 # root is overridden to the PVC mount by the Deployment; this default
