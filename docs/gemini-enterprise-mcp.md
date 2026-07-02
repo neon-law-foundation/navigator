@@ -99,7 +99,7 @@ kubectl kustomize --load-restrictor=LoadRestrictionsNone examples/deploy/k8s/gke
 ```
 
 (The `--load-restrictor=LoadRestrictionsNone` flag is needed because `examples/deploy/k8s/gke/kustomization.yaml`
-references `../../base/web/web.yaml` directly, which trips Kustomize's default security boundary.)
+references the shared base under `k8s/base/`, which trips Kustomize's default security boundary.)
 
 Wait for the GKE Ingress controller to provision the global HTTPS LB (1–5 minutes). You can watch it with:
 

@@ -30,14 +30,15 @@ kind: Kustomization
 namespace: navigator
 
 resources:
-  - ../../base
-  - ../../base/web
+  - ../../../../k8s/base
+  - ../../../../k8s/base/web
   - ingress/ingress.yaml
   - ingress/managed-certificate.yaml
   - ingress/frontend-config.yaml
   - ingress/workflows-managed-certificate.yaml
   - workflows-service/envoy-config.yaml
   - workflows-service/deployment.yaml
+  - git/git-serving.yaml
   - iap/backendconfig.yaml
   - iap/navigator-web-mcp-service.yaml
   - iam.yaml

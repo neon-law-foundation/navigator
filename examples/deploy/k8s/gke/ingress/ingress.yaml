@@ -73,6 +73,17 @@ spec:
                 name: navigator-web-mcp
                 port:
                   number: 80
+          # Git smart-HTTP + LFS traffic is stateful and must land on
+          # the single-writer git tier with the repo PVC mounted. The
+          # top-level /projects/* prefix is reserved for git; the human
+          # portal project surface lives under /portal/projects/*.
+          - path: /projects/*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: navigator-git
+                port:
+                  number: 3001
           - path: /*
             pathType: ImplementationSpecific
             backend:
