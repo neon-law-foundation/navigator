@@ -175,7 +175,7 @@ impl RepoStore {
     pub fn ensure(&self, project_id: Uuid) -> Result<PathBuf, RepoError> {
         let path = self.path_for(project_id);
         if path.join("HEAD").is_file() {
-            ensure_private_dir(&self.root)?;
+            ensure_private_root(&self.root)?;
             ensure_private_dir(&path)?;
             // Self-heal the repo invariants on every access: the guard
             // above keys on `HEAD`, which `git init --bare` writes
@@ -187,7 +187,7 @@ impl RepoStore {
             ensure_lfs_attributes(&path)?;
             return Ok(path);
         }
-        ensure_private_dir(&self.root)?;
+        ensure_private_root(&self.root)?;
         ensure_private_dir(&path)?;
         let path_str = path.to_string_lossy().into_owned();
 
@@ -480,9 +480,39 @@ impl RepoStore {
     }
 }
 
+/// The repo **root** is a volume mount point in a cluster, so its mode
+/// tightening tolerates the mount's ownership; per-repo directories the
+/// store creates itself go through the strict [`ensure_private_dir`].
+fn ensure_private_root(path: &Path) -> Result<(), RepoError> {
+    std::fs::create_dir_all(path)?;
+    tolerate_unowned_mount(set_private_dir_mode(path), path)
+}
+
 fn ensure_private_dir(path: &Path) -> Result<(), RepoError> {
     std::fs::create_dir_all(path)?;
     set_private_dir_mode(path)
+}
+
+/// `chmod` requires *ownership*, and a Kubernetes volume mount point
+/// (the KIND `emptyDir`, a prod PVC) is owned by the kubelet (root)
+/// with the pod's `fsGroup` granted group access — so the non-root
+/// service gets `EPERM` tightening the mode of the root it was handed,
+/// while every directory the store creates itself chmods fine. The
+/// volume's mode is the platform's decision there; treat the denial as
+/// "already as private as this mount gets" and let any real access
+/// problem surface loudly on the next filesystem operation. Root-only:
+/// a per-repo directory the store owns never takes this path.
+fn tolerate_unowned_mount(result: Result<(), RepoError>, path: &Path) -> Result<(), RepoError> {
+    match result {
+        Err(RepoError::Io(e)) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+            tracing::debug!(
+                path = %path.display(),
+                "chmod 0700 tolerated EPERM — the repo root is a mount point this process doesn't own"
+            );
+            Ok(())
+        }
+        other => other,
+    }
 }
 
 #[cfg(unix)]
@@ -1034,5 +1064,29 @@ mod tests {
         // Deleting main: denyDeletes rejects it.
         let (ok, _) = git(work.path(), &["push", "origin", "--delete", "main"]);
         assert!(!ok, "deleting main must be rejected");
+    }
+
+    /// The 0700 tightening of a Kubernetes volume mount root gets EPERM
+    /// (root-owned, fsGroup-shared) — that denial must not fail matter
+    /// creation, while every other chmod failure still surfaces.
+    #[test]
+    fn a_chmod_permission_denial_on_the_mount_root_is_tolerated() {
+        use super::{tolerate_unowned_mount, RepoError};
+        let root = std::path::Path::new("/var/lib/navigator/repos");
+        assert!(tolerate_unowned_mount(
+            Err(RepoError::Io(std::io::Error::from(
+                std::io::ErrorKind::PermissionDenied
+            ))),
+            root
+        )
+        .is_ok());
+        assert!(tolerate_unowned_mount(
+            Err(RepoError::Io(std::io::Error::from(
+                std::io::ErrorKind::NotFound
+            ))),
+            root
+        )
+        .is_err());
+        assert!(tolerate_unowned_mount(Ok(()), root).is_ok());
     }
 }
