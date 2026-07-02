@@ -620,8 +620,10 @@ The `<type>` half of a questionnaire [State](#state) name (`<type>__<role>`) —
 links a `store::entity` row — `person`, `entity`, `address`, …), a **reference** (selects a seeded row — `jurisdiction`,
 `product`, …), or a **custom** primitive (`custom_text`, `custom_single_choice`, `custom_datetime`, …). Record and
 reference types pair a singular with an explicit plural/aggregate (`person`→`people`). `N113` grounds every typed state
-to this registry, `N114` orders `__for_` children after their parent, and `N115` resolves body paths and iterators
-against the declared states. See [`notation-authoring.md`](notation-authoring.md).
+to this registry, `N114` orders `__for_` children after their parent, `N115` resolves body paths and iterators against
+the declared states, and `N117` rejects glossary-backed nouns smuggled through `custom_text__*`. Use the glossary model
+and its dotted fields — `person__client` plus `{{person__client.email}}` — before reaching for a custom primitive. See
+[`notation-authoring.md`](notation-authoring.md).
 
 ## Analysis
 

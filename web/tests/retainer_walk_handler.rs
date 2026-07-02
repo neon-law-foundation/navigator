@@ -135,9 +135,9 @@ async fn step_get_at_begin_renders_the_first_question() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let html = body_string(resp).await;
-    // First question after BEGIN is client_name.
+    // First question after BEGIN is the client record.
     assert!(html.contains("person__client"), "html: {html}");
-    assert!(html.contains("step 1 of 3"));
+    assert!(html.contains("step 1 of 2"));
     assert!(html.contains(format!("/portal/admin/notations/{nid}/step").as_str()));
 }
 
@@ -270,7 +270,7 @@ async fn step_post_writes_answer_signals_runtime_and_redirects_to_next_question(
     assert_eq!(resp.status(), StatusCode::OK);
     let html = body_string(resp).await;
     assert!(html.contains("project__engagement"));
-    assert!(html.contains("step 2 of 3"));
+    assert!(html.contains("step 2 of 2"));
 }
 
 #[tokio::test]
@@ -298,12 +298,9 @@ async fn step_post_for_unknown_notation_returns_404() {
 async fn walking_the_full_questionnaire_records_all_transitions_through_end() {
     let (app, _db, nid, runtime) = build_app_and_notation().await;
 
-    // Walk all three questions. The last POST drives the workflow
+    // Walk both questions. The last POST drives the workflow
     // and renders the result page (200); the rest redirect (303).
-    for (i, value) in ["Libra", "Estate plan", "Trust formation"]
-        .iter()
-        .enumerate()
-    {
+    for (i, value) in ["Libra", "Estate plan"].iter().enumerate() {
         let resp = app
             .clone()
             .oneshot(
@@ -317,7 +314,7 @@ async fn walking_the_full_questionnaire_records_all_transitions_through_end() {
             )
             .await
             .unwrap();
-        let expected = if i == 2 {
+        let expected = if i == 1 {
             StatusCode::OK
         } else {
             StatusCode::SEE_OTHER
@@ -325,7 +322,7 @@ async fn walking_the_full_questionnaire_records_all_transitions_through_end() {
         assert_eq!(resp.status(), expected, "value={value}");
     }
 
-    // Runtime: BEGIN → client → project → product_description → END = 4
+    // Runtime: BEGIN → client → project → END = 3
     // events on the questionnaire
     // timeline. The walker no longer writes `notation_events` —
     // in production the workflows-service worker does, via
@@ -334,8 +331,8 @@ async fn walking_the_full_questionnaire_records_all_transitions_through_end() {
         StateMachineRuntime::events(runtime.as_ref(), MachineKind::Questionnaire, nid).await;
     assert_eq!(
         events.len(),
-        4,
-        "expected 4 questionnaire transitions, got {events:?}"
+        3,
+        "expected 3 questionnaire transitions, got {events:?}"
     );
     assert_eq!(events.last().unwrap().to, StateName::end());
 
@@ -746,8 +743,8 @@ async fn start_post_rejects_missing_at_in_client_email_with_validation_error() {
 async fn final_post_drives_workflow_and_renders_result_with_substituted_template() {
     let (app, db, nid, _runtime) = build_app_and_notation().await;
 
-    // Walk all three questions.
-    for value in ["Libra", "Estate plan", "Flat-fee estate planning"] {
+    // Walk both questions.
+    for value in ["Libra", "Estate plan"] {
         let resp = app
             .clone()
             .oneshot(
@@ -761,15 +758,14 @@ async fn final_post_drives_workflow_and_renders_result_with_substituted_template
             )
             .await
             .unwrap();
-        // Last POST renders the result page (200); the rest
-        // redirect.
-        if value == "Flat-fee estate planning" {
+        // Last POST renders the result page (200); the rest redirect.
+        if value == "Estate plan" {
             assert_eq!(resp.status(), StatusCode::OK);
             let html = body_string(resp).await;
             // The result page interpolates the answers into the
             // template body.
             assert!(html.contains("Libra"), "html: {html}");
-            assert!(html.contains("Flat-fee estate planning"));
+            assert!(html.contains("Estate plan"));
             assert!(html.contains("sent_for_signature__pending"));
         } else {
             assert_eq!(resp.status(), StatusCode::SEE_OTHER);

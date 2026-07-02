@@ -5,8 +5,9 @@ frontmatter of [`templates/neon_law/shared/retainer.md`](../templates/neon_law/s
 [`web::retainer_walk`](../web/src/retainer_walk.rs) module:
 
 1. **Questionnaire walker** — one question per request, one [Answer](notation.md#answer) per advance, one
-   [Notation Event](glossary.md#notation-event) per transition. Walks the state chain `BEGIN` → `client_name` →
-   `client_email` → `project_name` → `product_description` → `END`.
+   [Notation Event](glossary.md#notation-event) per transition. Walks the state chain `BEGIN` → `person__client` →
+   `project__engagement` → `END`. Product-specific scope prose renders from the seeded project clause at
+   `{{custom_clauses}}`, not from a `custom_text__product_description` answer.
 2. **Post-intake workflow** — fires once the questionnaire reaches `END`. Walks `intake_persisted__client` →
    `staff_review` → `document_open__retainer_pdf` → `sent_for_signature__pending` → `END`, driving render, PDF
    persistence, and "sent for signature".
@@ -19,15 +20,14 @@ worker that hosts the object lives in [`workflows-service/`](../workflows-servic
 
 ```mermaid
 stateDiagram-v2
-    [*] --> client_name : _
-    client_name --> client_email : _
-    client_email --> project_name : _
-    project_name --> product_description : _
-    product_description --> [*] : _
+    [*] --> person__client : _
+    person__client --> project__engagement : _
+    project__engagement --> [*] : _
 ```
 
 The bare `_` condition is the only signal that advances a questionnaire (the canonical "respondent answered"). State
-names are bare question codes — no `__discriminator` suffix — because a questionnaire only ever asks one respondent.
+names use the typed `<type>__<role>` grammar, so the retainer asks for a Person and a Project instead of duplicating
+their fields as custom text.
 
 ## Post-intake workflow
 

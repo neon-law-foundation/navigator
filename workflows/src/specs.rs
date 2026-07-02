@@ -350,17 +350,12 @@ mod tests {
     }
 
     #[test]
-    fn retainer_intake_questionnaire_walks_client_to_product_description() {
+    fn retainer_intake_questionnaire_walks_client_to_project_engagement() {
         let q = retainer_intake_questionnaire();
-        // BEGIN → client → engagement → product_description → END.
+        // BEGIN → client → engagement → END.
         // Walk via the `_` condition.
         let mut here = StateName::begin();
-        let order = [
-            "person__client",
-            "project__engagement",
-            "custom_text__product_description",
-            "END",
-        ];
+        let order = ["person__client", "project__engagement", "END"];
         for expected in order {
             let next = q
                 .transitions_from(&here)

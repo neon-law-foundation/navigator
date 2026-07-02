@@ -7,24 +7,19 @@ confidential: true
 prompts:
   client_name: What is the client's full legal name?
   project_name: What is the project name for this engagement?
-  product_description: Describe the services this retainer covers.
 prompt_translations:
   es:
     client_name: ¿Cuál es el nombre legal completo del cliente?
     project_name: ¿Cuál es el nombre del proyecto para este encargo?
-    product_description: Describa los servicios que cubre este acuerdo de representación.
 audiences:
   client_name: client
   project_name: staff
-  product_description: staff
 questionnaire:
   BEGIN:
     _: person__client
   person__client:
     _: project__engagement
   project__engagement:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 workflow:
@@ -47,7 +42,9 @@ This Engagement Agreement (the "Agreement") is entered into between Neon Law (th
 `{{person__client.name}}` (the "Client"), reachable at `{{person__client.email}}`, for legal services rendered
 on the matter referred to as `{{project__engagement.name}}`.
 
-The Firm will provide the following services: `{{custom_text__product_description}}`. Fees are billed monthly against
+The Firm will provide the following services.
+Project-specific scope is recorded in the custom clauses below.
+Fees are billed monthly against
 the rate sheet attached to this Agreement; expenses are passed through at cost.
 
 **Scope of the engagement.** The Firm's representation is limited to the services described above and in the clauses of

@@ -4,14 +4,11 @@ questionnaire:
   person__client:
     _: entity__company
   entity__company:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 prompts:
   client_name: What is the client's full legal name?
   entity_name: What is the legal name of your LLC?
-  product_description: Describe the services this retainer covers.
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__client

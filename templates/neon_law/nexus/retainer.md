@@ -10,14 +10,11 @@ questionnaire:
   person__client:
     _: project__engagement
   project__engagement:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 prompts:
   client_name: What is the client's full legal name?
   project_name: What is the project name for this engagement?
-  product_description: Describe the services this retainer covers.
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__client
@@ -37,8 +34,9 @@ This Engagement Agreement (the "Agreement") is entered into between Neon Law (th
 `{{person__client.name}}` (the "Client"), reachable at `{{person__client.email}}`, for **Neon Law Nexus** —
 fractional general-counsel services — on the matter referred to as `{{project__engagement.name}}`.
 
-**The work and the fee.** The Firm acts as your company's fractional general counsel:
-`{{custom_text__product_description}}`. This is an ongoing engagement billed as a flat monthly subscription. The
+**The work and the fee.** The Firm acts as your company's fractional general counsel.
+Project-specific scope is recorded in the custom clauses below.
+This is an ongoing engagement billed as a flat monthly subscription. The
 subscription renews each month until either party ends
 it; out-of-pocket expenses are passed through at cost. Matters that fall outside ordinary general-counsel work are
 scoped and priced separately before the Firm begins them.

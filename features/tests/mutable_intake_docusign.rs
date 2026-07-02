@@ -15,6 +15,7 @@ use features::journey::Journey;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use store::entity;
 use uuid::Uuid;
+use workflows::{MachineKind, StateMachineRuntime};
 
 const TEMPLATE_CODE: &str = "onboarding__retainer";
 
@@ -155,11 +156,13 @@ async fn staff_finish_walk(world: &mut MutableWorld, step: &Step) {
 
 #[then("the matter is awaiting attorney review")]
 async fn awaiting_review(world: &mut MutableWorld) {
-    assert!(
-        world.last_body.contains("Awaiting attorney review"),
-        "expected the parked review landing, got:\n{}",
-        world.last_body,
-    );
+    let state = StateMachineRuntime::current_state(
+        world.journey().runtime.as_ref(),
+        MachineKind::Workflow,
+        world.notation_id(),
+    )
+    .await;
+    assert_eq!(state.map(|name| name.0).as_deref(), Some("staff_review"));
 }
 
 #[then("the matter has no signature request yet")]

@@ -10,14 +10,11 @@ questionnaire:
   person__client:
     _: project__engagement
   project__engagement:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 prompts:
   client_name: What is the client's full legal name?
   project_name: What is the project name for this engagement?
-  product_description: Describe the services this retainer covers.
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__client
@@ -39,8 +36,9 @@ debt-collection correspondence and consumer rights work — on the matter referr
 `{{project__engagement.name}}`.
 
 **The work and the fee.** The Firm handles correspondence with debt collectors and credit bureaus on your behalf and
-asserts your rights under the federal Fair Debt Collection Practices Act (FDCPA) and Fair Credit Reporting Act (FCRA):
-`{{custom_text__product_description}}`. This is a flat monthly fee. The Firm does not take any percentage of any amount
+asserts your rights under the federal Fair Debt Collection Practices Act (FDCPA) and Fair Credit Reporting Act (FCRA).
+Project-specific scope is recorded in the custom clauses below.
+This is a flat monthly fee. The Firm does not take any percentage of any amount
 a debt is reduced or settled, and it charges no separate fee for a settlement.
 
 **Scope of the engagement — limited on purpose.** This is a **limited-scope** engagement (RPC 1.2(c)). It covers written

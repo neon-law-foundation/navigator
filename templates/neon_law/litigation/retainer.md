@@ -10,14 +10,11 @@ questionnaire:
   person__client:
     _: project__engagement
   project__engagement:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 prompts:
   client_name: What is the client's full legal name?
   project_name: What is the project name for this engagement?
-  product_description: Describe the services this retainer covers.
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__client
@@ -37,8 +34,9 @@ This Engagement Agreement (the "Agreement") is entered into between Neon Law's l
 (the "Firm"), and `{{person__client.name}}` (the "Client"), reachable at `{{person__client.email}}`, for the
 litigation matter referred to as `{{project__engagement.name}}`.
 
-**The work and the fee.** The Firm represents you in the high-stakes technology dispute described here:
-`{{custom_text__product_description}}`. Litigation is billed by the hour at `$1,337` per hour against the engagement's
+**The work and the fee.** The Firm represents you in the high-stakes technology dispute described here.
+Project-specific scope is recorded in the custom clauses below.
+Litigation is billed by the hour at `$1,337` per hour against the engagement's
 rate sheet,
 with costs and expenses passed through at cost. Where the Firm and the Client agree to a contingency or hybrid fee
 instead of, or alongside, the hourly rate, the **contingency term is set out in a separate written fee agreement** that

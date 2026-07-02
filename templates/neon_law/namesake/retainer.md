@@ -7,15 +7,12 @@ confidential: true
 prompts:
   client_name: What is the client's full legal name?
   project_name: What is the project name for this engagement?
-  product_description: Describe the services this retainer covers.
 questionnaire:
   BEGIN:
     _: person__client
   person__client:
     _: project__engagement
   project__engagement:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 workflow:
@@ -39,8 +36,9 @@ This Engagement Agreement (the "Agreement") is entered into between Neon Law (th
 `{{project__engagement.name}}`.
 
 **The work and the fee.** The Firm will prepare and file a trademark application with the United States Patent and
-Trademark Office (USPTO) for one class of goods or services, and handle the routine correspondence to register it:
-`{{custom_text__product_description}}`. This is a flat fee for one class, billed once when the matter closes; the USPTO
+Trademark Office (USPTO) for one class of goods or services, and handle the routine correspondence to register it.
+Project-specific scope is recorded in the custom clauses below.
+This is a flat fee for one class, billed once when the matter closes; the USPTO
 filing fee for the class is passed through at cost, and each additional class is a separate flat fee.
 
 **Scope of the engagement.** The Firm's representation is limited to preparing and filing the application in one class

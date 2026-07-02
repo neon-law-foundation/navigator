@@ -12,15 +12,12 @@ confidential: true
 prompts:
   client_name: What is the client's full legal name?
   entity_name: What is the legal name of your LLC?
-  product_description: Describe the services this retainer covers.
 questionnaire:
   BEGIN:
     _: person__client
   person__client:
     _: entity__company
   entity__company:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 workflow:
@@ -45,7 +42,9 @@ month**. It is a continuing relationship, not a single matter: routine contracts
 day-to-day legal questions a growing company runs into, with a licensed attorney in the loop for anything that needs
 legal judgment.
 
-The Company described the scope it needs covered: `{{custom_text__product_description}}`. Work product is delivered into
+The Company described the scope it needs covered.
+Project-specific scope is recorded in the custom clauses below.
+Work product is delivered into
 the
 Company's Project repository, and questions are answered through the Company's support thread — the ongoing record of
 the engagement lives in both.

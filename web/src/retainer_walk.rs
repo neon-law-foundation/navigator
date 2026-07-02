@@ -509,7 +509,7 @@ pub(crate) async fn seed_staff_answers(
     answers: &[(&str, &str)],
 ) -> Result<(), sea_orm::DbErr> {
     for (state_name, value) in answers {
-        // The caller passes questionnaire state names (`custom_text__client_name`);
+        // The caller passes questionnaire state names (`person__client`);
         // the registry question code is the typed prefix before `__`. Look the
         // question up by that code, and record the full state name on the answer
         // so the several states sharing one registry question stay distinct.
@@ -2385,17 +2385,17 @@ mod tests {
     #[test]
     fn progress_for_begin_is_step_1() {
         let spec = retainer_intake_questionnaire();
-        assert_eq!(progress_for(&spec, &StateName::begin()), (1, 3));
+        assert_eq!(progress_for(&spec, &StateName::begin()), (1, 2));
     }
 
     #[test]
     fn progress_for_client_state_is_step_2() {
         // After answering the client identity question, the next question is
-        // the engagement name — the walker should display "step 2 of 3."
+        // the engagement name — the walker should display "step 2 of 2."
         let spec = retainer_intake_questionnaire();
         assert_eq!(
             progress_for(&spec, &StateName::from("person__client")),
-            (2, 3)
+            (2, 2)
         );
     }
 
@@ -2403,8 +2403,8 @@ mod tests {
     fn progress_for_last_answered_question_caps_at_total() {
         let spec = retainer_intake_questionnaire();
         assert_eq!(
-            progress_for(&spec, &StateName::from("custom_text__product_description")),
-            (3, 3)
+            progress_for(&spec, &StateName::from("project__engagement")),
+            (2, 2)
         );
     }
 

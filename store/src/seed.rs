@@ -1698,7 +1698,7 @@ mod tests {
         assert!(body.contains("{{person__client.name}}"));
         assert!(body.contains("{{person__client.email}}"));
         assert!(body.contains("{{project__engagement.name}}"));
-        assert!(body.contains("{{custom_text__product_description}}"));
+        assert!(body.contains("{{custom_clauses}}"));
     }
 
     #[tokio::test]

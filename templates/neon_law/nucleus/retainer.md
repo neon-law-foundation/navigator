@@ -10,14 +10,11 @@ questionnaire:
   person__client:
     _: project__engagement
   project__engagement:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 prompts:
   client_name: What is the client's full legal name?
   project_name: What is the project name for this engagement?
-  product_description: Describe the services this retainer covers.
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__client
@@ -38,7 +35,9 @@ This Engagement Agreement (the "Agreement") is entered into between Neon Law (th
 Nucleus** — the formation of an investment fund — on the matter referred to as `{{project__engagement.name}}`.
 
 **The work and the fee.** The Firm will form the Nevada fund and the general-partner and management entities that go
-with it, and prepare the formation and governance documents: `{{custom_text__product_description}}`. This is a flat
+with it, and prepare the formation and governance documents.
+Project-specific scope is recorded in the custom clauses below.
+This is a flat
 fee for the formation, billed once when the matter closes; the Nevada filing fees and any registered-agent charges
 are passed through at cost.
 

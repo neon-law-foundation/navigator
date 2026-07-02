@@ -122,30 +122,24 @@ async fn staff_walks_the_full_retainer_questionnaire_end_to_end() {
     // Drives every leg of the stepwise retainer flow in a real
     // browser:
     //   1. POST /portal/admin/retainers/new          → /step
-    //   2. POST /step × 4 (one question each) → result page
+    //   2. POST /step × 2 (one question each) → result page
     //
     // Preconditions (beyond the module's chromedriver + KIND
     // requirements): the `onboarding__retainer` template must
     // have been imported via `navigator import templates/`
     // (RUNBOOK step 4), and `store/seeds/Question.yaml` must
-    // have been seeded so the four walker question codes are
+    // have been seeded so the two walker question codes are
     // looked up successfully.
     let Some(c) = new_client_or_skip().await else {
         return;
     };
     login_as_staff(&c).await;
 
-    // The four answers we'll submit, in walker order
-    // (client_name → client_email → project_name →
-    // product_description). The values are unique enough that
+    // The two answers we'll submit, in walker order
+    // (person__client → project__engagement). The values are unique enough that
     // we can fish them back out of the rendered result page.
     let client_email = format!("walk-{}@example.com", std::process::id());
-    let answers = [
-        "Libra",
-        client_email.as_str(),
-        "Estate Plan — Libra",
-        "Flat-fee estate planning for the Libra family",
-    ];
+    let answers = ["Libra", "Estate Plan — Libra"];
 
     // --- Step 0: create the Notation -------------------------
     c.goto(&format!("{}/portal/admin/retainers/new", base_url()))
@@ -201,7 +195,7 @@ async fn staff_walks_the_full_retainer_questionnaire_end_to_end() {
     // POST /retainers/new redirects to /portal/admin/notations/:id/step.
     // Capture the id while we're here — we'll use it after the
     // walk to read the journal directly via SeaORM and confirm
-    // exactly five `notation_events` rows landed on the
+    // exactly three `notation_events` rows landed on the
     // questionnaire timeline.
     let started = std::time::Instant::now();
     let notation_id = loop {
@@ -216,11 +210,11 @@ async fn staff_walks_the_full_retainer_questionnaire_end_to_end() {
         tokio::time::sleep(Duration::from_millis(200)).await;
     };
 
-    // --- Steps 1–4: walk the questionnaire -------------------
+    // --- Steps 1–2: walk the questionnaire -------------------
     for (i, value) in answers.iter().enumerate() {
-        // Each step renders "step N of 4" — wait for the right
+        // Each step renders "step N of 2" — wait for the right
         // one to be sure we're looking at the form we expect.
-        wait_for_text(&c, &format!("step {} of 4", i + 1), Duration::from_secs(10)).await;
+        wait_for_text(&c, &format!("step {} of 2", i + 1), Duration::from_secs(10)).await;
 
         // Set the answer value via JS (chromedriver send_keys is
         // unreliable on freshly-rendered forms).
@@ -245,7 +239,7 @@ async fn staff_walks_the_full_retainer_questionnaire_end_to_end() {
     }
 
     // --- Result page -----------------------------------------
-    // The fourth submit drives the post-intake workflow and
+    // The second submit drives the post-intake workflow and
     // renders the result. The result page shows the workflow
     // terminal state and the substituted template body.
     wait_for_text(&c, "sent_for_signature__pending", Duration::from_secs(20)).await;
@@ -279,14 +273,13 @@ async fn staff_walks_the_full_retainer_questionnaire_end_to_end() {
         .expect("read notation_events from postgres");
     db.close().await.ok();
 
-    // Five rows: BEGIN → client_name → client_email →
-    // project_name → product_description → END. The walker
-    // signals the worker once per question (four times) and once
+    // Three rows: BEGIN → person__client → project__engagement → END. The walker
+    // signals the worker once per question (twice) and once
     // more for the BEGIN-of-walk-to-END trailer in the last POST.
     assert_eq!(
         events.len(),
-        5,
-        "expected 5 questionnaire transitions for notation {notation_id}, got {events:?}",
+        3,
+        "expected 3 questionnaire transitions for notation {notation_id}, got {events:?}",
     );
     let states: Vec<(&str, &str, &str)> = events
         .iter()
@@ -301,18 +294,16 @@ async fn staff_walks_the_full_retainer_questionnaire_end_to_end() {
     assert_eq!(
         states,
         vec![
-            ("BEGIN", "client_name", "_"),
-            ("client_name", "client_email", "_"),
-            ("client_email", "project_name", "_"),
-            ("project_name", "product_description", "_"),
-            ("product_description", "END", "_"),
+            ("BEGIN", "person__client", "_"),
+            ("person__client", "project__engagement", "_"),
+            ("project__engagement", "END", "_"),
         ],
         "questionnaire walked the wrong path",
     );
     // Payload assertions: the walker now threads the respondent's
-    // answer through the signal so each of the four answered
+    // answer through the signal so each of the two answered
     // transitions carries `{"answer_value": "..."}`. The trailing
-    // `product_description → END` row has no answer and stays
+    // `project__engagement → END` row has no answer and stays
     // NULL. Build the expected JSON via the same `answer_payload`
     // helper the worker uses so a future change to the JSON shape
     // can't desync the test from production.

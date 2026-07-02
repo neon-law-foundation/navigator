@@ -422,6 +422,7 @@ fn labels_for(code: &str) -> &'static [&'static str] {
         "residuary_beneficiary" => &["residuary beneficiary", "beneficiary"],
         "healthcare_agent" => &["health-care agent", "healthcare agent", "health care agent"],
         "financial_agent" => &["financial agent"],
+        "settlement_terms" => &["settlement terms"],
         _ => &[],
     }
 }
@@ -519,8 +520,8 @@ mod tests {
 BEGIN:
   _: custom_yes_no__recording_consent
 custom_yes_no__recording_consent:
-  _: custom_text__testator_name
-custom_text__testator_name:
+  _: person__testator
+person__testator:
   _: END
 END: {}
 ",
@@ -536,15 +537,9 @@ END: {}
                 .iter()
                 .map(|inquiry| inquiry.code.as_str())
                 .collect::<Vec<_>>(),
-            vec![
-                "custom_yes_no__recording_consent",
-                "custom_text__testator_name"
-            ]
+            vec!["custom_yes_no__recording_consent", "person__testator"]
         );
-        assert_eq!(
-            inquiries[1].prompt,
-            "What text should be added for {{for_label}}?"
-        );
+        assert_eq!(inquiries[1].prompt, "Who is {{for_label}}?");
     }
 
     #[test]
@@ -560,32 +555,35 @@ END: {}
                 },
             },
             Inquiry {
-                code: "custom_text__executor_name".to_string(),
-                prompt: "Who is the executor of your will?".to_string(),
+                code: "custom_text__settlement_terms".to_string(),
+                prompt: "What settlement terms would resolve this dispute?".to_string(),
                 answer_type: "string".to_string(),
                 source: InquirySource::TemplateQuestion {
-                    template_code: "onboarding__estate".to_string(),
-                    question_code: "custom_text__executor_name".to_string(),
+                    template_code: "onboarding__settlement".to_string(),
+                    question_code: "custom_text__settlement_terms".to_string(),
                 },
             },
             Inquiry {
-                code: "custom_text__financial_agent".to_string(),
-                prompt: "Who is your financial agent under a durable power of attorney?"
-                    .to_string(),
+                code: "custom_text__disputed_reason".to_string(),
+                prompt: "Why do you dispute the claim?".to_string(),
                 answer_type: "string".to_string(),
                 source: InquirySource::TemplateQuestion {
-                    template_code: "onboarding__estate".to_string(),
-                    question_code: "custom_text__financial_agent".to_string(),
+                    template_code: "onboarding__settlement".to_string(),
+                    question_code: "custom_text__disputed_reason".to_string(),
                 },
             },
         ];
-        let transcript = "I consent to recording this sitting.\nThe executor will be Jamie Rivera.";
+        let transcript =
+            "I consent to recording this sitting.\nSettlement terms will be mutual release.";
         let segments = segment_transcript(transcript);
 
         let findings = evaluate_coverage(&inquiries, &segments, transcript);
 
         assert_eq!(findings[0].status, CoverageStatus::LikelyAnswered);
-        assert_eq!(findings[1].proposed_answer.as_deref(), Some("Jamie Rivera"));
+        assert_eq!(
+            findings[1].proposed_answer.as_deref(),
+            Some("mutual release")
+        );
         assert_eq!(findings[1].evidence_segment_ids, vec!["segment_2"]);
         assert_eq!(findings[2].status, CoverageStatus::NeedsFollowUp);
         assert!(findings[2].follow_up_prompt.is_some());

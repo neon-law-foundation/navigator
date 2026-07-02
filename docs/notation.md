@@ -105,7 +105,8 @@ One prompt presented to a respondent during Template traversal. Identified by a 
 `organizer_state`). Has an `answer_type` — `string`, `int`, `bool`, `choice`, etc. — that the form layer uses to render
 the right input. When a questionnaire state uses the typed grammar `<type>__<role>`, its `<type>` prefix is a [Question
 Type](glossary.md#question-type) from `store::question_registry` (record / reference / custom, singular / plural) — the
-closed vocabulary `N113`–`N115` and the render/form-fill evaluator all share.
+closed vocabulary `N113`–`N117` and the render/form-fill evaluator all share. Use glossary-backed states and dotted
+fields for durable nouns: `person__client` with `{{person__client.name}}`, not `custom_text__client_name`.
 
 - Schema: [`store::entity::question`](../store/src/entity/question.rs) Lives in: `questions` table Seed:
   [`store/seeds/Question.yaml`](../store/seeds/Question.yaml)

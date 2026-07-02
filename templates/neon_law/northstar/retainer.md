@@ -10,14 +10,11 @@ questionnaire:
   person__client:
     _: project__engagement
   project__engagement:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 prompts:
   client_name: What is the client's full legal name?
   project_name: What is the project name for this engagement?
-  product_description: Describe the services this retainer covers.
 workflow:
   BEGIN:
     intake_submitted: intake_persisted__client
@@ -38,7 +35,9 @@ This Engagement Agreement (the "Agreement") is entered into between Neon Law (th
 — estate planning — on the matter referred to as `{{project__engagement.name}}`.
 
 **The work and the fee.** The Firm prepares your estate plan — a will, a revocable living trust, and the health-care and
-financial directives that go with it — from one recorded sitting: `{{custom_text__product_description}}`. This is one
+financial directives that go with it — from one recorded sitting.
+Project-specific scope is recorded in the custom clauses below.
+This is one
 flat fee for the plan, billed once when the matter closes; any recording, notarization, or filing costs are passed
 through at cost.
 

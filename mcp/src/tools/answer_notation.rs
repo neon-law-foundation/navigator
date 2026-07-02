@@ -318,7 +318,6 @@ mod tests {
         let values = [
             ("person__client", "Libra"),
             ("project__engagement", "Apollo"),
-            ("custom_text__product_description", "rocket"),
         ];
         let mut last: Value = Value::Null;
         for (expected_code, value) in values {
@@ -359,7 +358,7 @@ mod tests {
             None,
             &json!({
                 "notation_id": id,
-                "question_code": "custom_text__project_name",
+                "question_code": "custom_text__settlement_terms",
                 "value": "Apollo",
             }),
         )
@@ -367,7 +366,9 @@ mod tests {
         .unwrap_err();
         match err {
             ToolError::InvalidArguments(m) => {
-                assert!(m.contains("person__client") && m.contains("custom_text__project_name"));
+                assert!(
+                    m.contains("person__client") && m.contains("custom_text__settlement_terms")
+                );
             }
             other => panic!("expected InvalidArguments, got {other:?}"),
         }

@@ -211,7 +211,7 @@ async fn matter_open_with_retainer_parks_at_staff_review_then_approve_sends_once
     let review_html = body_string(review).await;
     assert_renders!(&review_html, "portal.approve_send_signature");
     assert!(review_html.contains("Libra Client"), "html: {review_html}");
-    assert!(review_html.contains("Flat-fee estate planning"));
+    assert!(review_html.contains("Project-specific scope is recorded in the custom clauses below."));
 
     // (d) staff approve → renders + parks at document_open__retainer_pdf;
     // NO envelope yet (the send is a separate, deliberate command).

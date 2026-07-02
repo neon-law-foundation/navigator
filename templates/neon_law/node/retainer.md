@@ -7,15 +7,12 @@ confidential: true
 prompts:
   client_name: What is the client's full legal name?
   project_name: What is the project name for this engagement?
-  product_description: Describe the services this retainer covers.
 questionnaire:
   BEGIN:
     _: person__client
   person__client:
     _: project__engagement
   project__engagement:
-    _: custom_text__product_description
-  custom_text__product_description:
     _: END
   END: {}
 workflow:
@@ -40,7 +37,9 @@ on-chain attorney attestation — on the matter referred to as `{{project__engag
 **The work and the fee.** The Firm will confirm a legal fact about the Client — for example, the Client's status as an
 accredited investor — **based solely on the information and documents the Client provides**, and record that attestation
 on the Solana blockchain: a transaction binding the Firm's wallet, the Client's wallet, and a cryptographic hash of the
-signed attestation document: `{{custom_text__product_description}}`. This is a flat fee per attestation, billed once
+signed attestation document.
+Project-specific scope is recorded in the custom clauses below.
+This is a flat fee per attestation, billed once
 when the matter closes; any Solana network fees are passed through at cost on top of the flat fee.
 
 **Scope of the engagement.** The Firm's representation is limited to confirming the stated fact and recording the single
