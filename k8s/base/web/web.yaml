@@ -72,13 +72,6 @@ spec:
                   key: DATABASE_URL
             - name: NAVIGATOR_SEED_FILE
               value: /seed/base.yaml
-            # Per-Project bare git repos. Matter creation hard-depends
-            # on this volume (`store::projects::provision_repo_hard`);
-            # without it every retainer start / `notation create` 503s.
-            # `emptyDir` matches the KIND stack's ephemerality (see
-            # fake-gcs-server); production mounts a PersistentVolume.
-            - name: NAVIGATOR_GIT_REPO_ROOT
-              value: /var/lib/navigator/repos
             # Object storage. GCP-only: NAVIGATOR_STORAGE_* targets
             # Google Cloud Storage in production via Workload
             # Identity (no creds needed in-cluster). Locally we
@@ -178,8 +171,6 @@ spec:
             - name: seed
               mountPath: /seed
               readOnly: true
-            - name: repos
-              mountPath: /var/lib/navigator/repos
         # OPA sidecar — every web pod gets its own policy evaluator.
         - name: opa
           image: openpolicyagent/opa:latest
@@ -204,8 +195,6 @@ spec:
         - name: seed
           configMap:
             name: navigator-seed
-        - name: repos
-          emptyDir: {}
         - name: policies
           configMap:
             name: opa-policies

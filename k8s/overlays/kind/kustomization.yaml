@@ -25,3 +25,9 @@ resources:
   - billing-digest-trigger
   - recurring-trigger
   - heartbeat-trigger
+
+patches:
+  # KIND-only repo volume for navigator-web (matter creation
+  # hard-depends on it); see web-repos.yaml for why this is an
+  # overlay patch and not part of `base`.
+  - path: web-repos.yaml
