@@ -1743,11 +1743,32 @@ async fn llms_txt_indexes_the_markdown_corpus_with_absolute_urls() {
         .to_string();
     assert_eq!(ctype, "text/markdown; charset=utf-8");
     let body = body_string(resp).await;
-    // llmstxt.org shape: H1, then a section per corpus. Nebula carries
-    // workshops and presentations.
-    assert!(body.starts_with("# "));
-    assert!(body.contains("## Nebula"));
-    assert!(!body.contains("## Presentations"));
+    // llmstxt.org shape: H1, a project summary, then sections of curated
+    // links. Navigator leads with notation and glossary grounding, then
+    // points LLMs at the CLI, raw templates, contribution, and services.
+    assert!(body.starts_with("# Neon Law Navigator"));
+    assert!(body.contains("treating legal documents like code"));
+    assert!(body.contains("`{{placeholders}}`"));
+    assert!(body.contains("ground questionnaire states and placeholders"));
+    assert!(body.contains("## Core Concepts"));
+    assert!(body.contains("## Use The CLI"));
+    assert!(body.contains("## Contribute"));
+    assert!(body.contains("## Services And Classes"));
+    assert!(body.contains("https://www.example.com/docs/glossary"));
+    assert!(body.contains("https://www.example.com/docs/notation-authoring"));
+    assert!(body.contains("https://www.example.com/foundation/navigator/cli"));
+    assert!(body.contains("https://www.example.com/templates"));
+    assert!(body.contains(
+        "https://www.example.com/api/templates/forms/united-states/federal/irs/us--form-990"
+    ));
+    assert!(body.contains("https://www.example.com/services"));
+    assert!(body.contains("https://www.example.com/contact"));
+    // Firm mentions come from the rebrand seam, not a hardcoded name.
+    let firm = views::brand::FIRM_BRAND.site_name;
+    assert!(body.contains(&format!("[{firm} services](")));
+    assert!(body.contains(&format!("[Contact {firm}](")));
+    assert!(body.contains("## Workshop Corpus"));
+    assert!(!body.contains("Rust in Peace"));
     // Every entry is an absolute link to a `.md` twin. With no
     // CANONICAL_HOST and no Host header, the base falls back to the
     // placeholder authority.
