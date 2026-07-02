@@ -106,7 +106,7 @@ pub async fn close_for_notation(
 ///
 /// Idempotent and monotonic, enforced *atomically*: the write is a single
 /// conditional `UPDATE ... WHERE git_initialized_at IS NULL`, so only the
-/// first writer sets the column and a concurrent eager-provision replay can
+/// first writer sets the column and a concurrent provisioning replay can
 /// never overwrite the original first-creation timestamp. An already-stamped
 /// Project is left untouched and its existing stamp is returned. Because the
 /// bulk update bypasses the entity's active-model behavior, `updated_at` is
@@ -148,20 +148,18 @@ where
 }
 
 /// Provision a Project's append-only bare git repo and stamp
-/// `git_initialized_at` — the **one** provisioning path shared by every
-/// eager create path (a freshly opened matter gets a ready repo) and the
-/// lazy git transport (first authorized clone/push). The bare repo is
-/// created by [`repos::RepoStore::ensure`] (no second `git init`) and the
-/// column is stamped by [`mark_git_initialized`]; both halves are
-/// idempotent, so a repeat call is a no-op that preserves the original
-/// first-creation timestamp.
+/// `git_initialized_at` — the lazy half of the provisioning story, used by
+/// the git smart-HTTP transport (first authorized clone/push of a row whose
+/// repo predates hard provisioning). The bare repo is created by
+/// [`repos::RepoStore::ensure`] (no second `git init`) and the column is
+/// stamped by [`mark_git_initialized`]; both halves are idempotent, so a
+/// repeat call is a no-op that preserves the original first-creation
+/// timestamp.
 ///
 /// Returns the bare repo's on-disk path. The repo lives on the git volume
 /// named by [`repos::REPO_ROOT_ENV`]; [`repos::RepoError::RootUnset`]
 /// surfaces when that volume is not configured (a CLI/seed/remote-DB
-/// context with no git mount) — eager callers swallow that via
-/// [`provision_repo_eager`], while the transport treats it as a hard
-/// error.
+/// context with no git mount).
 ///
 /// # Errors
 /// [`repos::RepoError`] when the git volume is unconfigured or a `git`
@@ -250,24 +248,6 @@ where
         REPO_PROVISIONING_TIMEOUT,
     )
     .await
-}
-
-/// Eagerly provision at project-creation time, swallowing every failure —
-/// a fresh matter gets a ready repo, but provisioning never fails matter
-/// creation. When the git volume is not mounted in this context
-/// ([`repos::RepoError::RootUnset`] — the CLI, seeds, a remote prod DB),
-/// it is a debug-level no-op: the lazy git transport creates the repo on
-/// first access instead.
-pub async fn provision_repo_eager(db: &Db, project_id: Uuid) {
-    match provision_repo(db, project_id).await {
-        Ok(_) => {}
-        Err(repos::RepoError::RootUnset) => {
-            tracing::debug!(%project_id, "eager repo provisioning skipped: git volume not configured");
-        }
-        Err(e) => {
-            tracing::error!(error = %e, %project_id, "eager repo provisioning failed; repo will be created lazily on first git access");
-        }
-    }
 }
 
 #[cfg(test)]
@@ -396,7 +376,7 @@ mod tests {
             Some(t1.to_rfc3339().as_str())
         );
 
-        // A later call (a replay of eager provisioning, or a lazy init on
+        // A later call (a replay of create-time provisioning, or a lazy init on
         // first clone) must NOT rewrite the original first-creation stamp.
         let t2 = t1 + chrono::Duration::hours(1);
         let second = mark_git_initialized(&db, project_id, t2).await.unwrap();

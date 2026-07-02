@@ -210,7 +210,7 @@ themselves do not live in a bucket.
   MCP tools, and the `project` CLI subcommand). The `ProjectProvisioning` Restate workflow wraps the same `ensure` →
   `mark_git_initialized` sequence in `ctx.run("create-project-repo")` for durable callers, so replay reuses the
   journaled result instead of re-running the filesystem or database side effect. The smart-HTTP transport still calls
-  the idempotent `provision_repo` path for older rows whose repo predates eager provisioning; new matter creation fails
+  the idempotent `provision_repo` path for older rows whose repo predates hard provisioning; new matter creation fails
   with the shared workspace-not-ready message if the repo cannot be provisioned within the create timeout.
 - A `git_access_tokens` table holds PATs: `id`, `person_id`, `project_id` (nullable = all the person's projects),
   `token_hash`, `scope` (`read` | `write`), `expires_at`, `inserted_at`/`updated_at`. Tokens are stored hashed; the
