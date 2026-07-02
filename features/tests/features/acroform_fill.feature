@@ -6,11 +6,11 @@ Feature: Fill a fillable government form, attorney-review-ready
   the output is NEVER auto-filed: the workflow spec parks it at
   `staff_review` before any filing step, enforced by the review gate.
 
-  Scenario: A document_open__<form> step fills the form and the values round-trip
+  Scenario: A document_open__<form> step fills the form and the values survive the flatten
     Given a blank fillable "nv_articles" form is stored with fields "entity_name", "registered_agent"
     When the worker fills it for "Neon Law LLC" with agent "Jane Doe"
-    Then the stored form's "entity_name" reads "Neon Law LLC"
-    And the stored form's "registered_agent" reads "Jane Doe"
+    Then the flattened output carries "Neon Law LLC" as static text
+    And the flattened output carries "Jane Doe" as static text
 
   Scenario: The form workflow cannot reach a filing step without staff_review
     Given the nv_articles workflow spec

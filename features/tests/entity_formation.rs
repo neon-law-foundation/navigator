@@ -147,52 +147,55 @@ async fn assert_signature_wait(world: &mut FormationWorld) {
     );
 }
 
+/// The dispatch flattens the filled `AcroForm` to static content before
+/// persisting, so answers are asserted through the page text — the same
+/// artifact an attorney (or a filing clerk) actually reads.
+fn assert_flattened_packet_carries(bytes: &[u8], expected: &[(&str, &str)]) {
+    assert!(
+        pdf::field_names(bytes)
+            .expect("readable AcroForm")
+            .is_empty(),
+        "persisted packet must be flattened (no live AcroForm fields)",
+    );
+    let text = pdf::page_text(bytes).expect("readable page text");
+    for (value, why) in expected {
+        assert!(
+            text.contains(value),
+            "{why}: flattened page text must carry `{value}`; got: {text}",
+        );
+    }
+}
+
 #[then("the persisted corporation packet carries the founder's answers")]
 async fn assert_corp_packet(world: &mut FormationWorld) {
     let bytes = world.stored_packet().await;
-    assert_eq!(
-        pdf::read_field_value(&bytes, "1Name of Entity").as_deref(),
-        Some("Bright Star Inc"),
-        "entity name lands on the Articles of Incorporation"
-    );
-    assert_eq!(
-        pdf::read_field_value(&bytes, "4Name_1").as_deref(),
-        Some("Libra"),
-        "the director fills board slot 1"
-    );
-    assert_eq!(
-        pdf::read_field_value(&bytes, "Title").as_deref(),
-        Some("President"),
-        "the officer's title lands on the Initial List"
-    );
-    assert_eq!(
-        pdf::read_field_value(&bytes, "Total authorized shares").as_deref(),
-        Some("1000"),
-        "the authorized shares land on the Articles"
+    assert_flattened_packet_carries(
+        &bytes,
+        &[
+            (
+                "Bright Star Inc",
+                "entity name lands on the Articles of Incorporation",
+            ),
+            ("Libra", "the director fills board slot 1"),
+            ("President", "the officer's title lands on the Initial List"),
+            ("1000", "the authorized shares land on the Articles"),
+        ],
     );
 }
 
 #[then("the persisted business-trust packet carries the founder's answers")]
 async fn assert_business_trust_packet(world: &mut FormationWorld) {
     let bytes = world.stored_packet().await;
-    assert_eq!(
-        pdf::read_field_value(
-            &bytes,
-            "1 Name of Entity If foreign name in home jurisdiction"
-        )
-        .as_deref(),
-        Some("Bright Star Holdings"),
-        "entity name lands on the Certificate of Business Trust"
-    );
-    assert_eq!(
-        pdf::read_field_value(&bytes, "Nameb").as_deref(),
-        Some("Libra"),
-        "the trustee fills slot 1 of the certificate"
-    );
-    assert_eq!(
-        pdf::read_field_value(&bytes, "Title").as_deref(),
-        Some("Trustee"),
-        "the trustee title lands on the Initial List"
+    assert_flattened_packet_carries(
+        &bytes,
+        &[
+            (
+                "Bright Star Holdings",
+                "entity name lands on the Certificate of Business Trust",
+            ),
+            ("Libra", "the trustee fills slot 1 of the certificate"),
+            ("Trustee", "the trustee title lands on the Initial List"),
+        ],
     );
 }
 
@@ -250,6 +253,6 @@ async fn assert_filing(world: &mut FormationWorld, office: String) {
 #[tokio::main]
 async fn main() {
     FormationWorld::cucumber()
-        .run("tests/features/entity_formation.feature")
+        .run_and_exit("tests/features/entity_formation.feature")
         .await;
 }

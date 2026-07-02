@@ -4,8 +4,9 @@
 //! dispatch (`DispatchingRuntime` — the same in-process path the dev
 //! binary uses): a blank fillable form is staged in storage, a
 //! `document_open__nv_articles` transition carries a
-//! `DocumentPayload::Acroform`, and the filled PDF's field values are
-//! read back to prove they round-trip. A second scenario asserts the
+//! `DocumentPayload::Acroform`, and the persisted packet — flattened to
+//! static content before persisting — is read back through its page
+//! text to prove the values survive. A second scenario asserts the
 //! attorney-review gate holds for the form's workflow spec.
 
 #![allow(clippy::unused_async)]
@@ -101,12 +102,21 @@ async fn worker_fills(world: &mut AcroWorld, entity_name: String, agent: String)
     assert_eq!(next.as_str(), "document_open__nv_articles");
 }
 
-#[then(regex = r#"^the stored form's "([^"]+)" reads "([^"]+)"$"#)]
-async fn stored_field_reads(world: &mut AcroWorld, field: String, expected: String) {
+#[then(regex = r#"^the flattened output carries "([^"]+)" as static text$"#)]
+async fn flattened_output_carries(world: &mut AcroWorld, expected: String) {
     let stored = world.storage().get(OUTPUT_KEY).await.expect("filled form");
-    assert_eq!(
-        pdf::acroform::read_field_value(&stored.bytes, &field).as_deref(),
-        Some(expected.as_str()),
+    // The dispatch flattens before persisting, so the packet carries no
+    // live fields — the filled values live in the page content stream.
+    assert!(
+        pdf::field_names(&stored.bytes)
+            .expect("readable AcroForm")
+            .is_empty(),
+        "persisted packet must be flattened (no live AcroForm fields)",
+    );
+    let text = pdf::page_text(&stored.bytes).expect("readable page text");
+    assert!(
+        text.contains(&expected),
+        "flattened page text must carry `{expected}`; got: {text}",
     );
 }
 
@@ -127,6 +137,6 @@ async fn gate_holds(world: &mut AcroWorld) {
 #[tokio::main]
 async fn main() {
     AcroWorld::cucumber()
-        .run("tests/features/acroform_fill.feature")
+        .run_and_exit("tests/features/acroform_fill.feature")
         .await;
 }
