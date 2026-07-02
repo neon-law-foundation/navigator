@@ -172,7 +172,7 @@ async fn call_inner(
     .insert(&txn)
     .await?;
 
-    provision_created_project(&txn, resolve_repo_store(repo_store)?, inserted.id).await?;
+    provision_created_project(&txn, &resolve_repo_ensurer(repo_store)?, inserted.id).await?;
     txn.commit().await?;
 
     let summary = format!(
@@ -191,23 +191,25 @@ async fn call_inner(
     }))
 }
 
-fn resolve_repo_store(repo_store: Option<repos::RepoStore>) -> Result<repos::RepoStore, ToolError> {
+fn resolve_repo_ensurer(
+    repo_store: Option<repos::RepoStore>,
+) -> Result<store::projects::RepoEnsurer, ToolError> {
     repo_store.map_or_else(
         || {
-            repos::RepoStore::from_env().map_err(|e| {
+            store::projects::RepoEnsurer::from_env().map_err(|e| {
                 ToolError::Internal(format!(
                     "{} ({e})",
                     store::projects::REPO_PROVISIONING_FAILURE_MESSAGE
                 ))
             })
         },
-        Ok,
+        |store| Ok(store::projects::RepoEnsurer::Local(store)),
     )
 }
 
 async fn provision_created_project<C>(
     db: &C,
-    repo_store: repos::RepoStore,
+    ensurer: &store::projects::RepoEnsurer,
     project_id: Uuid,
 ) -> Result<(), ToolError>
 where
@@ -215,7 +217,7 @@ where
 {
     store::projects::provision_repo_hard(
         db,
-        repo_store,
+        ensurer,
         project_id,
         store::projects::REPO_PROVISIONING_TIMEOUT,
     )
