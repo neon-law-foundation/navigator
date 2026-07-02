@@ -87,6 +87,10 @@ records:
     prompt: Which jurisdiction is {{for_label}}?
     question_type: jurisdiction
     help_text: Select the seeded jurisdiction this answer refers to.
+  - code: country
+    prompt: Which country is {{for_label}}?
+    question_type: country
+    help_text: Select the country this answer refers to.
   - code: entity_type
     prompt: What entity type is {{for_label}}?
     question_type: entity_type
@@ -125,6 +129,10 @@ records:
     prompt: What text should be added for {{for_label}}?
     question_type: string
     help_text: Use this for a one-off text answer when no glossary type fits.
+  - code: custom_phone
+    prompt: What phone number applies to {{for_label}}?
+    question_type: custom_phone
+    help_text: Enter a phone number, including the country code if outside the U.S.
   - code: custom_yes_no
     prompt: Is the answer yes or no for {{for_label}}?
     question_type: yes_no

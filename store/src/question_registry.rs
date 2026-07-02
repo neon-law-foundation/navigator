@@ -100,6 +100,11 @@ pub enum QuestionType {
     // --- Reference types (select a seeded row) — singular ---
     #[sea_orm(string_value = "jurisdiction")]
     Jurisdiction,
+    /// The `jurisdiction_type = 'country'` subset of the seeded
+    /// jurisdictions — a distinct type so a country picker (e.g. an
+    /// N-400's country of birth) never offers a U.S. state.
+    #[sea_orm(string_value = "country")]
+    Country,
     #[sea_orm(string_value = "entity_type")]
     EntityType,
     #[sea_orm(string_value = "product")]
@@ -120,6 +125,11 @@ pub enum QuestionType {
     // --- Custom primitives (value in the answer JSON, no SQL grounding) ---
     #[sea_orm(string_value = "custom_text")]
     CustomText,
+    /// A phone number — the contact primitive (`<input type="tel">`).
+    /// The value stays in the answer JSON with the matter; intake
+    /// contact facts are matter-scoped, not person-row fields.
+    #[sea_orm(string_value = "custom_phone")]
+    CustomPhone,
     #[sea_orm(string_value = "custom_yes_no")]
     CustomYesNo,
     #[sea_orm(string_value = "custom_single_choice")]
@@ -137,11 +147,11 @@ impl QuestionType {
     #[must_use]
     pub fn as_str(&self) -> &'static str {
         use QuestionType::{
-            Address, Addresses, Credential, Credentials, CustomDatetime, CustomMultipleChoice,
-            CustomSingleChoice, CustomText, CustomUsd, CustomYesNo, Disclosure, Disclosures,
-            Entities, Entity, EntityType, EntityTypes, Filing, Filings, Issuance, Issuances,
-            Jurisdiction, Jurisdictions, Notarization, People, Person, Product, Products, Project,
-            Role, Roles, Signature, Statute, Statutes,
+            Address, Addresses, Country, Credential, Credentials, CustomDatetime,
+            CustomMultipleChoice, CustomPhone, CustomSingleChoice, CustomText, CustomUsd,
+            CustomYesNo, Disclosure, Disclosures, Entities, Entity, EntityType, EntityTypes,
+            Filing, Filings, Issuance, Issuances, Jurisdiction, Jurisdictions, Notarization,
+            People, Person, Product, Products, Project, Role, Roles, Signature, Statute, Statutes,
         };
         match self {
             Person => "person",
@@ -163,6 +173,7 @@ impl QuestionType {
             Disclosures => "disclosures",
             Issuances => "issuances",
             Jurisdiction => "jurisdiction",
+            Country => "country",
             EntityType => "entity_type",
             Product => "product",
             Statute => "statute",
@@ -172,6 +183,7 @@ impl QuestionType {
             Products => "products",
             Statutes => "statutes",
             CustomText => "custom_text",
+            CustomPhone => "custom_phone",
             CustomYesNo => "custom_yes_no",
             CustomSingleChoice => "custom_single_choice",
             CustomMultipleChoice => "custom_multiple_choice",
@@ -218,15 +230,15 @@ impl QuestionType {
     #[must_use]
     pub fn kind(&self) -> Kind {
         use QuestionType::{
-            CustomDatetime, CustomMultipleChoice, CustomSingleChoice, CustomText, CustomUsd,
-            CustomYesNo, EntityType, EntityTypes, Jurisdiction, Jurisdictions, Product, Products,
-            Project, Statute, Statutes,
+            Country, CustomDatetime, CustomMultipleChoice, CustomPhone, CustomSingleChoice,
+            CustomText, CustomUsd, CustomYesNo, EntityType, EntityTypes, Jurisdiction,
+            Jurisdictions, Product, Products, Project, Statute, Statutes,
         };
         match self {
-            CustomText | CustomYesNo | CustomSingleChoice | CustomMultipleChoice | CustomUsd
-            | CustomDatetime => Kind::Custom,
-            Jurisdiction | Jurisdictions | EntityType | EntityTypes | Product | Products
-            | Statute | Statutes | Project => Kind::Reference,
+            CustomText | CustomPhone | CustomYesNo | CustomSingleChoice | CustomMultipleChoice
+            | CustomUsd | CustomDatetime => Kind::Custom,
+            Jurisdiction | Jurisdictions | Country | EntityType | EntityTypes | Product
+            | Products | Statute | Statutes | Project => Kind::Reference,
             _ => Kind::Record,
         }
     }
@@ -304,10 +316,10 @@ impl QuestionType {
     #[must_use]
     pub fn entity_table(&self) -> Option<&'static str> {
         use QuestionType::{
-            Address, Addresses, Credential, Credentials, Disclosure, Disclosures, Entities, Entity,
-            EntityType, EntityTypes, Filing, Filings, Issuance, Issuances, Jurisdiction,
-            Jurisdictions, Notarization, People, Person, Product, Products, Project, Role, Roles,
-            Signature, Statute, Statutes,
+            Address, Addresses, Country, Credential, Credentials, Disclosure, Disclosures,
+            Entities, Entity, EntityType, EntityTypes, Filing, Filings, Issuance, Issuances,
+            Jurisdiction, Jurisdictions, Notarization, People, Person, Product, Products, Project,
+            Role, Roles, Signature, Statute, Statutes,
         };
         Some(match self {
             Person | People => "persons",
@@ -320,7 +332,7 @@ impl QuestionType {
             Issuance | Issuances => "share_issuances",
             Signature => "signatures",
             Notarization => "notarizations",
-            Jurisdiction | Jurisdictions => "jurisdictions",
+            Jurisdiction | Jurisdictions | Country => "jurisdictions",
             EntityType | EntityTypes => "entity_types",
             Product | Products => "products",
             Statute | Statutes => "statutes",
@@ -334,10 +346,10 @@ impl QuestionType {
     #[must_use]
     pub fn glossary_term(&self) -> Option<&'static str> {
         use QuestionType::{
-            Address, Addresses, Credential, Credentials, Disclosure, Disclosures, Entities, Entity,
-            EntityType, EntityTypes, Filing, Filings, Issuance, Issuances, Jurisdiction,
-            Jurisdictions, Notarization, People, Person, Product, Products, Project, Role, Roles,
-            Signature, Statute, Statutes,
+            Address, Addresses, Country, Credential, Credentials, Disclosure, Disclosures,
+            Entities, Entity, EntityType, EntityTypes, Filing, Filings, Issuance, Issuances,
+            Jurisdiction, Jurisdictions, Notarization, People, Person, Product, Products, Project,
+            Role, Roles, Signature, Statute, Statutes,
         };
         Some(match self {
             Person | People => "Person",
@@ -350,7 +362,7 @@ impl QuestionType {
             Issuance | Issuances => "Share Issuance",
             Signature => "Signature",
             Notarization => "Notarization",
-            Jurisdiction | Jurisdictions => "Jurisdiction",
+            Jurisdiction | Jurisdictions | Country => "Jurisdiction",
             EntityType | EntityTypes => "Entity Type",
             Product | Products => "Product",
             Statute | Statutes => "Statute",
@@ -367,6 +379,18 @@ impl QuestionType {
         match self {
             QuestionType::People => &PERSON_ROW_PARTS,
             _ => &[],
+        }
+    }
+
+    /// The `jurisdictions.jurisdiction_type` value this type's option
+    /// list is restricted to, or `None` when the type doesn't select
+    /// from the jurisdictions table (or offers all of it). The widget
+    /// handlers read this instead of hardcoding the filter.
+    #[must_use]
+    pub fn jurisdiction_type_filter(&self) -> Option<&'static str> {
+        match self {
+            QuestionType::Country => Some("country"),
+            _ => None,
         }
     }
 }
@@ -419,9 +443,9 @@ mod tests {
                 }
                 QuestionType::Signature => Some(entity::signature::Entity.table_name()),
                 QuestionType::Notarization => Some(entity::notarization::Entity.table_name()),
-                QuestionType::Jurisdiction | QuestionType::Jurisdictions => {
-                    Some(entity::jurisdiction::Entity.table_name())
-                }
+                QuestionType::Jurisdiction
+                | QuestionType::Jurisdictions
+                | QuestionType::Country => Some(entity::jurisdiction::Entity.table_name()),
                 QuestionType::EntityType | QuestionType::EntityTypes => {
                     Some(entity::entity_type::Entity.table_name())
                 }

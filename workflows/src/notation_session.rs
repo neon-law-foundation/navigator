@@ -703,7 +703,7 @@ fn question_code_for_state(state: &str) -> &str {
 
 fn answer_value_for_state(state: &str, value: &str) -> serde_json::Value {
     match question_code_for_state(state) {
-        "person" | "entity" | "project" | "jurisdiction" => {
+        "person" | "entity" | "project" | "jurisdiction" | "country" => {
             serde_json::json!({ "value": value, "name": value })
         }
         _ => answer::primitive(value),

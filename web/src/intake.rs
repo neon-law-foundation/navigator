@@ -24,8 +24,9 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use uuid::Uuid;
 
-use sea_orm::EntityTrait;
-use store::entity::{notation, template};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use store::entity::{jurisdiction, notation, template};
+use store::question_registry::QuestionType;
 use store::Db;
 use workflows::notation_session::{self, ClientIntakeStep};
 
@@ -37,6 +38,57 @@ use crate::session::SessionData;
 /// longer takes client edits; its assembled bytes are being signed.
 fn is_past_intake(state: &str) -> bool {
     state.starts_with("sent_for_signature") || state == workflows::StateName::END
+}
+
+/// Seeded jurisdiction names a question's select offers, per the
+/// registry's `jurisdiction_type_filter` (today: `country` questions).
+/// Empty for every other `answer_type`, so callers can pass it
+/// unconditionally.
+pub(crate) async fn jurisdiction_option_names(db: &Db, answer_type: &str) -> Vec<String> {
+    let Some(filter) =
+        QuestionType::from_token(answer_type).and_then(|t| t.jurisdiction_type_filter())
+    else {
+        return Vec::new();
+    };
+    match jurisdiction::Entity::find()
+        .filter(jurisdiction::Column::JurisdictionType.eq(filter))
+        .order_by_asc(jurisdiction::Column::Name)
+        .all(db)
+        .await
+    {
+        Ok(rows) => rows.into_iter().map(|r| r.name).collect(),
+        Err(e) => {
+            tracing::error!(error = %e, answer_type, "intake: loading jurisdiction options failed");
+            Vec::new()
+        }
+    }
+}
+
+/// `Some(error)` when a submitted answer must name a seeded jurisdiction
+/// row (per the registry filter) and doesn't — a hand-crafted POST can't
+/// smuggle free text past the select.
+pub(crate) async fn rejected_reference_answer(
+    db: &Db,
+    answer_type: &str,
+    value: &str,
+) -> Option<&'static str> {
+    let filter =
+        QuestionType::from_token(answer_type).and_then(|t| t.jurisdiction_type_filter())?;
+    match jurisdiction::Entity::find()
+        .filter(jurisdiction::Column::JurisdictionType.eq(filter))
+        .filter(jurisdiction::Column::Name.eq(value))
+        .one(db)
+        .await
+    {
+        Ok(Some(_)) => None,
+        Ok(None) => Some("Choose a country from the list."),
+        Err(e) => {
+            // Don't reject a plausible answer on a transient DB error —
+            // the write path right after this will surface a real outage.
+            tracing::error!(error = %e, answer_type, "intake: option validation lookup failed");
+            None
+        }
+    }
 }
 
 /// Resolve `(project_id, notation_id)` to a notation the caller may see,
@@ -122,19 +174,23 @@ pub async fn intake_page(
             prior_value,
             position,
             total,
-        } => views::pages::portal::intake::intake_step(&views::pages::portal::intake::IntakeStep {
-            project_id,
-            notation_id,
-            flow_label: &label,
-            question_code: question.code.as_str(),
-            question_prompt: &question.prompt,
-            answer_type: &question.answer_type,
-            prior_value: prior_value.as_deref(),
-            progress: (position, total),
-            csrf_token: &session.csrf_token,
-            error: None,
-        })
-        .into_response(),
+        } => {
+            let country_options = jurisdiction_option_names(&state.db, &question.answer_type).await;
+            views::pages::portal::intake::intake_step(&views::pages::portal::intake::IntakeStep {
+                project_id,
+                notation_id,
+                flow_label: &label,
+                question_code: question.code.as_str(),
+                question_prompt: &question.prompt,
+                answer_type: &question.answer_type,
+                prior_value: prior_value.as_deref(),
+                country_options: &country_options,
+                progress: (position, total),
+                csrf_token: &session.csrf_token,
+                error: None,
+            })
+            .into_response()
+        }
         ClientIntakeStep::Complete { total } => views::pages::portal::intake::intake_complete(
             &views::pages::portal::intake::IntakeComplete {
                 project_id,
@@ -186,7 +242,13 @@ pub async fn intake_save(
                 return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
             }
         };
-    let ClientIntakeStep::NeedsAnswer { question, .. } = step else {
+    let ClientIntakeStep::NeedsAnswer {
+        question,
+        prior_value,
+        position,
+        total,
+    } = step
+    else {
         // Already done — nothing to save.
         return Redirect::to(&back).into_response();
     };
@@ -195,6 +257,27 @@ pub async fn intake_save(
     } else {
         body.get("value").cloned().unwrap_or_default()
     };
+
+    if let Some(error) = rejected_reference_answer(&state.db, &question.answer_type, &value).await {
+        let label = flow_label(&state.db, notation.template_id).await;
+        let country_options = jurisdiction_option_names(&state.db, &question.answer_type).await;
+        return views::pages::portal::intake::intake_step(
+            &views::pages::portal::intake::IntakeStep {
+                project_id,
+                notation_id,
+                flow_label: &label,
+                question_code: question.code.as_str(),
+                question_prompt: &question.prompt,
+                answer_type: &question.answer_type,
+                prior_value: prior_value.as_deref(),
+                country_options: &country_options,
+                progress: (position, total),
+                csrf_token: &session.csrf_token,
+                error: Some(error),
+            },
+        )
+        .into_response();
+    }
 
     if let Err(e) = notation_session::record_client_answer(
         &state.db,
