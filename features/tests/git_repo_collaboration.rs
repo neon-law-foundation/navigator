@@ -195,6 +195,6 @@ async fn expunge(world: &mut GitWorld, path: String) {
 #[tokio::main]
 async fn main() {
     GitWorld::cucumber()
-        .run("tests/features/git_repo_collaboration.feature")
+        .run_and_exit("tests/features/git_repo_collaboration.feature")
         .await;
 }

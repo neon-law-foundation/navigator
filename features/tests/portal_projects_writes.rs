@@ -397,6 +397,6 @@ fn truncate(s: &str) -> String {
 #[tokio::main]
 async fn main() {
     WritesWorld::cucumber()
-        .run("tests/features/portal_projects_writes.feature")
+        .run_and_exit("tests/features/portal_projects_writes.feature")
         .await;
 }

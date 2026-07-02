@@ -299,6 +299,6 @@ fn truncated(s: &str) -> String {
 #[tokio::main]
 async fn main() {
     PortalWorld::cucumber()
-        .run("tests/features/portal_landing_per_role.feature")
+        .run_and_exit("tests/features/portal_landing_per_role.feature")
         .await;
 }

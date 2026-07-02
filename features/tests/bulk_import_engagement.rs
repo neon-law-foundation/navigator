@@ -187,6 +187,6 @@ async fn assert_bound(world: &mut BulkWorld) {
 #[tokio::main]
 async fn main() {
     BulkWorld::cucumber()
-        .run("tests/features/bulk_import_engagement.feature")
+        .run_and_exit("tests/features/bulk_import_engagement.feature")
         .await;
 }

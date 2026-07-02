@@ -226,6 +226,6 @@ async fn response_status(world: &mut IntakeWorld, status: u16) {
 #[tokio::main]
 async fn main() {
     IntakeWorld::cucumber()
-        .run("tests/features/client_intake.feature")
+        .run_and_exit("tests/features/client_intake.feature")
         .await;
 }

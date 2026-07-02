@@ -96,6 +96,6 @@ fn assert_chain_matches(spec: &WorkflowSpec, step: &Step) {
 #[tokio::main]
 async fn main() {
     ShapeWorld::cucumber()
-        .run("tests/features/legal_workflow_shapes.feature")
+        .run_and_exit("tests/features/legal_workflow_shapes.feature")
         .await;
 }

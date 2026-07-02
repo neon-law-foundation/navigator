@@ -324,6 +324,6 @@ async fn assert_subject(world: &mut ChainWorld, expected: String) {
 #[tokio::main]
 async fn main() {
     ChainWorld::cucumber()
-        .run("tests/features/aida_welcome_chain.feature")
+        .run_and_exit("tests/features/aida_welcome_chain.feature")
         .await;
 }

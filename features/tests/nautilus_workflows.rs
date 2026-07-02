@@ -259,6 +259,6 @@ fn assert_chain_matches(spec: &WorkflowSpec, step: &Step) {
 #[tokio::main]
 async fn main() {
     NautilusWorld::cucumber()
-        .run("tests/features/nautilus_workflows.feature")
+        .run_and_exit("tests/features/nautilus_workflows.feature")
         .await;
 }

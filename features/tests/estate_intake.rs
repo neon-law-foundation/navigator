@@ -89,6 +89,6 @@ async fn assert_step_kinds_resolve(_world: &mut EstateWorld) {
 #[tokio::main]
 async fn main() {
     EstateWorld::cucumber()
-        .run("tests/features/estate_intake.feature")
+        .run_and_exit("tests/features/estate_intake.feature")
         .await;
 }

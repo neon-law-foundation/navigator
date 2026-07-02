@@ -230,6 +230,6 @@ async fn assert_routed(world: &mut NexusWorld) {
 #[tokio::main]
 async fn main() {
     NexusWorld::cucumber()
-        .run("tests/features/nexus_fractional_gc.feature")
+        .run_and_exit("tests/features/nexus_fractional_gc.feature")
         .await;
 }

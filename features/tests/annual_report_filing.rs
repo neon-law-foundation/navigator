@@ -172,6 +172,6 @@ async fn assert_gate(_world: &mut ReportWorld) {
 #[tokio::main]
 async fn main() {
     ReportWorld::cucumber()
-        .run("tests/features/annual_report_filing.feature")
+        .run_and_exit("tests/features/annual_report_filing.feature")
         .await;
 }

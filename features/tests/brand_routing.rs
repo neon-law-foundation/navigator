@@ -126,6 +126,6 @@ async fn body_contains(world: &mut BrandWorld, needle: String) {
 #[tokio::main]
 async fn main() {
     BrandWorld::cucumber()
-        .run("tests/features/brand_routing.feature")
+        .run_and_exit("tests/features/brand_routing.feature")
         .await;
 }

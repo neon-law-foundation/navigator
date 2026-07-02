@@ -284,6 +284,6 @@ async fn assert_answers(world: &mut NaturalizationWorld) {
 #[tokio::main]
 async fn main() {
     NaturalizationWorld::cucumber()
-        .run("tests/features/naturalization_federal.feature")
+        .run_and_exit("tests/features/naturalization_federal.feature")
         .await;
 }

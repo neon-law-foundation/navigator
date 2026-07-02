@@ -251,6 +251,6 @@ async fn assert_recurring_obligation(_world: &mut NestWorld, code: String) {
 #[tokio::main]
 async fn main() {
     NestWorld::cucumber()
-        .run("tests/features/nest_formation.feature")
+        .run_and_exit("tests/features/nest_formation.feature")
         .await;
 }
