@@ -1303,11 +1303,332 @@ pub fn read_widget_appearance_state(
     None
 }
 
+/// One checkbox-pair → radio-group merge in a [`ReauthorSpec`]: the
+/// listed kid-less checkboxes become the `/T`-less kid widgets of a new
+/// radio parent named `name`. Each kid keeps its own `/AP` on-state, so
+/// the group's export values are exactly the former checkboxes' states.
+#[derive(Debug, Clone)]
+pub struct RadioMergeSpec {
+    /// The merged radio group's `/T` name.
+    pub name: String,
+    /// The `/T` names of the kid-less checkboxes to absorb.
+    pub members: Vec<String>,
+}
+
+/// The complete field-layer transformation [`reauthor`] applies. Every
+/// top-level field of the input must be covered by exactly one entry —
+/// re-authoring a document that files is total or it is refused.
+#[derive(Debug, Clone, Default)]
+pub struct ReauthorSpec {
+    /// Old `/T` → new `/T`. Several olds may share one new name: those
+    /// fields merge into a single field whose widgets are `/T`-less
+    /// kids, so one value prints in every place the form repeats it.
+    pub renames: BTreeMap<String, String>,
+    /// Checkbox pairs merged into radio groups.
+    pub radios: Vec<RadioMergeSpec>,
+    /// Old `/T` → fixed value: filled, painted as static page content,
+    /// and removed from the interactive layer (pre-printed).
+    pub literals: BTreeMap<String, String>,
+}
+
+/// Re-author a blank AcroForm's field layer in place: rename fields to
+/// their questionnaire state paths, merge checkbox pairs into radio
+/// groups, and pre-print literal values as static content. The output is
+/// still a fillable blank — only the names and the pre-printed values
+/// change — so `fill_acroform` + `flatten` work on it unchanged.
+///
+/// # Errors
+///
+/// - The same parse / locate failures as [`fill_acroform`].
+/// - [`PdfError::UnmatchedField`] if a spec entry names no form field.
+/// - [`PdfError::UnaccountedField`] if a form field is covered by no
+///   spec entry — the plan must be total.
+/// - [`PdfError::Reauthor`] on a structural conflict: a duplicate
+///   source `/T`, a merge across mismatched field types, or a radio
+///   member that is not a kid-less checkbox.
+pub fn reauthor(pdf: &[u8], spec: &ReauthorSpec) -> Result<Vec<u8>, PdfError> {
+    // Pre-print literals first: `fill_acroform` validates each literal
+    // name and value shape exactly like a production fill would.
+    let filled = if spec.literals.is_empty() {
+        pdf.to_vec()
+    } else {
+        fill_acroform(pdf, &spec.literals)?
+    };
+    let mut doc = Document::load_mem(&filled).map_err(|e| PdfError::Lopdf(e.to_string()))?;
+    let (acroform_id, field_ids) = locate_acroform(&doc)?;
+
+    let by_name = named_fields(&doc, &field_ids)?;
+    check_totality(spec, &by_name)?;
+
+    // Literals: paint their filled values as static page content and
+    // drop exactly those widgets from the interactive layer.
+    let literal_fids: Vec<ObjectId> = spec.literals.keys().map(|n| by_name[n]).collect();
+    if !literal_fids.is_empty() {
+        let (texts, stamps, widget_ids) = collect_flatten_draws(&doc, &literal_fids);
+        paint_overlays(&mut doc, texts, stamps)?;
+        detach_fields(&mut doc, acroform_id, &widget_ids, &literal_fids);
+    }
+
+    for merge in &spec.radios {
+        merge_radio(&mut doc, acroform_id, &by_name, merge)?;
+    }
+
+    apply_renames(&mut doc, acroform_id, &by_name, &spec.renames)?;
+
+    doc.prune_objects();
+    let mut out = Vec::new();
+    doc.save_to(&mut out)
+        .map_err(|e| PdfError::Lopdf(e.to_string()))?;
+    Ok(out)
+}
+
+/// Name → id for the top-level fields, refusing a duplicate source `/T`
+/// (which would make every by-name transform ambiguous).
+fn named_fields(
+    doc: &Document,
+    field_ids: &[ObjectId],
+) -> Result<BTreeMap<String, ObjectId>, PdfError> {
+    let mut by_name: BTreeMap<String, ObjectId> = BTreeMap::new();
+    for fid in field_ids {
+        let Ok(dict) = doc.get_object(*fid).and_then(Object::as_dict) else {
+            continue;
+        };
+        let Ok(name) = dict.get(b"T").and_then(Object::as_str) else {
+            continue;
+        };
+        let name = String::from_utf8_lossy(name).into_owned();
+        if by_name.insert(name.clone(), *fid).is_some() {
+            return Err(PdfError::Reauthor(format!(
+                "duplicate source field `/T` `{name}`"
+            )));
+        }
+    }
+    Ok(by_name)
+}
+
+/// Every spec entry must name a real field, and every field must be
+/// covered by exactly one spec entry.
+fn check_totality(
+    spec: &ReauthorSpec,
+    by_name: &BTreeMap<String, ObjectId>,
+) -> Result<(), PdfError> {
+    let mut covered: BTreeSet<&str> = BTreeSet::new();
+    let spec_names = spec
+        .renames
+        .keys()
+        .chain(spec.literals.keys())
+        .chain(spec.radios.iter().flat_map(|m| m.members.iter()));
+    for name in spec_names {
+        if !by_name.contains_key(name) {
+            return Err(PdfError::UnmatchedField(name.clone()));
+        }
+        if !covered.insert(name) {
+            return Err(PdfError::Reauthor(format!(
+                "field `{name}` is covered by more than one spec entry"
+            )));
+        }
+    }
+    for name in by_name.keys() {
+        if !covered.contains(name.as_str()) {
+            return Err(PdfError::UnaccountedField(name.clone()));
+        }
+    }
+    Ok(())
+}
+
+/// Remove `widget_ids` from the pages' `/Annots` and `field_ids` from
+/// the AcroForm `/Fields` — the partial sibling of the full
+/// [`strip_interactive_layer`], used when only the pre-printed literal
+/// fields leave the interactive layer.
+fn detach_fields(
+    doc: &mut Document,
+    acroform_id: ObjectId,
+    widget_ids: &BTreeSet<ObjectId>,
+    field_ids: &[ObjectId],
+) {
+    for page_id in doc.get_pages().values().copied().collect::<Vec<_>>() {
+        let annots = match annots_slot(doc, page_id) {
+            Some(AnnotsSlot::Inline(pid)) => match doc.get_dictionary_mut(pid) {
+                Ok(page) => match page.get_mut(b"Annots") {
+                    Ok(Object::Array(a)) => a,
+                    _ => continue,
+                },
+                Err(_) => continue,
+            },
+            Some(AnnotsSlot::Indirect(id)) => match doc.objects.get_mut(&id) {
+                Some(Object::Array(a)) => a,
+                _ => continue,
+            },
+            None => continue,
+        };
+        annots.retain(|o| !o.as_reference().is_ok_and(|id| widget_ids.contains(&id)));
+    }
+    remove_from_fields_array(doc, acroform_id, field_ids);
+}
+
+/// Drop the given ids from the AcroForm `/Fields` array.
+fn remove_from_fields_array(doc: &mut Document, acroform_id: ObjectId, field_ids: &[ObjectId]) {
+    if let Some(Object::Dictionary(af)) = doc.objects.get_mut(&acroform_id) {
+        if let Ok(Object::Array(fields)) = af.get_mut(b"Fields") {
+            fields.retain(|o| !o.as_reference().is_ok_and(|id| field_ids.contains(&id)));
+        }
+    }
+}
+
+/// Append `field_id` to the AcroForm `/Fields` array.
+fn push_to_fields_array(doc: &mut Document, acroform_id: ObjectId, field_id: ObjectId) {
+    if let Some(Object::Dictionary(af)) = doc.objects.get_mut(&acroform_id) {
+        if let Ok(Object::Array(fields)) = af.get_mut(b"Fields") {
+            fields.push(Object::Reference(field_id));
+        }
+    }
+}
+
+/// Merge the named kid-less checkboxes into one radio group. Each member
+/// keeps its widget dictionary (rect, page, `/AP` on-state) but loses
+/// its `/T` and becomes a kid of the new parent, exactly the radio
+/// structure [`fill_acroform`] and [`flatten`] already speak.
+fn merge_radio(
+    doc: &mut Document,
+    acroform_id: ObjectId,
+    by_name: &BTreeMap<String, ObjectId>,
+    merge: &RadioMergeSpec,
+) -> Result<(), PdfError> {
+    let member_ids: Vec<ObjectId> = merge.members.iter().map(|n| by_name[n]).collect();
+    // Validate each member is a kid-less Btn checkbox with its own
+    // on-state before touching anything.
+    for (name, fid) in merge.members.iter().zip(&member_ids) {
+        let dict = doc
+            .get_object(*fid)
+            .and_then(Object::as_dict)
+            .map_err(|e| PdfError::Lopdf(e.to_string()))?;
+        let is_btn = dict.get(b"FT").and_then(Object::as_name).ok() == Some(b"Btn");
+        let kid_less = dict.get(b"Kids").is_err();
+        let states = appearance_states(doc, dict);
+        if !is_btn || !kid_less || !states.iter().any(|s| s != "Off") {
+            return Err(PdfError::Reauthor(format!(
+                "radio member `{name}` is not a kid-less checkbox with an on-state"
+            )));
+        }
+    }
+
+    let parent_id = doc.new_object_id();
+    for fid in &member_ids {
+        if let Some(Object::Dictionary(dict)) = doc.objects.get_mut(fid) {
+            dict.remove(b"T");
+            dict.remove(b"FT");
+            dict.remove(b"V");
+            dict.set("Parent", Object::Reference(parent_id));
+            dict.set("AS", Object::Name(b"Off".to_vec()));
+        }
+    }
+    let mut parent = Dictionary::new();
+    parent.set("FT", Object::Name(b"Btn".to_vec()));
+    parent.set(
+        "T",
+        Object::String(merge.name.as_bytes().to_vec(), StringFormat::Literal),
+    );
+    // Radio flag (bit 16) + no-toggle-to-off (bit 15), matching the
+    // groups real packets carry.
+    parent.set("Ff", Object::Integer(49152));
+    parent.set("V", Object::Name(b"Off".to_vec()));
+    parent.set(
+        "Kids",
+        Object::Array(member_ids.iter().copied().map(Object::Reference).collect()),
+    );
+    doc.objects.insert(parent_id, Object::Dictionary(parent));
+
+    remove_from_fields_array(doc, acroform_id, &member_ids);
+    push_to_fields_array(doc, acroform_id, parent_id);
+    Ok(())
+}
+
+/// Apply the renames. Olds sharing one target merge into a single field
+/// whose widgets are `/T`-less kids — one value, printed everywhere the
+/// form repeats it (the NV packets restate the same person on several
+/// pages). A single old is renamed in place.
+fn apply_renames(
+    doc: &mut Document,
+    acroform_id: ObjectId,
+    by_name: &BTreeMap<String, ObjectId>,
+    renames: &BTreeMap<String, String>,
+) -> Result<(), PdfError> {
+    let mut by_target: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for (old, new) in renames {
+        by_target.entry(new).or_default().push(old);
+    }
+    for (target, olds) in by_target {
+        if let [only] = olds.as_slice() {
+            let fid = by_name[*only];
+            if let Some(Object::Dictionary(dict)) = doc.objects.get_mut(&fid) {
+                dict.set(
+                    "T",
+                    Object::String(target.as_bytes().to_vec(), StringFormat::Literal),
+                );
+            }
+            continue;
+        }
+        merge_text_fields(doc, acroform_id, by_name, target, &olds)?;
+    }
+    Ok(())
+}
+
+/// Merge several same-typed text fields into one parent named `target`
+/// whose kids are the former fields' widgets.
+fn merge_text_fields(
+    doc: &mut Document,
+    acroform_id: ObjectId,
+    by_name: &BTreeMap<String, ObjectId>,
+    target: &str,
+    olds: &[&str],
+) -> Result<(), PdfError> {
+    let old_ids: Vec<ObjectId> = olds.iter().map(|n| by_name[*n]).collect();
+    for (name, fid) in olds.iter().zip(&old_ids) {
+        let dict = doc
+            .get_object(*fid)
+            .and_then(Object::as_dict)
+            .map_err(|e| PdfError::Lopdf(e.to_string()))?;
+        let is_text = dict.get(b"FT").and_then(Object::as_name).ok() == Some(b"Tx");
+        let kid_less = dict.get(b"Kids").is_err();
+        if !is_text || !kid_less {
+            return Err(PdfError::Reauthor(format!(
+                "`{name}` cannot merge into `{target}`: only kid-less text fields merge"
+            )));
+        }
+    }
+    let parent_id = doc.new_object_id();
+    for fid in &old_ids {
+        if let Some(Object::Dictionary(dict)) = doc.objects.get_mut(fid) {
+            dict.remove(b"T");
+            dict.remove(b"FT");
+            dict.remove(b"V");
+            dict.set("Parent", Object::Reference(parent_id));
+        }
+    }
+    let mut parent = Dictionary::new();
+    parent.set("FT", Object::Name(b"Tx".to_vec()));
+    parent.set(
+        "T",
+        Object::String(target.as_bytes().to_vec(), StringFormat::Literal),
+    );
+    parent.set("V", Object::String(Vec::new(), StringFormat::Literal));
+    parent.set(
+        "Kids",
+        Object::Array(old_ids.iter().copied().map(Object::Reference).collect()),
+    );
+    doc.objects.insert(parent_id, Object::Dictionary(parent));
+
+    remove_from_fields_array(doc, acroform_id, &old_ids);
+    push_to_fields_array(doc, acroform_id, parent_id);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         blank_acroform, blank_acroform_with, field_names, fill_acroform, flatten, page_text,
-        read_field_value, read_widget_appearance_state, widget_annotation_count, FieldSpec,
+        read_field_value, read_widget_appearance_state, reauthor, widget_annotation_count,
+        FieldSpec, RadioMergeSpec, ReauthorSpec,
     };
     use crate::PdfError;
     use lopdf::content::Content;
@@ -1759,6 +2080,160 @@ mod tests {
         assert!(
             stamped,
             "the checked box's appearance must be stamped onto the page as an XObject"
+        );
+    }
+
+    fn spec_renaming(pairs: &[(&str, &str)]) -> ReauthorSpec {
+        ReauthorSpec {
+            renames: fields(pairs),
+            ..ReauthorSpec::default()
+        }
+    }
+
+    #[test]
+    fn reauthor_renames_a_field_in_place() {
+        let blank = blank_acroform(&["1 Name of Entity"]);
+        let out = reauthor(
+            &blank,
+            &spec_renaming(&[("1 Name of Entity", "entity__company.name")]),
+        )
+        .expect("reauthor succeeds");
+        assert_eq!(field_names(&out).unwrap(), vec!["entity__company.name"]);
+        let filled = fill_acroform(&out, &fields(&[("entity__company.name", "Neon LLC")])).unwrap();
+        assert_eq!(
+            read_field_value(&filled, "entity__company.name").as_deref(),
+            Some("Neon LLC")
+        );
+    }
+
+    #[test]
+    fn reauthor_merges_same_target_renames_into_one_multiwidget_field() {
+        // The NV packets restate the same person on several pages; two
+        // olds → one target must become one field with two kid widgets.
+        let blank = blank_acroform(&["Name3", "organizer name"]);
+        let out = reauthor(
+            &blank,
+            &spec_renaming(&[
+                ("Name3", "people__managing_members.0.name"),
+                ("organizer name", "people__managing_members.0.name"),
+            ]),
+        )
+        .expect("reauthor succeeds");
+        assert_eq!(
+            field_names(&out).unwrap(),
+            vec!["people__managing_members.0.name"]
+        );
+        // Both widgets survive, and one fill paints in both places.
+        assert_eq!(widget_annotation_count(&out).unwrap(), 2);
+        let filled = fill_acroform(
+            &out,
+            &fields(&[("people__managing_members.0.name", "Ada Organizer")]),
+        )
+        .unwrap();
+        let flat = flatten(&filled).unwrap();
+        assert_eq!(widget_annotation_count(&flat).unwrap(), 0);
+        let text = page_text(&flat).unwrap();
+        assert_eq!(text.matches("Ada Organizer").count(), 2, "{text}");
+    }
+
+    #[test]
+    fn reauthor_merges_a_checkbox_pair_into_a_radio_group() {
+        let blank = blank_acroform_with(&[
+            FieldSpec::Checkbox {
+                name: "managers_a".into(),
+                on_state: "managers".into(),
+            },
+            FieldSpec::Checkbox {
+                name: "managers_b".into(),
+                on_state: "members".into(),
+            },
+        ]);
+        let out = reauthor(
+            &blank,
+            &ReauthorSpec {
+                radios: vec![RadioMergeSpec {
+                    name: "custom_single_choice__management_structure".into(),
+                    members: vec!["managers_a".into(), "managers_b".into()],
+                }],
+                ..ReauthorSpec::default()
+            },
+        )
+        .expect("reauthor succeeds");
+        assert_eq!(
+            field_names(&out).unwrap(),
+            vec!["custom_single_choice__management_structure"]
+        );
+        let filled = fill_acroform(
+            &out,
+            &fields(&[("custom_single_choice__management_structure", "members")]),
+        )
+        .expect("radio fill succeeds");
+        assert_eq!(
+            read_widget_appearance_state(
+                &filled,
+                "custom_single_choice__management_structure",
+                Some(1)
+            )
+            .as_deref(),
+            Some("members")
+        );
+        assert_eq!(
+            read_widget_appearance_state(
+                &filled,
+                "custom_single_choice__management_structure",
+                Some(0)
+            )
+            .as_deref(),
+            Some("Off")
+        );
+    }
+
+    #[test]
+    fn reauthor_preprints_literals_as_static_content() {
+        let blank = blank_acroform(&["formation_1", "entity_name"]);
+        let out = reauthor(
+            &blank,
+            &ReauthorSpec {
+                renames: fields(&[("entity_name", "entity__company.name")]),
+                literals: fields(&[("formation_1", "NRS 86")]),
+                ..ReauthorSpec::default()
+            },
+        )
+        .expect("reauthor succeeds");
+        // The literal left the interactive layer; the renamed field stays.
+        assert_eq!(field_names(&out).unwrap(), vec!["entity__company.name"]);
+        assert_eq!(widget_annotation_count(&out).unwrap(), 1);
+        assert!(page_text(&out).unwrap().contains("NRS 86"));
+        // The output is still a fillable blank.
+        let filled = fill_acroform(&out, &fields(&[("entity__company.name", "Neon LLC")])).unwrap();
+        let flat = flatten(&filled).unwrap();
+        let text = page_text(&flat).unwrap();
+        assert!(text.contains("NRS 86"), "{text}");
+        assert!(text.contains("Neon LLC"), "{text}");
+    }
+
+    #[test]
+    fn reauthor_refuses_an_unaccounted_field() {
+        let blank = blank_acroform(&["mapped", "forgotten"]);
+        let err = reauthor(
+            &blank,
+            &spec_renaming(&[("mapped", "entity__company.name")]),
+        )
+        .expect_err("must refuse");
+        assert!(
+            matches!(err, PdfError::UnaccountedField(ref n) if n == "forgotten"),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn reauthor_refuses_a_spec_entry_naming_no_field() {
+        let blank = blank_acroform(&["real"]);
+        let err = reauthor(&blank, &spec_renaming(&[("real", "a"), ("ghost", "b")]))
+            .expect_err("must refuse");
+        assert!(
+            matches!(err, PdfError::UnmatchedField(ref n) if n == "ghost"),
+            "{err:?}"
         );
     }
 }

@@ -3,15 +3,43 @@
 //!
 //! The blank PDF bytes live **only** in the public assets bucket, at
 //! each form's `object_path`. The repository keeps the diffable text:
-//! the sibling markdown template (the catalog card), the `.fields.toml`
-//! map, and a `.sha256` pin of the canonical blank. The fill path pulls
-//! the blank through `cloud::StorageService` and must verify it against
-//! the pin before filling — a mismatch or a missing object is a loud
-//! failure, never a fallback.
+//! the sibling markdown template (the catalog card), the field layer's
+//! text mirror — a `.fields.toml` map, or the `.fields` manifest of a
+//! re-authored blank whose `/T` names *are* question paths — and a
+//! `.sha256` pin of the canonical blank. The fill path pulls the blank
+//! through `cloud::StorageService` and must verify it against the pin
+//! before filling — a mismatch or a missing object is a loud failure,
+//! never a fallback.
 
 pub mod fieldmap;
+pub mod reauthor;
 
 pub use fieldmap::{field_map, resolve, FieldMap, FieldMapError, FieldRule};
+pub use reauthor::{manifest, resolve_reauthored, ReauthorPlanError, UNMAPPED_PREFIX};
+
+/// Fill values for one form: through its `.fields.toml` when one is
+/// bundled, else through its re-authored `.fields` manifest (the `/T`
+/// names are the data paths). `Ok(None)` when the form carries neither —
+/// a reference document nothing fills.
+///
+/// # Errors
+///
+/// [`FieldMapError`] from either resolution path.
+pub fn fill_values(
+    form_code: &str,
+    answers: &std::collections::BTreeMap<String, String>,
+) -> Result<Option<std::collections::BTreeMap<String, String>>, FieldMapError> {
+    if let Some(map) = field_map(form_code)? {
+        return Ok(Some(resolve(&map, answers)?));
+    }
+    match reauthor::manifest(form_code) {
+        Some(names) => {
+            let names: Vec<String> = names.into_iter().map(ToString::to_string).collect();
+            Ok(Some(resolve_reauthored(&names, answers)?))
+        }
+        None => Ok(None),
+    }
+}
 
 /// Metadata for one vendored government form. Carries no bytes: the
 /// blank itself lives in the assets bucket at

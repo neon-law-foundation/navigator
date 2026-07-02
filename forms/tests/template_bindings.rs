@@ -58,8 +58,9 @@ fn every_template_form_binding_points_at_a_vendored_form() {
         assert!(
             forms::field_map(&form_code)
                 .expect("field map parses")
-                .is_some(),
-            "{}: `form: {form_code}` has no field map",
+                .is_some()
+                || forms::manifest(&form_code).is_some(),
+            "{}: `form: {form_code}` has neither a field map nor a re-authored manifest",
             path.display()
         );
     }

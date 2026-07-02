@@ -25,25 +25,26 @@ navigator --help
 
 Subcommands split by whether they need a database:
 
-| Subcommand       | Needs DB? | Notes                                                                      |
-| ---------------- | --------- | -------------------------------------------------------------------------- |
-| `validate`       | no        | N104 checks questionnaire codes against the canonical question seed list.  |
-| `validate-yaml`  | no        | Parses every `.yaml` and `.yml` under a directory.                         |
-| `validate-i18n`  | no        | Reconciles the i18n catalog against call sites; reports unused keys.       |
-| `render`         | no        | Validation-gated template → PDF; `--format letter`.                        |
-| `format`         | no        | Whitespace + bullet cleanup on one `.md`.                                  |
-| `docs list`      | no        | Lists published docs pages plus glossary term anchors.                     |
-| `docs glossary`  | no        | Looks up workspace vocabulary by term.                                     |
-| `scaffold`       | no        | Drops template + workflow + feature stubs.                                 |
-| `assets build`   | no        | Transcodes source photos into AVIF/WebP/JPEG.                              |
-| `assets upload`  | no        | Pushes built variants to the public assets bucket.                         |
-| `assets pull`    | no        | Restores `web/public/img/` from the assets bucket for local dev.           |
-| `forms sync`     | no        | Vendors blank government forms to the assets bucket; writes/verifies pins. |
-| `forms fields`   | no        | Prints a pin-verified blank's `AcroForm` `/T` names, one per line.         |
-| `import`         | **yes**   | Writes into `--database-url` Postgres.                                     |
-| `list`           | **yes**   | Auto-runs migrate + seed before printing.                                  |
-| `docs erd`       | **yes**   | Introspects `pg_catalog` + `information_schema`.                           |
-| `project create` | **yes**   | Needs `--client-email` (a client DRI); `--skip-migrate-and-seed` for prod. |
+| Subcommand        | Needs DB? | Notes                                                                      |
+| ----------------- | --------- | -------------------------------------------------------------------------- |
+| `validate`        | no        | N104 checks questionnaire codes against the canonical question seed list.  |
+| `validate-yaml`   | no        | Parses every `.yaml` and `.yml` under a directory.                         |
+| `validate-i18n`   | no        | Reconciles the i18n catalog against call sites; reports unused keys.       |
+| `render`          | no        | Validation-gated template → PDF; `--format letter`.                        |
+| `format`          | no        | Whitespace + bullet cleanup on one `.md`.                                  |
+| `docs list`       | no        | Lists published docs pages plus glossary term anchors.                     |
+| `docs glossary`   | no        | Looks up workspace vocabulary by term.                                     |
+| `scaffold`        | no        | Drops template + workflow + feature stubs.                                 |
+| `assets build`    | no        | Transcodes source photos into AVIF/WebP/JPEG.                              |
+| `assets upload`   | no        | Pushes built variants to the public assets bucket.                         |
+| `assets pull`     | no        | Restores `web/public/img/` from the assets bucket for local dev.           |
+| `forms sync`      | no        | Vendors blank government forms to the assets bucket; writes/verifies pins. |
+| `forms fields`    | no        | Prints a pin-verified blank's `AcroForm` `/T` names, one per line.         |
+| `forms re-author` | no        | Rewrites a blank's `/T` names to questionnaire state paths from its map.   |
+| `import`          | **yes**   | Writes into `--database-url` Postgres.                                     |
+| `list`            | **yes**   | Auto-runs migrate + seed before printing.                                  |
+| `docs erd`        | **yes**   | Introspects `pg_catalog` + `information_schema`.                           |
+| `project create`  | **yes**   | Needs `--client-email` (a client DRI); `--skip-migrate-and-seed` for prod. |
 
 The live-site commands need no local database — they are an authenticated HTTP client against a deployed `web`:
 

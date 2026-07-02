@@ -91,8 +91,11 @@ pub async fn app_state(db: store::Db) -> AppState {
 /// The canonical blanks live only in the public assets bucket, pinned by
 /// the repo's `.sha256` files — bytes an offline test cannot have. This
 /// helper builds a genuinely fillable stand-in from the form's own
-/// `.fields.toml` (a text widget per mapped field; a checkbox where the
-/// rule is `checked_when`-shaped), so the full pull → verify → fill →
+/// field-layer mirror — `.fields.toml` rules (a text widget per mapped
+/// field; a checkbox where the rule is `checked_when`-shaped), or, for a
+/// re-authored form, its `.fields` manifest (a radio group with the
+/// notation's `choices:` as on-states for `custom_single_choice__*`
+/// names; a text widget otherwise) — so the full pull → verify → fill →
 /// flatten pipeline runs against the storage seam. The synthetic blanks
 /// are deterministic, so they are built once per process (`OnceLock`);
 /// the pin strings leak (`Box::leak`) exactly once to satisfy
@@ -109,24 +112,7 @@ pub async fn stage_blank_forms(storage: &dyn cloud::StorageService) -> Arc<Vec<f
             .expect("forms registry loads")
             .into_iter()
             .map(|form| {
-                let map = forms::field_map(form.code)
-                    .expect("field map parses")
-                    .expect("every vendored form has a field map");
-                let mut seen = std::collections::BTreeSet::new();
-                let specs: Vec<pdf::FieldSpec> = map
-                    .field
-                    .iter()
-                    .filter(|rule| seen.insert(rule.name.clone()))
-                    .map(|rule| match (&rule.checked_when, &rule.on_state) {
-                        (Some(_), Some(on_state)) => pdf::FieldSpec::Checkbox {
-                            name: rule.name.clone(),
-                            on_state: on_state.clone(),
-                        },
-                        _ => pdf::FieldSpec::Text {
-                            name: rule.name.clone(),
-                        },
-                    })
-                    .collect();
+                let specs = synthetic_field_specs(&form);
                 let bytes = pdf::blank_acroform_with(&specs);
                 let pin: &'static str = Box::leak(forms::sha256_hex(&bytes).into_boxed_str());
                 (
@@ -146,6 +132,69 @@ pub async fn stage_blank_forms(storage: &dyn cloud::StorageService) -> Arc<Vec<f
             .expect("stage synthetic blank");
     }
     Arc::new(staged.iter().map(|(form, _)| form.clone()).collect())
+}
+
+/// The widget shapes for one form's synthetic blank, from whichever
+/// field-layer mirror the form carries.
+fn synthetic_field_specs(form: &forms::FormMeta) -> Vec<pdf::FieldSpec> {
+    if let Some(map) = forms::field_map(form.code).expect("field map parses") {
+        let mut seen = std::collections::BTreeSet::new();
+        return map
+            .field
+            .iter()
+            .filter(|rule| seen.insert(rule.name.clone()))
+            .map(|rule| match (&rule.checked_when, &rule.on_state) {
+                (Some(_), Some(on_state)) => pdf::FieldSpec::Checkbox {
+                    name: rule.name.clone(),
+                    on_state: on_state.clone(),
+                },
+                _ => pdf::FieldSpec::Text {
+                    name: rule.name.clone(),
+                },
+            })
+            .collect();
+    }
+    let manifest = forms::manifest(form.code).expect("map-less form has a manifest");
+    let choices = notation_choices(form.object_path);
+    manifest
+        .iter()
+        .map(|name| {
+            let role = name.strip_prefix("custom_single_choice__");
+            match role.and_then(|r| choices.get(r)) {
+                Some(options) => pdf::FieldSpec::Radio {
+                    name: (*name).to_string(),
+                    options: options.clone(),
+                },
+                None => pdf::FieldSpec::Text {
+                    name: (*name).to_string(),
+                },
+            }
+        })
+        .collect()
+}
+
+/// The sibling notation's `choices:` block — the on-state vocabulary a
+/// re-authored radio group carries.
+fn notation_choices(object_path: &str) -> std::collections::BTreeMap<String, Vec<String>> {
+    #[derive(serde::Deserialize)]
+    struct Fm {
+        #[serde(default)]
+        choices: std::collections::BTreeMap<String, std::collections::BTreeMap<String, String>>,
+    }
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("templates")
+        .join(object_path.replace(".pdf", ".md"));
+    let contents = std::fs::read_to_string(&path).expect("sibling notation");
+    let fm = contents
+        .strip_prefix("---\n")
+        .and_then(|rest| rest.find("\n---").map(|end| &rest[..end]))
+        .expect("notation frontmatter");
+    let fm: Fm = serde_yaml::from_str(fm).expect("notation frontmatter parses");
+    fm.choices
+        .into_iter()
+        .map(|(role, options)| (role, options.into_keys().collect()))
+        .collect()
 }
 
 // --- OIDC id_token test crypto -------------------------------------------
