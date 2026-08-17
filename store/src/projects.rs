@@ -33,6 +33,16 @@ pub struct Project {
     pub entity_id: Uuid,
     pub description: Option<String>,
     pub drive_folder_id: Option<String>,
+    /// The full URL of the one source repository holding this Project's
+    /// notation templates and its client portal.
+    ///
+    /// A whole URL rather than a name composed onto one deployment-wide forge
+    /// host: a Project's source may live on any forge, in any organization, so
+    /// GitHub, GitLab, and a self-hosted remote are all just values here.
+    /// `None` means no repository is recorded, and nothing derives one from
+    /// [`Self::code`] — a guessed URL would point at a namespace the Firm may
+    /// not control.
+    pub repository_url: Option<String>,
     pub git_initialized_at: Option<String>,
     pub forge_provisioned_at: Option<String>,
     pub closed_at: Option<String>,
@@ -58,6 +68,7 @@ struct ProjectRow {
     entity_id: surrealdb::types::RecordId,
     description: Option<String>,
     drive_folder_id: Option<String>,
+    repository_url: Option<String>,
     git_initialized_at: Option<String>,
     forge_provisioned_at: Option<String>,
     closed_at: Option<String>,
@@ -77,6 +88,7 @@ impl ProjectRow {
             entity_id: record_uuid(&self.entity_id)?,
             description: self.description,
             drive_folder_id: self.drive_folder_id,
+            repository_url: self.repository_url,
             git_initialized_at: self.git_initialized_at,
             forge_provisioned_at: self.forge_provisioned_at,
             closed_at: self.closed_at,
@@ -93,7 +105,8 @@ pub(crate) const PROJECT_TABLE: &str = "project";
 const ENTITY_TABLE: &str = "entity";
 const PERSON_PROJECT_ROLE_TABLE: &str = "person_project_role";
 const PROJECT_SELECT: &str = "id, code, name, status, entity_id, description, \
-                              drive_folder_id, git_initialized_at, forge_provisioned_at, closed_at, \
+                              drive_folder_id, repository_url, git_initialized_at, \
+                              forge_provisioned_at, closed_at, \
                               internal_slack_channel_url, external_slack_channel_url, \
                               inserted_at, updated_at";
 
@@ -897,8 +910,10 @@ pub fn normalize_code(input: &str) -> Option<String> {
 /// and not a segment Navigator routes on its own.
 ///
 /// `cloud::workspace` holds the single definition of that shape and this calls
-/// it, so a Project code, its repository name, and its Drive folder name cannot
-/// drift apart. The rationale for each shape restriction lives there.
+/// it, so a Project code and its Drive folder name cannot drift apart. The
+/// rationale for each shape restriction lives there. A Project's repository is
+/// *not* named from the code — it is a whole URL stored on the row, validated
+/// by [`is_valid_repository_url`].
 ///
 /// The reserved-code refusal is the second half. A code is a route segment —
 /// `/app/projects/{code}/portal` — and `/app/projects/new` is the matter-open
@@ -911,6 +926,40 @@ pub fn normalize_code(input: &str) -> Option<String> {
 pub fn is_valid_code(code: &str) -> bool {
     cloud::workspace::is_valid_slug(code)
         && !cloud::workspace::RESERVED_PROJECT_CODES.contains(&code)
+}
+
+/// Human-readable reason [`is_valid_repository_url`] refuses a value, used as
+/// the caller-correctable message on the command boundary.
+pub const REPOSITORY_URL_INVALID: &str =
+    "A repository URL must be an http(s):// URL naming a host and a path.";
+
+/// Whether a value is usable as a Project's source repository URL.
+///
+/// Deliberately permissive about *where*: any forge, any organization, any
+/// self-hosted host. It is strict about *what*, because this URL is both shown
+/// to a lawyer as a link and handed to `git clone`:
+///
+/// - **`http://` or `https://` only.** A `file://`, `ssh://`, or `javascript:`
+///   value would either read the serving host's own disk or render as a live
+///   link, and neither is a repository the Firm meant to record.
+/// - **A non-empty host and path.** `https://github.com` names a forge, not a
+///   repository, so cloning it could never succeed.
+/// - **No whitespace and no credentials.** A `user:token@host` URL would put a
+///   secret in a column that is rendered into a page and logged.
+#[must_use]
+pub fn is_valid_repository_url(url: &str) -> bool {
+    let trimmed = url.trim();
+    if trimmed.is_empty() || trimmed.chars().any(char::is_whitespace) {
+        return false;
+    }
+    let Some(("http" | "https", rest)) = trimmed.split_once("://") else {
+        return false;
+    };
+    let Some((authority, path)) = rest.split_once('/') else {
+        return false;
+    };
+    // `@` in the authority is an embedded credential; a bare host has none.
+    !authority.is_empty() && !authority.contains('@') && !path.trim_matches('/').is_empty()
 }
 
 /// The notation id of the person's **sole open matter**, for auto-routing an
@@ -1178,6 +1227,63 @@ pub struct UpdateProjectCommand {
     pub internal_slack_channel_url: Option<String>,
     #[serde(default)]
     pub external_slack_channel_url: Option<String>,
+    /// The Project's source repository as a whole URL, on any forge. A blank
+    /// submission clears it; an omitted one leaves it untouched.
+    #[serde(default)]
+    pub repository_url: Option<String>,
+}
+
+/// Set or clear the Project's source repository URL.
+///
+/// The provisioning-side counterpart to the `repository_url` field on
+/// [`UpdateProjectCommand`], for a caller that holds only the matter id — the
+/// dev seed, or a reconciler recording where a Project's source landed.
+/// `None` clears the column.
+///
+/// Returns `Ok(None)` when the matter no longer exists.
+///
+/// # Errors
+/// Returns [`ProjectCommandError::Invalid`] when the URL is not one
+/// [`is_valid_repository_url`] accepts, and propagates a database error.
+pub async fn set_repository_url(
+    surreal: &SurrealDb,
+    project_id: Uuid,
+    repository_url: Option<&str>,
+) -> Result<Option<Project>, ProjectCommandError> {
+    let repository_url = repository_url
+        .map(str::trim)
+        .filter(|url| !url.is_empty())
+        .map(|url| {
+            if is_valid_repository_url(url) {
+                Ok(url.to_string())
+            } else {
+                Err(ProjectCommandError::Invalid(REPOSITORY_URL_INVALID))
+            }
+        })
+        .transpose()?;
+
+    if find_by_id(surreal, project_id)
+        .await
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?
+        .is_none()
+    {
+        return Ok(None);
+    }
+    let mut response = surreal
+        .query(format!(
+            "UPDATE $id SET repository_url = $repository_url, updated_at = $updated_at \
+             RETURN {PROJECT_SELECT}"
+        ))
+        .bind(("id", record_id(PROJECT_TABLE, project_id)))
+        .bind(("repository_url", repository_url))
+        .bind(("updated_at", chrono::Utc::now().to_rfc3339()))
+        .await
+        .and_then(surrealdb::IndexedResults::check)
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?;
+    let updated: Option<ProjectRow> = response
+        .take(0)
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?;
+    Ok(updated.and_then(ProjectRow::into_project))
 }
 
 /// A matter's descriptive update could not be applied.
@@ -1200,18 +1306,23 @@ pub enum ProjectCommandError {
     Db(String),
 }
 
-/// Update a matter's descriptive fields — name, entity, and scope narrative.
-/// Behind both the JSON `PATCH /app/api/projects/{id}` command and the
-/// `/app/projects/{id}` edit form, so neither door re-implements the write.
-/// Name is required; a submitted `entity_id` or `description` is applied and
-/// an omitted one is left untouched, with a blank description clearing the
-/// column.
+/// Update a matter's descriptive fields — name, entity, scope narrative, its
+/// Slack channels, and its source repository URL. Behind both the JSON
+/// `PATCH /app/api/projects/{id}` command and the `/app/projects/{id}` edit
+/// form, so neither door re-implements the write. Name is required; a submitted
+/// `entity_id` or `description` is applied and an omitted one is left
+/// untouched, with a blank description clearing the column.
+///
+/// `repository_url` is the one Project field that is validated rather than
+/// merely trimmed ([`is_valid_repository_url`]): it is handed to `git clone`
+/// and rendered as a link, so a bad scheme or an embedded credential is
+/// refused here rather than stored.
 ///
 /// Scope is deliberately narrow. It is not the matter-open path (no conflict
-/// check, no repo provisioning), it does not move the agreed price (the
-/// append-only price-events command), and it does not change `status`/
-/// `closed_at` — a lifecycle transition whose retention semantics are a
-/// firm-policy determination owned by [`transition_project`].
+/// check), it does not move the agreed price (the append-only price-events
+/// command), and it does not change `status`/`closed_at` — a lifecycle
+/// transition whose retention semantics are a firm-policy determination owned
+/// by [`transition_project`].
 ///
 /// Because every written value comes wholly from the request (never from a
 /// read of the row), there is no read-modify-write to serialize: the sparse
@@ -1224,6 +1335,13 @@ pub async fn update_project(
 ) -> Result<Project, ProjectCommandError> {
     if input.name.trim().is_empty() {
         return Err(ProjectCommandError::Invalid("Name is required."));
+    }
+    // A blank submission clears the column; anything else must be a URL that
+    // could actually be cloned and safely rendered as a link.
+    if let Some(url) = &input.repository_url {
+        if !url.trim().is_empty() && !is_valid_repository_url(url) {
+            return Err(ProjectCommandError::Invalid(REPOSITORY_URL_INVALID));
+        }
     }
     if find_by_id(surreal, id)
         .await
@@ -1257,6 +1375,9 @@ pub async fn update_project(
     if input.external_slack_channel_url.is_some() {
         assignments.push("external_slack_channel_url = $external_slack_channel_url");
     }
+    if input.repository_url.is_some() {
+        assignments.push("repository_url = $repository_url");
+    }
     let mut response = surreal
         .query(format!(
             "UPDATE $id SET {} RETURN {PROJECT_SELECT}",
@@ -1283,6 +1404,12 @@ pub async fn update_project(
     if let Some(url) = &input.external_slack_channel_url {
         response = response.bind((
             "external_slack_channel_url",
+            crate::people_commands::none_if_blank(Some(url)),
+        ));
+    }
+    if let Some(url) = &input.repository_url {
+        response = response.bind((
+            "repository_url",
             crate::people_commands::none_if_blank(Some(url)),
         ));
     }
@@ -1781,6 +1908,59 @@ mod surreal_read_tests {
         assert_eq!(project.id, id);
         assert_eq!(project.entity_id, entity_id);
         assert_eq!(project.code, "matter");
+    }
+
+    /// A repository URL may name any forge, in any organization.
+    ///
+    /// This is the whole point of storing a URL rather than composing one from
+    /// a deployment-wide host: two Projects can legitimately live on different
+    /// forges, so nothing here privileges one.
+    #[test]
+    fn a_repository_url_may_name_any_forge_and_any_organization() {
+        for url in [
+            "https://github.com/neon-law-foundation/navigator-sample-project",
+            "https://gitlab.com/some-group/some-subgroup/a-project",
+            "https://git.example.internal/an-org/a-project.git",
+            // A self-hosted forge on a port, and a plain-http intranet remote.
+            "https://forge.example:8443/an-org/a-project",
+            "http://forge.internal/an-org/a-project",
+        ] {
+            assert!(
+                super::is_valid_repository_url(url),
+                "{url} must be accepted — any forge, any organization"
+            );
+        }
+    }
+
+    /// The shapes that are refused, and why each one matters.
+    #[test]
+    fn a_repository_url_refuses_unclonable_and_unsafe_values() {
+        for (url, why) in [
+            ("", "blank is not a URL"),
+            ("   ", "whitespace is not a URL"),
+            ("github.com/an-org/a-project", "no scheme"),
+            ("ssh://git@forge.example/an-org/a", "ssh is not http(s)"),
+            ("file:///etc/passwd", "file:// would read the serving host"),
+            (
+                "javascript:alert(1)//x/y",
+                "a live-link scheme must never render",
+            ),
+            ("https://github.com", "a forge root is not a repository"),
+            ("https://github.com/", "an empty path is not a repository"),
+            (
+                "https://user:token@forge.example/an-org/a",
+                "an embedded credential must not enter a rendered, logged column",
+            ),
+            (
+                "https://forge.example/an org/a",
+                "whitespace cannot survive into a clone argument",
+            ),
+        ] {
+            assert!(
+                !super::is_valid_repository_url(url),
+                "{url:?} must be refused: {why}"
+            );
+        }
     }
 
     /// `new` is well-formed and still refused, in Rust *and* in the engine.

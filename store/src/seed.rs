@@ -680,6 +680,13 @@ async fn seed_role_matrix_simpsons(
     )
     .await?;
 
+    // Where this matter's templates and client portal are sourced from. A whole
+    // URL on the Project, not a name composed from a forge host, so the demo
+    // matter records the same shape a real one would — and
+    // `navigator dev sample-project` reads it rather than carrying its own
+    // default.
+    crate::projects::set_repository_url(surreal, project_id, Some(SIMPSONS_REPOSITORY_URL)).await?;
+
     // Client side and firm side. The lawyer is the licensed lawyer DRI, which is
     // also what lets the supervised Clerk resolve the matter.
     ensure_participation(surreal, report, project_id, client_id, "client").await?;
@@ -721,6 +728,15 @@ async fn seed_role_matrix_simpsons(
 
 /// The Project code the demo matter — and therefore its portal — lives under.
 const SIMPSONS_PROJECT_CODE: &str = "simpsons";
+
+/// Where the `simpsons` demo matter's templates and client portal are sourced
+/// from — the public reference project application.
+///
+/// Recorded on the Project rather than compiled into the command that clones
+/// it, so the demo matter demonstrates the real mechanism: a Project names its
+/// own repository, on whatever forge hosts it.
+pub const SIMPSONS_REPOSITORY_URL: &str =
+    "https://github.com/neon-law-foundation/navigator-sample-project";
 
 /// Publish the `simpsons` client portal, preferring a locally built bundle.
 ///
