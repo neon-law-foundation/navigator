@@ -60,7 +60,7 @@ fn is_notice_file(name: &str) -> bool {
 /// Every registry crate in a `Cargo.lock`, sorted and deduplicated.
 ///
 /// Workspace members have no `source` key and are excluded: they are the
-/// Firm's own code, governed by `LICENSE.md`, and are not third-party.
+/// Firm's own code, governed by root `LICENSE`, and are not third-party.
 pub fn registry_crates(lockfile: &str) -> Vec<Crate> {
     let doc: toml::Value = match toml::from_str(lockfile) {
         Ok(doc) => doc,
@@ -225,7 +225,7 @@ pub fn render(notices: &Notices) -> String {
         "THIRD-PARTY NOTICES\n\
          ===================\n\n\
          The Neon Law Navigator `navigator` binary is copyright Neon Law Foundation and is\n\
-         licensed under MIT OR Apache-2.0; see LICENSE.md. It incorporates the third-party\n\
+         licensed under AGPL-3.0-only; see LICENSE. It incorporates the third-party\n\
          open-source components listed below, each governed by its own licence, reproduced\n\
          here in full.\n\n\
          Identical licence texts are listed once with every crate that carries them. This file\n\
@@ -435,7 +435,7 @@ source = "git+https://example.invalid/repo"
         let notices = collect(&[], &[]);
         let out = render(&notices);
         assert!(out.contains("Neon Law Foundation"));
-        assert!(out.contains("LICENSE.md"));
-        assert!(out.contains("MIT OR Apache-2.0"));
+        assert!(out.contains("LICENSE"));
+        assert!(out.contains("AGPL-3.0-only"));
     }
 }
