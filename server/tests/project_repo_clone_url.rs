@@ -1,9 +1,10 @@
 #![allow(clippy::too_many_lines)]
 //! Integration test: the external repository page on `GET /app/projects/:id`.
 //!
-//! The per-Project private repository is a lawyer-only GitHub pointer. Lawyer
-//! and admin reach the matter page and see its constructed browser link; a
-//! client reaches the portal view and must **never** see that internal link.
+//! The per-Project source repository is a lawyer-only pointer, stored on the
+//! Project as a whole URL on whatever forge hosts it. Lawyer and admin reach the
+//! matter page and see that recorded URL verbatim; a client reaches the portal
+//! view and must **never** see the internal link.
 
 use std::sync::Arc;
 
@@ -22,36 +23,25 @@ const KEY: &str = "test-session-key-not-for-production";
 struct Fixture {
     app: axum::Router,
     project_id: Uuid,
-    project_code: String,
     /// A lawyer disclosed to the matter — sees the admin page.
     lawyer_cookie: String,
     /// The matter's client — reaches the portal view, never the git URL.
     client_cookie: String,
 }
 
-/// The forge coordinate every fixture in this binary configures, so the lawyer
-/// assertion and the client-absence assertion are both made against a
-/// *configured* pointer — a client seeing no link proves the lens, not a
-/// missing environment. `lawyer_project_detail_router` reads these once at
-/// construction, and every test here wants the same values, so they are set
-/// before the router is built and never unset.
+/// The repository URL this matter records, which the lawyer must see verbatim.
 ///
-/// Synthetic on purpose: the organization and host are configuration, so this
-/// file spells neither a real organization nor a real forge host.
+/// Deliberately **not** on a public forge, and with a path that is nothing like
+/// the Project code: the URL is stored on the Project, so nothing composes a
+/// host or an organization onto a code. A test that used
+/// `https://github.com/<org>/<code>` would still pass under a derivation and so
+/// would prove nothing.
 ///
-/// **Every test in this binary needs the same values, and that is load-bearing
-/// rather than incidental.** `cargo test` runs one process per test *target*, so
-/// these `set_var` calls are shared process state across the tests below; a test
-/// wanting a *different* deployment would race the others depending on
-/// scheduling. The absent-pointer case therefore lives in its own target,
-/// `project_repo_pointer_absent.rs`, which is its own process.
-const ORG: &str = "an-organization";
-const HOST: &str = "forge.example";
+/// The absent-pointer case lives in its own target,
+/// `project_repo_pointer_absent.rs`, so each binary asserts one state.
+const REPOSITORY_URL: &str = "https://git.example.internal/a-different-group/some-other-name.git";
 
 async fn build_fixture() -> Fixture {
-    std::env::set_var("NAVIGATOR_GIT_HOST", HOST);
-    std::env::set_var("NAVIGATOR_GITHUB_ORG", ORG);
-    std::env::set_var("NAVIGATOR_GCP_PROJECT_ID", "neon-law-stg");
     let surreal = mem_surreal().await;
     let storage: Arc<dyn cloud::StorageService> = Arc::new(
         cloud::FsStorage::new(std::env::temp_dir().join("navigator-project-clone-url-test"))
@@ -94,6 +84,12 @@ async fn build_fixture() -> Fixture {
     )
     .await
     .unwrap();
+    // The pointer the lawyer page renders comes from this row, not from any
+    // deployment configuration.
+    store::projects::set_repository_url(&surreal, proj.id, Some(REPOSITORY_URL))
+        .await
+        .unwrap()
+        .expect("the matter exists");
     store::notations::create(
         &surreal,
         &store::notations::NewNotation::new(tmpl.id, client.id, proj.id, "BEGIN"),
@@ -137,7 +133,6 @@ async fn build_fixture() -> Fixture {
     Fixture {
         app,
         project_id: proj.id,
-        project_code: proj.code,
         lawyer_cookie,
         client_cookie,
     }
@@ -169,17 +164,15 @@ async fn lawyer_sees_the_external_repository_page() {
         html.contains("Integrations"),
         "lawyer page must have the integrations section"
     );
-    // The whole coordinate, and nothing appended to it: the repository name *is*
-    // the Project code, so a trailing segment here would mean something is
-    // still composing a second identifier into the name.
-    let expected = format!("https://{HOST}/{ORG}/{}", f.project_code);
+    // The stored URL, verbatim and whole: nothing composes a host, an
+    // organization, or a suffix onto it.
     assert!(
-        html.contains(&expected),
-        "a lawyer must see the one configured repository coordinate"
+        html.contains(REPOSITORY_URL),
+        "a lawyer must see the URL recorded on the matter"
     );
     assert!(
-        html.contains(&format!("{expected}\"")),
-        "the coordinate must end at the Project code — nothing composes a suffix"
+        html.contains(&format!("{REPOSITORY_URL}\"")),
+        "the URL must end where the stored value ends — nothing appends a suffix"
     );
     assert!(html.contains("Source repository"));
     assert!(!html.contains("navigator git"));
@@ -233,10 +226,10 @@ async fn client_never_sees_the_repository_page() {
         html.contains("Libra formation"),
         "the client portal view must render the matter it names"
     );
-    // The pointer is configured for this fixture, so its absence here is the
-    // client lens withholding it, not an unconfigured deployment.
+    // This matter *records* a repository URL, so its absence here is the client
+    // lens withholding it rather than a Project with nothing to show.
     assert!(
-        !html.contains(&format!("https://{HOST}/{ORG}/")),
+        !html.contains(REPOSITORY_URL),
         "the client portal view must never expose the repository page"
     );
     assert!(

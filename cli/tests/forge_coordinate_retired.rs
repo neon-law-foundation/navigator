@@ -13,13 +13,20 @@
 //! the same way `brand_identifier_is_neon.rs` asserts that the brand identifier
 //! is `neon`.
 //!
-//! **No forge host is a literal where a Project coordinate is composed.** This
-//! is the sharper half, and it is the defect the collapse removed:
+//! **No forge host is a literal in the files that read forge configuration.**
+//! This is the sharper half, and it is the defect the collapse removed:
 //! `portal::config` read `NAVIGATOR_GIT_HOST` with a **public forge as the
 //! default**, so an unset variable silently pointed every Project's clone URL at
 //! a namespace the Firm does not control — while `ops github setup` deliberately
 //! had no such fallback and documented why. Two crates, opposite rules, and the
 //! permissive one was the one serving users.
+//!
+//! **No Project repository URL is composed at all.** A Project's source is a
+//! whole URL stored on the row (`store::projects::Project::repository_url`), on
+//! whatever forge hosts it, so the derivation those two halves used to police is
+//! gone rather than merely configured. The one surviving host in configuration is
+//! `ops github setup`'s authorization boundary, which governs *this* tenant's own
+//! repositories and never names a client matter's source.
 //!
 //! # Why the second half is scoped rather than tree-wide
 //!
@@ -222,10 +229,10 @@ fn no_forge_host_is_a_literal_where_a_coordinate_is_composed() {
     }
     assert!(
         hits.is_empty(),
-        "a Project repository coordinate is composed from configuration — \
-         NAVIGATOR_GITHUB_ORG and NAVIGATOR_GIT_HOST, neither with a default. A forge host \
-         spelled here is either a fallback nobody chose or a fixture pinning one deployment's \
-         spelling. Found {} occurrence(s):\n  {}",
+        "every forge value these files read comes from configuration — NAVIGATOR_GITHUB_ORG and \
+         NAVIGATOR_GIT_HOST, neither with a default — and a Project's own repository is a stored \
+         URL, not a composed one. A forge host spelled here is either a fallback nobody chose or \
+         a fixture pinning one deployment's spelling. Found {} occurrence(s):\n  {}",
         hits.len(),
         hits.join("\n  ")
     );
@@ -251,49 +258,79 @@ fn every_coordinate_source_still_exists_and_is_tracked() {
     );
 }
 
-/// The configured coordinate is read from the environment, in both crates that
-/// read it, and neither supplies a default.
+/// Each surviving forge value is read from configuration, and neither supplies
+/// a default.
 ///
 /// This is the positive half. The two negative tests above prove no host is
-/// *written down*; this one proves the value is actually *read*, so the guard
-/// cannot be satisfied by a file that stopped composing a coordinate at all.
+/// *written down*; this one proves the values are actually *read*, so the guard
+/// cannot be satisfied by a file that stopped reading configuration at all.
+///
+/// The two keys serve different purposes now and live in different crates:
+/// `NAVIGATOR_GITHUB_ORG` is the organization this deployment's own automation
+/// occupies, resolved by `cloud::workspace`; `NAVIGATOR_GIT_HOST` is the single
+/// enterprise host `ops github setup` may write governance to. Neither composes
+/// a Project's repository URL — see
+/// [`no_project_repository_url_is_composed_from_a_project_code`].
 #[test]
-fn the_coordinate_is_read_from_configuration_with_no_default() {
+fn the_surviving_forge_values_are_read_from_configuration_with_no_default() {
     let workspace = std::fs::read_to_string(repo_root().join("cloud/src/workspace.rs"))
         .expect("read cloud/src/workspace.rs");
-    for key in ["NAVIGATOR_GITHUB_ORG", "NAVIGATOR_GIT_HOST"] {
-        assert!(
-            workspace.contains(key),
-            "cloud::workspace must read {key} rather than naming a coordinate",
-        );
-    }
+    assert!(
+        workspace.contains("NAVIGATOR_GITHUB_ORG"),
+        "cloud::workspace must read NAVIGATOR_GITHUB_ORG rather than naming an organization",
+    );
 
-    // A named deployment missing either value fails closed. Asserted against the
+    let governance = std::fs::read_to_string(repo_root().join("cli/src/devx/github_setup.rs"))
+        .expect("read cli/src/devx/github_setup.rs");
+    assert!(
+        governance.contains("NAVIGATOR_GIT_HOST"),
+        "ops github setup must read NAVIGATOR_GIT_HOST as its authorization boundary",
+    );
+
+    // A named deployment with no organization fails closed. Asserted against the
     // real resolver rather than against the file's text, because what matters is
     // the behaviour and not the spelling.
-    for present in [
-        vec![("NAVIGATOR_GCP_PROJECT_ID", "neon-law")],
-        vec![
-            ("NAVIGATOR_GCP_PROJECT_ID", "neon-law"),
-            ("NAVIGATOR_GITHUB_ORG", "an-organization"),
-        ],
-    ] {
-        let lookup = move |key: &str| {
-            present
-                .iter()
-                .find(|(k, _)| *k == key)
-                .map(|(_, v)| (*v).to_string())
-        };
-        assert!(
-            cloud::workspace::WorkspaceConfig::from_lookup(lookup).is_err(),
-            "a named deployment with an incomplete forge coordinate must not resolve",
-        );
-    }
+    let lookup = |key: &str| (key == "NAVIGATOR_GCP_PROJECT_ID").then(|| "neon-law".to_string());
+    assert!(
+        cloud::workspace::WorkspaceConfig::from_lookup(lookup).is_err(),
+        "a named deployment with no organization must not resolve",
+    );
 
     // And no deployment named stays the benign absence it is: the local loop and
     // this test suite operate no deployment.
     assert_eq!(
         cloud::workspace::WorkspaceConfig::from_lookup(|_| None).unwrap_err(),
         cloud::workspace::WorkspaceConfigError::MissingDeployment,
+    );
+}
+
+/// A Project's repository URL is **stored data**, never composed.
+///
+/// This is the invariant that replaced the derivation, and it is the one a
+/// future change is most likely to undo by reintroducing a convenience helper.
+/// A Project's source may live on any forge in any organization, so composing
+/// `{host}/{org}/{code}` would both invent a URL for a Project that has none and
+/// silently override one that names somewhere else.
+#[test]
+fn no_project_repository_url_is_composed_from_a_project_code() {
+    let workspace = std::fs::read_to_string(repo_root().join("cloud/src/workspace.rs"))
+        .expect("read cloud/src/workspace.rs");
+    for banned in ["project_repository", "RepositoryCoordinate"] {
+        assert!(
+            !workspace.contains(banned),
+            "`{banned}` composes a Project repository coordinate; a Project's repository is \
+             `store::projects::Project::repository_url`, a whole URL on any forge",
+        );
+    }
+
+    // The positive half: the column is what carries it, and it is validated
+    // rather than trusted.
+    assert!(
+        store::projects::is_valid_repository_url("https://gitlab.example/a-group/a-project"),
+        "any forge must be storable",
+    );
+    assert!(
+        !store::projects::is_valid_repository_url("https://forge.example"),
+        "a forge root is not a repository",
     );
 }
