@@ -602,9 +602,18 @@ jobs:
           tag: "${{ needs.release-version.outputs.tag }}"
           stage: "integration"
           step: "install nginx-ingress"
+      # Apply the manifest VENDORED IN THIS REPO, exactly as
+      # `install_ingress` in `cli::devx::orchestrate` does — never a URL.
+      # `raw.githubusercontent.com` rate-limits by runner IP, and its 429
+      # arrives as a hard `kubectl` error four minutes into a job that has
+      # already spent an hour building four images (run 32040810491). The
+      # vendored copy is the byte-identical upstream KIND manifest for
+      # controller-v1.11.2, held to its recorded SHA-256 by
+      # `cli::devx::ingress_manifest_tests`, so this trades a third party's
+      # availability for a digest the workspace already gates.
       - name: install nginx-ingress
         run: |
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/kind/deploy.yaml
+          kubectl apply -f k8s/vendor/ingress-nginx-controller-v1.11.2.yaml
           kubectl --namespace ingress-nginx wait \
               --for=condition=ready pod \
               --selector=app.kubernetes.io/component=controller \
@@ -626,6 +635,11 @@ jobs:
         # so the chart bump alone would leave an existing cluster's CRD
         # schema frozen. Server-side because the chart owns these fields and
         # `restateclusters` is ~236 KB, near the client-side annotation cap.
+        #
+        # The CRDs come from the vendored release artifacts under
+        # `k8s/vendor/restate-operator-v2.8.1/`, for the same reason the
+        # ingress manifest does: a manifest fetched at run time makes a
+        # release depend on a third party being reachable in that minute.
         run: |
           helm upgrade --install restate-operator \
               oci://ghcr.io/restatedev/restate-operator-helm \
@@ -633,7 +647,7 @@ jobs:
               --namespace restate-operator --create-namespace
           for crd in restateclusters restatedeployments restatecloudenvironments; do
             kubectl apply --server-side --force-conflicts -f \
-              "https://github.com/restatedev/restate-operator/releases/download/v2.8.1/${crd}.yaml"
+              "k8s/vendor/restate-operator-v2.8.1/${crd}.yaml"
           done
           kubectl --namespace restate-operator wait \
               --for=condition=available --timeout=180s deployment --all

@@ -384,6 +384,72 @@ fn no_readyz_probe_is_one_shot_curled() {
     );
 }
 
+/// NO CLUSTER MANIFEST IS FETCHED AT RUN TIME. Every `kubectl apply` in the
+/// KIND job reads a file this repository vendors.
+///
+/// `raw.githubusercontent.com` rate-limits by runner IP, and `kubectl` turns
+/// its 429 into a hard error rather than a retry: run 32040810491 lost a
+/// release four minutes into the integration job, after an hour of image
+/// builds, because the ingress manifest happened to be unreachable in that
+/// minute. Vendoring is also what makes the version pin real — a URL pinned
+/// to a tag still trusts whatever bytes that tag serves today, while
+/// `cli::devx::ingress_manifest_tests` holds the vendored copy to a recorded
+/// digest.
+///
+/// The assertion is on the shape, not on the two known URLs, because the next
+/// manifest added here would reintroduce the outage silently: the run would go
+/// green on every attempt where the third party happened to answer.
+#[test]
+fn every_kubectl_apply_reads_a_vendored_manifest() {
+    let workflow = deploy_workflow();
+
+    // Backslash continuations are folded first: the Restate CRD apply carries
+    // its `-f` argument on the following line, so a plain line scan sees a
+    // `kubectl apply` with no URL and a URL with no `kubectl apply`, and passes
+    // while the fetch is still there.
+    let folded = workflow.replace("\\\n", " ");
+    let remote: Vec<String> = folded
+        .lines()
+        .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|line| !line.starts_with('#'))
+        .filter(|line| line.contains("kubectl apply") && line.contains("://"))
+        .collect();
+    assert!(
+        remote.is_empty(),
+        "a release must not depend on a third party serving a manifest in the minute it runs — \
+         vendor it under `k8s/vendor/` and apply the file, as `cli::devx::orchestrate` does. \
+         Found: {remote:#?}"
+    );
+
+    // Both vendored roots must be named here, and every artifact must be
+    // present in the tree — otherwise the apply trades a 429 for a missing
+    // file and nothing is gained. The Restate CRDs are applied through a shell
+    // loop, so the directory is what appears literally.
+    for named in [
+        "k8s/vendor/ingress-nginx-controller-v1.11.2.yaml",
+        "k8s/vendor/restate-operator-v2.8.1/",
+    ] {
+        assert!(
+            workflow.contains(named),
+            "deploy.yml must apply the vendored `{named}`, keeping the KIND job on the same \
+             manifests `dev up` applies locally"
+        );
+    }
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    for vendored in [
+        "k8s/vendor/ingress-nginx-controller-v1.11.2.yaml",
+        "k8s/vendor/restate-operator-v2.8.1/restateclusters.yaml",
+        "k8s/vendor/restate-operator-v2.8.1/restatedeployments.yaml",
+        "k8s/vendor/restate-operator-v2.8.1/restatecloudenvironments.yaml",
+    ] {
+        assert!(
+            root.join(vendored).exists(),
+            "`{vendored}` is named by deploy.yml but is missing from the tree"
+        );
+    }
+}
+
 #[test]
 fn standalone_wasm_workflow_stays_retired() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
