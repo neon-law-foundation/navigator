@@ -185,8 +185,9 @@ rather than half-reconciled.
 
 > **Auto-merge identity.** `enable-automerge` prefers a GitHub App token with `contents: write` and
 > `pull_requests: write`, falling back to `GITHUB_TOKEN`. It needs `AUTOMERGE_APP_ID` and
-> `AUTOMERGE_APP_PRIVATE_KEY` as Actions secrets. The only Actions *variables* are the two registry coordinates in
-> [Keyless pushes to the image hub](#keyless-pushes-to-the-image-hub). >
+> `AUTOMERGE_APP_PRIVATE_KEY` as Actions secrets. Publishing adds no companion configuration — it authenticates with
+> the run's own `GITHUB_TOKEN`, see [Keyless pushes to GHCR](#keyless-pushes-to-ghcr) — so the repository carries no
+> Actions *variable* at all. >
 > Neither secret exists on this repository today, so auto-merge arms under `GITHUB_TOKEN` as
 > `app/github-actions`. Arming also requires at least one *required* status check: with nothing required, the
 > mutation is refused with `Pull request is in unstable status`, because auto-merge has nothing to wait on. >
@@ -448,43 +449,50 @@ options are re-running failed jobs when the source is fine, or rolling back with
 fix waits for the next UTC day. Deleting and re-pushing a tag is never the answer — a moved tag makes every artifact
 already carrying that version a lie.
 
-### Keyless pushes to the image hub
+### Keyless pushes to GHCR
 
-The publish jobs hold no registry key. They mint a short-lived token through Workload Identity Federation and
-impersonate `navigator-ci-pusher@ghcr.iam.gserviceaccount.com`, which holds `roles/artifactregistry.writer` on the
-`navigator` repository and nothing else — it cannot read a runtime secret and cannot reach a GKE cluster. The
-deploy-side identity is a separate service account per runtime project, so a pusher cannot also roll a cluster.
+The publish jobs hold no registry key, no PAT, and no cloud credential. Every image goes to `ghcr.io/<owner>`, and the
+login is the run's own `GITHUB_TOKEN`:
 
-Three values wire this up, and only the provider resource name is a secret:
-
-| Name | Kind | Value |
-| --- | --- | --- |
-
-**The issuer is the standard one.** Actions OIDC tokens are minted by `https://token.actions.githubusercontent.com`,
-which is what every public WIF tutorial assumes and what the pool must trust. This was the opposite while Navigator sat
-on a data-residency enterprise, which minted its own tokens under the tenant host — a provider pinned to the wrong
-issuer is accepted at create time, reports `ACTIVE`, and then fails every token exchange, so confirm it rather than
-assuming:
-
-```bash
-curl https://token.actions.githubusercontent.com/.well-known/openid-configuration
+```yaml
+- name: log in to the image registry
+  uses: docker/login-action@v4.6.0
+  with:
+    registry: ghcr.io
+    username: ${{ github.actor }}
+    password: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The attribute condition is pinned to the full `owner/repo` and to the refs that may publish, so a fork — which carries
-its own `repository` claim — and an arbitrary branch both fail at `google-github-actions/auth` rather than at the push:
+That works because the repository, its Actions, and its registry are one product: github.com mints the token and
+`ghcr.io` is github.com's own registry. The token is issued per run and expires with it, so there is nothing to
+configure, nothing to rotate, and nothing to leak. `packages: write` is the entire grant.
 
-```text
-assertion.repository == 'neon-law-foundation/navigator'
-    && (assertion.ref == 'refs/heads/main' || assertion.ref.startsWith('refs/tags/'))
-```
+**The grant is per job, not workflow-wide.** The top-level `permissions:` block holds `contents: read`; only
+`publish-service` and `publish-triggers` add `packages: write`, so no other job in the release can push an image. A
+fork's run receives a read-only token and fails at the push rather than somewhere subtler.
 
-`refs/tags/*` is the arm that matters: every publishing run now starts from a tag ref, so that is the claim the token
-carries. `refs/heads/main` is retained and unused — it admitted the `workflow_dispatch` publish, which ran from `main` —
-and narrowing the condition to tags alone is a provider change to make deliberately rather than a side effect of
-retiring the trigger. `navigator ops gcp hub setup --project-id ghcr` reconciles all of it, converging an existing
-provider onto the current issuer and condition instead of reporting success over a stale one. The impersonation binding
-is reconciled *exclusively*: exactly one repository may impersonate the pusher, because an `ensure` that only ever adds
-can never revoke, and an org rename would otherwise leave the old principal still able to publish images.
+**No Workload Identity Federation is involved, and a test holds that line.** There is no `google-github-actions/auth`
+step, no `navigator-ci-pusher` service account, and no attribute condition pinning `assertion.repository` — the pool,
+the provider, and the impersonation binding the Artifact Registry path needed all retired with it, along with the issuer
+subtlety that made a provider report `ACTIVE` and then fail every exchange.
+`cli/tests/deploy_workflow.rs::deploy_workflow_ships_nothing_and_holds_no_cloud_credential` asserts that neither
+`google-github-actions/auth` nor `workload_identity_provider` appears anywhere in `deploy.yml`, so the credential path
+cannot creep back in unremarked. `publish-service` still requests `id-token: write` and no step consumes it — a leftover
+of the retired path, not a second one.
+
+**A fork changes one variable, not three.** `cli::devx::registry::DEFAULT_REGISTRY` is `ghcr.io/neon-law-foundation` and
+`NAVIGATOR_IMAGE_REGISTRY` overrides it. The Artifact Registry path needed a region, a hub project, and a repository
+name, any two of which could disagree and still render a syntactically valid reference to somewhere no image had ever
+been pushed.
+
+**The Google Cloud image hub survives in the CLI and governs nothing this repository publishes.** `ops gcp hub setup`
+still provisions a GAR repository, the `navigator-ci-pusher` service account, and a GitHub Workload Identity pool, while
+`ops gcp setup` still runs a "container registry access" stage and `--images-project-id` still writes a cross-project
+`roles/artifactregistry.reader` binding. Nothing in the publish or pull path reaches any of it: CI pushes to GHCR, and
+`ops ship` renders `ghcr.io/<owner>` into every `image:` line. Treat that machinery as unused for images rather than as
+a second live lane, and do not reconcile it expecting it to affect a release. Removing it is a scoping exercise rather
+than a delete: `artifact_registry.rs` also hosts the WIF helpers that `marketing.rs`, `app_publisher.rs`, `kms.rs`, and
+`secret_manager.rs` genuinely use.
 
 ### Image retention
 

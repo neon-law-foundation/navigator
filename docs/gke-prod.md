@@ -52,7 +52,7 @@ Deployment decisions are summarized here and in [`cloud-operations.md`](cloud-op
 | Workflows | Restate Cloud | (out-of-cluster; bearer-token auth) |
 | Per-Project git repos | A constructed link into the deployment's GitHub organization | (no manifest) |
 | Secrets | Secret Manager + CSI | `examples/deploy/k8s/gke/secrets/` |
-| Image registry | Google Artifact Registry (private) | `examples/deploy/k8s/gke/patches/web-image.yaml` |
+| Image registry | GHCR (`ghcr.io/neon-law-foundation`) | `examples/deploy/k8s/gke/patches/web-image.yaml` |
 | Delivery | `ship` renders + applies the embedded tree | [Manifest delivery](#manifest-delivery) |
 | Logs / metrics / traces | Cloud Logging + GMP + Cloud Trace | (auto, no manifest) |
 | Long-term log archive | Cloud Logging sink → GCS | (gcloud-provisioned; see below) |
@@ -163,10 +163,20 @@ for a roll outside either — a re-roll, a rehearsal, a rollback, or a deploymen
 Deployments are the whole rollout: Navigator serves no Git and mounts no repository volume, so a ship waits on exactly
 the two service rollouts it started.
 
-The published images live in a **private** Google Artifact Registry — in the images project, which is not the cluster's
-— and the GKE nodes pull them via Workload Identity, so there is no imagePullSecret and no registry credential to
-rotate. That cross-project pull needs the node identity granted `roles/artifactregistry.reader` on the hub repository;
-`navigator ops gcp setup --images-project-id <project>` does it.
+The published images live on **GHCR**, at `ghcr.io/neon-law-foundation` — `cli::devx::registry::DEFAULT_REGISTRY`, which
+a fork overrides with `NAVIGATOR_IMAGE_REGISTRY`. `ops ship` renders that one value into the `YOUR_IMAGE_REGISTRY` token
+every `image:` line in the embedded manifests carries, so what a node pulls is whatever that variable says and nothing
+else can disagree with it.
+
+**Confirm the node pull path against the live cluster rather than inferring it from this repository.** A GHCR package
+inherits its linked repository's visibility and `neon-law-foundation/navigator` is public, so an anonymous pull should
+need no imagePullSecret and no registry credential to rotate. The cluster serving production predates that move: it was
+provisioned when images sat in a private Artifact Registry in the images project, pulled cross-project via Workload
+Identity with `roles/artifactregistry.reader` on the node identity — a binding that `ops gcp setup` still writes when
+given `--images-project-id`. Which arrangement a given cluster is actually on is a property of the deployment tree in
+the private `navigator-deploy` repository and of the cluster itself, not of anything checked in here. Check there, or
+ask the operator, before treating either as settled — and verify the first release actually pulls before relying on the
+public-package path.
 
 Retention is `.github/workflows/ghcr-retention.yml`, nightly at 01:11 UTC: it deletes a version only when it is older
 than 30 days **and** outside its image's newest 10 **and** not the one carrying `latest`. That count floor is why a
