@@ -11,18 +11,20 @@ practice consequences, and there is not review capacity to offer an outside cont
 concern, a fork you are running, a question about the licences, or an interest in contributing when this reopens. The
 address is read by people, and a report that never becomes a pull request is still worth sending.
 
-The licence is a separate question, and it is open. The software is dual-licensed under MIT or Apache-2.0 at your
-option, and the drafted legal prose under `templates/` is CC BY 4.0. You may run, fork, modify, and redistribute this
-software, with no permission to ask for. See [`LICENSE.md`](LICENSE.md) and [`docs/licensing.md`](docs/licensing.md).
+The licence is a separate question, and it is open. Navigator is free software under the GNU Affero General Public
+License, version 3 — `AGPL-3.0-only` — over the whole tree, `templates/` included. You may run, fork, modify, and
+redistribute it, with no permission to ask for. Section 13 is the obligation to know before you deploy: modify it, let
+users reach it over a network, and you owe those users your modified source. See [`LICENSE`](LICENSE) and
+[`docs/licensing.md`](docs/licensing.md).
 
 ## How contributions are licensed
 
 The terms are stated here so they are knowable in advance, and so a fork's own authors know where they stand.
 
-Contributions are **inbound = outbound**: anything submitted for inclusion is licensed `MIT OR Apache-2.0` on the same
-terms the project ships under, as described in section 5 of the Apache-2.0 licence. Contributions to `templates/` carry
-`CC-BY-4.0` instead, matching what that content ships under. If a change adds a blank government form, note that the
-Foundation licenses nothing in the agency's own PDF — only the catalog card, field map, and workflow beside it.
+Contributions are **inbound = outbound**: anything submitted for inclusion is licensed `AGPL-3.0-only` on the same terms
+the project ships under, `templates/` included — one grant over the tree means there is no second answer depending on
+which directory you touched. If a change adds a blank government form, note that the Foundation licenses nothing in the
+agency's own PDF — only the catalog card, field map, and workflow beside it.
 
 You keep the copyright in what you write. There is no contributor agreement to sign, no copyright assignment, and no bot
 standing between an author and a merge.

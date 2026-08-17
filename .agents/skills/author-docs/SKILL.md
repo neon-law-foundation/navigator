@@ -141,7 +141,7 @@ Routing follows the councils in [`docs/agent-decision-councils.md`](../../../doc
 - `templates/`, questionnaire prompts, or legal copy → **Legal Council**.
 - Architecture invariants, glossary definitions, or doc clarity → **Engineering Council**.
 - Marketing pages, portal UI, or visitor-facing strings → **Client Council**.
-- `LICENSE.md`, `LICENSE-MIT`, and `LICENSE-APACHE` → left to their owners.
+- `LICENSE` → left to its owners.
 
 ## What to run after you decide
 

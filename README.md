@@ -18,28 +18,28 @@ truth, and follow <AGENTS.md> for local development and contribution workflows.
 
 ## License
 
-The software is dual-licensed under either
+Navigator is free software under the [GNU Affero General Public License, version 3](LICENSE): `AGPL-3.0-only`. Read it,
+build it, fork it, and redistribute it.
 
-- the [MIT license](LICENSE-MIT), or
-- the [Apache License, Version 2.0](LICENSE-APACHE)
+**One licence covers everything the Foundation can license** — the Rust workspace, the `navigator` CLI, the build and
+deployment tooling, and the notation bodies under `templates/`. There is no second grant to read and no per-tree
+exception to look up. The blank government PDFs under `templates/forms/` are the issuing agency's work, and the
+Foundation licenses nothing in them, because they were never the Foundation's to license.
 
-at your option: `MIT OR Apache-2.0`. Read it, build it, fork it, and redistribute it.
+**If you run a modified Navigator as a service, section 13 applies to you.** That is the clause that makes this the
+Affero licence rather than the ordinary GPL: modify this software, let users reach it over a network, and you owe those
+users the corresponding source of your version. Operating a legal-services portal for other people is exactly that
+shape, so the obligation attaches to running it and not only to shipping it.
 
-**The legal prose carries a different licence.** The notation bodies under `templates/` — retainers, wills,
-questionnaire prompts — are [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/): adapt and redistribute them
-freely, commercially included, on attribution alone. A software licence's obligations describe nothing a will template
-does. The blank government PDFs under `templates/forms/` are the issuing agency's work, and the Foundation licenses
-nothing in them.
+See <LICENSE> for the grant and the reservations, [`docs/licensing.md`](docs/licensing.md) for why this software is
+published at all, and <CONTRIBUTING.md> for how contributions are licensed.
 
-See <LICENSE.md> for why the three differ, [`docs/licensing.md`](docs/licensing.md) for why this software is published
-at all, and <CONTRIBUTING.md> for how contributions are licensed.
-
-Copyright (c) 2026 **Neon Law Foundation**.
+Copyright (C) 2026 **Neon Law Foundation**.
 
 ## Trademarks
 
 Copyright and trademark sit with different organizations here, and the distinction is the one a fork needs. The **Neon
-Law Foundation** produces this software and holds the copyright, publishing it under the licences above. **NEON LAW** is
+Law Foundation** produces this software and holds the copyright, publishing it under the licence above. **NEON LAW** is
 a registered trademark, U.S. Reg. No. 6,325,650, owned by **Shook Law PLLC**, the law firm that operates the software
 under the mark. The licence grants rights in copyright, not in trademarks.
 

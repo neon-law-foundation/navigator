@@ -2,11 +2,13 @@
 
 **Neon Law Navigator** is copyright the **Neon Law Foundation**, which produces it; **Shook Law PLLC** (the Firm), which
 trades as **Neon Law**, operates it and owns the NEON LAW mark. **This is a public, open-source repository** at
-[github.com/neon-law-foundation/navigator](https://github.com/neon-law-foundation/navigator): the code is dual-licensed
-`MIT OR Apache-2.0`, and the legal prose under `templates/` is `CC-BY-4.0`. Outside contributions are **currently
-closed** — point anyone asking at `contact@neonlaw.org` — though the inbound = outbound terms still stand, with no
-assignment. The marks are reserved. This monorepo holds one website — the firm at the root, the Neon Law Foundation
-under `/foundation` — and the delivery stack for legal services. See [`docs/licensing.md`](docs/licensing.md).
+[github.com/neon-law-foundation/navigator](https://github.com/neon-law-foundation/navigator): one grant,
+`AGPL-3.0-only`, over the whole tree including the legal prose under `templates/`, in one root [`LICENSE`](LICENSE).
+Section 13 is the clause that matters operationally — a modified Navigator run for remote users owes those users its
+source. Outside contributions are **currently closed** — point anyone asking at `contact@neonlaw.org` — though the
+inbound = outbound terms still stand, with no assignment. The marks are reserved. This monorepo holds one website — the
+firm at the root, the Neon Law Foundation under `/foundation` — and the delivery stack for legal services. See
+[`docs/licensing.md`](docs/licensing.md).
 
 **Everything you write here is published.** The no-client-data rule below is what stands between a live legal practice
 and a public tree, and it is now enforced by a test rather than by the absence of a publication path.

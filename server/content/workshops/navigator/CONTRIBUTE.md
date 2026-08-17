@@ -20,8 +20,8 @@ Pick the path that fits the time and craft you have:
 
 ---
 
-Neon Law Navigator is copyright the Neon Law Foundation, which produces it and publishes it open source under MIT or
-Apache-2.0; Neon Law operates it. This workshop is about contributing to the **product**: issues, templates, government
+Neon Law Navigator is copyright the Neon Law Foundation, which produces it and publishes it as free software under the
+AGPL-3.0; Neon Law operates it. This workshop is about contributing to the **product**: issues, templates, government
 PDF forms, tests, and the shared corpus every installation uses. Contributions are inbound = outbound — you keep your
 copyright and license your work on the same terms the project ships under. The mission — putting the rights already
 written into law within reach of the people they belong to — only moves if that corpus keeps getting better. There are

@@ -18,8 +18,11 @@ routes.
 This walkthrough provisions a Navigator deployment on Google Cloud. It is written for the Firm's own operators and for
 anyone else standing Navigator up under the licence.
 
-Navigator's software is dual-licensed `MIT OR Apache-2.0` ([`LICENSE.md`](../LICENSE.md)), so you may run this
-deployment for any purpose, including a law practice you charge clients for. See [`licensing.md`](licensing.md).
+Navigator is free software under `AGPL-3.0-only` ([`LICENSE`](../LICENSE)), so you may run this deployment for any
+purpose, including a law practice you charge clients for. One obligation comes with that and it lands on exactly this
+walkthrough: if you modify Navigator and let clients reach your deployment over a network, section 13 requires you to
+offer those users the corresponding source of your modified version. Deploying it unmodified carries no such duty. See
+[`licensing.md`](licensing.md).
 
 Rename your deployment through the brand manifest rather than by editing sources: the NEON LAW marks are not licensed
 here, and that seam exists so a fork does not have to patch views to drop them.

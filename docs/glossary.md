@@ -796,7 +796,7 @@ firm's registered mark, so the shortened form names the wrong entity. "NLF" is t
 comments and brand assets (e.g. the NLF PNG mark). See [`mission.md`](../server/content/marketing/mission.md) and the
 Foundation brand in [`views::brand`](../views/src/brand.rs). The Foundation **produces** Navigator and holds the
 copyright in it; the Firm **operates** it and owns the NEON LAW mark. The Foundation uses that mark under written
-permission from the Firm ([`LICENSE`](../LICENSE.md)) rather than owning it.
+permission from the Firm ([`LICENSE`](../LICENSE)) rather than owning it.
 
 Structurally the Foundation is **middleware**: it pairs legal aid organizations with law firms rather than taking
 matters itself. A provider certifies a client's eligibility with a [Statement of Legal Aid
@@ -811,9 +811,9 @@ nonlawyer organization's substantive work lawful.
 Short for **Neon Law Navigator** — the umbrella over this monorepo: the CLI (`navigator`), the one website serving both
 faces (`neon` / `portal` / `webapp`), the rule engine (`rules`), the MCP server, and everything else under this Cargo
 workspace. The *code* is copyright the **Neon Law Foundation**, which produces it; the Firm operates it under the NEON
-LAW mark. This is a **public, open-source repository**: it is dual-licensed `MIT OR Apache-2.0` and the legal prose
-under `templates/` is `CC-BY-4.0`. Outside contributions are closed for now, though the inbound = outbound terms stand
-with no assignment ([`LICENSE`](../LICENSE.md), [`licensing.md`](licensing.md)).
+LAW mark. This is a **public, open-source repository**: one grant, `AGPL-3.0-only`, covers the whole tree including the
+legal prose under `templates/`. Outside contributions are closed for now, though the inbound = outbound terms stand with
+no assignment ([`LICENSE`](../LICENSE), [`licensing.md`](licensing.md)).
 
 *Matter work product* produced from the templates belongs to the client and the matter; the *name and marks* — "Neon
 Law", "Neon Law Foundation", "NLF", "Navigator", "Neon Law Navigator", and the NLF logo — are reserved. **NEON LAW** is
