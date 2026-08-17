@@ -1,0 +1,273 @@
+name: ghcr retention
+
+# THE ONLY WORKFLOW IN THIS REPOSITORY THAT DELETES A PUBLISHED ARTIFACT.
+#
+# Every other workflow adds — images, archives, check runs. This one removes, on
+# a clock, unattended, and what it removes does not come back: a deleted GHCR
+# container version is gone, and `navigator ops ship` refuses a tag the registry
+# no longer holds, which is the documented rollback path. So the interesting part
+# of this file is not what it deletes but what it CANNOT.
+#
+# Retention used to be count-only and enforced nowhere this registry can see:
+# `navigator ops gcp hub setup` PATCHes an Artifact Registry repository's
+# `cleanupPolicies` to keep the last ten versions, and every image now lives on
+# `ghcr.io`, which never reads them. GHCR offers no server-side retention rule at
+# all, so a workflow is the only place it can live.
+#
+# THREE INDEPENDENT FLOORS, and a version has to clear all three to be deleted:
+#
+#   1. AGE — older than CUTOFF_DAYS.
+#   2. COUNT — outside its own image's newest RETAINED_VERSIONS. This is the half
+#      that cannot expire, and it is why the sweep is safe now that publishing
+#      runs from a tag rather than a nightly cron. Under the cron every running
+#      version was a day old, so an age rule could never reach one; with releases
+#      driven by tags a quiet month is ordinary, and age alone would delete the
+#      exact versions production is running. Serving pods survive that — they
+#      already pulled — but a restart, a reschedule, or a node replacement cannot
+#      pull an image that is gone.
+#   3. NOT `latest` — every publish moves that pointer, and deleting what it
+#      points at leaves a tag resolving to nothing. That failure surfaces at pull
+#      time, in a cluster, not here.
+#
+# AND ONE SCOPE BOUND: a GHCR package is owned by the ORG, not the repository, so
+# `/orgs/{org}/packages` lists packages this repository never published. The sweep
+# filters candidates by their linked repository and SKIPS a package whose link is
+# null — fail closed, because the alternative is a workflow here quietly pruning
+# another repository's images.
+#
+# The credential is the run's own `GITHUB_TOKEN` with `packages: write`. No PAT,
+# nothing to rotate, and no cloud provider: GHCR is the only registry.
+#
+# Rehearse a change with the dispatch before a night runs it live —
+# `dry_run: true` lists every deletion it would make and deletes nothing.
+
+on:
+  schedule:
+    # 01:11 UTC. An odd minute rather than :00, because the top of the hour is
+    # when GitHub's hosted-runner queue is deepest and a scheduled run is
+    # delayed, not queued fairly. This is the slot the nightly release train
+    # held before publishing moved to a pushed tag.
+    - cron: "11 1 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: >-
+          Report what would be deleted and delete nothing. The safe way to prove
+          a change to this workflow.
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  # Two sweeps racing would both list, both decide, and both delete against a
+  # registry the other is mutating. Serialize, and never cancel a run
+  # mid-delete — a half-applied sweep is harder to reason about than a late one.
+  group: ghcr-retention
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: prune GHCR versions older than 30 days
+    # A fork must never prune the upstream org's packages.
+    if: github.repository == 'neon-law-foundation/navigator'
+    runs-on: ubuntu-latest
+    # Deleting a version is the whole grant. In particular NOT `contents:
+    # write` — this job prunes a registry, and nothing in this repository's
+    # automation may move a ref.
+    permissions:
+      packages: write
+    # A sweep is a few hundred API calls. Cap it so a paging bug that never
+    # terminates cannot hold the concurrency group open indefinitely.
+    timeout-minutes: 20
+    steps:
+      - name: prune container versions
+        id: sweep
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          # An empty `inputs.dry_run` is a scheduled run, which sweeps for real.
+          # The dispatch defaults it to `true`, so the manual path is the safe
+          # one and the automatic path is the deliberate one.
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' }}
+        run: |
+          set -euo pipefail
+
+          # Delete nothing newer than this, and never fewer than this many of
+          # each image's newest versions. `cli/tests/ghcr_retention.rs` asserts
+          # both literals — they are the floors, so they are guarded rather than
+          # reviewed.
+          CUTOFF_DAYS=30
+          RETAINED_VERSIONS=10
+
+          cutoff="$(date -u -d "${CUTOFF_DAYS} days ago" +%s)"
+          echo "cutoff: $(date -u -d "@${cutoff}" +'%Y-%m-%dT%H:%M:%SZ') (${CUTOFF_DAYS} days ago)"
+          echo "floor:  newest ${RETAINED_VERSIONS} versions of every image, plus whatever carries \`latest\`"
+          echo "dry run: ${DRY_RUN}"
+          echo
+
+          # Candidate packages: container packages this org owns whose linked
+          # repository is THIS one. `--paginate --slurp` merges the pages into
+          # one array so `jq` sees the whole set; a package with no repository
+          # link is skipped rather than assumed to be ours.
+          #
+          # This read is ORG-scoped while the token is repo-scoped, which is the
+          # one call here that can fail for a reason no amount of retrying fixes:
+          # if the org restricts package visibility, `GITHUB_TOKEN` gets a 403
+          # and every night pages with `gh: HTTP 403` and no context. Name the
+          # cause and the fix at the point of failure — and FAIL rather than
+          # treating an unreadable list as an empty one, because "swept nothing"
+          # and "could not look" must not report the same way.
+          if ! packages="$(gh api --paginate --slurp \
+              "/orgs/${OWNER}/packages?package_type=container&per_page=100" \
+              --jq "[.[][] | select(.repository.name == \"${REPO_NAME}\") | .name] | sort")"; then
+              echo "::error::could not list ${OWNER}'s container packages. GITHUB_TOKEN holds \`packages: write\` on this repository, but listing ORG packages also needs the org to permit it — check Settings → Packages, or grant a PAT with read:packages and wire it in as a secret."
+              exit 1
+          fi
+          count="$(printf '%s' "${packages}" | jq 'length')"
+          echo "packages linked to ${OWNER}/${REPO_NAME}: ${count}"
+          if [ "${count}" -eq 0 ]; then
+              # Not an error, and not silently fine either: the images are
+              # published by deploy.yml, so zero candidates means either nothing
+              # has been published yet or the repository link changed shape.
+              echo "::warning::no container packages are linked to ${OWNER}/${REPO_NAME} — nothing to sweep"
+              echo "summary=no linked container packages; nothing swept" >> "$GITHUB_OUTPUT"
+              exit 0
+          fi
+
+          deleted=0
+          kept=0
+          failed=0
+
+          for package in $(printf '%s' "${packages}" | jq -r '.[]'); do
+              encoded="${package//\//%2F}"
+              # Newest first, so the index IS the count floor: the first
+              # RETAINED_VERSIONS entries are exempt whatever their age.
+              versions="$(gh api --paginate --slurp \
+                  "/orgs/${OWNER}/packages/container/${encoded}/versions?per_page=100" \
+                  --jq '[.[][]] | sort_by(.created_at) | reverse')"
+              total="$(printf '%s' "${versions}" | jq 'length')"
+
+              # One jq pass applies all three floors — count, then age, then the
+              # `latest` exemption — and emits only the ids that clear every one.
+              # Keeping the decision in a single expression beats spreading it
+              # across a bash loop with three `continue`s, where a reader has to
+              # reconstruct which conditions compose.
+              #
+              # It emits a JSON ARRAY so the count and the iteration below read
+              # the same list. Counting a raw newline-delimited blob would mean
+              # `grep -c`, which exits 1 on no match — and an empty candidate
+              # list is the COMMON case, so under `set -e` the quiet, correct
+              # outcome would become a failed sweep that pages.
+              doomed="$(printf '%s' "${versions}" | jq -c \
+                  --argjson keep "${RETAINED_VERSIONS}" \
+                  --argjson cutoff "${cutoff}" '
+                  to_entries
+                  | map(select(.key >= $keep))
+                  | map(select((.value.created_at | fromdateiso8601) < $cutoff))
+                  | map(select((.value.metadata.container.tags // []) | index("latest") | not))
+                  | map(.value.id)
+              ')"
+
+              doomed_count="$(printf '%s' "${doomed}" | jq 'length')"
+              kept=$((kept + total - doomed_count))
+              echo "${package}: ${total} versions, ${doomed_count} eligible for deletion"
+
+              if [ "${doomed_count}" -eq 0 ]; then
+                  continue
+              fi
+
+              for id in $(printf '%s' "${doomed}" | jq -r '.[]'); do
+                  if [ "${DRY_RUN}" = "true" ]; then
+                      echo "  would delete ${package} version ${id}"
+                      continue
+                  fi
+                  # A failed delete must not abandon the rest of the sweep: one
+                  # 404 from a version another run already removed would
+                  # otherwise leave every later package unpruned, and the run
+                  # would report the failure without saying how much it skipped.
+                  if gh api --method DELETE \
+                      "/orgs/${OWNER}/packages/container/${encoded}/versions/${id}" \
+                      --silent; then
+                      echo "  deleted ${package} version ${id}"
+                      deleted=$((deleted + 1))
+                  else
+                      echo "::warning::could not delete ${package} version ${id}"
+                      failed=$((failed + 1))
+                  fi
+              done
+          done
+
+          echo
+          if [ "${DRY_RUN}" = "true" ]; then
+              summary="dry run over ${count} images: ${kept} versions kept, deletions listed above only"
+          else
+              summary="${count} images swept: ${deleted} versions deleted, ${kept} kept, ${failed} failed"
+          fi
+          echo "${summary}"
+          echo "summary=${summary}" >> "$GITHUB_OUTPUT"
+          # A sweep that could not delete anything it decided to delete has not
+          # done its job, and the warnings above scroll away. Fail so the page
+          # below fires.
+          if [ "${failed}" -gt 0 ]; then
+              echo "::error::${failed} deletions failed"
+              exit 1
+          fi
+
+      # Identifiers and counts, never content — the same rule that binds the
+      # release reports. This body carries image counts and a run URL.
+        # Quoted: an unquoted `#` starts a YAML comment, which would silently
+        # truncate this name to "report the sweep to".
+      - name: "report the sweep to #navigator"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SUMMARY: ${{ steps.sweep.outputs.summary }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::notice::SLACK_WEBHOOK_URL is unset — skipping the sweep report"
+              exit 0
+          fi
+          TEXT=":broom: *GHCR retention* — ${SUMMARY}
+          Run: ${RUN_URL}"
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          code=$(curl -sS --max-time 15 -o /tmp/slack-sweep.out -w '%{http_code}' \
+              -X POST "${SLACK_WEBHOOK_URL}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}") || code="000"
+          if [ "${code}" != "200" ]; then
+              # A warning, never an error: the sweep already happened, and
+              # failing the job over its own narration would page for a
+              # successful prune.
+              echo "::warning::#navigator sweep report failed (${code})"
+              cat /tmp/slack-sweep.out 2>/dev/null || true
+              exit 0
+          fi
+          echo "sweep report posted to #navigator"
+
+      # THE PAGE. A scheduled destructive job that fails silently is
+      # indistinguishable from one that never ran — and this one's quiet failure
+      # mode is worse than a red build: images simply stop being pruned, or are
+      # pruned wrongly, and no check anywhere goes red. A silent nightly failure
+      # went unnoticed for four consecutive nights once; this is the guard
+      # against the same shape.
+      - name: "page #navigator on a failed sweep"
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_OPS_MENTION: ${{ secrets.SLACK_OPS_MENTION }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot page on the failed sweep"
+              exit 1
+          fi
+          TEXT=":x: GHCR retention sweep failed — ${SLACK_OPS_MENTION} please investigate. Published images may not have been pruned.
+          Run: ${RUN_URL}"
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          curl -sS --max-time 15 -X POST "${SLACK_WEBHOOK_URL}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}" || echo "::warning::the failure page itself could not be posted"
