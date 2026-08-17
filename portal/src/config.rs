@@ -44,62 +44,6 @@ pub struct DeploymentInvariantError {
 
 pub const DEFAULT_PORT: u16 = 3001;
 
-/// The pure configuration behind a lawyer Project repository link.
-///
-/// This is deliberately a URL formatter, not a forge client: an unconfigured
-/// deployment leaves the pointer absent, while a configured pointer may
-/// harmlessly lead to a private repository that does not exist yet. No network
-/// request or URL reachability validation belongs on this path.
-///
-/// # An absent pointer is a legitimate outcome
-///
-/// A Project's repository is a *derived coordinate that may not exist*: with no
-/// deployment named there is no organization and no host, so there is no
-/// coordinate, and that is correct rather than degraded. The local loop and the
-/// test suite operate no deployment. So [`Self::url_for`] returns `Option`, and
-/// there is no default host to make the absence look like a success — a
-/// fallback to a public forge would aim a Project's clone URL at a namespace
-/// the Firm does not control.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectRepositoryLink {
-    workspace: Option<cloud::WorkspaceConfig>,
-}
-
-impl ProjectRepositoryLink {
-    /// Read the pointer inputs once at router construction.
-    #[must_use]
-    pub fn from_env() -> Self {
-        Self::from_lookup(|key| std::env::var(key).ok())
-    }
-
-    /// Build from a lookup seam so URL construction has no process-global test
-    /// state.
-    #[must_use]
-    pub fn from_lookup<F: Fn(&str) -> Option<String>>(get: F) -> Self {
-        Self {
-            workspace: cloud::WorkspaceConfig::from_lookup(get).ok(),
-        }
-    }
-
-    /// Construct the browser URL for one Project's repository, or leave the
-    /// nullable field absent while this deployment has no configured forge
-    /// coordinate.
-    ///
-    /// The repository name *is* the Project code and the organization and host
-    /// come from the active deployment's configuration, so no route string can
-    /// redirect a lawyer to another deployment's repository. Navigator
-    /// constructs this URL and never verifies it: it provisions no
-    /// repositories, so the target may not exist.
-    #[must_use]
-    pub fn url_for(&self, project_code: &str) -> Option<String> {
-        Some(
-            self.workspace
-                .as_ref()?
-                .project_repository_url(project_code),
-        )
-    }
-}
-
 impl AppConfig {
     /// Build an `AppConfig` from the process environment.
     pub fn from_env() -> Result<Self, ConfigError> {
@@ -277,8 +221,8 @@ pub fn enforce_deployment_invariants<F: Fn(&str) -> Option<String>>(
 
 #[cfg(test)]
 mod tests {
-    use super::{enforce_deployment_invariants, AppConfig, ConfigError, ProjectRepositoryLink};
-    use cloud::workspace::{NAVIGATOR_GITHUB_ORG, NAVIGATOR_GIT_HOST};
+    use super::{enforce_deployment_invariants, AppConfig, ConfigError};
+    use cloud::workspace::NAVIGATOR_GITHUB_ORG;
     use std::collections::HashMap;
     use store::DeploymentEnvironment;
 
@@ -300,107 +244,12 @@ mod tests {
     /// invariant tests — long enough to clear the length check.
     const SECRET32: &str = "0123456789abcdef0123456789abcdef";
 
-    /// The synthetic forge coordinate every fixture in this module configures.
+    /// The synthetic organization every fixture in this module configures.
     ///
-    /// Which organization and host serve a deployment's Project repositories is
-    /// *configuration*, so no real organization or forge host is a constant or a
-    /// fixture value here. A fixture that spelled its own would be a second
-    /// vocabulary alongside the configured one, which is how the stray
-    /// fourth-organization fixture this replaces came about.
+    /// Which organization a deployment's own automation lives in is
+    /// *configuration*, so no real organization name is a constant or a fixture
+    /// value here.
     const AN_ORGANIZATION: &str = "an-organization";
-    const A_FORGE_HOST: &str = "forge.example";
-
-    /// The pointer names `<configured-organization>/<projects.code>` on the
-    /// configured host, and nothing composes a second identifier into it.
-    #[test]
-    fn repository_pointer_is_the_configured_organization_and_the_project_code() {
-        let link = ProjectRepositoryLink::from_lookup(lookup(&[
-            (NAVIGATOR_GIT_HOST, A_FORGE_HOST),
-            (NAVIGATOR_GITHUB_ORG, AN_ORGANIZATION),
-            ("NAVIGATOR_GCP_PROJECT_ID", "neon-law-stg"),
-        ]));
-
-        assert_eq!(
-            link.url_for("matter-42"),
-            Some(format!(
-                "https://{A_FORGE_HOST}/{AN_ORGANIZATION}/matter-42"
-            ))
-        );
-    }
-
-    /// The pointer reads the configured value rather than spelling one.
-    ///
-    /// Two deployments differ only in what their configuration says, so the
-    /// same code under a different organization gives a different coordinate
-    /// and neither is written down here.
-    #[test]
-    fn the_pointer_follows_the_configuration_rather_than_the_deployment() {
-        for (project_id, organization) in [
-            ("neon-law", "one-organization"),
-            ("neon-law-stg", "another-organization"),
-            ("neon-law-org", "a-third-organization"),
-        ] {
-            let link = ProjectRepositoryLink::from_lookup(lookup(&[
-                ("NAVIGATOR_GCP_PROJECT_ID", project_id),
-                (NAVIGATOR_GITHUB_ORG, organization),
-                (NAVIGATOR_GIT_HOST, A_FORGE_HOST),
-            ]));
-            assert_eq!(
-                link.url_for("kizuna"),
-                Some(format!("https://{A_FORGE_HOST}/{organization}/kizuna")),
-                "{project_id}"
-            );
-        }
-    }
-
-    /// An absent pointer is the legitimate outcome, not a degraded one.
-    ///
-    /// A named deployment missing its host or organization is the case that
-    /// used to be *hidden*: the host fell back to a public forge, so an unset
-    /// variable silently pointed every Project clone URL at a namespace the
-    /// Firm does not control. There is no fallback now, so the pointer is
-    /// simply absent.
-    #[test]
-    fn repository_pointer_is_absent_without_a_configured_forge_coordinate() {
-        // No deployment named: the local loop and this test suite.
-        assert_eq!(
-            ProjectRepositoryLink::from_lookup(|_| None).url_for("matter-42"),
-            None
-        );
-
-        // A deployment name Navigator does not recognise.
-        assert_eq!(
-            ProjectRepositoryLink::from_lookup(lookup(&[
-                ("NAVIGATOR_GCP_PROJECT_ID", "other-deployment"),
-                (NAVIGATOR_GITHUB_ORG, AN_ORGANIZATION),
-                (NAVIGATOR_GIT_HOST, A_FORGE_HOST),
-            ]))
-            .url_for("matter-42"),
-            None
-        );
-
-        // A named deployment with no forge host: absent, never a public
-        // default.
-        assert_eq!(
-            ProjectRepositoryLink::from_lookup(lookup(&[
-                ("NAVIGATOR_GCP_PROJECT_ID", "neon-law"),
-                (NAVIGATOR_GITHUB_ORG, AN_ORGANIZATION),
-            ]))
-            .url_for("matter-42"),
-            None,
-            "an unset forge host must not fall back to a public one"
-        );
-
-        // A named deployment with no organization.
-        assert_eq!(
-            ProjectRepositoryLink::from_lookup(lookup(&[
-                ("NAVIGATOR_GCP_PROJECT_ID", "neon-law"),
-                (NAVIGATOR_GIT_HOST, A_FORGE_HOST),
-            ]))
-            .url_for("matter-42"),
-            None
-        );
-    }
 
     #[test]
     fn port_is_parsed_from_env() {

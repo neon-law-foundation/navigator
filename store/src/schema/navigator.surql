@@ -62,9 +62,9 @@ DEFINE FIELD OVERWRITE applied_at ON schema_version TYPE datetime DEFAULT time::
 -- command seams, and so is this one, because the engine does not validate a
 -- link.
 DEFINE TABLE IF NOT EXISTS project SCHEMAFULL PERMISSIONS NONE;
--- A Project code is its Drive folder name, its repository name, and a route
--- segment. `/app/projects/new` is the matter-open form, so a Project whose
--- code is `new` would collide with it; refusing the code in
+-- A Project code is its Drive folder name and a route segment.
+-- `/app/projects/new` is the matter-open form, so a Project whose code is
+-- `new` would collide with it; refusing the code in
 -- `store::projects::is_valid_code` alone would leave a direct write able to
 -- create the colliding row. The slug *shape* stays enforced in Rust, at every
 -- write path, rather than being restated here as a second regex to keep in
@@ -76,6 +76,15 @@ DEFINE FIELD OVERWRITE status ON project TYPE string;
 DEFINE FIELD OVERWRITE entity_id ON project TYPE record<entity>;
 DEFINE FIELD OVERWRITE description ON project TYPE option<string>;
 DEFINE FIELD OVERWRITE drive_folder_id ON project TYPE option<string>;
+-- The full URL of the one source repository this Project's templates and
+-- client portal live in. A whole URL rather than a name composed onto one
+-- deployment-wide forge host: a Project's source may sit on any forge, in any
+-- organization, so GitHub, GitLab, and a self-hosted remote are all just
+-- values here. Absent means this Project has no repository recorded, and
+-- nothing derives one from `code` — a guessed URL would point at a namespace
+-- the Firm may not control. The *shape* is validated in Rust at every write
+-- path (`store::projects::is_valid_repository_url`) rather than restated here.
+DEFINE FIELD OVERWRITE repository_url ON project TYPE option<string>;
 DEFINE FIELD OVERWRITE git_initialized_at ON project TYPE option<string>;
 DEFINE FIELD OVERWRITE forge_provisioned_at ON project TYPE option<string>;
 DEFINE FIELD OVERWRITE closed_at ON project TYPE option<string>;

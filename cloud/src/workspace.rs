@@ -28,11 +28,17 @@ pub const NAVIGATOR_PROJECTS_DRIVE_MOUNT: &str = "NAVIGATOR_PROJECTS_DRIVE_MOUNT
 /// deployment's Project repositories live in — so it belongs in configuration
 /// and nowhere in source.
 pub const NAVIGATOR_GITHUB_ORG: &str = "NAVIGATOR_GITHUB_ORG";
-/// Environment key naming the forge host that serves them.
+/// Environment key naming the one enterprise forge host `ops github setup`
+/// may write repository governance to.
 ///
-/// There is deliberately **no default**. A fallback to a public forge would
-/// point a Project's clone URL at a namespace the Firm does not control, and a
-/// value that silently appears is worse than one that is missing.
+/// This is an **authorization boundary, not a coordinate**: a Project's source
+/// repository is a whole URL stored on the Project
+/// (`store::projects::Project::repository_url`) and may live on any forge, so
+/// nothing composes this host into a clone URL. It scopes governance writes to
+/// the tenant the Firm administers — see `cli::devx::github_setup`.
+///
+/// There is deliberately **no default**. A value that silently appears would
+/// aim a ruleset write at a host the Firm does not administer.
 pub const NAVIGATOR_GIT_HOST: &str = "NAVIGATOR_GIT_HOST";
 
 /// The customer whose Projects this deployment serves.
@@ -121,25 +127,6 @@ pub fn is_valid_slug(value: &str) -> bool {
         && !value.contains("--")
 }
 
-/// A Git repository coordinate in this deployment's configured organization.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RepositoryCoordinate {
-    pub organization: String,
-    pub repository: String,
-}
-
-impl RepositoryCoordinate {
-    #[must_use]
-    pub fn url(&self, host: &str) -> String {
-        format!(
-            "https://{}/{}/{}",
-            host.trim_end_matches('/'),
-            self.organization,
-            self.repository
-        )
-    }
-}
-
 /// The Drive coordinates selected from a deployment-owned workspace map.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DriveCoordinates {
@@ -177,11 +164,12 @@ pub struct WorkspaceConfig {
     pub customer: WorkspaceCustomer,
     pub google_workspace: GoogleWorkspace,
     pub expected_projects_root_name: &'static str,
-    /// The one organization holding this deployment's Project repositories,
-    /// read from [`NAVIGATOR_GITHUB_ORG`].
+    /// The one organization this deployment's own automation lives in, read
+    /// from [`NAVIGATOR_GITHUB_ORG`].
+    ///
+    /// Not a Project's source coordinate: a Project stores its repository as a
+    /// whole URL on any forge (`store::projects::Project::repository_url`).
     pub organization: String,
-    /// The forge host serving them, read from [`NAVIGATOR_GIT_HOST`].
-    pub git_host: String,
     shared_drive_id_key: &'static str,
     projects_root_folder_id_key: &'static str,
 }
@@ -286,7 +274,7 @@ impl WorkspaceConfig {
     /// [`WorkspaceConfigError::UnknownDeployment`] when
     /// [`NAVIGATOR_GCP_PROJECT_ID`] names no deployment, and
     /// [`WorkspaceConfigError::MissingCoordinate`] when it names one but
-    /// [`NAVIGATOR_GITHUB_ORG`] or [`NAVIGATOR_GIT_HOST`] is unset.
+    /// [`NAVIGATOR_GITHUB_ORG`] is unset.
     pub fn from_lookup<F: Fn(&str) -> Option<String>>(
         get: F,
     ) -> Result<Self, WorkspaceConfigError> {
@@ -298,7 +286,6 @@ impl WorkspaceConfig {
             google_workspace: facts.google_workspace,
             expected_projects_root_name: facts.expected_projects_root_name,
             organization: required(&get, NAVIGATOR_GITHUB_ORG)?,
-            git_host: required(&get, NAVIGATOR_GIT_HOST)?,
             shared_drive_id_key: facts.shared_drive_id_key,
             projects_root_folder_id_key: facts.projects_root_folder_id_key,
         })
@@ -306,25 +293,6 @@ impl WorkspaceConfig {
 
     pub fn from_env() -> Result<Self, WorkspaceConfigError> {
         Self::from_lookup(|key| std::env::var(key).ok())
-    }
-
-    /// The one repository holding this Project's templates and its portal.
-    ///
-    /// The repository name is the Project code, so this is a rename of the
-    /// coordinate rather than a derivation: there is no second identifier to
-    /// compose in and nothing a reconciler has to compare for equality.
-    #[must_use]
-    pub fn project_repository(&self, project_code: &str) -> RepositoryCoordinate {
-        RepositoryCoordinate {
-            organization: self.organization.clone(),
-            repository: project_code.to_owned(),
-        }
-    }
-
-    /// The browser URL for that repository on this deployment's forge host.
-    #[must_use]
-    pub fn project_repository_url(&self, project_code: &str) -> String {
-        self.project_repository(project_code).url(&self.git_host)
     }
 
     /// The path Navigator serves one Project's client portal at.
@@ -357,7 +325,7 @@ impl WorkspaceConfig {
 mod tests {
     use super::{
         is_valid_slug, DeploymentWorkspace, GoogleWorkspace, WorkspaceConfig, WorkspaceConfigError,
-        WorkspaceCustomer, NAVIGATOR_GCP_PROJECT_ID, NAVIGATOR_GITHUB_ORG, NAVIGATOR_GIT_HOST,
+        WorkspaceCustomer, NAVIGATOR_GCP_PROJECT_ID, NAVIGATOR_GITHUB_ORG,
         NAVIGATOR_PROJECTS_DRIVE_MOUNT, RESERVED_PROJECT_CODES, SLUG_MAX_LEN,
     };
     use std::collections::HashMap;
@@ -366,7 +334,6 @@ mod tests {
     /// repositories live in is configuration, so no real organization name is
     /// a constant or a fixture value in this workspace.
     const AN_ORGANIZATION: &str = "an-organization";
-    const A_HOST: &str = "forge.example";
 
     fn lookup(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
         let map: HashMap<String, String> = pairs
@@ -376,17 +343,16 @@ mod tests {
         move |key| map.get(key).cloned()
     }
 
-    /// The configured forge coordinate every deployment fixture supplies.
+    /// The configured organization every deployment fixture supplies.
     fn forge(project_id: &'static str) -> Vec<(&'static str, &'static str)> {
         vec![
             (NAVIGATOR_GCP_PROJECT_ID, project_id),
             (NAVIGATOR_GITHUB_ORG, AN_ORGANIZATION),
-            (NAVIGATOR_GIT_HOST, A_HOST),
         ]
     }
 
     #[test]
-    fn deployment_maps_drive_paths_and_one_repository_url_without_network_io() {
+    fn deployment_maps_drive_paths_without_network_io() {
         let cases = [
             (
                 "neon-law",
@@ -421,21 +387,10 @@ mod tests {
                 "{project_id}"
             );
 
-            // One organization, one repository, named for the code alone.
+            // The organization this deployment's own automation lives in.
+            // Nothing here composes a Project's source coordinate: that is a
+            // whole URL stored on the Project, on whatever forge hosts it.
             assert_eq!(workspace.organization, AN_ORGANIZATION, "{project_id}");
-            assert_eq!(
-                workspace.project_repository("kizuna"),
-                super::RepositoryCoordinate {
-                    organization: AN_ORGANIZATION.into(),
-                    repository: "kizuna".into(),
-                },
-                "{project_id}"
-            );
-            assert_eq!(
-                workspace.project_repository_url("kizuna"),
-                format!("https://{A_HOST}/{AN_ORGANIZATION}/kizuna"),
-                "{project_id} repository URL"
-            );
 
             let root_key = match project_id {
                 "neon-law" => "NAVIGATOR_DRIVE_NEON_LAW_PRODUCTION_PROJECTS_ROOT_FOLDER_ID",
@@ -510,25 +465,14 @@ mod tests {
     ///
     /// No deployment named is not an error: the local loop and the test suite
     /// operate no deployment, so every derived coordinate is legitimately
-    /// absent. A deployment named with no organization or host is a
-    /// misconfigured deployment, and there is no permissive default to hide
-    /// it — a fallback to a public forge would aim a Project's clone URL at a
-    /// namespace the Firm does not control.
+    /// absent. A deployment named with no organization is a misconfigured
+    /// deployment, and there is no permissive default to hide it.
     #[test]
-    fn a_named_deployment_missing_its_forge_configuration_fails_closed() {
+    fn a_named_deployment_missing_its_organization_fails_closed() {
         assert_eq!(
             WorkspaceConfig::from_lookup(lookup(&[(NAVIGATOR_GCP_PROJECT_ID, "neon-law")]))
                 .expect_err("a named deployment must carry an organization"),
             WorkspaceConfigError::MissingCoordinate(NAVIGATOR_GITHUB_ORG)
-        );
-
-        assert_eq!(
-            WorkspaceConfig::from_lookup(lookup(&[
-                (NAVIGATOR_GCP_PROJECT_ID, "neon-law"),
-                (NAVIGATOR_GITHUB_ORG, AN_ORGANIZATION),
-            ]))
-            .expect_err("a named deployment must carry a forge host"),
-            WorkspaceConfigError::MissingCoordinate(NAVIGATOR_GIT_HOST)
         );
 
         // Present-but-blank is the same as unset: a deployment whose
@@ -537,7 +481,6 @@ mod tests {
             WorkspaceConfig::from_lookup(lookup(&[
                 (NAVIGATOR_GCP_PROJECT_ID, "neon-law"),
                 (NAVIGATOR_GITHUB_ORG, "   "),
-                (NAVIGATOR_GIT_HOST, A_HOST),
             ]))
             .expect_err("a blank organization is not an organization"),
             WorkspaceConfigError::MissingCoordinate(NAVIGATOR_GITHUB_ORG)

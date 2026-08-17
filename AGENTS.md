@@ -142,14 +142,16 @@ resets with the pod.
 
 The local Rauthy fixture provides five role-named accounts, each with password `password`: `owner@neonlaw.com` (owner),
 `admin@neonlaw.com` (admin), `lawyer@neonlaw.com` (lawyer), `clerk@neonlaw.com` (clerk), and `client@neonlaw.com`
-(client). All five share one seeded demo matter, *Simpson v. Flanders* (project code `simpsons`), so each role can be
-exercised on the same project. Its administration surface is `http://localhost:30080/auth/v1/admin`, using
-`nick@neonlaw.com` / `admin` on the shared local tier or the Rauthy port printed for a worktree. Rauthy has one full
-administrator rather than a realm-scoped `manage-users` administrator; these known credentials are confined to the
-loopback-only KIND fixture, while the reusable staging layer contains none. Authentication comes from OIDC, while
-authorization comes from `persons.role`. Sign-in does not create a Person: an IdP-authenticated email with no pre-seeded
-row receives 403, except `NAVIGATOR_BOOTSTRAP_OWNER_EMAIL`, which is created as `owner`. Seed Lawyer in the database
-used by the running `web`:
+(client). Four of the five are seeded onto one demo matter, *Simpson v. Flanders* (project code `simpsons`), so each can
+be exercised on the same project. `admin@neonlaw.com` deliberately is **not**: since ENG-81 the matter surface is
+participation-scoped for every tier, so the fixture Admin is what an unassigned administrator looks like — `simpsons`
+appears in neither their project list nor their detail view until they grant themselves a row at `/app/admin`. Its
+administration surface is `http://localhost:30080/auth/v1/admin`, using `nick@neonlaw.com` / `admin` on the shared local
+tier or the Rauthy port printed for a worktree. Rauthy has one full administrator rather than a realm-scoped
+`manage-users` administrator; these known credentials are confined to the loopback-only KIND fixture, while the reusable
+staging layer contains none. Authentication comes from OIDC, while authorization comes from `persons.role`. Sign-in does
+not create a Person: an IdP-authenticated email with no pre-seeded row receives 403, except
+`NAVIGATOR_BOOTSTRAP_OWNER_EMAIL`, which is created as `owner`. Seed Lawyer in the database used by the running `web`:
 
 ```bash
 cargo run -p cli -- dev grant-lawyer

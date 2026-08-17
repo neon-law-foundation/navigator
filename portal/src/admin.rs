@@ -1415,6 +1415,12 @@ struct ProjectInput {
     /// descriptive-update handler; the open-matter form has no field for it.
     #[serde(default)]
     external_slack_channel_url: String,
+    /// The Project's source repository, as a whole URL on any forge — where
+    /// its notation templates and client portal are sourced from. Only read by
+    /// the descriptive-update handler; the open-matter form has no field for
+    /// it, so a matter opens without one and records it later.
+    #[serde(default)]
+    repository_url: String,
     /// Set (to `"1"`) when the opening attorney ticks the required conflict
     /// attestation checkbox. The shared `open_matter` command refuses the open
     /// without it (`AttestationRequired`) — every open is attested, never
@@ -2097,20 +2103,22 @@ async fn projects_update_lawyer_only(
     if !is_lawyer_tier(session.as_deref()) {
         return not_found_response();
     }
-    // The descriptive update owns name, entity, the scope narrative, and the
-    // two Slack channel links only. The edit form no longer renders a status
-    // control: changing a matter's lifecycle (open/closed/archived) and its
-    // coupled retention `closed_at` is a transition with firm-policy
-    // semantics, handled by dedicated lifecycle commands (navigator#770), not
-    // this general edit. So `status` is neither posted by the form nor
-    // forwarded here. The form always sends `description` and the two Slack
-    // fields, so pass each as `Some` to keep the blank-clears behavior.
+    // The descriptive update owns name, entity, the scope narrative, the two
+    // Slack channel links, and the source repository URL only. The edit form no
+    // longer renders a status control: changing a matter's lifecycle
+    // (open/closed/archived) and its coupled retention `closed_at` is a
+    // transition with firm-policy semantics, handled by dedicated lifecycle
+    // commands (navigator#770), not this general edit. So `status` is neither
+    // posted by the form nor forwarded here. The form always sends
+    // `description`, the two Slack fields, and the repository URL, so pass each
+    // as `Some` to keep the blank-clears behavior.
     let command = store::projects::UpdateProjectCommand {
         name: input.name,
         entity_id: input.entity_id,
         description: Some(input.description),
         internal_slack_channel_url: Some(input.internal_slack_channel_url),
         external_slack_channel_url: Some(input.external_slack_channel_url),
+        repository_url: Some(input.repository_url),
     };
     match store::projects::update_project(&surreal, id, &command).await {
         Ok(_) => Redirect::to("/app/projects").into_response(),

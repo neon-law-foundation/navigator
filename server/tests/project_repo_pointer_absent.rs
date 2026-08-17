@@ -1,28 +1,18 @@
-//! Integration test: a deployment with no configured forge coordinate shows no
+//! Integration test: a Project that records no repository URL shows no
 //! repository pointer on `GET /app/projects/:id`.
 //!
-//! A Project's repository is a **derived coordinate that may not exist**. With
-//! no deployment named there is no organization and no host, so there is no
-//! coordinate — and that is a legitimate outcome rather than a degraded one. The
-//! lawyer matter page must simply omit the pointer.
+//! A Project's repository is a whole URL **stored on the row**, and a matter is
+//! free not to have one — a matter opens before anyone creates its repository.
+//! That is a legitimate outcome rather than a degraded one, so the lawyer matter
+//! page simply omits the pointer.
 //!
-//! This is the behaviour the configuration change makes visible. The forge host
-//! used to fall back to a **public** forge, so an unset variable produced a
-//! confident link into a namespace the Firm does not control, rendered on this
-//! very page.
+//! Nothing derives a URL to fill the gap, and that is the point of this test.
+//! A composed `{host}/{org}/{code}` coordinate always exists, so it produced a
+//! confident link to a repository that might not — and, when the host fell back
+//! to a public forge, into a namespace the Firm does not control.
 //!
-//! # Why this is its own test target
-//!
-//! `ProjectRepositoryLink::from_env` reads process-global environment at router
-//! construction, and `cargo test` runs one process per test *target* — so tests
-//! sharing a binary share that state. `project_repo_clone_url.rs` needs a
-//! *configured* coordinate for every one of its tests; this one needs an
-//! unconfigured one. Two different process-global values need two processes, and
-//! a separate target is what a separate process is.
-//!
-//! Putting both in one binary passes under `cargo nextest` (a process per test)
-//! and fails under `cargo test` depending on which test constructs its router
-//! last. CI runs the latter.
+//! The populated case lives in `project_repo_clone_url.rs`. Each target asserts
+//! one state of the column, which keeps either failure legible on its own.
 
 use std::sync::Arc;
 
@@ -37,21 +27,8 @@ use tower::ServiceExt;
 
 const KEY: &str = "test-session-key-not-for-production";
 
-/// A host and organization are configured; the *deployment* is not one Navigator
-/// recognises, which is the same absence as leaving them unset and keeps every
-/// `set_var` in this target pointing one direction.
-///
-/// Asserting against a configured host that still yields nothing is the stronger
-/// claim: it proves the deployment resolution is what withholds the pointer,
-/// not a missing variable that a fallback could have filled in.
-const HOST: &str = "forge.example";
-
 #[tokio::test]
-async fn an_unconfigured_deployment_has_no_repository_section() {
-    std::env::set_var("NAVIGATOR_GIT_HOST", HOST);
-    std::env::set_var("NAVIGATOR_GITHUB_ORG", "an-organization");
-    std::env::set_var("NAVIGATOR_GCP_PROJECT_ID", "not-a-deployment");
-
+async fn a_project_with_no_recorded_repository_has_no_repository_section() {
     let surreal = mem_surreal().await;
     let storage: Arc<dyn cloud::StorageService> = Arc::new(
         cloud::FsStorage::new(std::env::temp_dir().join("navigator-repo-pointer-absent-test"))
@@ -138,10 +115,11 @@ async fn an_unconfigured_deployment_has_no_repository_section() {
     );
     assert!(
         !html.contains("Source repository"),
-        "no configured deployment means no repository pointer"
+        "a matter recording no repository URL must show no repository pointer"
     );
+    // Nothing invents one. A derivation would have produced a link here.
     assert!(
-        !html.contains(&format!("https://{HOST}/")),
-        "and no coordinate on a host this deployment never resolved"
+        !html.contains("https://"),
+        "no URL may be composed to stand in for the absent one"
     );
 }

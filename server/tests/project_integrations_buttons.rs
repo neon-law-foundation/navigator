@@ -141,6 +141,7 @@ async fn lawyer_sees_the_internal_slack_button_and_the_optional_external_one() {
             description: None,
             internal_slack_channel_url: Some(INTERNAL.into()),
             external_slack_channel_url: None,
+            repository_url: None,
         },
     )
     .await
@@ -169,6 +170,7 @@ async fn lawyer_sees_the_external_slack_button_when_the_matter_has_one() {
             description: None,
             internal_slack_channel_url: None,
             external_slack_channel_url: Some(EXTERNAL.into()),
+            repository_url: None,
         },
     )
     .await
@@ -225,6 +227,7 @@ async fn client_never_sees_any_integration_button() {
             external_slack_channel_url: Some(
                 "https://neonlaw.slack.com/archives/C0EXTERNAL".into(),
             ),
+            repository_url: None,
         },
     )
     .await

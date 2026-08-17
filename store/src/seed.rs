@@ -635,7 +635,10 @@ async fn seed_role_matrix_simpsons(
         crate::persons::Role::Owner,
     )
     .await?;
-    let admin_id = ensure_dev_person(
+    // The Admin Person exists so the fixture account can sign in; it is
+    // deliberately given no participation on this matter (see below), so its id
+    // is not bound.
+    ensure_dev_person(
         surreal,
         report,
         "Ada Admin",
@@ -680,17 +683,30 @@ async fn seed_role_matrix_simpsons(
     )
     .await?;
 
+    // Where this matter's templates and client portal are sourced from. A whole
+    // URL on the Project, not a name composed from a forge host, so the demo
+    // matter records the same shape a real one would — and
+    // `navigator dev sample-project` reads it rather than carrying its own
+    // default.
+    crate::projects::set_repository_url(surreal, project_id, Some(SIMPSONS_REPOSITORY_URL)).await?;
+
     // Client side and firm side. The lawyer is the licensed lawyer DRI, which is
     // also what lets the supervised Clerk resolve the matter.
     ensure_participation(surreal, report, project_id, client_id, "client").await?;
     ensure_participation(surreal, report, project_id, lawyer_id, "attorney").await?;
     ensure_participation(surreal, report, project_id, clerk_id, "clerk").await?;
-    // Owner and Admin bypass project-scoping when *reaching* a matter, but the
-    // `/app/projects` firm list is participation-scoped (ENG-81) — it shows only
-    // matters the viewer holds a firm-side row on. Give them one here, or this
-    // shared demo matter never appears in their own list.
+    // Owner gets a firm-side row so the demo matter appears in the Owner's own
+    // list: since ENG-81 the whole matter surface — `/app/projects` and
+    // `/app/projects/{id}` alike — is participation-scoped for every tier, with
+    // no privileged bypass.
     ensure_participation(surreal, report, project_id, owner_id, "owner").await?;
-    ensure_participation(surreal, report, project_id, admin_id, "admin").await?;
+    // Admin deliberately gets **no** row. The demo matter is what an
+    // administrator who was never assigned to a matter looks like, which is the
+    // ENG-81 decision made visible: privileged reach is a place you navigate to
+    // (`/app/admin`, which reads and writes the participation ledger), not a
+    // silent widening of a shared route. Because one row gates both the list and
+    // the detail view, this is also why `simpsons` does not appear in an admin's
+    // `/app/projects` list — the absence is the point, not an oversight.
     crate::projects::designate_dri_in_surreal(
         surreal,
         project_id,
@@ -721,6 +737,15 @@ async fn seed_role_matrix_simpsons(
 
 /// The Project code the demo matter — and therefore its portal — lives under.
 const SIMPSONS_PROJECT_CODE: &str = "simpsons";
+
+/// Where the `simpsons` demo matter's templates and client portal are sourced
+/// from — the public reference project application.
+///
+/// Recorded on the Project rather than compiled into the command that clones
+/// it, so the demo matter demonstrates the real mechanism: a Project names its
+/// own repository, on whatever forge hosts it.
+pub const SIMPSONS_REPOSITORY_URL: &str =
+    "https://github.com/neon-law-foundation/navigator-sample-project";
 
 /// Publish the `simpsons` client portal, preferring a locally built bundle.
 ///

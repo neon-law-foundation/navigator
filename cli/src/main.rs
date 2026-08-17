@@ -548,10 +548,10 @@ enum DevCmd {
     /// environment key to export before restarting `web`; unset it to go
     /// back to the stub. Native Rust.
     SampleProject {
-        /// Repository to clone. Defaults to the canonical upstream;
+        /// Repository to clone. Defaults to the URL recorded on the Project;
         /// override to build a fork or a local mirror.
-        #[arg(long, default_value = crate::devx::SAMPLE_PROJECT_DEFAULT_REPO)]
-        repo: String,
+        #[arg(long)]
+        repo: Option<String>,
         /// Branch or tag to build. Defaults to the repository's default
         /// branch.
         #[arg(long = "ref")]

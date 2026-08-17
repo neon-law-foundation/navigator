@@ -39,9 +39,9 @@ pub use gcs::{GcsStorage, GcsStorageConfig};
 pub use s3::{S3Storage, S3StorageConfig};
 pub use speech::{GoogleSpeechConfig, GoogleSpeechTranscriptProvider, SpeechError};
 pub use workspace::{
-    is_valid_slug, DeploymentWorkspace, DriveCoordinates, GoogleWorkspace, RepositoryCoordinate,
-    WorkspaceConfig, WorkspaceConfigError, WorkspaceCustomer, NAVIGATOR_GCP_PROJECT_ID,
-    NAVIGATOR_GITHUB_ORG, NAVIGATOR_GIT_HOST, NAVIGATOR_PROJECTS_DRIVE_MOUNT, PORTAL_MOUNT_SEGMENT,
+    is_valid_slug, DeploymentWorkspace, DriveCoordinates, GoogleWorkspace, WorkspaceConfig,
+    WorkspaceConfigError, WorkspaceCustomer, NAVIGATOR_GCP_PROJECT_ID, NAVIGATOR_GITHUB_ORG,
+    NAVIGATOR_GIT_HOST, NAVIGATOR_PROJECTS_DRIVE_MOUNT, PORTAL_MOUNT_SEGMENT,
     RESERVED_PROJECT_CODES, SLUG_MAX_LEN,
 };
 

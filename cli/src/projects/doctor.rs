@@ -22,7 +22,7 @@ use std::process::ExitCode;
 
 use cloud::workspace::{
     DriveCoordinates, WorkspaceConfig, WorkspaceConfigError, NAVIGATOR_GITHUB_ORG,
-    NAVIGATOR_GIT_HOST, NAVIGATOR_PROJECTS_DRIVE_MOUNT,
+    NAVIGATOR_PROJECTS_DRIVE_MOUNT,
 };
 
 use crate::credentials::{self, Credentials};
@@ -106,7 +106,7 @@ impl Diagnosis {
 /// live environment to one input and a fixture to another.
 pub struct Probe<'a> {
     /// Environment lookup — `NAVIGATOR_GCP_PROJECT_ID`, the Drive coordinates,
-    /// `NAVIGATOR_GITHUB_ORG`, and `NAVIGATOR_GIT_HOST`.
+    /// and `NAVIGATOR_GITHUB_ORG`.
     pub env: &'a dyn Fn(&str) -> Option<String>,
     /// Whether a path exists on this machine. Never reads file contents.
     pub path_exists: &'a dyn Fn(&Path) -> bool,
@@ -116,7 +116,7 @@ pub struct Probe<'a> {
     pub now: i64,
     /// The site whose login to check. `None` selects the sole stored host.
     pub host: Option<&'a str>,
-    /// The Project code to resolve folder and repository coordinates for.
+    /// The Project code to resolve the folder path and portal mount for.
     /// `None` reports deployment-wide configuration only.
     pub project_code: Option<&'a str>,
 }
@@ -188,7 +188,7 @@ pub fn diagnose(probe: &Probe<'_>) -> Diagnosis {
     checks.push(site_login_check(probe));
 
     if let Some(code) = probe.project_code {
-        checks.extend(project_checks(&workspace, drive.as_ref(), code, probe));
+        checks.extend(project_checks(drive.as_ref(), code, probe));
     }
 
     Diagnosis { checks }
@@ -206,12 +206,10 @@ fn deployment_error_detail(error: &WorkspaceConfigError) -> String {
             "{project_id:?} is not a Project workspace deployment; expected one of \
              neon-law, neon-law-stg, neon-law-org"
         ),
-        WorkspaceConfigError::MissingCoordinate(key)
-            if *key == NAVIGATOR_GITHUB_ORG || *key == NAVIGATOR_GIT_HOST =>
-        {
+        WorkspaceConfigError::MissingCoordinate(key) if *key == NAVIGATOR_GITHUB_ORG => {
             format!(
-                "{key} is unset; a named deployment must configure both {NAVIGATOR_GITHUB_ORG} \
-                 and {NAVIGATOR_GIT_HOST}, and there is no default"
+                "{key} is unset; a named deployment must configure the organization its own \
+                 automation occupies, and there is no default"
             )
         }
         other @ WorkspaceConfigError::MissingCoordinate(_) => other.to_string(),
@@ -274,14 +272,9 @@ fn site_login_check(probe: &Probe<'_>) -> Check {
     }
 }
 
-/// The per-Project coordinates: where the folder belongs and which repository
-/// carries its source.
-fn project_checks(
-    workspace: &WorkspaceConfig,
-    drive: Option<&DriveCoordinates>,
-    code: &str,
-    probe: &Probe<'_>,
-) -> Vec<Check> {
+/// The per-Project coordinates: where the folder belongs and where Navigator
+/// serves its portal.
+fn project_checks(drive: Option<&DriveCoordinates>, code: &str, probe: &Probe<'_>) -> Vec<Check> {
     let mut checks = Vec::new();
 
     match drive {
@@ -306,12 +299,10 @@ fn project_checks(
         )),
     }
 
-    // One repository, named for the code. Nothing composes a second identifier
-    // into it, so there is no coordinate here that could be derived wrongly.
-    checks.push(Check::ok(
-        "project repository",
-        workspace.project_repository_url(code),
-    ));
+    // A Project's source repository is a whole URL stored on the Project, not
+    // a coordinate composed from deployment configuration, so there is nothing
+    // for a configuration doctor to derive or check here. `projects
+    // repository validate` inspects an actual checkout instead.
     checks.push(Check::ok(
         "portal mount",
         WorkspaceConfig::portal_mount(code),
@@ -392,11 +383,10 @@ mod tests {
 
     /// The synthetic forge coordinate every fixture configures.
     ///
-    /// The organization and host are *configuration*, so this module spells
-    /// neither a real organization nor a real forge host: a fixture that did
-    /// would be a second vocabulary alongside the configured one.
+    /// The organization is *configuration*, so this module spells no real
+    /// organization: a fixture that did would be a second vocabulary alongside
+    /// the configured one.
     const AN_ORGANIZATION: &str = "an-organization";
-    const A_FORGE_HOST: &str = "forge.example";
 
     fn env(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
         let map: HashMap<String, String> = pairs
@@ -406,15 +396,14 @@ mod tests {
         move |key| map.get(key).cloned()
     }
 
-    /// A deployment's full fixture: its identity plus its configured forge
-    /// coordinate, which a named deployment must carry.
+    /// A deployment's full fixture: its identity plus the organization a named
+    /// deployment must carry.
     fn deployment(project_id: &'static str) -> Vec<(&'static str, &'static str)> {
         vec![
             (GCP, project_id),
             (DRIVE_ID, "drive-neon"),
             (root_key(project_id), "root-folder"),
             (NAVIGATOR_GITHUB_ORG, AN_ORGANIZATION),
-            (NAVIGATOR_GIT_HOST, A_FORGE_HOST),
         ]
     }
 
@@ -483,79 +472,52 @@ mod tests {
                 "{project_id}"
             );
             assert_eq!(
-                diagnosis.check("project repository").unwrap().detail,
-                format!("https://{A_FORGE_HOST}/{AN_ORGANIZATION}/spotonix"),
-                "{project_id}"
-            );
-            assert_eq!(
                 diagnosis.check("portal mount").unwrap().detail,
                 "/app/projects/spotonix/portal/",
                 "{project_id}"
             );
-        }
-    }
-
-    /// The report follows the configuration rather than the deployment.
-    ///
-    /// Two deployments differ only in what their configuration says, so no
-    /// organization or host is written down in this file at all.
-    #[test]
-    fn the_repository_coordinate_is_read_from_configuration() {
-        let creds = logged_in("https://www.neonlaw.com", 10_000);
-        for organization in ["one-organization", "another-organization"] {
-            let mut pairs = deployment("neon-law");
-            pairs.retain(|(key, _)| *key != NAVIGATOR_GITHUB_ORG);
-            let organization: &'static str = organization;
-            pairs.push((NAVIGATOR_GITHUB_ORG, organization));
-            let lookup = env(&pairs);
-            let diagnosis = diagnose(&Probe {
-                env: &lookup,
-                path_exists: &nothing_exists,
-                credentials: &creds,
-                now: 0,
-                host: None,
-                project_code: Some("kizuna"),
-            });
-            assert_eq!(
-                diagnosis.check("project repository").unwrap().detail,
-                format!("https://{A_FORGE_HOST}/{organization}/kizuna")
-            );
-        }
-    }
-
-    /// A named deployment missing its forge configuration fails closed.
-    ///
-    /// This is the defect the configuration change removes: an unset host used
-    /// to fall back to a *public* forge, so the doctor cheerfully reported a
-    /// coordinate on a namespace the Firm does not control. There is no default
-    /// now, so the deployment does not resolve at all and the report stops.
-    #[test]
-    fn a_named_deployment_without_a_forge_coordinate_fails_and_names_the_key() {
-        let creds = Credentials::default();
-        for missing in [NAVIGATOR_GITHUB_ORG, NAVIGATOR_GIT_HOST] {
-            let mut pairs = deployment("neon-law");
-            pairs.retain(|(key, _)| *key != missing);
-            let lookup = env(&pairs);
-            let diagnosis = diagnose(&Probe {
-                env: &lookup,
-                path_exists: &nothing_exists,
-                credentials: &creds,
-                now: 0,
-                host: None,
-                project_code: Some("spotonix"),
-            });
-
-            assert!(!diagnosis.is_healthy(), "{missing} must fail the report");
-            let detail = &diagnosis.check("deployment").unwrap().detail;
-            assert!(detail.contains(missing), "{detail}");
+            // A Project's repository is a URL stored on the matter, so a
+            // configuration doctor has nothing to derive and must not report
+            // one. It holds no database connection to read the real value.
             assert!(
-                detail.contains("no default"),
-                "the report must say there is no fallback: {detail}"
+                diagnosis.check("project repository").is_none(),
+                "{project_id} must report no derived repository coordinate"
             );
-            // And no coordinate may be reported for a deployment that did not
-            // resolve.
-            assert!(diagnosis.check("project repository").is_none());
         }
+    }
+
+    /// A named deployment missing its organization fails closed.
+    ///
+    /// The organization is this deployment's own, and there is no default: a
+    /// value that silently appeared would let a staging run describe production.
+    /// `NAVIGATOR_GIT_HOST` is deliberately *not* in this loop — it is only
+    /// `ops github setup`'s authorization boundary now, and `WorkspaceConfig`
+    /// does not read it, so its absence must not fail a Drive diagnosis.
+    #[test]
+    fn a_named_deployment_without_its_organization_fails_and_names_the_key() {
+        let creds = Credentials::default();
+        let missing = NAVIGATOR_GITHUB_ORG;
+        let mut pairs = deployment("neon-law");
+        pairs.retain(|(key, _)| *key != missing);
+        let lookup = env(&pairs);
+        let diagnosis = diagnose(&Probe {
+            env: &lookup,
+            path_exists: &nothing_exists,
+            credentials: &creds,
+            now: 0,
+            host: None,
+            project_code: Some("spotonix"),
+        });
+
+        assert!(!diagnosis.is_healthy(), "{missing} must fail the report");
+        let detail = &diagnosis.check("deployment").unwrap().detail;
+        assert!(detail.contains(missing), "{detail}");
+        assert!(
+            detail.contains("no default"),
+            "the report must say there is no fallback: {detail}"
+        );
+        // And nothing may be reported for a deployment that did not resolve.
+        assert!(diagnosis.check("project folder").is_none());
     }
 
     #[test]
@@ -615,7 +577,6 @@ mod tests {
                 "root-production",
             ),
             (NAVIGATOR_GITHUB_ORG, AN_ORGANIZATION),
-            (NAVIGATOR_GIT_HOST, A_FORGE_HOST),
         ]);
         let diagnosis = diagnose(&Probe {
             env: &lookup,

@@ -754,7 +754,6 @@ pub fn project_detail_router(
     let detail_stores = surreal.clone();
     let estate_stores = surreal.clone();
     let repository_surreal = surreal.clone();
-    let repository_link = crate::config::ProjectRepositoryLink::from_env();
     // Both lenses render from this one mount, so it provides the union of what
     // either needs. `storage` is the client view's; the firm view ignores it.
     let cfg = ServeConfig::new().context_providers(std::sync::Arc::new(vec![
@@ -777,7 +776,7 @@ pub fn project_detail_router(
                 .layer(from_fn(inject_csrf_token))
                 .layer(from_fn_with_state(detail_stores, inject_show_approve_plan))
                 .layer(from_fn_with_state(
-                    (repository_surreal, repository_link),
+                    repository_surreal,
                     inject_project_repository_pointer,
                 ))
                 .layer(from_fn_with_state(estate_stores, inject_lawyer_estate))
@@ -803,24 +802,21 @@ fn project_id_from_path(req: &Request) -> Option<uuid::Uuid> {
         .and_then(|seg| seg.parse::<uuid::Uuid>().ok())
 }
 
-/// Resolve this matter's one configured repository pointer and inject it as
+/// Resolve this matter's recorded repository URL and inject it as
 /// [`webapp::lawyer_project_detail::ProjectRepositoryPointer`].
 ///
-/// This has no forge client: it constructs the URL once from the active
-/// deployment's configured organization and forge host plus the stored Project
-/// code. A missing id, a missing matter, or an unconfigured deployment leaves
-/// the pointer absent rather than failing the lawyer page — the coordinate is
-/// derived, so it may legitimately not exist.
+/// This has no forge client and composes nothing: the URL is stored on the
+/// Project, so it may name any forge and any organization. A missing id, a
+/// missing matter, or a Project with no repository recorded leaves the pointer
+/// absent rather than failing the lawyer page. Navigator never verifies the
+/// URL — it provisions no repositories, so the target may not exist.
 async fn inject_project_repository_pointer(
-    axum::extract::State((surreal, repository_link)): axum::extract::State<(
-        store::surreal::SurrealDb,
-        crate::config::ProjectRepositoryLink,
-    )>,
+    axum::extract::State(surreal): axum::extract::State<store::surreal::SurrealDb>,
     mut req: Request,
     next: Next,
 ) -> Response {
     let pointer = match project_id_from_path(&req) {
-        Some(id) => project_repository_pointer(&surreal, &repository_link, id).await,
+        Some(id) => project_repository_pointer(&surreal, id).await,
         None => None,
     };
     req.extensions_mut()
@@ -830,16 +826,15 @@ async fn inject_project_repository_pointer(
     next.run(req).await
 }
 
-/// One Project, one repository, named for its Project code.
+/// One Project, one repository, recorded as a whole URL on the Project.
 async fn project_repository_pointer(
     surreal: &store::surreal::SurrealDb,
-    repository_link: &crate::config::ProjectRepositoryLink,
     project_id: uuid::Uuid,
 ) -> Option<String> {
-    let project = store::projects::find_by_id(surreal, project_id)
+    store::projects::find_by_id(surreal, project_id)
         .await
-        .ok()??;
-    repository_link.url_for(&project.code)
+        .ok()??
+        .repository_url
 }
 
 /// Compute the transcript-driven estate view (if any) for the matter and inject

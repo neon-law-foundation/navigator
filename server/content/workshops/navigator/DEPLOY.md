@@ -1053,7 +1053,8 @@ reached the ledger.
 | Capability | Environment variables |
 | --- | --- |
 | Mounted Git writer | `NAVIGATOR_GIT_REPO_ROOT` |
-| Project repository coordinate | `NAVIGATOR_GITHUB_ORG`, `NAVIGATOR_GIT_HOST` — both required, no default |
+| Deployment's own organization | `NAVIGATOR_GITHUB_ORG` — required once a deployment is named, no default |
+| Governance write boundary | `NAVIGATOR_GIT_HOST` — read only by `ops github setup`, no default |
 | GitHub App identity | `NAVIGATOR_GITHUB_APP_ID` |
 | GitHub App proof | `NAVIGATOR_GITHUB_APP_PRIVATE_KEY`, `NAVIGATOR_GITHUB_INSTALLATION_ID` |
 | GitHub endpoint | `NAVIGATOR_GITHUB_API_BASE` |

@@ -54,6 +54,9 @@ pub struct ProjectEditView {
     pub entities: Vec<EntityOption>,
     pub internal_slack_channel_url: String,
     pub external_slack_channel_url: String,
+    /// The Project's source repository as a whole URL, on any forge. Blank when
+    /// the matter records none, which is a legitimate state.
+    pub repository_url: String,
     pub csrf_token: String,
     pub error: Option<String>,
     pub role: ViewerRole,
@@ -170,6 +173,7 @@ pub async fn get_project_edit_form() -> Result<ProjectEditView, ServerFnError> {
         entities,
         internal_slack_channel_url: project.internal_slack_channel_url.unwrap_or_default(),
         external_slack_channel_url: project.external_slack_channel_url.unwrap_or_default(),
+        repository_url: project.repository_url.unwrap_or_default(),
         csrf_token,
         error,
         role,
@@ -218,6 +222,16 @@ pub(crate) const INTERNAL_SLACK_HELP: &str =
 pub(crate) const EXTERNAL_SLACK_HELP: &str =
     "Optional — the Slack channel shared with the client, if this matter has one.";
 
+/// The help line under the source repository field.
+///
+/// Says "any host" plainly, because the field replaced a coordinate that was
+/// composed from one configured forge: a reader who remembers that behavior
+/// would otherwise assume the organization is fixed.
+pub(crate) const REPOSITORY_URL_HELP: &str =
+    "Optional — the full URL of this matter's repository, \
+     holding its notation templates and client portal. Any host: GitHub, GitLab, or a self-hosted \
+     remote.";
+
 /// The loaded edit form.
 fn edit_body(view: &ProjectEditView) -> Element {
     let action = format!("/app/projects/{}", view.project_id);
@@ -247,6 +261,13 @@ fn edit_body(view: &ProjectEditView) -> Element {
         )
         .placeholder("https://neonlaw.slack.com/archives/C0123456789")
         .help(EXTERNAL_SLACK_HELP),
+        Field::text(
+            "Source repository",
+            "repository_url",
+            view.repository_url.clone(),
+        )
+        .placeholder("https://github.com/an-organization/a-project")
+        .help(REPOSITORY_URL_HELP),
     ];
     rsx! {
         document::Title { "{view.firm_name} | Lawyer | Projects | Edit project" }
@@ -325,6 +346,10 @@ mod tests {
             internal_slack_channel_url: "https://neonlaw.slack.com/archives/C0000000001"
                 .to_string(),
             external_slack_channel_url: String::new(),
+            // Deliberately on a self-hosted forge whose path resembles neither
+            // the matter name nor a Project code: the field renders a stored
+            // value and composes nothing.
+            repository_url: "https://git.example.internal/a-group/unrelated-name.git".to_string(),
             csrf_token: "TOK".to_string(),
             error: None,
             role: ViewerRole::Lawyer,
@@ -347,6 +372,20 @@ mod tests {
         assert!(
             html.contains(r#"<option value="00000000-0000-0000-0000-000000000001" selected"#),
             "{html}"
+        );
+    }
+
+    /// The repository is editable here, prefilled from the stored value.
+    ///
+    /// This form is the write path for a Project's source, so a missing field
+    /// would leave the column settable only by a direct database write.
+    #[test]
+    fn offers_the_source_repository_field_prefilled_from_the_stored_url() {
+        let html = render(&view());
+        assert!(html.contains(r#"name="repository_url""#), "{html}");
+        assert!(
+            html.contains("https://git.example.internal/a-group/unrelated-name.git"),
+            "the stored URL must be prefilled verbatim: {html}"
         );
     }
 
