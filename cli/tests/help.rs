@@ -444,7 +444,7 @@ fn site_help_lists_the_live_deployment_members() {
         command_names(&output),
         vec![
             "login", "logout", "whoami", "projects", "intake", "notation", "retainer", "project",
-            "sync", "help",
+            "help",
         ]
     );
 }

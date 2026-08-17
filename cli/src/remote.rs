@@ -76,90 +76,6 @@ pub async fn projects_list(host: Option<&str>, json: bool) -> ExitCode {
     .await
 }
 
-/// `navigator site sync [--host h] [--root p] [--dry-run]` — mirror the
-/// matters this login participates in into a folder tree on disk.
-///
-/// The list is the same participation-scoped read `projects list` prints,
-/// so sync shows exactly what the server shows and never filters locally.
-pub async fn sync(host: Option<&str>, root: Option<&Path>, dry_run: bool) -> ExitCode {
-    run(async {
-        let (base, token) = resolve(host)?;
-        let resp = reqwest::Client::new()
-            .get(format!("{base}/app/projects.csv"))
-            .bearer_auth(&token)
-            .send()
-            .await
-            .context("GET /app/projects.csv")?;
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        if !status.is_success() {
-            return Err(anyhow!("could not list your matters: {status}"));
-        }
-        let matters = crate::sync::matters_from_csv(&parse_csv(&body))?;
-
-        let root = match root {
-            Some(p) => p.to_path_buf(),
-            None => crate::sync::default_root()?,
-        };
-
-        if dry_run {
-            println!(
-                "{} {}",
-                palette::dim("would sync"),
-                palette::highlight(pluralize_matters(matters.len())),
-            );
-            println!("{} {}", palette::dim("into"), root.display());
-            for m in &matters {
-                println!("    {}  {}", palette::highlight(&m.code), m.name);
-            }
-            return Ok(());
-        }
-
-        let report = crate::sync::sync_tree(&root, &base, &matters)?;
-        print_sync_report(&root, &report);
-        Ok(())
-    })
-    .await
-}
-
-/// `1 matter` / `2 matters` — the count appears in every sync line, and
-/// "1 matters" reads like a bug in a tool people run on client work.
-fn pluralize_matters(n: usize) -> String {
-    if n == 1 {
-        "1 matter".to_string()
-    } else {
-        format!("{n} matters")
-    }
-}
-
-fn print_sync_report(root: &Path, report: &crate::sync::SyncReport) {
-    println!(
-        "{} {} {}",
-        palette::dim("synced"),
-        palette::highlight(pluralize_matters(report.matters())),
-        palette::dim(format!("into {}", root.display())),
-    );
-    for code in &report.created {
-        println!("    {} {code}", palette::highlight("new"));
-    }
-    for code in &report.refreshed {
-        println!("    {} {code}", palette::dim("updated"));
-    }
-    if !report.unmatched.is_empty() {
-        println!();
-        println!(
-            "{}",
-            palette::dim(format!(
-                "{} folder(s) here match no matter you can see — left in place, nothing deleted:",
-                report.unmatched.len(),
-            )),
-        );
-        for name in &report.unmatched {
-            println!("    {name}");
-        }
-    }
-}
-
 /// `navigator site project open <project-code>` — resolve a visible matter by
 /// code, then verify the same bearer can load its lawyer workbench.
 pub async fn matter_open(host: Option<&str>, project_code: &str) -> ExitCode {
@@ -1450,7 +1366,7 @@ mod tests {
         retainer_send, scripted_picker_selection_fields, select_candidate, CoverageSummary,
         StepQuestion, StepResponse,
     };
-    use super::{fetch_step, parse_csv, pluralize_matters};
+    use super::{fetch_step, first_line, json_reason, parse_csv, server_error};
     use crate::credentials::{self, Credentials, HostCredential};
     use uuid::Uuid;
     use wiremock::matchers::{method, path};
@@ -2043,10 +1959,180 @@ mod tests {
         );
     }
 
+    /// `retainer send` against a notation whose packet has not rendered yet
+    /// answers `409`, and that is the one branch that must not read as a
+    /// generic failure: the operator's next move is to retry, so the server's
+    /// own reason and the retry command both have to reach them.
+    #[tokio::test(flavor = "current_thread")]
+    async fn sending_before_the_packet_renders_reports_the_reason_and_the_retry() {
+        let _lock = CREDENTIALS_ENV_LOCK.lock().await;
+        let server = MockServer::start().await;
+        let server_uri = server.uri();
+        let _env = CredentialsEnv::new(&server_uri);
+        let notation = Uuid::now_v7();
+
+        Mock::given(method("POST"))
+            .and(path(format!("/lawyer/notations/{notation}/send")))
+            .respond_with(ResponseTemplate::new(409).set_body_string(
+                r#"{"error":"not ready","reason":"the retainer packet has not rendered"}"#,
+            ))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        assert_eq!(
+            retainer_send(Some(server_uri.as_str()), notation).await,
+            ExitCode::from(2)
+        );
+    }
+
+    /// A `409` with no JSON reason still has to say something actionable
+    /// rather than print an empty tail, so the handler supplies its own
+    /// wording.
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_409_without_a_json_reason_still_names_the_problem() {
+        let _lock = CREDENTIALS_ENV_LOCK.lock().await;
+        let server = MockServer::start().await;
+        let server_uri = server.uri();
+        let _env = CredentialsEnv::new(&server_uri);
+        let notation = Uuid::now_v7();
+
+        Mock::given(method("POST"))
+            .and(path(format!("/lawyer/notations/{notation}/send")))
+            .respond_with(ResponseTemplate::new(409).set_body_string("<html>gateway noise</html>"))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        assert_eq!(
+            retainer_send(Some(server_uri.as_str()), notation).await,
+            ExitCode::from(2)
+        );
+    }
+
+    /// Any other failing status takes the ordinary `server_error` path, which
+    /// is a different branch from the 409 above.
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_failing_send_reports_the_server_error() {
+        let _lock = CREDENTIALS_ENV_LOCK.lock().await;
+        let server = MockServer::start().await;
+        let server_uri = server.uri();
+        let _env = CredentialsEnv::new(&server_uri);
+        let notation = Uuid::now_v7();
+
+        Mock::given(method("POST"))
+            .and(path(format!("/lawyer/notations/{notation}/send")))
+            .respond_with(
+                ResponseTemplate::new(500)
+                    .set_body_string(r#"{"reason":"the signature provider refused"}"#),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        assert_eq!(
+            retainer_send(Some(server_uri.as_str()), notation).await,
+            ExitCode::from(2)
+        );
+    }
+
+    /// The council's "no opaque 500" rule lives in `server_error`: when a
+    /// route answers with the `{error, reason}` shape, both halves reach the
+    /// terminal, because the reason is the part that tells someone what to do
+    /// next.
     #[test]
-    fn matter_counts_read_as_english() {
-        assert_eq!(pluralize_matters(0), "0 matters");
-        assert_eq!(pluralize_matters(1), "1 matter");
-        assert_eq!(pluralize_matters(2), "2 matters");
+    fn a_json_error_body_renders_the_error_and_its_reason() {
+        assert_eq!(
+            server_error(
+                reqwest::StatusCode::CONFLICT,
+                r#"{"error":"already approved","reason":"the notation left review"}"#,
+            ),
+            "409 Conflict: already approved — the notation left review"
+        );
+    }
+
+    /// Either field alone still beats printing the raw body.
+    #[test]
+    fn a_json_error_body_carrying_one_field_renders_that_field() {
+        assert_eq!(
+            server_error(
+                reqwest::StatusCode::FORBIDDEN,
+                r#"{"reason":"you do not participate on this matter"}"#,
+            ),
+            "403 Forbidden: you do not participate on this matter"
+        );
+        assert_eq!(
+            server_error(
+                reqwest::StatusCode::BAD_REQUEST,
+                r#"{"error":"unknown step"}"#
+            ),
+            "400 Bad Request: unknown step"
+        );
+    }
+
+    /// A body that parses as JSON but carries neither field is not a
+    /// recognized error shape, so it takes the plain-text path rather than
+    /// silently reporting the status with no detail at all.
+    #[test]
+    fn a_json_body_with_neither_field_falls_back_to_the_body_text() {
+        assert_eq!(
+            server_error(reqwest::StatusCode::NOT_FOUND, r#"{"detail":"nope"}"#),
+            r#"404 Not Found: {"detail":"nope"}"#
+        );
+    }
+
+    /// An HTML error page must not reach the terminal whole — a proxy 502
+    /// answers with a document, not a sentence.
+    #[test]
+    fn a_non_json_error_body_is_reduced_to_its_first_real_line() {
+        assert_eq!(
+            server_error(
+                reqwest::StatusCode::BAD_GATEWAY,
+                "\n\n  <html><head><title>502 Bad Gateway</title></head>\n<body>more markup</body>\n",
+            ),
+            "502 Bad Gateway: <html><head><title>502 Bad Gateway</title></head>"
+        );
+    }
+
+    #[test]
+    fn json_reason_reads_the_field_and_tolerates_every_other_shape() {
+        assert_eq!(
+            json_reason(r#"{"reason":"the packet has not rendered yet"}"#).as_deref(),
+            Some("the packet has not rendered yet")
+        );
+        // Present-but-wrong field, unparseable body, and empty body all mean
+        // "no reason to show", so the caller falls back to its own wording.
+        assert!(json_reason(r#"{"error":"no reason here"}"#).is_none());
+        assert!(json_reason(r#"{"reason":404}"#).is_none());
+        assert!(json_reason("<html>not json at all</html>").is_none());
+        assert!(json_reason("").is_none());
+    }
+
+    #[test]
+    fn first_line_skips_leading_blank_lines_and_trims() {
+        assert_eq!(
+            first_line("\n\n   the real line  \nsecond\n"),
+            "the real line"
+        );
+    }
+
+    /// A body with nothing printable in it is named rather than rendered as
+    /// an empty string, so the error does not read as a blank.
+    #[test]
+    fn an_empty_body_is_named() {
+        assert_eq!(first_line(""), "(empty response)");
+        assert_eq!(first_line("\n   \n\t\n"), "(empty response)");
+    }
+
+    /// The 200-character cap is what stops a whole minified page from
+    /// scrolling the terminal, and it counts characters rather than bytes so
+    /// a multi-byte body cannot be cut mid-character.
+    #[test]
+    fn a_long_first_line_is_capped_at_two_hundred_characters() {
+        assert_eq!(first_line(&"x".repeat(500)).chars().count(), 200);
+
+        let wide = first_line(&"é".repeat(500));
+        assert_eq!(wide.chars().count(), 200);
+        assert_eq!(wide, "é".repeat(200));
     }
 }

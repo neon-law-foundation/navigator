@@ -27,7 +27,6 @@ members = [
     "billing-workflows",
     "gateway",
     "telemetry",
-    "vfs",
 ]
 
 [workspace.package]
@@ -195,10 +194,6 @@ opentelemetry-otlp = { version = "0.32", default-features = false, features = ["
 opentelemetry-appender-tracing = "0.32"
 tracing-opentelemetry = "0.33"
 telemetry = { path = "telemetry" }
-# The naming layer under every folder surface: the mounted matter folder and
-# the `site sync` tree on disk both derive their path components here, so a
-# matter renders under one name everywhere.
-vfs = { path = "vfs" }
 views = { path = "views" }
 walkdir = "2.5"
 webapp = { path = "webapp" }

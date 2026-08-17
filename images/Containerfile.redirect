@@ -40,7 +40,6 @@ COPY webapp            webapp
 COPY views             views
 COPY github_webhooks    github_webhooks
 COPY telemetry         telemetry
-COPY vfs               vfs
 COPY README.md         README.md
 COPY workflows         workflows
 COPY workflows-service workflows-service
