@@ -28,10 +28,12 @@
 //!
 //! ## Testing
 //!
-//! Cloning and `pnpm` shell out to the network and to Node, so the
-//! orchestration is not unit-tested. Everything that can silently drift — the
-//! git arguments, the staged path, and the tree copy — is pure and covered
-//! below.
+//! Cloning and `pnpm` shell out to the network and to Node, so [`run`]'s
+//! sequencing is not unit-tested. Everything that *decides* something is
+//! extracted so it can be: which repository to clone ([`choose_repo`]), the git
+//! arguments, the two preconditions a contributor actually trips
+//! ([`require_lockfile`], [`built_bundle`]), the staged path, and the tree copy.
+//! What is left in `run` is the order of the shell-outs.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -194,6 +196,64 @@ fn resolve_repo(explicit: Option<&str>) -> Result<String> {
     })
 }
 
+/// The manifest text and the Project code it declares.
+///
+/// Read *before* a build is spent on the checkout: a bundle declaring the wrong
+/// Project is refused at boot anyway, so finding out here saves an install. The
+/// text is returned alongside the code because it is staged verbatim next to the
+/// bundle — boot re-reads it rather than trusting whoever staged it.
+fn declared_project(checkout: &Path) -> Result<(String, String)> {
+    let manifest_path = checkout.join(store::sample_project::MANIFEST_FILE);
+    let manifest = std::fs::read_to_string(&manifest_path).with_context(|| {
+        format!(
+            "reading {} — a project application declares its Project there",
+            manifest_path.display()
+        )
+    })?;
+    let code = store::sample_project::project_code_from_manifest(&manifest)?;
+    Ok((manifest, code))
+}
+
+/// Refuse a checkout with no lockfile, before spending an install on it.
+///
+/// `--frozen-lockfile` is what keeps the build reproducible, so this says
+/// plainly what is wrong rather than letting `pnpm` fail with its own less
+/// specific message about a missing lockfile it was told not to write.
+fn require_lockfile(checkout: &Path, repo: &str) -> Result<()> {
+    if checkout.join("pnpm-lock.yaml").is_file() {
+        return Ok(());
+    }
+    bail!(
+        "{repo} has no pnpm-lock.yaml, so its dependencies cannot be resolved \
+         reproducibly. Commit a lockfile there (which needs every dependency \
+         to be resolvable — see its README) and re-run."
+    )
+}
+
+/// The built bundle inside a checkout, proven to be one.
+///
+/// Both absences are a failed build rather than a partial one, and they are
+/// reported separately because they have different causes: no `dist/` means the
+/// build script did not run or writes elsewhere, while a `dist/` with no entry
+/// document means it ran and produced assets nothing can point at. Publishing
+/// the latter would strand the live bundle.
+fn built_bundle(checkout: &Path) -> Result<PathBuf> {
+    let built = checkout.join(store::sample_project::DIST_DIR);
+    if !built.is_dir() {
+        bail!(
+            "the build produced no `dist/` at {} — check the repository's build script",
+            built.display()
+        );
+    }
+    if !built.join(store::sample_project::ENTRY_DOCUMENT).is_file() {
+        bail!(
+            "the build produced no `{}` — Navigator publishes nothing without an entry document",
+            store::sample_project::ENTRY_DOCUMENT
+        );
+    }
+    Ok(built)
+}
+
 /// `navigator dev sample-project`: clone, build, stage.
 pub fn run(repo: Option<&str>, git_ref: Option<&str>, keep: bool) -> Result<()> {
     super::require_tools(&["git", "pnpm"])?;
@@ -211,30 +271,13 @@ pub fn run(repo: Option<&str>, git_ref: Option<&str>, keep: bool) -> Result<()> 
     let args = clone_args(repo, git_ref, &checkout);
     run_in(temp.path(), "git", &args)?;
 
-    // Read the Project *before* spending a build on it: a bundle that declares
-    // the wrong Project would be refused at boot anyway.
-    let manifest_path = checkout.join(store::sample_project::MANIFEST_FILE);
-    let manifest = std::fs::read_to_string(&manifest_path).with_context(|| {
-        format!(
-            "reading {} — a project application declares its Project there",
-            manifest_path.display()
-        )
-    })?;
-    let code = store::sample_project::project_code_from_manifest(&manifest)?;
+    let (manifest, code) = declared_project(&checkout)?;
     println!(
         "navigator: {} declares Project `{code}`",
         repo_basename(repo)
     );
 
-    // `--frozen-lockfile` keeps the build reproducible, so say plainly what is
-    // wrong rather than letting pnpm fail with its own less specific message.
-    if !checkout.join("pnpm-lock.yaml").is_file() {
-        bail!(
-            "{repo} has no pnpm-lock.yaml, so its dependencies cannot be resolved \
-             reproducibly. Commit a lockfile there (which needs every dependency \
-             to be resolvable — see its README) and re-run."
-        );
-    }
+    require_lockfile(&checkout, repo)?;
 
     println!("navigator: installing dependencies (pnpm)");
     run_in(
@@ -246,19 +289,7 @@ pub fn run(repo: Option<&str>, git_ref: Option<&str>, keep: bool) -> Result<()> 
     println!("navigator: building the bundle (pnpm build)");
     run_in(&checkout, "pnpm", &["build".to_string()])?;
 
-    let built = checkout.join(store::sample_project::DIST_DIR);
-    if !built.is_dir() {
-        bail!(
-            "the build produced no `dist/` at {} — check the repository's build script",
-            built.display()
-        );
-    }
-    if !built.join(store::sample_project::ENTRY_DOCUMENT).is_file() {
-        bail!(
-            "the build produced no `{}` — Navigator publishes nothing without an entry document",
-            store::sample_project::ENTRY_DOCUMENT
-        );
-    }
+    let built = built_bundle(&checkout)?;
 
     // Stage the manifest beside the bundle: boot re-reads the declared Project
     // rather than trusting whoever set the environment variable.
@@ -273,19 +304,26 @@ pub fn run(repo: Option<&str>, git_ref: Option<&str>, keep: bool) -> Result<()> 
         println!("navigator: kept the build tree at {}", path.display());
     }
 
-    println!();
-    println!("navigator: staged {copied} file(s) to {}", stage.display());
-    println!();
-    println!("Point the next `web` boot at it, then restart `web`:");
-    println!();
-    println!(
-        "    export {}={}",
+    print!("{}", staging_instructions(copied, &stage));
+    Ok(())
+}
+
+/// What to tell the operator once the bundle is staged.
+///
+/// Built as a string rather than printed inline so the one thing that must be
+/// exactly right — the `export` line they will copy — is asserted rather than
+/// eyeballed. A wrong variable name here sends the reader to a page still
+/// serving the compiled stub with no indication why.
+fn staging_instructions(copied: usize, stage: &Path) -> String {
+    format!(
+        "\nnavigator: staged {copied} file(s) to {}\n\n\
+         Point the next `web` boot at it, then restart `web`:\n\n\
+         \x20   export {}={}\n\n\
+         Unset it to go back to the compiled stub.\n",
+        stage.display(),
         store::sample_project::STAGE_ENV,
         stage.display()
-    );
-    println!();
-    println!("Unset it to go back to the compiled stub.");
-    Ok(())
+    )
 }
 
 /// The repository's last path segment, for a readable progress line.
@@ -367,6 +405,146 @@ mod tests {
         assert!(
             error.to_string().contains("connection refused"),
             "the underlying failure must survive: {error}"
+        );
+    }
+
+    /// A missing or unusable manifest is refused before a build is spent, and
+    /// the text is returned verbatim for staging.
+    #[test]
+    fn the_declared_project_is_read_before_a_build_is_spent() {
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        let missing =
+            declared_project(dir.path()).expect_err("a checkout with no manifest is refused");
+        assert!(
+            missing
+                .to_string()
+                .contains(store::sample_project::MANIFEST_FILE),
+            "the refusal must name the file a bundle declares its Project in: {missing}"
+        );
+
+        // Present but naming something that is not a Project code.
+        std::fs::write(
+            dir.path().join(store::sample_project::MANIFEST_FILE),
+            b"name: \"../etc\"\n",
+        )
+        .expect("write");
+        declared_project(dir.path()).expect_err("a manifest cannot smuggle a path segment");
+
+        std::fs::write(
+            dir.path().join(store::sample_project::MANIFEST_FILE),
+            b"name: simpsons\n",
+        )
+        .expect("write");
+        let (manifest, code) = declared_project(dir.path()).expect("a valid manifest");
+        assert_eq!(code, "simpsons");
+        assert_eq!(
+            manifest, "name: simpsons\n",
+            "the text is staged verbatim, so it must come back unaltered"
+        );
+    }
+
+    /// A checkout with no lockfile is refused before an install is spent on it,
+    /// and the message names the repository so a contributor knows where to
+    /// commit one.
+    #[test]
+    fn a_checkout_without_a_lockfile_is_refused_by_name() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let error = require_lockfile(dir.path(), "https://forge.example/o/r")
+            .expect_err("a checkout with no lockfile must be refused");
+        let message = error.to_string();
+        assert!(
+            message.contains("https://forge.example/o/r") && message.contains("pnpm-lock.yaml"),
+            "the refusal must name the repository and the file: {message}"
+        );
+
+        std::fs::write(dir.path().join("pnpm-lock.yaml"), b"lockfileVersion: '9.0'")
+            .expect("write");
+        require_lockfile(dir.path(), "https://forge.example/o/r").expect("a lockfile is enough");
+    }
+
+    /// The two failed-build shapes are reported separately, because they have
+    /// different causes and different fixes.
+    #[test]
+    fn a_failed_build_names_which_half_is_missing() {
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        let no_dist = built_bundle(dir.path()).expect_err("no dist/ is a failed build");
+        assert!(
+            no_dist.to_string().contains("no `dist/`"),
+            "{no_dist}: a missing dist must point at the build script"
+        );
+
+        // A `dist/` full of assets but with no entry document: the build ran and
+        // produced files nothing can point at.
+        let dist = dir.path().join(store::sample_project::DIST_DIR);
+        std::fs::create_dir_all(dist.join("assets")).expect("mkdir");
+        std::fs::write(dist.join("assets/app-abc123.js"), b"x").expect("write");
+        let no_entry = built_bundle(dir.path()).expect_err("no index.html is a failed build");
+        assert!(
+            no_entry
+                .to_string()
+                .contains(store::sample_project::ENTRY_DOCUMENT),
+            "{no_entry}: a missing entry document must be named"
+        );
+
+        std::fs::write(
+            dist.join(store::sample_project::ENTRY_DOCUMENT),
+            b"<!doctype html>",
+        )
+        .expect("write");
+        assert_eq!(
+            built_bundle(dir.path()).expect("a complete build"),
+            dist,
+            "a dist/ with an entry document is the bundle to stage"
+        );
+    }
+
+    /// The `export` line names the key boot actually reads, and the staged path.
+    ///
+    /// This is the one line an operator copies, so it is asserted against the
+    /// store's own constant rather than a literal — a rename there must not
+    /// leave this printing a variable nothing consumes.
+    #[test]
+    fn the_instructions_name_the_key_boot_reads_and_the_staged_path() {
+        let text = staging_instructions(5, Path::new("/w/.devx/sample-project"));
+        assert!(
+            text.contains(&format!(
+                "export {}=/w/.devx/sample-project",
+                store::sample_project::STAGE_ENV
+            )),
+            "the copyable line must carry the real key and path: {text}"
+        );
+        assert!(text.contains("staged 5 file(s)"), "{text}");
+        assert!(
+            text.contains("Unset it to go back to the compiled stub."),
+            "the way back must be stated: {text}"
+        );
+    }
+
+    /// `run_in` reports a failing command and a missing one differently.
+    ///
+    /// These are the two failures an operator hits — a `pnpm build` that exits
+    /// nonzero, and a `pnpm` that is not installed — and they need different
+    /// fixes, so the missing-program case carries the "is it installed" hint
+    /// rather than an exit status.
+    #[test]
+    fn a_failing_command_and_a_missing_one_are_reported_differently() {
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        run_in(dir.path(), "true", &[]).expect("a succeeding command is Ok");
+
+        let failed = run_in(dir.path(), "false", &[]).expect_err("a nonzero exit must fail");
+        assert!(
+            failed.to_string().contains("failed in"),
+            "a nonzero exit must name where it ran: {failed}"
+        );
+
+        let missing = run_in(dir.path(), "navigator-no-such-program", &[])
+            .expect_err("a missing program must fail");
+        assert!(
+            missing.to_string().contains("is it installed and on PATH?"),
+            "a missing program must say so rather than report an exit code: {missing}"
         );
     }
 
