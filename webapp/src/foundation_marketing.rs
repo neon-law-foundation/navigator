@@ -488,13 +488,26 @@ fn BandHeading(overline: String, heading: String, description: Option<String>) -
 }
 
 /// One paragraph of runs.
+///
+/// A linked run renders as a **classless** `<a>`, and that is load-bearing
+/// rather than incidental. `theme.css` gives every inline prose link its
+/// non-colour cue through `.nav-theme :is(p, li) > a:not([class])` — keyed on
+/// the absence of a class precisely so no new prose page has to be remembered
+/// into an allow-list. A class here, even a decorative one, opts these links
+/// out of that rule and leaves them distinguishable by colour alone, which is
+/// the `link-in-text-block` violation axe reports.
+///
+/// The classes that *do* belong on an anchor in this stylesheet — `fm-card__link`,
+/// `fm-action__link` — are controls: a card's call to action and a filled
+/// button. Those are styled, and they carry their own affordance. A run inside a
+/// sentence is prose.
 #[component]
 fn Prose(runs: Paragraph) -> Element {
     rsx! {
         p {
             for run in runs.iter() {
                 if let Some(href) = run.href.as_ref() {
-                    a { class: "fm-prose__link", href: "{href}", "{run.text}" }
+                    a { href: "{href}", "{run.text}" }
                 } else if run.emphasis {
                     strong { "{run.text}" }
                 } else {
@@ -647,12 +660,21 @@ mod tests {
         }
         let out = render(app);
         assert!(
-            out.contains(r#"class="fm-prose__link""#) && out.contains(r#"href="/fractional-gc""#),
+            out.contains(r#"href="/fractional-gc""#),
             "an inline link run renders as an anchor: {out}"
         );
         assert!(
             out.contains("fractional GC</a>"),
             "the anchor carries the run's text: {out}"
+        );
+        // The anchor must be classless, or `theme.css`'s
+        // `.nav-theme :is(p, li) > a:not([class])` stops matching it and the
+        // link loses its non-colour cue — axe's `link-in-text-block`, which is
+        // how `/services` failed the public accessibility gate.
+        assert!(
+            !out.contains(r"<a class="),
+            "an inline prose link must carry no class, or it opts out of the \
+             WCAG 1.4.1 underline rule: {out}"
         );
         assert!(
             !out.contains(r#"class="fm-statement__lead""#),
