@@ -37,6 +37,7 @@ pub mod disclaimer;
 pub mod form;
 pub mod foundation_footer;
 pub mod freshness;
+pub mod github_stars;
 pub mod icon;
 pub mod impersonation;
 pub mod links;
@@ -66,6 +67,7 @@ pub(crate) use form::assert_forms_accessible;
 pub use form::{question_fields, Choice, Field, FieldKind, FormCard, Heading};
 pub use foundation_footer::SiteFooterFoundation;
 pub use freshness::Freshness;
+pub use github_stars::GitHubStars;
 pub use icon::{Icon, IconName, LIBRA_SCALES};
 pub use impersonation::{
     Impersonating, ImpersonationBanner, ImpersonationView, IMPERSONATION_STOP_ACTION,

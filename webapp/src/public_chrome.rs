@@ -133,6 +133,21 @@ pub struct PublicChrome {
     /// bare `#`.
     pub navigator_version: String,
     pub navigator_href: String,
+    /// The public repository the platform is developed in, as both footers
+    /// publish it: the `owner/name` a reader sees and the address it links to.
+    /// Constants rather than brand fields, for the same reason the platform
+    /// line names Neon Law Navigator outright — a white-label deployment wears
+    /// its own wordmark but runs this software, developed here.
+    pub source_repo: String,
+    pub source_href: String,
+    /// How many people have starred that repository, or `None` when the
+    /// process has not fetched it yet.
+    ///
+    /// Read from `crate::source_repository`'s cache when the chrome is built,
+    /// so a page render never waits on GitHub. `None` is the ordinary state
+    /// before the first refresh lands and whenever GitHub is unreachable; the
+    /// footer publishes the repository link without a number.
+    pub source_stars: Option<u64>,
 }
 
 /// The published release this binary runs, for the footer's platform line.
@@ -257,6 +272,9 @@ pub fn PublicFooter(chrome: PublicChrome) -> Element {
             nonprofit_transparency_href: nonprofit.transparency_href.clone(),
             navigator_version: chrome.navigator_version.clone(),
             navigator_href: chrome.navigator_href.clone(),
+            source_repo: chrome.source_repo.clone(),
+            source_href: chrome.source_href.clone(),
+            source_stars: chrome.source_stars,
         }
     }
 }
@@ -448,6 +466,18 @@ fn chrome_for(brand: &views::brand::SiteBrand, utility: Vec<ChromeNavLink>) -> P
         // which is built by mutating this one — inherits it.
         navigator_version: navigator_release(),
         navigator_href: navigator_page_href(),
+        // The repository the platform is developed in. Both faces publish it:
+        // the code is open source under either wordmark, and the Foundation is
+        // the org that owns the repository.
+        //
+        // The star count is a CACHE READ, deliberately. This function runs in
+        // the request path — once per public page render — so it must not
+        // reach the network: `source_repository::spawn_refresh` keeps the value
+        // current from a background task, and an empty cache renders the
+        // repository link with no number rather than delaying the page.
+        source_repo: crate::source_repository::REPOSITORY_SLUG.to_string(),
+        source_href: crate::source_repository::REPOSITORY_HREF.to_string(),
+        source_stars: crate::source_repository::star_count(),
     }
 }
 

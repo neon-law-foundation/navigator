@@ -90,6 +90,7 @@ pub mod review;
 pub mod schedules;
 pub mod show_tell_detail;
 pub mod show_tell_index;
+pub mod source_repository;
 pub mod team_home;
 pub mod template_gallery;
 pub mod transactional_page;

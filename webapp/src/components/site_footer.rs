@@ -19,7 +19,7 @@
 
 use dioxus::prelude::*;
 
-use crate::components::ExternalLink;
+use crate::components::{ExternalLink, GitHubStars};
 
 /// One published office — the state it sits in and its street address.
 /// Mirrors `views::brand::FirmOffice`.
@@ -247,6 +247,21 @@ pub fn SiteFooterLegal(
     #[props(default)]
     navigator_version: String,
     #[props(default)] navigator_href: String,
+    /// The public repository the platform is developed in — how it is named
+    /// (`owner/name`), where it lives, and how many people have starred it.
+    ///
+    /// The pair below the platform attribution and above nothing: it says the
+    /// software the line above names is open source, and gives the address to
+    /// go read it. Both strings empty renders no line, the way an unstamped
+    /// release renders no attribution.
+    ///
+    /// `source_stars` is independently optional, and `None` is the ordinary
+    /// case rather than a failure — see
+    /// [`crate::source_repository`]. It renders the link with no count.
+    #[props(default)]
+    source_repo: String,
+    #[props(default)] source_href: String,
+    #[props(default)] source_stars: Option<u64>,
 ) -> Element {
     let has_contact = !contact_email.is_empty() || !phone.is_empty() || !offices.is_empty();
     let supports_foundation = !foundation.is_empty() && !foundation_href.is_empty();
@@ -473,6 +488,27 @@ pub fn SiteFooterLegal(
                             }
                         }
                     }
+                    // Where to go read the software the line above names. It
+                    // closes the strip for the same reason the platform line
+                    // sits above it: a source repository is a developer
+                    // surface, and a visitor meets every regulated disclosure
+                    // before the page mentions one.
+                    //
+                    // It is deliberately a separate line from the attribution
+                    // rather than a link appended to it. The attribution names
+                    // the *release this deployment runs*; this names the
+                    // *project*, which is a standing fact about the software
+                    // and is published whether or not the build was stamped.
+                    if !source_repo.is_empty() && !source_href.is_empty() {
+                        p { class: "site-footer__source",
+                            "Open source — "
+                            GitHubStars {
+                                href: source_href.clone(),
+                                repo: source_repo.clone(),
+                                stars: source_stars,
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -503,10 +539,92 @@ mod tests {
                     foundation_href: "/foundation".to_string(),
                     navigator_version: "26.8.10".to_string(),
                     navigator_href: "https://www.neonlaw.com/navigator".to_string(),
+                    source_repo: "neon-law-foundation/navigator".to_string(),
+                    source_href: "https://github.com/neon-law-foundation/navigator".to_string(),
+                    source_stars: 1234u64,
                 }
             }
         }
         ssr(app)
+    }
+
+    /// The open-source line names the repository, links it, and prints the
+    /// star count — and it closes the strip, below the platform attribution.
+    ///
+    /// Order is the substance here, as it is for every other line in this
+    /// strip: the repository is a developer surface, so a reader meets the bar
+    /// records, the advertising disclaimer, and the nonprofit's statement
+    /// before the page mentions where the code lives.
+    #[test]
+    fn closes_the_strip_with_the_source_repository_and_its_stars() {
+        let out = legal_html();
+        assert!(
+            out.contains(r#"href="https://github.com/neon-law-foundation/navigator""#),
+            "the repository is linked: {out}"
+        );
+        assert!(
+            out.contains("Open source") && out.contains("neon-law-foundation/navigator"),
+            "and named as the project's source: {out}"
+        );
+        assert!(
+            out.contains("1,234") && out.contains("<title>GitHub stars</title>"),
+            "the star count renders under its own accessible name: {out}"
+        );
+        let disclaimer = out.find("attorney advertisement").expect("the disclaimer");
+        let platform = out.find("Powered by").expect("the platform line");
+        let source = out.find("site-footer__source").expect("the source line");
+        assert!(
+            disclaimer < platform && platform < source,
+            "the source line closes the strip, under the platform attribution: {out}"
+        );
+    }
+
+    /// A deploy that publishes no repository renders no line, and one whose
+    /// star count has not been fetched yet renders the link without a number.
+    ///
+    /// The second half is the ordinary case, not an edge one: the count comes
+    /// from a cache a background task fills after boot, so every render before
+    /// the first fetch — and every render in a process that never spawned the
+    /// refresh, which is every test — takes this path.
+    #[test]
+    fn omits_the_source_line_when_unset_and_the_count_when_unfetched() {
+        fn app() -> Element {
+            rsx! {
+                SiteFooterLegal {
+                    copyright_holder: "Neon Law".to_string(),
+                    disclaimer: "This is an attorney advertisement.".to_string(),
+                    copyright_year: 2026,
+                }
+            }
+        }
+        fn unfetched() -> Element {
+            rsx! {
+                SiteFooterLegal {
+                    copyright_holder: "Neon Law".to_string(),
+                    disclaimer: "This is an attorney advertisement.".to_string(),
+                    copyright_year: 2026,
+                    source_repo: "neon-law-foundation/navigator".to_string(),
+                    source_href: "https://github.com/neon-law-foundation/navigator".to_string(),
+                }
+            }
+        }
+
+        let out = ssr(app);
+        assert!(
+            !out.contains("site-footer__source") && !out.contains("Open source"),
+            "no repository, no line: {out}"
+        );
+        assert!(!out.contains(r#"href="""#), "no empty anchor: {out}");
+
+        let out = ssr(unfetched);
+        assert!(
+            out.contains(r#"href="https://github.com/neon-law-foundation/navigator""#),
+            "an unknown count still publishes the repository: {out}"
+        );
+        assert!(
+            !out.contains("GitHub stars"),
+            "and prints no number in place of one it does not have: {out}"
+        );
     }
 
     /// The platform attribution closes the strip.

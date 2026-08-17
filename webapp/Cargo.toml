@@ -62,6 +62,17 @@ cloud = { workspace = true, optional = true }
 # Gated behind `server` like `store` — the wasm client build stubs the
 # `#[server]` bodies that are its only callers.
 tracing = { workspace = true, optional = true }
+# Server-only: the footer's source-repository line reads a star count that one
+# background task fetches from GitHub's REST API once an hour (see
+# `source_repository`). `reqwest` does not compile to `wasm32-unknown-unknown`,
+# and the wasm client never needs it — it reads the count out of the
+# server-resolved chrome — so it is gated behind `server` like `store`.
+reqwest = { workspace = true, optional = true }
+# Server-only, and for the same line: the refresh is a spawned task on an
+# interval. `time` is named explicitly rather than relied on from another
+# crate's feature selection, because the sleep between refreshes is this
+# crate's own requirement.
+tokio = { workspace = true, features = ["time"], optional = true }
 # Renders a `VirtualDom` to a string. A dev-dependency until #1009: the error
 # pages are returned inline from handlers rather than served by a router, so
 # there is no `render_handler` to SSR them and the server build needs the
@@ -93,7 +104,7 @@ web = ["dioxus/web"]
 # Selected transitively by `web`; pulls the server-side renderer so
 # `dioxus-server`'s `render_handler` can SSR `App`, plus the `store` query
 # layer the server functions run against and the request-extraction helper.
-server = ["dioxus/server", "dep:store", "dep:dioxus-fullstack-core", "dep:axum", "dep:views", "dep:cloud", "dep:tracing", "dep:dioxus-ssr"]
+server = ["dioxus/server", "dep:store", "dep:dioxus-fullstack-core", "dep:axum", "dep:views", "dep:cloud", "dep:tracing", "dep:dioxus-ssr", "dep:reqwest", "dep:tokio"]
 
 [lints]
 workspace = true

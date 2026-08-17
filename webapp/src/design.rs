@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use crate::components::{
     wire_runs, AppLogo, AppNavbar, BackBreadcrumb, Card, Choice, CodeBlock, Column, ConfirmDelete,
     DataTable, ExternalLink, Field, FooterAttorney, FooterBarLicense, FooterNavLink, FooterOffice,
-    FormCard, Freshness, Icon, IconName, ImpersonationBanner, ImpersonationView,
+    FormCard, Freshness, GitHubStars, Icon, IconName, ImpersonationBanner, ImpersonationView,
     LawyerPortalBreadcrumb, LegalBlueprintDisclaimer, NavigatorDestination, NavigatorFooter,
     NavigatorFooterLink, NavigatorNavbar, NavigatorShell, NebulaHero, Pagination, PeopleListInputs,
     PricingCard, PricingSection, PublicShell, RowActions, RunParagraph, SiteFooterFoundation,
@@ -927,6 +927,13 @@ fn SiteFooterShowcase() -> Element {
                     .collect(),
                 foundation: "Acme Foundation".to_string(),
                 foundation_href: "https://example.org".to_string(),
+                // The open-source line, driven with a count so the gallery
+                // shows the shape the deployed footer renders. The
+                // count-less variant is shown beside the standalone
+                // `GitHubStars` in "Navigation & links".
+                source_repo: "neon-law-foundation/navigator".to_string(),
+                source_href: "https://github.com/neon-law-foundation/navigator".to_string(),
+                source_stars: 1234u64,
             }
         }
     }
@@ -1123,6 +1130,21 @@ fn NavigationShowcase() -> Element {
                 ExternalLink { href: "https://www.neonlaw.com/foundation".to_string(), "Neon Law Foundation" }
                 "."
             }
+            p {
+                "The footer's source-repository line. The count is a prop, read per request from \
+                 a cache a background task refreshes — the component never fetches, which is why \
+                 it renders here with no network at all. Both states are shown, because the \
+                 second is the ordinary one before the first refresh lands:"
+            }
+            GitHubStars {
+                href: "https://github.com/neon-law-foundation/navigator".to_string(),
+                repo: "neon-law-foundation/navigator".to_string(),
+                stars: 1234u64,
+            }
+            GitHubStars {
+                href: "https://github.com/neon-law-foundation/navigator".to_string(),
+                repo: "neon-law-foundation/navigator".to_string(),
+            }
             Freshness { last_edited: Some("May 22, 2026".to_string()) }
         }
     }
@@ -1287,6 +1309,7 @@ mod tests {
             "LegalBlueprintDisclaimer",
             "FormCard",
             "Freshness",
+            "GitHubStars",
             "Icon",
             "ExternalLink",
             "NavigatorShell",
