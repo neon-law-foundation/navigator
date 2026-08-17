@@ -133,39 +133,62 @@ fn run_in(dir: &Path, program: &str, args: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// The repository to clone: `--repo` when given, else the URL recorded on the
-/// Project.
+/// Whether the store was even consulted, so the "no URL" error can say which
+/// of the two absences it is.
+enum Lookup {
+    /// No row for [`PROJECT_CODE`] at all.
+    NoProject,
+    /// The row exists and carries this `repository_url`.
+    Project(Option<String>),
+}
+
+/// Choose the repository to clone, given the flag and what the store holds.
 ///
-/// Reading the Project is what keeps one source of truth. The command carries
-/// no default upstream, so a Project with no `repository_url` is an error that
-/// names the fix rather than a silent fall back to whatever repository this
-/// build happened to be compiled with.
-fn resolve_repo(explicit: Option<&str>) -> Result<String> {
+/// The pure half of [`resolve_repo`]: every branch a caller can land in is
+/// decided here, so the IO wrapper stays a connect-and-read with no decisions
+/// of its own. `--repo` wins without a lookup, and each absence names its own
+/// fix rather than falling back to a compiled-in upstream.
+fn choose_repo(explicit: Option<&str>, lookup: impl FnOnce() -> Result<Lookup>) -> Result<String> {
     if let Some(repo) = explicit {
         return Ok(repo.to_string());
     }
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .context("create tokio runtime")?;
-    runtime.block_on(async {
-        let surreal = store::surreal::connect_from_env().await.context(
-            "connect to SurrealDB to read the Project's repository URL — source \
-             this worktree's `.devx/env` first, or pass `--repo`",
-        )?;
-        let project = store::projects::find_by_code(&surreal, PROJECT_CODE)
-            .await
-            .with_context(|| format!("look up Project `{PROJECT_CODE}`"))?
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "no Project `{PROJECT_CODE}` in this store — start `web` once so the \
-                     dev seed runs, or pass `--repo`"
-                )
-            })?;
-        project.repository_url.ok_or_else(|| {
-            anyhow::anyhow!(
-                "Project `{PROJECT_CODE}` records no repository URL. Set one on the matter, \
-                 or pass `--repo`."
+    match lookup()? {
+        Lookup::NoProject => bail!(
+            "no Project `{PROJECT_CODE}` in this store — start `web` once so the dev seed \
+             runs, or pass `--repo`"
+        ),
+        Lookup::Project(None) => bail!(
+            "Project `{PROJECT_CODE}` records no repository URL. Set one on the matter, or \
+             pass `--repo`."
+        ),
+        Lookup::Project(Some(url)) => Ok(url),
+    }
+}
+
+/// The repository to clone: `--repo` when given, else the URL recorded on the
+/// Project.
+///
+/// Reading the Project is what keeps one source of truth. The decision lives in
+/// [`choose_repo`]; this only supplies the store.
+fn resolve_repo(explicit: Option<&str>) -> Result<String> {
+    choose_repo(explicit, || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .context("create tokio runtime")?;
+        runtime.block_on(async {
+            let surreal = store::surreal::connect_from_env().await.context(
+                "connect to SurrealDB to read the Project's repository URL — source \
+                 this worktree's `.devx/env` first, or pass `--repo`",
+            )?;
+            Ok(
+                match store::projects::find_by_code(&surreal, PROJECT_CODE)
+                    .await
+                    .with_context(|| format!("look up Project `{PROJECT_CODE}`"))?
+                {
+                    None => Lookup::NoProject,
+                    Some(project) => Lookup::Project(project.repository_url),
+                },
             )
         })
     })
@@ -277,6 +300,75 @@ fn repo_basename(repo: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `--repo` wins outright, and does not consult the store at all.
+    ///
+    /// The lookup panics if called: a flag that still needed a database would
+    /// make the command unusable on a cold checkout, which is the one case the
+    /// flag exists for.
+    #[test]
+    fn an_explicit_repo_wins_without_reading_the_store() {
+        let chosen = choose_repo(Some("https://example.test/a-fork/x.git"), || {
+            panic!("the store must not be consulted when --repo is given")
+        })
+        .expect("a repo");
+        assert_eq!(chosen, "https://example.test/a-fork/x.git");
+    }
+
+    /// With no flag, the Project's own recorded URL is what gets cloned —
+    /// whatever forge it names.
+    #[test]
+    fn the_projects_recorded_url_is_cloned_when_no_flag_is_given() {
+        let chosen = choose_repo(None, || {
+            Ok(Lookup::Project(Some(
+                "https://gitlab.example/a-group/a-project.git".to_string(),
+            )))
+        })
+        .expect("a repo");
+        assert_eq!(chosen, "https://gitlab.example/a-group/a-project.git");
+    }
+
+    /// The two absences are different problems, so they get different messages.
+    ///
+    /// Neither falls back to a compiled-in upstream: this command carries no
+    /// default, and a silent one would clone somebody else's repository onto a
+    /// matter's portal.
+    #[test]
+    fn each_absence_names_its_own_fix_rather_than_falling_back() {
+        let no_project = choose_repo(None, || Ok(Lookup::NoProject))
+            .expect_err("a store with no such Project is an error");
+        let message = no_project.to_string();
+        assert!(
+            message.contains("start `web` once") && message.contains("--repo"),
+            "the no-Project error must name both fixes: {message}"
+        );
+
+        let no_url = choose_repo(None, || Ok(Lookup::Project(None)))
+            .expect_err("a Project with no repository URL is an error");
+        let message = no_url.to_string();
+        assert!(
+            message.contains("records no repository URL"),
+            "the no-URL error must say the column is empty: {message}"
+        );
+        assert!(
+            !message.contains("github.com"),
+            "no default upstream may appear in the error: {message}"
+        );
+    }
+
+    /// A failed lookup propagates rather than being read as "no URL recorded".
+    ///
+    /// Otherwise an unreachable database would produce the *set one on the
+    /// matter* advice, sending the reader to fix a row that is probably fine.
+    #[test]
+    fn a_failed_lookup_propagates_instead_of_becoming_an_absence() {
+        let error = choose_repo(None, || anyhow::bail!("connection refused"))
+            .expect_err("a lookup failure is an error");
+        assert!(
+            error.to_string().contains("connection refused"),
+            "the underlying failure must survive: {error}"
+        );
+    }
 
     #[test]
     fn clone_is_shallow_and_single_branch() {
