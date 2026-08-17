@@ -1066,6 +1066,40 @@ a.nav-pagination__link:hover {
   text-underline-offset: 0.2em;
 }
 
+/* Where to read the software the platform attribution above names. Sized with
+   the strip rather than louder than it: it is a developer surface in fine
+   print, not something the firm is announcing. */
+.site-footer__source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* The repository link and its star count travel together and must not be
+   separated by a line break — the count is meaningless beside a different
+   line. Each half is its own inline row so the glyphs sit on the text
+   baseline rather than riding above it. */
+.github-stars,
+.github-stars__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+/* A little air between the link and the number it belongs to, so "1,234" reads
+   as a count of the repository beside it rather than as part of its name. */
+.github-stars {
+  gap: 0.5rem;
+}
+
+/* The repository reads as an address, so it is set in the same mono stack
+   `.font-monospace` gives every other identifier on the site. */
+.github-stars__repo {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
 /* The per-attorney bar licenses: one line per attorney, each jurisdiction
    linked to that bar's own public record. */
 .site-footer__licenses {

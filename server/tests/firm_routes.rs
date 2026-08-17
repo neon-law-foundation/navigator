@@ -1766,8 +1766,68 @@ async fn contact_returns_contact_page_html() {
         body.contains(r#"href="tel:+15108002080""#),
         "tel link: {body}"
     );
-    // The Foundation's source repository is not a contact channel.
-    assert!(!body.contains("github.com"), "no GitHub link: {body}");
+    // The source repository is not a contact channel. Asserted on the page's
+    // own article rather than on the whole document, because the shared footer
+    // below it now links the repository on every page — as an "Open source"
+    // attribution in the legal strip, beside "Powered by Neon Law Navigator",
+    // not as a way to reach the firm.
+    //
+    // The narrowing preserves exactly what this assertion was protecting: a
+    // reader looking for how to contact the firm must find the inbox and the
+    // voice line, and must never be pointed at an issue tracker instead. A
+    // whole-document check can no longer express that, because it would now
+    // fail on site chrome that makes no contact claim at all.
+    let page = body
+        .split(r#"<article class="contact-page""#)
+        .nth(1)
+        .and_then(|rest| rest.split("</article>").next())
+        .expect("the contact page's own content renders");
+    assert!(
+        !page.contains("github.com"),
+        "the repository is not offered as a way to reach the firm: {page}"
+    );
+}
+
+/// The shared footer publishes the source repository on every public page, on
+/// both faces of the site.
+///
+/// The component and chrome tests prove the line renders from the right props;
+/// this proves the props actually reach a served page — the wiring through
+/// `chrome_for` and the two `inject_*_chrome` layers, which no unit test sees.
+/// Both faces are checked because the Foundation's chrome is built by *mutating*
+/// the firm's and clearing its regulated fields, so it is exactly the place a
+/// shared field gets dropped by accident.
+///
+/// The star count is deliberately not asserted. It comes from a cache that only
+/// `portal::hosting::run` starts filling, so a test-built router publishes the
+/// link with no number — which is the point: the suite reaches no network, and
+/// the page is complete without the count.
+#[tokio::test]
+async fn every_public_page_links_the_source_repository() {
+    let app = site_router(site_state().await);
+    for uri in ["/", "/contact", "/foundation"] {
+        let resp = app
+            .clone()
+            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "{uri}");
+        let body = body_string(resp).await;
+        assert!(
+            body.contains(r#"href="https://github.com/neon-law-foundation/navigator""#),
+            "{uri} links the repository: {body}"
+        );
+        assert!(
+            body.contains("Open source") && body.contains("neon-law-foundation/navigator"),
+            "{uri} names it as the project's source: {body}"
+        );
+        // No number, because nothing spawned the refresh — the link stands on
+        // its own rather than rendering a placeholder.
+        assert!(
+            !body.contains("GitHub stars"),
+            "{uri} publishes no count it has not fetched: {body}"
+        );
+    }
 }
 
 /// The `/team` surface is retired in full — the index and every profile.

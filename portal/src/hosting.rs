@@ -533,6 +533,14 @@ pub async fn run(brand: Brand) -> anyhow::Result<()> {
 
     preflight(&brand, &rt);
 
+    // Start keeping the footer's GitHub star count current. One background
+    // task per process, refreshing on an interval, so the count a page render
+    // reads is a cache hit and never an outbound call — see
+    // `webapp::source_repository`. Deliberately spawned here rather than
+    // lazily on first render: a test that builds a router directly never
+    // reaches this line, which is what keeps the suite off the network.
+    webapp::source_repository::spawn_refresh();
+
     // Built before `rt.state` moves into `bootstrap`: the public pages are
     // Dioxus routers resolved from state, and a brand that passed none here
     // would 404 its own home page.
