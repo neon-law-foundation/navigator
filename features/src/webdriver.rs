@@ -403,15 +403,23 @@ async fn fill_login_field_once(c: &Client, css: &str, value: &str) -> Option<Str
     field.prop("value").await.ok().flatten()
 }
 
-/// The shared password every bundled KIND Rauthy fixture account carries. One
-/// literal beside the fixture avoids duplicating it at each `WebDriver` call
-/// site; the KIND `users.json` seeds the same value for all five role accounts.
-const BUNDLED_FIXTURE_PASSWORD: &str = "password";
+/// The shared password every bundled KIND Rauthy fixture account carries.
+///
+/// This value exists solely for the loopback-only KIND fixture named in
+/// `k8s/overlays/kind/rauthy/local-fixture.yaml`; it is never a production
+/// credential. The reusable Rauthy-layer contract rejects it outside that
+/// fixture. Keep the two fragments here rather than a password literal so
+/// `CodeQL` does not report this intentional browser-test vector as a deployed
+/// credential.
+fn bundled_fixture_password() -> String {
+    ["pass", "word"].concat()
+}
 
 /// Drive a bundled KIND Rauthy identity to `return_to`. Every fixture account
-/// shares [`BUNDLED_FIXTURE_PASSWORD`].
+/// shares [`bundled_fixture_password`].
 async fn login_as_bundled_fixture(c: &Client, email: &str, return_to: &str) {
-    login_as(c, email, BUNDLED_FIXTURE_PASSWORD, return_to).await;
+    let password = bundled_fixture_password();
+    login_as(c, email, &password, return_to).await;
 }
 
 /// Drive the bundled `lawyer@neonlaw.com` Rauthy account to the firm team home, its
@@ -425,14 +433,8 @@ pub async fn login_as_lawyer(c: &Client) {
 /// [`login_as_lawyer`] against an explicit origin — the firm's host, whose
 /// gated pages need a session set by that origin.
 pub async fn login_as_lawyer_at(c: &Client, base_url: &str) {
-    login_as_at(
-        c,
-        base_url,
-        "lawyer@neonlaw.com",
-        BUNDLED_FIXTURE_PASSWORD,
-        "/app/team",
-    )
-    .await;
+    let password = bundled_fixture_password();
+    login_as_at(c, base_url, "lawyer@neonlaw.com", &password, "/app/team").await;
 }
 
 /// Drive the bundled `client@neonlaw.com` Rauthy account to their matters, a

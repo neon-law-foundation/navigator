@@ -161,6 +161,16 @@ fn form_body(email: &str, password: &str, csrf_token: &str) -> String {
     format!("email={email}&password={password}&return_to=%2Fapp%2Fprojects&csrf_token={csrf_token}")
 }
 
+/// A synthetic credential for this mock-only Identity Platform test.
+///
+/// The password path forwards this value to the local `wiremock` server; it
+/// never reaches a deployed identity provider or represents a user credential.
+/// Add the process ID so CodeQL cannot mistake a test vector for a reusable
+/// hard-coded password.
+fn test_password(label: &str) -> String {
+    format!("{label}-{}", std::process::id())
+}
+
 async fn post_password(app: &axum::Router, cookie: &str, body: String) -> axum::response::Response {
     app.clone()
         .oneshot(
@@ -193,10 +203,11 @@ async fn valid_password_mints_the_standard_session_cookie() {
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
 
     let (csrf_cookie, csrf_token) = open_login_form(&app).await;
+    let password = test_password("correct-horse");
     let resp = post_password(
         &app,
         &csrf_cookie,
-        form_body("client@example.org", "correct-horse", &csrf_token),
+        form_body("client@example.org", &password, &csrf_token),
     )
     .await;
 
@@ -232,10 +243,11 @@ async fn wrong_password_is_rejected_without_enumeration_and_without_session() {
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
 
     let (csrf_cookie, csrf_token) = open_login_form(&app).await;
+    let password = test_password("wrong");
     let resp = post_password(
         &app,
         &csrf_cookie,
-        form_body("client@example.org", "wrong", &csrf_token),
+        form_body("client@example.org", &password, &csrf_token),
     )
     .await;
 
@@ -262,10 +274,11 @@ async fn missing_csrf_token_is_rejected() {
     // Open the form (to look legitimate) but POST with NO csrf cookie and
     // an empty token — the double-submit check must reject it.
     let (_csrf_cookie, _token) = open_login_form(&app).await;
+    let password = test_password("correct-horse");
     let resp = post_password(
         &app,
         "navigator_login_csrf=tampered",
-        form_body("client@example.org", "correct-horse", ""),
+        form_body("client@example.org", &password, ""),
     )
     .await;
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST);

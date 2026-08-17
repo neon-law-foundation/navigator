@@ -5,6 +5,7 @@ use serde_yaml::Value;
 
 const KIND: &str = "k8s/overlays/kind";
 const KIND_DEPS: &str = "k8s/overlays/kind-deps";
+const GKE: &str = "examples/deploy/k8s/gke";
 
 const CLI_README: &str = "cli/README.md";
 
@@ -324,6 +325,25 @@ fn reusable_rauthy_layer_contains_no_kind_credentials() {
         assert!(
             staging.contains(environment_owned),
             "reusable Rauthy layer must require {environment_owned}"
+        );
+    }
+}
+
+#[test]
+fn production_overlay_excludes_the_local_rauthy_fixture() {
+    let Some(resources) = render(GKE) else {
+        return;
+    };
+    let production = rendered_text(&resources);
+    for local_only in [
+        "rauthy-bootstrap",
+        "users.json",
+        "\"Plain\": \"password\"",
+        "BOOTSTRAP_ADMIN_PASSWORD_PLAIN",
+    ] {
+        assert!(
+            !production.contains(local_only),
+            "production must exclude the local Rauthy fixture value `{local_only}`"
         );
     }
 }
