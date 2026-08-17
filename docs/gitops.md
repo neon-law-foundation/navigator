@@ -310,8 +310,9 @@ development](../CLAUDE.md#local-kind-development) and the `web-preview` / `kind-
 ### One workflow owns publishing — `deploy.yml`
 
 Publishing is a deliberate act: a person pushes a `YY.M.D` tag, and that run proves the workspace in KIND, builds every
-image, pushes them to GHCR, attaches the three `navigator` CLI archives to the tag's GitHub Release, and reports what it
-published. Versions omit leading zeros, remain valid semver, and align with image tags and `navigator --version`.
+image, pushes them to GHCR, attaches the three `navigator` CLI archives to the tag's GitHub Release, hands the release
+to the Homebrew tap, and reports what it published. Versions omit leading zeros, remain valid semver, and align with
+image tags and `navigator --version`.
 
 **A pushed tag is the only way to publish, and that is what makes a version trustworthy.** A cron and a
 `workflow_dispatch` both ran this pipeline once, and both are gone for one reason: neither carried a tag, so each could
@@ -386,6 +387,42 @@ breaks everywhere with a download 404 and nothing in this repository goes red �
 worth stating in prose, because no test here will catch it. The macOS archive existed nowhere until it was added:
 `validate` had always mapped a macOS runner to `platform=macos`, so that download 404'd for every Project repository
 whose gate ran on one.
+
+**The three archive jobs run on the free GitHub-hosted runners** — `windows-latest`, `ubuntu-latest`, and
+`macos-latest`. Public repositories are not billed for any of them, including the macOS and Windows classes a private
+repository pays a multiplier for, so all three platforms cost the same as the Linux one: nothing.
+
+### The Homebrew tap
+
+`brew install neon-law-foundation/navigator/navigator` installs the CLI, and
+[`neon-law-foundation/homebrew-navigator`](https://github.com/neon-law-foundation/homebrew-navigator) is the tap it
+resolves. On a Mac it is the **recommended** path, not a convenience: the released binary is unsigned and unnotarized,
+and Gatekeeper blocks an unsigned Mach-O downloaded through a browser outright. Homebrew fetches with `curl`, which sets
+no `com.apple.quarantine` attribute, so the same bytes run. Signing remains the right fix; the tap is what stands in
+until it lands.
+
+`release-homebrew-tap` is the hand-off. It needs `release-windows-cli-publish`, so it fires only once the Release
+actually carries the archives, and it sends a `repository_dispatch` naming the tag **and nothing else**. The tap
+computes every `sha256` itself by downloading the artifacts it will then tell readers to download. A payload carrying
+digests would let a malformed dispatch pin the formula to bytes nobody verified, and would leave the tap unable to
+repair a bad bump from a bare tag — which matters, because `YY.M.D` admits no second release the same UTC day. The tap
+covers that with a `workflow_dispatch` that re-runs any tag by hand.
+
+**A separate repository, not a folder here.** A tap is a Git repository Homebrew clones and re-reads on every `brew
+update`, and its formula changes once per release, mechanically, with no review to add. Keeping it here would mean
+either a bot commit to a protected `main` or a PR nobody reads, and would put a full workspace clone in front of every
+`brew update`.
+
+The dispatch authenticates with `HOMEBREW_TAP_TOKEN`, a fine-grained token scoped to `contents: write` on the tap and
+nothing else — the run's own `GITHUB_TOKEN` cannot reach another repository, and widening it to one that could would
+hand that reach to every job in the workflow. **A missing or rejected token fails the release**, deliberately: a tap
+that silently stops updating serves a stale version to everyone who installed through it while nothing anywhere goes
+red, which is the Project-CI 404 one channel over. `cli/tests/homebrew_tap_dispatch.rs` holds the contract, because the
+two repositories never reference each other.
+
+Two platforms have no prebuilt archive — Intel macOS and arm64 Linux — and the formula compiles the immutable source tag
+for them instead. The tap's own CI installs the formula on all four platforms, gating every push on the two prebuilt
+ones and running the two source builds weekly, since a cold workspace compile is tens of minutes.
 
 The run narrates itself while it goes. Every forward-path step opens with a `.github/actions/slack-progress` post to
 `#navigator` naming the tag, the stage, and the step, so the channel watches the release advance rather than waiting ~45

@@ -138,6 +138,8 @@ A person bumps the version, lands it, and pushes the YY.M.D tag
                   ├─ KIND integration suite (e2e + interop + browser)
                   ├─ build + push service images to GHCR tagged YY.M.D + latest
                   ├─ attach three CLI archives to the tag's GitHub Release
+                  ├─ dispatch the tag to the homebrew-navigator tap, which
+                  │    digests those archives and bumps its own formula
                   └─ post three reports to the engineering Slack channel
                         (what published; CLI install; then the ops ship command)
 
