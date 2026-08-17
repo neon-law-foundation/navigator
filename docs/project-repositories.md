@@ -12,13 +12,13 @@ Each Navigator [Project](glossary.md#project) coordinates four distinct surfaces
 Git never stores legal files. Google Drive and Navigator assets do. A Project's deletion handoff contains legal files
 only; it does not include the repository, portal source, CI output, or operational history.
 
-## One repository per Project code
+## One repository per Project, recorded as a URL
 
-A Project has **one** repository, named for its Project code, in **one** organization. It holds that Project's notation
-templates and its client portal side by side:
+A Project has **one** repository, and the Project records **where it is** as a whole URL in `project.repository_url`. It
+holds that Project's notation templates and its client portal side by side:
 
 ```text
-<organization>/<project-code>
+<the Project's repository>
 ├── .github/workflows/gate.yml
 ├── portal/            # React + Vite; the client's portal
 ├── templates/         # *.md notation blueprints
@@ -28,31 +28,48 @@ templates and its client portal side by side:
 └── README.md
 ```
 
-The Project code is the stable Navigator `projects.code`. It is the repository name, and it is the Project folder
-basename in its deployment's selected Drive root. That equality is why the slug rules are what they are: lowercase
-letters, digits, and single hyphens, alphanumeric at both ends, at most 80 characters. Drive and macOS are
-case-insensitive, so uppercase would let one folder answer to two codes; one separator keeps the mapping an equality
-check rather than a normalization.
+**The URL is stored, never composed.** Navigator does not build `https://<host>/<org>/<code>` from a deployment-wide
+forge host, because a Project's source is not the Firm's to place: it may sit on GitHub, on GitLab, on a self-hosted
+remote, in an organization the Firm does not own — one Project per forge if that is how the work arrived. A composed
+coordinate can express none of that, and worse, it always *exists*, so it produces a confident link for a Project that
+has no repository at all.
+
+The value is validated rather than trusted, by `store::projects::is_valid_repository_url`: `http(s)` only, a non-empty
+host and path, no whitespace, and no embedded credential. That URL is handed to `git clone` and rendered to a lawyer as
+a link, so a `file://` value would read the serving host's disk and a `user:token@` value would put a secret in a column
+that is rendered into a page and logged.
+
+The Project code is the stable Navigator `projects.code`. It is the Project folder basename in its deployment's selected
+Drive root. That equality is why the slug rules are what they are: lowercase letters, digits, and single hyphens,
+alphanumeric at both ends, at most 80 characters. Drive and macOS are case-insensitive, so uppercase would let one
+folder answer to two codes; one separator keeps the mapping an equality check rather than a normalization. The code does
+**not** name the repository.
 
 `new` is refused as a Project code. `/app/projects/new` is Navigator's matter-open form, so a Project coded `new` would
 collide with a literal route. Which side of a genuine collision wins depends on route registration order, so the code is
 refused rather than the precedence reasoned about — in `store::projects::is_valid_code` and in an `ASSERT` on
 `project.code`, because a Rust check only guards the write paths that call it.
 
-## Nothing declares its own name
+## A bundle declares which Project it mounts on
 
-The repository name **is** the Project code, and Navigator serves that Project's portal at the repository name plus one
-literal segment:
+Navigator serves a Project's portal at its **code** plus one literal segment:
 
 ```text
 /app/projects/<project-code>/portal/
 ```
 
-So the Vite base is derivable from the repository name alone, and there is nothing left for a manifest to say. Both
-manifests that used to restate it are gone: an application repository's root `mount.json` and a template repository's
-`navigator.toml`. Each existed only to re-spell what the repository was already called, which meant four things had to
-agree where two facts now suffice — the repository name and the directory it is in. CI reads the name it already has, as
-`github.event.repository.name`.
+The mount comes from the code, but the repository does not, so nothing can recover the code from the repository name —
+`navigator-sample-project` is no rule's way of spelling `simpsons`. A project application therefore declares its Project
+in a root `navigator.yml`:
+
+```yaml
+name: simpsons
+```
+
+That single field is the Vite base and the publish prefix. Boot re-reads the manifest rather than trusting whoever
+staged the bundle, and refuses one naming a different Project: publishing it would put one matter's application on
+another matter's portal. The declared code is validated with the same `store::projects::is_valid_code` the store uses,
+so a manifest cannot smuggle path segments into a bucket key.
 
 The trailing slash is load-bearing twice: Vite joins asset URLs directly onto the base, and Navigator redirects the bare
 mount to the slashed form.
@@ -63,9 +80,15 @@ matter show page at `/app/projects/{id}`. The two differ in path shape — three
 
 ## The organization is configuration, not a name in source
 
-Navigator spells no organization and no forge host anywhere in its source. Both come from the deployment's own
-configuration, `NAVIGATOR_GITHUB_ORG` and `NAVIGATOR_GIT_HOST`, and `cli/tests/forge_coordinate_retired.rs` is the guard
-that keeps it that way.
+Navigator spells no organization and no forge host anywhere in its source. `NAVIGATOR_GITHUB_ORG` names the organization
+this deployment's *own* automation occupies. `NAVIGATOR_GIT_HOST` is the single enterprise host `ops github setup` may
+write repository governance to — an authorization boundary, so a remote pointing anywhere else is refused before a token
+is read. `cli/tests/forge_coordinate_retired.rs` is the guard that keeps both out of source, and that keeps neither from
+being composed into a Project's URL.
+
+**Neither names a client matter's source.** That is `project.repository_url`, which is data. A deployment's organization
+and a Project's repository are independent: the Foundation's deployment can serve a matter whose source lives in a
+client's own GitLab group.
 
 | Deployment | GCP project | Organization | Drive root |
 | --- | --- | --- | --- |
@@ -81,22 +104,21 @@ GCP project `neon-law` is production.** That inversion is accepted rather than a
 for the entities and the GCP projects for the deployments. It is the single most likely way to ship to the wrong place,
 so it lives in the configuration an operator reads rather than in source where it would have to be remembered.
 
-### An absent coordinate is legitimate
+### An absent repository is legitimate
 
-A Project's repository is a **derived coordinate that may not exist**. With no deployment named there is no organization
-and no host, so there is no coordinate — and that is correct rather than degraded. The local development loop and the
-test suite name no deployment, and neither writes one into `.devx/env`.
+A Project may record no repository at all, and that is correct rather than degraded: a matter opens before anyone
+creates its source, so `project.repository_url` is nullable and the lawyer matter page simply omits the pointer.
 
-So the two absences are different questions with different answers:
+Nothing invents one to fill the gap. That is the whole difference from the derivation this replaced — a composed
+coordinate always existed, so it rendered a confident link whether or not the repository did, and when the forge host
+fell back to a public default it aimed that link at a namespace the Firm does not control. `ops github setup` documented
+having no public fallback while the pointer that actually served users had one.
 
 | State | Answer |
 | --- | --- |
-| No deployment named | The repository pointer is absent. Not an error. |
-| A deployment named, with no organization or host | A hard error, with no fallback. |
-
-There is no default forge host. A fallback to a public one would silently aim every Project's clone URL at a namespace
-the Firm does not control, which is exactly the defect this contract removed: `ops github setup` documented having no
-public fallback while the pointer that actually served users had one.
+| `repository_url` recorded | The lawyer sees it verbatim. Never verified — the target may not exist yet. |
+| `repository_url` absent | The pointer is absent. Not an error, and nothing is composed. |
+| A value that is not an `http(s)` URL with a host and path | Refused at the write, not stored. |
 
 ## The CI gate
 
@@ -111,10 +133,10 @@ One composite action is the whole gate, consumed identically by every Project re
     project_repository: true
 ```
 
-It carries no organization, host, deployment, or client name, because none of those vary: the repository name is the
-Project code and the mount is that name plus a literal. Only the host differs between deployments, and a host never
-appears in a Vite base. `cli/tests/project_gate.rs` pins the shell against the Rust definitions it transcribes, because
-bash cannot call Rust.
+It carries no organization, host, deployment, or client name, because none of those vary: the mount is the Project code
+the bundle's own `navigator.yml` declares, plus a literal segment. A forge host never appears in a Vite base, which is
+why a repository may move between forges without touching the gate. `cli/tests/project_gate.rs` pins the shell against
+the Rust definitions it transcribes, because bash cannot call Rust.
 
 **There is no path filter, and that is deliberate.** A filtered job that skips reports success for work it never did,
 and a required check a skip can satisfy is not a gate. So the one job always runs and each half no-ops over a repository
@@ -143,8 +165,9 @@ consuming one is not.
 The gate proves the bundle; a second composite action publishes it.
 `neon-law-foundation/navigator/.github/actions/application-publish@YY.M.D` runs after the gate, in the same job, and
 uploads `portal/dist/` to `<code>/portal/` in the deployment's private `<deployment>-applications` bucket, which
-Navigator streams object-by-object. Objects land **flat** under that prefix; the action derives `<code>` from the
-repository name, exactly as the gate does, so the object prefix cannot disagree with the served mount.
+Navigator streams object-by-object. Objects land **flat** under that prefix; the action reads `<code>` from the bundle's
+own `navigator.yml`, exactly as the gate and boot do, so the object prefix cannot disagree with the served mount however
+the repository is named or wherever it is hosted.
 
 It carries no organization, host, or client. The three coordinates it cannot derive are passed from GHE repository
 **variables** — a provider resource name, a service-account email, and a bucket name are public identifiers, and the

@@ -532,6 +532,7 @@ erDiagram
         string inserted_at
         option_string internal_slack_channel_url
         string name
+        option_string repository_url
         string status
         string updated_at
     }
