@@ -6,12 +6,12 @@ name: ci
 # coverage floor: it runs under `cargo llvm-cov` instrumentation, so coverage is
 # a byproduct of the existing gate and NOT a second test run.
 # Integration (KIND), docker image builds, browser tests, and the deploy
-# Slack report all live in the release flow (`deploy.yml`), which cuts the
-# nightly tag itself at 01:11 UTC and also runs on tag push or dispatch.
+# Slack report all live in the release flow (`deploy.yml`), which runs when a
+# person pushes a `YY.M.D` tag.
 #
 # Do NOT add audit/deny/cucumber/docker/e2e jobs back here — the Cucumber BDD
 # suite already runs inside `cargo test --workspace`, and the heavy paths
-# belong in the nightly release flow so PR latency stays low. Coverage is the
+# belong in the release flow so PR latency stays low. Coverage is the
 # one deliberate exception: it piggybacks on the existing test pass rather than
 # adding a job, and `--fail-under-lines` fails that job in-run, so the whole
 # signal lives in this workflow with no third-party service in the merge path
@@ -79,10 +79,14 @@ name: ci
 
 on:
   # Pull requests targeting `main` only. `main` itself never runs CI on push:
-  # it advances solely through PRs (merge-only), the nightly release flow
-  # (`deploy.yml`) is the only thing scheduled against it, and every
-  # heavy/deploy path rides that flow. So the PR run is
-  # the single gate before merge — no redundant post-merge push build.
+  # it advances solely through PRs (merge-only), and every heavy/deploy path
+  # rides the release flow (`deploy.yml`), which a pushed tag starts. So the PR
+  # run is the single gate before merge — no redundant post-merge push build.
+  #
+  # NOTHING RUNS THIS PIPELINE ON A CLOCK, which is worth knowing before relying
+  # on it: `deploy.yml` was scheduled nightly and is now tag-driven, and the one
+  # remaining scheduled workflow (`ghcr-retention.yml`) only prunes the registry.
+  # See docs/gitops.md § "What detects a broken pipeline".
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]

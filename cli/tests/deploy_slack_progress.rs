@@ -196,26 +196,31 @@ fn the_report_jobs_are_not_narrated() {
     }
 }
 
-/// Both publishing events run from a BRANCH ref, so a `refs/tags/*` gate would
-/// silence them entirely — every post skipped, the whole publish invisible in
-/// #navigator. That is the trap the tag-era gate set for the old promotion
-/// workflow, and the fix is the same shape: gate on the EVENT, and read it from
-/// the run rather than trusting a caller-supplied flag, so a new call site
+/// PUBLISHING RUNS FROM A TAG, so the gate is a ref test again.
+///
+/// The gate has to track the trigger exactly, and it fails silently in both
+/// directions. Too narrow and a real release goes unnarrated — every post
+/// skipped, the whole publish invisible in #navigator, which is what a
+/// `refs/tags/*` test did while the clock owned publishing. Too wide and a
+/// `kind-ci/**` iteration posts a release report for images it never pushed.
+///
+/// Read from the run rather than from a caller-supplied flag, so a new call site
 /// cannot forget it.
 #[test]
-fn the_progress_gate_admits_every_publishing_event() {
+fn the_progress_gate_admits_exactly_the_publishing_ref() {
     let path = repo_root().join(".github/actions/slack-progress/action.yml");
     let raw = fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
 
     assert!(
-        raw.contains("schedule | workflow_dispatch)"),
-        "slack-progress must admit BOTH publishing events: each runs from a branch ref, and a \
-         gate that names only one silences half the runs that publish anything"
+        raw.contains("refs/tags/*)"),
+        "slack-progress must admit a tag ref: a pushed tag is the only thing that publishes, and a \
+         gate that does not name it silences every release"
     );
     assert!(
-        !raw.contains("refs/tags/*"),
-        "the tag arm must go with the tag trigger: nothing publishes from a tag any more"
+        !raw.contains("schedule | workflow_dispatch)"),
+        "the event arms must go with the triggers they admitted: nothing publishes on a clock or a \
+         dispatch any more, so a gate naming them can only admit a run that publishes nothing"
     );
     assert!(
         !raw.contains("inputs.force") && !raw.contains("inputs.gate"),

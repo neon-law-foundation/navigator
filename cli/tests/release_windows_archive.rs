@@ -129,16 +129,18 @@ fn assert_builds_from_the_sha(job: &str) {
     assert_eq!(
         git_ref.trim(),
         "${{ github.sha }}",
-        "{job} must build the run's own SHA — `release-windows-cli-publish` cuts the tag at that \
-         same SHA, so checking out anything else would let an archive named for a version be \
-         compiled from a different commit"
+        "{job} must build the run's own SHA — on a tag push that IS the tagged commit, and the \
+         Release these archives attach to hangs off that same tag, so checking out anything else \
+         would let an archive named for a version be compiled from a different commit"
     );
 }
 
 /// A GitHub Release hangs off an immutable Git tag, and `publishable` is true
-/// only for a tag ref, so that one output is the whole gate. The trigger-shaped
-/// second clause this carried (`schedule` or a tag ref) existed to stop a
-/// dispatch claiming a Release it had cut no tag for.
+/// only for a validated tag ref, so that one output is the whole gate. The
+/// trigger-shaped clauses this carried existed to stop a clock- or
+/// dispatch-driven run claiming a Release no tag stood behind; neither trigger
+/// exists now, and naming a retired one here would be a gate on a condition that
+/// can never be true.
 #[test]
 fn only_tagged_releases_attach_the_archive_to_a_github_release() {
     let gate = deploy_job("release-windows-cli-publish")["if"]
