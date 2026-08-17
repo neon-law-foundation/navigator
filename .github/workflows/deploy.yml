@@ -2028,6 +2028,82 @@ jobs:
           gh release upload "${TAG}" dist/navigator-*-macos.tar.gz \
               --repo "${GITHUB_REPOSITORY}" --clobber
 
+  # ---------- Stage 3b: hand the release to the Homebrew tap ----------
+  # `brew install neon-law-foundation/navigator/navigator` is the macOS install
+  # path, and this job is what keeps it current.
+  #
+  # IT SENDS A TAG AND NOTHING ELSE. The tap computes every sha256 itself, from
+  # the bytes the job above just attached. Shipping digests in the payload would
+  # let a malformed dispatch pin the formula to bytes nobody verified, and would
+  # leave the tap unable to repair a bad bump without a new release here — which
+  # `YY.M.D` makes impossible until tomorrow.
+  #
+  # WHY A SEPARATE REPOSITORY. A tap is a Git repository Homebrew clones and
+  # re-reads on every `brew update`, and the formula changes on a cadence this
+  # repository's `main` does not: once per release, mechanically, with no review
+  # to add. Landing it here would mean either a bot commit to a protected `main`
+  # or a PR nobody reads, and would put a full workspace clone in front of every
+  # `brew update`. The tap is also the reason the unsigned macOS binary is
+  # usable at all — brew fetches with curl, which sets no `com.apple.quarantine`
+  # attribute, so Gatekeeper does not block bytes a browser download would.
+  # Notarization is still the right fix (ENG-115); this is what stands in.
+  #
+  # THIS JOB FAILS THE RELEASE IF THE DISPATCH FAILS, and that is deliberate.
+  # A tap that silently stops updating reports a stale version to everyone who
+  # installed through it, and nothing anywhere goes red — the same shape as the
+  # Project-CI 404 the archive jobs above exist to prevent.
+  release-homebrew-tap:
+    name: hand the release to the Homebrew tap
+    needs: [release-windows-cli-publish, release-version]
+    # The Release must exist before the tap is told to read it: the bump
+    # downloads the attached archives to digest them, and a dispatch sent
+    # earlier would race an empty Release. `release-windows-cli-publish`
+    # already carries the `publishable` gate, so needing it is the whole
+    # condition.
+    if: needs.release-version.outputs.publishable == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # No `contents: write`. This job writes nothing in THIS repository; the
+    # cross-repository grant is the `HOMEBREW_TAP_TOKEN` secret, scoped to
+    # `contents: write` on the tap alone.
+    permissions:
+      contents: read
+    steps:
+      # Sparse: this job publishes nothing of its own and needs the tree only
+      # so the local `slack-progress` action is on disk.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions/slack-progress
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-homebrew-tap"
+          step: "dispatch the formula bump"
+      - name: dispatch the formula bump
+        env:
+          # A fine-grained token with `contents: write` on
+          # `neon-law-foundation/homebrew-navigator` and nothing else. The
+          # run's own GITHUB_TOKEN cannot reach another repository, and
+          # widening it to one that could would hand every job in this
+          # workflow that reach.
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAG: ${{ needs.release-version.outputs.tag }}
+          TAP_REPO: neon-law-foundation/homebrew-navigator
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN}" ]; then
+              echo "::error::HOMEBREW_TAP_TOKEN is unset — the Homebrew tap cannot be told about ${TAG}, and every brew install would keep resolving the previous release"
+              exit 1
+          fi
+          # `-f` sends a string field; the nested `client_payload[tag]` key is
+          # how `gh api` composes the object the tap workflow reads as
+          # `github.event.client_payload.tag`.
+          gh api --method POST "/repos/${TAP_REPO}/dispatches" \
+              -f "event_type=navigator-release" \
+              -f "client_payload[tag]=${TAG}"
+          echo "dispatched navigator-release ${TAG} to ${TAP_REPO}"
+
   # ---------- Stage 4: post the release report to Slack ----------
   # Sent only after the container images are published. Posts to the
   # #navigator channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL,
@@ -2157,11 +2233,12 @@ jobs:
           fi
           TEXT="*CLI installation for ${TAG}*
 
+          • macOS and Linux, any architecture: \`brew install neon-law-foundation/navigator/navigator\` (or \`brew upgrade navigator\` if you already have it). This is the recommended path on a Mac — the released binary is unsigned, and Gatekeeper blocks an unsigned Mach-O downloaded through a browser but not one brew fetched with curl.
           • Windows: download \`navigator-${TAG}-windows.zip\` from the \`${TAG}\` GitHub Release, extract it, and add its folder to \`PATH\`.
           • macOS (Apple silicon): download \`navigator-${TAG}-macos.tar.gz\` from the same Release, then \`tar -xzf navigator-${TAG}-macos.tar.gz navigator && install -m 0755 navigator /usr/local/bin/navigator && navigator --version\`.
           • Linux: download \`navigator-${TAG}-linux.tar.gz\` from the same Release, then \`tar -xzf navigator-${TAG}-linux.tar.gz navigator && install -m 0755 navigator /usr/local/bin/navigator && navigator --version\`.
 
-          On an Intel Mac there is no prebuilt archive; build the tagged source: \`tmp=\"\$(mktemp -d /tmp/navigator.XXXXXX)\" && git clone --depth 1 --branch \"${TAG}\" https://github.com/neon-law-foundation/navigator.git \"\$tmp\" && NAVIGATOR_RELEASE_TAG=\"${TAG}\" cargo install --locked --path \"\$tmp/cli\" --force && rm -rf \"\$tmp\" && navigator --version\`
+          On an Intel Mac there is no prebuilt archive; build the tagged source: \`tmp=\"\$(mktemp -d /tmp/navigator.XXXXXX)\" && git clone --depth 1 --branch \"${TAG}\" https://github.com/neon-law-foundation/navigator.git \"\$tmp\" && NAVIGATOR_RELEASE_TAG=\"${TAG}\" cargo install --locked --path \"\$tmp/cli\" --force && rm -rf \"\$tmp\" && navigator --version\` — or let \`brew\` do exactly that for you.
 
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
@@ -2281,6 +2358,7 @@ jobs:
         release-cli-build-linux,
         release-cli-build-macos,
         release-windows-cli-publish,
+        release-homebrew-tap,
         notify,
       ]
     # Tag only: a failed `kind-ci/**` branch iteration is expected churn and
