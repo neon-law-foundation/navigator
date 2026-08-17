@@ -20,7 +20,7 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-use chrono::{Datelike, NaiveDate, Utc};
+use chrono::{Datelike, Days, NaiveDate, Timelike, Utc};
 
 /// Today's release version in the `YY.M.D` shape the tag glob and the
 /// `deploy.yml` date guard require: the two-digit year and the UNPADDED month
@@ -39,6 +39,44 @@ fn todays_version() -> String {
 /// no leading zero, so `2026-08-05` is `26.8.5`, not `26.08.05`.
 fn version_for(date: NaiveDate) -> String {
     format!("{}.{}.{}", date.year() % 100, date.month(), date.day())
+}
+
+/// Today's hotfix version: a `-hotfix.H` prerelease hung off TOMORROW's
+/// `YY.M.D`, where `H` is the current UTC hour.
+///
+/// This is the spelling for cutting a release when today's ordinary release
+/// already happened — `YY.M.D` admits exactly one of those per UTC day, and the
+/// tag is immutable, so the day's release name is spent the moment it is pushed.
+fn todays_hotfix_version() -> String {
+    let now = Utc::now();
+    hotfix_version_for(now.date_naive(), now.hour())
+}
+
+/// The hotfix version for one UTC date and hour.
+///
+/// THE BASE IS THE DAY AFTER `date`, and that is a correctness requirement
+/// rather than a naming choice. Semver ranks a prerelease BELOW its own base
+/// version (spec §11.3), so `26.8.17-hotfix.17` would sort as OLDER than the
+/// `26.8.17` it exists to fix — Cargo, Homebrew, and every image sort would read
+/// the fix as the earlier release. Hanging it off the next day makes the order
+/// monotonic and true:
+///
+/// ```text
+/// 26.8.17 < 26.8.18-hotfix.17 < 26.8.18-hotfix.21 < 26.8.18
+/// ```
+///
+/// Read plainly, a hotfix IS the next day's release cut early: it carries fixes
+/// that would otherwise wait for the next UTC day.
+///
+/// `hour` is written unpadded because semver forbids a leading zero in a numeric
+/// prerelease identifier — `hotfix.08` is not a valid version at all, which is
+/// the same unpadded rule the date components already follow.
+fn hotfix_version_for(date: NaiveDate, hour: u32) -> String {
+    // A date one day past the maximum representable date cannot arise from
+    // `Utc::now()`; fall back to the same date rather than panicking, so this
+    // helper has no failure mode a caller must handle.
+    let base = date.checked_add_days(Days::new(1)).unwrap_or(date);
+    format!("{}-hotfix.{hour}", version_for(base))
 }
 
 /// Replace the `version` value inside the `[workspace.package]` table only,
@@ -96,13 +134,19 @@ fn set_workspace_version(manifest: &str, version: &str) -> Result<String, String
 /// current branch so the operator can push it as a PR. It refuses to commit on
 /// `main`: that branch takes no direct commits, so the bump must reach it the
 /// same way every change does.
-pub fn run(manifest_path: &Path, version: Option<String>, no_commit: bool) -> ExitCode {
+pub fn run(
+    manifest_path: &Path,
+    version: Option<String>,
+    hotfix: bool,
+    no_commit: bool,
+) -> ExitCode {
     let version = match version {
         Some(explicit) if explicit.trim().is_empty() => {
             eprintln!("navigator: release-version: --tag must not be empty");
             return ExitCode::from(2);
         }
         Some(explicit) => explicit.trim().to_string(),
+        None if hotfix => todays_hotfix_version(),
         None => todays_version(),
     };
 
@@ -196,8 +240,71 @@ fn commit_bump(version: &str) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::{set_workspace_version, version_for};
+    use super::{hotfix_version_for, set_workspace_version, version_for};
     use chrono::NaiveDate;
+
+    /// The hotfix shape must match `deploy.yml`'s regex byte for byte: the base
+    /// is TOMORROW's unpadded `YY.M.D` and the hour is unpadded.
+    #[test]
+    fn hotfix_version_hangs_off_tomorrow_at_the_given_hour() {
+        let date = NaiveDate::from_ymd_opt(2026, 8, 17).expect("valid date");
+        assert_eq!(hotfix_version_for(date, 17), "26.8.18-hotfix.17");
+    }
+
+    /// THE PROPERTY THE WHOLE CONVENTION EXISTS FOR. A hotfix must sort ABOVE
+    /// the release it fixes and BELOW the next ordinary release, and later hours
+    /// must sort above earlier ones. Hanging the prerelease off the SAME day
+    /// would invert the first comparison — semver ranks a prerelease below its
+    /// own base — which is the bug this ordering test pins shut.
+    #[test]
+    fn hotfix_sorts_between_todays_release_and_tomorrows() {
+        let date = NaiveDate::from_ymd_opt(2026, 8, 17).expect("valid date");
+        let today: semver::Version = version_for(date).parse().expect("valid semver");
+        let early: semver::Version = hotfix_version_for(date, 3).parse().expect("valid semver");
+        let late: semver::Version = hotfix_version_for(date, 21).parse().expect("valid semver");
+        let tomorrow: semver::Version = version_for(
+            date.checked_add_days(chrono::Days::new(1))
+                .expect("valid date"),
+        )
+        .parse()
+        .expect("valid semver");
+
+        assert!(
+            today < early,
+            "a hotfix must rank above the release it fixes"
+        );
+        assert!(early < late, "a later hour must rank above an earlier one");
+        assert!(
+            late < tomorrow,
+            "a hotfix must rank below the next ordinary release"
+        );
+    }
+
+    /// An unpadded hour is not cosmetic: semver forbids a leading zero in a
+    /// numeric prerelease identifier, so a padded `hotfix.08` would not parse at
+    /// all and `deploy.yml`'s regex rejects it.
+    #[test]
+    fn hotfix_hour_is_unpadded_and_parses_as_semver() {
+        let date = NaiveDate::from_ymd_opt(2026, 8, 17).expect("valid date");
+        let version = hotfix_version_for(date, 8);
+        assert_eq!(version, "26.8.18-hotfix.8");
+        assert!(version.parse::<semver::Version>().is_ok());
+        assert!(
+            "26.8.18-hotfix.08".parse::<semver::Version>().is_err(),
+            "a leading zero in a numeric prerelease identifier is invalid semver"
+        );
+    }
+
+    /// A hotfix cut on the last day of a month rolls into the next month, and on
+    /// New Year's Eve into the next year — the base is a real date, not string
+    /// arithmetic on the day component.
+    #[test]
+    fn hotfix_base_rolls_over_month_and_year() {
+        let month_end = NaiveDate::from_ymd_opt(2026, 8, 31).expect("valid date");
+        assert_eq!(hotfix_version_for(month_end, 5), "26.9.1-hotfix.5");
+        let year_end = NaiveDate::from_ymd_opt(2026, 12, 31).expect("valid date");
+        assert_eq!(hotfix_version_for(year_end, 23), "27.1.1-hotfix.23");
+    }
 
     /// The shape must match `deploy.yml` byte for byte: unpadded month and day,
     /// two-digit year. A padded `26.08.05` would be a tag the release rejects.

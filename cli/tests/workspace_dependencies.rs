@@ -93,6 +93,7 @@ const WORKSPACE_DEPENDENCIES: &[&str] = &[
     "rgb",
     "rules",
     "scraper",
+    "semver",
     "serde",
     "serde_json",
     "serde_yaml",

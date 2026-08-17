@@ -195,6 +195,73 @@ fn the_release_tag_must_be_todays_utc_date() {
     );
 }
 
+/// A SAME-DAY HOTFIX HAS A SPELLING, and it hangs off TOMORROW's date.
+///
+/// `YY.M.D` admits one ordinary release per UTC day and the `release-tags`
+/// ruleset will not let anyone move the tag, so the day's release name is spent
+/// the moment it is pushed. A semver prerelease is the escape hatch — Cargo
+/// parses `26.8.18-hotfix.17` where it rejects a fourth component outright.
+///
+/// THE BASE IS THE NEXT DAY BECAUSE SEMVER RANKS A PRERELEASE BELOW ITS OWN
+/// BASE (spec §11.3). `26.8.17-hotfix.17` would sort as OLDER than the `26.8.17`
+/// it exists to fix, so Cargo, Homebrew, and every image sort would read the fix
+/// as the earlier release. This test pins the tomorrow-base rule shut.
+#[test]
+fn a_hotfix_tag_is_a_prerelease_on_tomorrows_utc_date() {
+    let workflow = deploy_workflow();
+
+    assert!(
+        workflow.contains("(-hotfix\\.([0-9]|1[0-9]|2[0-3]))?$"),
+        "the shape check must admit an optional `-hotfix.H` suffix bounded 0-23, with no leading \
+         zero — a padded `hotfix.08` is invalid semver"
+    );
+    assert!(
+        workflow.contains("date -d 'tomorrow'"),
+        "the hotfix base is TOMORROW's UTC date, so the step must derive it"
+    );
+    assert!(
+        workflow.contains("expected=\"${tomorrow}\""),
+        "a prerelease tag must be validated against tomorrow's base, not today's"
+    );
+    assert!(
+        workflow.contains("expected=\"${today}\""),
+        "an ordinary release must still be validated against today's base"
+    );
+}
+
+/// A hotfix must not masquerade as the latest release, in either place that
+/// decides what a user gets by default.
+///
+/// The GitHub Release is flagged so it stops being reported as "Latest", and the
+/// Homebrew tap is not told about it at all — the formula holds exactly one
+/// version, so bumping it to a prerelease would hand an rc to every `brew
+/// upgrade` while ranking below the ordinary release it precedes.
+#[test]
+fn a_hotfix_publishes_as_a_prerelease_and_never_reaches_the_tap() {
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
+
+    let outputs = &workflow["jobs"]["release-version"]["outputs"];
+    assert!(
+        outputs["prerelease"].as_str().is_some(),
+        "`release-version` must publish a `prerelease` output for downstream jobs to gate on"
+    );
+
+    let gate = workflow["jobs"]["release-homebrew-tap"]["if"]
+        .as_str()
+        .expect("the tap job must declare an `if:` gate");
+    assert!(
+        gate.contains("prerelease != 'true'"),
+        "the Homebrew tap must be skipped for a hotfix, got: {gate:?}"
+    );
+
+    assert!(
+        deploy_workflow().contains("flags+=(--prerelease)"),
+        "the GitHub Release for a hotfix must be created with --prerelease so it is not reported \
+         as the latest release"
+    );
+}
+
 /// THE TAG MUST CARRY ITS OWN VERSION. This is the check that makes a published
 /// image's self-reported version true.
 ///

@@ -781,11 +781,21 @@ enum OpsCmd {
     /// reports it. Run this on a release branch, land it on `main` through a PR,
     /// then tag the merged commit; `deploy.yml`'s `release-version` job fails a
     /// tag whose source version does not match, so tag and source cannot drift.
-    /// Pass `--tag` to write an explicit version instead of today's UTC date.
+    /// Pass `--tag` to write an explicit version instead of today's UTC date, or
+    /// `--hotfix` to cut a same-day hotfix when today's release already
+    /// happened: a `-hotfix.H` prerelease hung off TOMORROW's date, where `H` is
+    /// the current UTC hour. The next day is the base because semver ranks a
+    /// prerelease below its own base, so `26.8.17-hotfix.17` would sort as older
+    /// than the `26.8.17` it fixes.
     ReleaseVersion {
         /// Version to write. Defaults to today's UTC `YY.M.D`.
         #[arg(long)]
         tag: Option<String>,
+        /// Write a same-day hotfix version instead — `YY.M.D-hotfix.H` on
+        /// tomorrow's date, at the current UTC hour. The spelling for releasing
+        /// again on a day whose `YY.M.D` tag is already spent.
+        #[arg(long, conflicts_with = "tag")]
+        hotfix: bool,
         /// The workspace manifest to rewrite.
         #[arg(long, default_value = "Cargo.toml")]
         manifest_path: PathBuf,
@@ -1667,9 +1677,10 @@ fn main() -> ExitCode {
             OpsCmd::Notices { out, check } => notices::run(&out, check),
             OpsCmd::ReleaseVersion {
                 tag,
+                hotfix,
                 manifest_path,
                 no_commit,
-            } => release_version::run(&manifest_path, tag, no_commit),
+            } => release_version::run(&manifest_path, tag, hotfix, no_commit),
             OpsCmd::CliRelease { action } => match action {
                 CliReleaseAction::Upload { dir, tag } => cli_release::run_upload(&dir, &tag),
             },

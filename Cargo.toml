@@ -128,6 +128,13 @@ regorus = { version = "0.11.0", default-features = false, features = ["arc", "st
 scraper = "0.27"
 encoding_rs = "0.8"
 sha2 = "0.11"
+# Test-only. `ops release-version` composes the `YY.M.D-hotfix.H` release
+# spelling, and the property that makes that convention correct is a SEMVER
+# ORDERING one: the hotfix must rank above the release it fixes and below the
+# next ordinary release. Asserting that against a real semver implementation is
+# the point — a hand-rolled comparison would only prove itself. Already in the
+# lockfile via `rustc_version`, so this adds a dependency edge, not a crate.
+semver = "1"
 toml = "1.1"
 tower-cookies = "0.11"
 predicates = "3"
