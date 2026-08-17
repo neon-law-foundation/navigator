@@ -148,9 +148,13 @@ async fn site_host_serves_the_legal_services_page() {
         body.contains("One scope, one fee, agreed before we start"),
         "the page's tagline: {body}"
     );
+    // Classless on purpose: `theme.css` cues inline prose links through
+    // `.nav-theme :is(p, li) > a:not([class])`, so a class here would leave this
+    // link distinguishable by colour alone (axe `link-in-text-block`, which is
+    // how this page failed the public accessibility gate).
     assert!(
-        body.contains(r#"class="fm-prose__link" href="/fractional-gc""#),
-        "business filings link to the fractional GC page: {body}"
+        body.contains(r#"<a href="/fractional-gc""#),
+        "business filings link to the fractional GC page, with no class: {body}"
     );
     assert!(
         body.contains("Our process is designed with speed in mind"),

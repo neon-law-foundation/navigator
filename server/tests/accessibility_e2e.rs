@@ -797,6 +797,16 @@ async fn the_error_pages_pass_axe_wcag_a_and_aa() {
     }
 }
 
+/// The public surface's two interactive image affordances: the home page's call
+/// to action, and the blog collage's lightbox dialog.
+///
+/// There is deliberately no `/team` leg. This test used to open `/team` and
+/// assert its profile photo carried alternative text, but the public surface
+/// declares no team page — `neon::PUBLIC_PATHS` is the whole declaration and has
+/// none, and nothing in the tree renders `.team-profile-card`, so the route
+/// `404`s and the wait timed out rather than failing an accessibility claim.
+/// Removing a page orphaned the assertion about it; the check that survived the
+/// page's removal is the one below, on markup that still ships.
 #[tokio::test]
 async fn public_navigation_images_and_collage_dialog_are_accessible() {
     let site_base_url = base_url();
@@ -816,22 +826,6 @@ async fn public_navigation_images_and_collage_dialog_are_accessible() {
         .for_url(&url::Url::parse(&format!("{site_base_url}/contact")).unwrap())
         .await
         .expect("the home call to action navigates to the contact route");
-
-    c.goto(&format!("{site_base_url}/team")).await.unwrap();
-    let profile_image = c
-        .wait()
-        .at_most(Duration::from_secs(10))
-        .for_element(Locator::Css(".team-profile-card__photo[alt]"))
-        .await
-        .expect("the team profile renders a named photo");
-    assert!(
-        profile_image
-            .attr("alt")
-            .await
-            .unwrap()
-            .is_some_and(|alt| !alt.is_empty()),
-        "team profile photo must carry meaningful alternative text"
-    );
 
     c.goto(&format!("{site_base_url}/blog/thanks-apple"))
         .await
