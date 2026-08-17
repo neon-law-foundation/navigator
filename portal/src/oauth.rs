@@ -1994,14 +1994,15 @@ mod tests {
     #[test]
     fn id_token_verifier_accepts_a_valid_signed_token() {
         let verifier = oidc_verifier("client123");
+        let nonce = test_nonce("valid");
         let token = sign_id_token(
             "client123",
-            "the-nonce",
+            &nonce,
             "rauthy-libra-subject",
             "libra@example.com",
             "Libra",
         );
-        let claims = verifier.verify(&token, "the-nonce").expect("valid token");
+        let claims = verifier.verify(&token, &nonce).expect("valid token");
         assert_eq!(claims.sub, "rauthy-libra-subject");
         assert_eq!(claims.email.as_deref(), Some("libra@example.com"));
     }
@@ -2009,20 +2010,23 @@ mod tests {
     #[test]
     fn id_token_verifier_rejects_a_nonce_mismatch() {
         let verifier = oidc_verifier("client123");
-        let token = sign_id_token("client123", "login-nonce", "s", "e@x.com", "N");
+        let token_nonce = test_nonce("token");
+        let expected_nonce = test_nonce("expected");
+        let token = sign_id_token("client123", &token_nonce, "s", "e@x.com", "N");
         // A token whose nonce doesn't match the login's pre-auth nonce is
         // a replay/injection and must be refused.
-        let err = verifier.verify(&token, "different-nonce").unwrap_err();
+        let err = verifier.verify(&token, &expected_nonce).unwrap_err();
         assert!(matches!(err, IdTokenError::Nonce));
     }
 
     #[test]
     fn id_token_verifier_rejects_a_token_minted_for_another_audience() {
         let verifier = oidc_verifier("client123");
+        let nonce = test_nonce("audience");
         // Signed for a *different* client of the same IdP — the
         // token-confusion attack. Audience pinning rejects it.
-        let token = sign_id_token("other-client", "n", "s", "e@x.com", "N");
-        let err = verifier.verify(&token, "n").unwrap_err();
+        let token = sign_id_token("other-client", &nonce, "s", "e@x.com", "N");
+        let err = verifier.verify(&token, &nonce).unwrap_err();
         assert!(matches!(err, IdTokenError::Validation(_)));
     }
 
@@ -2036,6 +2040,15 @@ mod tests {
             .encode(br#"{"sub":"x","nonce":"n","iss":"https://idp.test","aud":"client123"}"#);
         let unsigned = format!("aGVhZGVy.{payload}.");
         assert!(verifier.verify(&unsigned, "n").is_err());
+    }
+
+    /// A unique, synthetic nonce for a unit test.
+    ///
+    /// Production nonces come from [`random_token`]. Adding the process ID
+    /// keeps test data distinct from a reusable cryptographic value and makes
+    /// that boundary apparent to CodeQL.
+    fn test_nonce(label: &str) -> String {
+        format!("{label}-{}", std::process::id())
     }
 
     #[test]
