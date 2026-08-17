@@ -12,6 +12,25 @@ tree, and it covers everything the Foundation is able to license:
 One grant and one file is the whole design. A reader never has to work out which instrument governs the file in front of
 them, and a fork never has to reconcile two sets of obligations across a directory boundary.
 
+## Two files, and which one is the instrument
+
+[`LICENSE`](../LICENSE) is the Free Software Foundation's text, unaltered: it opens on the licence's own first line,
+ends on its last, and carries nothing of ours in between. [`NOTICE`](../NOTICE) beside it carries everything the
+Foundation has to say — the copyright line, the SPDX tag, § 13 in its own voice, the government forms it cannot license,
+the marks it reserves, and the terms a contribution arrives under.
+
+The split is what every other project does, and there is a mechanical reason for it. A licence file is read by machines
+as well as people: GitHub's repository page, `cargo deny`, SBOM generators, and a corporate review team's scanner all
+decide *which* licence they are looking at by comparing the file to the canonical text. Each of them wants a near-exact
+match. Add a page of our own prose in front of the grant and the comparison drops under the threshold — the sidebar
+stops saying `AGPL-3.0`, the scanner reports an unidentified licence, and a reader who wanted one glance instead gets
+700 lines to read. The most useful thing a licence file can do is be recognised on sight, which costs exactly one
+discipline: nothing of ours goes in it.
+
+`NOTICE` narrows nothing. It is where this work meets that text, not a second instrument, and
+[`cli/tests/license_of_record.rs`](../cli/tests/license_of_record.rs) holds both files to that shape — `LICENSE` bounded
+at both ends by the FSF's own lines, so there is nowhere in it for an added clause to sit.
+
 ## Who holds what
 
 Two organizations, and the split is the thing a fork actually needs to get right.
@@ -40,9 +59,9 @@ License ([`LICENSE`](../LICENSE)). Cargo and npm manifests declare `AGPL-3.0-onl
 FSF revision may be an improvement, but a law practice does not hand a third party the ability to change the obligations
 attached to the software it runs its matters on.
 
-`deny.toml`'s allowlist is a different question and stays permissive. It governs what this workspace is willing to
-*consume*, which has nothing to do with how the workspace is licensed out — and the direction matters: every licence on
-that allowlist may be distributed inside an AGPL work, whereas the reverse would not hold.
+`deny.toml`'s allowlist is a different question. It governs what this workspace is willing to *consume*, which has
+nothing to do with how the workspace is licensed out: every licence on that allowlist may be distributed inside an AGPL
+work, which is the only property an inbound policy has to have.
 
 ### Section 13 is the reason
 
@@ -52,10 +71,10 @@ offer those users the corresponding source of what they are actually using. The 
 software, not only to shipping a copy of it.
 
 That is not an incidental fit. Nobody downloads a legal-services platform to run it on their own desk; they run it as a
-portal for clients. Under a permissive licence, a firm could take this software, improve it substantially, and operate a
-practice on those improvements while the public tree stayed where it was. § 13 is what makes the exchange symmetric:
-anyone may run a practice on Navigator, and a client of that practice can see the software their matter is being handled
-by.
+portal for clients, which is the exact act § 13 attaches to. So the clause lands on the way this software is actually
+used rather than on an edge case, and it makes the exchange symmetric: anyone may run a practice on Navigator, and a
+client of that practice can see the software their matter is being handled by. A firm that improves it while operating
+it for clients publishes those improvements, on the same terms it received.
 
 Two things it does **not** do:
 
@@ -67,7 +86,7 @@ Two things it does **not** do:
 ### What a fork owes, in order
 
 1. **Keep the notices.** § 4 conditions the permission to convey on handing every recipient this License along with the
-   work, and on keeping the copyright notices intact.
+   work, and on keeping the copyright notices intact — which is `LICENSE` and `NOTICE`, travelling together.
 2. **Publish your changes when you convey the work.** § 5 covers conveying modified source; § 6 covers conveying a
    built binary, which must be accompanied by the corresponding source.
 3. **Publish your changes when you operate it for others.** § 13, above.
@@ -81,23 +100,22 @@ claims no copyright in them and grants none; they are committed so the binary em
 carries, and for no other reason.
 
 This is not a technicality. Claiming a licence over a state's own form would be over-claiming a copyright the Foundation
-does not hold, and an over-claim in a licence file published beside a law practice is the kind of error that gets quoted
+does not hold, and an over-claim in a terms file published beside a law practice is the kind of error that gets quoted
 back. What the Foundation does license beside each blank PDF is its own material: the catalog card, the field map, and
 the workflow that fills the form in.
 
 ## Why the legal prose is under the software licence
 
 The notation bodies under `templates/` carry the documents a client signs, together with the questionnaire prompts and
-workflow definitions in the same files. They are licensed `AGPL-3.0-only` with everything else.
+workflow definitions in the same files. They are licensed `AGPL-3.0-only` with everything else, because in this tree a
+template is not a document sitting near a program — it is an input to one. A notation body is parsed by the workflow
+engine, validated against the `N`-family rules, and rendered; the prose, the prompts, and the state machine are the same
+file, and a rule change and a clause change arrive through the same review. A licence boundary drawn inside that file
+would ask a contributor to work out which half of a line they were editing, and a fork to track two obligations through
+one file.
 
-The alternative — a separate attribution licence over the prose — treats a template as a document that happens to sit
-near a program. In this tree it is not. A notation body is an input the workflow engine parses, validates against the
-`N`-family rules, and renders; the prose, the prompts, and the state machine are the same file, and a rule change and a
-clause change arrive through the same review. Splitting the licence at that boundary asks a contributor to work out
-which half of a line they are editing, and asks a fork to track two obligations through one file.
-
-The obligation the prose actually needs survives the change: attribution is a subset of what § 4 and § 5 already
-require, since a conveyed copy keeps its notices and a modified one says what changed.
+Attribution, which is what drafted prose actually needs, is already a subset of what § 4 and § 5 require: a conveyed
+copy keeps its notices and a modified one says what changed.
 
 ## Why open
 
@@ -121,8 +139,10 @@ itself does not need protecting.
 ## Trademarks
 
 **NEON LAW** is a registered trademark, U.S. Reg. No. 6,325,650, owned by Shook Law PLLC. The licence grants rights in
-copyright, not in trademarks, and `LICENSE` says so explicitly — a reader deciding whether they may ship a fork called
-"Neon Law" reads the licence file, so the answer has to be there rather than only in a doc.
+copyright, not in trademarks, and [`NOTICE`](../NOTICE) says so explicitly — a reader deciding whether they may ship a
+fork called "Neon Law" reads the terms that shipped with the code, so the answer has to be there rather than only in a
+doc. It is also the reason `NOTICE` travels in every archive and image: the reservation is the one thing the grant does
+not hand a fork.
 
 Note that the registrant is not the copyright holder — see [Who holds what](#who-holds-what). The Foundation cannot
 sublicense a mark it does not own, so no amount of copyright permission reaches the name.
@@ -159,21 +179,18 @@ permission to convey on handing every recipient a copy of this License along wit
 was given is a copy — and under § 13 its holder may owe the source onward in turn, which nobody honours from terms they
 were never shown.
 
-- `navigator --license` prints [`LICENSE`](../LICENSE), embedded with `include_str!`.
+- `navigator --license` prints [`NOTICE`](../NOTICE) and then [`LICENSE`](../LICENSE), both embedded with
+  `include_str!`. The notice comes first: it is the half that names this program, its copyright holder, and the marks.
 - `navigator --third-party-notices` prints `THIRD-PARTY-NOTICES.txt`, likewise embedded.
 
-Each release archive carries `LICENSE` beside the executable, so an unpacked archive states its own terms before anyone
-runs anything.
-
-There is no separate end-user licence agreement. Anyone can build the same binary from the same code, so a second
-instrument over the executable would only claim restrictions the licence has already given away.
+Each release archive carries `LICENSE` and `NOTICE` beside the executable, so an unpacked archive states its own terms
+before anyone runs anything.
 
 `THIRD-PARTY-NOTICES.txt` is generated by `navigator ops notices` from `Cargo.lock`. A statically linked Rust binary
-carries the compiled form of every crate in its dependency tree, and the permissive licences those crates use — the set
-`deny.toml` allows — each require their notice to travel with the distributed work. Apache-2.0 section 4 says so
-explicitly; MIT, ISC, and the BSD family require the copyright notice to be retained. Each distinct licence text appears
-once, listing the crates that carry it; crates that publish no licence file are listed with the SPDX expression their
-manifest declares. Regenerate and commit it whenever the dependency tree moves:
+carries the compiled form of every crate in its dependency tree, and the terms those crates ship under require their
+notices to travel with the distributed work. Each distinct licence text appears once, listing the crates that carry it;
+crates that publish no licence file are listed with the SPDX expression their manifest declares. Regenerate and commit
+it whenever the dependency tree moves:
 
 ```bash
 cargo run -p cli -- ops notices
@@ -188,7 +205,7 @@ published image therefore does both of the things a registry makes possible:
 
 - `LABEL org.opencontainers.image.licenses="AGPL-3.0-only"`, which Artifact Registry and GHCR read for the package
   page — what a reader sees *before* pulling.
-- `LICENSE` staged at `/app` beside the binary — what a running container can be made to show.
+- `LICENSE` and `NOTICE` staged at `/app` beside the binary — what a running container can be made to show.
 
 `Containerfile.runner` is exempt: it is the CI runner image rather than a published artifact of the software.
 
@@ -206,15 +223,12 @@ mirror authenticates with `GITHUB_TOKEN` and the `packages: write` scope. That s
 alone rather than at the top of the workflow — every other job in the file checks out and builds release code, and none
 of them has any business writing packages.
 
-Two things to know before switching it on:
-
-- **A GHCR package inherits its linked repository's visibility.** `neon-law-foundation/navigator` is private, so the
-  mirror publishes private packages. Harmless, and pointless — which is why the default is off.
-- **Publishing the licence is not publishing the repository.** A licence says what a reader may do with the source; it
-  does not put the source anywhere. Making the tree public is a separate, deliberate act.
+One thing to know before switching it on: **a GHCR package inherits its linked repository's visibility.**
+`neon-law-foundation/navigator` is public, so the mirror publishes public packages — a second place to pull the same
+digests from, which is the whole value of it.
 
 ## Releases
 
-Release archives carry `LICENSE` so an unpacked archive states its own terms without the repository tree, and the binary
-prints the licence and the third-party notices itself. Someone who ends up with nothing but the executable can still
-read the terms they are running under and the attributions it is obliged to carry.
+Release archives carry `LICENSE` and `NOTICE` so an unpacked archive states its own terms without the repository tree,
+and the binary prints both, plus the third-party notices, itself. Someone who ends up with nothing but the executable
+can still read the terms they are running under and the attributions it is obliged to carry.

@@ -333,48 +333,64 @@ fn the_linux_archive_name_matches_what_the_validate_action_downloads() {
     );
 }
 
-/// Every CLI archive carries the licence.
+/// Every CLI archive carries the licence and the notice.
 ///
 /// A recipient holds the archive and not the repository — that is the whole
 /// point of shipping a binary — so AGPL § 4's condition that a conveyor hand
 /// every recipient this License along with the work is met by the archive or not
-/// at all. It matters more here than under the retired permissive grant: § 13
-/// can oblige that recipient to pass the corresponding source on in turn, and
-/// nobody honours an obligation from terms they were never shown.
+/// at all. § 13 can oblige that recipient to pass the corresponding source on in
+/// turn, and nobody honours an obligation from terms they were never shown.
+///
+/// Both files, because they carry different halves of the answer. `LICENSE` is
+/// the Free Software Foundation's text unaltered, which says nothing about this
+/// work in particular; `NOTICE` carries the copyright line, the marks the grant
+/// does not reach, and § 13 in the Foundation's own voice.
 ///
 /// Asserted per platform rather than once over the file, because the packaging
 /// steps are written in different shells against different paths and a fix to
 /// one has already missed another.
 #[test]
-fn every_cli_archive_carries_the_licence() {
+fn every_cli_archive_carries_the_licence_and_the_notice() {
     let workflow = deploy_workflow();
 
     for (platform, staged, archived) in [
         (
             "Windows",
-            "Copy-Item \"LICENSE\" \"dist/navigator-windows/LICENSE\"",
+            [
+                "Copy-Item \"LICENSE\" \"dist/navigator-windows/LICENSE\"",
+                "Copy-Item \"NOTICE\" \"dist/navigator-windows/NOTICE\"",
+            ],
             "Compress-Archive -Path \"dist/navigator-windows/*\"",
         ),
         (
             "Linux",
-            "install -m 0644 LICENSE dist/navigator-linux/LICENSE",
-            "-C dist/navigator-linux navigator LICENSE",
+            [
+                "install -m 0644 LICENSE dist/navigator-linux/LICENSE",
+                "install -m 0644 NOTICE dist/navigator-linux/NOTICE",
+            ],
+            "-C dist/navigator-linux navigator LICENSE NOTICE",
         ),
         (
             "macOS",
-            "install -m 0644 LICENSE dist/navigator-macos/LICENSE",
-            "-C dist/navigator-macos navigator LICENSE",
+            [
+                "install -m 0644 LICENSE dist/navigator-macos/LICENSE",
+                "install -m 0644 NOTICE dist/navigator-macos/NOTICE",
+            ],
+            "-C dist/navigator-macos navigator LICENSE NOTICE",
         ),
     ] {
-        assert!(
-            workflow.contains(staged),
-            "the {platform} archive must stage LICENSE"
-        );
+        for step in staged {
+            assert!(
+                workflow.contains(step),
+                "the {platform} archive must stage both terms files; `{step}` is \
+                 missing"
+            );
+        }
         assert!(
             workflow.contains(archived),
-            "the {platform} archive must carry LICENSE into the archive itself — \
-             staging it beside the binary and then packing only the binary ships \
-             an executable with no terms"
+            "the {platform} archive must carry both terms files into the archive \
+             itself — staging them beside the binary and then packing only the \
+             binary ships an executable with no terms"
         );
     }
 }

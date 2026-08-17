@@ -14,8 +14,8 @@ address is read by people, and a report that never becomes a pull request is sti
 The licence is a separate question, and it is open. Navigator is free software under the GNU Affero General Public
 License, version 3 — `AGPL-3.0-only` — over the whole tree, `templates/` included. You may run, fork, modify, and
 redistribute it, with no permission to ask for. Section 13 is the obligation to know before you deploy: modify it, let
-users reach it over a network, and you owe those users your modified source. See [`LICENSE`](LICENSE) and
-[`docs/licensing.md`](docs/licensing.md).
+users reach it over a network, and you owe those users your modified source. See [`LICENSE`](LICENSE) for the grant,
+[`NOTICE`](NOTICE) for what the Foundation says about it, and [`docs/licensing.md`](docs/licensing.md).
 
 ## How contributions are licensed
 

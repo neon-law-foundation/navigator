@@ -66,8 +66,8 @@ These files are the Firm's confidential work product, and the marks are reserved
 of Shook Law PLLC (U.S. Reg. No. 6,325,650); see the [Trademarks note in the root `README.md`](../README.md#trademarks).
 A rebrand goes through the white-label seam.
 
-There is no public or source-available template shelf. `templates/open_source/` is retired, and `navigator validate`
-rejects any template outside the shelves above.
+`navigator validate` rejects any template outside the shelves above. The shelves are the whole surface: a notation lives
+under `forms/`, `neon_law/`, or `github/`, and nowhere else.
 
 `github/` holds the engineering intake notations — the questionnaires that gather what a GitHub issue or pull request
 needs before it is opened, and the bodies that render the answers into the text that gets posted. They declare `kind:
@@ -149,7 +149,8 @@ This tree is licensed on the same terms as the rest of the repository, and delib
 **The notation bodies here are `AGPL-3.0-only`** — the legal prose, the questionnaire prompts, and the workflow
 definitions carried in the same files, exactly like the code that renders them. Adapt them, redistribute them, and use
 them commercially. The prose and the state machine are the same file here, so a split licence would ask you to work out
-which half of a line you are editing; one grant means there is one answer. See [`../LICENSE`](../LICENSE).
+which half of a line you are editing; one grant means there is one answer. See [`../LICENSE`](../LICENSE) for the grant
+and [`../NOTICE`](../NOTICE) for what the Foundation says about it.
 
 **The blank government PDFs under `forms/` are not the Firm's to license.** They are works of the issuing state or
 federal agency, reproduced here so the binary embeds the same bytes the repo carries. The Firm claims no copyright in

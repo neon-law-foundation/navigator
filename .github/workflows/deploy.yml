@@ -1780,12 +1780,14 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist/navigator-windows | Out-Null
           Copy-Item "target/release/navigator.exe" "dist/navigator-windows/navigator.exe"
-          # LICENSE travels with the archive. It carries the AGPL text, the
-          # trademark reservation, and the § 13 network obligation. AGPL § 4
-          # conditions the permission to convey on handing every recipient this
-          # License along with the work, so an archive without it is a
-          # compliance gap rather than an oversight.
+          # LICENSE and NOTICE travel with the archive. LICENSE is the AGPL
+          # text; NOTICE carries the trademark reservation and the § 13 network
+          # obligation in the Foundation's own voice. AGPL § 4 conditions the
+          # permission to convey on handing every recipient this License along
+          # with the work, so an archive without it is a compliance gap rather
+          # than an oversight.
           Copy-Item "LICENSE" "dist/navigator-windows/LICENSE"
+          Copy-Item "NOTICE" "dist/navigator-windows/NOTICE"
           Compress-Archive -Path "dist/navigator-windows/*" -DestinationPath "dist/navigator-$env:TAG-windows.zip" -Force
       - uses: ./.github/actions/slack-progress
         with:
@@ -1851,16 +1853,17 @@ jobs:
           set -euo pipefail
           mkdir -p dist/navigator-linux
           install -m 0755 target/release/navigator dist/navigator-linux/navigator
-          # LICENSE travels with the archive, for the reason the Windows
-          # packaging step gives. `.github/actions/validate` extracts only
-          # `navigator`, so the extra member costs a CI consumer nothing.
+          # LICENSE and NOTICE travel with the archive, for the reason the
+          # Windows packaging step gives. `.github/actions/validate` extracts
+          # only `navigator`, so the extra members cost a CI consumer nothing.
           install -m 0644 LICENSE dist/navigator-linux/LICENSE
+          install -m 0644 NOTICE dist/navigator-linux/NOTICE
           # `-C` is load-bearing: the members must sit at the archive ROOT.
           # `.github/actions/validate` unpacks with
           # `tar -xzf "${asset}" -C "${tmp}" navigator`, which matches nothing
           # if the binary carries a `dist/navigator-linux/` prefix.
           tar -czf "dist/navigator-${TAG}-linux.tar.gz" \
-              -C dist/navigator-linux navigator LICENSE
+              -C dist/navigator-linux navigator LICENSE NOTICE
       - uses: ./.github/actions/slack-progress
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -1926,15 +1929,16 @@ jobs:
           set -euo pipefail
           mkdir -p dist/navigator-macos
           install -m 0755 target/release/navigator dist/navigator-macos/navigator
-          # LICENSE travels with the archive, for the reason the Windows
-          # packaging step gives.
+          # LICENSE and NOTICE travel with the archive, for the reason the
+          # Windows packaging step gives.
           install -m 0644 LICENSE dist/navigator-macos/LICENSE
+          install -m 0644 NOTICE dist/navigator-macos/NOTICE
           # `-C` is load-bearing for the same reason it is on Linux: the
           # validate action unpacks with `tar -xzf "${asset}" -C "${tmp}"
           # navigator`, which matches nothing if the binary carries a
           # `dist/navigator-macos/` prefix.
           tar -czf "dist/navigator-${TAG}-macos.tar.gz" \
-              -C dist/navigator-macos navigator LICENSE
+              -C dist/navigator-macos navigator LICENSE NOTICE
       - uses: ./.github/actions/slack-progress
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
