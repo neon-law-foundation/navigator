@@ -141,11 +141,9 @@ Every Project also has a matter file surface. Clients see it as **Documents**, *
 plain-English portal views. If a person is added to a Project, Navigator can show them the client-facing files for that
 matter; if they are not added, those files do not exist from their portal's point of view.
 
-Lawyer users have the firm workbench. Assigned lawyers work the Project through `/lawyer`, and lawyer-tier users who
-prefer an editor can mirror their matters onto their own machine with `navigator site sync` — one folder per matter
-under `~/Projects`. Admins are lawyer-tier users with installation-wide authority, so they can reach the same firm
-workbench without per-Project assignment. Clients never need that layer and never see the private GCS bucket behind the
-files.
+Lawyer users have the firm workbench. Assigned lawyers work the Project through `/lawyer`. Admins are lawyer-tier users
+with installation-wide authority, so they can reach the same firm workbench without per-Project assignment. Clients
+never need that layer and never see the private GCS bucket behind the files.
 
 ---
 
@@ -455,68 +453,6 @@ like `gcloud auth login`. `navigator site login --host <your-host>` mints a shor
 the same matter flow here, from your terminal. The host is whatever you named your deployment, so the one CLI drives
 every instance you stand up.
 
-### Put your matters on your own machine
-
-Two commands mirror every matter you are on into a folder tree you can open in an editor:
-
-```bash
-navigator site login --host <your-host>   # mints a short-lived token
-navigator site sync                       # one folder per matter under ~/Projects
-```
-
-You get `~/Projects/<matter-code>/` for each matter, a `README.md` card in each, and a `CLAUDE.md` at the root.
-
----
-
-`sync` is a read. It asks your installation for the matters you participate in — the same participation-scoped list the
-lawyer workbench shows you — and writes that list to disk. It cannot show you a matter the site would not, because it
-does no filtering of its own: the server answers, and sync writes down the answer.
-
-Three properties are worth stating out loud in the room, because they are what make it safe to re-run:
-
-- **Sync owns three files.** `CLAUDE.md` and `AGENTS.md` at the root, and a `README.md` in each matter folder. It
-  rewrites those on every run and touches nothing else. Your own drafts, notes, and scratch files stay exactly as you
-  left them.
-- **Sync never deletes.** When a matter closes or your participation ends, its folder stops being refreshed and is
-  reported to you — not removed. Deciding what happens to a folder that may hold your own work is your call.
-- **The site is still the record.** The folder is a working copy. The matter's workflow step, its notations, its filed
-  documents, and its audit trail live on your installation, and each `README.md` links straight to that matter's
-  workbench.
-
-Re-run `navigator site sync` whenever you want the tree current. It rewrites only what actually changed.
-
-### Open a matter folder in Claude
-
-The root `CLAUDE.md` is the instruction every agent session inherits. Open one matter folder and start work:
-
-```bash
-cd ~/Projects/<matter-code>
-claude
-```
-
-Claude reads `~/Projects/CLAUDE.md` on the way down, so it arrives already knowing this is client material.
-
----
-
-Agent tools read their guidance files up the directory tree, which is why the guide sits at `~/Projects` rather than
-being copied into every matter folder: write it once, and it governs every matter opened beneath it. `AGENTS.md` is the
-same text under the filename other tools look for, so the rules do not depend on which assistant an attorney happens to
-use.
-
-What that guide establishes, before any prompt is typed: everything in the tree is confidential under Rule 1.6 and
-mostly privileged; matter content does not go into tools the firm has not approved for client data, and does not get
-committed to a repository; content does not move between matter folders, because the wall between two clients' matters
-is the point; and the site — not the folder — is authoritative.
-
-The supervision rule from earlier in this class does not relax because the work moved to a terminal. An agent in a
-matter folder is a non-lawyer assistant under ABA Model Rule 5.3, exactly as AIDA is in the connector. It can read the
-matter, draft against it, and check your work. It does not sign, file, send, or advance a workflow — those are acts you
-take deliberately, through Navigator, and Navigator records that you took them.
-
-Open **one** matter folder, not `~/Projects` itself. Scoping the session to a single matter is the same instinct as not
-leaving two clients' files open on the same desk: it keeps the model's context on one matter, and it keeps an accidental
-cross-matter reference from being possible in the first place.
-
 ### Form a Nevada LLC from the command line
 
 The same CLI forms a real Nevada LLC end to end — no browser — and downloads the **filled official Nevada Secretary of
@@ -728,8 +664,8 @@ Drive. That is the worked proof the seam is real.
 
 ### The line your application does not cross
 
-Everything you build is a non-lawyer assistant under ABA Model Rule 5.3 — the same standing AIDA has, and the same
-standing the agent in your matter folder has. It may read, draft, summarize, and check your work. It does not:
+Everything you build is a non-lawyer assistant under ABA Model Rule 5.3 — the same standing AIDA has. It may read,
+draft, summarize, and check your work. It does not:
 
 - sign, file, or send;
 - advance a workflow step;
@@ -744,10 +680,9 @@ once more at the point where it is easiest to forget: an application you wrote y
 own judgment, and it is not one. Navigator draws the boundary in code — the write doors that matter are gated and
 audited — but the professional obligation is yours regardless of what the software would have allowed.
 
-The other half is provenance. Your application is a working copy the way `navigator site sync` produces a working copy:
-useful, current, and not the record. The matter's workflow step, its notations, its filed documents, and its audit trail
-live on your installation. Build anything you like on top of that. Do not build something that quietly becomes the truth
-instead.
+The other half is provenance. Your application is a working copy: useful, current, and not the record. The matter's
+workflow step, its notations, its filed documents, and its audit trail live on your installation. Build anything you
+like on top of that. Do not build something that quietly becomes the truth instead.
 
 ## Prepare the Room Before Class
 

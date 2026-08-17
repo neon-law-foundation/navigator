@@ -28,7 +28,6 @@ mod remote;
 mod scaffold;
 mod sendgrid_openapi;
 mod surreal_archive;
-mod sync;
 mod transcribe;
 
 use devx::brand::BrandCmd;
@@ -447,22 +446,6 @@ enum SiteCmd {
     Project {
         #[command(subcommand)]
         action: ProjectAction,
-    },
-    /// Mirror every matter you participate in into a folder tree on disk,
-    /// one folder per matter code, with a `README.md` card in each and a
-    /// standing `CLAUDE.md` / `AGENTS.md` guide at the root.
-    ///
-    /// Sync owns those files and nothing else, and never deletes: a folder
-    /// whose matter you can no longer see is reported and left in place.
-    Sync {
-        #[command(flatten)]
-        host: HostOpt,
-        /// Where to write the tree. Defaults to `~/Projects`.
-        #[arg(long)]
-        root: Option<PathBuf>,
-        /// List what would be written without touching the filesystem.
-        #[arg(long)]
-        dry_run: bool,
     },
 }
 
@@ -1579,11 +1562,6 @@ fn main() -> ExitCode {
             SiteCmd::Intake { action } => runtime().block_on(run_intake(action)),
             SiteCmd::Notation { action } => runtime().block_on(run_notation(action)),
             SiteCmd::Project { action } => runtime().block_on(run_project(action)),
-            SiteCmd::Sync {
-                host,
-                root,
-                dry_run,
-            } => runtime().block_on(remote::sync(host.host.as_deref(), root.as_deref(), dry_run)),
         },
         Command::Projects { action } => match action {
             ProjectsCmd::Doctor { host, project } => {

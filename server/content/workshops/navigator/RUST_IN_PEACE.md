@@ -736,8 +736,8 @@ retirement remains a named acceptance gate — an owner decision is not evidence
 
 ### Rust reaches the places lawyers work
 
-Navigator is not only a web app. The same rules meet lawyers in the document folder they already understand, and the
-same AIDA catalog is available to assistants through MCP and A2A.
+Navigator is not only a web app. The same rules meet lawyers in the editor they already work in, and the same AIDA
+catalog is available to assistants through MCP and A2A.
 
 ---
 
@@ -748,10 +748,11 @@ template is both a document and a program. Most drafting happens in the WYSIWYG 
 carries the identical rules into the git side of the work, where the pull request and the GitHub Action see exactly what
 the author saw.
 
-The folder surface is an arrival, not a claim that the migration has already finished. #1102 owns the matter-folder
-experience; #1122 provides its VFS seam. The AIDA catalog lives in mcp/src/tools and exposes the same grounded
-operations through A2A and MCP. That is the direction: a lawyer keeps working with documents while the system keeps the
-shape, the workflow, and the rendered PDF aligned.
+Reaching those places is an arrival, not a claim that the migration has already finished. The AIDA catalog lives in
+mcp/src/tools and exposes the same grounded operations through A2A and MCP, which is the one seam an assistant comes
+through — there is no synthesized filesystem behind it, and long-term files stay in the object storage Navigator hosts.
+That is the direction: a lawyer keeps working with documents while the system keeps the shape, the workflow, and the
+rendered PDF aligned.
 
 ### I want a commercial relationship with everything I depend on
 

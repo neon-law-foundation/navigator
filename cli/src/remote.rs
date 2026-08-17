@@ -76,90 +76,6 @@ pub async fn projects_list(host: Option<&str>, json: bool) -> ExitCode {
     .await
 }
 
-/// `navigator site sync [--host h] [--root p] [--dry-run]` — mirror the
-/// matters this login participates in into a folder tree on disk.
-///
-/// The list is the same participation-scoped read `projects list` prints,
-/// so sync shows exactly what the server shows and never filters locally.
-pub async fn sync(host: Option<&str>, root: Option<&Path>, dry_run: bool) -> ExitCode {
-    run(async {
-        let (base, token) = resolve(host)?;
-        let resp = reqwest::Client::new()
-            .get(format!("{base}/app/projects.csv"))
-            .bearer_auth(&token)
-            .send()
-            .await
-            .context("GET /app/projects.csv")?;
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        if !status.is_success() {
-            return Err(anyhow!("could not list your matters: {status}"));
-        }
-        let matters = crate::sync::matters_from_csv(&parse_csv(&body))?;
-
-        let root = match root {
-            Some(p) => p.to_path_buf(),
-            None => crate::sync::default_root()?,
-        };
-
-        if dry_run {
-            println!(
-                "{} {}",
-                palette::dim("would sync"),
-                palette::highlight(pluralize_matters(matters.len())),
-            );
-            println!("{} {}", palette::dim("into"), root.display());
-            for m in &matters {
-                println!("    {}  {}", palette::highlight(&m.code), m.name);
-            }
-            return Ok(());
-        }
-
-        let report = crate::sync::sync_tree(&root, &base, &matters)?;
-        print_sync_report(&root, &report);
-        Ok(())
-    })
-    .await
-}
-
-/// `1 matter` / `2 matters` — the count appears in every sync line, and
-/// "1 matters" reads like a bug in a tool people run on client work.
-fn pluralize_matters(n: usize) -> String {
-    if n == 1 {
-        "1 matter".to_string()
-    } else {
-        format!("{n} matters")
-    }
-}
-
-fn print_sync_report(root: &Path, report: &crate::sync::SyncReport) {
-    println!(
-        "{} {} {}",
-        palette::dim("synced"),
-        palette::highlight(pluralize_matters(report.matters())),
-        palette::dim(format!("into {}", root.display())),
-    );
-    for code in &report.created {
-        println!("    {} {code}", palette::highlight("new"));
-    }
-    for code in &report.refreshed {
-        println!("    {} {code}", palette::dim("updated"));
-    }
-    if !report.unmatched.is_empty() {
-        println!();
-        println!(
-            "{}",
-            palette::dim(format!(
-                "{} folder(s) here match no matter you can see — left in place, nothing deleted:",
-                report.unmatched.len(),
-            )),
-        );
-        for name in &report.unmatched {
-            println!("    {name}");
-        }
-    }
-}
-
 /// `navigator site project open <project-code>` — resolve a visible matter by
 /// code, then verify the same bearer can load its lawyer workbench.
 pub async fn matter_open(host: Option<&str>, project_code: &str) -> ExitCode {
@@ -1450,7 +1366,7 @@ mod tests {
         retainer_send, scripted_picker_selection_fields, select_candidate, CoverageSummary,
         StepQuestion, StepResponse,
     };
-    use super::{fetch_step, parse_csv, pluralize_matters};
+    use super::{fetch_step, parse_csv};
     use crate::credentials::{self, Credentials, HostCredential};
     use uuid::Uuid;
     use wiremock::matchers::{method, path};
@@ -2041,12 +1957,5 @@ mod tests {
             matter_open(Some(server_uri.as_str()), "acme").await,
             ExitCode::from(2)
         );
-    }
-
-    #[test]
-    fn matter_counts_read_as_english() {
-        assert_eq!(pluralize_matters(0), "0 matters");
-        assert_eq!(pluralize_matters(1), "1 matter");
-        assert_eq!(pluralize_matters(2), "2 matters");
     }
 }

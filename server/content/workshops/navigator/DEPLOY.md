@@ -1614,11 +1614,10 @@ A production install runs one Rust application in two operational roles:
   the background side effects the portal schedules.
 
 The split keeps the portal stateless: every side effect that needs durable retries belongs to the worker rather than to
-a request handler. Lawyer and admin users with Project access mirror their matters to disk with `navigator site login`
-and `navigator site sync`, which writes one folder per matter under `~/Projects` from the participation-scoped list the
-lawyer workbench shows them. Clients use the portal file surface: they see only Projects where they have a
-`person_project_roles` row, and the portal renders reviewed documents, Engagements, and invoices without exposing
-storage vocabulary or GCS credentials.
+a request handler. Lawyer and admin users with Project access work the matter through the firm workbench, over the
+participation-scoped list that surface resolves for them. Clients use the portal file surface: they see only Projects
+where they have a `person_project_roles` row, and the portal renders reviewed documents, Engagements, and invoices
+without exposing storage vocabulary or GCS credentials.
 
 ---
 

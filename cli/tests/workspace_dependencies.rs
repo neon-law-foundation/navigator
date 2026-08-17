@@ -116,7 +116,6 @@ const WORKSPACE_DEPENDENCIES: &[&str] = &[
     "tracing-subscriber",
     "url",
     "uuid",
-    "vfs",
     "views",
     "walkdir",
     "webapp",

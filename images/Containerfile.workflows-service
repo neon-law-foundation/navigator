@@ -59,7 +59,6 @@ COPY webapp            webapp
 COPY views             views
 COPY README.md         README.md
 COPY telemetry         telemetry
-COPY vfs               vfs
 COPY github_webhooks    github_webhooks
 COPY forms             forms
 COPY workflows         workflows
