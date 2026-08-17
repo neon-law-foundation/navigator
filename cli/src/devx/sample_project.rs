@@ -4,10 +4,15 @@
 //! The `simpsons` demo matter carries a client portal at
 //! `/app/projects/simpsons/portal/`. By default `web` boot publishes a stub
 //! compiled into the binary, which needs no network and no Node. This command
-//! is the opt-in upgrade: it clones
-//! [navigator-sample-project](https://github.com/neon-law-foundation/navigator-sample-project),
-//! builds it with `pnpm`, and stages the resulting `dist/` where the next boot
-//! will publish it instead.
+//! is the opt-in upgrade: it clones the repository **the Project itself
+//! records** (`store::projects::Project::repository_url`), builds it with
+//! `pnpm`, and stages the resulting `dist/` where the next boot will publish it
+//! instead.
+//!
+//! The URL comes from the Project rather than a constant here, so pointing a
+//! matter at a different forge — or standing up a second Project's application
+//! — is a data change. `--repo` still overrides it for a fork or a local
+//! mirror.
 //!
 //! The clone and the build happen in a **temporary directory** that is removed
 //! when the command returns — a build tree is derived, so keeping it in the
@@ -33,10 +38,13 @@ use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 
-/// The canonical upstream. Overridable so a contributor can point at a fork
-/// without editing source.
-pub const DEFAULT_REPO: &str =
-    "https://github.com/neon-law-foundation/navigator-sample-project.git";
+/// The Project whose application this command stages.
+///
+/// One demo matter carries a portal locally, so the code is fixed here while
+/// the *repository* is not: that is read from the Project row, which is what
+/// makes a second Project's application a data change rather than a code
+/// change.
+const PROJECT_CODE: &str = "simpsons";
 
 /// Where the project is staged, relative to the workspace root. Inside
 /// `.devx/` because it is generated, per-checkout, and already ignored.
@@ -125,9 +133,48 @@ fn run_in(dir: &Path, program: &str, args: &[String]) -> Result<()> {
     Ok(())
 }
 
+/// The repository to clone: `--repo` when given, else the URL recorded on the
+/// Project.
+///
+/// Reading the Project is what keeps one source of truth. The command carries
+/// no default upstream, so a Project with no `repository_url` is an error that
+/// names the fix rather than a silent fall back to whatever repository this
+/// build happened to be compiled with.
+fn resolve_repo(explicit: Option<&str>) -> Result<String> {
+    if let Some(repo) = explicit {
+        return Ok(repo.to_string());
+    }
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("create tokio runtime")?;
+    runtime.block_on(async {
+        let surreal = store::surreal::connect_from_env().await.context(
+            "connect to SurrealDB to read the Project's repository URL — source \
+             this worktree's `.devx/env` first, or pass `--repo`",
+        )?;
+        let project = store::projects::find_by_code(&surreal, PROJECT_CODE)
+            .await
+            .with_context(|| format!("look up Project `{PROJECT_CODE}`"))?
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "no Project `{PROJECT_CODE}` in this store — start `web` once so the \
+                     dev seed runs, or pass `--repo`"
+                )
+            })?;
+        project.repository_url.ok_or_else(|| {
+            anyhow::anyhow!(
+                "Project `{PROJECT_CODE}` records no repository URL. Set one on the matter, \
+                 or pass `--repo`."
+            )
+        })
+    })
+}
+
 /// `navigator dev sample-project`: clone, build, stage.
-pub fn run(repo: &str, git_ref: Option<&str>, keep: bool) -> Result<()> {
+pub fn run(repo: Option<&str>, git_ref: Option<&str>, keep: bool) -> Result<()> {
     super::require_tools(&["git", "pnpm"])?;
+    let repo = &resolve_repo(repo)?;
     let workspace_root = super::orchestrate::workspace_root()?;
 
     // The checkout and the build live in a temp tree; only `dist/` survives.

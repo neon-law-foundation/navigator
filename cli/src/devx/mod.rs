@@ -38,9 +38,6 @@ mod orchestrate;
 mod registry;
 mod runtime;
 mod sample_project;
-/// The upstream the `dev sample-project` clone defaults to, surfaced here so
-/// the clap default and the implementation cannot drift apart.
-pub use sample_project::DEFAULT_REPO as SAMPLE_PROJECT_DEFAULT_REPO;
 mod ship;
 mod staging;
 mod surreal;
@@ -814,7 +811,7 @@ pub fn dispatch(command: crate::Command) -> Result<()> {
             repo,
             git_ref,
             keep,
-        }) => sample_project::run(&repo, git_ref.as_deref(), keep),
+        }) => sample_project::run(repo.as_deref(), git_ref.as_deref(), keep),
         crate::Command::Dev(crate::DevCmd::BrowserE2e { base_url }) => {
             browser_e2e::run_browser_e2e(base_url.as_deref())
         }
