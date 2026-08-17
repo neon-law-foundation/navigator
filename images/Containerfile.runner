@@ -99,7 +99,7 @@ COPY store             store
 COPY repos             repos
 COPY import            import
 COPY cli               cli
-COPY LICENSE.md        LICENSE.md
+COPY LICENSE        LICENSE
 COPY THIRD-PARTY-NOTICES.txt THIRD-PARTY-NOTICES.txt
 COPY portal            portal
 COPY server            server
