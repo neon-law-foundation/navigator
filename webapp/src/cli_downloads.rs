@@ -287,11 +287,16 @@ fn PlatformMark(slug: String) -> Element {
 
 /// The licence the download travels under.
 ///
-/// The archive carries `LICENSE.md` and both grant texts beside the executable,
-/// and the binary prints the same terms with `navigator --license`, so this
-/// note points at them rather than restating either. Restating licence terms in
-/// page copy would create a second, drifting version of an instrument the Firm
-/// relies on.
+/// The archive carries `LICENSE` beside the executable and the binary prints
+/// the same terms with `navigator --license`, so this note points at them rather
+/// than restating them. Restating licence terms in page copy would create a
+/// second, drifting version of an instrument the Firm relies on.
+///
+/// The one obligation the note does name is § 13, because it is the one a reader
+/// will not infer from "open source": running a modified Navigator as a service
+/// for other people carries a source obligation that shipping it does not.
+/// Someone deciding on this page whether to deploy a fork needs that before they
+/// start, not after.
 #[component]
 fn LicenceNote() -> Element {
     rsx! {
@@ -301,10 +306,12 @@ fn LicenceNote() -> Element {
                 "Each archive carries the licence beside the executable, and the "
                 "installed binary prints it with "
                 code { "navigator --license" }
-                ". Navigator is open source, dual-licensed under MIT or "
-                "Apache-2.0 at your option: read it, build it, fork it, and "
-                "redistribute it. The NEON LAW marks are reserved and travel "
-                "with neither grant."
+                ". Navigator is free software under the GNU Affero General "
+                "Public License v3: read it, build it, fork it, and "
+                "redistribute it. If you modify it and run it as a service "
+                "others reach over a network, section 13 obliges you to offer "
+                "those users your modified source. The NEON LAW marks are "
+                "reserved and the licence does not carry them."
             }
         }
     }
@@ -503,17 +510,33 @@ mod tests {
     ///
     /// It once promised an end-user licence agreement and denied source,
     /// modification, and redistribution rights — the terms of a proprietary
-    /// distribution. `MIT OR Apache-2.0` grants all three, so that copy did not
-    /// merely go stale: it told a reader they lacked a permission the licence
-    /// beside the executable had already given them.
+    /// distribution. The AGPL grants all three, so that copy did not merely go
+    /// stale: it told a reader they lacked a permission the licence beside the
+    /// executable had already given them.
+    ///
+    /// § 13 is asserted alongside the grant because this page is where someone
+    /// decides whether to deploy a fork, and a network-use obligation they learn
+    /// about afterwards is one they have already breached.
     #[test]
-    fn the_terms_note_describes_the_dual_grant_rather_than_a_retired_eula() {
+    fn the_terms_note_describes_the_agpl_grant_rather_than_a_retired_eula() {
         let out = render(&view_with(vec![archive("linux", "Linux")]));
 
         assert!(
-            out.contains("MIT") && out.contains("Apache-2.0"),
-            "the terms note must name both halves of the dual grant: {out}"
+            out.contains("Affero"),
+            "the terms note must name the licence the binary carries: {out}"
         );
+        assert!(
+            out.contains("section 13") && out.contains("network"),
+            "the terms note must state the network-use obligation, which is the \
+             one a reader will not infer from \"open source\": {out}"
+        );
+        for retired in ["MIT", "Apache-2.0", "dual-licensed"] {
+            assert!(
+                !out.contains(retired),
+                "the terms note must not still offer the retired permissive \
+                 grant `{retired}`: {out}"
+            );
+        }
         for retired in ["end-user licence", "EULA", "conveys no source"] {
             assert!(
                 !out.contains(retired),
