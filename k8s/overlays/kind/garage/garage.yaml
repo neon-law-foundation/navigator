@@ -1,0 +1,134 @@
+# Garage is the disposable, single-node S3-compatible store for KIND.
+# Production deployments provide the same S3 contract through an endpoint,
+# buckets, and credentials at their deployment boundary; this StatefulSet is
+# intentionally not a production HA topology.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: navigator-garage
+  namespace: navigator
+data:
+  s3_endpoint: http://navigator-garage.navigator.svc.cluster.local:3900
+  documents_bucket: navigator-documents
+  exports_bucket: navigator-exports
+  assets_bucket: navigator-assets
+  applications_bucket: navigator-applications
+  lfs_bucket: navigator-lfs
+  garage.toml: |
+    metadata_dir = "/var/lib/garage/meta"
+    data_dir = "/var/lib/garage/data"
+    db_engine = "lmdb"
+    replication_factor = 1
+    consistency_mode = "consistent"
+    rpc_bind_addr = "[::]:3901"
+    rpc_public_addr = "garage-0.navigator-garage-internal.navigator.svc.cluster.local:3901"
+    [s3_api]
+    s3_region = "garage"
+    api_bind_addr = "[::]:3900"
+    [admin]
+    api_bind_addr = "[::]:3903"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: navigator-garage
+  namespace: navigator
+spec:
+  selector:
+    app: navigator-garage
+  ports:
+    - name: s3
+      port: 3900
+      targetPort: s3
+    - name: rpc
+      port: 3901
+      targetPort: rpc
+    - name: admin
+      port: 3903
+      targetPort: admin
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: navigator-garage-internal
+  namespace: navigator
+spec:
+  clusterIP: None
+  selector:
+    app: navigator-garage
+  ports:
+    - name: rpc
+      port: 3901
+      targetPort: rpc
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: garage
+  namespace: navigator
+spec:
+  serviceName: navigator-garage-internal
+  replicas: 1
+  selector:
+    matchLabels:
+      app: navigator-garage
+  template:
+    metadata:
+      labels:
+        app: navigator-garage
+    spec:
+      containers:
+        - name: garage
+          image: dxflrs/garage:v2.3.0
+          command: ["/garage"]
+          args: ["server"]
+          env:
+            - name: GARAGE_RPC_SECRET_FILE
+              value: /run/secrets/garage/rpc_secret
+            - name: GARAGE_ADMIN_TOKEN_FILE
+              value: /run/secrets/garage/admin_token
+          ports:
+            - name: s3
+              containerPort: 3900
+            - name: rpc
+              containerPort: 3901
+            - name: admin
+              containerPort: 3903
+          volumeMounts:
+            - name: config
+              mountPath: /etc/garage.toml
+              subPath: garage.toml
+            - name: meta
+              mountPath: /var/lib/garage/meta
+            - name: data
+              mountPath: /var/lib/garage/data
+            - name: secrets
+              mountPath: /run/secrets/garage
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: s3
+            initialDelaySeconds: 3
+      volumes:
+        - name: config
+          configMap:
+            name: navigator-garage
+        - name: secrets
+          secret:
+            secretName: navigator-garage-control
+            defaultMode: 0400
+  volumeClaimTemplates:
+    - metadata:
+        name: meta
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

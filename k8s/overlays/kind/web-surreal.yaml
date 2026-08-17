@@ -1,0 +1,46 @@
+# KIND's navigator-web runs the same distroless image as every deployment
+# (`k8s/base/web/web.yaml` pins it); this patch only adds the SurrealDB
+# coordinates the local tier serves from its own in-cluster pod.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  template:
+    spec:
+      containers:
+        - name: web
+          env:
+            # The web boot invariants (#1172) require the SurrealDB
+            # coordinates; without them the container exits before its
+            # readiness probe ever passes (deploy run 142136966,
+            # "dev invariants violated"). Same ConfigMap + Secret the
+            # in-cluster workflows-service already reads — see
+            # k8s/overlays/kind/surreal/surreal.yaml and
+            # k8s/staging/workflows-service.yaml.
+            - name: NAVIGATOR_SURREAL_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-surreal
+                  key: endpoint
+            - name: NAVIGATOR_SURREAL_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-surreal
+                  key: namespace
+            - name: NAVIGATOR_SURREAL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-surreal
+                  key: database
+            - name: NAVIGATOR_SURREAL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: surreal
+                  key: SURREAL_USER
+            - name: NAVIGATOR_SURREAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: surreal
+                  key: SURREAL_PASS

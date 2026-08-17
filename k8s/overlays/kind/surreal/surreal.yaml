@@ -1,0 +1,113 @@
+# SurrealDB for the local dependency tier — the store the workspace is
+# porting onto (#1093).
+#
+# KIND-ONLY, deliberately. This manifest lives in the `kind` overlay
+# rather than `k8s/staging` for the reason Garage does: production runs
+# the managed service (Surreal Cloud) and never this pod, so shipping it
+# from the shared runtime would put a database nobody uses into every
+# cloud deployment. `k8s/staging` is untouched by this slice.
+#
+# Server mode, not embedded, because two processes share one store: the
+# host `web` binary reaches it through the port-forward `navigator dev
+# up` opens, and the in-cluster `workflows-service` worker reaches it at
+# `surreal.navigator.svc.cluster.local:8000`.
+#
+# Memory-backed, so local data resets with the pod: boot re-applies the
+# DEFINE schema and re-seeds. That is the deliberate property of the
+# local loop (#1093, 2026-07-29), not an oversight — a file-backed
+# SurrealKV volume is the cheap opt-in if mid-session resets ever hurt.
+# Each dependency next door keeps its own emptyDir and its own lifecycle; the
+# two engines run side by side until cutover.
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: surreal
+  namespace: navigator
+type: Opaque
+stringData:
+  # Root credentials for a throwaway in-memory local engine. Plaintext
+  # here for the same reason the other local Secrets are: this
+  # cluster is disposable and holds no client data. A deployment's
+  # credentials come from its SOPS-encrypted deployments/ tree via
+  # Secret Manager, never from a manifest.
+  SURREAL_USER: root
+  SURREAL_PASS: root
+---
+# The client-side coordinates, so a workload names the engine the same
+# way whatever the deployment. `k8s/staging/workflows-service.yaml`
+# reads these keys; production supplies the same ConfigMap pointing at
+# Surreal Cloud instead of the pod below.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: navigator-surreal
+  namespace: navigator
+data:
+  endpoint: ws://surreal.navigator.svc.cluster.local:8000
+  # One namespace per deployment is the production shape (#1093);
+  # locally there is one, and it matches what `navigator dev` writes
+  # into `.devx/env` so the host and the cluster share a store.
+  namespace: navigator
+  database: navigator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: surreal
+  namespace: navigator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: surreal
+  template:
+    metadata:
+      labels:
+        app: surreal
+    spec:
+      containers:
+        - name: surreal
+          # Pinned to the version the workspace compiles against
+          # (`surrealdb = "3.2.3"`). Bump both together: a client and a
+          # server from different minor lines is exactly the drift the
+          # pin exists to prevent.
+          image: surrealdb/surrealdb:v3.2.3
+          args:
+            - start
+            # 0.0.0.0 so the Service can reach the container. The pod
+            # is inside the cluster network; nothing publishes it to
+            # the host except the port-forward the CLI opens.
+            - --bind
+            - 0.0.0.0:8000
+            - --no-banner
+            - memory
+          envFrom:
+            - secretRef:
+                name: surreal
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: surreal
+  namespace: navigator
+spec:
+  selector:
+    app: surreal
+  ports:
+    - port: 8000
+      targetPort: 8000

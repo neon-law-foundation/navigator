@@ -1,0 +1,79 @@
+# A synthetic ORDINARY deployment — not the automation home, and declining
+# DocuSign. See ../../README.md; nothing here names a resource that exists.
+#
+# Its job is the common path: every requirement that applies to every row, and
+# a `SecretProviderClass` plan that skips the two blocks a row may legitimately
+# omit. `example-automation-home` covers the other side of both forks.
+
+kms_key = "projects/example-deployment/locations/us-west4/keyRings/navigator-secrets/cryptoKeys/deployment-config"
+
+# The line that arms every gate. An unprovisioned row is skipped by all of
+# them, which is why both real rows left this suite asserting nothing.
+provisioned = true
+
+[env]
+NAVIGATOR_ENVIRONMENT = "production"
+NAVIGATOR_CREDENTIAL_ENVIRONMENT = "production"
+
+# --- Google Cloud ----------------------------------------------------------
+NAVIGATOR_GCP_PROJECT_ID = "example-deployment"
+NAVIGATOR_GCP_LOCATION = "us-west4"
+NAVIGATOR_GKE_CLUSTER_NAME = "example-deployment"
+NAVIGATOR_GKE_CONTEXT = "gke_example-deployment_us-west4_example-deployment"
+NAVIGATOR_K8S_NAMESPACE = "example-deployment"
+NAVIGATOR_VPC_NAME = "example-deployment-vpc"
+NAVIGATOR_SUBNETWORK_NAME = "example-deployment-subnet"
+NAVIGATOR_GATEWAY_IP_NAME = "example-deployment-gateway-ip"
+NAVIGATOR_GATEWAY_IP = "198.51.100.10"
+NAVIGATOR_GCP_SERVICE_ACCOUNT_ID = "example-deployment-web"
+NAVIGATOR_DRIVE_GCP_SERVICE_ACCOUNT_ID = "example-deployment-drive"
+NAVIGATOR_WEB_SECRET_NAME = "example-deployment-web-secrets"
+
+# --- Sign-in client --------------------------------------------------------
+NAVIGATOR_OAUTH_CLIENT_ID_BROWSER = "000000000000-examplebrowser.apps.googleusercontent.com"
+
+# --- Storage ---------------------------------------------------------------
+NAVIGATOR_ASSETS_BUCKET = "example-deployment-assets"
+NAVIGATOR_DOCUMENTS_BUCKET = "example-deployment-documents"
+NAVIGATOR_EXPORTS_BUCKET = "example-deployment-exports"
+NAVIGATOR_SURREAL_ARCHIVES_BUCKET = "example-deployment-archives"
+NAVIGATOR_LOGS_BUCKET = "example-deployment-logs"
+NAVIGATOR_APPLICATIONS_BUCKET = "example-deployment-applications"
+NAVIGATOR_ICEBERG_BUCKET = "example-archives-deployment"
+NAVIGATOR_TELEMETRY_BUCKET = "example-deployment-telemetry"
+
+# --- Images ----------------------------------------------------------------
+NAVIGATOR_IMAGE_REGISTRY = "ghcr.io/neon-law-foundation"
+NAVIGATOR_WEB_IMAGE = "neon-server"
+
+# --- Public surface --------------------------------------------------------
+# A reserved synthetic domain, per the no-client-data rule. A real hostname
+# here would make this fixture indistinguishable from a deployment.
+NAVIGATOR_PUBLIC_HOST = "www.example.com"
+NAVIGATOR_PRIMARY_DOMAIN = "www.example.com"
+CANONICAL_HOST = "www.example.com"
+NAV_BASE_URL = "https://www.example.com"
+NAVIGATOR_ASSET_BASE_URL = "https://www.example.com/assets"
+NAVIGATOR_WORKFLOWS_HOST = "workflows.example.com"
+NAVIGATOR_WORKFLOWS_URL = "https://workflows.example.com/"
+
+# --- Sign-in ---------------------------------------------------------------
+GOOGLE_OAUTH_REQUIRED_HD = "example.com"
+
+# --- Forge -----------------------------------------------------------------
+# NOT the automation home, so the webhook five-tuple must be absent:
+# `store::deployment` scopes that requirement to one project, and
+# `NAVIGATOR_GITHUB_CANONICAL_REPOSITORY` is part of it.
+NAVIGATOR_FORGE_BACKEND = "github"
+NAVIGATOR_GITHUB_ORG = "neon-law-foundation"
+NAVIGATOR_GIT_HOST = "github.com"
+NAVIGATOR_GITHUB_APP_ID = "100000"
+NAVIGATOR_GITHUB_INSTALLATION_ID = "200000"
+
+# --- SurrealDB -------------------------------------------------------------
+# Coordinates, deliberately plaintext; the root credentials are key material.
+# `wss://` because the three-topology contract in `store/src/surreal/mod.rs`
+# expects it of a cloud deployment.
+NAVIGATOR_SURREAL_ENDPOINT = "wss://example-deployment.surreal.example/rpc"
+NAVIGATOR_SURREAL_NAMESPACE = "navigator"
+NAVIGATOR_SURREAL_DATABASE = "navigator"

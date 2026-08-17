@@ -1,0 +1,85 @@
+[package]
+name = "cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "navigator"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+clap.workspace = true
+cloud.workspace = true
+forms.workspace = true
+github_webhooks.workspace = true
+comfy-table.workspace = true
+dotenvy.workspace = true
+futures.workspace = true
+google-cloud-auth.workspace = true
+google-cloud-token.workspace = true
+image.workspace = true
+import.workspace = true
+include_dir.workspace = true
+k8s-openapi.workspace = true
+kube.workspace = true
+live-inquiry.workspace = true
+owo-colors.workspace = true
+pdf.workspace = true
+portal.workspace = true
+rand.workspace = true
+ravif.workspace = true
+reqwest.workspace = true
+repos.workspace = true
+rgb.workspace = true
+rules.workspace = true
+sha2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+store.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+uuid.workspace = true
+# `site sync` names each matter folder through the same sanitizer the
+# mounted folder uses, so a matter code that is not a legal path component
+# still lands as exactly one directory.
+vfs.workspace = true
+views.workspace = true
+walkdir.workspace = true
+webp.workspace = true
+# `ops notices` parses `Cargo.lock` to enumerate the third-party crates whose
+# licence texts must ship with the downloadable binary. Already a workspace
+# dependency and already linked into this crate's tests; this promotes it to a
+# runtime dependency of the binary itself.
+toml.workspace = true
+# `navigator github open-issue` opens the issue through the same
+# `workflows::github::IssueOpener` seam the `github_issue__*` workflow step
+# dispatches through, so the CLI and the durable step share one client.
+workflows.workspace = true
+# `assets fonts upload-desktop` packages the licensed GORP Serif OTF family
+# into a ZIP before uploading it to the public assets bucket.
+zip.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+axum.workspace = true
+lopdf.workspace = true
+neon.workspace = true
+predicates.workspace = true
+regorus.workspace = true
+store = { workspace = true, features = ["test-support"] }
+wiremock.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,44 @@
+questionnaire:
+  BEGIN:
+    _: person__client
+  person__client:
+    _: entity__company
+  entity__company:
+    _: person__registered_agent
+  person__registered_agent:
+    _: custom_single_choice__management_structure
+  custom_single_choice__management_structure:
+    _: people__managing_members
+  people__managing_members:
+    _: custom_datetime__formation_date
+  custom_datetime__formation_date:
+    _: END
+  END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  entity_name: What is the legal name of your LLC?
+  registered_agent: Who is the registered agent?
+custom_questions:
+  management_structure:
+    prompt: How will the company be managed?
+    choices:
+      members: Managed by its members — the owners
+      managers: Managed by appointed managers
+  formation_date:
+    prompt: When was the formation date?
+workflow:
+  BEGIN:
+    intake_submitted: intake_persisted__organizer
+  intake_persisted__organizer:
+    articles_rendered: lawyer_review
+  lawyer_review:
+    approved: generate_pdf__articles_pdf
+    rejected: END
+  generate_pdf__articles_pdf:
+    pdf_persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: filing__nv_sos
+    signature_declined: END
+  filing__nv_sos:
+    filed: END
+  END: {}

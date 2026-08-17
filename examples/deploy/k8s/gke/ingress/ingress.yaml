@@ -1,0 +1,98 @@
+# navigator-web Ingress — the legacy GKE Ingress controller
+# (`kubernetes.io/ingress.class: gce`) provisions a Google Cloud
+# Global External Application Load Balancer with a Google-managed
+# certificate. We deliberately use the LEGACY Ingress API rather
+# than the newer Gateway API:
+#
+# - GKE 1.35.x's `gke-l7-global-external-managed` GatewayClass
+#   silently drops HTTPS listeners with a Certificate Manager
+#   cert-map (option key, annotation form, and `spec.addresses`
+#   were all tried; the controller never provisioned a target HTTPS
+#   proxy).
+# - The legacy Ingress + `ManagedCertificate` CRD has been working
+#   since GKE 1.13 and is well-trodden ground.
+#
+# This Ingress relies on:
+# - `kubernetes.io/ingress.global-static-ip-name: navigator-ingress-ip`
+#   — the global IPv4 reserved with `gcloud compute addresses
+#   create navigator-gateway-ip --global` (the resource name is
+#   `navigator-ingress-ip` — see iam.yaml story below for the
+#   alignment work that's deferred).
+# - `networking.gke.io/managed-certificates` — comma-separated list
+#   of `ManagedCertificate` CRs that Google's cert-issuer flips to
+#   Active once DNS resolves to this LB's IP. One cert per
+#   hostname; both share this single LB because DNS for both
+#   hostnames already resolves to `navigator-ingress-ip`.
+# - `networking.gke.io/v1beta1.FrontendConfig` — opts the LB into
+#   HTTP->HTTPS redirect with a 308 once the cert is provisioned.
+# - `cloud.google.com/neg: '{"ingress": true}'` annotation on the
+#   backend Services (`navigator-web`, `workflows-service`) so the
+#   LB targets pod endpoints directly (container-native LB, no
+#   NodePort hop).
+#
+# Host-based routing splits the two hostnames:
+#   - NAVIGATOR_PUBLIC_HOST          -> navigator-web:80
+#   - NAVIGATOR_WORKFLOWS_HOST       -> workflows-service:9081
+#     (GitHub posts signed webhooks to workflows.<domain>/webhooks/github/{secret};
+#      Envoy routes that path to the worker's receiver listener, everything
+#      else to the Restate endpoint)
+# The second hostname is the public endpoint Restate Cloud uses to reach the
+# workflow worker, which also hosts the GitHub webhook receiver and the notice
+# services folded in from the former standalone DevX worker. The receiver moved
+# off `www` so that host can go behind the tailnet — GitHub, an external sender,
+# cannot reach a tailnet-only host, so it posts to the public workflows host.
+#
+# Naming this `navigator-web-gke` to avoid colliding with the
+# nginx-class Ingress at `base/web/web.yaml` (which has the same
+# name `navigator-web`); the nginx one is inert in GKE because no
+# nginx controller is installed.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: navigator-web-gke
+  namespace: navigator
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: NAVIGATOR_GATEWAY_IP_NAME
+    networking.gke.io/managed-certificates: navigator-web,navigator-workflows
+    networking.gke.io/v1beta1.FrontendConfig: navigator-web
+spec:
+  rules:
+    - host: NAVIGATOR_PUBLIC_HOST
+      http:
+        paths:
+          # /mcp is IAP-gated via the navigator-web-mcp Service +
+          # its BackendConfig under ../iap/. Listed FIRST so the
+          # GKE LB matches the more-specific path before falling
+          # through to the catch-all below.
+          - path: /mcp
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: navigator-web-mcp
+                port:
+                  number: 80
+          - path: /mcp/*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: navigator-web-mcp
+                port:
+                  number: 80
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: navigator-web
+                port:
+                  number: 80
+    - host: NAVIGATOR_WORKFLOWS_HOST
+      http:
+        paths:
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: workflows-service
+                port:
+                  number: 9081

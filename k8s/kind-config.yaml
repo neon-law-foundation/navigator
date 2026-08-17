@@ -1,0 +1,28 @@
+# KIND (Kubernetes IN Docker) cluster topology for Neon Law Navigator's
+# end-to-end developer environment. One control-plane node, one
+# worker. Ports 80/443 land on a NodePort-backed ingress controller
+# (kept open so `localhost` reaches the cluster directly). The Rauthy admin
+# console gets its own host-port mapping; Garage uses a CLI-managed port-forward.
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: navigator
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80      # ingress HTTP
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 443     # ingress HTTPS (unused but exposed)
+        hostPort: 8443
+        protocol: TCP
+      - containerPort: 30080   # rauthy admin
+        hostPort: 30080
+        protocol: TCP
+  - role: worker

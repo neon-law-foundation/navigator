@@ -1,0 +1,81 @@
+# Disposable staging Restate broker — managed by the Restate Operator
+# (`helm install restate-operator …` in `navigator dev kind up`).
+#
+# The operator reconciles this `RestateCluster` CR into a
+# StatefulSet, PVC, ConfigMap, ClusterIP Service, and a deny-all
+# NetworkPolicy — all placed in a namespace named after the cluster
+# (`restate`), *not* in the CR's own namespace. Cross-namespace
+# consumers reach the broker at `restate.restate.svc.cluster.local`
+# (ingress :8080, admin :9070).
+#
+# RestateDeployment CRs (see `k8s/workflows-service/`) reference
+# this cluster by name via `spec.restate.register.cluster: restate`.
+#
+# `disableNetworkPolicies: true` is load-bearing for this KIND overlay
+# (local `deploy` AND CI's `deploy.yml`). When `autoProvision` is on, the
+# operator provisions by dialing the node's fabric port
+# `restate-0.restate-cluster…:5122`. The operator also reconciles a
+# `deny-all` NetworkPolicy plus selective allows (including one that opens
+# :5122 to the operator pod). Recent kindnet (≥ v20260528) *enforces*
+# NetworkPolicy but does NOT honor that operator allow rule, so the
+# provisioning dial is dropped → `transport error` → `ProvisioningFailed`,
+# and the node sits at `0/1` "awaiting provisioning" forever (restate 1.7.0
+# then crash-loops on its init deadline). This is independent of the
+# operator/server version — operator 2.5.1+1.6.2, 2.6.1+1.6.2 and 2.6.1+1.7.0
+# all wedge under enforcing kindnet, and all provision the instant the
+# policies are gone. Older kindnet (CI's historical node image, and prod's
+# CNI) didn't enforce, which is why this surfaced as "local-only." These KIND
+# clusters are single-app and ephemeral, so dropping the policies costs no
+# real isolation. If a security-sensitive overlay ever needs the policies,
+# split it out rather than flipping this back on for KIND.
+#
+# `security.networkPeers.ingress` whitelists who may call the ingress port
+# (kept for documentation/intent even though policies are disabled here).
+#
+# Pin `compute.image` to an explicit tag — never `latest`; the workspace-wide
+# rule and its `navigator validate` guard live in docs/gitops.md § "Pin every
+# consumed image, binary, and action". Keep server, operator chart, and restate
+# CLI on the same release (server 1.7.2 ⇄ operator 2.8.1 ⇄ CLI 1.7.2; the latter
+# two in `cli/src/devx/mod.rs`).
+apiVersion: restate.dev/v1
+kind: RestateCluster
+metadata:
+  name: restate
+  namespace: navigator
+spec:
+  cluster:
+    # The node provisions itself (`auto-provision = true` below); the operator
+    # must not also try, so there is exactly one mechanism rather than two
+    # racing. See the `auto-provision` note under `config`.
+    autoProvision: false
+  compute:
+    image: docker.restate.dev/restatedev/restate:1.7.2
+  security:
+    disableNetworkPolicies: true
+    networkPeers:
+      ingress:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: navigator
+  storage:
+    # 1 GiB — matches the previous hand-rolled PVC. Resize via
+    # `storage.storageRequestBytes` and re-apply; the operator
+    # supports online volume expansion.
+    storageRequestBytes: 1073741824
+  config: |
+    # The node provisions its own single-node cluster on first boot.
+    #
+    # This has to be the server's job, not the operator's. `cluster.
+    # autoProvision` asks the operator to call ProvisionCluster once pods are
+    # running, and it simply never does: a fresh cluster logs "Cluster has not
+    # been provisioned, yet. Awaiting provisioning via `restatectl provision`",
+    # never reaches Ready, and `dev up` times out on `restateclusters/restate`
+    # while zero provision attempts appear in the operator's log. Verified on
+    # operator 2.6.1 and again on 2.8.1 — this is not a version we can bump
+    # past. It also drops the dependency on the operator dialling fabric port
+    # :5122, which is the fragile path the NetworkPolicy note above describes.
+    #
+    # This stayed invisible while the journal PVC outlived every teardown:
+    # the cluster was provisioned once, long ago, and never had to do it again.
+    # Putting the journal inside the reset boundary is what surfaced it.
+    auto-provision = true

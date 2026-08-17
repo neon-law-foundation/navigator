@@ -1,0 +1,147 @@
+lookup_fields:
+  - code
+# Every question is one of exactly three things (issue #235): a one-to-one
+# mapping of a glossary ORM model (a record/reference type), the plural
+# "list" form of one, or a `custom_*` primitive. There are no bespoke
+# per-matter codes — a template asks for a trustee with `person__trustee`,
+# a fee status with `custom_single_choice__fee_status`, and so on. This set
+# is exactly `store::question_registry::QuestionType`; a `store` test pins
+# the two together so they can never drift.
+records:
+  # --- Record types (create/link a store::entity row) — singular ---
+  - code: person
+    prompt: Who is {{for_label}}?
+    question_type: person
+    help_text: Identify the person this answer refers to.
+  - code: entity
+    prompt: Which entity is {{for_label}}?
+    question_type: entity
+    help_text: Select the entity record this answer refers to.
+  - code: address
+    prompt: What is the address for {{for_label}}?
+    question_type: address
+    help_text: Please enter all of the address fields.
+  - code: role
+    prompt: What role does {{for_label}} hold?
+    question_type: role
+    help_text: The person's role at the entity (officer, member, director).
+  - code: filing
+    prompt: Which filing is {{for_label}}?
+    question_type: filing
+    help_text: The government filing this answer refers to.
+  - code: credential
+    prompt: What is the credential for {{for_label}}?
+    question_type: credential
+    help_text: The person's licensure in a jurisdiction.
+  - code: disclosure
+    prompt: What disclosure applies to {{for_label}}?
+    question_type: disclosure
+    help_text: A conflict or material disclosure for this matter.
+  - code: issuance
+    prompt: What stock issuance is {{for_label}}?
+    question_type: issuance
+    help_text: A stock issuance already tracked in Neon Law.
+  - code: signature
+    prompt: Please send the document for signature for {{for_label}}.
+    question_type: signature
+    help_text: Only people can sign documents. A person is identified by their label in a document.
+  - code: notarization
+    prompt: Please send the document for notarization for {{for_label}}.
+    question_type: notarization
+    help_text: Only people can notarize documents. A person is identified by their label in a document.
+  # --- Record types — aggregate (a list of the singular's shape) ---
+  - code: people
+    prompt: Who are the people for {{for_label}}?
+    question_type: people_list
+    help_text: List each person with the details needed for this document or filing.
+  - code: entities
+    prompt: Which entities are {{for_label}}?
+    question_type: entity
+    help_text: List each entity this answer refers to.
+  - code: addresses
+    prompt: What are the addresses for {{for_label}}?
+    question_type: address
+    help_text: List each address for this answer.
+  - code: roles
+    prompt: What roles apply to {{for_label}}?
+    question_type: role
+    help_text: List each role held.
+  - code: filings
+    prompt: Which filings are {{for_label}}?
+    question_type: filing
+    help_text: List each government filing.
+  - code: credentials
+    prompt: What are the credentials for {{for_label}}?
+    question_type: credential
+    help_text: List each licensure.
+  - code: disclosures
+    prompt: What disclosures apply to {{for_label}}?
+    question_type: disclosure
+    help_text: List each disclosure for this matter.
+  - code: issuances
+    prompt: Which stock issuances are {{for_label}}?
+    question_type: issuance
+    help_text: List each stock issuance tracked in Neon Law.
+  # --- Reference types (select a seeded row) — singular ---
+  - code: jurisdiction
+    prompt: Which jurisdiction is {{for_label}}?
+    question_type: jurisdiction
+    help_text: Select the seeded jurisdiction this answer refers to.
+  - code: country
+    prompt: Which country is {{for_label}}?
+    question_type: country
+    help_text: Select the country this answer refers to.
+  - code: entity_type
+    prompt: What entity type is {{for_label}}?
+    question_type: entity_type
+    help_text: Select the kind of legal entity (LLC, Trust, Corporation, …).
+  - code: product
+    prompt: Which product is {{for_label}}?
+    question_type: product
+    help_text: Select the seeded product this engagement covers.
+  - code: project
+    prompt: What is the project for {{for_label}}?
+    question_type: project
+    help_text: Select the matter this answer refers to.
+  # --- Reference types — aggregate ---
+  - code: jurisdictions
+    prompt: Which jurisdictions are {{for_label}}?
+    question_type: jurisdiction
+    help_text: List each jurisdiction this answer refers to.
+  - code: entity_types
+    prompt: Which entity types are {{for_label}}?
+    question_type: entity_type
+    help_text: List each kind of legal entity.
+  - code: products
+    prompt: Which products are {{for_label}}?
+    question_type: product
+    help_text: List each product this engagement covers.
+  # --- Custom primitives (value lives in the answer JSON, no SQL grounding) ---
+  - code: custom_text
+    prompt: What text should be added for {{for_label}}?
+    question_type: string
+    help_text: Use this for a one-off text answer when no glossary type fits.
+  - code: custom_phone
+    prompt: What phone number applies to {{for_label}}?
+    question_type: custom_phone
+    help_text: Enter a phone number, including the country code if outside the U.S.
+  - code: custom_yes_no
+    prompt: Is the answer yes or no for {{for_label}}?
+    question_type: yes_no
+    help_text: Use this for a one-off yes/no answer when no glossary type fits.
+  - code: custom_single_choice
+    prompt: Which option applies to {{for_label}}?
+    question_type: radio
+    help_text: Use this when the template supplies a one-off set of choices and the respondent picks one.
+  - code: custom_multiple_choice
+    prompt: Which options apply to {{for_label}}?
+    question_type: multiple_choice
+    help_text: Use this when the template supplies a one-off set of choices and the respondent may pick several.
+  - code: custom_usd
+    prompt: What dollar amount applies to {{for_label}}?
+    question_type: custom_usd
+    help_text: Enter a U.S. dollar amount with two decimal places.
+  - code: custom_datetime
+    prompt: What date or time applies to {{for_label}}?
+    question_type: datetime
+    help_text: Enter the date, time, year, or filing period requested by the prompt.

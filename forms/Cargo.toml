@@ -1,0 +1,28 @@
+[package]
+name = "forms"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+cloud = { path = "../cloud" }
+pdf = { path = "../pdf" }
+rules = { path = "../rules" }
+serde_yaml.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

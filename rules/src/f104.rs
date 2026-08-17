@@ -1,0 +1,765 @@
+//! `N104` — questionnaire states must reference valid question codes
+//! and workflow states must compose known workflow step prefixes.
+//!
+//! Questionnaire state name shape: `<question_code>__<discriminator>`
+//! (the `__<discriminator>` part is optional). The prefix before the
+//! first `__` must appear in the configured valid-codes set. Workflow
+//! state names use the same discriminator convention, but their prefix
+//! must come from the reusable workflow-step catalog. The sentinel
+//! states `BEGIN` and `END` are exempt.
+//!
+//! Both the `questionnaire:` and `workflow:` maps in frontmatter
+//! are validated; both must declare a `BEGIN` state and reach
+//! `END` from at least one transition.
+
+use std::collections::{BTreeMap, HashSet};
+
+use serde::Deserialize;
+
+use crate::{frontmatter, line_byte_range, Rule, SourceFile, Violation};
+
+pub struct F104FlowQuestionCodes {
+    valid_codes: HashSet<String>,
+    /// Whether a `workflow:` block is required. True for a legal notation,
+    /// whose document only becomes real by advancing through review,
+    /// signature, and filing. False for a `kind: github` notation, which
+    /// renders its answers into an issue or pull request body and stops —
+    /// it has no workflow to run, and demanding an unexecuted one would
+    /// put a vestigial state machine in every file on that shelf.
+    workflow_required: bool,
+}
+
+impl F104FlowQuestionCodes {
+    pub const CODE: &'static str = "N104";
+
+    #[must_use]
+    pub fn new<I, S>(codes: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        Self {
+            valid_codes: codes.into_iter().map(Into::into).collect(),
+            workflow_required: true,
+        }
+    }
+
+    /// The same rule with the `workflow:` requirement lifted — every
+    /// questionnaire check still runs. See [`Self::workflow_required`].
+    #[must_use]
+    pub fn questionnaire_only<I, S>(codes: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        Self {
+            workflow_required: false,
+            ..Self::new(codes)
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct FrontmatterShape {
+    #[serde(default)]
+    questionnaire: Option<BTreeMap<String, BTreeMap<String, String>>>,
+    #[serde(default)]
+    custom_questions: BTreeMap<String, CustomQuestionShape>,
+    #[serde(default)]
+    choices: BTreeMap<String, serde_yaml::Value>,
+    #[serde(default)]
+    workflow: Option<BTreeMap<String, BTreeMap<String, String>>>,
+}
+
+/// The N104 view of a `custom_questions` entry: the wording and, for a
+/// choice type, its options. Kept local so `rules` stays free of a
+/// `workflows` dependency.
+#[derive(Debug, Deserialize)]
+struct CustomQuestionShape {
+    #[serde(default)]
+    prompt: String,
+    #[serde(default)]
+    choices: BTreeMap<String, String>,
+}
+
+/// The two custom types that carry a one-off option list; every other
+/// `custom_*` primitive takes a free value and must not define `choices`.
+const CHOICE_CUSTOM_TYPES: &[&str] = &["custom_single_choice", "custom_multiple_choice"];
+
+impl Rule for F104FlowQuestionCodes {
+    fn code(&self) -> &'static str {
+        Self::CODE
+    }
+
+    fn lint(&self, file: &SourceFile) -> Vec<Violation> {
+        let Some(fm) = frontmatter::extract(&file.contents) else {
+            return Vec::new();
+        };
+        let Ok(parsed) = serde_yaml::from_str::<FrontmatterShape>(fm) else {
+            return Vec::new();
+        };
+
+        let mut violations = Vec::new();
+        let Some(questionnaire) = parsed.questionnaire else {
+            violations.push(violation(file, "Missing required `questionnaire` key"));
+            return violations;
+        };
+        let workflow = match parsed.workflow {
+            Some(workflow) => Some(workflow),
+            None if self.workflow_required => {
+                violations.push(violation(file, "Missing required `workflow` key"));
+                return violations;
+            }
+            None => None,
+        };
+        if !parsed.choices.is_empty() {
+            violations.push(violation(
+                file,
+                "`choices:` is retired — define a custom question's options inside \
+                 `custom_questions.<key>.choices`",
+            ));
+        }
+        self.validate_questionnaire(
+            file,
+            &questionnaire,
+            &parsed.custom_questions,
+            &mut violations,
+        );
+        // A declared `workflow:` is validated whether or not it was
+        // required, so a GitHub notation that grows one later is still held
+        // to the same shape.
+        if let Some(workflow) = workflow {
+            Self::validate_workflow(file, &workflow, &mut violations);
+        }
+        violations
+    }
+}
+
+impl F104FlowQuestionCodes {
+    fn validate_common_shape(
+        file: &SourceFile,
+        map: &BTreeMap<String, BTreeMap<String, String>>,
+        map_name: &str,
+        violations: &mut Vec<Violation>,
+    ) -> bool {
+        if !map.contains_key("BEGIN") {
+            violations.push(violation(
+                file,
+                format!("{map_name} is missing required BEGIN state"),
+            ));
+            return false;
+        }
+        let reaches_end = map.values().any(|t| t.values().any(|n| n == "END"));
+        if !reaches_end {
+            violations.push(violation(
+                file,
+                format!("{map_name} is missing required END state"),
+            ));
+            return false;
+        }
+        true
+    }
+
+    fn validate_questionnaire(
+        &self,
+        file: &SourceFile,
+        map: &BTreeMap<String, BTreeMap<String, String>>,
+        custom_questions: &BTreeMap<String, CustomQuestionShape>,
+        violations: &mut Vec<Violation>,
+    ) {
+        if !Self::validate_common_shape(file, map, "questionnaire", violations) {
+            return;
+        }
+        if self.valid_codes.is_empty() {
+            // No registry provided — fall back to structural checks only
+            // (BEGIN/END presence), matching the behavior callers get
+            // when the default factory is used without supplying codes.
+            return;
+        }
+        for state in map.keys() {
+            if state == "BEGIN" || state == "END" {
+                continue;
+            }
+            let prefix = state.split_once("__").map_or(state.as_str(), |(p, _)| p);
+            if !self.valid_codes.contains(prefix) {
+                violations.push(violation(
+                    file,
+                    format!("Invalid question code: `{prefix}` (from state `{state}`)"),
+                ));
+            }
+            if prefix.starts_with("custom_") {
+                Self::validate_custom_question(file, state, prefix, custom_questions, violations);
+            }
+        }
+    }
+
+    /// A `custom_*` state gets its wording (and, for a choice type, its
+    /// options) from a `custom_questions.<prompt_key>` entry — the bank
+    /// supplies nothing for a one-off. Enforce that the entry exists and
+    /// that its `choices` presence matches the type: choice types require
+    /// options, every other custom primitive forbids them.
+    fn validate_custom_question(
+        file: &SourceFile,
+        state: &str,
+        prefix: &str,
+        custom_questions: &BTreeMap<String, CustomQuestionShape>,
+        violations: &mut Vec<Violation>,
+    ) {
+        let Some((_, prompt_key)) = state.split_once("__") else {
+            violations.push(violation(
+                file,
+                format!(
+                    "Custom question state `{state}` must use `custom_*__prompt_key` and define `custom_questions.<prompt_key>`"
+                ),
+            ));
+            return;
+        };
+        let Some(question) = custom_questions.get(prompt_key) else {
+            violations.push(violation(
+                file,
+                format!(
+                    "Custom question state `{state}` is missing required `custom_questions.{prompt_key}`"
+                ),
+            ));
+            return;
+        };
+        if question.prompt.trim().is_empty() {
+            violations.push(violation(
+                file,
+                format!(
+                    "Custom question `custom_questions.{prompt_key}` needs a non-empty `prompt`"
+                ),
+            ));
+        }
+        let is_choice_type = CHOICE_CUSTOM_TYPES.contains(&prefix);
+        if is_choice_type && question.choices.is_empty() {
+            violations.push(violation(
+                file,
+                format!(
+                    "Custom question state `{state}` is a choice type and needs \
+                     `custom_questions.{prompt_key}.choices`"
+                ),
+            ));
+        } else if !is_choice_type && !question.choices.is_empty() {
+            violations.push(violation(
+                file,
+                format!(
+                    "Custom question `custom_questions.{prompt_key}` (`{prefix}`) must not define \
+                     `choices` — only custom_single_choice / custom_multiple_choice may"
+                ),
+            ));
+        }
+    }
+
+    fn validate_workflow(
+        file: &SourceFile,
+        map: &BTreeMap<String, BTreeMap<String, String>>,
+        violations: &mut Vec<Violation>,
+    ) {
+        if !Self::validate_common_shape(file, map, "workflow", violations) {
+            return;
+        }
+        for state in map.keys() {
+            if state == "BEGIN" || state == "END" {
+                continue;
+            }
+            let prefix = state.split_once("__").map_or(state.as_str(), |(p, _)| p);
+            if !valid_workflow_step_prefix(prefix) {
+                violations.push(violation(
+                    file,
+                    format!("Invalid workflow step prefix: `{prefix}` (from state `{state}`)"),
+                ));
+            }
+        }
+    }
+}
+
+/// Whether `prefix` is an allowed workflow-step prefix. Delegates to the
+/// single source of truth, the [`crate::workflow_steps`] catalog (which
+/// also handles the `_signature` / `_signatures` suffix family), so the
+/// allow-list and the hover descriptions can never drift apart.
+#[must_use]
+pub fn valid_workflow_step_prefix(prefix: &str) -> bool {
+    crate::workflow_steps::is_allowed_prefix(prefix)
+}
+
+fn violation(file: &SourceFile, message: impl Into<String>) -> Violation {
+    Violation {
+        code: F104FlowQuestionCodes::CODE,
+        path: file.path.clone(),
+        line: 1,
+        range: line_byte_range(&file.contents, 1),
+        message: message.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{valid_workflow_step_prefix, F104FlowQuestionCodes};
+    use crate::{Rule, SourceFile};
+    use std::path::PathBuf;
+
+    fn file(body: &str) -> SourceFile {
+        SourceFile {
+            path: PathBuf::from("test.md"),
+            contents: body.to_string(),
+        }
+    }
+
+    const VALID_CODES: &[&str] = &["trustee_name", "beneficiary_name"];
+
+    fn rule() -> F104FlowQuestionCodes {
+        F104FlowQuestionCodes::new(VALID_CODES.iter().copied())
+    }
+
+    #[test]
+    fn passes_on_clean_questionnaire_and_workflow() {
+        let body = "---
+title: T
+questionnaire:
+  BEGIN:
+    created: trustee_name
+  trustee_name:
+    answered: beneficiary_name
+  beneficiary_name:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        let violations = rule().lint(&file(body));
+        assert!(violations.is_empty(), "got {violations:?}");
+    }
+
+    #[test]
+    fn no_frontmatter_means_no_violation() {
+        assert!(rule().lint(&file("just body")).is_empty());
+    }
+
+    #[test]
+    fn missing_questionnaire_key_is_a_violation() {
+        let body = "---\nworkflow:\n  BEGIN:\n    a: END\n  END: {}\n---\n";
+        let v = rule().lint(&file(body));
+        assert_eq!(v.len(), 1);
+        assert!(v[0].message.contains("Missing required `questionnaire`"));
+    }
+
+    #[test]
+    fn missing_workflow_key_is_a_violation() {
+        let body = "---\nquestionnaire:\n  BEGIN:\n    a: END\n  END: {}\n---\n";
+        let v = rule().lint(&file(body));
+        assert_eq!(v.len(), 1);
+        assert!(v[0].message.contains("Missing required `workflow`"));
+    }
+
+    #[test]
+    fn missing_begin_state_in_either_map_is_a_violation() {
+        let body = "---
+questionnaire:
+  trustee_name:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    a: END
+  END: {}
+---
+";
+        let v = rule().lint(&file(body));
+        assert!(v
+            .iter()
+            .any(|x| x.message.contains("questionnaire") && x.message.contains("BEGIN")));
+    }
+
+    #[test]
+    fn flags_state_referencing_unknown_question_code() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: not_a_valid_code
+  not_a_valid_code:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        let v = rule().lint(&file(body));
+        assert!(v.iter().any(|x| x.message.contains("Invalid question code")
+            && x.message.contains("not_a_valid_code")));
+    }
+
+    #[test]
+    fn double_underscore_suffix_is_stripped_for_code_lookup() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: trustee_name__for_grantor
+  trustee_name__for_grantor:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        assert!(rule().lint(&file(body)).is_empty());
+    }
+
+    #[test]
+    fn custom_question_states_require_a_custom_questions_entry() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: custom_text__fundraising_activities
+  custom_text__fundraising_activities:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        let v = F104FlowQuestionCodes::new(["custom_text"]).lint(&file(body));
+        assert!(v.iter().any(|x| x
+            .message
+            .contains("missing required `custom_questions.fundraising_activities`")));
+    }
+
+    #[test]
+    fn custom_question_states_accept_a_matching_custom_questions_entry() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: custom_text__fundraising_activities
+  custom_text__fundraising_activities:
+    answered: END
+  END: {}
+custom_questions:
+  fundraising_activities:
+    prompt: What are the fundraising activities?
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        assert!(F104FlowQuestionCodes::new(["custom_text"])
+            .lint(&file(body))
+            .is_empty());
+    }
+
+    #[test]
+    fn custom_question_with_a_blank_prompt_is_flagged() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: custom_text__note
+  custom_text__note:
+    answered: END
+  END: {}
+custom_questions:
+  note:
+    prompt: '   '
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        let v = F104FlowQuestionCodes::new(["custom_text"]).lint(&file(body));
+        assert!(
+            v.iter()
+                .any(|x| x.message.contains("needs a non-empty `prompt`")),
+            "got {v:?}"
+        );
+    }
+
+    #[test]
+    fn choice_custom_type_requires_choices() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: custom_single_choice__basis
+  custom_single_choice__basis:
+    answered: END
+  END: {}
+custom_questions:
+  basis:
+    prompt: Which basis applies?
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        let v = F104FlowQuestionCodes::new(["custom_single_choice"]).lint(&file(body));
+        assert!(
+            v.iter()
+                .any(|x| x.message.contains("is a choice type and needs")),
+            "got {v:?}"
+        );
+    }
+
+    #[test]
+    fn non_choice_custom_type_forbids_choices() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: custom_datetime__formation_date
+  custom_datetime__formation_date:
+    answered: END
+  END: {}
+custom_questions:
+  formation_date:
+    prompt: When was the formation date?
+    choices:
+      today: Today
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        let v = F104FlowQuestionCodes::new(["custom_datetime"]).lint(&file(body));
+        assert!(
+            v.iter().any(|x| x.message.contains("must not define")),
+            "got {v:?}"
+        );
+    }
+
+    #[test]
+    fn choice_custom_type_accepts_choices() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: custom_single_choice__basis
+  custom_single_choice__basis:
+    answered: END
+  END: {}
+custom_questions:
+  basis:
+    prompt: Which basis applies?
+    choices:
+      a: Option A
+      b: Option B
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        assert!(F104FlowQuestionCodes::new(["custom_single_choice"])
+            .lint(&file(body))
+            .is_empty());
+    }
+
+    #[test]
+    fn top_level_choices_key_is_retired() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: custom_single_choice__basis
+  custom_single_choice__basis:
+    answered: END
+  END: {}
+custom_questions:
+  basis:
+    prompt: Which basis applies?
+    choices:
+      a: Option A
+choices:
+  basis:
+    a: Option A
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        let v = F104FlowQuestionCodes::new(["custom_single_choice"]).lint(&file(body));
+        assert!(
+            v.iter()
+                .any(|x| x.message.contains("`choices:` is retired")),
+            "got {v:?}"
+        );
+    }
+
+    #[test]
+    fn bare_custom_question_state_is_invalid_without_a_prompt_discriminator() {
+        let body = "---
+questionnaire:
+  BEGIN:
+    created: custom_text
+  custom_text:
+    answered: END
+  END: {}
+custom_questions:
+  custom_text:
+    prompt: What custom text?
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        let v = F104FlowQuestionCodes::new(["custom_text"]).lint(&file(body));
+        assert!(v
+            .iter()
+            .any(|x| x.message.contains("must use `custom_*__prompt_key`")));
+    }
+
+    #[test]
+    fn workflow_states_are_validated_against_step_prefixes_not_question_codes() {
+        let body = "---
+title: T
+questionnaire:
+  BEGIN:
+    created: trustee_name
+  trustee_name:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: generate_pdf__trust_pdf
+  generate_pdf__trust_pdf:
+    persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: END
+  END: {}
+---
+";
+        assert!(rule().lint(&file(body)).is_empty());
+    }
+
+    #[test]
+    fn workflow_signature_suffixes_are_known_steps() {
+        let body = "---
+title: T
+questionnaire:
+  BEGIN:
+    created: trustee_name
+  trustee_name:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: member_signatures
+  member_signatures:
+    signed: lawyer_review
+  lawyer_review:
+    approved: END
+  END: {}
+---
+";
+        assert!(rule().lint(&file(body)).is_empty());
+    }
+
+    #[test]
+    fn flags_workflow_states_outside_the_step_catalog() {
+        let body = "---
+title: T
+questionnaire:
+  BEGIN:
+    created: trustee_name
+  trustee_name:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: bespoke_magic
+  bespoke_magic:
+    done: END
+  END: {}
+---
+";
+        let v = rule().lint(&file(body));
+        assert!(v.iter().any(|x| x
+            .message
+            .contains("Invalid workflow step prefix: `bespoke_magic`")));
+    }
+
+    #[test]
+    fn retired_document_open_prefix_is_rejected() {
+        // The step was renamed `document_open` → `generate_pdf` and the
+        // old prefix removed outright (no alias). A template that still
+        // authors the retired prefix must fail N104, so no notation can
+        // reach the engine with a step the dispatcher no longer knows.
+        assert!(!valid_workflow_step_prefix("document_open"));
+        let body = "---
+title: T
+questionnaire:
+  BEGIN:
+    created: trustee_name
+  trustee_name:
+    answered: END
+  END: {}
+workflow:
+  BEGIN:
+    created: lawyer_review
+  lawyer_review:
+    approved: document_open__trust_pdf
+  document_open__trust_pdf:
+    persisted: END
+  END: {}
+---
+";
+        let v = rule().lint(&file(body));
+        assert!(
+            v.iter().any(|x| x
+                .message
+                .contains("Invalid workflow step prefix: `document_open`")),
+            "got {v:?}"
+        );
+    }
+
+    #[test]
+    fn n104_accepts_every_engine_step_prefix() {
+        // N104's allow-list is the workflow_steps catalog, which the
+        // catalog's own drift test pins to workflows::step::STEP_PREFIXES.
+        // This guards the N104 entry point specifically, including the
+        // `_signature` suffix family.
+        for (prefix, _) in workflows::step::STEP_PREFIXES {
+            if *prefix == "_signature" {
+                assert!(
+                    valid_workflow_step_prefix("member_signatures"),
+                    "signature suffix family should be accepted by N104",
+                );
+                continue;
+            }
+            assert!(
+                valid_workflow_step_prefix(prefix),
+                "workflow engine prefix `{prefix}` is not accepted by N104",
+            );
+        }
+    }
+}

@@ -1,0 +1,2072 @@
+//! Reconciliation for repository-side GitHub policy.
+//!
+//! `ops github setup [repository]` keeps the merge gate reviewable in Rust
+//! instead of in GitHub's settings UI, and it governs *every* repository on
+//! this enterprise rather than a hard-coded pair. The target comes from the
+//! argument, else `GITHUB_REPOSITORY`, else the checkout's `origin` remote,
+//! and the host in that remote is the authorization boundary: a remote
+//! pointing anywhere but the configured enterprise host is refused before a
+//! token is read.
+//!
+//! The host is *configuration* ([`cloud::workspace::NAVIGATOR_GIT_HOST`]), read
+//! where it is used and with no default. That keeps the shape ENG-58
+//! established — governance is scoped to the **host**, never to a list of
+//! organization names — while taking the one forge coordinate this command
+//! carried out of source. There is deliberately no public-forge fallback:
+//! every repository the Firm governs lives on this tenant, so a run that
+//! silently reached a public API would be a bug rather than a convenience.
+//!
+//! Policy is still explicit, just no longer an allowlist of names. Every
+//! repository gets [`COMMON_POLICY`] — the integrity gate plus the code-owner
+//! review gate. `neon-law-foundation/navigator` additionally carries the release-tag
+//! ruleset, the `DevX` labels, and the App assertion its own automation depends
+//! on.
+
+use std::collections::HashMap;
+use std::env;
+use std::fmt;
+use std::process::Command;
+
+use anyhow::{anyhow, bail, Context, Result};
+use reqwest::header;
+use serde::{Deserialize, Serialize};
+
+/// The configured GitHub Enterprise Cloud host this command may write to.
+///
+/// This is the whole authorization boundary. `ops github setup` takes no host
+/// from the caller: it derives both the repository and the API base from a
+/// remote that must live on the configured host, so an incidental checkout of
+/// some public-forge repository cannot become a write target by being the
+/// current directory.
+///
+/// Read where it is needed rather than at startup, so a run that names its
+/// repository explicitly and overrides [`API_BASE_ENV`] needs no host at all.
+///
+/// # Errors
+///
+/// When [`cloud::workspace::NAVIGATOR_GIT_HOST`] is unset or blank. There is no
+/// default: a fallback would silently aim a governance write at a host the Firm
+/// does not administer.
+fn enterprise_host() -> Result<String> {
+    optional_env(cloud::workspace::NAVIGATOR_GIT_HOST).ok_or_else(|| {
+        anyhow!(
+            "{} must name the enterprise host `ops github setup` governs; there is no default",
+            cloud::workspace::NAVIGATOR_GIT_HOST
+        )
+    })
+}
+
+/// The one repository carrying more than [`COMMON_POLICY`].
+const NAVIGATOR_SLUG: &str = "neon-law-foundation/navigator";
+
+const REPOSITORY_ENV: &str = "GITHUB_REPOSITORY";
+const API_BASE_ENV: &str = "NAVIGATOR_GITHUB_API_BASE";
+const TOKEN_ENV: &str = "GITHUB_TOKEN";
+const APP_ID_ENV: &str = "NAVIGATOR_GITHUB_APP_ID";
+const USER_AGENT: &str = concat!("neon-law-navigator/", env!("CARGO_PKG_VERSION"));
+const API_VERSION: &str = "2022-11-28";
+const BRANCH_RULESET_NAME: &str = "production";
+
+/// The GitHub Actions App, which produces the `ci` check run the `production`
+/// ruleset requires.
+///
+/// The App ID is **per-host**: Actions is `15368` on github.com but `141` on
+/// this enterprise. Requiring a context under the wrong ID binds the rule to an
+/// App that never posts here, so the gate silently matches nothing and every
+/// pull request looks unguarded. Confirm it against a real check run before
+/// changing it:
+///
+/// ```text
+/// gh api repos/<owner>/<repo>/commits/<sha>/check-runs \
+///     --jq '.check_runs[] | "\(.name) \(.app.id) \(.app.slug)"'
+/// ```
+const ACTIONS_INTEGRATION_ID: u64 = 141;
+const TAG_RULESET_NAME: &str = "release-tags";
+const REVIEW_RULESET_NAME: &str = "production-review";
+const LABEL_COLOR: &str = "6f42c1";
+
+/// The single status check every administered repository is gated on.
+///
+/// Repositories do not agree on what CI *does* — this workspace runs `cargo
+/// test --workspace` on a large runner, `neon-law/ui` runs its own `lint`/`verify`
+/// pair — and binding the gate to whatever the slowest job
+/// happened to be called made the required context per-repository. That is
+/// fragile in the one direction that fails silently: renaming a job renames
+/// its check run, the ruleset keeps requiring the old spelling, and a context
+/// nothing posts is a gate that never goes green.
+///
+/// So the contract is inverted. Every repository terminates its `ci` workflow
+/// in one aggregating job spelled exactly `ci`, which succeeds only when the
+/// real jobs behind it did. Those jobs stay free to differ per repository and
+/// to be renamed at will; the required context never moves.
+///
+/// [`assert_required_check_job`] refuses to bind this gate on a repository
+/// whose workflows do not actually define that job, so adopting the convention
+/// is checked rather than assumed.
+const REQUIRED_CHECK: &str = "ci";
+
+/// Workflow files that may terminate in the [`REQUIRED_CHECK`] job, in the
+/// order they are looked for.
+///
+/// Two spellings are live at once, and both are correct. A repository the Firm
+/// has always administered carries `ci.yml`; a Project repository written by
+/// `navigator projects repository scaffold` carries `gate.yml`. What they share
+/// is the invariant that actually matters — a job whose check run is named
+/// `ci` — so the gate accepts either filename and refuses only when neither
+/// file exists or neither defines the job.
+///
+/// Accepting both is deliberate rather than transitional. The scaffold names
+/// the file for what it is, and renaming it in every Project repository would
+/// buy nothing: the required context is matched by job name, never by path.
+const CI_WORKFLOW_PATHS: &[&str] = &[".github/workflows/ci.yml", ".github/workflows/gate.yml"];
+
+/// The merge gate every repository on this enterprise carries.
+///
+/// There is no lighter tier. A repository the Firm administers is held to the
+/// same integrity rules and the same code-owner review as Navigator itself;
+/// what varies is only the automation Navigator alone runs.
+///
+/// `assert_codeowners` is part of the common policy rather than a Navigator
+/// extra because `review_gate` is meaningless without it: `require_code_owner_review`
+/// against an unresolvable — or absent — CODEOWNERS silently passes anyone's
+/// approval. The two ship together or neither means anything.
+const COMMON_POLICY: RepositoryPolicy = RepositoryPolicy {
+    release_tags: false,
+    labels: &[],
+    assert_codeowners: true,
+    assert_devx_app: false,
+    review_gate: true,
+};
+
+/// Navigator's own policy: the common gate plus the three things only this
+/// repository does — cut release tags, drive `DevX` automation off labels, and
+/// host the App installation that automation authenticates as.
+const NAVIGATOR_POLICY: RepositoryPolicy = RepositoryPolicy {
+    release_tags: true,
+    labels: &DEVX_LABELS,
+    assert_codeowners: true,
+    assert_devx_app: true,
+    review_gate: true,
+};
+
+fn policy_for(slug: &str) -> RepositoryPolicy {
+    if slug.eq_ignore_ascii_case(NAVIGATOR_SLUG) {
+        NAVIGATOR_POLICY
+    } else {
+        COMMON_POLICY
+    }
+}
+
+/// A resolved repository on the configured enterprise host, with the policy it will be
+/// reconciled against.
+///
+/// This used to be a two-variant enum, which meant a repository could not be
+/// governed until someone added its name to the CLI. The authorization boundary
+/// is now the *host*, not a list: anything on the configured enterprise host is
+/// in scope and anything else is refused before a token is read, so an
+/// incidental public-forge checkout still cannot become a write target by being
+/// the current directory.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RepositoryTarget {
+    slug: String,
+    api_base: String,
+    policy: RepositoryPolicy,
+}
+
+impl RepositoryTarget {
+    /// Resolve the repository to reconcile, in precedence order: the explicit
+    /// argument, then `GITHUB_REPOSITORY` (how a workflow names itself), then
+    /// the `origin` remote of the current checkout.
+    ///
+    /// Only the remote carries a host, so only the remote path can fail the
+    /// host check. The other two are `owner/name` alone and are read as naming
+    /// a repository on the configured enterprise host — the only host the
+    /// derived API base can address anyway.
+    ///
+    /// Idempotency starts here: resolving twice from the same inputs yields the
+    /// same target and the same policy, so a re-run reconciles rather than
+    /// re-creating. `run` then converges each ruleset and label by reading the
+    /// live state first and writing only a difference.
+    pub fn resolve(explicit: Option<String>) -> Result<Self> {
+        let slug = match explicit.or_else(|| optional_env(REPOSITORY_ENV)) {
+            Some(value) => validate_slug(&value)?,
+            None => origin_slug()?,
+        };
+        // The host is needed only to derive the API base. A caller that
+        // overrides the base has already named the endpoint, so it is not asked
+        // for.
+        let api_base = match optional_env(API_BASE_ENV) {
+            Some(base) => base,
+            None => format!("https://api.{}", enterprise_host()?),
+        };
+        Ok(Self {
+            api_base,
+            policy: policy_for(&slug),
+            slug,
+        })
+    }
+
+    const fn policy(&self) -> RepositoryPolicy {
+        self.policy
+    }
+}
+
+impl fmt::Display for RepositoryTarget {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.slug)
+    }
+}
+
+/// Accept an `owner/name` slug and nothing else. A value carrying a scheme,
+/// host, or extra path segment is a caller who meant a URL, and silently
+/// reading the first two segments of one would reconcile the wrong repository.
+fn validate_slug(value: &str) -> Result<String> {
+    let value = value.trim().trim_matches('/');
+    let mut parts = value.split('/');
+    match (parts.next(), parts.next(), parts.next()) {
+        (Some(owner), Some(name), None) if !owner.is_empty() && !name.is_empty() => {
+            Ok(format!("{owner}/{name}"))
+        }
+        _ => bail!("expected a repository as `owner/name`, got {value:?}"),
+    }
+}
+
+/// Read `origin` from the current checkout and reduce it to an `owner/name` on
+/// this enterprise.
+fn origin_slug() -> Result<String> {
+    let output = Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .output()
+        .context("run `git remote get-url origin`")?;
+    if !output.status.success() {
+        bail!(
+            "`git remote get-url origin` failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    let url = String::from_utf8(output.stdout).context("decode the `origin` remote URL")?;
+    slug_from_remote(url.trim(), &enterprise_host()?)
+}
+
+fn slug_from_remote(url: &str, enterprise: &str) -> Result<String> {
+    let (host, path) =
+        split_remote(url).ok_or_else(|| anyhow!("cannot parse the `origin` remote {url:?}"))?;
+    if !host.eq_ignore_ascii_case(enterprise) {
+        bail!(
+            "`origin` points at {host}, not {enterprise}; `ops github setup` only \
+             reconciles repositories on the {enterprise} enterprise"
+        );
+    }
+    let path = path.trim_matches('/');
+    validate_slug(path.strip_suffix(".git").unwrap_or(path))
+        .with_context(|| format!("read a repository out of the `origin` remote {url:?}"))
+}
+
+/// Split either remote spelling into `(host, path)`: the URL form
+/// `scheme://[user@]host[:port]/path`, and Git's scp-like `[user@]host:path`.
+fn split_remote(url: &str) -> Option<(&str, &str)> {
+    if let Some((_scheme, rest)) = url.split_once("://") {
+        let rest = rest.rsplit_once('@').map_or(rest, |(_, after)| after);
+        let (authority, path) = rest.split_once('/')?;
+        Some((
+            authority
+                .split_once(':')
+                .map_or(authority, |(host, _)| host),
+            path,
+        ))
+    } else {
+        let rest = url.rsplit_once('@').map_or(url, |(_, after)| after);
+        rest.split_once(':')
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[allow(clippy::struct_excessive_bools)] // One independent switch per policy half.
+struct RepositoryPolicy {
+    release_tags: bool,
+    labels: &'static [DesiredLabel],
+    assert_codeowners: bool,
+    assert_devx_app: bool,
+    /// Whether merges additionally require a code owner's approval, enforced
+    /// by the separate [`REVIEW_RULESET_NAME`] ruleset.
+    review_gate: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DesiredLabel {
+    name: &'static str,
+    description: &'static str,
+}
+
+const DEVX_LABELS: [DesiredLabel; 4] = [
+    DesiredLabel {
+        name: "triage",
+        description: "DevX: notify engineering that this issue is ready for triage",
+    },
+    DesiredLabel {
+        name: "triaged",
+        description: "DevX: issue grounded and planned; ready to implement",
+    },
+    DesiredLabel {
+        name: "devx:paused",
+        description: "DevX: automation stopped; needs a human",
+    },
+    DesiredLabel {
+        name: "devx:failed",
+        description: "DevX: last automated run failed; see the linked comment",
+    },
+];
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct RulesetPayload {
+    name: String,
+    target: String,
+    enforcement: String,
+    bypass_actors: Vec<serde_json::Value>,
+    conditions: Conditions,
+    rules: Vec<Rule>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct Conditions {
+    ref_name: RefName,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct RefName {
+    exclude: Vec<String>,
+    include: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct Rule {
+    #[serde(rename = "type")]
+    kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    parameters: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RulesetSummary {
+    id: u64,
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(clippy::struct_excessive_bools)] // Mirrors GitHub's merge-settings fields.
+struct Repository {
+    allow_squash_merge: bool,
+    allow_merge_commit: bool,
+    allow_rebase_merge: bool,
+    allow_auto_merge: bool,
+    delete_branch_on_merge: bool,
+    squash_merge_commit_title: String,
+    squash_merge_commit_message: String,
+}
+
+#[derive(Debug, Serialize)]
+#[allow(clippy::struct_excessive_bools)] // Mirrors GitHub's merge-settings payload.
+struct MergeSettings {
+    allow_squash_merge: bool,
+    allow_merge_commit: bool,
+    allow_rebase_merge: bool,
+    allow_auto_merge: bool,
+    delete_branch_on_merge: bool,
+    squash_merge_commit_title: &'static str,
+    squash_merge_commit_message: &'static str,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Label {
+    name: String,
+    description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Installation {
+    app_id: u64,
+}
+
+/// A planned remote change. Assertions do not appear here: they either hold
+/// or stop the command before any write can happen.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Action {
+    UpdateMergeSettings,
+    CreateRuleset { name: String },
+    UpdateRuleset { name: String },
+    CreateLabel { name: String },
+    UpdateLabel { name: String },
+}
+
+impl Action {
+    fn description(&self) -> String {
+        match self {
+            Self::UpdateMergeSettings => "update merge settings".to_string(),
+            Self::CreateRuleset { name } => format!("create ruleset {name}"),
+            Self::UpdateRuleset { name } => format!("update ruleset {name}"),
+            Self::CreateLabel { name } => format!("create label {name}"),
+            Self::UpdateLabel { name } => format!("update label {name}"),
+        }
+    }
+}
+
+/// Every policy payload this command writes, in the order it reconciles them.
+/// Kept as typed Rust data so a review sees every protected rule.
+fn desired_rulesets(policy: RepositoryPolicy) -> Vec<RulesetPayload> {
+    let mut rulesets = vec![desired_branch_ruleset()];
+    if policy.release_tags {
+        rulesets.push(desired_tag_ruleset());
+    }
+    if policy.review_gate {
+        rulesets.push(desired_review_ruleset());
+    }
+    rulesets
+}
+
+/// The integrity half of the merge gate: what is true of `main` for everyone,
+/// with no exceptions.
+///
+/// This ruleset deliberately carries no bypass actor, so every rule in it binds
+/// the Firm's own administrator too. It is the reason the review gate lives in
+/// a *separate* ruleset ([`desired_review_ruleset`]) rather than as one more
+/// parameter here — bypass in GitHub is granted per ruleset, never per rule, so
+/// a single ruleset holding both halves would have forced one choice for both:
+/// either nobody can merge their own work, or the administrator who can also
+/// skips signing, linear history, and the test gate.
+///
+/// Splitting them buys the exact asymmetry the Firm wants. The administrator
+/// bypasses approval and nothing else; `required_status_checks` and
+/// `required_signatures` still apply to them, because those rules are here.
+fn desired_branch_ruleset() -> RulesetPayload {
+    RulesetPayload {
+        name: BRANCH_RULESET_NAME.to_string(),
+        target: "branch".to_string(),
+        enforcement: "active".to_string(),
+        // No actor bypasses the pull-request or status-check gate. The release
+        // workflow only creates a tag at an already-reviewed `main` commit, so
+        // it never needs branch-write authority.
+        bypass_actors: Vec::new(),
+        conditions: Conditions {
+            ref_name: RefName {
+                exclude: Vec::new(),
+                include: vec!["~DEFAULT_BRANCH".to_string()],
+            },
+        },
+        rules: vec![
+            rule("deletion", None),
+            rule("non_fast_forward", None),
+            rule("required_linear_history", None),
+            rule("required_signatures", None),
+            // Coverage has no context of its own: `cargo llvm-cov
+            // --fail-under-lines` runs inside `cargo test (workspace)` and fails
+            // that check, so the floor is already required here.
+            rule(
+                "required_status_checks",
+                Some(serde_json::json!({
+                    "strict_required_status_checks_policy": false,
+                    "do_not_enforce_on_create": false,
+                    "required_status_checks": [
+                        {"context": REQUIRED_CHECK, "integration_id": ACTIONS_INTEGRATION_ID}
+                    ]
+                })),
+            ),
+            // The floor every merge clears regardless of who is merging: a
+            // pull request at all, squash-only, with every review thread
+            // resolved. Approval count stays 0 *here* on purpose — requiring
+            // it in this un-bypassable ruleset would deadlock the sole code
+            // owner, who cannot approve their own pull request. The approval
+            // requirement is layered on top by `desired_review_ruleset`, which
+            // the administrator bypasses.
+            //
+            // Rules of the same type in two rulesets do not replace one
+            // another; GitHub applies the union and the most restrictive value
+            // wins. A contributor is therefore held to 1 approval by the other
+            // ruleset while the administrator falls back to this 0 — and both
+            // are still held to squash, thread resolution, and the checks
+            // above.
+            rule(
+                "pull_request",
+                Some(serde_json::json!({
+                    "required_approving_review_count": 0,
+                    "dismiss_stale_reviews_on_push": true,
+                    "required_reviewers": [],
+                    "require_code_owner_review": false,
+                    "dismissal_restriction": {"enabled": false, "allowed_actors": []},
+                    "require_last_push_approval": false,
+                    "required_review_thread_resolution": true,
+                    "allowed_merge_methods": ["squash"]
+                })),
+            ),
+        ],
+    }
+}
+
+/// Release tags are write-once. Nothing may move or delete one.
+///
+/// A `YY.M.D` tag is the record of which tree a release shipped from. Deploys,
+/// image tags, and `navigator --version` all resolve through it, so a tag that
+/// can be moved is a release whose contents can be rewritten after the fact —
+/// and an incident review that cannot trust what it is reading.
+fn desired_tag_ruleset() -> RulesetPayload {
+    RulesetPayload {
+        name: TAG_RULESET_NAME.to_string(),
+        target: "tag".to_string(),
+        enforcement: "active".to_string(),
+        // Deliberately empty. Creating a tag is
+        // not restricted here, so the nightly cut needs nothing beyond the
+        // built-in GITHUB_TOKEN; an actor that
+        // could delete or move one afterwards is exactly the actor this
+        // ruleset exists to have none of.
+        bypass_actors: Vec::new(),
+        conditions: Conditions {
+            ref_name: RefName {
+                exclude: Vec::new(),
+                // The calendar release tags `deploy.yml` cuts nightly and
+                // fires on. Each component is one or more digits
+                // with no leading zeros, so June is `6`.
+                include: vec!["refs/tags/[0-9]*.[0-9]*.[0-9]*".to_string()],
+            },
+        },
+        rules: vec![
+            rule("deletion", None),
+            // `update` blocks repointing the tag and `non_fast_forward` blocks
+            // forcing it backwards. Both, because either one alone leaves a
+            // way to change what a released version means.
+            rule("update", None),
+            rule("non_fast_forward", None),
+        ],
+    }
+}
+
+/// The review half of the merge gate: nobody lands code in a Firm repository
+/// without a code owner's approval, except the code owner.
+///
+/// # Why this is a second ruleset
+///
+/// The requirement is asymmetric by necessity, not by preference. GitHub will
+/// not let anyone approve their own pull request, so a code-owner requirement
+/// applied uniformly does not mean "everything is reviewed" — it means the sole
+/// code owner can never merge anything again, and auto-merge stops working for
+/// the one person who maintains the repository. The requirement has to bind
+/// contributors and release the owner.
+///
+/// Bypass is the mechanism GitHub provides for that, and it is scoped to a
+/// whole ruleset. Hence the split: this ruleset holds *only* the approval
+/// requirement, so the administrator's bypass buys them exactly one exemption.
+/// Everything that must hold universally — the required `ci` check, signed
+/// commits, linear history, squash-only, resolved threads — lives in
+/// [`desired_branch_ruleset`], which no one bypasses.
+///
+/// # Why `OrganizationAdmin`
+///
+/// The bypass names a role, not a person. `OrganizationAdmin` resolves to
+/// whoever owns the organization at evaluation time, so the policy survives the
+/// administrator changing without a code edit, and it cannot silently widen the
+/// way a hardcoded username or a `write`-role bypass would. GitHub stores this
+/// actor with a null `actor_id`; the payload spells that out so a read-back
+/// compares equal and the reconcile converges instead of rewriting the ruleset
+/// on every run.
+fn desired_review_ruleset() -> RulesetPayload {
+    RulesetPayload {
+        name: REVIEW_RULESET_NAME.to_string(),
+        target: "branch".to_string(),
+        enforcement: "active".to_string(),
+        bypass_actors: vec![serde_json::json!({
+            "actor_id": null,
+            "actor_type": "OrganizationAdmin",
+            "bypass_mode": "always"
+        })],
+        conditions: Conditions {
+            ref_name: RefName {
+                exclude: Vec::new(),
+                include: vec!["~DEFAULT_BRANCH".to_string()],
+            },
+        },
+        rules: vec![rule(
+            "pull_request",
+            Some(serde_json::json!({
+                // One approval, and `require_code_owner_review` makes it the
+                // approval of whoever `.github/CODEOWNERS` names for the
+                // touched paths — not just any colleague's. `assert_codeowners`
+                // refuses to write this ruleset onto a repository whose owners
+                // do not resolve, because an unresolvable owner leaves every
+                // path unowned and quietly turns this back into "any one
+                // approval".
+                "required_approving_review_count": 1,
+                "require_code_owner_review": true,
+                // A push after approval re-opens the review. Without this, an
+                // approval collected on a benign diff carries over to whatever
+                // is force-pushed onto the branch afterwards.
+                "dismiss_stale_reviews_on_push": true,
+                // Belt and braces on the same window: the head commit must
+                // itself be approved, so a contributor cannot approve a
+                // colleague's branch and then append their own final commit.
+                "require_last_push_approval": true,
+                "required_reviewers": [],
+                "dismissal_restriction": {"enabled": false, "allowed_actors": []},
+                "required_review_thread_resolution": true,
+                "allowed_merge_methods": ["squash"]
+            })),
+        )],
+    }
+}
+
+/// Compare a desired ruleset against the live one, ignoring the order GitHub
+/// happens to return the rules in.
+///
+/// The API preserves whatever order a ruleset's rules were first stored in, and
+/// that order is not stable across repositories: one created by hand through
+/// REST comes back with `pull_request` ahead of `required_status_checks`, one
+/// created by this command comes back the other way round. Comparing the
+/// vectors positionally therefore reports drift forever on the hand-made ones —
+/// every run issues a PUT, every following run still sees drift, and "no drift"
+/// becomes unreachable, which is exactly when drift detection stops being worth
+/// anything. Order carries no meaning in the API, so normalize it away.
+fn ruleset_matches(desired: &RulesetPayload, live: &RulesetPayload) -> bool {
+    fn by_kind(payload: &RulesetPayload) -> Vec<&Rule> {
+        let mut rules: Vec<&Rule> = payload.rules.iter().collect();
+        rules.sort_by(|left, right| left.kind.cmp(&right.kind));
+        rules
+    }
+    desired.name == live.name
+        && desired.target == live.target
+        && desired.enforcement == live.enforcement
+        && desired.bypass_actors == live.bypass_actors
+        && desired.conditions == live.conditions
+        && by_kind(desired) == by_kind(live)
+}
+
+fn rule(kind: &str, parameters: Option<serde_json::Value>) -> Rule {
+    Rule {
+        kind: kind.to_string(),
+        parameters,
+    }
+}
+
+fn ruleset_by_name(policy: RepositoryPolicy, name: &str) -> Result<RulesetPayload> {
+    desired_rulesets(policy)
+        .into_iter()
+        .find(|ruleset| ruleset.name == name)
+        .ok_or_else(|| anyhow!("no desired ruleset named {name}"))
+}
+
+/// `live_rulesets` is positional: entry `i` is what the repository currently
+/// holds for `desired_rulesets(target)[i]`, or `None` when that ruleset is missing.
+fn plan(
+    policy: RepositoryPolicy,
+    merge_settings_match: bool,
+    live_rulesets: &[Option<RulesetPayload>],
+    labels: &[Label],
+) -> Vec<Action> {
+    let mut actions = Vec::new();
+    if !merge_settings_match {
+        actions.push(Action::UpdateMergeSettings);
+    }
+    for (desired, live) in desired_rulesets(policy).iter().zip(live_rulesets) {
+        match live {
+            None => actions.push(Action::CreateRuleset {
+                name: desired.name.clone(),
+            }),
+            Some(live) if !ruleset_matches(desired, live) => actions.push(Action::UpdateRuleset {
+                name: desired.name.clone(),
+            }),
+            Some(_) => {}
+        }
+    }
+    for desired in policy.labels {
+        match labels.iter().find(|label| label.name == desired.name) {
+            None => actions.push(Action::CreateLabel {
+                name: desired.name.to_string(),
+            }),
+            Some(label) if label.description.as_deref() != Some(desired.description) => {
+                actions.push(Action::UpdateLabel {
+                    name: desired.name.to_string(),
+                });
+            }
+            Some(_) => {}
+        }
+    }
+    actions
+}
+
+struct GitHubClient {
+    http: reqwest::Client,
+    api_base: String,
+    repository: String,
+}
+
+impl GitHubClient {
+    fn from_env(repository: &RepositoryTarget) -> Result<Self> {
+        let token = required_env(TOKEN_ENV)?;
+        let api_base = repository.api_base.clone();
+        let mut headers = header::HeaderMap::new();
+        headers.insert(
+            header::ACCEPT,
+            header::HeaderValue::from_static("application/vnd.github+json"),
+        );
+        headers.insert(
+            header::HeaderName::from_static("x-github-api-version"),
+            header::HeaderValue::from_static(API_VERSION),
+        );
+        headers.insert(
+            header::AUTHORIZATION,
+            format!("Bearer {token}")
+                .parse()
+                .context("encode GitHub authorization header")?,
+        );
+        let http = reqwest::Client::builder()
+            .default_headers(headers)
+            .user_agent(USER_AGENT)
+            .build()
+            .context("build GitHub HTTP client")?;
+        Ok(Self {
+            http,
+            api_base: api_base.trim_end_matches('/').to_string(),
+            repository: repository.slug.clone(),
+        })
+    }
+
+    fn url(&self, path: &str) -> String {
+        format!("{}{}", self.api_base, path)
+    }
+
+    fn repo_path(&self, suffix: &str) -> String {
+        format!("/repos/{}{}", self.repository, suffix)
+    }
+
+    async fn get_json<T: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<T> {
+        let url = self.url(path);
+        let response = self.http.get(&url).send().await?;
+        parse_json(response, &url).await
+    }
+
+    /// Fetch every label, following pagination. A single 100-item page would
+    /// hide a `DevX` label that sorts onto a later page, and `plan()` would then
+    /// try to recreate it — a duplicate-label error that breaks the otherwise
+    /// idempotent reconcile.
+    async fn get_all_labels(&self) -> Result<Vec<Label>> {
+        let mut labels = Vec::new();
+        let mut page = 1u32;
+        loop {
+            let mut chunk: Vec<Label> = self
+                .get_json(&self.repo_path(&format!("/labels?per_page=100&page={page}")))
+                .await?;
+            let full_page = chunk.len() == 100;
+            labels.append(&mut chunk);
+            if !full_page {
+                return Ok(labels);
+            }
+            page += 1;
+        }
+    }
+
+    /// Whether a resource exists, distinguishing "absent" from "the request
+    /// failed". A 404 is the answer; anything else that is not a success is an
+    /// error, so a revoked token cannot be read as a missing account.
+    async fn exists(&self, path: &str) -> Result<bool> {
+        let url = self.url(path);
+        let response = self.http.get(&url).send().await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Ok(false);
+        }
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            bail!("GitHub GET {url} returned {}: {body}", status.as_u16());
+        }
+        Ok(true)
+    }
+
+    /// A file's contents, distinguishing "absent" from "the request failed",
+    /// on the same principle as [`Self::exists`]: a 404 is the answer, and
+    /// anything else that is not a success is an error. Reading a 500 or a
+    /// revoked token as a missing file would let this bind a gate on a
+    /// repository whose workflows were never actually read.
+    async fn get_optional_text(&self, path: &str) -> Result<Option<String>> {
+        let url = self.url(path);
+        let response = self
+            .http
+            .get(&url)
+            .header(header::ACCEPT, "application/vnd.github.raw+json")
+            .send()
+            .await?;
+        let status = response.status();
+        if status == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        let body = response.text().await.unwrap_or_default();
+        if !status.is_success() {
+            bail!("GitHub GET {url} returned {}: {body}", status.as_u16());
+        }
+        Ok(Some(body))
+    }
+
+    async fn get_text(&self, path: &str) -> Result<String> {
+        let url = self.url(path);
+        let response = self
+            .http
+            .get(&url)
+            .header(header::ACCEPT, "application/vnd.github.raw+json")
+            .send()
+            .await?;
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        if !status.is_success() {
+            bail!("GitHub GET {url} returned {}: {body}", status.as_u16());
+        }
+        Ok(body)
+    }
+
+    async fn put_json(&self, path: &str, body: &impl Serialize) -> Result<()> {
+        self.send_json(reqwest::Method::PUT, path, body).await
+    }
+
+    async fn post_json(&self, path: &str, body: &impl Serialize) -> Result<()> {
+        self.send_json(reqwest::Method::POST, path, body).await
+    }
+
+    async fn patch_json(&self, path: &str, body: &impl Serialize) -> Result<()> {
+        self.send_json(reqwest::Method::PATCH, path, body).await
+    }
+
+    async fn send_json(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: &impl Serialize,
+    ) -> Result<()> {
+        let url = self.url(path);
+        let response = self.http.request(method, &url).json(body).send().await?;
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            bail!("GitHub write {url} returned {}: {body}", status.as_u16());
+        }
+        Ok(())
+    }
+}
+
+async fn parse_json<T: for<'de> Deserialize<'de>>(
+    response: reqwest::Response,
+    url: &str,
+) -> Result<T> {
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    if !status.is_success() {
+        bail!("GitHub GET {url} returned {}: {body}", status.as_u16());
+    }
+    serde_json::from_str(&body).with_context(|| format!("decode GitHub response from {url}"))
+}
+
+/// Reconcile GitHub settings for the explicitly named repository.
+pub fn run(target: &RepositoryTarget, dry_run: bool) -> Result<()> {
+    tracing_subscriber::fmt::try_init().ok();
+    let client = GitHubClient::from_env(target)?;
+    let policy = target.policy();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("build tokio runtime")?;
+    runtime.block_on(async move { reconcile(policy, &client, dry_run).await })
+}
+
+async fn reconcile(policy: RepositoryPolicy, client: &GitHubClient, dry_run: bool) -> Result<()> {
+    eprintln!("==> reconciling {}", client.repository);
+    let repository: Repository = client.get_json(&client.repo_path("")).await?;
+
+    // Assertions run before any write, so a repository that cannot satisfy the
+    // policy is left exactly as it was rather than half-reconciled.
+    assert_required_check_job(client).await?;
+
+    if policy.assert_codeowners {
+        let codeowners = client
+            .get_text(&client.repo_path("/contents/.github/CODEOWNERS"))
+            .await?;
+        let owners = assert_codeowners(&codeowners)?;
+        assert_owners_resolve(client, &owners).await?;
+        eprintln!("==> CODEOWNERS verified");
+    }
+
+    if policy.assert_devx_app {
+        assert_app_installation(client).await?;
+    }
+
+    let summaries: Vec<RulesetSummary> = client.get_json(&client.repo_path("/rulesets")).await?;
+    let mut ruleset_ids = HashMap::new();
+    let mut live_rulesets = Vec::new();
+    for desired in desired_rulesets(policy) {
+        let Some(summary) = summaries
+            .iter()
+            .find(|summary| summary.name == desired.name)
+        else {
+            live_rulesets.push(None);
+            continue;
+        };
+        ruleset_ids.insert(desired.name.clone(), summary.id);
+        live_rulesets.push(Some(
+            client
+                .get_json::<RulesetPayload>(&client.repo_path(&format!("/rulesets/{}", summary.id)))
+                .await?,
+        ));
+    }
+    let labels = if policy.labels.is_empty() {
+        Vec::new()
+    } else {
+        client.get_all_labels().await?
+    };
+    let actions = plan(
+        policy,
+        merge_settings_match(&repository),
+        &live_rulesets,
+        &labels,
+    );
+
+    if actions.is_empty() {
+        eprintln!("==> GitHub settings already match the desired state");
+        return Ok(());
+    }
+    for action in &actions {
+        eprintln!(
+            "{} {}",
+            if dry_run { "would" } else { "will" },
+            action.description()
+        );
+    }
+    if dry_run {
+        return Ok(());
+    }
+    for action in actions {
+        apply(policy, client, &ruleset_ids, action).await?;
+    }
+    eprintln!("==> GitHub settings reconciled");
+    Ok(())
+}
+
+async fn apply(
+    policy: RepositoryPolicy,
+    client: &GitHubClient,
+    ruleset_ids: &HashMap<String, u64>,
+    action: Action,
+) -> Result<()> {
+    match action {
+        Action::UpdateMergeSettings => {
+            client
+                .patch_json(&client.repo_path(""), &desired_merge_settings())
+                .await
+        }
+        Action::CreateRuleset { name } => {
+            client
+                .post_json(
+                    &client.repo_path("/rulesets"),
+                    &ruleset_by_name(policy, &name)?,
+                )
+                .await
+        }
+        Action::UpdateRuleset { name } => {
+            let id = ruleset_ids
+                .get(&name)
+                .ok_or_else(|| anyhow!("no live id for ruleset {name}"))?;
+            client
+                .put_json(
+                    &client.repo_path(&format!("/rulesets/{id}")),
+                    &ruleset_by_name(policy, &name)?,
+                )
+                .await
+        }
+        Action::CreateLabel { name } => {
+            let desired = label_by_name(policy, &name)?;
+            client
+                .post_json(
+                    &client.repo_path("/labels"),
+                    &serde_json::json!({
+                        "name": desired.name,
+                        "description": desired.description,
+                        "color": LABEL_COLOR,
+                    }),
+                )
+                .await
+        }
+        Action::UpdateLabel { name } => {
+            let desired = label_by_name(policy, &name)?;
+            client
+                .patch_json(
+                    &client.repo_path(&format!(
+                        "/labels/{}",
+                        url::form_urlencoded::byte_serialize(name.as_bytes()).collect::<String>()
+                    )),
+                    &serde_json::json!({
+                        "new_name": desired.name,
+                        "description": desired.description,
+                    }),
+                )
+                .await
+        }
+    }
+}
+
+fn label_by_name(policy: RepositoryPolicy, name: &str) -> Result<&'static DesiredLabel> {
+    policy
+        .labels
+        .iter()
+        .find(|label| label.name == name)
+        .ok_or_else(|| anyhow!("no desired label named {name}"))
+}
+
+fn desired_merge_settings() -> MergeSettings {
+    MergeSettings {
+        allow_squash_merge: true,
+        allow_merge_commit: false,
+        allow_rebase_merge: false,
+        allow_auto_merge: true,
+        delete_branch_on_merge: true,
+        squash_merge_commit_title: "PR_TITLE",
+        squash_merge_commit_message: "PR_BODY",
+    }
+}
+
+fn merge_settings_match(repository: &Repository) -> bool {
+    let desired = desired_merge_settings();
+    repository.allow_squash_merge == desired.allow_squash_merge
+        && repository.allow_merge_commit == desired.allow_merge_commit
+        && repository.allow_rebase_merge == desired.allow_rebase_merge
+        && repository.allow_auto_merge == desired.allow_auto_merge
+        && repository.delete_branch_on_merge == desired.delete_branch_on_merge
+        && repository.squash_merge_commit_title == desired.squash_merge_commit_title
+        && repository.squash_merge_commit_message == desired.squash_merge_commit_message
+}
+
+/// Every distinct owner named by a CODEOWNERS file, in first-seen order.
+///
+/// A rule is `<pattern> <owner>...`, so the first token is the path pattern and
+/// every token after it is an owner. Comments and blank lines carry none.
+fn codeowners_owners(contents: &str) -> Vec<String> {
+    let mut owners: Vec<String> = Vec::new();
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        for owner in line.split_whitespace().skip(1) {
+            if !owners.iter().any(|seen| seen == owner) {
+                owners.push(owner.to_string());
+            }
+        }
+    }
+    owners
+}
+
+fn assert_codeowners(contents: &str) -> Result<Vec<String>> {
+    let owners = codeowners_owners(contents);
+    if owners.is_empty() {
+        bail!(".github/CODEOWNERS must contain at least one ownership rule");
+    }
+    Ok(owners)
+}
+
+/// Confirm every owner the file names actually exists on this host.
+///
+/// This is the assertion that makes `require_code_owner_review` mean something.
+/// GitHub does not reject a CODEOWNERS entry it cannot resolve — it drops the
+/// rule and leaves the matched paths unowned, which looks identical to having
+/// no CODEOWNERS file at all. A repository can therefore sit for months with a
+/// review gate switched on, a CODEOWNERS file committed, and no owner on any
+/// path.
+///
+/// It is not a hypothetical. This enterprise is EMU-provisioned through Google
+/// SAML and shares no account namespace with github.com, so a handle carried
+/// over from a github.com checkout resolves nowhere here and fails exactly that
+/// quietly.
+async fn assert_owners_resolve(client: &GitHubClient, owners: &[String]) -> Result<()> {
+    for owner in owners {
+        // An email owner cannot be resolved through the API — GitHub matches it
+        // against the commit author address, not an account. Accept it.
+        let Some(handle) = owner.strip_prefix('@') else {
+            continue;
+        };
+        let (path, kind) = match handle.split_once('/') {
+            Some((org, team)) => (format!("/orgs/{org}/teams/{team}"), "team"),
+            None => (format!("/users/{handle}"), "user"),
+        };
+        if !client.exists(&path).await? {
+            bail!(
+                "CODEOWNERS names {owner}, which does not resolve to a {kind} on this host \
+                 ({}). GitHub ignores an owner it cannot resolve, so the paths it covers \
+                 would be left unowned and `require_code_owner_review` would pass anyone's \
+                 review. Correct the handle to one that exists here.",
+                client.api_base,
+            );
+        }
+    }
+    eprintln!("==> CODEOWNERS owners resolve: {}", owners.join(", "));
+    Ok(())
+}
+
+/// Effective check-run names of every job in a workflow file.
+///
+/// A job reports under its `name:` when it sets one and under its key
+/// otherwise, which is the same rule GitHub applies when it creates the check
+/// run.
+fn workflow_job_check_names(workflow: &str) -> Result<Vec<String>> {
+    let document: serde_yaml::Value =
+        serde_yaml::from_str(workflow).context("parse the CI workflow as YAML")?;
+    let Some(jobs) = document.get("jobs").and_then(serde_yaml::Value::as_mapping) else {
+        bail!("the CI workflow defines no `jobs:` mapping");
+    };
+    Ok(jobs
+        .iter()
+        .filter_map(|(key, job)| {
+            job.get("name")
+                .and_then(serde_yaml::Value::as_str)
+                .map(str::to_string)
+                .or_else(|| key.as_str().map(str::to_string))
+        })
+        .collect())
+}
+
+/// Refuse to require a status check the repository never posts.
+///
+/// A `required_status_checks` rule naming a context that no job produces does
+/// not fail loudly — GitHub simply waits for a check run that never arrives, so
+/// every pull request sits permanently "Expected". Binding the gate to a
+/// standard name is only safe if the standard is actually adopted, so this
+/// checks the workflow before the ruleset is written rather than after someone
+/// notices nothing can merge.
+async fn assert_required_check_job(client: &GitHubClient) -> Result<()> {
+    let mut inspected: Vec<(&str, Vec<String>)> = Vec::new();
+    for path in CI_WORKFLOW_PATHS {
+        let Some(workflow) = client
+            .get_optional_text(&client.repo_path(&format!("/contents/{path}")))
+            .await
+            .with_context(|| format!("read {path} from {}", client.repository))?
+        else {
+            continue;
+        };
+        let names = workflow_job_check_names(&workflow)?;
+        if names.iter().any(|name| name == REQUIRED_CHECK) {
+            eprintln!("==> {path} defines the required {REQUIRED_CHECK:?} job");
+            return Ok(());
+        }
+        inspected.push((path, names));
+    }
+
+    // Two different problems with two different fixes, so they are not one
+    // message: a repository with no workflow at all has nothing to aggregate
+    // yet, while one whose workflow exists but ends in some other job name has
+    // adopted CI without adopting the convention the gate is matched by.
+    if inspected.is_empty() {
+        bail!(
+            "none of {} exist in {}. The gate would then require a context nothing posts, \
+             leaving every pull request stuck on an expected check. Add a workflow ending in \
+             an aggregating job named {REQUIRED_CHECK:?} that `needs:` the real jobs, then \
+             re-run.",
+            CI_WORKFLOW_PATHS.join(" or "),
+            client.repository,
+        );
+    }
+    let found = inspected
+        .iter()
+        .map(|(path, names)| format!("{path}: {}", names.join(", ")))
+        .collect::<Vec<_>>()
+        .join("; ");
+    bail!(
+        "no workflow defines a job whose check run is named {REQUIRED_CHECK:?} \
+         (found: {found}). The gate would then require a context nothing posts, leaving every \
+         pull request stuck on an expected check. Add an aggregating job named \
+         {REQUIRED_CHECK:?} that `needs:` the real jobs, then re-run.",
+    )
+}
+
+async fn assert_app_installation(client: &GitHubClient) -> Result<()> {
+    let Some(app_id) = optional_env(APP_ID_ENV) else {
+        eprintln!("warning: {APP_ID_ENV} is unset; skipping DevX App installation assertion");
+        return Ok(());
+    };
+    let expected = app_id
+        .parse::<u64>()
+        .with_context(|| format!("{APP_ID_ENV} must be numeric"))?;
+    let installation: Installation = client.get_json(&client.repo_path("/installation")).await?;
+    if installation.app_id == expected {
+        Ok(())
+    } else {
+        bail!(
+            "repository installation app_id {} does not match {APP_ID_ENV}={expected}",
+            installation.app_id
+        )
+    }
+}
+
+fn required_env(name: &'static str) -> Result<String> {
+    optional_env(name).ok_or_else(|| anyhow!("missing env var: {name}"))
+}
+
+fn optional_env(name: &str) -> Option<String> {
+    env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{body_json, header, method, path, query_param};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn live_ruleset() -> RulesetPayload {
+        let mut ruleset = desired_branch_ruleset();
+        let pull_request = ruleset
+            .rules
+            .iter_mut()
+            .find(|rule| rule.kind == "pull_request")
+            .unwrap();
+        pull_request.parameters = Some(serde_json::json!({
+            "required_approving_review_count": 0,
+            "dismiss_stale_reviews_on_push": false,
+            "required_reviewers": [],
+            "require_code_owner_review": false,
+            "dismissal_restriction": {"enabled": false, "allowed_actors": []},
+            "require_last_push_approval": false,
+            "required_review_thread_resolution": true,
+            "allowed_merge_methods": ["squash"]
+        }));
+        ruleset
+    }
+
+    fn matching_repository() -> Repository {
+        Repository {
+            allow_squash_merge: true,
+            allow_merge_commit: false,
+            allow_rebase_merge: false,
+            allow_auto_merge: true,
+            delete_branch_on_merge: true,
+            squash_merge_commit_title: "PR_TITLE".to_string(),
+            squash_merge_commit_message: "PR_BODY".to_string(),
+        }
+    }
+
+    /// No actor may bypass the integrity gate — including the administrator who
+    /// bypasses the review gate.
+    ///
+    /// This is the invariant the two-ruleset split exists to protect. Folding
+    /// the approval requirement back into `production` would mean granting the
+    /// administrator's bypass here, and a bypass here is a bypass of signing,
+    /// linear history, and the `ci` check as well, because GitHub scopes bypass
+    /// to the ruleset and not to the rule.
+    #[test]
+    fn branch_ruleset_has_no_bypass_actors() {
+        assert_eq!(
+            desired_branch_ruleset().bypass_actors,
+            Vec::<serde_json::Value>::new(),
+        );
+    }
+
+    /// The review gate requires a code owner's approval and exempts exactly one
+    /// actor: whoever owns the organization.
+    #[test]
+    fn review_ruleset_requires_code_owner_approval() {
+        let value = serde_json::to_value(desired_review_ruleset()).unwrap();
+        assert_eq!(value["name"], "production-review");
+        assert_eq!(value["target"], "branch");
+        assert_eq!(value["enforcement"], "active");
+        assert_eq!(
+            value["conditions"]["ref_name"]["include"],
+            serde_json::json!(["~DEFAULT_BRANCH"])
+        );
+        let parameters = &value["rules"][0]["parameters"];
+        assert_eq!(parameters["required_approving_review_count"], 1);
+        assert_eq!(parameters["require_code_owner_review"], true);
+        assert_eq!(parameters["dismiss_stale_reviews_on_push"], true);
+        assert_eq!(parameters["require_last_push_approval"], true);
+    }
+
+    /// The bypass names the organization-owner *role*, never a person.
+    ///
+    /// A username would have to be re-edited when the administrator changes, and
+    /// a `RepositoryRole` bypass would silently widen the exemption to everyone
+    /// holding that role. The null `actor_id` is what GitHub stores for this
+    /// actor type; spelling it in the desired payload is what lets a read-back
+    /// compare equal so the reconcile converges instead of rewriting the ruleset
+    /// on every run.
+    #[test]
+    fn review_ruleset_is_bypassed_only_by_the_organization_owner() {
+        assert_eq!(
+            desired_review_ruleset().bypass_actors,
+            vec![serde_json::json!({
+                "actor_id": null,
+                "actor_type": "OrganizationAdmin",
+                "bypass_mode": "always"
+            })],
+        );
+    }
+
+    /// Every governed repository carries both halves of the gate. Only the
+    /// release-tag ruleset is Navigator's alone, because it is the only
+    /// repository that cuts a release.
+    #[test]
+    fn every_repository_carries_both_halves_of_the_gate() {
+        let names = |policy| {
+            desired_rulesets(policy)
+                .into_iter()
+                .map(|ruleset| ruleset.name)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            names(NAVIGATOR_POLICY),
+            vec!["production", "release-tags", "production-review"]
+        );
+        assert_eq!(
+            names(COMMON_POLICY),
+            vec!["production", "production-review"]
+        );
+    }
+
+    /// `require_code_owner_review` against an absent or unresolvable
+    /// CODEOWNERS silently accepts anyone's approval, so a policy that gates
+    /// on code owners without asserting the file is a gate that does nothing.
+    #[test]
+    fn the_review_gate_never_ships_without_the_codeowners_assertion() {
+        for policy in [NAVIGATOR_POLICY, COMMON_POLICY] {
+            assert!(
+                !policy.review_gate || policy.assert_codeowners,
+                "{policy:?} gates on code owners without asserting CODEOWNERS"
+            );
+        }
+    }
+
+    #[test]
+    fn codeowners_parses_every_owner_after_the_pattern() {
+        let owners = codeowners_owners(
+            "# comment\n\n* @nick\n/docs/ @nick @neon-law/counsel legal@example.com\n",
+        );
+        assert_eq!(
+            owners,
+            vec!["@nick", "@neon-law/counsel", "legal@example.com"],
+            "owners are de-duplicated in first-seen order"
+        );
+    }
+
+    #[test]
+    fn codeowners_without_an_ownership_rule_is_rejected() {
+        assert!(assert_codeowners("# only a comment\n\n").is_err());
+        // A pattern with no owner is not an ownership rule.
+        assert!(assert_codeowners("*\n").is_err());
+    }
+
+    /// The regression that motivated this assertion: a github.com handle
+    /// committed to a repository on an EMU enterprise, where it resolves to
+    /// nothing and GitHub therefore leaves every path unowned.
+    #[tokio::test]
+    async fn unresolvable_codeowner_fails_the_reconcile() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/users/shicholas"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        let client = test_client(&server);
+        let error = assert_owners_resolve(&client, &["@shicholas".to_string()])
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("@shicholas"), "{error}");
+        assert!(error.contains("does not resolve"), "{error}");
+    }
+
+    /// Users, teams, and email owners each resolve the way GitHub matches them.
+    #[tokio::test]
+    async fn resolvable_codeowners_pass() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/users/nick"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/orgs/neon-law/teams/counsel"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+            .mount(&server)
+            .await;
+        let client = test_client(&server);
+        // The email owner is accepted without a request: GitHub matches it
+        // against the commit author address, not against an account.
+        assert_owners_resolve(
+            &client,
+            &[
+                "@nick".to_string(),
+                "@neon-law/counsel".to_string(),
+                "legal@example.com".to_string(),
+            ],
+        )
+        .await
+        .unwrap();
+    }
+
+    /// A 500 is not an absent account. Treating every non-200 as "missing"
+    /// would turn an expired token into a confident, wrong claim that the
+    /// repository's code owner does not exist.
+    #[tokio::test]
+    async fn a_failed_lookup_is_not_reported_as_a_missing_owner() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/users/nick"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        let client = test_client(&server);
+        let error = assert_owners_resolve(&client, &["@nick".to_string()])
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("500"), "{error}");
+        assert!(!error.contains("does not resolve"), "{error}");
+    }
+
+    /// `required_signatures` applies to everyone because the branch gate has no
+    /// bypass actor.
+    #[test]
+    fn branch_ruleset_still_requires_signatures_of_everyone() {
+        let ruleset = desired_branch_ruleset();
+        assert!(ruleset
+            .rules
+            .iter()
+            .any(|rule| rule.kind == "required_signatures"));
+    }
+
+    /// Release tags cannot be deleted, moved, or forced, and no actor is
+    /// exempt. See `desired_tag_ruleset` for why that matters to a licensee.
+    #[test]
+    fn release_tag_ruleset_is_immutable_and_has_no_bypass() {
+        let value = serde_json::to_value(desired_tag_ruleset()).unwrap();
+        assert_eq!(value["name"], "release-tags");
+        assert_eq!(value["target"], "tag");
+        assert_eq!(value["enforcement"], "active");
+        assert_eq!(value["bypass_actors"], serde_json::json!([]));
+        assert_eq!(
+            value["conditions"]["ref_name"]["include"],
+            serde_json::json!(["refs/tags/[0-9]*.[0-9]*.[0-9]*"])
+        );
+        let kinds: Vec<&str> = value["rules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|rule| rule["type"].as_str().unwrap())
+            .collect();
+        assert_eq!(kinds, vec!["deletion", "update", "non_fast_forward"]);
+    }
+
+    #[test]
+    fn desired_ruleset_serializes_to_github_put_payload() {
+        let value = serde_json::to_value(desired_branch_ruleset()).unwrap();
+        assert_eq!(value["name"], "production");
+        assert_eq!(
+            value["conditions"]["ref_name"]["include"],
+            serde_json::json!(["~DEFAULT_BRANCH"])
+        );
+        assert_eq!(
+            value["rules"][5]["parameters"]["required_approving_review_count"],
+            0
+        );
+        assert_eq!(
+            value["rules"][5]["parameters"]["require_code_owner_review"],
+            false
+        );
+        assert_eq!(
+            value["rules"][5]["parameters"]["required_review_thread_resolution"],
+            true
+        );
+        assert_eq!(
+            value["rules"].as_array().unwrap().len(),
+            6,
+            "ruleset carries exactly the six protected rules"
+        );
+    }
+
+    /// The merge gate is the CI test job, bound to the App that actually posts
+    /// it on this host.
+    ///
+    /// Both halves matter. A drifted *context* stops requiring the job that
+    /// proves the workspace; a drifted *integration id* is worse, because the
+    /// rule still looks present in the API while matching an App that never
+    /// posts a check here — the gate reads as configured and enforces nothing.
+    #[test]
+    fn branch_ruleset_gates_on_the_ci_test_check() {
+        let value = serde_json::to_value(desired_branch_ruleset()).unwrap();
+        let checks = value["rules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|rule| rule["type"] == "required_status_checks")
+            .expect("the production ruleset must require a status check")["parameters"]
+            ["required_status_checks"]
+            .clone();
+
+        assert_eq!(
+            checks,
+            serde_json::json!([
+                {"context": REQUIRED_CHECK, "integration_id": ACTIONS_INTEGRATION_ID}
+            ]),
+            "the merge gate is the `ci` aggregating job posted by GitHub Actions \
+             ({ACTIONS_INTEGRATION_ID}); the context must match a job's check-run \
+             name in .github/workflows/ci.yml exactly"
+        );
+    }
+
+    /// The required context is the same string on every administered
+    /// repository. Per-repository check names are what let a rename unbind the
+    /// gate silently.
+    #[test]
+    fn every_repository_requires_the_same_check_context() {
+        for policy in [NAVIGATOR_POLICY, COMMON_POLICY] {
+            let contexts = desired_rulesets(policy)
+                .into_iter()
+                .flat_map(|ruleset| ruleset.rules)
+                .filter(|rule| rule.kind == "required_status_checks")
+                .map(|rule| {
+                    rule.parameters.unwrap()["required_status_checks"][0]["context"].clone()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(contexts, vec![serde_json::json!("ci")], "{policy:?}");
+        }
+    }
+
+    /// The repository's own workflow satisfies the convention the policy
+    /// requires. Without this the two drift apart in the direction that fails
+    /// silently — the gate waits forever on a check nothing posts.
+    #[test]
+    fn this_repository_defines_the_required_check_job() {
+        let workflow = include_str!("../../../.github/workflows/ci.yml");
+        let names = workflow_job_check_names(workflow).unwrap();
+        assert!(
+            names.iter().any(|name| name == REQUIRED_CHECK),
+            "ci.yml must define a job whose check run is named {REQUIRED_CHECK:?}; found {names:?}"
+        );
+    }
+
+    /// A job reports under its `name:` when it sets one, and under its key
+    /// otherwise — the same rule GitHub applies when it names the check run.
+    #[test]
+    fn workflow_job_names_prefer_the_explicit_name() {
+        let names = workflow_job_check_names(
+            "jobs:\n  rust:\n    name: cargo test (workspace)\n  ci:\n    runs-on: ubuntu-latest\n",
+        )
+        .unwrap();
+        assert_eq!(names, vec!["cargo test (workspace)", "ci"]);
+    }
+
+    #[test]
+    fn workflow_without_the_required_job_is_rejected() {
+        let names = workflow_job_check_names(
+            "jobs:\n  lint:\n    name: lint\n  verify:\n    name: verify\n",
+        )
+        .unwrap();
+        assert!(!names.iter().any(|name| name == REQUIRED_CHECK));
+    }
+
+    /// GitHub returns rules in stored order, which differs between a ruleset
+    /// this command created and one created by hand through REST. A permuted
+    /// order is the same policy and must not read as drift, or reconciliation
+    /// never converges.
+    #[test]
+    fn rule_order_is_not_drift() {
+        let desired = desired_branch_ruleset();
+        let mut permuted = desired.clone();
+        permuted.rules.reverse();
+        assert!(ruleset_matches(&desired, &permuted));
+        assert!(plan(COMMON_POLICY, true, &[Some(permuted)], &[]).is_empty());
+    }
+
+    /// Reordering is forgiven; a changed rule is not.
+    #[test]
+    fn a_changed_rule_is_still_drift() {
+        let desired = desired_branch_ruleset();
+        let mut weakened = desired.clone();
+        weakened
+            .rules
+            .retain(|rule| rule.kind != "required_signatures");
+        assert!(!ruleset_matches(&desired, &weakened));
+    }
+
+    #[test]
+    fn planner_is_empty_for_identical_state() {
+        let labels = DEVX_LABELS
+            .iter()
+            .map(|label| Label {
+                name: label.name.to_string(),
+                description: Some(label.description.to_string()),
+            })
+            .collect::<Vec<_>>();
+        let live = desired_rulesets(NAVIGATOR_POLICY)
+            .into_iter()
+            .map(Some)
+            .collect::<Vec<_>>();
+        assert!(plan(NAVIGATOR_POLICY, true, &live, &labels).is_empty());
+    }
+
+    #[test]
+    fn planner_reconciles_merge_settings_before_other_drift() {
+        let live = desired_rulesets(COMMON_POLICY)
+            .into_iter()
+            .map(Some)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            plan(COMMON_POLICY, false, &live, &[]),
+            vec![Action::UpdateMergeSettings]
+        );
+    }
+
+    /// A repository that has never had the tag gate reconciled onto it plans a
+    /// create rather than silently skipping the ruleset it could not find.
+    #[test]
+    fn planner_creates_a_missing_ruleset() {
+        let live = vec![Some(desired_branch_ruleset()), None, None];
+        assert_eq!(
+            plan(NAVIGATOR_POLICY, true, &live, &[]),
+            vec![
+                Action::CreateRuleset {
+                    name: "release-tags".to_string()
+                },
+                Action::CreateRuleset {
+                    name: "production-review".to_string()
+                },
+                Action::CreateLabel {
+                    name: "triage".to_string()
+                },
+                Action::CreateLabel {
+                    name: "triaged".to_string()
+                },
+                Action::CreateLabel {
+                    name: "devx:paused".to_string()
+                },
+                Action::CreateLabel {
+                    name: "devx:failed".to_string()
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn planner_limits_drift_to_ruleset_and_label() {
+        let labels = vec![Label {
+            name: "triaged".to_string(),
+            description: Some("old description".to_string()),
+        }];
+        let live = vec![
+            Some(live_ruleset()),
+            Some(desired_tag_ruleset()),
+            Some(desired_review_ruleset()),
+        ];
+        assert_eq!(
+            plan(NAVIGATOR_POLICY, true, &live, &labels),
+            vec![
+                Action::UpdateRuleset {
+                    name: "production".to_string()
+                },
+                Action::CreateLabel {
+                    name: "triage".to_string()
+                },
+                Action::UpdateLabel {
+                    name: "triaged".to_string()
+                },
+                Action::CreateLabel {
+                    name: "devx:paused".to_string()
+                },
+                Action::CreateLabel {
+                    name: "devx:failed".to_string()
+                },
+            ]
+        );
+    }
+
+    /// Navigator keeps its own policy; every other repository the Firm
+    /// administers resolves to the common one rather than being refused.
+    #[test]
+    fn policy_is_navigator_only_for_navigator() {
+        assert_eq!(
+            policy_for("neon-law-foundation/navigator"),
+            NAVIGATOR_POLICY
+        );
+        assert_eq!(
+            policy_for("NEON-LAW-FOUNDATION/Navigator"),
+            NAVIGATOR_POLICY
+        );
+        for slug in ["ux/core", "marketing/site", "neon-law-foundation/other"] {
+            assert_eq!(policy_for(slug), COMMON_POLICY, "{slug}");
+        }
+    }
+
+    /// The enterprise host every test here supplies.
+    ///
+    /// Synthetic: the host is configuration, so this file spells no real forge
+    /// host. What the tests prove is that the *configured* host is the boundary,
+    /// which is a stronger claim than pinning one spelling of it.
+    const AN_ENTERPRISE: &str = "forge.example";
+
+    #[test]
+    fn origin_remote_reduces_to_an_owner_name_slug() {
+        for remote in [
+            "https://forge.example/ux/core",
+            "https://forge.example/ux/core.git",
+            "https://nick@forge.example/ux/core.git",
+            "git@forge.example:ux/core.git",
+            "ssh://git@forge.example/ux/core",
+        ] {
+            assert_eq!(
+                slug_from_remote(remote, AN_ENTERPRISE).unwrap(),
+                "ux/core",
+                "{remote}"
+            );
+        }
+    }
+
+    /// The host is the authorization boundary, so a remote off the configured
+    /// enterprise is refused before a token is read — including a lookalike
+    /// that merely *contains* it.
+    #[test]
+    fn origin_remote_off_the_enterprise_is_refused() {
+        for remote in [
+            "https://elsewhere.example/neon-law-foundation/navigator.git",
+            "git@elsewhere.example:neon-law-foundation/navigator.git",
+            "https://forge.example.evil.test/neon-law-foundation/navigator.git",
+        ] {
+            let error = slug_from_remote(remote, AN_ENTERPRISE)
+                .unwrap_err()
+                .to_string();
+            assert!(error.contains(AN_ENTERPRISE), "{remote}: {error}");
+        }
+    }
+
+    /// A remote on *another* configured host is refused by the same rule.
+    ///
+    /// This is what makes the boundary configuration rather than a literal: the
+    /// same remote is in scope under one configured host and refused under
+    /// another, with no name written down in this file.
+    #[test]
+    fn the_boundary_follows_the_configured_host() {
+        let remote = "https://one.example/ux/core.git";
+        assert_eq!(slug_from_remote(remote, "one.example").unwrap(), "ux/core");
+        assert!(slug_from_remote(remote, "another.example").is_err());
+    }
+
+    /// A URL passed where a slug belongs is an error, not the first two path
+    /// segments of somebody else's repository.
+    #[test]
+    fn slug_argument_rejects_anything_but_owner_name() {
+        assert_eq!(validate_slug("ux/core").unwrap(), "ux/core");
+        assert_eq!(validate_slug("/ux/core/").unwrap(), "ux/core");
+        for value in [
+            "https://forge.example/neon-law-foundation/navigator",
+            "neon-law",
+            "a/b/c",
+            "",
+        ] {
+            assert!(validate_slug(value).is_err(), "{value}");
+        }
+    }
+
+    /// The common policy is the full gate minus only the release automation.
+    #[test]
+    fn the_common_policy_is_the_full_gate_without_release_automation() {
+        let rulesets = desired_rulesets(COMMON_POLICY);
+        assert_eq!(rulesets.len(), 2);
+        assert!(rulesets[0].bypass_actors.is_empty());
+        let checks = serde_json::to_value(&rulesets[0]).unwrap()["rules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|rule| rule["type"] == "required_status_checks")
+            .unwrap()["parameters"]["required_status_checks"]
+            .clone();
+        // The same `ci` context as every other administered repository. What
+        // that job runs there is that repository's business; what it is called
+        // is the Firm's contract, so the gate never has to be re-pointed.
+        assert_eq!(
+            checks,
+            serde_json::json!([{"context": REQUIRED_CHECK, "integration_id": ACTIONS_INTEGRATION_ID}])
+        );
+        assert!(COMMON_POLICY.labels.is_empty());
+        const { assert!(!COMMON_POLICY.release_tags) };
+        const { assert!(COMMON_POLICY.review_gate) };
+    }
+
+    #[tokio::test]
+    async fn reconcile_writes_only_drifted_ruleset_and_label() {
+        let server = MockServer::start().await;
+        let client = test_client(&server);
+        mount_reads(
+            &server,
+            &live_ruleset(),
+            vec![Label {
+                name: "triaged".to_string(),
+                description: Some("old description".to_string()),
+            }],
+        )
+        .await;
+        Mock::given(method("PUT"))
+            .and(path("/repos/acme/navigator/rulesets/7"))
+            .and(header("authorization", "Bearer token"))
+            .and(body_json(
+                serde_json::to_value(desired_branch_ruleset()).unwrap(),
+            ))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("PATCH"))
+            .and(path("/repos/acme/navigator/labels/triaged"))
+            .and(body_json(
+                serde_json::json!({"new_name":"triaged","description":DEVX_LABELS[1].description}),
+            ))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(1)
+            .mount(&server)
+            .await;
+        for label in [&DEVX_LABELS[0], &DEVX_LABELS[2], &DEVX_LABELS[3]] {
+            Mock::given(method("POST"))
+                .and(path("/repos/acme/navigator/labels"))
+                .and(body_json(serde_json::json!({"name":label.name,"description":label.description,"color":LABEL_COLOR})))
+                .respond_with(ResponseTemplate::new(201))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        reconcile(NAVIGATOR_POLICY, &client, false).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn dry_run_never_writes() {
+        let server = MockServer::start().await;
+        let client = test_client(&server);
+        mount_reads(&server, &live_ruleset(), Vec::new()).await;
+        reconcile(NAVIGATOR_POLICY, &client, true).await.unwrap();
+        let requests = server.received_requests().await.unwrap();
+        assert!(requests
+            .iter()
+            .all(|request| request.method == wiremock::http::Method::GET));
+    }
+
+    fn test_client(server: &MockServer) -> GitHubClient {
+        let http = reqwest::Client::builder()
+            .default_headers({
+                let mut headers = header::HeaderMap::new();
+                headers.insert(
+                    header::AUTHORIZATION,
+                    header::HeaderValue::from_static("Bearer token"),
+                );
+                headers
+            })
+            .build()
+            .unwrap();
+        GitHubClient {
+            http,
+            api_base: server.uri(),
+            repository: "acme/navigator".to_string(),
+        }
+    }
+
+    async fn mount_reads(server: &MockServer, ruleset: &RulesetPayload, labels: Vec<Label>) {
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/navigator"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "allow_squash_merge": true,
+                "allow_merge_commit": false,
+                "allow_rebase_merge": false,
+                "allow_auto_merge": true,
+                "delete_branch_on_merge": true,
+                "squash_merge_commit_title": "PR_TITLE",
+                "squash_merge_commit_message": "PR_BODY",
+            })))
+            .mount(server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/navigator/contents/.github/CODEOWNERS"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("* @owner\n"))
+            .mount(server)
+            .await;
+        // The owner named above must resolve, or the review gate would be
+        // written onto a repository where every path is in fact unowned.
+        Mock::given(method("GET"))
+            .and(path("/users/owner"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+            .mount(server)
+            .await;
+        // The workflow must actually define the `ci` job the gate requires.
+        Mock::given(method("GET"))
+            .and(path(
+                "/repos/acme/navigator/contents/.github/workflows/ci.yml",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                "jobs:\n  rust:\n    name: cargo test (workspace)\n  ci:\n    name: ci\n",
+            ))
+            .mount(server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/navigator/rulesets"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+                {"id":7,"name":"production"},
+                {"id":8,"name":"release-tags"},
+                {"id":9,"name":"production-review"},
+            ])))
+            .mount(server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/navigator/rulesets/7"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(ruleset))
+            .mount(server)
+            .await;
+        // Already reconciled, so only the branch gate above should ever be
+        // written: this is what makes the test's name load-bearing.
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/navigator/rulesets/8"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(desired_tag_ruleset()))
+            .mount(server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/navigator/rulesets/9"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(desired_review_ruleset()))
+            .mount(server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/navigator/labels"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(labels))
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn required_check_job_accepts_the_scaffolded_gate_workflow() {
+        // A Project repository written by `navigator projects repository
+        // scaffold` has no ci.yml at all. Before both spellings were accepted
+        // this read as "the repository has no CI" and refused to govern it.
+        let server = MockServer::start().await;
+        let client = test_client(&server);
+        Mock::given(method("GET"))
+            .and(path(
+                "/repos/acme/navigator/contents/.github/workflows/ci.yml",
+            ))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(
+                "/repos/acme/navigator/contents/.github/workflows/gate.yml",
+            ))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string("jobs:\n  ci:\n    name: ci\n"),
+            )
+            .mount(&server)
+            .await;
+        assert_required_check_job(&client).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn required_check_job_names_both_spellings_when_neither_exists() {
+        let server = MockServer::start().await;
+        let client = test_client(&server);
+        for workflow in ["ci.yml", "gate.yml"] {
+            Mock::given(method("GET"))
+                .and(path(format!(
+                    "/repos/acme/navigator/contents/.github/workflows/{workflow}"
+                )))
+                .respond_with(ResponseTemplate::new(404))
+                .mount(&server)
+                .await;
+        }
+        let error = assert_required_check_job(&client)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("ci.yml"), "{error}");
+        assert!(error.contains("gate.yml"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn required_check_job_refuses_a_workflow_without_the_aggregating_job() {
+        let server = MockServer::start().await;
+        let client = test_client(&server);
+        Mock::given(method("GET"))
+            .and(path(
+                "/repos/acme/navigator/contents/.github/workflows/ci.yml",
+            ))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string("jobs:\n  build:\n    name: build\n"),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(
+                "/repos/acme/navigator/contents/.github/workflows/gate.yml",
+            ))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        let error = assert_required_check_job(&client)
+            .await
+            .unwrap_err()
+            .to_string();
+        // The job it did find is reported, because that is the fix: rename it or
+        // add an aggregator, not "write some CI".
+        assert!(error.contains("build"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn required_check_job_does_not_read_a_server_error_as_a_missing_workflow() {
+        // A 500 or a revoked token must not look like "no workflow here", or the
+        // gate would be bound on a repository whose workflows were never read.
+        let server = MockServer::start().await;
+        let client = test_client(&server);
+        Mock::given(method("GET"))
+            .and(path(
+                "/repos/acme/navigator/contents/.github/workflows/ci.yml",
+            ))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+        // `{:#}` walks the context chain; the outermost layer is only
+        // "read <path> from <repo>", so the status code lives one level down.
+        let error = format!(
+            "{:#}",
+            assert_required_check_job(&client).await.unwrap_err()
+        );
+        assert!(error.contains("500"), "{error}");
+        assert!(
+            !error.contains("none of"),
+            "a 500 must not read as an absent workflow: {error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn get_all_labels_follows_pagination_past_the_first_page() {
+        let server = MockServer::start().await;
+        let client = test_client(&server);
+        let page_one = (0..100)
+            .map(|index| Label {
+                name: format!("filler-{index}"),
+                description: None,
+            })
+            .collect::<Vec<_>>();
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/navigator/labels"))
+            .and(query_param("page", "1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&page_one))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/navigator/labels"))
+            .and(query_param("page", "2"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+                {"name": "triaged", "description": DEVX_LABELS[1].description}
+            ])))
+            .mount(&server)
+            .await;
+        let labels = client.get_all_labels().await.unwrap();
+        assert_eq!(labels.len(), 101);
+        assert!(labels.iter().any(|label| label.name == "triaged"));
+    }
+
+    #[test]
+    fn merge_settings_detects_drift() {
+        let mut repository = matching_repository();
+        repository.allow_rebase_merge = true;
+        assert!(!merge_settings_match(&repository));
+    }
+}

@@ -1,0 +1,33 @@
+[package]
+name = "telemetry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# The one observability seam for every Neon Law Navigator binary. `telemetry::init`
+# wires `tracing` to stdout and, when the complete OpenObserve contract is
+# configured, exports OpenTelemetry traces, metrics, and logs directly over
+# OTLP/gRPC. A leaf crate: it depends only on OpenTelemetry + tracing so web,
+# workflows-service, and every trigger can share it without a cycle.
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+base64.workspace = true
+opentelemetry.workspace = true
+opentelemetry_sdk.workspace = true
+opentelemetry-otlp.workspace = true
+opentelemetry-appender-tracing.workspace = true
+tracing.workspace = true
+tracing-opentelemetry.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+# The export-path providers spawn batch-flush tasks, so the offline
+# provider-construction test runs on a Tokio runtime.
+tokio.workspace = true
+
+[lints]
+workspace = true

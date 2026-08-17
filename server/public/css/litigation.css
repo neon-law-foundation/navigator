@@ -1,0 +1,154 @@
+/* Litigation page (`/litigation`) — the disputes practice, both sides of the v.
+
+   The brand layer (`brand-firm.css`) owns the palette, the serif, the card, and
+   the hero glow; this file places them and adds the page's one piece of motion,
+   the heading rising a word at a time.
+
+   It used to carry a great deal more: a class-formation figure of dots closing
+   into a frame beside the hero, six Rule 23 element cards each growing a left
+   rule on a view timeline, a chip strip, a phase rail drawn on scroll, and an
+   authority strip that lifted on entry. All of it illustrated sections the page
+   no longer has. What is left is a statement and two paragraphs.
+
+   The remaining animation is decoration, and the `prefers-reduced-motion` block
+   at the bottom settles it. */
+
+/* ---- Hero -------------------------------------------------------------- */
+
+/* One column. The statement had a graphic beside it and now has the width. */
+.zeal-hero {
+  position: relative;
+  display: grid;
+  gap: clamp(2rem, 6vw, 4rem);
+  align-items: center;
+  padding: clamp(2.5rem, 7vw, 5rem) 0 clamp(2rem, 5vw, 3rem);
+}
+
+.zeal-hero__glow {
+  inset-inline: -25vw;
+}
+
+.zeal-hero__statement {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.25rem;
+  max-width: 40rem;
+}
+
+.zeal-hero__heading {
+  margin: 0;
+  font-family: var(--firm-serif);
+  font-size: clamp(2.25rem, 6vw, 3.75rem);
+  font-weight: 600;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+/* Each word carries its own reveal order as `--zeal-word-index`, set inline by
+   the view. Keying the stagger to data rather than `nth-child` means a copy
+   edit that adds or drops a word keeps working. */
+/* The word gap is a margin rather than a space in the markup: each word is its
+   own inline-block so it can be transformed, and an inline-block collapses the
+   whitespace at its own end — a trailing space in the view would render as
+   nothing and run the heading together. */
+.zeal-word {
+  display: inline-block;
+  margin-inline-end: 0.26em;
+  animation: zeal-word-rise 700ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(var(--zeal-word-index, 0) * 90ms);
+}
+
+.zeal-word--accent {
+  color: var(--firm-brand);
+}
+
+@keyframes zeal-word-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.55em) rotate(-1.5deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+.zeal-hero__lead {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--nav-color-text-muted);
+}
+
+/* The one call to action on the page wears the firm's colour rather than the
+   product chrome's. Matches `theme.css`'s own selector specificity to win. */
+.nav-theme a.nav-btn--primary.zeal-hero__cta,
+.nav-theme a.nav-btn--primary.zeal-hero__cta:hover,
+.nav-theme a.nav-btn--primary.zeal-hero__cta:focus-visible {
+  border-color: var(--firm-brand);
+  background: var(--firm-brand);
+  color: var(--firm-on-brand);
+}
+
+.nav-theme a.nav-btn--primary.zeal-hero__cta:hover,
+.nav-theme a.nav-btn--primary.zeal-hero__cta:focus-visible {
+  border-color: var(--firm-brand-strong);
+  background: var(--firm-brand-strong);
+}
+
+/* ---- Shared section furniture ------------------------------------------ */
+
+/* Every section heading on the page. Named for what it is rather than for the
+   one section it started in. */
+.zeal-heading {
+  margin: 0 0 0.75rem;
+  font-family: var(--firm-serif);
+  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.zeal-paragraph {
+  margin: 0 0 0.85rem;
+  max-width: 62ch;
+  line-height: 1.65;
+  color: var(--nav-color-text-muted);
+}
+
+.zeal-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+/* The two paragraphs are the page, so they carry the page's reading size rather
+   than the muted secondary size the old sections used for supporting prose. */
+.zeal-paragraph--lead {
+  max-width: 68ch;
+  font-size: 1.0625rem;
+  color: var(--nav-color-text);
+}
+
+.zeal-paragraph--lead + .zeal-paragraph--lead {
+  margin-top: 1.25rem;
+}
+
+/* The attorney-advertising disclaimer. Quiet, but never hidden: it is the last
+   thing on the page and it is always rendered. */
+.zeal-disclaimer {
+  margin: 2rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--nav-color-text-muted);
+}
+
+/* The heading's word-by-word rise is the page's only motion, and it is
+   decoration: suppressed, the words rest where they landed. */
+@media (prefers-reduced-motion: reduce) {
+  .zeal-word {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+}

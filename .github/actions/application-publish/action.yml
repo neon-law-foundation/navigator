@@ -1,0 +1,227 @@
+name: navigator application publish
+description: >-
+  Publish a Project portal's built bundle to its deployment's private
+  applications bucket, hashed assets first and index.html last, deleting
+  nothing.
+
+# The publish half of a Project repository's CI, downstream of the one gate.
+#
+# `neon-law-foundation/navigator/.github/actions/validate@YY.M.D` with
+# `project_repository: true` is the source-only, no-legal-files gate, and it
+# also proves the built portal is mounted at `/app/projects/<code>/portal/`.
+# This action runs AFTER that gate, in the same job, and moves the bytes: it
+# authenticates to the deployment's GCP project through Workload Identity
+# Federation and uploads `dist/` to `<code>/portal/` in the private
+# `<deployment>-applications` bucket that Navigator streams from.
+#
+# It is consumed identically by every Project repository in every organization,
+# so it names no organization, host, or client. The only things it cannot
+# derive are the three per-deployment coordinates the caller passes from GHE
+# repository *variables* — the bucket, the Workload Identity provider, and the
+# publisher service account. A provider resource name, a service-account email,
+# and a bucket name are public identifiers; the trust is enforced on Google's
+# side by the Workload Identity binding, which is why they are variables and not
+# secrets. The Project code is derived from the repository name, exactly as the
+# validate gate derives it — nothing declares its own name.
+#
+# Consuming repository, in full (the thin caller lives in the Project repo, not
+# here):
+#
+#     permissions:
+#       contents: read
+#       id-token: write            # required to mint the OIDC token WIF federates
+#     steps:
+#       - uses: actions/checkout@<sha>            # v7
+#       - run: pnpm --dir portal install --frozen-lockfile
+#       - run: pnpm --dir portal lint
+#       - run: pnpm --dir portal typecheck
+#       - run: pnpm --dir portal test
+#       - run: pnpm --dir portal build            # Vite base /app/projects/<code>/portal/
+#       - uses: neon-law-foundation/navigator/.github/actions/validate@YY.M.D
+#         with:
+#           version: "YY.M.D"
+#           project_repository: true              # the one gate: source-only, no legal files, mounted
+#       - uses: neon-law-foundation/navigator/.github/actions/application-publish@YY.M.D
+#         with:
+#           applications_bucket: ${{ vars.NAVIGATOR_APPLICATIONS_BUCKET }}
+#           workload_identity_provider: ${{ vars.NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER }}
+#           service_account: ${{ vars.NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT }}
+#
+# ## The issuer
+#
+# The tokens these repositories mint come from the enterprise's own subdomain,
+# `https://token.actions.githubusercontent.com`, not `token.actions.githubusercontent.com`.
+# That is a property of the `workload_identity_provider` resource the caller
+# passes, not a parameter this action sets: the provider is the `ghe-oidc`
+# provider that trusts that issuer. See docs/project-repositories.md.
+#
+# ## Rollback
+#
+# There is no rollback job. A bad bundle is rolled back by reverting the change
+# on the Project repository's `main` and letting the caller workflow republish
+# the reverted tree — the same two-pass upload lands the previous bytes. Because
+# this action never deletes, a revert is always a forward publish, never a
+# recovery of something removed.
+
+inputs:
+  applications_bucket:
+    description: >-
+      The deployment's private applications bucket, e.g. `neon-law-applications`.
+      Objects land FLAT under `<code>/portal/`. Passed from the GHE repository
+      variable `NAVIGATOR_APPLICATIONS_BUCKET`; never composed here, because the
+      bucket is the one coordinate that differs between deployments.
+    required: true
+  workload_identity_provider:
+    description: >-
+      The full `ghe-oidc` Workload Identity provider resource, e.g.
+      `projects/<n>/locations/global/workloadIdentityPools/<pool>/providers/ghe-oidc`.
+      Passed from `NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER`. It encodes the trusted
+      issuer `https://token.actions.githubusercontent.com`.
+    required: true
+  service_account:
+    description: >-
+      The publisher identity to impersonate, `navigator-app-publisher@<project>.iam.gserviceaccount.com`.
+      Passed from `NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT`. It is bound to write
+      the applications bucket and nothing else.
+    required: true
+  repository:
+    description: >-
+      Repository name, which *is* the Project code and the object prefix.
+      Defaults to the current repository's name; pass this only for a
+      differently named local checkout. Nothing else declares the code.
+    required: false
+    default: ${{ github.event.repository.name }}
+  dist_dir:
+    description: >-
+      The built bundle to publish, relative to the workspace. Defaults to
+      `portal/dist`; pass `dist` for a repository whose portal is the root.
+    required: false
+    default: "portal/dist"
+
+runs:
+  using: composite
+  steps:
+    # The same coordinate the validate gate derives: the repository name is the
+    # Project code, and the mount is that name plus the literal `portal`. This
+    # action re-derives it rather than reading a manifest, so the object prefix
+    # cannot disagree with the served mount. The slug and reserved-code rules
+    # themselves are the validate gate's job — it ran before this action in the
+    # same job — so this step only re-proves what it is about to upload.
+    - name: derive the coordinate and verify the built mount
+      shell: bash
+      env:
+        REPOSITORY: ${{ inputs.repository }}
+        DIST_DIR: ${{ inputs.dist_dir }}
+      run: |
+        set -euo pipefail
+
+        code="${REPOSITORY}"
+        if [ -z "${code}" ]; then
+            echo "::error::no repository name to derive the Project code from."
+            exit 1
+        fi
+
+        # cloud::workspace::WorkspaceConfig::portal_mount. Nothing is composed
+        # and nothing is parsed: the repository name is the code, `portal` is a
+        # literal, and the trailing slash is the served form.
+        base="/app/projects/${code}/portal/"
+
+        index="${DIST_DIR}/index.html"
+        if [ ! -f "${index}" ]; then
+            echo "::error::${index} is missing; build the portal before this action runs."
+            exit 1
+        fi
+
+        # The base must already have reached the build. The validate gate proves
+        # this too; re-checking here refuses to publish an unmounted bundle even
+        # if a caller reordered its steps.
+        if ! grep -q "\"${base}assets/" "${index}"; then
+            echo "::error::${index} is not mounted at ${base} — the Vite base did not reach the build."
+            exit 1
+        fi
+
+        # No legal file may enter the applications bucket. The source-only,
+        # no-legal-files proof is the validate gate; this is a last check over
+        # the exact bytes about to be uploaded. A Project's notation blueprints
+        # are `templates/<code>.md` — Markdown — and build output carries none,
+        # so a `.md` file inside `dist/` is a legal-source leak, not an asset.
+        if leaked="$(find "${DIST_DIR}" -type f -name '*.md' -print 2>/dev/null)" \
+            && [ -n "${leaked}" ]; then
+            echo "::error::Markdown found under ${DIST_DIR}; legal source must never enter the applications bucket."
+            printf '%s\n' "${leaked}" >&2
+            exit 1
+        fi
+
+        {
+            echo "code=${code}"
+            echo "prefix=${code}/portal"
+        } >> "${GITHUB_OUTPUT}"
+        echo "publishing ${DIST_DIR} → <bucket>/${code}/portal (mount ${base})"
+      id: coord
+
+    # Keyless federation. The caller grants `id-token: write`; this mints a
+    # short-lived OIDC token from the enterprise issuer and exchanges it for a
+    # credential impersonating the publisher. No service-account key exists.
+    # Pinned `@v3` to match every `google-github-actions/auth` call in this
+    # repository's deploy.yml and promote.yml.
+    - name: authenticate to GCP through Workload Identity Federation
+      uses: google-github-actions/auth@v3
+      with:
+        workload_identity_provider: ${{ inputs.workload_identity_provider }}
+        service_account: ${{ inputs.service_account }}
+
+    - name: set up the gcloud CLI
+      uses: google-github-actions/setup-gcloud@v3
+
+    # Upload order is load-bearing, and the applications bucket adds a second
+    # rule the marketing sites do not have: it is private, shared across every
+    # Project, and served object-by-object by Navigator, so a publish NEVER
+    # deletes. Neither pass carries
+    # `--delete-unmatched-destination-objects`, so a stale hashed asset is left
+    # unreachable rather than removed, and one Project's publish can never prune
+    # another's objects out of the flat namespace.
+    #
+    # Pass 1 — everything except index.html, so that by the time any HTML naming
+    # a new hashed filename is readable, that file already exists.
+    - name: publish assets (everything but index.html)
+      shell: bash
+      env:
+        BUCKET: ${{ inputs.applications_bucket }}
+        PREFIX: ${{ steps.coord.outputs.prefix }}
+        DIST_DIR: ${{ inputs.dist_dir }}
+      run: |
+        set -euo pipefail
+        gcloud storage rsync "${DIST_DIR}" "gs://${BUCKET}/${PREFIX}" \
+            --recursive \
+            --exclude '^index\.html$'
+
+    # Pass 2 — index.html LAST, once every asset it names is already in place.
+    - name: publish index.html last
+      shell: bash
+      env:
+        BUCKET: ${{ inputs.applications_bucket }}
+        PREFIX: ${{ steps.coord.outputs.prefix }}
+        DIST_DIR: ${{ inputs.dist_dir }}
+      run: |
+        set -euo pipefail
+        gcloud storage cp "${DIST_DIR}/index.html" "gs://${BUCKET}/${PREFIX}/index.html"
+
+    # Stamp the entry point with the provenance of the publish, so an operator
+    # reading the served object knows the commit and moment it came from. gcloud
+    # stores each as GCS custom metadata, surfaced as `x-goog-meta-<key>`.
+    - name: stamp index.html with build provenance
+      shell: bash
+      env:
+        BUCKET: ${{ inputs.applications_bucket }}
+        PREFIX: ${{ steps.coord.outputs.prefix }}
+        COMMIT: ${{ github.sha }}
+        REPO_FULL: ${{ github.repository }}
+        REF: ${{ github.ref }}
+        RUN_ID: ${{ github.run_id }}
+        RUN_ATTEMPT: ${{ github.run_attempt }}
+      run: |
+        set -euo pipefail
+        build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        gcloud storage objects update "gs://${BUCKET}/${PREFIX}/index.html" \
+            --custom-metadata="commit=${COMMIT},build-time=${build_time},repository=${REPO_FULL},ref=${REF},run-id=${RUN_ID},run-attempt=${RUN_ATTEMPT}"
+        echo "stamped gs://${BUCKET}/${PREFIX}/index.html · commit ${COMMIT} · ${build_time}"

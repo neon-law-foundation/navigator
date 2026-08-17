@@ -1,0 +1,994 @@
+package navigator.authz
+
+import rego.v1
+
+default allow := false
+
+# Owner and Admin are supersets of Lawyer: either privileged tier
+# passes every lawyer-work gate. Clerk is deliberately absent; adding
+# a non-lawyer role must not inherit legal authority by accident.
+lawyer_tier := {"owner", "admin", "lawyer"}
+admin_tier := {"owner", "admin"}
+
+is_authenticated(session) if {
+    session != null
+}
+
+is_lawyer(session) if {
+    session != null
+    lawyer_tier[session.role]
+}
+
+is_clerk(session) if {
+    session != null
+    session.role == "clerk"
+}
+
+is_admin(session) if {
+    session != null
+    admin_tier[session.role]
+}
+
+# Owner/Admin bypass: an authenticated Owner or Admin reaches every route the
+# other rules below don't otherwise allow. Per docs/access-model.md
+# this bypass is silent — no per-read audit row.
+allow if {
+    is_admin(input.session)
+}
+
+# /app/projects/* is the one matter surface (ENG-81). Every tier enters the
+# same path, Clerk included now that the dedicated `/clerk` namespace is
+# retired, so the policy cannot make the firm/client/supervised split here —
+# and must not try. It admits any authenticated caller; which of the five
+# renderings a caller gets, and whether they may see this matter at all, is
+# decided in the handler by `store::access::matter_viewer`, the only layer that
+# can read the participation ledger.
+#
+# The Clerk boundary that the separate `/clerk` mount used to carry
+# structurally is now carried by that resolver: a Clerk resolves to
+# `MatterViewer::Clerk` only when they hold a firm-side row *and* the matter's
+# flagged lawyer DRI currently holds the lawyer tier, and that variant renders
+# the name/status/supervisor page — never documents or legal work.
+#
+# This is deliberately weaker than the `/lawyer/*` rule these paths used to sit
+# behind. The lawyer-only writes underneath — matter open/edit/delete, the
+# participation forms, document upload, transcript intake — each re-check the
+# lawyer tier in their own handler, which is what carries that guard now. A
+# route added here without its own tier check is admitting every signed-in
+# client.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "projects"
+    is_authenticated(input.session)
+}
+
+# /app/lawyer is the firm dashboard. Owner and Admin reach it through the
+# route bypass above; this rule is what admits Lawyer. Clerk and client
+# are denied here, which is what keeps the CRUD directory on that page away
+# from a supervised non-lawyer — the page lists administrative sub-surfaces,
+# and a Clerk has no business being offered them.
+allow if {
+    input.path == ["app", "lawyer"]
+    is_lawyer(input.session)
+}
+
+# /app/docs is the workspace documentation inside the application. It admits
+# every tier that operates Navigator — Lawyer and Clerk by the two rules
+# below, Owner and Admin through the route bypass at the top of this policy.
+#
+# `client` is the one authenticated tier denied here. These documents describe
+# how the firm runs the product, not anything a client does.
+#
+# Note what this does and does not change. `/docs` carries no rule in this
+# policy: it sits behind the session boundary alone, so any authenticated
+# person reaches it, client included. `/app/docs` is therefore not a gate over
+# previously open material — it is a second, role-restricted door wearing the
+# application chrome. Tightening `/docs` itself is a separate decision and is
+# deliberately not made here.
+#
+# Clerk is admitted by an explicit rule rather than by widening `lawyer_tier`:
+# per the note at the top of this file, a non-lawyer role must never inherit
+# legal authority as a side effect of being added somewhere. Reading the docs
+# is not legal authority, so Clerk gets its own rule and `lawyer_tier` is
+# untouched.
+# The prefix match covers the hub and every document beneath it, because both
+# carry the same audience — there is no document in the index that a reader
+# admitted to the hub may not read.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "docs"
+    is_lawyer(input.session)
+}
+
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "docs"
+    is_clerk(input.session)
+}
+
+# /app/team is where a firm person downloads the `navigator` CLI. The Firm
+# publishes no external binary, so this page and the release assets behind it
+# are the whole distribution channel — which is why it admits every tier that
+# operates Navigator and denies the one that does not.
+#
+# Same audience as `/app/docs`, and admitted the same way: Lawyer and
+# Clerk by the two rules below, Owner and Admin through the route bypass at the
+# top of this policy. `client` is the one authenticated tier denied. A client
+# has no use for the operator's command-line tool, and a matter entitles nobody
+# to the Firm's operating tooling. The software is open source, so this gate is
+# about who the page serves, not about keeping the binary secret.
+#
+# Clerk gets an explicit rule rather than being folded into `lawyer_tier`, for
+# the reason stated at the top of this file: a non-lawyer role must never
+# inherit legal authority as a side effect of being admitted somewhere.
+# Downloading the CLI is not legal authority.
+#
+# The prefix match covers the page and the download route beneath it, because
+# both carry the same audience — a reader admitted to the page may fetch any
+# archive it offers.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "team"
+    is_lawyer(input.session)
+}
+
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "team"
+    is_clerk(input.session)
+}
+
+# /app/admin is Owner/Admin only, and needs no rule of its own: the route
+# bypass at the top of this policy is exactly that set. Spelled out here as a
+# deny-by-omission note rather than a rule, because adding an `is_lawyer` rule
+# for it would silently widen it to Lawyer.
+
+# /app/notations/:id/documents/:doc_id exposes reviewed notation
+# PDFs through the client lens. The handler resolves the notation to
+# its Project and applies the client-lens project ACL before issuing
+# any signed URL.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "notations"
+    is_authenticated(input.session)
+}
+
+# /app/forms/* — blank government forms (public records,
+# vendored from each authority's own site). Any authenticated
+# person may browse the index and download a blank; the *filled*
+# packets are client documents and live on project routes, never
+# here.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "forms"
+    is_authenticated(input.session)
+}
+
+# /lawyer/* is the canonical lawyer workbench and firm-wide CRUD
+# surface. Lawyer and admin only — enforced here so a missing
+# handler-layer check never silently downgrades to
+# "authenticated wins." The path prefix is deliberately ready for
+# an outer Tailscale login requirement.
+allow if {
+    input.path[0] == "lawyer"
+    is_lawyer(input.session)
+}
+
+# The lawyer brand-font download is a firm brand asset, not lawyer work:
+# the licensed GORP Serif desktop family, served as one ZIP. A Clerk may
+# fetch it too — the one deliberate exception to "Clerk never enters
+# /lawyer", scoped to this exact object so it grants a font bundle and
+# nothing else. Lawyer and admin already reach it via the /lawyer rule
+# above and the admin bypass.
+allow if {
+    input.path == ["lawyer", "fonts", "gorp-serif.zip"]
+    is_clerk(input.session)
+}
+
+# The Foundation's reading surfaces behind the session boundary. The talks
+# are the Foundation's public face and render at `/`; everything else it
+# publishes — the mission letter, Notations, the transparency disclosures,
+# the show-and-tell archive, and the workshops catalog page — is readable by
+# any authenticated person.
+#
+# This is a *reading* grant and nothing more: no role is implied by it, and a
+# `client` reaches exactly these pages and no others. The stricter workshop
+# rules below still govern the class material itself.
+foundation_reading_surface := {"mission", "notations", "transparency", "show-and-tell"}
+
+allow if {
+    foundation_reading_surface[input.path[0]]
+    is_authenticated(input.session)
+}
+
+# The workshops *catalog* page, distinct from the material beneath it. It
+# names the three classes so a firm-side reader can see what exists before
+# opening one.
+#
+# Held to the same roles as the material rather than to any authenticated
+# reader. The classes are firm-internal training and the catalog page is a
+# table of contents for them; a `client` who cannot open a single class gains
+# nothing from a list of the ones they cannot open, and the page names the
+# lawyer workbench, the admin deployment tier, and the contribution loop.
+allow if {
+    input.path == ["workshops"]
+    is_lawyer(input.session)
+}
+
+allow if {
+    input.path == ["workshops"]
+    is_clerk(input.session)
+}
+
+# The `workshops` catalog is firm-internal training: the three Navigator
+# classes teach the lawyer workbench, the admin deployment tier, and the
+# contribution loop, so the material sits behind the session boundary
+# rather than on the Foundation's anonymous surface. Every firm-side role
+# reaches them — Owner and Admin through the bypass above, Lawyer
+# here, and a supervised Clerk through the rule below. A `client` and an
+# anonymous reader do not.
+#
+# This names the `workshops` category exactly, so it never widens onto the
+# `presentations` catalog, which is anonymous and needs no rule at all.
+#
+# The `count` guard keeps the grant on the material rather than the catalog.
+# `/workshops` alone is the catalog page, which the rule above opens to any
+# authenticated reader; only the class itself is firm-side.
+allow if {
+    input.path[0] == "workshops"
+    count(input.path) > 1
+    is_lawyer(input.session)
+}
+
+# The Clerk half of the workshop grant. Split from the Lawyer rule rather
+# than folded into one role set because `is_clerk` is deliberately not a
+# member of `lawyer_tier` — a non-lawyer must never inherit legal authority
+# by being added to that set. Reading the training material is the
+# narrow thing being granted here.
+allow if {
+    input.path[0] == "workshops"
+    count(input.path) > 1
+    is_clerk(input.session)
+}
+
+# MCP (LibreChat-driven tool calls) requires a Lawyer or admin —
+# the tools mutate the same CRM tables.
+allow if {
+    input.path[0] == "mcp"
+    is_lawyer(input.session)
+}
+
+# A2A JSON-RPC dispatches to the same MCP tool registry — same
+# lawyer-tier requirement. The agent card at /app/api/aida.json is
+# decided at the router level, not here: it composes behind the session
+# boundary alone, because reading the card is not a tool call. So this
+# rule governs only the RPC endpoint, the path that actually dispatches.
+allow if {
+    input.path == ["app", "api", "aida", "rpc"]
+    is_lawyer(input.session)
+}
+
+# The API documentation surfaces: the Swagger UI shell at the /app/api root
+# and the OpenAPI document beside it. Enumerated as exact paths because they
+# are the two members of a closed set, not a prefix.
+#
+# Every tier that operates Navigator may read them — Lawyer and Clerk by the
+# two rules here, Owner and Admin through the route bypass at the top of this
+# policy — and `client` is the one authenticated tier denied. The document is
+# the firm's own command reference, describing every lawyer-only write; a
+# client has no more use for it than for /app/docs.
+#
+# Note the audience is deliberately *not* the same as the data reads below,
+# in either direction. A Clerk reads the reference but not the directory it
+# describes: operating Navigator is what admits them here, and the CRM is not
+# part of operating it. That mirrors /app/docs admitting Clerk while
+# /app/lawyer does not.
+#
+# Clerk gets an explicit rule rather than being folded into `lawyer_tier`, for
+# the reason stated at the top of this file: a non-lawyer role must never
+# inherit legal authority as a side effect of being admitted somewhere.
+# Reading an API reference is not legal authority.
+api_documentation_paths := {["app", "api"], ["app", "api", "openapi.json"]}
+
+allow if {
+    api_documentation_paths[input.path]
+    input.method == "GET"
+    is_lawyer(input.session)
+}
+
+allow if {
+    api_documentation_paths[input.path]
+    input.method == "GET"
+    is_clerk(input.session)
+}
+
+# ---------------------------------------------------------------------------
+# /app/api read paths — one rule per resource, no blanket grant.
+# ---------------------------------------------------------------------------
+#
+# There used to be a single rule here admitting any authenticated caller to
+# every `GET /app/api/*` path. It was the only grant on this surface that named
+# no resource, and it had two consequences:
+#
+# 1. A `client` read the firm's whole people and entities directory. The
+#    handlers carry no tier check of their own on the read path, so this rule
+#    was the only thing standing there, and it said yes.
+# 2. A newly added GET route was authorized the moment it was routed. Adding a
+#    read endpoint could not fail closed, because the grant did not depend on
+#    anyone having considered it.
+#
+# Each read is now named with the tier that should have it. A new GET route
+# under /app/api gets no decision until a rule is written for it, which is the
+# behaviour a default-deny policy is supposed to have.
+
+# The firm's CRM directory: people and entities, collection and item alike.
+# Lawyer and admin only. This is the firm's own book of clients,
+# counterparties, and contacts — a client sees their own matter through the
+# project surfaces, never the directory those surfaces are drawn from.
+#
+# The prefix match covers `/app/api/people` and `/app/api/people/{id}`
+# together, because "who may list the directory" and "who may read one row of
+# it" are the same question here.
+api_directory_resources := {"people", "entities"}
+
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    api_directory_resources[input.path[2]]
+    input.method == "GET"
+    is_lawyer(input.session)
+}
+
+# Reference data: the jurisdictions list and the entity-type vocabulary. Both
+# are firm-side authoring inputs — they populate the lawyer matter and entity
+# forms — and neither is reachable from a client surface, so they take the same
+# lawyer gate as the directory rather than a wider one. They carry no client
+# content, so this is about keeping the surface coherent rather than about
+# secrecy: a read a client cannot use is a read a client should not have.
+api_reference_resources := {"jurisdictions", "entity-types"}
+
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    api_reference_resources[input.path[2]]
+    input.method == "GET"
+    is_lawyer(input.session)
+}
+
+# Raw Template markdown: GET /app/api/templates/*path serves the source of a
+# notation template. Deliberately the permissive rule — any authenticated
+# person — because it is what the notation gallery at /notations and the
+# Template gallery at /templates already link, and both admit every
+# authenticated tier including `client`.
+#
+# This rule changes nothing about who reads it; before this the route simply
+# had no policy layer at all and rested on the session boundary. Stating the
+# grant is the point: the next reader can see that "any authenticated person"
+# was decided rather than defaulted, and tightening it is now one edit here
+# plus the two galleries that link it.
+#
+# Scoped to GET. POST /app/api/templates/validate is the lawyer-tier authoring
+# command below and must not be widened by this.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "templates"
+    input.method == "GET"
+    is_authenticated(input.session)
+}
+
+# Matter read clusters (#866). The portal's matter pages read these, and both a
+# client (their own matter) and the firm reach them, so they are admitted at the
+# session boundary and the handler self-scopes: `visible_projects` returns only
+# the caller's matters, and the by-id reads collapse an out-of-scope resource to
+# 404. Scoped to GET so the write verbs on these paths keep their own tier rules.
+#
+# GET /app/api/projects (list), /app/api/projects/{id} (detail),
+# /app/api/projects/{id}/{participants,notations} (matter sub-reads).
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    input.method == "GET"
+    count(input.path) <= 5
+    is_authenticated(input.session)
+}
+
+# GET /app/api/notations/{id} — one notation, scoped by its matter in the handler.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    count(input.path) == 4
+    input.method == "GET"
+    is_authenticated(input.session)
+}
+
+# Firm-tool reads: the contract-review playbooks and one inbound-contract review.
+# Not reachable from a client surface, so they take the lawyer tier like the
+# directory reads. GET /app/api/playbooks, /app/api/playbooks/{id},
+# /app/api/contract-reviews/{id}.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "playbooks"
+    input.method == "GET"
+    is_lawyer(input.session)
+}
+
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "contract-reviews"
+    count(input.path) == 4
+    input.method == "GET"
+    is_lawyer(input.session)
+}
+
+# The pending client-deletion queue and a notation's review drafts are firm work
+# product, so they take the lawyer tier. GET /app/api/expunge-requests and
+# /app/api/notations/{id}/review-documents. (A matter's documents and
+# conversation are read under the `projects` GET rule above, client-visible-
+# filtered in the handler.)
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "expunge-requests"
+    count(input.path) == 3
+    input.method == "GET"
+    is_lawyer(input.session)
+}
+
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "review-documents"
+    count(input.path) == 5
+    input.method == "GET"
+    is_lawyer(input.session)
+}
+
+# Stateless Template markdown validator: POST /app/api/templates/validate
+# lints draft markdown and returns violations. It touches no database,
+# but linting a Template is a lawyer authoring activity — so it takes
+# the same lawyer-tier gate as every other /app/api/* command, not the
+# any-authenticated GET grant. The canonical path is
+# /app/api/templates/validate; there is no /app/api/notations/validate alias.
+allow if {
+    input.path == ["app", "api", "templates", "validate"]
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# People command resource: create/update/delete and the welcome-send
+# command move through POST/PATCH/DELETE /app/api/people*. These are the
+# REST command boundary for both the browser lawyer forms (cookie +
+# CSRF) and machine clients (bearer). Owner/Admin/Lawyer only — the
+# handler re-checks the tier, but the policy gate is the first line so a
+# client or anonymous write never reaches it. Read paths stay open to
+# any authenticated caller via the GET rule above.
+api_write_methods := {"POST", "PATCH", "DELETE"}
+
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "people"
+    api_write_methods[input.method]
+    is_lawyer(input.session)
+}
+
+# Entity command resource: POST /app/api/entities is the REST command
+# boundary the lawyer create form, the inline "Add entity" modal on the
+# project form, and machine clients all travel. Same lawyer-tier gate as
+# the People commands — a client or anonymous write never reaches the
+# handler's own check. Read paths stay open to any authenticated caller
+# via the GET rule above.
+#
+# The entities resource is now complete on the command boundary: create,
+# update, and delete all have handlers, so this grant covers the full
+# `api_write_methods` set. Each verb was added here in the same change
+# that added its handler, never ahead of it.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "entities"
+    api_write_methods[input.method]
+    is_lawyer(input.session)
+}
+
+# Upload a contract for playbook review: POST /app/api/projects/{id}/contract-review
+# ingests an inbound third-party contract (multipart) and runs the deviation
+# analysis. Client-writable like the review surface — a matter's client may
+# submit their own contract, or the firm may — so any authenticated caller is
+# admitted; the handler then enforces matter scope through either lens (lawyer
+# or client), collapsing a non-participant to 404. Scoped to the
+# contract-review sub-path and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    input.path[4] == "contract-review"
+    input.method == "POST"
+    is_authenticated(input.session)
+}
+
+# Add-participant command: POST /app/api/projects/{id}/participants adds a person
+# to a matter's participation ledger (co-counsel, paralegal, a second client
+# contact). Firm-side matter-management action, so lawyer/admin only; a
+# client or anonymous write never reaches the handler's own LawyerSession
+# check. Scoped to the participants sub-path and POST, the one verb this
+# slice ships — edit/remove earn their own grants when they land.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    input.path[4] == "participants"
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Open a matter's closing-letter notation: POST /app/api/projects/{id}/close is
+# the REST mirror of the lawyer close control. Firm-side matter action,
+# lawyer/admin only at the tier; the handler additionally re-checks that the
+# acting lawyer participates in the matter (admin bypasses) and collapses an
+# out-of-scope matter to 404. Scoped to the close sub-path (five segments) and
+# POST, the one verb it ships.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    input.path[4] == "close"
+    count(input.path) == 5
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Approve a released estate plan: POST /app/api/projects/{id}/approve-plan is
+# the client approving their own plan, so — unlike every other project write —
+# it is client-writable. Any authenticated caller is admitted here; the handler
+# enforces client-lens matter access (a caller who is not this matter's client
+# sees 404). Scoped to the approve-plan sub-path (five segments) and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    input.path[4] == "approve-plan"
+    count(input.path) == 5
+    input.method == "POST"
+    is_authenticated(input.session)
+}
+
+# Post a matter conversation message: POST
+# /app/api/projects/{id}/conversation/messages. Both the client and the firm
+# post here, so it is client-writable. Any authenticated caller is admitted; the
+# handler enforces either-lens matter access (a non-participant sees 404) and the
+# tier decides the message side. Scoped to the conversation/messages sub-path
+# (six segments) and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    input.path[4] == "conversation"
+    input.path[5] == "messages"
+    count(input.path) == 6
+    input.method == "POST"
+    is_authenticated(input.session)
+}
+
+# Authorize a client document-deletion request: POST
+# /app/api/expunge-requests/{id}/authorize runs the governed expunge, so it is
+# admin-only — the one write on this surface that the lawyer tier alone cannot
+# fire. Scoped to the authorize sub-path (five segments) and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "expunge-requests"
+    input.path[4] == "authorize"
+    count(input.path) == 5
+    input.method == "POST"
+    is_admin(input.session)
+}
+
+# Deny a client document-deletion request: POST
+# /app/api/expunge-requests/{id}/deny resolves it without deleting anything, so
+# the lawyer tier may fire it. Scoped to the deny sub-path (five segments) and
+# POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "expunge-requests"
+    input.path[4] == "deny"
+    count(input.path) == 5
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Create a contract-review playbook: POST /app/api/playbooks. A firm tool for
+# authoring a Company's negotiating positions; lawyer/admin only. Scoped to the
+# playbooks collection (three segments) and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "playbooks"
+    count(input.path) == 3
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Replace a playbook's positions: PUT /app/api/playbooks/{id}. Same firm tool;
+# lawyer/admin only. Scoped to the playbook item (four segments) and PUT.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "playbooks"
+    count(input.path) == 4
+    input.method == "PUT"
+    is_lawyer(input.session)
+}
+
+# The contract-review workbench: save a finding, edit the summary, approve, or
+# reject an inbound-contract review. Firm-side matter action, lawyer/admin only
+# at the tier; each handler additionally re-checks the acting lawyer participates
+# in the review's matter (admin bypasses) and collapses out-of-scope to 404.
+# Save a finding: POST /app/api/contract-reviews/{id}/findings/{idx} (six segs).
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "contract-reviews"
+    input.path[4] == "findings"
+    count(input.path) == 6
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Edit the summary, approve, or reject: POST
+# /app/api/contract-reviews/{id}/{summary,approve,reject} (five segments).
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "contract-reviews"
+    input.path[4] in {"summary", "approve", "reject"}
+    count(input.path) == 5
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# File a document into a matter: POST /app/api/projects/{id}/documents. Firm-side
+# matter write, lawyer/admin only; the handler re-checks matter participation and
+# collapses out-of-scope to 404. Scoped to the documents sub-path (five segments)
+# and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    input.path[4] == "documents"
+    count(input.path) == 5
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Run a transcript against a notation's questionnaire: POST
+# /app/api/notations/{id}/transcript. Firm-side matter action, lawyer/admin only;
+# the handler re-checks matter participation. Scoped to the transcript sub-path
+# under notations (five segments) and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "transcript"
+    count(input.path) == 5
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# File an estate matter's sitting transcript: POST
+# /app/api/projects/{id}/notations/{nid}/transcript. Firm-side matter action,
+# lawyer/admin only; the handler re-checks participation and that the notation
+# belongs to the matter. Scoped to the transcript sub-path under a project's
+# notation (seven segments) and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    input.path[4] == "notations"
+    input.path[6] == "transcript"
+    count(input.path) == 7
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Edit + remove a participation row: PATCH/DELETE
+# /app/api/projects/{id}/participants/{role_id} rewrite or drop one participant
+# (the command refuses to strand the matter's lawyer DRI). Same firm-side
+# matter-management action as the add above; lawyer/admin only. Scoped
+# to the participant-item path (five segments) and the two mutating verbs.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    input.path[4] == "participants"
+    count(input.path) == 6
+    input.method in {"PATCH", "DELETE"}
+    is_lawyer(input.session)
+}
+
+# Designate or clear a participant's DRI marker: PUT/DELETE
+# /app/api/projects/{id}/participants/{role_id}/dri. Same firm-side matter
+# self-governance as the edit/remove above; lawyer/admin only at the tier. This
+# grant is necessary but not sufficient — the command additionally gates the
+# change on the caller already holding the marker for that side, so a lawyer who
+# is not a current DRI is admitted here and refused by the command. Scoped to the
+# dri sub-path (seven segments) and the two mutating verbs.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    input.path[4] == "participants"
+    input.path[6] == "dri"
+    count(input.path) == 7
+    input.method in {"PUT", "DELETE"}
+    is_lawyer(input.session)
+}
+
+# Open a notation on a matter: POST /app/api/projects/{id}/notations opens a
+# notation from a template authored in the matter's own repo (or the bundled
+# firm catalog). Firm-side matter action, lawyer/admin only at the
+# tier; this lawyer grant is necessary but not sufficient, because the handler
+# additionally re-checks that the acting lawyer participates in the matter
+# (admin bypasses) and collapses an out-of-scope matter to 404. Scoped to the
+# notations sub-path and POST, the one verb this slice ships.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    input.path[4] == "notations"
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Answer a notation's questionnaire step: POST /app/api/notations/{id}/answers
+# records the answer to the step the questionnaire is currently asking,
+# attributed to the acting lawyer. Firm-side matter action, lawyer/admin
+# only at the tier; the handler additionally re-checks that the acting lawyer
+# participates in the notation's matter (admin bypasses) and collapses an
+# out-of-scope notation to 404. The client-facing self-serve intake (the
+# magic-link walk) is a separate surface, not this REST path. Scoped to the
+# answers sub-path and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "answers"
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Send a notation back for changes: POST
+# /app/api/notations/{id}/request-changes flags answers and fires the
+# changes_requested transition. Firm-side matter action, lawyer/admin only at
+# the tier; the handler additionally re-checks matter participation (admin
+# bypasses) and collapses an out-of-scope notation to 404. Scoped to the
+# request-changes sub-path and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "request-changes"
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Resubmit a re-collected notation: POST /app/api/notations/{id}/reask writes the
+# re-collected answers and fires intake_resubmitted. Firm-side matter action,
+# lawyer/admin only at the tier; the handler additionally re-checks matter
+# participation (admin bypasses) and collapses an out-of-scope notation to 404.
+# Scoped to the reask sub-path and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "reask"
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Send a notation's client their self-serve intake link: POST
+# /app/api/notations/{id}/intake emails the matter's client the magic link that
+# backs their intake walk. Firm-side matter action, lawyer/admin only
+# at the tier; the handler additionally re-checks that the acting lawyer
+# participates in the notation's matter (admin bypasses) and collapses an
+# out-of-scope notation to 404. Scoped to the intake sub-path and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "intake"
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Approve a notation parked at lawyer_review: POST /app/api/notations/{id}/approval
+# re-assembles the reviewed document and fires the `approved` transition so
+# the worker renders the PDF. A binding attorney action (the reviewed paper
+# is what goes out for signature next), so lawyer/admin only at the
+# tier; the handler additionally re-checks that the acting lawyer participates
+# in the notation's matter (admin bypasses) and collapses an out-of-scope
+# notation to 404. Scoped to the approval sub-path and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "approval"
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Dispatch a notation for signature: POST /app/api/notations/{id}/signature fires
+# `pdf_persisted` and sends exactly one signature envelope. The binding send
+# — the reviewed engagement goes out for the client's signature — so lawyer
+# lawyer/admin only at the tier; the handler additionally re-checks that the
+# acting lawyer participates in the notation's matter (admin bypasses) and
+# collapses an out-of-scope notation to 404. Scoped to the signature
+# sub-path and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "signature"
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Release an estate notation's drafts to client review: POST
+# /app/api/notations/{id}/release-drafts advances lawyer_review -> client_review
+# and flips every generated draft instrument to pending_review (making it
+# visible to the client). The attorney gate before a client-facing legal
+# document leaves `draft`, so lawyer/admin only at the tier; the
+# handler additionally re-checks that the acting lawyer participates in the
+# notation's matter (admin bypasses) and collapses an out-of-scope notation
+# to 404. Scoped to the release-drafts sub-path and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "release-drafts"
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Append a custom clause to a notation's document: POST
+# /app/api/notations/{id}/clauses adds firm-authored prose spliced into the
+# assembled body at render time. Firm-side document authoring, so lawyer
+# lawyer/admin only at the tier; the handler additionally re-checks that the
+# acting lawyer participates in the notation's matter (admin bypasses) and
+# collapses an out-of-scope notation to 404. Scoped to the clauses sub-path
+# (the collection, four segments) and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "clauses"
+    count(input.path) == 5
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Edit + remove a clause: PATCH/DELETE /app/api/notations/{id}/clauses/{clause_id}
+# rewrite or drop one clause. Same firm-side document authoring as the append
+# above; lawyer/admin only, and the handler re-checks matter scope and
+# that the clause belongs to the notation. Scoped to the clause-item path
+# (five segments) and the two mutating verbs.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "clauses"
+    count(input.path) == 6
+    input.method in {"PATCH", "DELETE"}
+    is_lawyer(input.session)
+}
+
+# Reorder a clause: POST /app/api/notations/{id}/clauses/{clause_id}/move swaps it
+# with its neighbour. Same firm-side authoring action; lawyer/admin
+# only. Scoped to the clause move sub-path (six segments) and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "notations"
+    input.path[4] == "clauses"
+    count(input.path) == 7
+    input.path[6] == "move"
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# Add a comment to a review document: POST /app/api/review-documents/{id}/comments.
+# The FIRST client-writable /api door — the read-only review surface lets a
+# matter's CLIENT annotate the document, so this allows any authenticated
+# caller (not just lawyer), mirroring the /app review surface. The handler
+# enforces client-lens matter scope (a firm-side-only lawyer or a
+# non-participant sees 404) and derives the comment's direction from the
+# caller's role. Scoped to the comments sub-path and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "review-documents"
+    input.path[4] == "comments"
+    input.method == "POST"
+    is_authenticated(input.session)
+}
+
+# Request a document's deletion: POST /app/api/documents/{id}/deletion-requests.
+# A matter participant (typically the client) asks for a document to be
+# deleted; this only records a pending request — a lawyer/admin must
+# authorize the actual expunge. Client-writable like the review surface, so
+# any authenticated caller is admitted; the handler enforces client-lens
+# matter scope (a firm-side-only lawyer or a non-participant sees 404).
+# Scoped to the deletion-requests sub-path and POST.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "documents"
+    input.path[4] == "deletion-requests"
+    input.method == "POST"
+    is_authenticated(input.session)
+}
+
+# Project descriptive update + delete on the bare matter path:
+# PATCH /app/api/projects/{id} edits a matter's descriptive fields (no
+# lifecycle/status, no conflict check, no repo provisioning, no price move);
+# DELETE /app/api/projects/{id} removes a matter (blocked by the database when
+# dependents still reference it). Lawyer/admin only. Scoped to these
+# two verbs on the bare matter path — the matter-open (POST) verb earns its
+# own grant in the change that adds its handler.
+project_bare_methods := {"PATCH", "DELETE"}
+
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    count(input.path) == 4
+    project_bare_methods[input.method]
+    is_lawyer(input.session)
+}
+
+# Matter open: POST /app/api/projects opens a new matter — the conflict check,
+# the opening attorney's required conflict attestation, the DRI
+# designations, and repo provisioning. At this firm `lawyer` is an attorney,
+# so this lawyer/admin gate is the "an attorney is opening (and attesting)"
+# check; a client or anonymous caller never reaches the handler. Scoped to
+# POST on the collection path (`/app/api/projects`, length 2), distinct from the
+# per-matter verbs above.
+allow if {
+    input.path[0] == "app"
+    input.path[1] == "api"
+    input.path[2] == "projects"
+    count(input.path) == 3
+    input.method == "POST"
+    is_lawyer(input.session)
+}
+
+# NOTE: the API documentation surfaces ARE decided here, by
+# `api_documentation_paths` above — they are the one part of the /app/api
+# prefix whose audience is narrower than "any authenticated caller", and a
+# tier decision is this policy's job rather than the router's.
+#
+# That reverses an earlier posture worth recording, because the reversal is
+# safe in one direction only. These paths once mounted outside
+# require_policy so that a stale ConfigMap could not gate them: the public
+# exemption shipped in the Rego with #204, an image-only deploy advanced the
+# `web` binary ahead of the policy bundle, and the policy default-denied the
+# new path. The lesson was about *widening* — an allow rule is the only thing
+# standing between a path and default-deny, so a path that must be MORE open
+# than the default cannot depend on a bundle that redeploys separately.
+#
+# A restrictive rule is the opposite shape. If this ConfigMap goes stale the
+# docs default-deny and a reader sees 403 — an availability annoyance a
+# redeploy fixes, not a surface opening to someone who should not see it. So
+# the tier gate lives here and fails closed, while the /app/api/aida.json
+# agent card, which needs only a session, still stays a routing decision.
+#
+# None of these paths is anonymous. They compose behind
+# `portal::auth::require_session` as well, so the session boundary decides
+# reachability and this policy decides which authenticated tier proceeds.

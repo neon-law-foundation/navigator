@@ -1,0 +1,59 @@
+# GitHub automation authority canary — starts one body-free
+# `GitHubAutomationHeartbeat` workflow every six hours. Apply this manifest
+# only to neon-law-stg, the one deployment where the worker binds that
+# authority-only workflow. Other Navigator environments deliberately do not
+# register the service and must not schedule the canary.
+#
+# The workflow journals `beat` then sends the one-line GitHub-automation
+# authority notice through the ops notifier. It never receives a webhook,
+# reads repository content, mints a GitHub token, or invokes an agent.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: github-automation-heartbeat-trigger
+  namespace: navigator
+  labels:
+    app: github-automation-heartbeat-trigger
+spec:
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 4
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 120
+      template:
+        metadata:
+          labels:
+            app: github-automation-heartbeat-trigger
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: github-automation-heartbeat-trigger
+              image: YOUR_IMAGE_REGISTRY/navigator-heartbeat-trigger:YY.M.D
+              imagePullPolicy: Always
+              env:
+                # The trigger POSTs `${RESTATE_INGRESS_URL}/GitHubAutomationHeartbeat/<date-hour>/run`.
+                - name: RESTATE_INGRESS_URL
+                  value: https://YOUR_RESTATE_CLOUD_INGRESS
+                - name: HEARTBEAT_WORKFLOW_SERVICE
+                  value: GitHubAutomationHeartbeat
+                - name: RESTATE_AUTH_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: navigator-web-secrets
+                      key: RESTATE_AUTH_TOKEN
+                      optional: true
+                - name: RUST_LOG
+                  value: info
+              envFrom:
+                - configMapRef:
+                    name: navigator-otel-env
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                limits:
+                  memory: 128Mi

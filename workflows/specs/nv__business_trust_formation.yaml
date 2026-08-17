@@ -1,0 +1,32 @@
+questionnaire:
+  BEGIN:
+    _: person__client
+  person__client:
+    _: entity__company
+  entity__company:
+    _: person__registered_agent
+  person__registered_agent:
+    _: people__trustees
+  people__trustees:
+    _: END
+  END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  entity_name: What is the legal name of your LLC?
+  registered_agent: Who is the registered agent?
+workflow:
+  BEGIN:
+    intake_submitted: intake_persisted__trustee
+  intake_persisted__trustee:
+    certificate_rendered: lawyer_review
+  lawyer_review:
+    approved: generate_pdf__certificate_pdf
+    rejected: END
+  generate_pdf__certificate_pdf:
+    pdf_persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: filing__nv_sos
+    signature_declined: END
+  filing__nv_sos:
+    filed: END
+  END: {}

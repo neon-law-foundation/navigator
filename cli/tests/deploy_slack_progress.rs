@@ -1,0 +1,247 @@
+//! Guard the #navigator deploy narration: every forward-path step of the
+//! release pipeline opens with a `slack-progress` post.
+//!
+//! A release runs ~45 minutes and would otherwise say nothing until it either
+//! reported success or paged engineering. The narration closes that window —
+//! but only while it stays complete: one step added without a post is one place
+//! a failure can hide, and nobody notices a *missing* Slack line. So the
+//! completeness is asserted here rather than left to review.
+//!
+//! `deploy.yml` is the one narrated workflow: the publish run that builds the
+//! images and hands them to the operator. Nothing else talks to #navigator.
+//!
+//! Two categories are deliberately exempt, and this test encodes both:
+//!
+//! - steps before the job's `actions/checkout`, because the post is a local
+//!   composite action and is not on disk yet;
+//! - steps gated on `failure()` or `always()`, which are post-mortem
+//!   diagnostics rather than progress — `notify-failure` covers that moment.
+
+use std::fs;
+use std::path::PathBuf;
+
+use serde_yaml::Value;
+
+/// The action every narrated step calls.
+const PROGRESS_ACTION: &str = "./.github/actions/slack-progress";
+
+/// The release jobs that narrate. `notify` and `notify-failure` are the
+/// Slack surface itself — narrating them would post about posting.
+const NARRATED_JOBS: &[&str] = &[
+    "release-version",
+    "build",
+    "integration",
+    "publish-service",
+    "publish-triggers",
+    "release-windows-cli-build",
+    "release-cli-build-linux",
+    "release-cli-build-macos",
+    "release-windows-cli-publish",
+];
+
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("repo root is cli/'s parent")
+        .to_path_buf()
+}
+
+fn workflow_at(relative: &str) -> Value {
+    let path = repo_root().join(relative);
+    let raw = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+    serde_yaml::from_str(&raw).unwrap_or_else(|error| panic!("{relative} parses as YAML: {error}"))
+}
+
+fn deploy_workflow() -> Value {
+    workflow_at(".github/workflows/deploy.yml")
+}
+
+/// Every narrated job, paired with the workflow it lives in, so each assertion
+/// below reads the same whether one workflow narrates or several do.
+fn narrated() -> Vec<(Value, &'static str)> {
+    NARRATED_JOBS
+        .iter()
+        .map(|job| (deploy_workflow(), *job))
+        .collect()
+}
+
+fn steps<'a>(workflow: &'a Value, job: &str) -> &'a Vec<Value> {
+    workflow["jobs"][job]["steps"]
+        .as_sequence()
+        .unwrap_or_else(|| panic!("job `{job}` has a steps list"))
+}
+
+fn uses(step: &Value) -> &str {
+    step.get("uses").and_then(Value::as_str).unwrap_or_default()
+}
+
+fn name(step: &Value) -> &str {
+    step.get("name").and_then(Value::as_str).unwrap_or_default()
+}
+
+fn condition(step: &Value) -> &str {
+    step.get("if").and_then(Value::as_str).unwrap_or_default()
+}
+
+/// A diagnostic runs only once the job has already failed; it reports on a
+/// deploy rather than advancing one.
+fn is_diagnostic(step: &Value) -> bool {
+    matches!(condition(step).trim(), "failure()" | "always()")
+}
+
+#[test]
+fn every_forward_path_step_opens_with_a_navigator_progress_post() {
+    for (workflow, job) in narrated() {
+        let steps = steps(&workflow, job);
+        let checkout = steps
+            .iter()
+            .position(|step| uses(step).starts_with("actions/checkout"))
+            .unwrap_or_else(|| {
+                panic!("job `{job}` narrates, so it must check out the local action")
+            });
+
+        for (index, step) in steps.iter().enumerate() {
+            if index < checkout || uses(step) == PROGRESS_ACTION || is_diagnostic(step) {
+                continue;
+            }
+            let Some(label) = step.get("name").and_then(Value::as_str) else {
+                // An unnamed `uses:` step is setup plumbing (buildx, gcloud);
+                // it has no name to narrate.
+                continue;
+            };
+            let preceding = index
+                .checked_sub(1)
+                .map(|prev| uses(&steps[prev]))
+                .unwrap_or_default();
+            assert_eq!(
+                preceding, PROGRESS_ACTION,
+                "`{job}` step `{label}` is not preceded by a #navigator progress post — \
+                 a step nobody sees start is a step a failure can hide in"
+            );
+        }
+    }
+}
+
+/// The post is a local composite action: it cannot run before the tree it
+/// lives in is on disk.
+#[test]
+fn no_progress_post_runs_before_its_job_checks_the_tree_out() {
+    for (workflow, job) in narrated() {
+        let mut checked_out = false;
+        for step in steps(&workflow, job) {
+            if uses(step).starts_with("actions/checkout") {
+                checked_out = true;
+            }
+            if uses(step) == PROGRESS_ACTION {
+                assert!(
+                    checked_out,
+                    "`{job}` posts progress for `{}` before checking out the action",
+                    step["with"]["step"].as_str().unwrap_or("?")
+                );
+            }
+        }
+    }
+}
+
+/// Every post carries the webhook. Losing it turns a narrated deploy silent.
+#[test]
+fn every_progress_post_is_wired_to_the_webhook() {
+    let mut posts = 0;
+
+    for (workflow, job) in narrated() {
+        for step in steps(&workflow, job) {
+            if uses(step) != PROGRESS_ACTION {
+                continue;
+            }
+            posts += 1;
+            let with = &step["with"];
+            assert_eq!(
+                with["webhook-url"].as_str(),
+                Some("${{ secrets.SLACK_WEBHOOK_URL }}"),
+                "`{job}` progress post must read the prod ops webhook secret"
+            );
+            assert!(
+                with["stage"].as_str().is_some_and(|s| !s.is_empty()),
+                "`{job}` progress post must name its stage"
+            );
+            assert!(
+                with["step"].as_str().is_some_and(|s| !s.is_empty()),
+                "`{job}` progress post must name its step"
+            );
+        }
+    }
+
+    assert!(
+        posts > 40,
+        "the pipeline narrates every forward-path step; got only {posts} posts"
+    );
+}
+
+/// The Slack surface is the report jobs' own business, in both workflows. A
+/// progress post there would narrate the narration.
+#[test]
+fn the_report_jobs_are_not_narrated() {
+    for workflow in [deploy_workflow()] {
+        for job in ["notify", "notify-failure"] {
+            for step in steps(&workflow, job) {
+                assert_ne!(
+                    uses(step),
+                    PROGRESS_ACTION,
+                    "`{job}` is the Slack surface itself and must not narrate: `{}`",
+                    name(step)
+                );
+            }
+        }
+    }
+}
+
+/// Both publishing events run from a BRANCH ref, so a `refs/tags/*` gate would
+/// silence them entirely — every post skipped, the whole publish invisible in
+/// #navigator. That is the trap the tag-era gate set for the old promotion
+/// workflow, and the fix is the same shape: gate on the EVENT, and read it from
+/// the run rather than trusting a caller-supplied flag, so a new call site
+/// cannot forget it.
+#[test]
+fn the_progress_gate_admits_every_publishing_event() {
+    let path = repo_root().join(".github/actions/slack-progress/action.yml");
+    let raw = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+
+    assert!(
+        raw.contains("schedule | workflow_dispatch)"),
+        "slack-progress must admit BOTH publishing events: each runs from a branch ref, and a \
+         gate that names only one silences half the runs that publish anything"
+    );
+    assert!(
+        !raw.contains("refs/tags/*"),
+        "the tag arm must go with the tag trigger: nothing publishes from a tag any more"
+    );
+    assert!(
+        !raw.contains("inputs.force") && !raw.contains("inputs.gate"),
+        "the gate must be read from the run, not handed in by the caller — a per-call-site flag \
+         is a gate a new step can forget"
+    );
+}
+
+/// A release must never be lost to its own narration. The action reports a
+/// failed post as a warning and exits 0 on every path.
+#[test]
+fn a_failed_progress_post_never_fails_the_deploy() {
+    let path = repo_root().join(".github/actions/slack-progress/action.yml");
+    let raw = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+
+    assert!(
+        !raw.contains("exit 1"),
+        "slack-progress must not exit non-zero: a lost Slack line is not a lost release"
+    );
+    assert!(
+        raw.contains("::warning::"),
+        "a failed post must still be visible in the run log as a warning"
+    );
+    assert!(
+        !raw.contains("set -euo"),
+        "`set -e` would turn a curl failure into a failed deploy step"
+    );
+}

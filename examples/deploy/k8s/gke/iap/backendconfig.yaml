@@ -1,0 +1,29 @@
+# BackendConfig for the `navigator-web-mcp` Service.
+#
+# IAP is intentionally DISABLED here. We tried gating /mcp at the
+# LB with iap.enabled: true, but Google Identity-Aware Proxy
+# requires a JWT-shaped ID token (`eyJ...`) on incoming requests,
+# while Gemini Enterprise's Custom MCP Server data store sends an
+# opaque OAuth 2.0 access token (`ya29....`). IAP responded
+# `"Invalid IAP credentials: Unable to parse JWT"` and the request
+# never reached the pod.
+#
+# Auth for /mcp now lives inside the `web` pod
+# (`web::google_oauth`), which calls Google's tokeninfo endpoint
+# to validate the bearer token's `aud`, `email`, and
+# `email_verified` claims. See docs/gemini-enterprise-mcp.md.
+#
+# The BackendConfig (and the parallel navigator-web-mcp Service
+# under ./navigator-web-mcp-service.yaml plus the Ingress path
+# rule) is kept as architectural scaffolding: should a future
+# Gemini surface (or another caller) actually send IAP-compatible
+# tokens, flipping `iap.enabled: true` here is the one-line
+# re-enable.
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: navigator-web-mcp
+  namespace: navigator
+spec:
+  iap:
+    enabled: false

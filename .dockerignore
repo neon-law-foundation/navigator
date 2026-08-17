@@ -1,0 +1,22 @@
+target/
+.git/
+.github/
+.idea/
+.vscode/
+*.sqlite
+*.swp
+*.log
+
+# Transcoded responsive photo variants (~17 MB). Production serves
+# these from the public `<project>-assets` GCS bucket (uploaded by
+# `cli assets upload`), so normal `COPY server server` image builds must not
+# bundle local pulled photos. The deploy workflow's ephemeral KIND build
+# verifies the real public origin, writes generated placeholders, and
+# removes this ignore rule in its temporary checkout before building.
+# The rest of `server/public` (Bootstrap, brand SVGs) still ships.
+server/public/img/
+# Licensed GORP WOFF2 files are served from the deployment asset origin; the
+# real bytes are never baked into an application image. Handled exactly like
+# the photos above: the ephemeral KIND build stubs them and drops this rule so
+# the local `/public` mount serves the same keys the public origin does.
+server/public/fonts/gorp-serif/*.woff2

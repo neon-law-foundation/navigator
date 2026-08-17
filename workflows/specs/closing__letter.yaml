@@ -1,0 +1,43 @@
+questionnaire:
+  BEGIN:
+    _: person__client
+  person__client:
+    _: project__engagement
+  project__engagement:
+    _: custom_text__matter_summary
+  custom_text__matter_summary:
+    _: custom_single_choice__fee_status
+  custom_single_choice__fee_status:
+    _: custom_text__file_retention
+  custom_text__file_retention:
+    _: custom_text__next_obligation
+  custom_text__next_obligation:
+    _: END
+  END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  project_name: What is the project name for this engagement?
+custom_questions:
+  matter_summary:
+    prompt: Summarize the matter and the work the firm completed.
+  fee_status:
+    prompt: What is the fee status as the matter closes?
+    choices:
+      paid_in_full: Paid in full
+      balance_due: Balance due
+      waived: Fees waived
+  file_retention:
+    prompt: How will the client's file be retained or returned?
+  next_obligation:
+    prompt: What is the client's next obligation or deadline, if any?
+workflow:
+  BEGIN:
+    close_requested: lawyer_review
+  lawyer_review:
+    approved: generate_pdf__closing_letter
+    rejected: END
+  generate_pdf__closing_letter:
+    pdf_persisted: firm_signature__closing_letter
+  firm_signature__closing_letter:
+    signed: END
+  END: {}

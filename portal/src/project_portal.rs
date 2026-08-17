@@ -1,0 +1,450 @@
+//! `GET /app/projects/{code}/portal` — one client portal per Project.
+//!
+//! Every Project has exactly one front-end application: the client's portal,
+//! built from that Project's own repository under `portal/` and mounted at this
+//! fixed path. There is no `{application}` path parameter, no application name,
+//! and no registry lookup that resolves one — the segment is the literal
+//! [`cloud::workspace::PORTAL_MOUNT_SEGMENT`].
+//!
+//! # Why the extra segment exists
+//!
+//! Mounting the portal at `/app/projects/{code}` directly would shadow
+//! Navigator's own matter show page, which is served at `/app/projects/{id}`.
+//! The `portal` segment is what keeps that page, and it is the first thing
+//! [`tests`] asserts.
+//!
+//! # Handler order
+//!
+//! 1. **Authenticate.** The route rides `session_boundary` like every other
+//!    `/app` surface, so an anonymous caller is bounced to login and never
+//!    reaches this module.
+//! 2. **Resolve the code to a Project.**
+//! 3. **Authorize through Project participation**, and answer a scope miss with
+//!    404.
+//! 4. **Stream that Project's published portal bundle** from the private
+//!    applications bucket.
+//!
+//! # The bundle is streamed, never redirected
+//!
+//! The bytes are streamed through this handler from
+//! [`AppState::applications_storage`](crate::AppState) — the private,
+//! per-deployment `<project>-applications` bucket. A signed-URL redirect is
+//! deliberately refused: it would be bearer-shareable for its lifetime with no
+//! participation recheck, and it points at a different origin, so the session
+//! cookie the bundle needs for its own `/app/api` reads would not travel.
+//! Same-origin streaming is the whole mechanism that keeps the bundle
+//! participation-gated.
+//!
+//! The mount serves like any single-page application:
+//!
+//! * The bare mount `301`s to the trailing-slash form, because a Vite base
+//!   joins asset URLs directly onto it.
+//! * A published object is streamed with its extension's content type. A
+//!   content-hashed asset is immutable for a year; `index.html` is `no-store`.
+//! * Any path with no published object falls back to that portal's
+//!   `index.html`, so a client-side route and a browser refresh both survive.
+//! * A third-party bundle cannot ride Navigator's nonce CSP, so the response
+//!   carries its own [`PORTAL_CSP`] instead.
+//!
+//! # A scope miss is 404, never 403
+//!
+//! 403 would confirm that a Project with this code exists to somebody who is
+//! not on it. Every refusal below — no such Project, no participation, nothing
+//! published — is the same non-disclosing response, so the status code carries
+//! no information about which one it was.
+
+use std::sync::Arc;
+
+use axum::extract::{Extension, Path, State};
+use axum::http::{header, HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::routing::get;
+use axum::Router;
+
+use cloud::workspace::PORTAL_MOUNT_SEGMENT;
+
+use crate::session::SessionData;
+
+/// The one path a Project's client portal is served at.
+///
+/// `{code}` is the Project code, and `portal` is a literal rather than a
+/// parameter. `/app/projects/{id}` stays Navigator's matter show page.
+pub const PROJECT_PORTAL_PATH: &str = "/app/projects/{code}/portal";
+
+/// The trailing-slash form the bare mount redirects to, and the root every
+/// asset URL is joined onto by the Vite base.
+const PROJECT_PORTAL_ROOT: &str = "/app/projects/{code}/portal/";
+
+/// One published object below the mount. `{asset}` is the path within the
+/// bundle; the wildcard is what makes a nested `assets/index-<hash>.js`
+/// resolve.
+const PROJECT_PORTAL_ASSET: &str = "/app/projects/{code}/portal/{*asset}";
+
+/// The bundle entrypoint, served for the bare mount and for any unmatched
+/// path below it.
+const INDEX: &str = "index.html";
+
+/// Content-hashed assets never change under their name, so they cache for a
+/// year and are never revalidated. Distinct from the public assets lane's
+/// `STATIC_CACHE_CONTROL`: this bundle is participation-gated, so it is
+/// `private` rather than shared-cacheable.
+const IMMUTABLE_CACHE: HeaderValue =
+    HeaderValue::from_static("private, max-age=31536000, immutable");
+
+/// `index.html` names the live build, so it must never be cached — a stale
+/// copy would keep pointing at hashed assets a later publish has aged out.
+const NO_STORE: HeaderValue = HeaderValue::from_static("no-store");
+
+/// A third-party Vite bundle cannot carry Navigator's per-request script
+/// nonce, so the `/app/projects/{code}/portal` scope gets its own policy
+/// rather than inheriting the nonce CSP. It is applied on the response, and
+/// the global `if_not_present` CSP layer leaves it in place. `connect-src
+/// 'self'` is what lets the bundle reach its own same-origin `/app/api`.
+const PORTAL_CSP: HeaderValue = HeaderValue::from_static(
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; \
+     img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; \
+     object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+);
+
+/// The handler's state: the store to resolve and authorize the Project, and
+/// the applications bucket to stream its bundle from.
+#[derive(Clone)]
+struct PortalState {
+    surreal: store::surreal::SurrealDb,
+    applications: Arc<dyn cloud::StorageService>,
+}
+
+/// Mount the Project portal route.
+///
+/// The policy and auth layers match every other `/app` surface. Participation
+/// authorization is the handler's own work, because it is per-Project rather
+/// than per-tier.
+pub fn router(
+    surreal: store::surreal::SurrealDb,
+    applications: Arc<dyn cloud::StorageService>,
+    sessions: crate::session::SessionStore,
+    policy: crate::policy::PolicyClient,
+    auth: crate::auth::AuthConfig,
+) -> Router {
+    Router::new()
+        .route(PROJECT_PORTAL_PATH, get(redirect_to_slash))
+        .route(PROJECT_PORTAL_ROOT, get(serve_index))
+        .route(PROJECT_PORTAL_ASSET, get(serve_asset))
+        .with_state(PortalState {
+            surreal,
+            applications,
+        })
+        .route_layer(axum::middleware::from_fn_with_state(
+            (sessions, policy),
+            crate::policy::require_policy,
+        ))
+        .route_layer(axum::middleware::from_fn_with_state(
+            auth,
+            crate::auth::require_auth,
+        ))
+}
+
+/// The one non-disclosing refusal.
+///
+/// Deliberately one function rather than a status code written at each refusal:
+/// a reviewer can see that no branch below distinguishes "no such Project" from
+/// "not your Project" from "nothing published yet".
+fn not_found() -> Response {
+    (StatusCode::NOT_FOUND, "Not Found").into_response()
+}
+
+/// The bare mount carries no bundle path, so it redirects to the slashed root.
+///
+/// Unconditional and pre-authorization: appending a slash discloses nothing
+/// about whether the Project exists or who participates. A `301` — the
+/// conventional slash-normalization status — rather than `308`, because the
+/// mount is `GET`-only and the redirect need not preserve a method.
+async fn redirect_to_slash(Path(code): Path<String>) -> Response {
+    let target = format!("/app/projects/{code}/portal/");
+    match HeaderValue::from_str(&target) {
+        Ok(location) => (
+            StatusCode::MOVED_PERMANENTLY,
+            [(header::LOCATION, location)],
+        )
+            .into_response(),
+        Err(_) => not_found(),
+    }
+}
+
+/// The slashed root serves the bundle entrypoint.
+async fn serve_index(
+    State(state): State<PortalState>,
+    session: Option<Extension<SessionData>>,
+    Path(code): Path<String>,
+) -> Response {
+    serve_bundle(&state, session, &code, String::new()).await
+}
+
+/// One asset below the mount.
+async fn serve_asset(
+    State(state): State<PortalState>,
+    session: Option<Extension<SessionData>>,
+    Path((code, asset)): Path<(String, String)>,
+) -> Response {
+    serve_bundle(&state, session, &code, asset).await
+}
+
+/// Resolve, authorize, and stream one object from a Project's portal bundle.
+async fn serve_bundle(
+    state: &PortalState,
+    session: Option<Extension<SessionData>>,
+    code: &str,
+    asset: String,
+) -> Response {
+    // 1. Authenticate. `session_boundary` has already bounced an anonymous
+    //    caller; a request that arrives with no session extension anyway is
+    //    refused rather than treated as a participant.
+    let Some(Extension(session)) = session else {
+        return not_found();
+    };
+
+    // 2. Resolve the code. A malformed code cannot name a Project, so it is
+    //    refused before the store is asked — `new` among them, which is the
+    //    matter-open form rather than a Project.
+    if !store::projects::is_valid_code(code) {
+        return not_found();
+    }
+    let Ok(Some(project)) = store::projects::find_by_code(&state.surreal, code).await else {
+        return not_found();
+    };
+
+    // 3. Authorize through Project participation. `can_see_project` reads the
+    //    participation ledger and carries **no** Owner/Admin project-scoping
+    //    bypass, which is the `/app` rule: reaching a matter's surface means
+    //    being on that matter.
+    let participates =
+        store::access::can_see_project(&state.surreal, session.person_id, session.role, project.id)
+            .await
+            .unwrap_or(false);
+    if !participates {
+        return not_found();
+    }
+
+    // A traversal or otherwise-unsafe path cannot name a bundle object.
+    if !asset_path_is_safe(&asset) {
+        return not_found();
+    }
+
+    // 4. Stream the object. The bare mount and any unmatched path resolve to
+    //    the entrypoint, so a client-side route and a refresh both survive.
+    let prefix = format!("{code}/{PORTAL_MOUNT_SEGMENT}");
+    let requested = if asset.is_empty() {
+        INDEX.to_string()
+    } else {
+        asset
+    };
+    match fetch(&state.applications, &format!("{prefix}/{requested}")).await {
+        Fetched::Found(object) => bundle_response(&requested, object),
+        Fetched::Failed => StatusCode::BAD_GATEWAY.into_response(),
+        Fetched::Missing => {
+            // SPA fallback to the published entrypoint. If even that is
+            // absent, nothing is published for this Project — the same
+            // non-disclosing 404 a nonparticipant receives.
+            match fetch(&state.applications, &format!("{prefix}/{INDEX}")).await {
+                Fetched::Found(index) => bundle_response(INDEX, index),
+                Fetched::Failed => StatusCode::BAD_GATEWAY.into_response(),
+                Fetched::Missing => not_found(),
+            }
+        }
+    }
+}
+
+/// The three outcomes of a bundle read, kept distinct so a missing object can
+/// fall back to `index.html` while a backend failure surfaces as `502` — never
+/// as "nothing published".
+enum Fetched {
+    Found(cloud::StoredObject),
+    Missing,
+    Failed,
+}
+
+async fn fetch(storage: &Arc<dyn cloud::StorageService>, key: &str) -> Fetched {
+    match storage.get(key).await {
+        Ok(object) => Fetched::Found(object),
+        Err(cloud::StorageError::NotFound(_)) => Fetched::Missing,
+        Err(error) => {
+            tracing::error!(error = %error, bundle_key = %key, "portal bundle read failed");
+            Fetched::Failed
+        }
+    }
+}
+
+/// Build the streamed response for one bundle object.
+///
+/// `served` is the bundle-relative path actually read, which decides both the
+/// content type and the cache policy: `index.html` names the live build and is
+/// `no-store`; every content-hashed asset is immutable for a year.
+fn bundle_response(served: &str, object: cloud::StoredObject) -> Response {
+    let mut response = object.bytes.into_response();
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static(content_type_for(served)),
+    );
+    headers.insert(
+        header::CACHE_CONTROL,
+        if is_index(served) {
+            NO_STORE
+        } else {
+            IMMUTABLE_CACHE
+        },
+    );
+    headers.insert(header::CONTENT_SECURITY_POLICY, PORTAL_CSP);
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    response
+}
+
+/// Whether the served path is the bundle entrypoint, which alone is
+/// `no-store`. The name is compared, not the whole path, so a Project that
+/// ships a nested `index.html` is treated as an ordinary asset.
+fn is_index(served: &str) -> bool {
+    served == INDEX
+}
+
+/// A bundle-relative path is safe when it names something inside the mount:
+/// no leading slash, no backslash, no control characters, and no `.`/`..`/empty
+/// segment that could climb out of the `<code>/portal/` prefix. The empty path
+/// (the bare mount) is safe — it resolves to the entrypoint.
+fn asset_path_is_safe(asset: &str) -> bool {
+    asset.is_empty()
+        || (!asset.starts_with('/')
+            && !asset.contains('\\')
+            && !asset.chars().any(char::is_control)
+            && asset
+                .split('/')
+                .all(|segment| !segment.is_empty() && segment != "." && segment != ".."))
+}
+
+/// The content type for a bundle-relative path, by extension. Derived here
+/// rather than trusting the stored object's type so a portal serves correctly
+/// regardless of the backend that wrote it — and so an ES module always
+/// arrives as `text/javascript`, which the browser requires to execute it.
+fn content_type_for(path: &str) -> &'static str {
+    match path.rsplit('.').next().unwrap_or("") {
+        "html" => "text/html; charset=utf-8",
+        "js" | "mjs" => "text/javascript; charset=utf-8",
+        "css" => "text/css; charset=utf-8",
+        "json" | "map" => "application/json; charset=utf-8",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "ico" => "image/x-icon",
+        "woff2" => "font/woff2",
+        "woff" => "font/woff",
+        "ttf" => "font/ttf",
+        "wasm" => "application/wasm",
+        "webmanifest" => "application/manifest+json",
+        "txt" => "text/plain; charset=utf-8",
+        _ => "application/octet-stream",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        asset_path_is_safe, content_type_for, is_index, PROJECT_PORTAL_ASSET, PROJECT_PORTAL_PATH,
+        PROJECT_PORTAL_ROOT,
+    };
+    use cloud::workspace::PORTAL_MOUNT_SEGMENT;
+
+    /// The collision this segment exists to prevent.
+    ///
+    /// `/app/projects/{id}` is Navigator's matter show page and
+    /// `/app/projects/{code}/portal` is a Project's own surface. They differ in
+    /// path *shape* — two segments after `/app/projects` versus three — so
+    /// neither can match the other's request and no Axum registration order
+    /// decides between them. Asserting the shapes is what makes that structural
+    /// rather than remembered; `portal/tests/project_portal_route.rs` asserts
+    /// both actually resolve on the assembled router.
+    #[test]
+    fn the_portal_mount_cannot_shadow_the_matter_show_page() {
+        assert_eq!(PROJECT_PORTAL_PATH, "/app/projects/{code}/portal");
+        assert_eq!(
+            crate::dioxus_app::PROJECT_DETAIL_PATH,
+            "/app/projects/{id}",
+            "the matter show page keeps its own mount"
+        );
+
+        let portal_segments = PROJECT_PORTAL_PATH.split('/').count();
+        let detail_segments = crate::dioxus_app::PROJECT_DETAIL_PATH.split('/').count();
+        assert_ne!(
+            portal_segments, detail_segments,
+            "the two mounts must differ in shape, not merely in registration order"
+        );
+    }
+
+    /// The mount segment is a literal, so nothing supplies a name for it.
+    #[test]
+    fn the_mount_segment_is_a_literal_rather_than_a_parameter() {
+        let last = PROJECT_PORTAL_PATH
+            .rsplit('/')
+            .next()
+            .expect("the path has a final segment");
+        assert_eq!(last, PORTAL_MOUNT_SEGMENT);
+        assert!(
+            !last.contains('{'),
+            "an application name would make this a path parameter again"
+        );
+    }
+
+    /// The three mounts share one prefix, so a bundle asset resolves under the
+    /// same code the entrypoint does.
+    #[test]
+    fn the_asset_and_root_mounts_extend_the_bare_mount() {
+        assert_eq!(PROJECT_PORTAL_ROOT, format!("{PROJECT_PORTAL_PATH}/"));
+        assert_eq!(
+            PROJECT_PORTAL_ASSET,
+            format!("{PROJECT_PORTAL_PATH}/{{*asset}}")
+        );
+    }
+
+    /// A traversal cannot climb out of the `<code>/portal/` prefix.
+    #[test]
+    fn a_traversal_path_is_refused() {
+        assert!(asset_path_is_safe(""));
+        assert!(asset_path_is_safe("index.html"));
+        assert!(asset_path_is_safe("assets/index-abc123.js"));
+        assert!(!asset_path_is_safe("../secret"));
+        assert!(!asset_path_is_safe("assets/../../etc/passwd"));
+        assert!(!asset_path_is_safe("/etc/passwd"));
+        assert!(!asset_path_is_safe("a//b"));
+        assert!(!asset_path_is_safe("a\\b"));
+    }
+
+    /// Only the entrypoint is `no-store`; a nested `index.html` is an ordinary
+    /// hashed asset.
+    #[test]
+    fn only_the_top_level_index_is_the_entrypoint() {
+        assert!(is_index("index.html"));
+        assert!(!is_index("assets/index.html"));
+        assert!(!is_index("assets/index-abc.js"));
+    }
+
+    /// An ES module must arrive as `text/javascript` or the browser refuses to
+    /// execute it; the rest cover the common bundle types.
+    #[test]
+    fn content_types_are_derived_from_the_extension() {
+        assert_eq!(content_type_for("index.html"), "text/html; charset=utf-8");
+        assert_eq!(
+            content_type_for("assets/app-abc.js"),
+            "text/javascript; charset=utf-8"
+        );
+        assert_eq!(
+            content_type_for("assets/app-abc.css"),
+            "text/css; charset=utf-8"
+        );
+        assert_eq!(content_type_for("logo.svg"), "image/svg+xml");
+        assert_eq!(content_type_for("font.woff2"), "font/woff2");
+        assert_eq!(content_type_for("noextension"), "application/octet-stream");
+    }
+}

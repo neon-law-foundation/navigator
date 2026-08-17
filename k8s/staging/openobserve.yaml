@@ -1,0 +1,100 @@
+# OpenObserve — one Rust process for disposable KIND telemetry.
+#
+# It receives OTLP gRPC directly from Navigator's host and in-cluster binaries
+# and serves the operator UI on 5080. The root credentials below are strictly
+# KIND-only synthetic fixtures; deployed Cloud credentials are provisioned by
+# the authorized production operator and never committed here.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: navigator-openobserve
+  namespace: navigator
+type: Opaque
+stringData:
+  username: root@example.com
+  password: NavigatorKindOpenObserve1!
+  organization: default
+  stream: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openobserve
+  namespace: navigator
+  labels:
+    app: openobserve
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openobserve
+  template:
+    metadata:
+      labels:
+        app: openobserve
+    spec:
+      containers:
+        - name: openobserve
+          # Resolved from o2cr.ai/openobserve/openobserve:latest on 2026-07-31.
+          image: o2cr.ai/openobserve/openobserve@sha256:e1ff0445fab3e748ac4cf630308cc8493579e50d19ad255bb3a3b8c1b710aaf7
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5080
+            - name: otlp-grpc
+              containerPort: 5081
+          env:
+            - name: ZO_ROOT_USER_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-openobserve
+                  key: username
+            - name: ZO_ROOT_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-openobserve
+                  key: password
+            - name: ZO_LOCAL_MODE
+              value: "true"
+            - name: ZO_LOCAL_MODE_STORAGE
+              value: disk
+            - name: ZO_DATA_DIR
+              value: /data
+            - name: ZO_HTTP_PORT
+              value: "5080"
+            - name: ZO_GRPC_PORT
+              value: "5081"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openobserve
+  namespace: navigator
+spec:
+  selector:
+    app: openobserve
+  ports:
+    - name: http
+      port: 5080
+      targetPort: http
+    - name: otlp-grpc
+      port: 5081
+      targetPort: otlp-grpc

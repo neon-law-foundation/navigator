@@ -1,0 +1,99 @@
+[package]
+name = "webapp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# The Dioxus fullstack application crate. Its `App` component is linked into
+# `web` and server-side rendered there (see `web::dioxus_app`); the same crate
+# is compiled to `wasm32-unknown-unknown` by `navigator dev build-webapp`
+# (which drives `dx`) to produce the client bundle that hydrates that SSR
+# output. Phase 0 of the Dioxus adoption (issue #641): one low-risk page,
+# proving SSR-readable-pre-hydration and hydration under CSP `script-src
+# 'self' 'wasm-unsafe-eval'`, coexisting with every unchanged `web` route.
+[lib]
+path = "src/lib.rs"
+
+# The client entry `dx` compiles to wasm. `web` never runs this binary; it
+# links the library above. With no platform feature selected (the workspace
+# default) `main` is empty, so `cargo build --workspace` stays green.
+[[bin]]
+name = "webapp"
+path = "src/main.rs"
+
+[dependencies]
+dioxus = { workspace = true, features = ["fullstack"] }
+serde = { workspace = true, features = ["derive"] }
+# Parsing a prior people-list answer (a JSON array of objects) needs a real JSON
+# parser: a hand-rolled scan mis-handles escaped quotes and braces inside a
+# value. Already in the tree transitively via Dioxus, so this adds nothing to
+# the wasm bundle.
+serde_json = { workspace = true }
+percent-encoding = { workspace = true }
+# Server-only: the `#[server]` function bodies query the store through the
+# shared `store` crate. It is gated behind the `server` feature so the wasm
+# client build (the `web` feature, selected by `dx`) never pulls it.
+store = { workspace = true, optional = true }
+# Row and record identifiers cross the server/client boundary as `Uuid`, so
+# this one is NOT server-gated — the wasm build names the type too.
+uuid = { workspace = true }
+# Server-only: `extract` reads the request's query parameters inside a server
+# function during SSR. (`dioxus::fullstack::extract` resolves to axum's `extract`
+# module, not the function, so the function is named through the core crate.)
+dioxus-fullstack-core = { workspace = true, optional = true }
+axum = { workspace = true, optional = true }
+# Server-only: public pages resolve the deploy's branding (site name + logo)
+# from `views::brand` so a white-label install emits its own identity. Gated
+# behind `server` like `store`, so the wasm client build never pulls the
+# server-side brand helpers.
+views = { workspace = true, optional = true }
+# Server-only: the client matter-detail `#[server]` function probes the object
+# store for which of a notation's PDFs (rendered / signed / certificate) exist,
+# to decide which download links to render. Gated behind `server` like `store` —
+# the GCS/`cloud` client does not compile to `wasm32`, and the wasm client build
+# stubs the `#[server]` bodies that are its only callers. The storage handle is
+# injected into the SSR render context by the portal router.
+cloud = { workspace = true, optional = true }
+# Server-only: the filed-document page logs a refused read (an access-policy
+# denial, a client-lens visibility guard, a failed query) consistently, so a
+# probe for internal work product is queryable.
+# Gated behind `server` like `store` — the wasm client build stubs the
+# `#[server]` bodies that are its only callers.
+tracing = { workspace = true, optional = true }
+# Renders a `VirtualDom` to a string. A dev-dependency until #1009: the error
+# pages are returned inline from handlers rather than served by a router, so
+# there is no `render_handler` to SSR them and the server build needs the
+# renderer itself. Still a dev-dependency in spirit for every other module —
+# the component tests use it the same way.
+dioxus-ssr = { version = "0.7.9", optional = true }
+
+# The workspace pin carries `v7`, which compiles `uuid`'s `rng` module. On
+# `wasm32-unknown-unknown` that module has no randomness source of its own and
+# refuses to compile until one is named, so the wasm client build needs `js`
+# (`getrandom` over `crypto.getRandomValues`). Workspace features are additive,
+# so this cannot be expressed by subtracting `v7` from the inherited pin — and
+# it belongs on the target rather than on the dependency above, because the
+# server build already has an OS source and must not gain a browser one.
+# `wasm-bindgen` and `js-sys` are already in the client bundle via `dioxus/web`.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+uuid = { workspace = true, features = ["js"] }
+
+[dev-dependencies]
+# The component tests assert server-rendered markup directly (aria semantics,
+# theme classes) without standing up a router. Matches the pinned `dioxus`
+# version, and is unconditional here so tests build without `--features server`.
+dioxus-ssr = "0.7.9"
+
+[features]
+default = []
+# Selected by `dx` for the wasm client build; pulls the browser renderer.
+web = ["dioxus/web"]
+# Selected transitively by `web`; pulls the server-side renderer so
+# `dioxus-server`'s `render_handler` can SSR `App`, plus the `store` query
+# layer the server functions run against and the request-extraction helper.
+server = ["dioxus/server", "dep:store", "dep:dioxus-fullstack-core", "dep:axum", "dep:views", "dep:cloud", "dep:tracing", "dep:dioxus-ssr"]
+
+[lints]
+workspace = true

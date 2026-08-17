@@ -1,0 +1,260 @@
+/* Home page (`/`) layout: the photographic hero, then the practice statement
+   over the litigation header. The brand layer (`brand-firm.css`) owns the
+   palette, the serif, the card, the chip, and the motion; this file only
+   places them. The page still publishes no services catalog — one statement,
+   one contact CTA, and the firm's own presentation of the practice it takes. */
+
+/* ---- The hero ---------------------------------------------------------- */
+
+/* The shell centres a 72rem column and pads it by 1rem; the hero cancels that
+   padding and the column's top padding so the photograph meets the header and
+   both side edges. It deliberately does not bleed to `100vw`: that overflows
+   the page by the scrollbar's width on every desktop browser that reserves
+   one, and the header nav is already measured to the same 72rem. */
+.home-hero {
+  /* The scrim's channels. Deliberately a literal rather than a `--nav-*`
+     token: it darkens a photograph so white type stays legible on it, which
+     has to hold in the light theme too. A theme colour here would invert with
+     the page and put white type on a light wash. */
+  --home-hero-shade: 6 12 24;
+
+  position: relative;
+  display: grid;
+  place-items: end start;
+  /* The band's own opaque floor, in the scrim's channels. The photograph and
+     the scrim both paint above it (a negative `z-index` child paints over its
+     parent's background), so a loaded hero looks exactly the same — but the
+     white wordmark now sits on this shade rather than on whatever the page
+     background happens to be. Without it the light theme puts white type on a
+     near-white page for as long as the photograph is missing or still
+     loading, which is the WCAG contrast failure `server/tests/
+     accessibility_e2e.rs` reports at `h1` on the firm's `/`. */
+  background-color: rgb(var(--home-hero-shade));
+  margin: -2rem -1rem 0;
+  /* The photograph is 3:2. A phone-width box taller than about 17rem stops
+     being a crop of the horizon and becomes a crop of the *sides* — which is
+     where the Golden Gate is. Keep the small band close to the photo's own
+     ratio; the wide band below is where the letterbox is affordable. */
+  min-height: clamp(15rem, 62vw, 20rem);
+  overflow: hidden;
+  border-radius: 0 0 1rem 1rem;
+  isolation: isolate;
+}
+
+/* A deployment that has not published the hero to its assets bucket renders
+   the wordmark alone. Without this the page would open on a tall empty band. */
+.home-hero:not(:has(.home-hero__picture)) {
+  min-height: 0;
+  margin-top: 0;
+}
+
+/* `<picture>` is an inline wrapper with no box of its own; the `<img>` inside
+   it is what fills the hero, so the wrapper only has to stop generating a
+   line box of its own. */
+.home-hero__picture {
+  display: contents;
+}
+
+.home-hero__image {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  /* The subject — the bay, the bridge, the campanile — sits below the middle
+     of the frame, so a cover crop holds the lower two thirds. */
+  object-fit: cover;
+  object-position: 50% 62%;
+}
+
+@media (min-width: 56rem) {
+  .home-hero {
+    place-items: center;
+    /* Tall enough to read as a horizon rather than a strip, and capped so the
+       picture does not push the statement below the fold on a laptop. */
+    min-height: clamp(20rem, 52vh, 34rem);
+  }
+}
+
+.home-statement {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.25rem;
+  max-width: 44rem;
+  padding: clamp(3rem, 8vw, 6rem) 0 clamp(2rem, 5vw, 3rem);
+}
+
+.home-statement__heading,
+.home-statement__lead,
+.home-statement__cta {
+  position: relative;
+  z-index: 1;
+}
+
+.home-statement__heading {
+  margin: 0;
+  font-family: var(--firm-serif);
+  font-size: clamp(2rem, 5.5vw, 3.25rem);
+  font-weight: 600;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.home-statement__lead {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--nav-color-text-muted);
+}
+
+.home-statement__cta {
+  margin-top: 0.5rem;
+}
+
+/* The shared button is themed Navigator cyan; on the firm's own surface it
+   carries the firm's colour instead, so the one call to action on the page is
+   not the one element that is off-brand. `theme.css` sets the primary button
+   through `.nav-theme a.nav-btn--primary`, so this has to match that
+   specificity to win. */
+.nav-theme a.nav-btn--primary.home-statement__cta,
+.nav-theme a.nav-btn--primary.home-statement__cta:hover,
+.nav-theme a.nav-btn--primary.home-statement__cta:focus-visible {
+  border-color: var(--firm-brand);
+  background: var(--firm-brand);
+  color: var(--firm-on-brand);
+}
+
+.nav-theme a.nav-btn--primary.home-statement__cta:hover,
+.nav-theme a.nav-btn--primary.home-statement__cta:focus-visible {
+  border-color: var(--firm-brand-strong);
+  background: var(--firm-brand-strong);
+}
+
+/* ---- Litigation header ------------------------------------------------- */
+
+.litigation {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 56rem) {
+  .litigation {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+    gap: 3rem;
+  }
+}
+
+.litigation__head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+@media (min-width: 56rem) {
+  .litigation__head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.25rem;
+  }
+}
+
+.litigation__mark,
+.practice__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.75rem;
+  background: var(--firm-brand-tint);
+  color: var(--firm-brand);
+}
+
+.litigation__mark svg,
+.practice__mark svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+/* The two practices under the header carry the same mark at a smaller size, so
+   the litigation card keeps the lead. */
+.practice__mark {
+  width: 3rem;
+  height: 3rem;
+}
+
+.practice__mark svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.litigation__heading {
+  margin: 0;
+  font-family: var(--firm-serif);
+  font-size: clamp(1.75rem, 4.5vw, 2.75rem);
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.litigation__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.litigation__paragraph,
+.practice__paragraph {
+  margin: 0;
+  line-height: 1.65;
+  color: var(--nav-color-text);
+  text-wrap: pretty;
+}
+
+.litigation__paragraph strong,
+.practice__paragraph strong {
+  font-weight: 600;
+}
+
+/* ---- The practices under the header ------------------------------------ */
+
+/* Two abreast once there is room, stacked on a phone. */
+.practice-grid {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+@media (min-width: 56rem) {
+  .practice-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* `.neon-card` spaces itself from the block above; inside the grid, the grid
+   gap does that instead. */
+.practice-grid > .practice {
+  margin: 0;
+}
+
+.practice {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.practice__head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.practice__heading {
+  margin: 0;
+  font-family: var(--firm-serif);
+  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  font-weight: 600;
+  line-height: 1.15;
+  text-wrap: balance;
+}

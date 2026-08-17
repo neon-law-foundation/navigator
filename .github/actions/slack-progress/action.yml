@@ -1,0 +1,106 @@
+name: slack deploy progress
+description: >-
+  Post one line of deploy progress to #navigator through the prod ops
+  incoming webhook.
+
+# The narration half of the Slack surface, shared by deploy.yml's release and
+# promote.yml's production promotion. Each workflow's own `notify` reports the
+# finished work and its `notify-failure` pages engineering when a stage dies;
+# neither says anything while the pipeline is running, so a release is silent
+# for the ~45 minutes between the tag push and its verdict, and a promotion for
+# the length of a cold CLI compile. This action is called at the top of each
+# step so #navigator watches the run advance and the last line posted names the
+# step a failure died in — without opening the run.
+#
+# Three properties this action holds, because it is called from every stage:
+#
+#   1. IT NEVER FAILS THE DEPLOY. A missing webhook, a Slack 500, or a
+#      network blip prints a notice and exits 0. A release must not be lost
+#      to its own narration.
+#   2. IT SELF-GATES. A `kind-ci/**` branch iteration posts nothing, matching
+#      the rule the terminal reports already follow: only a real release or
+#      promotion talks to #navigator.
+#   3. IT CARRIES IDENTIFIERS ONLY. Tag, stage, step, run URL. The
+#      "identifiers and counts, never content" rule binds this surface as
+#      hard as it binds the reports.
+
+inputs:
+  webhook-url:
+    description: >-
+      The prod ops incoming webhook, `secrets.SLACK_WEBHOOK_URL`. An empty
+      value skips the post rather than failing.
+    required: true
+  stage:
+    description: >-
+      Which pipeline stage this step belongs to, e.g. `integration` or
+      `ship-production`. Names the job, not the step.
+    required: true
+  step:
+    description: What the step about to run does.
+    required: true
+  tag:
+    description: >-
+      The release tag this run is building. Empty before `release-version`
+      has derived it.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: post progress to #navigator
+      shell: bash
+      env:
+        WEBHOOK_URL: ${{ inputs.webhook-url }}
+        STAGE: ${{ inputs.stage }}
+        STEP: ${{ inputs.step }}
+        TAG: ${{ inputs.tag }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        # No `set -e`: every failure path below is deliberately non-fatal.
+        set -uo pipefail
+
+        # A `kind-ci/**` branch run is pre-tag iteration on the release
+        # workflow itself. It pushes no images and ships nothing, so it stays
+        # out of the channel exactly as `notify` and `notify-failure` do — read
+        # from the run rather than from a caller-supplied flag, so a new call
+        # site cannot forget the gate.
+        #
+        # TWO things talk to #navigator, so this is two tests. A tag ref is
+        # deploy.yml's release. A `workflow_dispatch` is promote.yml's
+        # production promotion, which runs from a BRANCH ref (`refs/heads/main`)
+        # and would be silenced by the ref test alone — the single-arm gate this
+        # carried was correct only while deploy.yml was the sole caller. Nothing
+        # else dispatches, so naming the event admits promotion and nothing
+        # more.
+        case "${GITHUB_EVENT_NAME}" in
+            schedule | workflow_dispatch) ;;
+            *)
+                echo "not a publish run (${GITHUB_REF}, ${GITHUB_EVENT_NAME}) — skipping the #navigator progress post"
+                exit 0
+                ;;
+        esac
+
+        if [ -z "${WEBHOOK_URL}" ]; then
+            echo "::notice::SLACK_WEBHOOK_URL is unset — skipping the #navigator progress post"
+            exit 0
+        fi
+
+        # `release-version` posts before the tag exists; say so rather than
+        # rendering an empty field.
+        label="${TAG:-untagged}"
+        TEXT=":arrow_forward: deploy ${label} · ${STAGE} · ${STEP}
+        Run: ${RUN_URL}"
+        PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+        code=$(curl -sS --max-time 15 -o /tmp/slack-progress.out -w '%{http_code}' \
+            -X POST "${WEBHOOK_URL}" \
+            -H "Content-Type: application/json" \
+            -d "${PAYLOAD}") || code="000"
+        if [ "${code}" != "200" ]; then
+            # A warning, never an error: losing a progress line is not
+            # losing the release.
+            echo "::warning::#navigator progress post failed (${code}) for ${STAGE} · ${STEP}"
+            cat /tmp/slack-progress.out 2>/dev/null || true
+            exit 0
+        fi
+        echo "posted: ${STAGE} · ${STEP}"

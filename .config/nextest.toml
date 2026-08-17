@@ -1,0 +1,54 @@
+# cargo-nextest configuration.
+#
+# The browser/accessibility E2E suites drive a real Chromium session
+# against the KIND-deployed stack, where a W3C Element Click can be
+# dispatched at an off-screen or briefly-covered point and land on
+# nothing (see `features::webdriver::scroll_and_js_click`). That is a
+# genuinely intermittent failure mode, so CI retries and *classifies*
+# it — a test that fails then passes is reported `FLAKY` and tagged in
+# JUnit even when the run exits 0 — instead of a plain `cargo test`
+# where an intermittent race is indistinguishable from a hard failure.
+
+[profile.default]
+# Local runs get zero retries so developers see a flake immediately
+# rather than having it silently papered over.
+retries = 0
+# Failures-only output: passing tests print nothing, a failing test
+# still prints its full panic, assertion diff, and captured output.
+# The default local loop is read by agents as much as humans, and a
+# per-test PASS line across ~50 binaries is pure noise either way —
+# a green run is the one-line Summary, a red run is only the failure.
+status-level = "fail"
+final-status-level = "fail"
+# The `features` crate's cucumber suites are `harness = false` binaries
+# that do not speak nextest's `--list` protocol, so a workspace run
+# aborts on them. Exclude the package here and run those suites with
+# `cargo test -p features` until they adopt cucumber's libtest writer.
+default-filter = "not package(features)"
+
+[test-groups]
+# macOS's keychain trust-settings API fails with -36 ("I/O error")
+# when many processes read it concurrently. Each nextest test is its
+# own process, and every `cloud` test that builds an AWS SDK client
+# loads platform certs, so cap that package's process concurrency.
+platform-certs = { max-threads = 2 }
+
+[[profile.default.overrides]]
+filter = "package(cloud)"
+test-group = "platform-certs"
+
+[profile.ci]
+# Retry a failing test up to twice with exponential backoff + jitter.
+# A pass on retry is recorded as FLAKY (not a clean pass), so the
+# JUnit trend surfaces a standing flake rate before it turns a deploy
+# red.
+retries = { backoff = "exponential", count = 2, delay = "2s", jitter = true }
+# Pin nextest's stock levels: deploy.yml tees this run's log and the
+# RETRY/FLAKY status lines are the diagnostic trail, so the quiet
+# default profile above must not leak into CI through inheritance.
+status-level = "pass"
+final-status-level = "flaky"
+
+[profile.ci.junit]
+# Emitted at `target/nextest/ci/junit.xml`; uploaded as a CI artifact.
+path = "junit.xml"

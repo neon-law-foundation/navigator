@@ -1,0 +1,31 @@
+# Rauthy exposes one canonical issuer URL for browser and backchannel traffic.
+# In a full in-cluster deployment the browser reaches localhost through KIND's
+# NodePort mapping, while navigator-web reaches that identical issuer through
+# this pod-local proxy. The CLI aligns both to a sourced worktree's derived
+# Rauthy port during `dev deploy`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  template:
+    spec:
+      containers:
+        - name: rauthy-loopback-proxy
+          image: nginx:1.29.4-alpine
+          volumeMounts:
+            - name: rauthy-loopback-proxy
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: rauthy-loopback-proxy
+          configMap:
+            name: rauthy-loopback-proxy

@@ -1,0 +1,58 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Deps-only KIND stack — everything from the `kind` overlay except
+# the navigator-web Deployment + Service + ConfigMap + Secret +
+# Ingress. Use this when running `web` from the host
+# (`cargo run -p web`) for the fast edit-compile-reload loop.
+#
+# Apply: kubectl apply -k k8s/overlays/kind-deps
+#
+# Wrapped by `cargo run -p cli -- dev up`.
+
+namespace: navigator
+
+resources:
+  - ../../staging
+  - ../kind/garage
+  - ../kind/rauthy
+  - ../kind/surreal
+  - staging-coordinates.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      name: navigator-web
+    patch: |
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: navigator-web
+  - target:
+      kind: Service
+      name: navigator-web
+    patch: |
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: navigator-web
+  - target:
+      kind: Ingress
+      name: navigator-web
+    patch: |
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: navigator-web
+  - target:
+      kind: Secret
+      name: navigator-web
+    patch: |
+      $patch: delete
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: navigator-web

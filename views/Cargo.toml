@@ -1,0 +1,32 @@
+[package]
+name = "views"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+serde_json.workspace = true
+pulldown-cmark.workspace = true
+syntect.workspace = true
+serde_yaml.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+# Layer-1 accessibility gate (`tests/accessibility.rs`) uses these
+# assertion helpers for structural invariants.
+regex = "1"
+rules.workspace = true
+tempfile.workspace = true
+
+[dependencies.tokio]
+workspace = true
+features = ["rt"]
+
+[lints]
+workspace = true

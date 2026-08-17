@@ -1,0 +1,187 @@
+# `workflows-service` — Restate worker hosting the `Notation`
+# virtual object (questionnaire + workflow timelines per Notation).
+#
+# Managed as a `RestateDeployment` CR so the Restate Operator
+# handles registration with the `restate` RestateCluster
+# automatically. `spec.restate.register.cluster: restate` points at
+# the RestateCluster declared in `k8s/restate/`; the operator POSTs
+# this deployment's URL to that cluster's admin port (:9070) on
+# every reconcile, drains old image versions, and scales replicas as
+# declared. No Jobs to maintain.
+#
+# Image: `navigator-workflows-service:dev` is built by
+# `images/Containerfile.workflows-service` (see `navigator image-workflows-service`).
+# Pin a tag in production; `:dev` is the local-KIND convention used
+# by `kind load docker-image …`.
+
+apiVersion: restate.dev/v1beta1
+kind: RestateDeployment
+metadata:
+  name: workflows-service
+  namespace: navigator
+spec:
+  replicas: 1
+  restate:
+    register:
+      cluster: restate
+  selector:
+    matchLabels:
+      app: workflows-service
+  template:
+    metadata:
+      labels:
+        app: workflows-service
+        # `allow.restate.dev/<cluster-name>: "true"` is the marker the
+        # Restate Operator looks for in its egress NetworkPolicy on
+        # the cluster. Without it, Restate cannot dial the worker
+        # from the operator-managed `restate` namespace into
+        # `navigator`, signals time out, and `notation_events` stays
+        # empty.
+        allow.restate.dev/restate: "true"
+    spec:
+      containers:
+        - name: workflows-service
+          image: navigator-workflows-service:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: restate
+              containerPort: 9080
+          env:
+            # The worker binds to this address; Restate hits it via
+            # the operator-managed Service.
+            - name: WORKFLOWS_SERVICE_LISTEN
+              value: 0.0.0.0:9080
+            - name: NAVIGATOR_ENVIRONMENT
+              value: dev
+            - name: NAVIGATOR_CI_HARNESS
+              value: "1"
+            - name: NAVIGATOR_CUSTOM_BRANDING
+              value: /etc/navigator/brand
+            # The store, and the same one `navigator-web` reads. The
+            # worker writes one `notation_event` row per state-machine
+            # transition under `ctx.run("append-event", …)`, and the
+            # nightly reconcile folds Xero paid-status onto the
+            # `xero_invoice` mirror. Required — the worker connects at
+            # boot and refuses to start without it.
+            - name: NAVIGATOR_SURREAL_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-surreal
+                  key: endpoint
+            - name: NAVIGATOR_SURREAL_NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-surreal
+                  key: namespace
+            - name: NAVIGATOR_SURREAL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-surreal
+                  key: database
+            - name: NAVIGATOR_SURREAL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: surreal
+                  key: SURREAL_USER
+            - name: NAVIGATOR_SURREAL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: surreal
+                  key: SURREAL_PASS
+            # Object storage for the Archives workflow's snapshot phase,
+            # through the in-cluster Garage S3 service.
+            # BILLING_EXPORT_TABLE is intentionally unset in KIND, so the
+            # cost phase is a clean no-op (no BigQuery credentials needed).
+            - name: NAVIGATOR_STORAGE_BACKEND
+              value: s3
+            - name: NAVIGATOR_STORAGE_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-garage
+                  key: s3_endpoint
+            - name: NAVIGATOR_STORAGE_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-garage
+                  key: exports_bucket
+            - name: NAVIGATOR_DOCUMENTS_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-garage
+                  key: documents_bucket
+            - name: NAVIGATOR_STORAGE_REGION
+              value: garage
+            - name: NAVIGATOR_STORAGE_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-garage-s3
+                  key: access_key
+            - name: NAVIGATOR_STORAGE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-garage-s3
+                  key: secret_key
+            - name: NAVIGATOR_EXPORTS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-garage-s3
+                  key: exports_access_key
+            - name: NAVIGATOR_EXPORTS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-garage-s3
+                  key: exports_secret_key
+            - name: RUST_LOG
+              value: info
+            # Direct OTLP to the in-cluster OpenObserve service, shared with
+            # `navigator-web`, keeps a web → Restate → worker trace together.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-staging-coordinates
+                  key: openobserve_endpoint
+            - name: NAVIGATOR_OPENOBSERVE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-openobserve
+                  key: username
+            - name: NAVIGATOR_OPENOBSERVE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-openobserve
+                  key: password
+            - name: NAVIGATOR_OPENOBSERVE_ORGANIZATION
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-openobserve
+                  key: organization
+            - name: NAVIGATOR_OPENOBSERVE_STREAM
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-openobserve
+                  key: stream
+            - name: OTEL_SERVICE_NAME
+              value: workflows-service
+            # The explicit KIND CI harness uses `CapturingEmail`.
+            - name: SENDGRID_API_KEY
+              value: SG.kind-stub
+            - name: SENDGRID_INBOUND_SECRET
+              value: kind-stub
+          readinessProbe:
+            tcpSocket:
+              port: 9080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 9080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - name: brand-bundle
+              mountPath: /etc/navigator/brand
+              readOnly: true
+      volumes:
+        - name: brand-bundle
+          configMap:
+            name: navigator-brand-bundle

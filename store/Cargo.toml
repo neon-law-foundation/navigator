@@ -1,0 +1,71 @@
+[package]
+name = "store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+# `test-support` exposes `store::test_support` — the embedded engine and
+# the shared seeds — to downstream crates' integration tests. Off by
+# default so non-test consumers don't carry them. Inside `store` itself
+# the helpers are also gated on `cfg(test)`, so unit tests in this crate
+# get them automatically without the feature flag dance.
+test-support = []
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+cloud.workspace = true
+# `source_pages` locates a quote in a stored PDF asset and lifts the pages
+# it falls on, through `pdf::passage` (#893).
+pdf.workspace = true
+# Jitter for the optimistic-concurrency retry in `persons`: losers that all
+# back off by the same interval simply re-stage the same collision.
+rand.workspace = true
+# The bare-repo store: `store::projects::provision_repo` shells to `git`
+# through here so eager creation and the lazy git transport share one
+# provisioning path (docs/project-repositories.md §6).
+repos.workspace = true
+# `template_source` validates a Project repo's template with the same rule
+# set `navigator validate` runs before persisting it as a version — one
+# validator everywhere (docs/agent-workflows.md), refuse-on-error.
+rules.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sha2.workspace = true
+# The SurrealDB client for the store the workspace is porting onto
+# (#1093 phase 1). `store::surreal` owns the connection and
+# `store::schema` the idempotent DEFINE apply; nothing else in the
+# workspace depends on it yet.
+# `kv-mem` is not test-only: `store::conflicts` runs each pre-matter
+# conflict check against an embedded in-memory engine — the transient
+# graph view the check has always built, now in the shape and query
+# language the persistent store will use (#1093). Persistent data still
+# travels over the wire to the dependency tier or Surreal Cloud.
+surrealdb = { workspace = true, features = ["kv-mem"] }
+# The TLS provider `store::surreal::install_tls_provider` registers. Pinned to
+# the same 0.23 rustls surrealdb links, so the provider lands in the instance
+# that actually performs the `wss://` handshake.
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs"] }
+strum.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+# Self-enable test-support so this crate's own unit + integration tests
+# reach `store::test_support`.
+store = { path = ".", features = ["test-support"] }
+tempfile.workspace = true
+wiremock.workspace = true
+
+[lints]
+workspace = true

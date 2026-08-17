@@ -1,0 +1,35 @@
+# The vendor-neutral billing-provider seam (`BillingProvider` trait +
+# `XeroBillingProvider` + `StubBillingProvider` + Xero client-credentials
+# auth). Extracted from `web` so the worker-side billing workflows in
+# `billing-workflows` can reach the same provider; `web` re-exports it as
+# `web::billing` / `web::xero_auth`. No Restate, no axum — a small lib.
+[package]
+name = "billing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "billing"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+# GCP billing-export reader (`gcp_cost`): ADC token minting for the
+# BigQuery REST API. Isolated to that module — the Xero provider needs
+# neither.
+google-cloud-auth.workspace = true
+google-cloud-token.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "macros", "rt-multi-thread"] }
+uuid.workspace = true
+
+[dev-dependencies]
+wiremock.workspace = true

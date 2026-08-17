@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: clamav-signatures
+  namespace: navigator
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clamav
+  namespace: navigator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: clamav
+  template:
+    metadata:
+      labels:
+        app: clamav
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        fsGroup: 101
+      containers:
+        - name: clamav
+          image: clamav/clamav:1.4.5_base@sha256:c24cbe1b4b33399be35a7febda674f5f852b6d20173c4c348e570b41de276889
+          imagePullPolicy: IfNotPresent
+          command:
+            - /init-unprivileged
+          env:
+            - name: CLAMD_CONF_StreamMaxLength
+              value: 30M
+          ports:
+            - name: clamd
+              containerPort: 3310
+          resources:
+            requests:
+              cpu: 250m
+              memory: 3Gi
+            limits:
+              memory: 4Gi
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'printf "zPING\0" | nc -w 2 127.0.0.1 3310 | grep -q PONG'
+            failureThreshold: 120
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'printf "zPING\0" | nc -w 2 127.0.0.1 3310 | grep -q PONG'
+            periodSeconds: 10
+          volumeMounts:
+            - name: signatures
+              mountPath: /var/lib/clamav
+      volumes:
+        - name: signatures
+          persistentVolumeClaim:
+            claimName: clamav-signatures
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clamav
+  namespace: navigator
+spec:
+  type: ClusterIP
+  selector:
+    app: clamav
+  ports:
+    - name: clamd
+      port: 3310
+      targetPort: clamd

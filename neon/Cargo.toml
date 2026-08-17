@@ -1,0 +1,44 @@
+[package]
+name = "neon"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Marks this as a brand crate, which `cli/tests/brand_crate_dependencies.rs`
+# holds to the thin-crate rule: composition only, never the domain crates the
+# application owns.
+[package.metadata.navigator]
+brand = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "neon"
+path = "src/main.rs"
+
+# The whole dependency list a brand crate is allowed. `portal` is the
+# application it mounts; `views` and `webapp` are the brand identity and the
+# page components its public surface renders; `axum` is the HTTP vocabulary
+# its route table is written in; `anyhow` and `tokio` are the signature of
+# `main`. What stays out is the domain — `store`, `workflows`, and the auth
+# machinery — which `cli/tests/brand_crate_dependencies.rs` enforces.
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+# The blog index formats each post's publish date for the Dioxus router; the
+# `views` crate stays free of `chrono`, so the formatting lives here.
+chrono.workspace = true
+portal.workspace = true
+tokio.workspace = true
+views.workspace = true
+webapp.workspace = true
+
+[dev-dependencies]
+store = { workspace = true, features = ["test-support"] }
+tower.workspace = true
+
+[lints]
+workspace = true

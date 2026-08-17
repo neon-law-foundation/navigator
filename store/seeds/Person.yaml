@@ -1,0 +1,6 @@
+---
+lookup_fields:
+  - email
+records:
+  - email: nick@neonlaw.com
+    name: Nick Shook

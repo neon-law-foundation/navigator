@@ -1,0 +1,245 @@
+# syntax=docker/dockerfile:1.7
+
+# The `neon-server` image: neonlaw.org, the Neon Law Foundation (#864, #974).
+#
+# The binary is the site: no runtime flag selects the face, so an image
+# cannot be pointed at the wrong legal entity by configuration. These three
+# Containerfiles are otherwise byte-identical, which
+# `cli/tests/containerfile_docs_copy.rs` asserts by normalizing the brand
+# name away — the two near-identical host recipes that preceded them rotted
+# precisely because nothing held them together.
+
+# ---------- Stage 1: builder ----------
+#
+# Compile the `neon` brand binary statically against musl: a fully static
+# binary is what the `gcr.io/distroless/static` runtime stage below runs.
+# The TLS stack arrives through `store`, which registers rustls's
+# `aws-lc-rs` provider for `wss://` Surreal endpoints; it and `ring` both
+# musl-target fine. We pin to the project's Rust 1.97.0 toolchain.
+
+FROM rust:1.97-bookworm AS builder
+
+# Toolchain prep: musl target + musl gcc for any C deps. The musl target
+# is chosen from BuildKit's automatic TARGETARCH so the SAME Containerfile
+# builds a native aarch64 image on an Apple-Silicon dev laptop (for local
+# KIND) and an x86_64 image in CI / for GKE Autopilot (amd64). Building
+# x86_64-musl on an arm64 host is a cross-compile that breaks aws-lc-sys's
+# C build (`musl-gcc` rejects the x86-only `-m64`); selecting the native
+# target sidesteps it. `navigator power-push` forces `--platform linux/amd64`,
+# so prod images are always amd64 regardless of the build host.
+ARG TARGETARCH
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends musl-tools \
+    && rm -rf /var/lib/apt/lists/* \
+    && case "$TARGETARCH" in \
+         amd64) echo x86_64-unknown-linux-musl  > /tmp/rust-target ;; \
+         arm64) echo aarch64-unknown-linux-musl > /tmp/rust-target ;; \
+         *) echo "unsupported TARGETARCH: ${TARGETARCH:-unset}" >&2; exit 1 ;; \
+       esac
+
+WORKDIR /src
+
+# Copy the full workspace in one layer and build. A single COPY + build
+# benefits from Docker layer caching when neither `Cargo.lock` nor source
+# changes.
+#
+# `rust-toolchain.toml` must land BEFORE `rustup target add`: the override
+# pins a specific 1.97.0 toolchain that rustup re-syncs the first time cargo
+# runs in this dir. Adding the target beforehand (against the base image's
+# default toolchain) leaves the re-synced toolchain without the musl std,
+# and `cargo build --target …-musl` then fails with `can't find crate for
+# std`. Adding it here attaches the target to the toolchain the build uses.
+COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+RUN rustup target add "$(cat /tmp/rust-target)"
+
+# Dioxus wasm toolchain (issue #641): the `webapp` client bundle that hydrates
+# the `/dioxus-demo` page is compiled to `wasm32-unknown-unknown` by `dx`. This
+# is its own layer, independent of workspace source, so it caches until the
+# pinned CLI version changes. `dx` is invoked directly here (mirroring
+# `navigator dev build-webapp`); the CLI subcommand needs the full worktree,
+# which this build context intentionally does not carry.
+RUN rustup target add wasm32-unknown-unknown \
+    && cargo install dioxus-cli --version 0.7.9 --locked
+
+# Stage `dx`'s three build-time tools here instead of letting `dx build` fetch
+# them (#935). `dx` resolves wasm-bindgen, esbuild, and wasm-opt inside the
+# build itself — the LAST layer, which depends on the whole workspace, so it
+# never caches and re-fetches on every build. Those fetches are unretried: one
+# reset mid-body ("Failed to create wasm-opt instance: connection reset") failed
+# a host image publish and shipped nothing that day.
+#
+# `NO_DOWNLOADS=1` on the `dx build` invocation below switches dioxus-cli's tool
+# lookup from "download into a cache dir" to `which` (its
+# `CliSettings::prefer_no_downloads`), so these pins are authoritative. A stale
+# pin then fails loudly here rather than silently reopening the fetch.
+#
+# Keep this layer above the workspace COPYs so it caches until a pin changes.
+# `cli/tests/containerfile_docs_copy.rs` holds the pins to the versions dx
+# expects — notably wasm-bindgen-cli, which must equal the workspace's
+# `wasm-bindgen` crate exactly: dx reads that version from the resolved crate
+# graph and rejects any mismatch.
+# The binaryen tarballs ship `bin/wasm-opt` beside `lib/libbinaryen.so` and
+# resolve it through an RPATH of `$ORIGIN/../lib`, so that bin/lib pair has to
+# stay together under one prefix. esbuild ships per-platform npm packages whose
+# tarball carries `package/bin/esbuild` — the same artifact dioxus-cli fetches.
+# The three `--version` calls at the end prove every tool resolves while this
+# layer is still cheap, so a bad pin fails here instead of 20 minutes in.
+ARG WASM_BINDGEN_VERSION=0.2.126
+ARG BINARYEN_VERSION=127
+ARG ESBUILD_VERSION=0.27.3
+ENV PATH=/opt/binaryen/bin:/opt/esbuild/bin:$PATH
+RUN cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --locked \
+    && case "$TARGETARCH" in \
+         amd64) binaryen_arch=x86_64  ; esbuild_pkg=linux-x64   ;; \
+         arm64) binaryen_arch=aarch64 ; esbuild_pkg=linux-arm64 ;; \
+         *) echo "unsupported TARGETARCH: ${TARGETARCH:-unset}" >&2; exit 1 ;; \
+       esac \
+    && curl --fail --show-error --silent --location --retry 5 --retry-delay 2 \
+         --retry-all-errors \
+         "https://github.com/WebAssembly/binaryen/releases/download/version_${BINARYEN_VERSION}/binaryen-version_${BINARYEN_VERSION}-${binaryen_arch}-linux.tar.gz" \
+       | tar -xz -C /opt \
+    && mv "/opt/binaryen-version_${BINARYEN_VERSION}" /opt/binaryen \
+    && mkdir -p /opt/esbuild \
+    && curl --fail --show-error --silent --location --retry 5 --retry-delay 2 \
+         --retry-all-errors \
+         "https://registry.npmjs.org/@esbuild/${esbuild_pkg}/-/${esbuild_pkg}-${ESBUILD_VERSION}.tgz" \
+       | tar -xz -C /opt/esbuild --strip-components=1 package/bin \
+    && wasm-opt --version \
+    && esbuild --version \
+    && wasm-bindgen --version
+
+COPY rules             rules
+COPY store             store
+COPY repos             repos
+COPY import            import
+COPY cli               cli
+COPY LICENSE.md        LICENSE.md
+COPY THIRD-PARTY-NOTICES.txt THIRD-PARTY-NOTICES.txt
+COPY portal            portal
+COPY server            server
+COPY neon              neon
+COPY webapp            webapp
+COPY views             views
+COPY README.md         README.md
+COPY telemetry         telemetry
+COPY vfs               vfs
+COPY github_webhooks    github_webhooks
+COPY forms             forms
+COPY workflows         workflows
+COPY workflows-service workflows-service
+COPY github-runner     github-runner
+COPY gateway           gateway
+COPY cloud             cloud
+COPY mcp               mcp
+COPY features          features
+COPY lsp               lsp
+COPY live-inquiry      live-inquiry
+COPY pdf               pdf
+COPY templates templates
+COPY archives          archives
+COPY billing           billing
+COPY billing-workflows billing-workflows
+# `portal::docs` bakes the docs tree into the binary with
+# include_str!(concat!(CARGO_MANIFEST_DIR, "/../docs/…")). Those files
+# live outside any crate dir, so they must be staged explicitly or the
+# builder fails to resolve the include paths.
+COPY docs              docs
+
+RUN cargo build --release --target "$(cat /tmp/rust-target)" -p neon \
+    && cp "target/$(cat /tmp/rust-target)/release/neon" /usr/local/bin/neon
+
+# Build the Dioxus wasm client bundle and stage it where the runtime image
+# serves it (`/app/public/dioxus`). The `neon` binary reads `DIOXUS_PUBLIC_PATH`,
+# which it defaults to `<public>/dioxus`, so the `/dioxus-demo` page hydrates
+# same-origin. Mirrors `navigator dev build-webapp --release`.
+#
+# `NO_DOWNLOADS=1` makes `dx` take the pinned wasm-bindgen, esbuild, and
+# wasm-opt staged above off `PATH` rather than fetching them here (#935). It is
+# scoped to this command because it is dioxus-cli's switch, not a build-wide one.
+#
+# `--debug-symbols false` because dx's own default is TRUE even under
+# `--release`, and that flag alone decides whether wasm-opt runs with
+# `--debuginfo` or `--strip-debug`. At the default this build kept the ~340 KB of
+# DWARF that dx's ad-hoc `wasm-release` profile preserves (it sets
+# `strip=false`), wasm-opt aborted trying to re-emit it (`UNREACHABLE executed at
+# DWARFEmitter.cpp:201`, SIGABRT), and dioxus-cli — which treats a failed
+# wasm-opt as non-fatal — copied the UNOPTIMIZED module through. So the image
+# published a 941 KB `webapp_bg.wasm` where 534 KB does the same work, and no
+# check ever went red. The `name` section is unaffected: dx's separate
+# `--keep-names` already defaults to false.
+#
+# Then assert the outcome rather than trusting the flag. dioxus-cli swallows a
+# wasm-opt failure, so a future dx that reopens this must fail HERE, loudly,
+# instead of quietly doubling what every visitor downloads.
+RUN NO_DOWNLOADS=1 dx build --package webapp --platform web --release --debug-symbols false \
+    && mkdir -p /dioxus-bundle \
+    && cp -r target/dx/webapp/release/web/public/. /dioxus-bundle/ \
+    && if grep -rla '\.debug_info' /dioxus-bundle; then \
+         echo "DWARF reached the wasm bundle above: wasm-opt did not strip it" >&2; \
+         exit 1; \
+       fi
+
+# ---------- Stage 2: runtime ----------
+#
+# distroless/static gives us a minimal scratch-equivalent base
+# pre-populated with ca-certificates and a non-root user. The image
+# carries only the statically linked binary plus the static asset
+# directories the server reads from disk at boot.
+
+FROM gcr.io/distroless/static:nonroot AS runtime
+
+WORKDIR /app
+
+COPY --from=builder /usr/local/bin/neon /app/neon
+COPY --from=builder /src/server/public  /app/public
+# The Dioxus client bundle (issue #641), built in the builder stage. `neon`
+# serves it from `/app/public/dioxus` to hydrate the `/dioxus-demo` page.
+COPY --from=builder /dioxus-bundle   /app/public/dioxus
+COPY --from=builder /src/server/content /app/content
+COPY --from=builder /src/templates    /app/templates
+
+# Identify the build. The daily `deploy.yml` publish job passes
+# `--build-arg RELEASE_TAG=$YY.M.D` (the Artifact Registry tag it publishes
+# under) plus
+# `GIT_SHA`/`BUILD_TIME` for the released commit, so the running binary can
+# answer `GET /version` with the exact release + commit it was built from —
+# distroless has no shell, so a runtime endpoint is the only way to read
+# this. Baking it here ties the reported release to the image bytes: it
+# cannot drift from what was deployed. A local `cargo run` (no build-arg)
+# honestly reports `unknown`.
+ARG RELEASE_TAG=unknown
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+ENV NAVIGATOR_RELEASE_TAG=$RELEASE_TAG \
+    NAVIGATOR_GIT_SHA=$GIT_SHA \
+    NAVIGATOR_BUILD_TIME=$BUILD_TIME
+
+# Tell the binary where to find its assets. Override at deploy time
+# if you mount these in from a ConfigMap or PVC.
+ENV NAVIGATOR_PUBLIC_DIR=/app/public \
+    NAVIGATOR_BLOG_DIR=/app/content/blog \
+    NAVIGATOR_WORKSHOPS_DIR=/app/content/workshops \
+    NAVIGATOR_MARKETING_DIR=/app/content/marketing \
+    NAVIGATOR_EVENTS_DIR=/app/content/events \
+    NAVIGATOR_FOUNDATION_DIR=/app/content/foundation \
+    APP_ENV=production \
+    PORT=3001
+
+EXPOSE 3001
+
+# An image someone pulled is a copy, and its holder has neither the repository
+# nor a release archive. MIT conditions its permission on the notice travelling
+# with every copy and Apache-2.0 § 4(a) obliges a redistributor to hand over the
+# License, so both texts ride in the runtime layer beside the binary. The label
+# is the registry-native form of the same statement: Artifact Registry and GHCR
+# read it for the package page, where a puller actually looks.
+LABEL org.opencontainers.image.licenses="MIT OR Apache-2.0" \
+      org.opencontainers.image.vendor="Neon Law Foundation"
+
+COPY LICENSE.md     /app/LICENSE.md
+COPY LICENSE-MIT    /app/LICENSE-MIT
+COPY LICENSE-APACHE /app/LICENSE-APACHE
+
+USER nonroot:nonroot
+
+ENTRYPOINT ["/app/neon"]

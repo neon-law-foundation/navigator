@@ -1,0 +1,22 @@
+# SOPS creation rules for the synthetic tree beside this file. See README.md —
+# these name no key that exists, and nothing in the workspace suite decrypts.
+#
+# The file is here because `deployments::tests` asserts that every row's
+# `kms_key` has a matching creation rule: the two are written in different
+# files that never reference each other, so only a test holds them together.
+# Guarding the real pair means guarding a pair, and this is the pair the
+# workspace can see. The real rules live beside the real rows in a private
+# repository.
+#
+# `encrypted_regex` keeps key names in plaintext and encrypts only values.
+# That is what makes a rotation a one-line diff naming the variable that
+# changed, and what lets a CI parity check read key names with no credential,
+# no KMS call, and no decrypt.
+
+creation_rules:
+  - path_regex: ^deployments/example-deployment/secrets\.enc\.yaml$
+    encrypted_regex: ^[A-Z][A-Z0-9_]*$
+    gcp_kms: projects/example-deployment/locations/us-west4/keyRings/navigator-secrets/cryptoKeys/deployment-config
+  - path_regex: ^deployments/example-automation-home/secrets\.enc\.yaml$
+    encrypted_regex: ^[A-Z][A-Z0-9_]*$
+    gcp_kms: projects/neon-law-stg/locations/us-west4/keyRings/navigator-secrets/cryptoKeys/deployment-config

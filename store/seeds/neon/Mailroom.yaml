@@ -1,0 +1,11 @@
+---
+# The mail centre our boxes live in, applied on every boot in every
+# environment. `mailrooms.name` is UNIQUE, so this is one facility row rather
+# than one per entity that rents from it, and seeding it is find-or-create.
+lookup_fields:
+  - name
+records:
+  - name: Ridgeview Mail Center
+    mailbox_start: 9000
+    mailbox_end: 9999
+    capacity: 1000

@@ -1,0 +1,85 @@
+# navigator.example.yaml — white-label brand pack.
+#
+# Copy this to `navigator.yaml`, fill in your organization's identity,
+# drop your logos next to it, and run:
+#
+#     cargo run -p cli -- ops rebrand build --out .devx/brand-bundle
+#     NAVIGATOR_CUSTOM_BRANDING=.devx/brand-bundle cargo run -p web
+#
+# `rebrand build` makes this manifest and its static files a self-contained,
+# read-only mounted bundle. Branding is Neon Law by default; setting
+# `NAVIGATOR_CUSTOM_BRANDING` to the bundle path is what opts a deployment
+# into a custom identity. Kubernetes mounts the bundle into web and
+# workflow-worker pods at `/etc/navigator/brand`, so a custom deploy sets
+# `NAVIGATOR_CUSTOM_BRANDING=/etc/navigator/brand`. The deployment operator
+# owns the bundle; application admins do not need infrastructure access to
+# change it.
+#
+# Identity strings only. Neon Law Navigator never machine-generates your binding
+# legal text: host your own terms of use + privacy policy on your site
+# and point `terms_url` / `privacy_url` at them (see `portal_only` below).
+
+version: 1
+
+brand:
+  # Display names. Overriding `firm` drops the linked ® in the footer —
+  # NeonLaw's registered mark is not your name.
+  firm: "Acme Law"
+  foundation: "Acme Law Foundation"
+
+  # Inbound support addresses (firm + foundation).
+  #
+  # The firm's address has two dials. Set `support_domain` alone and the
+  # address is `support@<support_domain>` — the ordinary case, one field to
+  # change when the firm moves domains. Set `support_email` to name a whole
+  # address instead, for a mailbox that is not `support@`; it wins over
+  # `support_domain` when both are present.
+  #
+  # `support_domain` is NOT `primary_domain` below: this one is where the firm
+  # reads its mail, that one is the infrastructure apex service hostnames are
+  # derived from. Moving the mailbox must not move the cluster.
+  support_domain: "acme.example"
+  # support_email: "hello@acme.example"
+  foundation_email: "foundation@acme.example"
+
+  # The firm's published voice line, shown on `/contact`. Omit to keep the
+  # built-in number.
+  firm_phone: "+1 555 010 0100"
+
+  # One-line postal addresses rendered in the footer.
+  firm_address: "123 Main St Ste 100, Springfield, IL 62701"
+  foundation_address: "123 Main St Ste 200, Springfield, IL 62701"
+
+  # Public origin + DNS apex. `base_url` is where email logos and
+  # absolute links resolve; `primary_domain` hardens the Restate
+  # re-register URL and canonical-host checks.
+  base_url: "https://app.acme.example"
+  primary_domain: "acme.example"
+
+  # Where the firm's "Book a consultation" CTA points.
+  consultation_url: "https://calendar.acme.example/book"
+
+  # Off-site legal pages. Portal-only mode requires `terms_url` so the
+  # footer never presents Neon Law's bundled terms as the deployer's terms.
+  # In a full-site deployment, omit both fields to retain the built-in links.
+  terms_url: "https://acme.example/terms"
+  privacy_url: "https://acme.example/privacy"
+
+# White-label app-only deploy: mount only the portal + app surface and
+# 303 `/` to /portal. Your own marketing site (WordPress, etc.) owns the
+# public pages. Requires `terms_url` to be set (see `brand verify`).
+portal_only: true
+
+# Static brand files are packed into the mounted bundle by `rebrand build`.
+# SVG is the on-page mark; the PNG raster is the email logo + social-share
+# card (scrapers won't rasterize SVG). Paths are relative to this manifest.
+assets:
+  firm_logo: "./brand/logo-firm.svg"
+  firm_logo_raster: "./brand/logo-firm.png"
+  foundation_logo: "./brand/logo-foundation.svg"
+  foundation_logo_raster: "./brand/logo-foundation.png"
+
+  # Optional public brand files beyond the four logo slots. Keys become
+  # `/public/brand/static/<key>`; values remain source-relative bundle paths.
+  static_files:
+    letterhead.css: "./brand/letterhead.css"

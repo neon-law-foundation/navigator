@@ -1,0 +1,88 @@
+# A synthetic AUTOMATION-HOME deployment. See ../../README.md; nothing here
+# names a resource that exists.
+#
+# `NAVIGATOR_GCP_PROJECT_ID` is the one value that must be real: the webhook
+# five-tuple in `store::deployment::WEB_REQUIREMENTS` is scoped by
+# `project_id: Some(GITHUB_AUTOMATION_HOME_PROJECT)`, matched against this
+# exact string, so any other value leaves that requirement — and the
+# `SecretProviderClass` block gated on it — unexercised by the whole suite.
+#
+# The directory is deliberately NOT named for that project. A `neon-law-stg`
+# directory sitting in a fixture tree reads as the real tree never having
+# moved, and the code scopes on the coordinate rather than the directory name.
+
+kms_key = "projects/neon-law-stg/locations/us-west4/keyRings/navigator-secrets/cryptoKeys/deployment-config"
+
+provisioned = true
+
+[env]
+NAVIGATOR_ENVIRONMENT = "production"
+NAVIGATOR_CREDENTIAL_ENVIRONMENT = "production"
+
+# --- Google Cloud ----------------------------------------------------------
+NAVIGATOR_GCP_PROJECT_ID = "neon-law-stg"
+NAVIGATOR_GCP_LOCATION = "us-west4"
+NAVIGATOR_GKE_CLUSTER_NAME = "example-automation-home"
+NAVIGATOR_GKE_CONTEXT = "gke_neon-law-stg_us-west4_example-automation-home"
+NAVIGATOR_K8S_NAMESPACE = "example-automation-home"
+NAVIGATOR_VPC_NAME = "example-automation-home-vpc"
+NAVIGATOR_SUBNETWORK_NAME = "example-automation-home-subnet"
+NAVIGATOR_GATEWAY_IP_NAME = "example-automation-home-gateway-ip"
+NAVIGATOR_GATEWAY_IP = "198.51.100.11"
+NAVIGATOR_GCP_SERVICE_ACCOUNT_ID = "example-automation-home-web"
+NAVIGATOR_DRIVE_GCP_SERVICE_ACCOUNT_ID = "example-automation-home-drive"
+NAVIGATOR_WEB_SECRET_NAME = "example-automation-home-web-secrets"
+
+# --- Sign-in client --------------------------------------------------------
+NAVIGATOR_OAUTH_CLIENT_ID_BROWSER = "000000000001-examplehome.apps.googleusercontent.com"
+
+# --- Storage ---------------------------------------------------------------
+NAVIGATOR_ASSETS_BUCKET = "example-automation-home-assets"
+NAVIGATOR_DOCUMENTS_BUCKET = "example-automation-home-documents"
+NAVIGATOR_EXPORTS_BUCKET = "example-automation-home-exports"
+NAVIGATOR_SURREAL_ARCHIVES_BUCKET = "example-automation-home-archives"
+NAVIGATOR_LOGS_BUCKET = "example-automation-home-logs"
+NAVIGATOR_APPLICATIONS_BUCKET = "example-automation-home-applications"
+NAVIGATOR_ICEBERG_BUCKET = "example-archives-automation-home"
+NAVIGATOR_TELEMETRY_BUCKET = "example-automation-home-telemetry"
+
+# --- Images ----------------------------------------------------------------
+NAVIGATOR_IMAGE_REGISTRY = "ghcr.io/neon-law-foundation"
+NAVIGATOR_WEB_IMAGE = "neon-server"
+
+# --- Public surface --------------------------------------------------------
+NAVIGATOR_PUBLIC_HOST = "home.example.com"
+NAVIGATOR_PRIMARY_DOMAIN = "home.example.com"
+CANONICAL_HOST = "home.example.com"
+NAV_BASE_URL = "https://home.example.com"
+NAVIGATOR_ASSET_BASE_URL = "https://home.example.com/assets"
+NAVIGATOR_WORKFLOWS_HOST = "workflows.home.example.com"
+NAVIGATOR_WORKFLOWS_URL = "https://workflows.home.example.com/"
+
+# --- Sign-in ---------------------------------------------------------------
+GOOGLE_OAUTH_REQUIRED_HD = "example.com"
+
+# --- Forge -----------------------------------------------------------------
+# The automation home runs the engineering webhook receiver, so the five-tuple
+# applies to this row and to no other. Two members are coordinates; the HMAC
+# secret, the Restate ingress URL, and the bearer are key material.
+NAVIGATOR_FORGE_BACKEND = "github"
+NAVIGATOR_GITHUB_ORG = "neon-law-foundation"
+NAVIGATOR_GIT_HOST = "github.com"
+NAVIGATOR_GITHUB_CANONICAL_REPOSITORY = "neon-law-foundation/navigator"
+NAVIGATOR_GITHUB_APP_ID = "100001"
+NAVIGATOR_GITHUB_INSTALLATION_ID = "200001"
+
+# --- Signatures ------------------------------------------------------------
+# Declaring DocuSign is what makes every DocuSign requirement apply, and this
+# is the only row that declares it. `example-deployment` supplies no
+# DOCUSIGN_BASE_URL and so must have every DocuSign object skipped instead —
+# the two rows are the two sides of that trigger.
+DOCUSIGN_BASE_URL = "https://demo.docusign.example/restapi"
+DOCUSIGN_OAUTH_BASE = "account-d.docusign.example"
+DOCUSIGN_SIGNER_EMAIL = "signer@example.com"
+
+# --- SurrealDB -------------------------------------------------------------
+NAVIGATOR_SURREAL_ENDPOINT = "wss://example-automation-home.surreal.example/rpc"
+NAVIGATOR_SURREAL_NAMESPACE = "navigator"
+NAVIGATOR_SURREAL_DATABASE = "navigator"

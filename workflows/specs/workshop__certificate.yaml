@@ -1,0 +1,10 @@
+questionnaire:
+  BEGIN:
+    _: END
+  END: {}
+workflow:
+  BEGIN:
+    requested: email_send__certificate
+  email_send__certificate:
+    email_sent: END
+  END: {}

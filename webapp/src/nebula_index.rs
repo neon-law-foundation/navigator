@@ -1,0 +1,273 @@
+//! `/workshops` and `/presentations` — the firm's two material indexes.
+//!
+//! One page shape serves both categories. The heading, the lede, and the list
+//! are injected per request by the portal pre-layer, so the category is a
+//! content decision rather than a second component: a reader arriving at
+//! `/workshops` and a reader arriving at `/presentations` see the same page
+//! rendered from different material.
+//!
+//! The show-and-tell archive keeps its own paginated index
+//! ([`crate::show_tell_index`]); the site nav is what gathers the three.
+
+use dioxus::prelude::*;
+use serde::{Deserialize, Serialize};
+
+use crate::components::{
+    NebulaHero, PublicShell, SiteHeader, SiteNavLink, SocialMeta, NEBULA_STYLESHEET_HREF,
+};
+use crate::public_chrome::{PublicChrome, PublicFooter};
+
+/// One material in an index — a workshop or a presentation. `eyebrow` is the
+/// small uppercase line above the title, naming the audience the material is
+/// written for.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+pub struct NebulaMaterial {
+    pub href: String,
+    pub eyebrow: String,
+    pub title: String,
+    pub summary: String,
+}
+
+/// One category index's resolved content, built per request by the portal
+/// pre-layer and injected for [`nebula_index_view`]. The wasm-safe carrier
+/// across the server-function boundary.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+pub struct NebulaIndexContent {
+    /// The category's heading, and the page title after the brand name.
+    pub title: String,
+    /// The hero paragraph, reused as the page's meta description.
+    pub lede: String,
+    pub materials: Vec<NebulaMaterial>,
+    /// The Foundation inbox the empty state writes to.
+    pub contact_email: String,
+    /// The line under the list. Empty renders nothing.
+    pub footnote: String,
+}
+
+/// The [`NebulaIndexContent`] the portal pre-layer injects, read back in
+/// [`nebula_index_view`].
+#[derive(Clone, Default)]
+pub struct InjectedNebulaIndex(pub NebulaIndexContent);
+
+/// Everything the page renders.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+pub struct NebulaIndexView {
+    pub chrome: PublicChrome,
+    pub content: NebulaIndexContent,
+}
+
+/// Resolve the Foundation chrome and this category's injected content.
+#[server]
+pub async fn nebula_index_view() -> Result<NebulaIndexView, ServerFnError> {
+    let content = dioxus_fullstack_core::FullstackContext::extract::<
+        axum::Extension<InjectedNebulaIndex>,
+        _,
+    >()
+    .await
+    .map(|axum::Extension(c)| c.0)
+    .unwrap_or_default();
+    Ok(NebulaIndexView {
+        chrome: crate::public_chrome::foundation_public_chrome_from_context().await,
+        content,
+    })
+}
+
+/// The page's route entry, mounted once per category.
+#[component]
+pub fn NebulaIndexEntry() -> Element {
+    let resource = use_server_future(nebula_index_view)?;
+    let view = match &*resource.read() {
+        Some(Ok(view)) => view.clone(),
+        _ => return rsx! {},
+    };
+    rsx! {
+        NebulaIndexPage { chrome: view.chrome, content: view.content }
+    }
+}
+
+/// The pure index page. Prop-driven, so it server-renders and unit-tests
+/// without a server future.
+#[component]
+pub fn NebulaIndexPage(chrome: PublicChrome, content: NebulaIndexContent) -> Element {
+    let header = rsx! {
+        SiteHeader {
+            brand_name: chrome.brand_name.clone(),
+            home_href: chrome.home_href.clone(),
+            logo_href: chrome.logo_href.clone(),
+            destinations: chrome
+                .destinations
+                .iter()
+                .map(|link| SiteNavLink::new(link.label.clone(), link.href.clone()))
+                .collect(),
+            utility: chrome
+                .utility
+                .iter()
+                .map(|link| SiteNavLink::new(link.label.clone(), link.href.clone()))
+                .collect(),
+        }
+    };
+    let footer = rsx! {
+        PublicFooter { chrome: chrome.clone() }
+    };
+    let mailto = format!("mailto:{}", content.contact_email);
+    let head_title = format!("{} | {}", chrome.brand_name, content.title);
+    rsx! {
+        document::Title { "{head_title}" }
+        document::Meta { name: "description", content: content.lede.clone() }
+        // The share card. Load-bearing on the presentations index in
+        // particular: the talks are the firm's most-shared public surface, so
+        // this is the preview every pasted link to a talk index renders.
+        //
+        // Not assertable from the unit tests below: `document::*` hoists into
+        // `<head>` during the real SSR pipeline and never appears in
+        // `dioxus_ssr::render` output. The covering test is the
+        // `brand_routing.feature` scenario that greps `og:site_name` off `/`
+        // through the real router.
+        SocialMeta {
+            title: head_title.clone(),
+            description: content.lede.clone(),
+            site_name: chrome.brand_name.clone(),
+            image: chrome.social_image.clone(),
+        }
+        document::Stylesheet { href: NEBULA_STYLESHEET_HREF }
+        PublicShell { header, footer,
+            NebulaHero {
+                eyebrow: chrome.brand_name.clone(),
+                title: content.title.clone(),
+                lede: content.lede.clone(),
+            }
+            if content.materials.is_empty() {
+                p { class: "nebula-empty",
+                    "This catalog is still loading. Email "
+                    a { href: "{mailto}", "{content.contact_email}" }
+                    " for the runbook in the meantime."
+                }
+            } else {
+                NebulaMaterialList { materials: content.materials.clone() }
+                if !content.footnote.is_empty() {
+                    p { class: "nebula-more", "{content.footnote}" }
+                }
+            }
+        }
+    }
+}
+
+/// One list of materials.
+#[component]
+fn NebulaMaterialList(materials: Vec<NebulaMaterial>) -> Element {
+    rsx! {
+        ul { class: "nebula-materials",
+            for material in materials.iter() {
+                li { class: "nebula-material",
+                    p { class: "nebula-eyebrow", "{material.eyebrow}" }
+                    h3 {
+                        a { href: "{material.href}", "{material.title}" }
+                    }
+                    p { "{material.summary}" }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ssr(app: fn() -> Element) -> String {
+        let mut dom = VirtualDom::new(app);
+        dom.rebuild_in_place();
+        dioxus_ssr::render(&dom)
+    }
+
+    fn material(title: &str, href: &str) -> NebulaMaterial {
+        NebulaMaterial {
+            href: href.to_string(),
+            eyebrow: "For lawyers".to_string(),
+            title: title.to_string(),
+            summary: "What you take away.".to_string(),
+        }
+    }
+
+    fn workshops() -> NebulaIndexContent {
+        NebulaIndexContent {
+            title: "Workshops".to_string(),
+            lede: "Hands-on classes.".to_string(),
+            materials: vec![
+                material("Using Neon Law Navigator", "/workshops/use-the-navigator"),
+                material(
+                    "Operating Neon Law Navigator",
+                    "/workshops/deploy-the-navigator",
+                ),
+            ],
+            contact_email: "support@example.org".to_string(),
+            footnote: "More classes land here as we run them.".to_string(),
+        }
+    }
+
+    fn html() -> String {
+        fn app() -> Element {
+            rsx! {
+                NebulaIndexPage { chrome: PublicChrome::default(), content: workshops() }
+            }
+        }
+        ssr(app)
+    }
+
+    #[test]
+    fn the_heading_names_the_category() {
+        let out = html();
+        assert!(out.contains("Workshops"), "category heading: {out}");
+    }
+
+    #[test]
+    fn each_material_links_to_its_own_page() {
+        let out = html();
+        assert!(
+            out.contains(r#"href="/workshops/use-the-navigator""#),
+            "first material href: {out}"
+        );
+        assert!(
+            out.contains(r#"href="/workshops/deploy-the-navigator""#),
+            "second material href: {out}"
+        );
+    }
+
+    #[test]
+    fn the_index_advertises_a_gated_class_it_cannot_open() {
+        // The index is public while the material behind it is not: an
+        // anonymous reader must still learn the class exists. Losing the
+        // title or the summary here turns the gate into a dead end.
+        let out = html();
+        assert!(out.contains("Operating Neon Law Navigator"), "title: {out}");
+        assert!(out.contains("What you take away."), "summary: {out}");
+    }
+
+    #[test]
+    fn the_footnote_renders_under_the_list() {
+        let out = html();
+        assert!(
+            out.contains("More classes land here as we run them."),
+            "footnote: {out}"
+        );
+    }
+
+    #[test]
+    fn an_empty_category_offers_the_foundation_inbox_instead() {
+        fn app() -> Element {
+            let content = NebulaIndexContent {
+                title: "Presentations".to_string(),
+                contact_email: "support@example.org".to_string(),
+                ..NebulaIndexContent::default()
+            };
+            rsx! {
+                NebulaIndexPage { chrome: PublicChrome::default(), content }
+            }
+        }
+        let out = ssr(app);
+        assert!(
+            out.contains("support@example.org") && out.contains("mailto:support@example.org"),
+            "the empty state must offer the inbox: {out}"
+        );
+    }
+}

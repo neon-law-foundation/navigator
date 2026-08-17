@@ -1,0 +1,123 @@
+# Rauthy is Navigator's OIDC identity provider outside production. Production
+# keeps Google Identity Services and does not load this manifest.
+#
+# This reusable layer deliberately contains no identity credentials or client
+# registration data. An environment loading it must provide:
+# - Secret `rauthy-secrets` with Hiqlite/encryption keys, the Rauthy bootstrap administrator,
+#   PUB_URL, RP_ORIGIN, and OAUTH_ISSUER_URL;
+# - Secret `rauthy-client` with the navigator-web OAUTH_CLIENT_SECRET; and
+# - ConfigMap `rauthy-bootstrap` with config.toml, users.json, and clients.json.
+#
+# The KIND overlays provide local-only fixtures. Without environment-owned
+# values, Rauthy and navigator-web fail to start instead of inheriting a
+# committed staging credential.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rauthy
+  namespace: navigator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rauthy
+  template:
+    metadata:
+      labels:
+        app: rauthy
+    spec:
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: rauthy
+          image: ghcr.io/sebadob/rauthy:0.36.1@sha256:6f35e2e41753e973336d476c9593b4c1e41ac597803adf6ccaec08c7d8818cd0
+          envFrom:
+            - secretRef:
+                name: rauthy-secrets
+          # Keep these values explicit so the CLI can align an isolated
+          # worktree's public issuer without restating the whole environment.
+          env:
+            - name: PUB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rauthy-secrets
+                  key: PUB_URL
+            - name: RP_ORIGIN
+              valueFrom:
+                secretKeyRef:
+                  name: rauthy-secrets
+                  key: RP_ORIGIN
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: hiqlite-raft
+              containerPort: 8100
+            - name: hiqlite-api
+              containerPort: 8200
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+            runAsUser: 10001
+            runAsGroup: 10001
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8200
+            initialDelaySeconds: 5
+            periodSeconds: 3
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /auth/v1/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.toml
+              subPath: config.toml
+              readOnly: true
+            - name: bootstrap
+              mountPath: /app/bootstrap
+              readOnly: true
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: config
+          configMap:
+            name: rauthy-bootstrap
+            items:
+              - key: config.toml
+                path: config.toml
+        - name: bootstrap
+          configMap:
+            name: rauthy-bootstrap
+            items:
+              - key: users.json
+                path: users.json
+              - key: clients.json
+                path: clients.json
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rauthy
+  namespace: navigator
+spec:
+  selector:
+    app: rauthy
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30080
+  type: NodePort

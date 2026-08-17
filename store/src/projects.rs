@@ -1,0 +1,2201 @@
+//! Project (matter) lifecycle helpers.
+//!
+//! A matter's `status` walks `open` → `closed` → `archived`
+//! (`Project::status`). Opening is done at retainer
+//! intake; this module owns the *close* — flipping a matter to `closed`
+//! when the firm signs its closing letter. Archival (the Drive cold
+//! store) is a separate downstream step and is left untouched here.
+
+use surrealdb::types::SurrealValue;
+use uuid::Uuid;
+
+use crate::persons::Role;
+use crate::surreal::{record_id, record_uuid, retry, SurrealDb};
+
+/// Maximum length of a matter code, chosen to stay comfortably within
+/// common filesystem and URL segment limits once `.git` is appended.
+///
+/// The same cap a Project **application** name carries, because they are the
+/// same shape — see [`is_valid_code`].
+pub const PROJECT_CODE_MAX_LEN: usize = cloud::workspace::SLUG_MAX_LEN;
+
+/// A Project read from the SurrealDB projects cluster.
+///
+/// Every reference is a native link now: `entity_id` became a
+/// `record<entity>` when the entities cluster ported (ENG-120), which was
+/// the last cross-engine id this cluster carried.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Project {
+    pub id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub status: String,
+    pub entity_id: Uuid,
+    pub description: Option<String>,
+    pub drive_folder_id: Option<String>,
+    pub git_initialized_at: Option<String>,
+    pub forge_provisioned_at: Option<String>,
+    pub closed_at: Option<String>,
+    /// The lawyer-only Slack channel for this matter, shown as a button on the
+    /// lawyer workbench. Distinct from [`Self::external_slack_channel_url`]
+    /// because a channel shared with the client carries different posting
+    /// norms — conflating the two would risk lawyer-only chatter landing in a
+    /// client-visible channel by mistake.
+    pub internal_slack_channel_url: Option<String>,
+    /// The Slack channel shared with the client, if this matter has one.
+    /// Optional: most matters never get a client-facing channel.
+    pub external_slack_channel_url: Option<String>,
+    pub inserted_at: String,
+    pub updated_at: String,
+}
+
+#[derive(surrealdb::types::SurrealValue)]
+struct ProjectRow {
+    id: surrealdb::types::RecordId,
+    code: String,
+    name: String,
+    status: String,
+    entity_id: surrealdb::types::RecordId,
+    description: Option<String>,
+    drive_folder_id: Option<String>,
+    git_initialized_at: Option<String>,
+    forge_provisioned_at: Option<String>,
+    closed_at: Option<String>,
+    internal_slack_channel_url: Option<String>,
+    external_slack_channel_url: Option<String>,
+    inserted_at: String,
+    updated_at: String,
+}
+
+impl ProjectRow {
+    fn into_project(self) -> Option<Project> {
+        Some(Project {
+            id: record_uuid(&self.id)?,
+            code: self.code,
+            name: self.name,
+            status: self.status,
+            entity_id: record_uuid(&self.entity_id)?,
+            description: self.description,
+            drive_folder_id: self.drive_folder_id,
+            git_initialized_at: self.git_initialized_at,
+            forge_provisioned_at: self.forge_provisioned_at,
+            closed_at: self.closed_at,
+            internal_slack_channel_url: self.internal_slack_channel_url,
+            external_slack_channel_url: self.external_slack_channel_url,
+            inserted_at: self.inserted_at,
+            updated_at: self.updated_at,
+        })
+    }
+}
+
+pub(crate) const PROJECT_TABLE: &str = "project";
+/// The entities cluster this table links into (ENG-120).
+const ENTITY_TABLE: &str = "entity";
+const PERSON_PROJECT_ROLE_TABLE: &str = "person_project_role";
+const PROJECT_SELECT: &str = "id, code, name, status, entity_id, description, \
+                              drive_folder_id, git_initialized_at, forge_provisioned_at, closed_at, \
+                              internal_slack_channel_url, external_slack_channel_url, \
+                              inserted_at, updated_at";
+
+/// Errors from the SurrealDB Project read seam.
+#[derive(Debug, thiserror::Error)]
+pub enum ProjectStoreError {
+    #[error("database: {0}")]
+    Db(#[from] surrealdb::Error),
+    #[error(transparent)]
+    Person(#[from] crate::persons::PersonError),
+    #[error("that project code is already in use")]
+    CodeTaken,
+    #[error("writing a project returned no usable row")]
+    WriteReturnedNothing,
+    #[error("no person {0}")]
+    NoSuchPerson(Uuid),
+    #[error("no project {0}")]
+    NoSuchProject(Uuid),
+}
+
+fn classify_project_write(error: surrealdb::Error) -> ProjectStoreError {
+    if error.to_string().contains("project_code") {
+        ProjectStoreError::CodeTaken
+    } else {
+        ProjectStoreError::Db(error)
+    }
+}
+
+/// Run a write under the shared retry policy
+/// ([`crate::surreal::retry`]), mapping whatever finally comes back to
+/// this module's error.
+///
+/// Only the mapping lives here. How long a lost race is re-run, and
+/// which engine conditions count as a lost race, are one policy for the
+/// whole crate.
+async fn writing_project<F, Q>(attempt: F) -> Result<surrealdb::IndexedResults, ProjectStoreError>
+where
+    F: FnMut() -> Q,
+    Q: std::future::IntoFuture<Output = Result<surrealdb::IndexedResults, surrealdb::Error>>,
+{
+    retry::writing(attempt)
+        .await
+        .map_err(classify_project_write)
+}
+
+/// Inputs for creating a Project row. Command callers validate the
+/// `entity_id` before calling this function: the engine does not validate
+/// a `record<>` link, so a dangling one is accepted here and caught above.
+#[derive(Debug, Clone, Default)]
+pub struct NewProject {
+    pub code: String,
+    pub name: String,
+    pub status: String,
+    pub entity_id: Uuid,
+    pub description: Option<String>,
+}
+
+/// One person's current participation on a Project.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct PersonProjectRole {
+    pub id: Uuid,
+    pub person_id: Uuid,
+    pub project_id: Uuid,
+    pub participation: String,
+    pub is_lawyer_dri: bool,
+    pub is_client_dri: bool,
+    pub inserted_at: String,
+    pub updated_at: String,
+}
+
+#[derive(SurrealValue)]
+struct PersonProjectRoleRow {
+    id: surrealdb::types::RecordId,
+    person_id: surrealdb::types::RecordId,
+    project_id: surrealdb::types::RecordId,
+    participation: String,
+    is_lawyer_dri: bool,
+    is_client_dri: bool,
+    inserted_at: String,
+    updated_at: String,
+}
+
+impl PersonProjectRoleRow {
+    fn into_role(self) -> Option<PersonProjectRole> {
+        Some(PersonProjectRole {
+            id: record_uuid(&self.id)?,
+            person_id: record_uuid(&self.person_id)?,
+            project_id: record_uuid(&self.project_id)?,
+            participation: self.participation,
+            is_lawyer_dri: self.is_lawyer_dri,
+            is_client_dri: self.is_client_dri,
+            inserted_at: self.inserted_at,
+            updated_at: self.updated_at,
+        })
+    }
+}
+
+const PERSON_PROJECT_ROLE_SELECT: &str =
+    "id, person_id, project_id, participation, is_lawyer_dri, \
+                                           is_client_dri, inserted_at, updated_at";
+
+/// The participation kinds on the client side of a matter. `counterparty`
+/// remains listed because a legacy row must keep reading client-side: promoting
+/// an adverse party to the firm lens is the one direction that must never
+/// happen by omission. Nothing writes it any more.
+pub const PARTICIPATION_CLIENT_SIDE: &[&str] = &["client", "counterparty"];
+
+/// The matter-side participation implied by a person's system tier — the only
+/// way a participation is ever chosen.
+///
+/// Which side of a matter someone is on follows from what they are: a `client`
+/// lands on the client side, and every firm tier lands firm-side under its own
+/// name. There is no second vocabulary to disagree with the tier. The kinds that
+/// used to need one are not participants at all — an adverse party never gets a
+/// portal row, and co-counsel working the matter is a `lawyer` person.
+#[must_use]
+pub fn participation_for_role(role: Role) -> &'static str {
+    role.as_str()
+}
+
+/// All participation rows for a matter, in stable insertion order.
+pub async fn participations_for_project(
+    surreal: &SurrealDb,
+    project_id: Uuid,
+) -> Result<Vec<PersonProjectRole>, ProjectStoreError> {
+    let mut response = surreal
+        .query(format!(
+            "SELECT {PERSON_PROJECT_ROLE_SELECT} FROM {PERSON_PROJECT_ROLE_TABLE} \
+             WHERE project_id = $project_id ORDER BY inserted_at, id"
+        ))
+        .bind(("project_id", record_id(PROJECT_TABLE, project_id)))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let rows: Vec<PersonProjectRoleRow> = response.take(0)?;
+    Ok(rows
+        .into_iter()
+        .filter_map(PersonProjectRoleRow::into_role)
+        .collect())
+}
+
+/// Every participation row, ordered for the lawyer directory.
+pub async fn all_participations(
+    surreal: &SurrealDb,
+) -> Result<Vec<PersonProjectRole>, ProjectStoreError> {
+    let mut response = surreal
+        .query(format!(
+            "SELECT {PERSON_PROJECT_ROLE_SELECT} FROM {PERSON_PROJECT_ROLE_TABLE} \
+             ORDER BY project_id, person_id"
+        ))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let rows: Vec<PersonProjectRoleRow> = response.take(0)?;
+    Ok(rows
+        .into_iter()
+        .filter_map(PersonProjectRoleRow::into_role)
+        .collect())
+}
+
+/// One participation row by its id.
+pub async fn participation_by_id(
+    surreal: &SurrealDb,
+    id: Uuid,
+) -> Result<Option<PersonProjectRole>, ProjectStoreError> {
+    let mut response = surreal
+        .query(format!("SELECT {PERSON_PROJECT_ROLE_SELECT} FROM ONLY $id"))
+        .bind(("id", record_id(PERSON_PROJECT_ROLE_TABLE, id)))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let row: Option<PersonProjectRoleRow> = response.take(0)?;
+    Ok(row.and_then(PersonProjectRoleRow::into_role))
+}
+
+/// Add one person to a Project, validating both record links at the command
+/// seam. The unique pair index is the concurrency backstop.
+pub async fn add_participation(
+    surreal: &SurrealDb,
+    project_id: Uuid,
+    person_id: Uuid,
+    participation: &str,
+) -> Result<PersonProjectRole, ProjectStoreError> {
+    if crate::persons::find_by_id(surreal, person_id)
+        .await?
+        .is_none()
+    {
+        return Err(ProjectStoreError::NoSuchPerson(person_id));
+    }
+    if find_by_id(surreal, project_id).await?.is_none() {
+        return Err(ProjectStoreError::NoSuchProject(project_id));
+    }
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut response = writing_project(|| {
+        surreal
+            .query(format!(
+                "CREATE $id SET person_id = $person_id, project_id = $project_id, \
+                 participation = $participation, inserted_at = $now, updated_at = $now \
+                 RETURN {PERSON_PROJECT_ROLE_SELECT}"
+            ))
+            .bind(("id", record_id(PERSON_PROJECT_ROLE_TABLE, Uuid::now_v7())))
+            .bind(("person_id", record_id("person", person_id)))
+            .bind(("project_id", record_id(PROJECT_TABLE, project_id)))
+            .bind(("participation", participation.to_string()))
+            .bind(("now", now.clone()))
+    })
+    .await?;
+    let row: Option<PersonProjectRoleRow> = response.take(0)?;
+    row.and_then(PersonProjectRoleRow::into_role)
+        .ok_or(ProjectStoreError::WriteReturnedNothing)
+}
+
+/// Replace a participation's person and label without disturbing its DRI
+/// markers. The caller enforces the DRI-side rule before invoking this write.
+pub async fn update_participation(
+    surreal: &SurrealDb,
+    role_id: Uuid,
+    person_id: Uuid,
+    participation: &str,
+) -> Result<Option<PersonProjectRole>, ProjectStoreError> {
+    if crate::persons::find_by_id(surreal, person_id)
+        .await?
+        .is_none()
+    {
+        return Err(ProjectStoreError::NoSuchPerson(person_id));
+    }
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut response = writing_project(|| {
+        surreal
+            .query(format!(
+                "UPDATE $id SET person_id = $person_id, participation = $participation, \
+                 updated_at = $now RETURN {PERSON_PROJECT_ROLE_SELECT}"
+            ))
+            .bind(("id", record_id(PERSON_PROJECT_ROLE_TABLE, role_id)))
+            .bind(("person_id", record_id("person", person_id)))
+            .bind(("participation", participation.to_string()))
+            .bind(("now", now.clone()))
+    })
+    .await?;
+    let row: Option<PersonProjectRoleRow> = response.take(0)?;
+    Ok(row.and_then(PersonProjectRoleRow::into_role))
+}
+
+/// Remove one participation row. The caller checks the lawyer-DRI invariant
+/// before deletion; this low-level command is intentionally idempotent.
+pub async fn remove_participation(
+    surreal: &SurrealDb,
+    role_id: Uuid,
+) -> Result<(), ProjectStoreError> {
+    writing_project(|| {
+        surreal
+            .query("DELETE $id")
+            .bind(("id", record_id(PERSON_PROJECT_ROLE_TABLE, role_id)))
+    })
+    .await?;
+    Ok(())
+}
+
+/// Read the participation that gives `person_id` scope on `project_id`.
+pub async fn participation_for_person(
+    surreal: &SurrealDb,
+    person_id: Uuid,
+    project_id: Uuid,
+) -> Result<Option<PersonProjectRole>, ProjectStoreError> {
+    let mut response = surreal
+        .query(format!(
+            "SELECT {PERSON_PROJECT_ROLE_SELECT} FROM ONLY {PERSON_PROJECT_ROLE_TABLE} \
+             WHERE person_id = $person_id AND project_id = $project_id LIMIT 1"
+        ))
+        .bind(("person_id", record_id("person", person_id)))
+        .bind(("project_id", record_id(PROJECT_TABLE, project_id)))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let row: Option<PersonProjectRoleRow> = response.take(0)?;
+    Ok(row.and_then(PersonProjectRoleRow::into_role))
+}
+
+/// All participation rows held by one person, in stable insertion order.
+pub async fn participations_for_person(
+    surreal: &SurrealDb,
+    person_id: Uuid,
+) -> Result<Vec<PersonProjectRole>, ProjectStoreError> {
+    let mut response = surreal
+        .query(format!(
+            "SELECT {PERSON_PROJECT_ROLE_SELECT} FROM {PERSON_PROJECT_ROLE_TABLE} \
+             WHERE person_id = $person_id ORDER BY inserted_at, id"
+        ))
+        .bind(("person_id", record_id("person", person_id)))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let rows: Vec<PersonProjectRoleRow> = response.take(0)?;
+    Ok(rows
+        .into_iter()
+        .filter_map(PersonProjectRoleRow::into_role)
+        .collect())
+}
+
+/// Whether this person holds a firm-side participation row on the matter.
+///
+/// The membership question on its own, with no tier policy folded in:
+/// client-side participations and client DRIs never enter the lawyer lens,
+/// while unrecognized participation strings remain firm-side. Callers layer
+/// their own tier rule over it — `store::access` requires the row of every
+/// tier, while [`can_access_as_lawyer_in_surreal`] keeps the Owner/Admin
+/// short-circuit its own callers still depend on.
+pub async fn has_firm_participation(
+    surreal: &SurrealDb,
+    person_id: Uuid,
+    project_id: Uuid,
+) -> Result<bool, ProjectStoreError> {
+    let mut response = surreal
+        .query(format!(
+            "SELECT VALUE id FROM ONLY {PERSON_PROJECT_ROLE_TABLE} \
+             WHERE person_id = $person_id AND project_id = $project_id \
+             AND participation NOT IN ['client', 'counterparty'] \
+             AND is_client_dri = false LIMIT 1"
+        ))
+        .bind(("person_id", record_id("person", person_id)))
+        .bind(("project_id", record_id(PROJECT_TABLE, project_id)))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let result: Option<surrealdb::types::RecordId> = response.take(0)?;
+    Ok(result.is_some())
+}
+
+/// Whether a lawyer-tier actor may read a Project through the firm lens,
+/// with the Owner/Admin project-scoping bypass applied.
+///
+/// The matter surface no longer comes through here — `store::access` requires
+/// a participation row of every tier, so privileged reach is an explicit
+/// place you navigate to rather than an invisible widening. What remains are
+/// the callers that legitimately act as the deployment rather than as a
+/// person on a matter: the MCP tools.
+pub async fn can_access_as_lawyer_in_surreal(
+    surreal: &SurrealDb,
+    person_id: Option<Uuid>,
+    role: Role,
+    project_id: Uuid,
+) -> Result<bool, ProjectStoreError> {
+    if !role.is_lawyer_tier() {
+        return Ok(false);
+    }
+    if role.is_admin_tier() {
+        return Ok(true);
+    }
+    let Some(person_id) = person_id else {
+        return Ok(false);
+    };
+    has_firm_participation(surreal, person_id, project_id).await
+}
+
+/// Whether a person may read a Project through the client lens.
+///
+/// The projects cluster is authoritative for both the project row and its
+/// participation rows. The client-side predicate lives here beside the
+/// lawyer predicate so that every access decision reads one membership
+/// table.
+pub async fn can_access_as_client_in_surreal(
+    surreal: &SurrealDb,
+    person_id: Option<Uuid>,
+    project_id: Uuid,
+) -> Result<bool, ProjectStoreError> {
+    let Some(person_id) = person_id else {
+        return Ok(false);
+    };
+    let mut response = surreal
+        .query(format!(
+            "SELECT VALUE id FROM ONLY {PERSON_PROJECT_ROLE_TABLE} \
+             WHERE person_id = $person_id AND project_id = $project_id \
+             AND (participation IN ['client', 'counterparty'] OR is_client_dri = true) LIMIT 1"
+        ))
+        .bind(("person_id", record_id("person", person_id)))
+        .bind(("project_id", record_id(PROJECT_TABLE, project_id)))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let result: Option<surrealdb::types::RecordId> = response.take(0)?;
+    Ok(result.is_some())
+}
+
+/// One matter as the Owner/Admin directory lens sees it: what the matter is,
+/// and who is accountable for it.
+///
+/// Deliberately four fields. The lens answers "which matters exist, and who
+/// owns each" and nothing further, so there is no project id here to hang a
+/// detail link on: [`code`](Self::code) is the stable handle (`project_code`
+/// is `UNIQUE`), and anything a matter *contains* — notations, deadlines,
+/// documents, communications, the rest of the participation ledger — is
+/// membership's to disclose, not oversight's.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct MatterDirectoryEntry {
+    pub code: String,
+    pub name: String,
+    pub status: String,
+    /// The names on the matter's `is_lawyer_dri` rows, alphabetical, or empty
+    /// when no lawyer holds the marker. An unassigned matter is what this lens
+    /// exists to surface, so an empty set is an ordinary value here rather than
+    /// an error.
+    pub lawyer_dris: Vec<String>,
+}
+
+/// The Owner/Admin directory over every matter.
+///
+/// The third shape beside the two predicates above, and neither of them:
+/// [`can_access_as_lawyer_in_surreal`] short-circuits the admin tier to full
+/// access to a matter, and `store::access` requires a participation row of
+/// every tier and denies without one. This one is oversight rather than
+/// membership — see that a matter exists and who owns it, without seeing what
+/// is in it — so it returns the projection instead of a bool, and Owner and
+/// Admin reach it holding no `person_project_roles` row at all.
+///
+/// Admin tier only. A `lawyer` caller gets an empty directory, the same
+/// answer they get from every other firm-wide read they are not entitled to;
+/// the tier is checked before the read runs, so a `lawyer` call touches
+/// nothing.
+pub async fn matter_directory(
+    surreal: &SurrealDb,
+    role: Role,
+) -> Result<Vec<MatterDirectoryEntry>, ProjectStoreError> {
+    if !role.is_admin_tier() {
+        return Ok(Vec::new());
+    }
+    let projects = all(surreal).await?;
+    if projects.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // One round trip per table, not one per matter: every flagged row, then
+    // the persons they name. The same batching `matter_lifecycle_sets` uses.
+    let mut response = surreal
+        .query(format!(
+            "SELECT {PERSON_PROJECT_ROLE_SELECT} FROM {PERSON_PROJECT_ROLE_TABLE} \
+             WHERE is_lawyer_dri = true"
+        ))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let rows: Vec<PersonProjectRoleRow> = response.take(0)?;
+    let mut dris_by_project: std::collections::HashMap<Uuid, Vec<Uuid>> =
+        std::collections::HashMap::new();
+    for row in rows.into_iter().filter_map(PersonProjectRoleRow::into_role) {
+        dris_by_project
+            .entry(row.project_id)
+            .or_default()
+            .push(row.person_id);
+    }
+    let dri_ids: Vec<Uuid> = dris_by_project.values().flatten().copied().collect();
+    let names: std::collections::HashMap<Uuid, String> =
+        crate::persons::find_by_ids(surreal, &dri_ids)
+            .await?
+            .into_iter()
+            .map(|person| (person.id, person.name))
+            .collect();
+
+    Ok(projects
+        .into_iter()
+        .map(|project| {
+            // A flagged row naming a person who is no longer there drops out
+            // rather than becoming a name the directory cannot produce; a
+            // matter left with none reads as unassigned.
+            let mut lawyer_dris: Vec<String> = dris_by_project
+                .get(&project.id)
+                .into_iter()
+                .flatten()
+                .filter_map(|person_id| names.get(person_id).cloned())
+                .collect();
+            // The set has no inherent order, so give it a stable one rather
+            // than letting the row scan decide how the directory reads.
+            lawyer_dris.sort();
+            MatterDirectoryEntry {
+                lawyer_dris,
+                code: project.code,
+                name: project.name,
+                status: project.status,
+            }
+        })
+        .collect())
+}
+
+/// Add a person to a Project's lawyer or client DRI set.
+///
+/// Designation is **additive**: a matter carries as many accountable people per
+/// side as the firm has put there, so taking the marker displaces nobody. Giving
+/// it up is [`clear_dri_in_surreal`], and that is the only way a person leaves a
+/// set.
+///
+/// The transaction writes the Project itself first: concurrent DRI changes to
+/// the same Project conflict on that row and retry through the typed conflict
+/// loop, so the set-emptiness rule `store::participation` checks beforehand
+/// cannot be raced by two removals that each saw a second holder.
+pub async fn designate_dri_in_surreal(
+    surreal: &SurrealDb,
+    project_id: Uuid,
+    person_id: Uuid,
+    side: DriSide,
+) -> Result<(), ProjectStoreError> {
+    let Some(person) = crate::persons::find_by_id(surreal, person_id).await? else {
+        return Err(ProjectStoreError::NoSuchPerson(person_id));
+    };
+    if find_by_id(surreal, project_id).await?.is_none() {
+        return Err(ProjectStoreError::NoSuchProject(project_id));
+    }
+    let flag = match side {
+        DriSide::Lawyer => "is_lawyer_dri",
+        DriSide::Client => "is_client_dri",
+    };
+    // A DRI's first row is a participation like any other: derived from the
+    // person being designated, never from a word this function picks.
+    let participation = participation_for_role(person.role);
+    let now = chrono::Utc::now().to_rfc3339();
+    writing_project(|| {
+        surreal
+            .query(format!(
+                "BEGIN; \
+                 UPDATE $project SET updated_at = $now; \
+                 LET $existing = (SELECT VALUE id FROM {PERSON_PROJECT_ROLE_TABLE} \
+                    WHERE project_id = $project AND person_id = $person LIMIT 1)[0]; \
+                 IF $existing != NONE {{ \
+                    UPDATE $existing SET {flag} = true, updated_at = $now; \
+                 }} ELSE {{ \
+                    CREATE $role SET person_id = $person, project_id = $project, \
+                    participation = $participation, {flag} = true, \
+                    inserted_at = $now, updated_at = $now; \
+                 }}; \
+                 COMMIT;"
+            ))
+            .bind(("project", record_id(PROJECT_TABLE, project_id)))
+            .bind(("person", record_id("person", person_id)))
+            .bind(("role", record_id(PERSON_PROJECT_ROLE_TABLE, Uuid::now_v7())))
+            .bind(("participation", participation.to_string()))
+            .bind(("now", now.clone()))
+    })
+    .await?;
+    Ok(())
+}
+
+/// Drop one participation row's DRI marker for `side`.
+///
+/// The inverse of [`designate_dri_in_surreal`], and the only way a person leaves
+/// a DRI set. It takes one row out and leaves the rest of the side alone; that
+/// the lawyer set never empties is `store::participation`'s rule, checked above
+/// this call.
+pub async fn clear_dri_in_surreal(
+    surreal: &SurrealDb,
+    role_id: Uuid,
+    side: DriSide,
+) -> Result<(), ProjectStoreError> {
+    let flag = match side {
+        DriSide::Lawyer => "is_lawyer_dri",
+        DriSide::Client => "is_client_dri",
+    };
+    let now = chrono::Utc::now().to_rfc3339();
+    writing_project(|| {
+        surreal
+            .query(format!(
+                "UPDATE $role SET {flag} = false, updated_at = $now"
+            ))
+            .bind(("role", record_id(PERSON_PROJECT_ROLE_TABLE, role_id)))
+            .bind(("now", now.clone()))
+    })
+    .await?;
+    Ok(())
+}
+
+/// Create a Project under a fresh UUID record key.
+///
+/// Writes retry only typed Surreal transaction conflicts; a code collision is
+/// a caller-correctable conflict and is never retried as if it were transient.
+pub async fn create(surreal: &SurrealDb, input: &NewProject) -> Result<Project, ProjectStoreError> {
+    let id = Uuid::now_v7();
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut response = writing_project(|| {
+        surreal
+            .query(format!(
+                "CREATE $id SET code = $code, name = $name, status = $status, \
+                 entity_id = $entity_id, \
+                 description = $description, inserted_at = $inserted_at, \
+                 updated_at = $updated_at RETURN {PROJECT_SELECT}"
+            ))
+            .bind(("id", record_id(PROJECT_TABLE, id)))
+            .bind(("code", input.code.clone()))
+            .bind(("name", input.name.clone()))
+            .bind(("status", input.status.clone()))
+            .bind(("entity_id", record_id(ENTITY_TABLE, input.entity_id)))
+            .bind(("description", input.description.clone()))
+            .bind(("inserted_at", now.clone()))
+            .bind(("updated_at", now.clone()))
+    })
+    .await?;
+    let row: Option<ProjectRow> = response.take(0)?;
+    row.and_then(ProjectRow::into_project)
+        .ok_or(ProjectStoreError::WriteReturnedNothing)
+}
+
+/// Find the Project carrying `code`, whose UNIQUE index makes it at most one.
+///
+/// Fixtures resolve by code rather than id: the code is the stable name a seed
+/// knows, while the id is whatever the engine that first created the record
+/// assigned.
+pub async fn find_by_code(
+    surreal: &SurrealDb,
+    code: &str,
+) -> Result<Option<Project>, ProjectStoreError> {
+    let mut response = surreal
+        .query(format!(
+            "SELECT {PROJECT_SELECT} FROM ONLY {PROJECT_TABLE} WHERE code = $code LIMIT 1"
+        ))
+        .bind(("code", code.to_string()))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let row: Option<ProjectRow> = response.take(0)?;
+    Ok(row.and_then(ProjectRow::into_project))
+}
+
+/// Resolve the Project carrying `code`, creating it under `id` if absent.
+///
+/// Racing callers settle on one record rather than one of them failing: `code`
+/// is UNIQUE, so the loser of a create race re-reads and adopts the winner's
+/// record. The cucumber suites need this — they run scenarios concurrently
+/// against one shared engine, each re-seeding the same fixture codes. Mirrors
+/// [`crate::persons::find_or_create`].
+pub async fn find_or_create_by_code(
+    surreal: &SurrealDb,
+    id: Uuid,
+    input: &NewProject,
+) -> Result<Project, ProjectStoreError> {
+    if let Some(existing) = find_by_code(surreal, &input.code).await? {
+        return Ok(existing);
+    }
+    match upsert_with_id(surreal, id, input).await {
+        Err(ProjectStoreError::CodeTaken) => find_by_code(surreal, &input.code)
+            .await?
+            .ok_or(ProjectStoreError::WriteReturnedNothing),
+        other => other,
+    }
+}
+
+/// Create or update the Project carrying `id`, rather than minting a new one.
+///
+/// [`create`] owns id generation, which is right for a real matter open. A
+/// fixture that must exist in both engines under a single id cannot use it:
+/// the caller already holds the id and needs this cluster to agree with it.
+/// Idempotent, so re-running a seed over a persisted database reconciles the
+/// record instead of duplicating it.
+pub async fn upsert_with_id(
+    surreal: &SurrealDb,
+    id: Uuid,
+    input: &NewProject,
+) -> Result<Project, ProjectStoreError> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut response = writing_project(|| {
+        surreal
+            .query(format!(
+                "UPSERT $id SET code = $code, name = $name, status = $status, \
+                 entity_id = $entity_id, \
+                 description = $description, \
+                 inserted_at = IF inserted_at THEN inserted_at ELSE $inserted_at END, \
+                 updated_at = $updated_at RETURN {PROJECT_SELECT}"
+            ))
+            .bind(("id", record_id(PROJECT_TABLE, id)))
+            .bind(("code", input.code.clone()))
+            .bind(("name", input.name.clone()))
+            .bind(("status", input.status.clone()))
+            .bind(("entity_id", record_id(ENTITY_TABLE, input.entity_id)))
+            .bind(("description", input.description.clone()))
+            .bind(("inserted_at", now.clone()))
+            .bind(("updated_at", now.clone()))
+    })
+    .await?;
+    let row: Option<ProjectRow> = response.take(0)?;
+    row.and_then(ProjectRow::into_project)
+        .ok_or(ProjectStoreError::WriteReturnedNothing)
+}
+
+/// Find the Project identified by `id` in the projects cluster.
+///
+/// This is the validation read a writer uses to prove a project id names a
+/// real row before storing a reference to it.
+pub async fn find_by_id(
+    surreal: &SurrealDb,
+    id: Uuid,
+) -> Result<Option<Project>, ProjectStoreError> {
+    let mut response = surreal
+        .query(format!("SELECT {PROJECT_SELECT} FROM ONLY $id"))
+        .bind(("id", record_id(PROJECT_TABLE, id)))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let row: Option<ProjectRow> = response.take(0)?;
+    Ok(row.and_then(ProjectRow::into_project))
+}
+
+/// Find a Project by its display name. Seeds use this only as their natural
+/// key lookup; application commands address Projects by UUID.
+pub async fn find_by_name(
+    surreal: &SurrealDb,
+    name: &str,
+) -> Result<Option<Project>, ProjectStoreError> {
+    let mut response = surreal
+        .query(format!(
+            "SELECT {PROJECT_SELECT} FROM ONLY {PROJECT_TABLE} WHERE name = $name LIMIT 1"
+        ))
+        .bind(("name", name.to_string()))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let row: Option<ProjectRow> = response.take(0)?;
+    Ok(row.and_then(ProjectRow::into_project))
+}
+
+/// Every project in stable lawyer-list order.
+pub async fn all(surreal: &SurrealDb) -> Result<Vec<Project>, ProjectStoreError> {
+    let mut response = surreal
+        .query(format!(
+            "SELECT {PROJECT_SELECT} FROM {PROJECT_TABLE} ORDER BY name, id"
+        ))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let rows: Vec<ProjectRow> = response.take(0)?;
+    Ok(rows
+        .into_iter()
+        .filter_map(ProjectRow::into_project)
+        .collect())
+}
+
+/// A Google Drive resource id is opaque, but its documented wire form is an
+/// ASCII identifier. Accept only that form at this boundary so an operator
+/// cannot accidentally persist a copied Drive URL in the address column.
+const DRIVE_FOLDER_ID_INVALID: &str =
+    "Drive folder id must contain only letters, digits, hyphens, or underscores.";
+
+/// Which side of a matter a DRI designation applies to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DriSide {
+    Lawyer,
+    Client,
+}
+
+/// Normalize free text into the alphanumeric kebab-case base of a matter code.
+/// The generated code appends a stable letter suffix for uniqueness.
+///
+/// Digits survive. A name carrying a numeral — a company name ending in one, a
+/// statute or form number, a matter named for a section — keeps it, rather than
+/// having it collapsed into a separator. That matters because a matter's code is
+/// also the name of its folder in the firm's shared drive (#938), and a folder
+/// named for a numbered filing has to be expressible as a code.
+#[must_use]
+pub fn code_base_from_name(name: &str) -> String {
+    let mut out = String::new();
+    let mut last_was_dash = false;
+    for ch in name.chars().flat_map(char::to_lowercase) {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch);
+            last_was_dash = false;
+        } else if !out.is_empty() && !last_was_dash {
+            out.push('-');
+            last_was_dash = true;
+        }
+    }
+    while out.ends_with('-') {
+        out.pop();
+    }
+    if out.is_empty() {
+        "project".to_string()
+    } else {
+        out
+    }
+}
+
+fn letter_suffix(project_id: Uuid) -> String {
+    let mut n = project_id.as_u128();
+    let mut suffix = ['a'; 8];
+    for ch in suffix.iter_mut().rev() {
+        *ch = char::from(b'a' + u8::try_from(n % 26).expect("modulo 26 fits u8"));
+        n /= 26;
+    }
+    suffix.into_iter().collect()
+}
+
+/// Generate a unique default matter code from its display name and UUID.
+#[must_use]
+pub fn code_from_name(name: &str, project_id: Uuid) -> String {
+    let suffix = letter_suffix(project_id);
+    let max_base = PROJECT_CODE_MAX_LEN - suffix.len() - 1;
+    let mut base: String = code_base_from_name(name).chars().take(max_base).collect();
+    while base.ends_with('-') {
+        base.pop();
+    }
+    format!("{base}-{suffix}")
+}
+
+/// Normalize a manually supplied matter code. Returns `None` when the
+/// input is blank.
+#[must_use]
+pub fn normalize_code(input: &str) -> Option<String> {
+    let trimmed = input.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_ascii_lowercase())
+    }
+}
+
+/// Whether a matter code is safe as a URL segment, a bare-repo directory name,
+/// and a folder name in the firm's shared drive.
+///
+/// Lowercase letters, digits, and single hyphens; alphanumeric at both ends,
+/// and not a segment Navigator routes on its own.
+///
+/// `cloud::workspace` holds the single definition of that shape and this calls
+/// it, so a Project code, its repository name, and its Drive folder name cannot
+/// drift apart. The rationale for each shape restriction lives there.
+///
+/// The reserved-code refusal is the second half. A code is a route segment —
+/// `/app/projects/{code}/portal` — and `/app/projects/new` is the matter-open
+/// form, so `new` is well-formed and still refused. Which side of a genuine
+/// collision would win depends on Axum registration order, so the code is
+/// refused rather than the precedence reasoned about. The engine carries the
+/// same refusal as an `ASSERT` on `project.code`, because this function only
+/// guards the write paths that call it.
+#[must_use]
+pub fn is_valid_code(code: &str) -> bool {
+    cloud::workspace::is_valid_slug(code)
+        && !cloud::workspace::RESERVED_PROJECT_CODES.contains(&code)
+}
+
+/// The notation id of the person's **sole open matter**, for auto-routing an
+/// inbound message to a matter without manual triage. Returns `Some` only
+/// when the person is the client (`notations.person_id`) on exactly one
+/// matter whose project is still `open`; `None` when they have none, or more
+/// than one (the ambiguous case — fall back to manual `@link`).
+///
+/// This is the seam the email loop uses so a known client's reply lands on
+/// their matter's conversation log on its own.
+///
+/// # Errors
+///
+/// Propagates any database error.
+pub async fn sole_open_matter_for_person(
+    surreal: &SurrealDb,
+    person_id: Uuid,
+) -> Result<Option<Uuid>, String> {
+    let notations = crate::notations::list_by_person(surreal, person_id)
+        .await
+        .map_err(|error| error.to_string())?;
+
+    let mut open: Vec<Uuid> = Vec::new();
+    for n in notations {
+        if let Some(p) = find_by_id(surreal, n.project_id)
+            .await
+            .map_err(|error| error.to_string())?
+        {
+            if p.status == "open" {
+                open.push(n.id);
+            }
+        }
+    }
+    Ok((open.len() == 1).then(|| open[0]))
+}
+
+/// Flip the matter that `notation_id` belongs to from `open` to
+/// `closed`. Returns the closed project's id, or `None` if the notation
+/// (or its project) no longer exists.
+///
+/// Idempotent and monotonic: a matter already `closed` or `archived` is
+/// left as-is — re-running never re-opens it, and a replay of the
+/// firm-signature side effect is a no-op. `inserted_at`/`updated_at` are
+/// maintained by the entity's active-model behavior.
+pub async fn close_for_notation(
+    surreal: &SurrealDb,
+    notation_id: Uuid,
+) -> Result<Option<Uuid>, String> {
+    let Some(n) = crate::notations::find_by_id(surreal, notation_id)
+        .await
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    let Some(p) = find_by_id(surreal, n.project_id)
+        .await
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    let project_id = p.id;
+    // Monotonic: don't walk backwards out of `archived`, and don't
+    // churn an already-`closed` row.
+    if p.status == "closed" || p.status == "archived" {
+        return Ok(Some(project_id));
+    }
+    let now = chrono::Utc::now().to_rfc3339();
+    surreal
+        .query("UPDATE $id SET status = 'closed', closed_at = $closed_at, updated_at = $closed_at")
+        .bind(("id", record_id(PROJECT_TABLE, project_id)))
+        .bind(("closed_at", now))
+        .await
+        .and_then(surrealdb::IndexedResults::check)
+        .map_err(|error| error.to_string())?;
+    Ok(Some(project_id))
+}
+
+/// The matter lifecycle: `open` → `closed` → `archived`.
+///
+/// A matter's `status` is a **lifecycle** field, not a descriptive one.
+/// It is coupled to `closed_at`, and the two must never disagree: open
+/// matter routing keys off `status` while the ten-year retention purge
+/// keys off `closed_at`, so a contradiction routes a matter as open
+/// while retention treats it as closed, or the reverse.
+///
+/// That invariant lives in these three commands and nowhere else.
+/// [`update_project`] owns the genuinely descriptive fields and refuses
+/// to touch either column.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Transition {
+    /// Close a matter directly, without the closing-letter ceremony.
+    /// Stamps `closed_at` if it is not already stamped.
+    Close,
+    /// Reopen a closed matter. Clears `closed_at`, which restarts the
+    /// retention window if it is closed again later.
+    Reopen,
+    /// Archive a matter. Terminal.
+    Archive,
+}
+
+impl Transition {
+    /// The status this transition lands the matter in.
+    #[must_use]
+    pub fn target_status(self) -> &'static str {
+        match self {
+            Transition::Close => "closed",
+            Transition::Reopen => "open",
+            Transition::Archive => "archived",
+        }
+    }
+}
+
+/// Move a matter through its lifecycle, maintaining the `status` /
+/// `closed_at` invariant.
+///
+/// - Landing on `open` clears `closed_at`.
+/// - Landing on `closed` or `archived` guarantees exactly one
+///   `closed_at`, preserving an existing stamp rather than restarting
+///   the retention window.
+///
+/// **`archived` is terminal.** An archived matter refuses every
+/// transition except a no-op re-archive; reopening one would resurrect a
+/// matter whose retention clock is already running. Re-applying a
+/// transition the matter has already made is a no-op rather than an
+/// error, so a double-submitted lawyer form does not churn the row.
+///
+/// This is the direct lawyer path. [`close_for_notation`] remains the
+/// *ceremonial* path — the closing-letter workflow side effect — and is
+/// unchanged.
+///
+/// # Errors
+/// [`ProjectCommandError::NotFound`] when no matter has that id, and
+/// [`ProjectCommandError::Invalid`] for a transition out of `archived`.
+pub async fn transition_project(
+    surreal: &SurrealDb,
+    id: Uuid,
+    transition: Transition,
+) -> Result<Project, ProjectCommandError> {
+    let row = find_by_id(surreal, id)
+        .await
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?
+        .ok_or(ProjectCommandError::NotFound)?;
+
+    // Terminal means terminal. Re-archiving is the one no-op allowed,
+    // because a repeated request should not fail.
+    if row.status == "archived" && transition != Transition::Archive {
+        return Err(ProjectCommandError::Invalid(
+            "This matter is archived; archiving is terminal.",
+        ));
+    }
+
+    let target = transition.target_status();
+    let existing_close = row.closed_at.clone();
+
+    // Already there: nothing to write. Guarded *after* the terminal
+    // check so reopening an archived matter still reports why.
+    if row.status == target {
+        return Ok(row);
+    }
+
+    let closed_at = match transition {
+        // Open matters carry no close date at all.
+        Transition::Reopen => None,
+        // Preserve an existing stamp: a matter closed, reopened, and
+        // closed again starts a fresh retention window, but one merely
+        // archived after closing keeps the date retention already knows.
+        Transition::Close | Transition::Archive => {
+            Some(existing_close.unwrap_or_else(|| chrono::Utc::now().to_rfc3339()))
+        }
+    };
+    let mut response = surreal
+        .query(format!(
+            "UPDATE $id SET status = $status, closed_at = $closed_at, updated_at = $updated_at \
+             RETURN {PROJECT_SELECT}"
+        ))
+        .bind(("id", record_id(PROJECT_TABLE, id)))
+        .bind(("status", target.to_string()))
+        .bind(("closed_at", closed_at))
+        .bind(("updated_at", chrono::Utc::now().to_rfc3339()))
+        .await
+        .and_then(surrealdb::IndexedResults::check)
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?;
+    let updated: Option<ProjectRow> = response
+        .take(0)
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?;
+    updated
+        .and_then(ProjectRow::into_project)
+        .ok_or(ProjectCommandError::NotFound)
+}
+
+/// Set or clear the opaque Drive folder address for a matter.
+///
+/// `Some` records a Google Drive resource id; `None` deliberately clears the
+/// address, for example after a failed provisioning attempt is reconciled.
+/// The value is not a URL, name, or sync cursor. The database's partial unique
+/// index is the final guard that prevents one folder from being assigned to
+/// two matters while allowing any number of rollout-state `NULL`s.
+///
+/// Returns `Ok(None)` when the matter no longer exists.
+///
+/// # Errors
+/// Returns [`ProjectCommandError::Invalid`] for an empty or non-identifier
+/// value, and propagates a database error (including a duplicate assignment).
+pub async fn set_drive_folder_id(
+    surreal: &SurrealDb,
+    project_id: Uuid,
+    drive_folder_id: Option<&str>,
+) -> Result<Option<Project>, ProjectCommandError> {
+    let drive_folder_id = drive_folder_id
+        .map(str::trim)
+        .map(|id| {
+            if id.is_empty()
+                || !id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+            {
+                return Err(ProjectCommandError::Invalid(DRIVE_FOLDER_ID_INVALID));
+            }
+            Ok(id.to_string())
+        })
+        .transpose()?;
+
+    if find_by_id(surreal, project_id)
+        .await
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?
+        .is_none()
+    {
+        return Ok(None);
+    }
+    let mut response = surreal
+        .query(format!(
+            "UPDATE $id SET drive_folder_id = $drive_folder_id, updated_at = $updated_at \
+             RETURN {PROJECT_SELECT}"
+        ))
+        .bind(("id", record_id(PROJECT_TABLE, project_id)))
+        .bind(("drive_folder_id", drive_folder_id))
+        .bind(("updated_at", chrono::Utc::now().to_rfc3339()))
+        .await
+        .and_then(surrealdb::IndexedResults::check)
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?;
+    let updated: Option<ProjectRow> = response
+        .take(0)
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?;
+    Ok(updated.and_then(ProjectRow::into_project))
+}
+
+/// Request body for updating a matter's **descriptive** fields through the
+/// command boundary — its name, entity, and scope narrative. Deliberately
+/// narrow: it is neither the matter-open path (no conflict check, no repo
+/// provisioning) nor a lifecycle transition. `status` and its coupled
+/// `closed_at` are intentionally absent — moving a matter through
+/// open/closed/archived is a lifecycle change whose retention semantics are a
+/// firm-policy determination, so it belongs in [`transition_project`],
+/// not this general edit. `name` is a full replacement;
+/// `entity_id`, `description`, and the two Slack channel links are optional
+/// so a caller can leave any of them untouched.
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateProjectCommand {
+    pub name: String,
+    #[serde(default)]
+    pub entity_id: Option<Uuid>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub internal_slack_channel_url: Option<String>,
+    #[serde(default)]
+    pub external_slack_channel_url: Option<String>,
+}
+
+/// A matter's descriptive update could not be applied.
+#[derive(Debug, thiserror::Error)]
+pub enum ProjectCommandError {
+    /// The request is malformed in a way the caller can correct.
+    #[error("{0}")]
+    Invalid(&'static str),
+    /// No matter with the requested id.
+    #[error("no matter with that id")]
+    NotFound,
+    /// The database refused a delete because other rows still reference this
+    /// matter (participations, notations, price events, …). Carries the
+    /// database's own detail, which names the referencing table so an
+    /// operator sees *why*. Caller-correctable (detach/close those first), so
+    /// an adapter renders it as a conflict, not a server fault.
+    #[error("this matter is still referenced by other records ({0})")]
+    Referenced(String),
+    #[error("database: {0}")]
+    Db(String),
+}
+
+/// Update a matter's descriptive fields — name, entity, and scope narrative.
+/// Behind both the JSON `PATCH /app/api/projects/{id}` command and the
+/// `/app/projects/{id}` edit form, so neither door re-implements the write.
+/// Name is required; a submitted `entity_id` or `description` is applied and
+/// an omitted one is left untouched, with a blank description clearing the
+/// column.
+///
+/// Scope is deliberately narrow. It is not the matter-open path (no conflict
+/// check, no repo provisioning), it does not move the agreed price (the
+/// append-only price-events command), and it does not change `status`/
+/// `closed_at` — a lifecycle transition whose retention semantics are a
+/// firm-policy determination owned by [`transition_project`].
+///
+/// Because every written value comes wholly from the request (never from a
+/// read of the row), there is no read-modify-write to serialize: the sparse
+/// `Unchanged(id)` update leaves `status`, `closed_at`, and every other
+/// column a concurrent lifecycle write may be changing entirely untouched.
+pub async fn update_project(
+    surreal: &SurrealDb,
+    id: Uuid,
+    input: &UpdateProjectCommand,
+) -> Result<Project, ProjectCommandError> {
+    if input.name.trim().is_empty() {
+        return Err(ProjectCommandError::Invalid("Name is required."));
+    }
+    if find_by_id(surreal, id)
+        .await
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?
+        .is_none()
+    {
+        return Err(ProjectCommandError::NotFound);
+    }
+    if let Some(entity_id) = input.entity_id {
+        // A `record<entity>` link is not validated by the engine, so this
+        // read-back is what keeps a matter from being repointed at an
+        // entity that does not exist.
+        if crate::entities::find_by_id(surreal, entity_id)
+            .await
+            .map_err(|error| ProjectCommandError::Db(error.to_string()))?
+            .is_none()
+        {
+            return Err(ProjectCommandError::Invalid("That entity does not exist."));
+        }
+    }
+    let mut assignments = vec!["name = $name", "updated_at = $updated_at"];
+    if input.entity_id.is_some() {
+        assignments.push("entity_id = $entity_id");
+    }
+    if input.description.is_some() {
+        assignments.push("description = $description");
+    }
+    if input.internal_slack_channel_url.is_some() {
+        assignments.push("internal_slack_channel_url = $internal_slack_channel_url");
+    }
+    if input.external_slack_channel_url.is_some() {
+        assignments.push("external_slack_channel_url = $external_slack_channel_url");
+    }
+    let mut response = surreal
+        .query(format!(
+            "UPDATE $id SET {} RETURN {PROJECT_SELECT}",
+            assignments.join(", ")
+        ))
+        .bind(("id", record_id(PROJECT_TABLE, id)))
+        .bind(("name", input.name.trim().to_string()))
+        .bind(("updated_at", chrono::Utc::now().to_rfc3339()));
+    if let Some(entity_id) = input.entity_id {
+        response = response.bind(("entity_id", record_id(ENTITY_TABLE, entity_id)));
+    }
+    if let Some(description) = &input.description {
+        response = response.bind((
+            "description",
+            crate::people_commands::none_if_blank(Some(description)),
+        ));
+    }
+    if let Some(url) = &input.internal_slack_channel_url {
+        response = response.bind((
+            "internal_slack_channel_url",
+            crate::people_commands::none_if_blank(Some(url)),
+        ));
+    }
+    if let Some(url) = &input.external_slack_channel_url {
+        response = response.bind((
+            "external_slack_channel_url",
+            crate::people_commands::none_if_blank(Some(url)),
+        ));
+    }
+    let mut response = response
+        .await
+        .and_then(surrealdb::IndexedResults::check)
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?;
+    let updated: Option<ProjectRow> = response
+        .take(0)
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?;
+    updated
+        .and_then(ProjectRow::into_project)
+        .ok_or(ProjectCommandError::NotFound)
+}
+
+/// A reference probe could not be answered. The matter is left alone: a
+/// guard that cannot read is not a guard that passed.
+fn probe_failed(error: impl std::fmt::Display) -> ProjectCommandError {
+    ProjectCommandError::Db(error.to_string())
+}
+
+/// Delete a matter after validating the records in the projects cluster.
+/// Nothing in the engine refuses a delete that strands a reference, so the
+/// check belongs at this command seam.
+pub async fn delete_project_with_surreal(
+    surreal: &SurrealDb,
+    id: Uuid,
+) -> Result<Project, ProjectCommandError> {
+    let project = find_by_id(surreal, id)
+        .await
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?
+        .ok_or(ProjectCommandError::NotFound)?;
+    if !participations_for_project(surreal, id)
+        .await
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?
+        .is_empty()
+    {
+        return Err(ProjectCommandError::Referenced(
+            "person_project_roles".into(),
+        ));
+    }
+    // `notations` is Surreal-resident, so its reference check runs against
+    // that engine.
+    if crate::notations::exists_for_project(surreal, id)
+        .await
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?
+    {
+        return Err(ProjectCommandError::Referenced("notations".into()));
+    }
+    if !crate::xero_invoices::for_projects(surreal, &[id])
+        .await
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?
+        .is_empty()
+    {
+        return Err(ProjectCommandError::Referenced("xero_invoice".into()));
+    }
+    // The remaining five reference checks, each asked of the module that
+    // owns the table. All five moved to SurrealDB — `templates` and
+    // `assets` with ENG-121, `communications`, `expunge_requests`, and
+    // `expunge_records` with ENG-160 — so each answer comes from the engine
+    // that actually holds the rows.
+    if crate::templates::exists_for_project(surreal, id)
+        .await
+        .map_err(probe_failed)?
+    {
+        return Err(ProjectCommandError::Referenced("templates".into()));
+    }
+    if crate::expunge_requests::exists_for_project(surreal, id)
+        .await
+        .map_err(probe_failed)?
+    {
+        return Err(ProjectCommandError::Referenced("expunge_requests".into()));
+    }
+    if crate::communications::exists_for_project(surreal, id)
+        .await
+        .map_err(probe_failed)?
+    {
+        return Err(ProjectCommandError::Referenced("communications".into()));
+    }
+    if crate::expunge_records::exists_for_project(surreal, id)
+        .await
+        .map_err(probe_failed)?
+    {
+        return Err(ProjectCommandError::Referenced("expunge_records".into()));
+    }
+    if crate::assets::exists_for_project(surreal, id)
+        .await
+        .map_err(probe_failed)?
+    {
+        return Err(ProjectCommandError::Referenced("assets".into()));
+    }
+    // Surreal cascades nothing, so the
+    // `authority_uses`/`citations`/`verifications` chain is walked
+    // explicitly before the project row itself is removed below.
+    crate::authorities::delete_for_project(surreal, id)
+        .await
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?;
+    // `cases` and its discovery chain moved to SurrealDB with wave six
+    // (ENG-160); the cascade walks that chain explicitly, the same way the
+    // `authorities` sweep above does.
+    crate::cases::delete_for_project(surreal, id)
+        .await
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?;
+    surreal
+        .query("DELETE $id")
+        .bind(("id", record_id(PROJECT_TABLE, id)))
+        .await
+        .and_then(surrealdb::IndexedResults::check)
+        .map_err(|error| ProjectCommandError::Db(error.to_string()))?;
+    Ok(project)
+}
+
+/// Everything an adapter has resolved from its caller's session and form to
+/// open a matter. The session-dependent parts — which client, which entity,
+/// and *who is attesting* — are resolved by the adapter (web
+/// form, CLI, or `POST /app/api/projects`) and handed here as ids, so the command
+/// itself stays free of session and HTTP types.
+#[derive(Debug)]
+pub struct OpenMatterCommand {
+    /// The matter's display name. Required.
+    pub name: String,
+    /// The matter's code. **Required** — a blank code is refused, never
+    /// derived.
+    ///
+    /// The code is also the name of the matter's folder in the firm's shared
+    /// drive, and that mapping is 1-1 (#938). Deriving one here would append a
+    /// UUID letter suffix ([`code_from_name`]) that no folder is named after, so
+    /// every derivation would silently open a matter whose working files are
+    /// unreachable. The caller — who knows the folder — supplies it.
+    pub code: String,
+    /// The client of record — a pre-existing `Role::Client` person, never a
+    /// firm attorney (the firm-as-its-own-client default is a loyalty problem
+    /// both councils flagged).
+    pub client_id: Uuid,
+    /// The pre-existing entity the matter opens against (`projects.entity_id`
+    /// is NOT NULL).
+    pub entity_id: Uuid,
+    /// The matter's scope narrative.
+    pub description: Option<String>,
+    /// The opening attorney's conflict attestation. Required on **every** open
+    /// — at this firm `lawyer` is an attorney, so a lawyer/admin session opening
+    /// a matter is an attorney attesting they have checked for and cleared
+    /// conflicts. A missing attestation is refused; it is never defaulted true.
+    pub attestation: bool,
+    /// The attesting attorney — the opening `lawyer` (=attorney) person, who
+    /// becomes the matter's accountable lawyer DRI and the actor on the
+    /// attestation audit row.
+    pub acting_person_id: Uuid,
+}
+
+/// A matter could not be opened.
+#[derive(Debug, thiserror::Error)]
+pub enum OpenMatterError {
+    /// The request is malformed in a way the caller can correct.
+    #[error("{0}")]
+    Invalid(&'static str),
+    /// The named client of record is not a `Role::Client` person — a matter
+    /// cannot be opened for a firm attorney as its own client.
+    #[error("the client of record must be a client, not a firm attorney")]
+    ClientNotAllowed,
+    /// The attester (`acting_person_id`) is not a firm lawyer. At this firm the
+    /// `lawyer`/`admin` tier is the attorney, and the attester becomes the
+    /// accountable lawyer DRI, so a `client` or `clerk` can never attest or hold
+    /// that DRI.
+    #[error("the attesting attorney must be a firm lawyer")]
+    AttesterNotAllowed,
+    /// A referenced row (client, entity, or attester) does not exist.
+    /// Carries which one so the adapter can point the caller at it.
+    #[error("no such {0}")]
+    NotFound(&'static str),
+    /// No conflict attestation was supplied. Every matter open requires the
+    /// opening attorney to attest; there is no default.
+    #[error("a matter open requires the attorney's conflict attestation")]
+    AttestationRequired,
+    /// The conflict check found the matter adverse to a current client. This
+    /// is a hard stop no attestation overrides; a waiver is a separate flow.
+    #[error("conflict check blocked this matter: adverse to a current client")]
+    BlockingConflict(Vec<String>),
+    /// The requested (or derived) project code is already in use.
+    #[error("that project code is already in use")]
+    CodeConflict,
+    /// Appending the conflict attestation to the Relationship Log
+    /// failed. The matter is already open at that point — the attestation
+    /// is the last step — so this reports a matter whose audit entry is
+    /// missing rather than a matter that did not open.
+    #[error("record the conflict attestation: {0}")]
+    Attestation(crate::relationship_logs::RelationshipLogError),
+    /// A database failure, carrying the engine's own message.
+    #[error("database: {0}")]
+    Db(String),
+}
+
+/// Open a new matter. The single write behind the lawyer `POST /app/projects`
+/// form, the CLI `project create`, and the JSON `POST /app/api/projects` command,
+/// so every door runs the same conflict check, the same required attestation,
+/// and writes the same audit trail — no door can open a matter without them.
+///
+/// The order is load-bearing. Cheap caller-correctable input checks run first;
+/// then **one** `SERIALIZABLE` transaction reads every reference, runs the
+/// conflict check, and writes the project, the attestation audit row, both DRI
+/// designations, and the repository — so a failure at any step rolls the whole
+/// open back and no read the open acted on can have changed underneath it.
+///
+/// The attestation is required on **every** open and audited on **every**
+/// open, not just flagged ones (see [`OpenMatterCommand::attestation`]). The
+/// conflict findings, if any, are recorded in the audit `detail` alongside the
+/// attestation, so the durable record shows what the attorney attested over.
+/// Confirm the matter-open references resolve before any write: the client of
+/// record exists and is a `Role::Client` (never a firm attorney), and the
+/// entity, and attester exist. A missing reference names which one so
+/// the adapter can point the caller at it.
+///
+/// Read one person's row for the two `role` checks the open depends on.
+///
+/// # This takes no lock, and that is a narrowing on the record
+///
+/// This is a plain read, so it cannot hold the row against a concurrent
+/// admin `UPDATE` demoting the attester between the lawyer-tier check below
+/// and the attestation write (navigator#790).
+///
+/// What holds the invariant is the door: a session carries the role it
+/// authenticated with, and a role change forces re-authentication, so a
+/// demoted attester cannot drive a *new* open. The residual window is one
+/// already-in-flight open by a person demoted mid-request. Nick accepted
+/// that narrowing on 2026-08-02.
+async fn lock_person(
+    surreal: &SurrealDb,
+    person_id: Uuid,
+) -> Result<Option<crate::persons::Person>, OpenMatterError> {
+    crate::persons::find_by_id(surreal, person_id)
+        .await
+        .map_err(|err| person_lookup_failed(&err))
+}
+
+/// A failed person lookup, reported as the `String` this command already
+/// carries.
+fn person_lookup_failed(err: &crate::persons::PersonError) -> OpenMatterError {
+    OpenMatterError::Db(format!("resolve a matter-open reference: {err}"))
+}
+
+async fn validate_open_references(
+    surreal: &SurrealDb,
+    input: &OpenMatterCommand,
+) -> Result<(), OpenMatterError> {
+    let client = lock_person(surreal, input.client_id)
+        .await?
+        .ok_or(OpenMatterError::NotFound("client"))?;
+    if client.role != Role::Client {
+        return Err(OpenMatterError::ClientNotAllowed);
+    }
+    // The engine does not validate a `record<entity>` link, so the matter
+    // a client opens against is read back rather than trusted.
+    if crate::entities::find_by_id(surreal, input.entity_id)
+        .await
+        .map_err(|error| OpenMatterError::Db(error.to_string()))?
+        .is_none()
+    {
+        return Err(OpenMatterError::NotFound("entity"));
+    }
+    let attester = lock_person(surreal, input.acting_person_id)
+        .await?
+        .ok_or(OpenMatterError::NotFound("attester"))?;
+    // The attester becomes the accountable lawyer DRI and the actor on the
+    // attestation audit row, so the shared command enforces the "lawyer is the
+    // attorney" invariant here rather than trusting each adapter's own session
+    // gate — a `client` or `clerk` can never be recorded as the attesting
+    // attorney, whichever door (web form, CLI, or API) drove the open.
+    if !attester.role.is_lawyer_tier() {
+        return Err(OpenMatterError::AttesterNotAllowed);
+    }
+    Ok(())
+}
+
+pub async fn open_matter(
+    surreal: &SurrealDb,
+    input: &OpenMatterCommand,
+) -> Result<Project, OpenMatterError> {
+    // The attorney's attestation gates every open, checked first: no amount of
+    // valid form data opens a matter the attorney hasn't attested to.
+    if !input.attestation {
+        return Err(OpenMatterError::AttestationRequired);
+    }
+    let name = input.name.trim();
+    if name.is_empty() {
+        return Err(OpenMatterError::Invalid("Name is required."));
+    }
+    let project_id = Uuid::now_v7();
+    // The code is required, not derived. It is the name of this matter's folder
+    // in the firm's shared drive, so a code this function invented would name no
+    // folder at all (#938) — the caller supplies it or the open is refused.
+    let code = normalize_code(&input.code).ok_or(OpenMatterError::Invalid(
+        "Code is required — it is also the matter's shared-drive folder name, \
+         so it cannot be derived.",
+    ))?;
+    if !is_valid_code(&code) {
+        return Err(OpenMatterError::Invalid(
+            "Project code must use lowercase letters, digits, and single hyphens; \
+             it must start and end with a letter or digit.",
+        ));
+    }
+
+    // Validate every reference before opening. The project and both
+    // participations commit in the explicit SurrealDB transaction below;
+    // transaction conflicts retry with jitter. `lock_person` remains the
+    // accepted narrowing.
+    validate_open_references(surreal, input).await?;
+
+    // Conflict check, before any write. The relationship graph is advisory to
+    // clear but authoritative to block: a confident adverse link to a current
+    // client hard-stops the open, and no attestation overrides it (a waiver is
+    // a separate, heavier flow). A clear or softly-flagged check proceeds on
+    // the attorney's attestation, which the audit row below records.
+    let conflict = crate::conflicts::check_new_matter(surreal, input.client_id, input.entity_id)
+        .await
+        .map_err(OpenMatterError::Db)?;
+    if conflict.has_blocking() {
+        return Err(OpenMatterError::BlockingConflict(conflict.summary_lines()));
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let description = crate::people_commands::none_if_blank(input.description.as_deref());
+    let mut response = writing_project(|| {
+        surreal
+            .query(format!(
+                r"BEGIN;
+                 CREATE $project SET code = $code, name = $name, status = 'open',
+                    entity_id = $entity_id, description = $description,
+                    inserted_at = $now, updated_at = $now RETURN {PROJECT_SELECT};
+                 CREATE $lawyer_role SET person_id = $attester, project_id = $project, participation = 'attorney',
+                    is_lawyer_dri = true, inserted_at = $now, updated_at = $now;
+                 CREATE $client_role SET person_id = $client, project_id = $project, participation = 'client',
+                    is_client_dri = true, inserted_at = $now, updated_at = $now;
+                 COMMIT;"
+            ))
+            .bind(("project", record_id(PROJECT_TABLE, project_id)))
+            .bind(("lawyer_role", record_id(PERSON_PROJECT_ROLE_TABLE, Uuid::now_v7())))
+            .bind(("client_role", record_id(PERSON_PROJECT_ROLE_TABLE, Uuid::now_v7())))
+            .bind(("code", code.clone()))
+            .bind(("name", name.to_string()))
+            .bind(("entity_id", record_id(ENTITY_TABLE, input.entity_id)))
+            .bind(("description", description.clone()))
+            .bind(("attester", record_id("person", input.acting_person_id)))
+            .bind(("client", record_id("person", input.client_id)))
+            .bind(("now", now.clone()))
+    })
+    .await
+    .map_err(|error| match error {
+        ProjectStoreError::CodeTaken => OpenMatterError::CodeConflict,
+        other => OpenMatterError::Db(other.to_string()),
+    })?;
+    let created: Option<ProjectRow> = response
+        .take(1)
+        .map_err(|error| OpenMatterError::Db(error.to_string()))?;
+    let created = created
+        .and_then(ProjectRow::into_project)
+        .ok_or_else(|| OpenMatterError::Db("opening a matter returned no project".into()))?;
+
+    // The attestation audit row — written on every open, clear or flagged. It
+    // names who attested and, in the detail, what the conflict check found, so
+    // the durable record shows exactly what the attorney attested over.
+    let detail = if conflict.is_clear() {
+        "Conflict attestation at matter open. No conflicts found.".to_string()
+    } else {
+        format!(
+            "Conflict attestation at matter open over these findings:\n{}",
+            conflict.summary_lines().join("\n"),
+        )
+    };
+    // The attestation and the matter it attests to land in one engine, so
+    // an opened matter cannot exist without the record that the conflict
+    // check was run and cleared — the record the firm's `@cleared`
+    // discipline rests on.
+    crate::relationship_logs::record(
+        surreal,
+        &crate::relationship_logs::NewRelationshipLog {
+            actor_person_id: Some(input.acting_person_id),
+            subject_type: "project".to_string(),
+            subject_id: project_id,
+            action: "conflict_attestation".to_string(),
+            detail,
+        },
+    )
+    .await
+    .map_err(OpenMatterError::Attestation)?;
+
+    Ok(created)
+}
+
+/// Whether a template's declared `kind` makes its notation the engagement that
+/// opens a matter — the same classifier the engagement-first gate uses. Keyed
+/// off the declared kind, never the template `code`, so a retainer template
+/// named otherwise still counts as the engagement.
+#[must_use]
+pub fn template_opens_a_matter(kind: Option<&str>) -> bool {
+    kind.and_then(rules::kind::Kind::parse)
+        .is_some_and(rules::kind::Kind::opens_a_matter)
+}
+
+/// From a matter's engagement/closing facts, the two lifecycle warning flags:
+/// `missing_retainer` (no matter-opening engagement) and `missing_closing_letter`
+/// (a `closed` matter without a closing letter).
+#[must_use]
+pub fn matter_flags(has_engagement: bool, status: &str, has_closing: bool) -> (bool, bool) {
+    let missing_retainer = !has_engagement;
+    let missing_closing_letter = status == "closed" && !has_closing;
+    (missing_retainer, missing_closing_letter)
+}
+
+/// For the given matters, return `(project_ids with a matter-opening engagement,
+/// project_ids with a closing__letter notation)` in two batched queries
+/// (notations for these projects, then the templates they bind). The engagement
+/// side keys off the template's declared `kind`; the closing letter off its
+/// `code`.
+///
+/// Both `notations` and `templates` are Surreal-resident since ENG-121, but
+/// this stays two batched queries either way — one round trip per table,
+/// not one round trip per Project.
+///
+/// Errors propagate rather than collapsing to an empty set: an empty set is
+/// indistinguishable from "this matter has no engagement", so swallowing a
+/// failed query would badge every matter as missing the retainer it actually
+/// has — a flag that lies about a legal artifact is worse than a page that
+/// admits it could not tell.
+pub async fn matter_lifecycle_sets(
+    surreal: &crate::surreal::SurrealDb,
+    projects: &[Project],
+) -> Result<
+    (
+        std::collections::HashSet<Uuid>,
+        std::collections::HashSet<Uuid>,
+    ),
+    String,
+> {
+    use std::collections::{HashMap, HashSet};
+    let project_ids: Vec<Uuid> = projects.iter().map(|p| p.id).collect();
+    let mut has_engagement = HashSet::new();
+    let mut has_closing = HashSet::new();
+    if project_ids.is_empty() {
+        return Ok((has_engagement, has_closing));
+    }
+    let notations = crate::notations::list_by_projects(surreal, &project_ids)
+        .await
+        .map_err(|error| error.to_string())?;
+    let template_ids: Vec<Uuid> = notations.iter().map(|n| n.template_id).collect();
+    let templates_by_id: HashMap<Uuid, crate::templates::Template> =
+        crate::templates::find_by_ids(surreal, &template_ids)
+            .await
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .map(|t| (t.id, t))
+            .collect();
+    for n in &notations {
+        if let Some(t) = templates_by_id.get(&n.template_id) {
+            if template_opens_a_matter(t.kind.as_deref()) {
+                has_engagement.insert(n.project_id);
+            }
+            if t.code == "closing__letter" {
+                has_closing.insert(n.project_id);
+            }
+        }
+    }
+    Ok((has_engagement, has_closing))
+}
+
+#[cfg(test)]
+mod surreal_read_tests {
+    use super::{
+        can_access_as_client_in_surreal, can_access_as_lawyer_in_surreal, create,
+        designate_dri_in_surreal, find_by_id, matter_directory, record_id, DriSide, NewProject,
+        ProjectStoreError, ENTITY_TABLE,
+    };
+    use crate::persons::Role;
+    use crate::schema::apply;
+    use crate::surreal::test_support::unmigrated;
+    use crate::test_support::mem_surreal;
+
+    #[tokio::test]
+    async fn find_by_id_reads_the_projects_cluster_row() {
+        let db = unmigrated().await;
+        apply(&db).await.unwrap();
+        let id = uuid::Uuid::now_v7();
+        let entity_id = uuid::Uuid::now_v7();
+        db.query(
+            "CREATE $id SET code = 'matter', name = 'Matter', status = 'open', \
+             entity_id = $entity_id, inserted_at = '2026-08-04T00:00:00Z', \
+             updated_at = '2026-08-04T00:00:00Z'",
+        )
+        .bind(("id", crate::surreal::record_id("project", id)))
+        .bind(("entity_id", record_id(ENTITY_TABLE, entity_id)))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+
+        let project = find_by_id(&db, id).await.unwrap().unwrap();
+        assert_eq!(project.id, id);
+        assert_eq!(project.entity_id, entity_id);
+        assert_eq!(project.code, "matter");
+    }
+
+    /// `new` is well-formed and still refused, in Rust *and* in the engine.
+    ///
+    /// `/app/projects/new` is the matter-open form and `/app/projects/{code}/…`
+    /// is a Project's own surface, so a Project coded `new` collides with a
+    /// literal route. Refusing it in [`super::is_valid_code`] alone would leave
+    /// a direct write able to create the colliding row, which is why the
+    /// `ASSERT` on `project.code` carries the same refusal.
+    #[tokio::test]
+    async fn the_project_code_new_is_refused_in_rust_and_in_the_engine() {
+        assert!(
+            cloud::workspace::is_valid_slug("new"),
+            "`new` is a well-formed slug — the shape check is not what rejects it"
+        );
+        assert!(!super::is_valid_code("new"));
+        // Every other well-formed code still passes, so the refusal is one
+        // code and not a widening.
+        assert!(super::is_valid_code("new-matter"));
+        assert!(super::is_valid_code("renew"));
+
+        let db = unmigrated().await;
+        apply(&db).await.unwrap();
+        let direct = db
+            .query(
+                "CREATE $id SET code = 'new', name = 'New', status = 'open', \
+                 entity_id = $entity_id, inserted_at = '2026-08-11T00:00:00Z', \
+                 updated_at = '2026-08-11T00:00:00Z'",
+            )
+            .bind((
+                "id",
+                crate::surreal::record_id("project", uuid::Uuid::now_v7()),
+            ))
+            .bind(("entity_id", record_id(ENTITY_TABLE, uuid::Uuid::now_v7())))
+            .await
+            .and_then(surrealdb::IndexedResults::check);
+        assert!(
+            direct.is_err(),
+            "the engine must refuse a Project coded `new` written around is_valid_code"
+        );
+    }
+
+    #[tokio::test]
+    async fn create_rejects_a_duplicate_project_code() {
+        let db = unmigrated().await;
+        apply(&db).await.unwrap();
+        let input = NewProject {
+            code: "matter".into(),
+            name: "Matter".into(),
+            status: "open".into(),
+            entity_id: uuid::Uuid::now_v7(),
+            ..NewProject::default()
+        };
+
+        let created = create(&db, &input).await.unwrap();
+        assert_eq!(created.code, "matter");
+        assert!(matches!(
+            create(&db, &input).await,
+            Err(ProjectStoreError::CodeTaken)
+        ));
+    }
+
+    #[tokio::test]
+    async fn lawyer_lens_excludes_client_side_participation() {
+        let db = unmigrated().await;
+        apply(&db).await.unwrap();
+        let lawyer_id = uuid::Uuid::now_v7();
+        let client_id = uuid::Uuid::now_v7();
+        let project_id = uuid::Uuid::now_v7();
+        for (id, email, role) in [
+            (lawyer_id, "lawyer@example.com", "lawyer"),
+            (client_id, "client@example.com", "client"),
+        ] {
+            db.query("CREATE $id SET name = $email, email = $email, role = $role")
+                .bind(("id", crate::surreal::record_id("person", id)))
+                .bind(("email", email.to_string()))
+                .bind(("role", role.to_string()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        }
+        db.query(
+            "CREATE $id SET code = 'matter', name = 'Matter', status = 'open', \
+             entity_id = $entity_id, inserted_at = '2026-08-04T00:00:00Z', \
+             updated_at = '2026-08-04T00:00:00Z'",
+        )
+        .bind(("id", crate::surreal::record_id("project", project_id)))
+        .bind(("entity_id", record_id(ENTITY_TABLE, uuid::Uuid::now_v7())))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+        for (person_id, participation) in [(lawyer_id, "attorney"), (client_id, "client")] {
+            db.query(
+                "CREATE $id SET person_id = $person_id, project_id = $project_id, \
+                 participation = $participation, inserted_at = '2026-08-04T00:00:00Z', \
+                 updated_at = '2026-08-04T00:00:00Z'",
+            )
+            .bind((
+                "id",
+                crate::surreal::record_id("person_project_role", uuid::Uuid::now_v7()),
+            ))
+            .bind(("person_id", crate::surreal::record_id("person", person_id)))
+            .bind((
+                "project_id",
+                crate::surreal::record_id("project", project_id),
+            ))
+            .bind(("participation", participation.to_string()))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        }
+
+        assert!(
+            can_access_as_lawyer_in_surreal(&db, Some(lawyer_id), Role::Lawyer, project_id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            !can_access_as_lawyer_in_surreal(&db, Some(client_id), Role::Lawyer, project_id)
+                .await
+                .unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn client_lens_matches_client_side_participation_and_dri_marker() {
+        let db = unmigrated().await;
+        apply(&db).await.unwrap();
+        let client_id = uuid::Uuid::now_v7();
+        let lawyer_id = uuid::Uuid::now_v7();
+        let project_id = uuid::Uuid::now_v7();
+        for (id, email) in [
+            (client_id, "client@example.com"),
+            (lawyer_id, "lawyer@example.com"),
+        ] {
+            db.query("CREATE $id SET name = $email, email = $email, role = 'client'")
+                .bind(("id", crate::surreal::record_id("person", id)))
+                .bind(("email", email.to_string()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        }
+        db.query(
+            "CREATE $id SET code = 'matter', name = 'Matter', status = 'open', \
+             entity_id = $entity_id, inserted_at = '2026-08-04T00:00:00Z', \
+             updated_at = '2026-08-04T00:00:00Z'",
+        )
+        .bind(("id", crate::surreal::record_id("project", project_id)))
+        .bind(("entity_id", record_id(ENTITY_TABLE, uuid::Uuid::now_v7())))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+        for (person_id, participation, is_client_dri) in
+            [(client_id, "client", false), (lawyer_id, "attorney", true)]
+        {
+            db.query(
+                "CREATE $id SET person_id = $person_id, project_id = $project_id, \
+                 participation = $participation, is_client_dri = $is_client_dri, \
+                 inserted_at = '2026-08-04T00:00:00Z', updated_at = '2026-08-04T00:00:00Z'",
+            )
+            .bind((
+                "id",
+                crate::surreal::record_id("person_project_role", uuid::Uuid::now_v7()),
+            ))
+            .bind(("person_id", crate::surreal::record_id("person", person_id)))
+            .bind((
+                "project_id",
+                crate::surreal::record_id("project", project_id),
+            ))
+            .bind(("participation", participation.to_string()))
+            .bind(("is_client_dri", is_client_dri))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        }
+        assert!(
+            can_access_as_client_in_surreal(&db, Some(client_id), project_id)
+                .await
+                .unwrap()
+        );
+        assert!(
+            can_access_as_client_in_surreal(&db, Some(lawyer_id), project_id)
+                .await
+                .unwrap()
+        );
+        assert!(!can_access_as_client_in_surreal(&db, None, project_id)
+            .await
+            .unwrap());
+    }
+
+    /// Read at the SurrealQL level, where the exclusivity used to live: the
+    /// transaction no longer clears anyone else's flag, so both rows keep it.
+    #[tokio::test]
+    async fn designating_a_second_dri_adds_to_the_side() {
+        let db = unmigrated().await;
+        apply(&db).await.unwrap();
+        let first = uuid::Uuid::now_v7();
+        let second = uuid::Uuid::now_v7();
+        let project = uuid::Uuid::now_v7();
+        for (id, email) in [(first, "first@example.com"), (second, "second@example.com")] {
+            db.query("CREATE $id SET name = $email, email = $email, role = 'lawyer'")
+                .bind(("id", crate::surreal::record_id("person", id)))
+                .bind(("email", email.to_string()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        }
+        db.query(
+            "CREATE $id SET code = 'matter', name = 'Matter', status = 'open', \
+             entity_id = $entity_id, inserted_at = '2026-08-04T00:00:00Z', \
+             updated_at = '2026-08-04T00:00:00Z'",
+        )
+        .bind(("id", crate::surreal::record_id("project", project)))
+        .bind(("entity_id", record_id(ENTITY_TABLE, uuid::Uuid::now_v7())))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+
+        designate_dri_in_surreal(&db, project, first, DriSide::Lawyer)
+            .await
+            .unwrap();
+        designate_dri_in_surreal(&db, project, second, DriSide::Lawyer)
+            .await
+            .unwrap();
+        let lawyer_dris: Vec<uuid::Uuid> = db
+            .query(
+                "SELECT VALUE person_id.id() FROM person_project_role \
+                 WHERE project_id = $project AND is_lawyer_dri = true",
+            )
+            .bind(("project", crate::surreal::record_id("project", project)))
+            .await
+            .unwrap()
+            .take(0)
+            .unwrap();
+        let mut got = lawyer_dris;
+        got.sort();
+        let mut expected = vec![first, second];
+        expected.sort();
+        assert_eq!(got, expected, "designation adds rather than replaces");
+    }
+
+    /// The lens over every matter: what it is, and who is accountable. The
+    /// matter with no flagged row is the case the view exists to surface, so
+    /// it appears with an empty DRI rather than being dropped or erroring.
+    #[tokio::test]
+    async fn the_directory_names_every_matter_and_its_accountable_lawyer() {
+        let surreal = mem_surreal().await;
+        let lawyer = crate::persons::create(
+            &surreal,
+            &crate::persons::NewPerson::new("Accountable Lawyer", "dri@neonlaw.com"),
+        )
+        .await
+        .unwrap();
+        let assigned = create(
+            &surreal,
+            &NewProject {
+                code: "assigned-matter".into(),
+                name: "Assigned matter".into(),
+                status: "open".into(),
+                entity_id: uuid::Uuid::now_v7(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        create(
+            &surreal,
+            &NewProject {
+                code: "unassigned-matter".into(),
+                name: "Unassigned matter".into(),
+                status: "closed".into(),
+                entity_id: uuid::Uuid::now_v7(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        designate_dri_in_surreal(&surreal, assigned.id, lawyer.id, DriSide::Lawyer)
+            .await
+            .unwrap();
+
+        // Owner and Admin read the same directory, and neither holds a
+        // participation row on either matter — oversight is not membership.
+        for role in [Role::Owner, Role::Admin] {
+            let directory = matter_directory(&surreal, role).await.unwrap();
+            let entries: Vec<(&str, &str, Vec<&str>)> = directory
+                .iter()
+                .map(|entry| {
+                    (
+                        entry.code.as_str(),
+                        entry.status.as_str(),
+                        entry.lawyer_dris.iter().map(String::as_str).collect(),
+                    )
+                })
+                .collect();
+            assert_eq!(
+                entries,
+                vec![
+                    ("assigned-matter", "open", vec!["Accountable Lawyer"]),
+                    ("unassigned-matter", "closed", vec![]),
+                ],
+                "{role:?} directory"
+            );
+            assert_eq!(directory[0].name, "Assigned matter");
+        }
+    }
+
+    /// The lens is admin-tier only. A `lawyer` caller gets nothing from
+    /// it — the firm-wide directory is not a wider `/lawyer` read.
+    #[tokio::test]
+    async fn the_directory_is_closed_to_every_tier_below_admin() {
+        let surreal = mem_surreal().await;
+        create(
+            &surreal,
+            &NewProject {
+                code: "firm-wide".into(),
+                name: "Firm wide".into(),
+                status: "open".into(),
+                entity_id: uuid::Uuid::now_v7(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+        for role in [Role::Lawyer, Role::Clerk, Role::Client] {
+            assert!(
+                matter_directory(&surreal, role).await.unwrap().is_empty(),
+                "{role:?} must read no directory"
+            );
+        }
+        assert_eq!(
+            matter_directory(&surreal, Role::Admin).await.unwrap().len(),
+            1
+        );
+    }
+
+    /// A flagged row naming a person who is no longer in the table reads as
+    /// unassigned. The directory's job is to keep listing the matter.
+    #[tokio::test]
+    async fn a_dri_row_naming_a_missing_person_reads_as_unassigned() {
+        let surreal = mem_surreal().await;
+        let project = create(
+            &surreal,
+            &NewProject {
+                code: "dangling-dri".into(),
+                name: "Dangling DRI".into(),
+                status: "open".into(),
+                entity_id: uuid::Uuid::now_v7(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        surreal
+            .query(
+                "CREATE $id SET person_id = $person, project_id = $project, \
+                 participation = 'lawyer', is_lawyer_dri = true, is_client_dri = false, \
+                 inserted_at = '2026-08-11T00:00:00Z', updated_at = '2026-08-11T00:00:00Z'",
+            )
+            .bind((
+                "id",
+                record_id(super::PERSON_PROJECT_ROLE_TABLE, uuid::Uuid::now_v7()),
+            ))
+            .bind(("person", record_id("person", uuid::Uuid::now_v7())))
+            .bind(("project", record_id(super::PROJECT_TABLE, project.id)))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+
+        let directory = matter_directory(&surreal, Role::Owner).await.unwrap();
+        assert_eq!(directory.len(), 1);
+        assert_eq!(directory[0].code, "dangling-dri");
+        assert!(directory[0].lawyer_dris.is_empty());
+    }
+
+    #[tokio::test]
+    async fn participation_write_readbacks_both_native_links() {
+        let surreal = mem_surreal().await;
+        let person = crate::persons::create(
+            &surreal,
+            &crate::persons::NewPerson::new("Participant", "participant-port@example.com"),
+        )
+        .await
+        .unwrap();
+        let project = create(
+            &surreal,
+            &NewProject {
+                code: "participation-port".into(),
+                name: "Participation port".into(),
+                status: "open".into(),
+                entity_id: uuid::Uuid::now_v7(),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let created = super::add_participation(&surreal, project.id, person.id, "attorney")
+            .await
+            .unwrap();
+        assert_eq!(created.person_id, person.id);
+        assert_eq!(
+            super::participations_for_project(&surreal, project.id)
+                .await
+                .unwrap(),
+            vec![created]
+        );
+    }
+}

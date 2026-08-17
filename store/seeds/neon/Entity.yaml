@@ -1,0 +1,17 @@
+---
+# Entities Neon Law owns that the shared registry does not carry, applied on
+# every boot in every environment. The shared registry — the firm anchor, the
+# Foundation, and the identities every deployment resolves — stays in the
+# canonical `../Entity.yaml`; only rows outside it live here.
+lookup_fields:
+  - name
+  - entity_type_id
+records:
+  # A California law corporation, principal office in Walnut Creek. Its entity
+  # type is canonical reference data; only this row is brand-owned.
+  - name: Yakcobieus Industries PC
+    entity_type:
+      name: Professional Corporation
+      jurisdiction:
+        name: California
+        jurisdiction_type: state

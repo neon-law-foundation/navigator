@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create PR"
+  short_description: "Group local changes, verify them, and open a GitHub PR."
+  default_prompt: "Use $create-pr to commit my current changes, upload any walkthrough images with gh image, and open a GitHub PR."

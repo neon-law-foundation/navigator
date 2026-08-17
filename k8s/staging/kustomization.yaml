@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: navigator
+      navigator.neonlaw.org/environment: staging
+    includeSelectors: false
+
+# Complete provider-neutral disposable staging runtime. Provider wrappers add
+# object storage, ingress/image transport, service coordinates, and sizing.
+resources:
+  - ../base
+  - ../base/web
+  - rauthy.yaml
+  - restate.yaml
+  - openobserve.yaml
+  - workflows-service.yaml
+  - clamav.yaml
+  - brand-bundle.yaml
+
+patches:
+  - path: runtime-contract.yaml

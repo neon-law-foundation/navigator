@@ -1,0 +1,1363 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1836" height="4510" viewBox="0 0 1836 4510" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#666"/></marker></defs>
+<style>.t{fill:#fff;stroke:#666;stroke-width:1}.tt{fill:#eef;stroke:#666;stroke-width:1}.tn{fill:#222;font-weight:600}.cn{fill:#222}.ct{fill:#888}.cpk{fill:#c33;font-weight:600}.cfk{fill:#36c}.e{fill:none;stroke:#888;stroke-width:1.2}</style>
+<g class="edges">
+<path class="e" d="M326,137 L1382,1471" marker-end="url(#arrow)"/>
+<path class="e" d="M326,225 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M846,93 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M846,159 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M846,181 L454,3335" marker-end="url(#arrow)"/>
+<path class="e" d="M1222,247 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M1654,181 L30,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M382,543 L910,45" marker-end="url(#arrow)"/>
+<path class="e" d="M742,543 L30,495" marker-end="url(#arrow)"/>
+<path class="e" d="M742,631 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M1166,697 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M1734,543 L910,495" marker-end="url(#arrow)"/>
+<path class="e" d="M1734,565 L910,45" marker-end="url(#arrow)"/>
+<path class="e" d="M1734,675 L30,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M382,861 L454,495" marker-end="url(#arrow)"/>
+<path class="e" d="M806,861 L910,45" marker-end="url(#arrow)"/>
+<path class="e" d="M806,883 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M806,1037 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M1190,861 L910,45" marker-end="url(#arrow)"/>
+<path class="e" d="M1190,927 L30,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1190,949 L910,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M1718,883 L30,2337" marker-end="url(#arrow)"/>
+<path class="e" d="M1718,927 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M342,1201 L1382,1471" marker-end="url(#arrow)"/>
+<path class="e" d="M342,1267 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M870,1201 L910,1153" marker-end="url(#arrow)"/>
+<path class="e" d="M1342,1201 L910,495" marker-end="url(#arrow)"/>
+<path class="e" d="M1342,1245 L1382,495" marker-end="url(#arrow)"/>
+<path class="e" d="M1766,1311 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1766,1377 L30,3609" marker-end="url(#arrow)"/>
+<path class="e" d="M358,1585 L30,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M358,1607 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M838,1563 L30,1471" marker-end="url(#arrow)"/>
+<path class="e" d="M1150,1585 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1718,1519 L454,1811" marker-end="url(#arrow)"/>
+<path class="e" d="M1718,1585 L30,2337" marker-end="url(#arrow)"/>
+<path class="e" d="M222,1859 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M222,1903 L1382,1471" marker-end="url(#arrow)"/>
+<path class="e" d="M1262,1859 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1262,2013 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M1806,1859 L910,45" marker-end="url(#arrow)"/>
+<path class="e" d="M1806,1881 L910,1811" marker-end="url(#arrow)"/>
+<path class="e" d="M1806,1947 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M1806,1969 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1806,1991 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M302,2177 L30,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M766,2177 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M766,2199 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M726,2429 L910,2337" marker-end="url(#arrow)"/>
+<path class="e" d="M1166,2385 L30,45" marker-end="url(#arrow)"/>
+<path class="e" d="M1734,2385 L910,45" marker-end="url(#arrow)"/>
+<path class="e" d="M1734,2451 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1734,2473 L30,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M326,2659 L1382,1471" marker-end="url(#arrow)"/>
+<path class="e" d="M326,2725 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M326,2747 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M326,2813 L454,3905" marker-end="url(#arrow)"/>
+<path class="e" d="M846,2637 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M846,2703 L30,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1246,2637 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1246,2747 L30,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1246,2813 L454,3905" marker-end="url(#arrow)"/>
+<path class="e" d="M270,3087 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M710,3109 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M710,3131 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M1150,3043 L1382,1471" marker-end="url(#arrow)"/>
+<path class="e" d="M1734,3109 L1382,1471" marker-end="url(#arrow)"/>
+<path class="e" d="M414,3405 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M414,3471 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M1158,3427 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1158,3427 L1382,1471" marker-end="url(#arrow)"/>
+<path class="e" d="M1158,3493 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1158,3493 L1382,1471" marker-end="url(#arrow)"/>
+<path class="e" d="M1726,3405 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M302,3723 L30,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1734,3701 L30,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1734,3789 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M286,4019 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M766,3953 L910,45" marker-end="url(#arrow)"/>
+<path class="e" d="M766,4107 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M1190,4041 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M1190,4063 L1382,2973" marker-end="url(#arrow)"/>
+<path class="e" d="M1694,3953 L30,813" marker-end="url(#arrow)"/>
+<path class="e" d="M1694,4107 L1382,2589" marker-end="url(#arrow)"/>
+<path class="e" d="M710,4381 L1382,2973" marker-end="url(#arrow)"/>
+</g>
+<g class="tables">
+<g transform="translate(30,30)">
+<rect class="t" width="296" height="272"/>
+<rect class="tt" width="296" height="30"/>
+<text class="tn" x="148" y="20" text-anchor="middle">address</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="284" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">city</text>
+<text class="ct" x="284" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">country</text>
+<text class="ct" x="284" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">entity_id</text>
+<text class="cfk" x="284" y="111" text-anchor="end">option_record_entity FK</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="284" y="133" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="155">line1</text>
+<text class="ct" x="284" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">line2</text>
+<text class="ct" x="284" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">person_id</text>
+<text class="cfk" x="284" y="199" text-anchor="end">option_record_person FK</text>
+<text class="cn" x="12" y="221">postal_code</text>
+<text class="ct" x="284" y="221" text-anchor="end">string</text>
+<text class="cn" x="12" y="243">region</text>
+<text class="ct" x="284" y="243" text-anchor="end">string</text>
+<text class="cn" x="12" y="265">updated_at</text>
+<text class="ct" x="284" y="265" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(454,30)">
+<rect class="t" width="392" height="250"/>
+<rect class="tt" width="392" height="30"/>
+<text class="tn" x="196" y="20" text-anchor="middle">answer</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="380" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">authored_by_person_id</text>
+<text class="cfk" x="380" y="67" text-anchor="end">option_record_person FK</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="380" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">notation_id</text>
+<text class="ct" x="380" y="111" text-anchor="end">option_uuid</text>
+<text class="cn" x="12" y="133">person_id</text>
+<text class="cfk" x="380" y="133" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="155">question_id</text>
+<text class="cfk" x="380" y="155" text-anchor="end">record_question FK</text>
+<text class="cn" x="12" y="177">source</text>
+<text class="ct" x="380" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">state_name</text>
+<text class="ct" x="380" y="199" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="221">updated_at</text>
+<text class="ct" x="380" y="221" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="243">value</text>
+<text class="ct" x="380" y="243" text-anchor="end">any</text>
+</g>
+<g transform="translate(910,30)">
+<rect class="t" width="312" height="426"/>
+<rect class="tt" width="312" height="30"/>
+<text class="tn" x="156" y="20" text-anchor="middle">asset</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="300" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">byte_size</text>
+<text class="ct" x="300" y="67" text-anchor="end">int</text>
+<text class="cn" x="12" y="89">content_type</text>
+<text class="ct" x="300" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">description</text>
+<text class="ct" x="300" y="111" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="133">filename</text>
+<text class="ct" x="300" y="133" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="300" y="155" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="177">kind</text>
+<text class="ct" x="300" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">metadata</text>
+<text class="ct" x="300" y="199" text-anchor="end">any</text>
+<text class="cn" x="12" y="221">project_id</text>
+<text class="cfk" x="300" y="221" text-anchor="end">option_record_project FK</text>
+<text class="cn" x="12" y="243">published_at</text>
+<text class="ct" x="300" y="243" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="265">received_at</text>
+<text class="ct" x="300" y="265" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="287">secondary_storage_key</text>
+<text class="ct" x="300" y="287" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="309">sha256_hex</text>
+<text class="ct" x="300" y="309" text-anchor="end">string</text>
+<text class="cn" x="12" y="331">slug</text>
+<text class="ct" x="300" y="331" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="353">source</text>
+<text class="ct" x="300" y="353" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="375">storage_key</text>
+<text class="ct" x="300" y="375" text-anchor="end">string</text>
+<text class="cn" x="12" y="397">updated_at</text>
+<text class="ct" x="300" y="397" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="419">visibility</text>
+<text class="ct" x="300" y="419" text-anchor="end">string</text>
+</g>
+<g transform="translate(1382,30)">
+<rect class="t" width="272" height="294"/>
+<rect class="tt" width="272" height="30"/>
+<text class="tn" x="136" y="20" text-anchor="middle">attestation</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="260" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">chain</text>
+<text class="ct" x="260" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">client_wallet</text>
+<text class="ct" x="260" y="89" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="111">firm_wallet</text>
+<text class="ct" x="260" y="111" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="260" y="133" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="155">notation_id</text>
+<text class="cfk" x="260" y="155" text-anchor="end">record_notation FK</text>
+<text class="cn" x="12" y="177">pda</text>
+<text class="ct" x="260" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">recorded_at</text>
+<text class="ct" x="260" y="199" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="221">sha256</text>
+<text class="ct" x="260" y="221" text-anchor="end">string</text>
+<text class="cn" x="12" y="243">status</text>
+<text class="ct" x="260" y="243" text-anchor="end">string</text>
+<text class="cn" x="12" y="265">tx_signature</text>
+<text class="ct" x="260" y="265" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="287">updated_at</text>
+<text class="ct" x="260" y="287" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(30,480)">
+<rect class="t" width="352" height="294"/>
+<rect class="tt" width="352" height="30"/>
+<text class="tn" x="176" y="20" text-anchor="middle">authority</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="340" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">archived_asset_id</text>
+<text class="cfk" x="340" y="67" text-anchor="end">option_record_asset FK</text>
+<text class="cn" x="12" y="89">canonical_url</text>
+<text class="ct" x="340" y="89" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="111">checked_on</text>
+<text class="ct" x="340" y="111" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="133">citation</text>
+<text class="ct" x="340" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">class</text>
+<text class="ct" x="340" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">inserted_at</text>
+<text class="ct" x="340" y="177" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="199">issued_on</text>
+<text class="ct" x="340" y="199" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="221">publisher</text>
+<text class="ct" x="340" y="221" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="243">short_cite</text>
+<text class="ct" x="340" y="243" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="265">title</text>
+<text class="ct" x="340" y="265" text-anchor="end">string</text>
+<text class="cn" x="12" y="287">updated_at</text>
+<text class="ct" x="340" y="287" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(454,480)">
+<rect class="t" width="288" height="206"/>
+<rect class="tt" width="288" height="30"/>
+<text class="tn" x="144" y="20" text-anchor="middle">authority_use</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="276" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">authority_id</text>
+<text class="cfk" x="276" y="67" text-anchor="end">record_authority FK</text>
+<text class="cn" x="12" y="89">disposition</text>
+<text class="ct" x="276" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="276" y="111" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="133">position</text>
+<text class="ct" x="276" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">project_id</text>
+<text class="cfk" x="276" y="155" text-anchor="end">record_project FK</text>
+<text class="cn" x="12" y="177">role</text>
+<text class="ct" x="276" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="276" y="199" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(910,480)">
+<rect class="t" width="256" height="272"/>
+<rect class="tt" width="256" height="30"/>
+<text class="tn" x="128" y="20" text-anchor="middle">case</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="244" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">caption</text>
+<text class="ct" x="244" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">docket_number</text>
+<text class="ct" x="244" y="89" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="111">forum</text>
+<text class="ct" x="244" y="111" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="244" y="133" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="155">judge</text>
+<text class="ct" x="244" y="155" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="177">jurisdiction</text>
+<text class="ct" x="244" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">posture</text>
+<text class="ct" x="244" y="199" text-anchor="end">string</text>
+<text class="cn" x="12" y="221">project_id</text>
+<text class="cfk" x="244" y="221" text-anchor="end">record_project FK</text>
+<text class="cn" x="12" y="243">status</text>
+<text class="ct" x="244" y="243" text-anchor="end">string</text>
+<text class="cn" x="12" y="265">updated_at</text>
+<text class="ct" x="244" y="265" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(1382,480)">
+<rect class="t" width="352" height="272"/>
+<rect class="tt" width="352" height="30"/>
+<text class="tn" x="176" y="20" text-anchor="middle">case_docket_entry</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="340" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">case_id</text>
+<text class="cfk" x="340" y="67" text-anchor="end">record_case FK</text>
+<text class="cn" x="12" y="89">document_asset_id</text>
+<text class="cfk" x="340" y="89" text-anchor="end">option_record_asset FK</text>
+<text class="cn" x="12" y="111">entry_number</text>
+<text class="ct" x="340" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">filed_or_served_on</text>
+<text class="ct" x="340" y="133" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="340" y="155" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="177">kind</text>
+<text class="ct" x="340" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">notation_id</text>
+<text class="cfk" x="340" y="199" text-anchor="end">option_record_notation FK</text>
+<text class="cn" x="12" y="221">party</text>
+<text class="ct" x="340" y="221" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="243">title</text>
+<text class="ct" x="340" y="243" text-anchor="end">string</text>
+<text class="cn" x="12" y="265">updated_at</text>
+<text class="ct" x="340" y="265" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(30,798)">
+<rect class="t" width="352" height="206"/>
+<rect class="tt" width="352" height="30"/>
+<text class="tn" x="176" y="20" text-anchor="middle">citation</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="340" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">authority_use_id</text>
+<text class="cfk" x="340" y="67" text-anchor="end">record_authority_use FK</text>
+<text class="cn" x="12" y="89">draft_pin</text>
+<text class="ct" x="340" y="89" text-anchor="end">any</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="340" y="111" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="133">quote</text>
+<text class="ct" x="340" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">source_pin</text>
+<text class="ct" x="340" y="155" text-anchor="end">any</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="340" y="177" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="199">why</text>
+<text class="ct" x="340" y="199" text-anchor="end">string</text>
+</g>
+<g transform="translate(454,798)">
+<rect class="t" width="352" height="316"/>
+<rect class="tt" width="352" height="30"/>
+<text class="tn" x="176" y="20" text-anchor="middle">communication</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="340" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">asset_id</text>
+<text class="cfk" x="340" y="67" text-anchor="end">option_record_asset FK</text>
+<text class="cn" x="12" y="89">author_person_id</text>
+<text class="cfk" x="340" y="89" text-anchor="end">option_record_person FK</text>
+<text class="cn" x="12" y="111">body</text>
+<text class="ct" x="340" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">channel</text>
+<text class="ct" x="340" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">counterparty</text>
+<text class="ct" x="340" y="155" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="177">direction</text>
+<text class="ct" x="340" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">inserted_at</text>
+<text class="ct" x="340" y="199" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="221">occurred_at</text>
+<text class="ct" x="340" y="221" text-anchor="end">string</text>
+<text class="cn" x="12" y="243">project_id</text>
+<text class="cfk" x="340" y="243" text-anchor="end">record_project FK</text>
+<text class="cn" x="12" y="265">source_ref</text>
+<text class="ct" x="340" y="265" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="287">subject</text>
+<text class="ct" x="340" y="287" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="309">updated_at</text>
+<text class="ct" x="340" y="309" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(910,798)">
+<rect class="t" width="280" height="228"/>
+<rect class="tt" width="280" height="30"/>
+<text class="tn" x="140" y="20" text-anchor="middle">contract_review</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="268" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">asset_id</text>
+<text class="cfk" x="268" y="67" text-anchor="end">option_record_asset FK</text>
+<text class="cn" x="12" y="89">findings</text>
+<text class="ct" x="268" y="89" text-anchor="end">any</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="268" y="111" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="133">notation_id</text>
+<text class="cfk" x="268" y="133" text-anchor="end">record_notation FK</text>
+<text class="cn" x="12" y="155">playbook_id</text>
+<text class="cfk" x="268" y="155" text-anchor="end">record_playbook FK</text>
+<text class="cn" x="12" y="177">risk_summary</text>
+<text class="ct" x="268" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">status</text>
+<text class="ct" x="268" y="199" text-anchor="end">string</text>
+<text class="cn" x="12" y="221">updated_at</text>
+<text class="ct" x="268" y="221" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(1382,798)">
+<rect class="t" width="336" height="162"/>
+<rect class="tt" width="336" height="30"/>
+<text class="tn" x="168" y="20" text-anchor="middle">credential</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="324" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">inserted_at</text>
+<text class="ct" x="324" y="67" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="89">jurisdiction_id</text>
+<text class="cfk" x="324" y="89" text-anchor="end">record_jurisdiction FK</text>
+<text class="cn" x="12" y="111">license_number</text>
+<text class="ct" x="324" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">person_id</text>
+<text class="cfk" x="324" y="133" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="324" y="155" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(30,1138)">
+<rect class="t" width="312" height="184"/>
+<rect class="tt" width="312" height="30"/>
+<text class="tn" x="156" y="20" text-anchor="middle">disclosure</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="300" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">entity_id</text>
+<text class="cfk" x="300" y="67" text-anchor="end">option_record_entity FK</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="300" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">kind</text>
+<text class="ct" x="300" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">project_id</text>
+<text class="cfk" x="300" y="133" text-anchor="end">option_record_project FK</text>
+<text class="cn" x="12" y="155">summary</text>
+<text class="ct" x="300" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="300" y="177" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(454,1138)">
+<rect class="t" width="416" height="206"/>
+<rect class="tt" width="416" height="30"/>
+<text class="tn" x="208" y="20" text-anchor="middle">discovery_item</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="404" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">discovery_request_id</text>
+<text class="cfk" x="404" y="67" text-anchor="end">record_discovery_request FK</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="404" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">item_number</text>
+<text class="ct" x="404" y="111" text-anchor="end">int</text>
+<text class="cn" x="12" y="133">objections</text>
+<text class="ct" x="404" y="133" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="155">request_text</text>
+<text class="ct" x="404" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">response_text</text>
+<text class="ct" x="404" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="404" y="199" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(910,1138)">
+<rect class="t" width="432" height="294"/>
+<rect class="tt" width="432" height="30"/>
+<text class="tn" x="216" y="20" text-anchor="middle">discovery_request</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="420" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">case_id</text>
+<text class="cfk" x="420" y="67" text-anchor="end">record_case FK</text>
+<text class="cn" x="12" y="89">device</text>
+<text class="ct" x="420" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">docket_entry_id</text>
+<text class="cfk" x="420" y="111" text-anchor="end">option_record_case_docket_entry FK</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="420" y="133" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="155">propounding_party</text>
+<text class="ct" x="420" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">responding_party</text>
+<text class="ct" x="420" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">responses_due_on</text>
+<text class="ct" x="420" y="199" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="221">served_on</text>
+<text class="ct" x="420" y="221" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="243">set_number</text>
+<text class="ct" x="420" y="243" text-anchor="end">int</text>
+<text class="cn" x="12" y="265">status</text>
+<text class="ct" x="420" y="265" text-anchor="end">string</text>
+<text class="cn" x="12" y="287">updated_at</text>
+<text class="ct" x="420" y="287" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(1382,1138)">
+<rect class="t" width="384" height="272"/>
+<rect class="tt" width="384" height="30"/>
+<text class="tn" x="192" y="20" text-anchor="middle">document_comment</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="372" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">anchor_end</text>
+<text class="ct" x="372" y="67" text-anchor="end">int</text>
+<text class="cn" x="12" y="89">anchor_start</text>
+<text class="ct" x="372" y="89" text-anchor="end">int</text>
+<text class="cn" x="12" y="111">body</text>
+<text class="ct" x="372" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">communication_id</text>
+<text class="ct" x="372" y="133" text-anchor="end">option_uuid</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="372" y="155" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="177">person_id</text>
+<text class="cfk" x="372" y="177" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="199">quoted_text</text>
+<text class="ct" x="372" y="199" text-anchor="end">string</text>
+<text class="cn" x="12" y="221">resolved</text>
+<text class="ct" x="372" y="221" text-anchor="end">bool</text>
+<text class="cn" x="12" y="243">review_document_id</text>
+<text class="cfk" x="372" y="243" text-anchor="end">record_review_document FK</text>
+<text class="cn" x="12" y="265">updated_at</text>
+<text class="ct" x="372" y="265" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(30,1456)">
+<rect class="t" width="328" height="250"/>
+<rect class="tt" width="328" height="30"/>
+<text class="tn" x="164" y="20" text-anchor="middle">email_conversation</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="316" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">external_email</text>
+<text class="ct" x="316" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">external_name</text>
+<text class="ct" x="316" y="89" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="316" y="111" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="133">notation_id</text>
+<text class="cfk" x="316" y="133" text-anchor="end">option_record_notation FK</text>
+<text class="cn" x="12" y="155">person_id</text>
+<text class="cfk" x="316" y="155" text-anchor="end">option_record_person FK</text>
+<text class="cn" x="12" y="177">status</text>
+<text class="ct" x="316" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">subject</text>
+<text class="ct" x="316" y="199" text-anchor="end">string</text>
+<text class="cn" x="12" y="221">token</text>
+<text class="ct" x="316" y="221" text-anchor="end">string</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="316" y="243" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(454,1456)">
+<rect class="t" width="384" height="316"/>
+<rect class="tt" width="384" height="30"/>
+<text class="tn" x="192" y="20" text-anchor="middle">email_conversation_message</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="372" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">body_text</text>
+<text class="ct" x="372" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">command_payload</text>
+<text class="ct" x="372" y="89" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="111">conversation_id</text>
+<text class="cfk" x="372" y="111" text-anchor="end">record_email_conversation FK</text>
+<text class="cn" x="12" y="133">direction</text>
+<text class="ct" x="372" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">from_addr</text>
+<text class="ct" x="372" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">in_reply_to</text>
+<text class="ct" x="372" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">inserted_at</text>
+<text class="ct" x="372" y="199" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="221">provider_message_id</text>
+<text class="ct" x="372" y="221" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="243">raw_storage_key</text>
+<text class="ct" x="372" y="243" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="265">subject</text>
+<text class="ct" x="372" y="265" text-anchor="end">string</text>
+<text class="cn" x="12" y="287">to_addr</text>
+<text class="ct" x="372" y="287" text-anchor="end">string</text>
+<text class="cn" x="12" y="309">updated_at</text>
+<text class="ct" x="372" y="309" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(910,1456)">
+<rect class="t" width="240" height="228"/>
+<rect class="tt" width="240" height="30"/>
+<text class="tn" x="120" y="20" text-anchor="middle">email_token</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="228" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">email</text>
+<text class="ct" x="228" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">expires_at</text>
+<text class="ct" x="228" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="228" y="111" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="133">person_id</text>
+<text class="cfk" x="228" y="133" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="155">purpose</text>
+<text class="ct" x="228" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">token_hash</text>
+<text class="ct" x="228" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="228" y="199" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="221">used_at</text>
+<text class="ct" x="228" y="221" text-anchor="end">option_datetime</text>
+</g>
+<g transform="translate(1382,1456)">
+<rect class="t" width="336" height="228"/>
+<rect class="tt" width="336" height="30"/>
+<text class="tn" x="168" y="20" text-anchor="middle">entity</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="324" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">entity_type_id</text>
+<text class="cfk" x="324" y="67" text-anchor="end">record_entity_type FK</text>
+<text class="cn" x="12" y="89">firm_anchor_key</text>
+<text class="ct" x="324" y="89" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="324" y="111" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="133">jurisdiction_id</text>
+<text class="cfk" x="324" y="133" text-anchor="end">record_jurisdiction FK</text>
+<text class="cn" x="12" y="155">name</text>
+<text class="ct" x="324" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">phone</text>
+<text class="ct" x="324" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="324" y="199" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="221">url</text>
+<text class="ct" x="324" y="221" text-anchor="end">option_string</text>
+</g>
+<g transform="translate(30,1796)">
+<rect class="t" width="192" height="162"/>
+<rect class="tt" width="192" height="30"/>
+<text class="tn" x="96" y="20" text-anchor="middle">entity_role</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="180" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">in</text>
+<text class="cfk" x="180" y="67" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="180" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">out</text>
+<text class="cfk" x="180" y="111" text-anchor="end">record_entity FK</text>
+<text class="cn" x="12" y="133">role</text>
+<text class="ct" x="180" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="180" y="155" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(454,1796)">
+<rect class="t" width="192" height="118"/>
+<rect class="tt" width="192" height="30"/>
+<text class="tn" x="96" y="20" text-anchor="middle">entity_type</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="180" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">inserted_at</text>
+<text class="ct" x="180" y="67" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="89">name</text>
+<text class="ct" x="180" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">updated_at</text>
+<text class="ct" x="180" y="111" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(910,1796)">
+<rect class="t" width="352" height="250"/>
+<rect class="tt" width="352" height="30"/>
+<text class="tn" x="176" y="20" text-anchor="middle">expunge_record</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="340" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">authorized_by_person_id</text>
+<text class="cfk" x="340" y="67" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="89">category</text>
+<text class="ct" x="340" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">head_after</text>
+<text class="ct" x="340" y="111" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="133">head_before</text>
+<text class="ct" x="340" y="133" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="340" y="155" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="177">note</text>
+<text class="ct" x="340" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">path</text>
+<text class="ct" x="340" y="199" text-anchor="end">string</text>
+<text class="cn" x="12" y="221">project_id</text>
+<text class="cfk" x="340" y="221" text-anchor="end">record_project FK</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="340" y="243" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(1382,1796)">
+<rect class="t" width="424" height="250"/>
+<rect class="tt" width="424" height="30"/>
+<text class="tn" x="212" y="20" text-anchor="middle">expunge_request</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="412" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">asset_id</text>
+<text class="cfk" x="412" y="67" text-anchor="end">record_asset FK</text>
+<text class="cn" x="12" y="89">expunge_record_id</text>
+<text class="cfk" x="412" y="89" text-anchor="end">option_record_expunge_record FK</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="412" y="111" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="133">note</text>
+<text class="ct" x="412" y="133" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="155">project_id</text>
+<text class="cfk" x="412" y="155" text-anchor="end">record_project FK</text>
+<text class="cn" x="12" y="177">requested_by_person_id</text>
+<text class="cfk" x="412" y="177" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="199">resolved_by_person_id</text>
+<text class="cfk" x="412" y="199" text-anchor="end">option_record_person FK</text>
+<text class="cn" x="12" y="221">status</text>
+<text class="ct" x="412" y="221" text-anchor="end">string</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="412" y="243" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(30,2070)">
+<rect class="t" width="272" height="228"/>
+<rect class="tt" width="272" height="30"/>
+<text class="tn" x="136" y="20" text-anchor="middle">filing</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="260" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">inserted_at</text>
+<text class="ct" x="260" y="67" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="89">kind</text>
+<text class="ct" x="260" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">notation_id</text>
+<text class="cfk" x="260" y="111" text-anchor="end">record_notation FK</text>
+<text class="cn" x="12" y="133">office</text>
+<text class="ct" x="260" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">reference</text>
+<text class="ct" x="260" y="155" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="177">submitted_at</text>
+<text class="ct" x="260" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">summary</text>
+<text class="ct" x="260" y="199" text-anchor="end">string</text>
+<text class="cn" x="12" y="221">updated_at</text>
+<text class="ct" x="260" y="221" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(454,2070)">
+<rect class="t" width="312" height="206"/>
+<rect class="tt" width="312" height="30"/>
+<text class="tn" x="156" y="20" text-anchor="middle">git_access_token</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="300" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">expires_at</text>
+<text class="ct" x="300" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="300" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">person_id</text>
+<text class="cfk" x="300" y="111" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="133">project_id</text>
+<text class="cfk" x="300" y="133" text-anchor="end">option_record_project FK</text>
+<text class="cn" x="12" y="155">scope</text>
+<text class="ct" x="300" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">token_hash</text>
+<text class="ct" x="300" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="300" y="199" text-anchor="end">string</text>
+</g>
+<g transform="translate(910,2070)">
+<rect class="t" width="208" height="140"/>
+<rect class="tt" width="208" height="30"/>
+<text class="tn" x="104" y="20" text-anchor="middle">git_repository</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="196" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">inserted_at</text>
+<text class="ct" x="196" y="67" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="89">last_commit_sha</text>
+<text class="ct" x="196" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">remote_hash</text>
+<text class="ct" x="196" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">updated_at</text>
+<text class="ct" x="196" y="133" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(1382,2070)">
+<rect class="t" width="192" height="162"/>
+<rect class="tt" width="192" height="30"/>
+<text class="tn" x="96" y="20" text-anchor="middle">glossary_term</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="180" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">body</text>
+<text class="ct" x="180" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="180" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">slug</text>
+<text class="ct" x="180" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">title</text>
+<text class="ct" x="180" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="180" y="155" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(30,2322)">
+<rect class="t" width="224" height="162"/>
+<rect class="tt" width="224" height="30"/>
+<text class="tn" x="112" y="20" text-anchor="middle">jurisdiction</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="212" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">code</text>
+<text class="ct" x="212" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="212" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">jurisdiction_type</text>
+<text class="ct" x="212" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">name</text>
+<text class="ct" x="212" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">updated_at</text>
+<text class="ct" x="212" y="155" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(454,2322)">
+<rect class="t" width="272" height="206"/>
+<rect class="tt" width="272" height="30"/>
+<text class="tn" x="136" y="20" text-anchor="middle">letter</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="260" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">direction</text>
+<text class="ct" x="260" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="260" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">mailroom_id</text>
+<text class="cfk" x="260" y="111" text-anchor="end">record_mailroom FK</text>
+<text class="cn" x="12" y="133">recipient</text>
+<text class="ct" x="260" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">sender</text>
+<text class="ct" x="260" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">summary</text>
+<text class="ct" x="260" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="260" y="199" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(910,2322)">
+<rect class="t" width="256" height="140"/>
+<rect class="tt" width="256" height="30"/>
+<text class="tn" x="128" y="20" text-anchor="middle">mailroom</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="244" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">address_id</text>
+<text class="cfk" x="244" y="67" text-anchor="end">record_address FK</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="244" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">name</text>
+<text class="ct" x="244" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">updated_at</text>
+<text class="ct" x="244" y="133" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(1382,2322)">
+<rect class="t" width="352" height="228"/>
+<rect class="tt" width="352" height="30"/>
+<text class="tn" x="176" y="20" text-anchor="middle">notarization</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="340" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">asset_id</text>
+<text class="cfk" x="340" y="67" text-anchor="end">option_record_asset FK</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="340" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">notarized_at</text>
+<text class="ct" x="340" y="111" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="133">notary_person_id</text>
+<text class="cfk" x="340" y="133" text-anchor="end">option_record_person FK</text>
+<text class="cn" x="12" y="155">notation_id</text>
+<text class="cfk" x="340" y="155" text-anchor="end">record_notation FK</text>
+<text class="cn" x="12" y="177">provider</text>
+<text class="ct" x="340" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">provider_id</text>
+<text class="ct" x="340" y="199" text-anchor="end">string</text>
+<text class="cn" x="12" y="221">updated_at</text>
+<text class="ct" x="340" y="221" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(30,2574)">
+<rect class="t" width="296" height="272"/>
+<rect class="tt" width="296" height="30"/>
+<text class="tn" x="148" y="20" text-anchor="middle">notation</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="284" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">delivery</text>
+<text class="ct" x="284" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">entity_id</text>
+<text class="cfk" x="284" y="89" text-anchor="end">option_record_entity FK</text>
+<text class="cn" x="12" y="111">git_commit_sha</text>
+<text class="ct" x="284" y="111" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="284" y="133" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="155">person_id</text>
+<text class="cfk" x="284" y="155" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="177">project_id</text>
+<text class="cfk" x="284" y="177" text-anchor="end">record_project FK</text>
+<text class="cn" x="12" y="199">questionnaire_snapshot</text>
+<text class="ct" x="284" y="199" text-anchor="end">any</text>
+<text class="cn" x="12" y="221">state</text>
+<text class="ct" x="284" y="221" text-anchor="end">string</text>
+<text class="cn" x="12" y="243">template_id</text>
+<text class="cfk" x="284" y="243" text-anchor="end">record_template FK</text>
+<text class="cn" x="12" y="265">updated_at</text>
+<text class="ct" x="284" y="265" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(454,2574)">
+<rect class="t" width="392" height="184"/>
+<rect class="tt" width="392" height="30"/>
+<text class="tn" x="196" y="20" text-anchor="middle">notation_clause</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="380" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">authored_by_person_id</text>
+<text class="cfk" x="380" y="67" text-anchor="end">option_record_person FK</text>
+<text class="cn" x="12" y="89">body_markdown</text>
+<text class="ct" x="380" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="380" y="111" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="133">notation_id</text>
+<text class="cfk" x="380" y="133" text-anchor="end">record_notation FK</text>
+<text class="cn" x="12" y="155">position</text>
+<text class="ct" x="380" y="155" text-anchor="end">int</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="380" y="177" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(910,2574)">
+<rect class="t" width="336" height="294"/>
+<rect class="tt" width="336" height="30"/>
+<text class="tn" x="168" y="20" text-anchor="middle">notation_event</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="324" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">acting_person_id</text>
+<text class="cfk" x="324" y="67" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="89">condition</text>
+<text class="ct" x="324" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">from_state</text>
+<text class="ct" x="324" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="324" y="133" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="155">machine_kind</text>
+<text class="ct" x="324" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">notation_id</text>
+<text class="cfk" x="324" y="177" text-anchor="end">record_notation FK</text>
+<text class="cn" x="12" y="199">payload</text>
+<text class="ct" x="324" y="199" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="221">recorded_at</text>
+<text class="ct" x="324" y="221" text-anchor="end">string</text>
+<text class="cn" x="12" y="243">template_version_id</text>
+<text class="cfk" x="324" y="243" text-anchor="end">record_template FK</text>
+<text class="cn" x="12" y="265">to_state</text>
+<text class="ct" x="324" y="265" text-anchor="end">string</text>
+<text class="cn" x="12" y="287">updated_at</text>
+<text class="ct" x="324" y="287" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(1382,2574)">
+<rect class="t" width="280" height="360"/>
+<rect class="tt" width="280" height="30"/>
+<text class="tn" x="140" y="20" text-anchor="middle">person</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="268" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">email</text>
+<text class="ct" x="268" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">email_lower</text>
+<text class="ct" x="268" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">family_name</text>
+<text class="ct" x="268" y="111" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="133">given_name</text>
+<text class="ct" x="268" y="133" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="268" y="155" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="177">middle_name</text>
+<text class="ct" x="268" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">name</text>
+<text class="ct" x="268" y="199" text-anchor="end">string</text>
+<text class="cn" x="12" y="221">oidc_subject</text>
+<text class="ct" x="268" y="221" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="243">phone</text>
+<text class="ct" x="268" y="243" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="265">profile_image_url</text>
+<text class="ct" x="268" y="265" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="287">role</text>
+<text class="ct" x="268" y="287" text-anchor="end">string</text>
+<text class="cn" x="12" y="309">title</text>
+<text class="ct" x="268" y="309" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="331">updated_at</text>
+<text class="ct" x="268" y="331" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="353">xero_contact_id</text>
+<text class="ct" x="268" y="353" text-anchor="end">option_string</text>
+</g>
+<g transform="translate(30,2958)">
+<rect class="t" width="240" height="184"/>
+<rect class="tt" width="240" height="30"/>
+<text class="tn" x="120" y="20" text-anchor="middle">person_external_identity</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="228" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">external_id</text>
+<text class="ct" x="228" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">handle</text>
+<text class="ct" x="228" y="89" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="228" y="111" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="133">person_id</text>
+<text class="cfk" x="228" y="133" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="155">system</text>
+<text class="ct" x="228" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="228" y="177" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(454,2958)">
+<rect class="t" width="256" height="206"/>
+<rect class="tt" width="256" height="30"/>
+<text class="tn" x="128" y="20" text-anchor="middle">person_project_role</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="244" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">inserted_at</text>
+<text class="ct" x="244" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">is_client_dri</text>
+<text class="ct" x="244" y="89" text-anchor="end">bool</text>
+<text class="cn" x="12" y="111">is_lawyer_dri</text>
+<text class="ct" x="244" y="111" text-anchor="end">bool</text>
+<text class="cn" x="12" y="133">participation</text>
+<text class="ct" x="244" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">person_id</text>
+<text class="cfk" x="244" y="155" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="177">project_id</text>
+<text class="cfk" x="244" y="177" text-anchor="end">record_project FK</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="244" y="199" text-anchor="end">string</text>
+</g>
+<g transform="translate(910,2958)">
+<rect class="t" width="240" height="184"/>
+<rect class="tt" width="240" height="30"/>
+<text class="tn" x="120" y="20" text-anchor="middle">playbook</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="228" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">active</text>
+<text class="ct" x="228" y="67" text-anchor="end">bool</text>
+<text class="cn" x="12" y="89">entity_id</text>
+<text class="cfk" x="228" y="89" text-anchor="end">record_entity FK</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="228" y="111" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="133">name</text>
+<text class="ct" x="228" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">positions</text>
+<text class="ct" x="228" y="155" text-anchor="end">any</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="228" y="177" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(1382,2958)">
+<rect class="t" width="352" height="338"/>
+<rect class="tt" width="352" height="30"/>
+<text class="tn" x="176" y="20" text-anchor="middle">project</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="340" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">closed_at</text>
+<text class="ct" x="340" y="67" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="89">code</text>
+<text class="ct" x="340" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">description</text>
+<text class="ct" x="340" y="111" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="133">drive_folder_id</text>
+<text class="ct" x="340" y="133" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="155">entity_id</text>
+<text class="cfk" x="340" y="155" text-anchor="end">record_entity FK</text>
+<text class="cn" x="12" y="177">external_slack_channel_url</text>
+<text class="ct" x="340" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">forge_provisioned_at</text>
+<text class="ct" x="340" y="199" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="221">git_initialized_at</text>
+<text class="ct" x="340" y="221" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="243">inserted_at</text>
+<text class="ct" x="340" y="243" text-anchor="end">string</text>
+<text class="cn" x="12" y="265">internal_slack_channel_url</text>
+<text class="ct" x="340" y="265" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="287">name</text>
+<text class="ct" x="340" y="287" text-anchor="end">string</text>
+<text class="cn" x="12" y="309">status</text>
+<text class="ct" x="340" y="309" text-anchor="end">string</text>
+<text class="cn" x="12" y="331">updated_at</text>
+<text class="ct" x="340" y="331" text-anchor="end">string</text>
+</g>
+<g transform="translate(30,3320)">
+<rect class="t" width="384" height="184"/>
+<rect class="tt" width="384" height="30"/>
+<text class="tn" x="192" y="20" text-anchor="middle">project_module</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="372" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">enabled_at</text>
+<text class="ct" x="372" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">enabled_by_person_id</text>
+<text class="cfk" x="372" y="89" text-anchor="end">option_record_person FK</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="372" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">module</text>
+<text class="ct" x="372" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">project_id</text>
+<text class="cfk" x="372" y="155" text-anchor="end">record_project FK</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="372" y="177" text-anchor="end">string</text>
+</g>
+<g transform="translate(454,3320)">
+<rect class="t" width="192" height="184"/>
+<rect class="tt" width="192" height="30"/>
+<text class="tn" x="96" y="20" text-anchor="middle">question</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="180" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">answer_type</text>
+<text class="ct" x="180" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">audience</text>
+<text class="ct" x="180" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">code</text>
+<text class="ct" x="180" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="180" y="133" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="155">prompt</text>
+<text class="ct" x="180" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">updated_at</text>
+<text class="ct" x="180" y="177" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(910,3320)">
+<rect class="t" width="248" height="250"/>
+<rect class="tt" width="248" height="30"/>
+<text class="tn" x="124" y="20" text-anchor="middle">relationship</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="236" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">confidence_pct</text>
+<text class="ct" x="236" y="67" text-anchor="end">int</text>
+<text class="cn" x="12" y="89">detail</text>
+<text class="ct" x="236" y="89" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="111">in</text>
+<text class="cfk" x="236" y="111" text-anchor="end">record_person_entity FK</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="236" y="133" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="155">kind</text>
+<text class="ct" x="236" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">out</text>
+<text class="cfk" x="236" y="177" text-anchor="end">record_person_entity FK</text>
+<text class="cn" x="12" y="199">source_id</text>
+<text class="ct" x="236" y="199" text-anchor="end">option_uuid</text>
+<text class="cn" x="12" y="221">source_kind</text>
+<text class="ct" x="236" y="221" text-anchor="end">string</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="236" y="243" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(1382,3320)">
+<rect class="t" width="344" height="206"/>
+<rect class="tt" width="344" height="30"/>
+<text class="tn" x="172" y="20" text-anchor="middle">relationship_log</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="332" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">action</text>
+<text class="ct" x="332" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">actor_person_id</text>
+<text class="cfk" x="332" y="89" text-anchor="end">option_record_person FK</text>
+<text class="cn" x="12" y="111">detail</text>
+<text class="ct" x="332" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="332" y="133" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="155">subject_id</text>
+<text class="ct" x="332" y="155" text-anchor="end">uuid</text>
+<text class="cn" x="12" y="177">subject_type</text>
+<text class="ct" x="332" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="332" y="199" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(30,3594)">
+<rect class="t" width="272" height="206"/>
+<rect class="tt" width="272" height="30"/>
+<text class="tn" x="136" y="20" text-anchor="middle">review_document</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="260" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">body_html</text>
+<text class="ct" x="260" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="260" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">kind</text>
+<text class="ct" x="260" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">notation_id</text>
+<text class="cfk" x="260" y="133" text-anchor="end">record_notation FK</text>
+<text class="cn" x="12" y="155">status</text>
+<text class="ct" x="260" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">title</text>
+<text class="ct" x="260" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="260" y="199" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(454,3594)">
+<rect class="t" width="184" height="96"/>
+<rect class="tt" width="184" height="30"/>
+<text class="tn" x="92" y="20" text-anchor="middle">schema_version</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="172" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">applied_at</text>
+<text class="ct" x="172" y="67" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="89">version</text>
+<text class="ct" x="172" y="89" text-anchor="end">int</text>
+</g>
+<g transform="translate(910,3594)">
+<rect class="t" width="248" height="272"/>
+<rect class="tt" width="248" height="30"/>
+<text class="tn" x="124" y="20" text-anchor="middle">sent_email</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="236" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">body</text>
+<text class="ct" x="236" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="236" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">outcome</text>
+<text class="ct" x="236" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">recipient</text>
+<text class="ct" x="236" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">sender</text>
+<text class="ct" x="236" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">sent_at</text>
+<text class="ct" x="236" y="177" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="199">sg_message_id</text>
+<text class="ct" x="236" y="199" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="221">subject</text>
+<text class="ct" x="236" y="221" text-anchor="end">string</text>
+<text class="cn" x="12" y="243">template_slug</text>
+<text class="ct" x="236" y="243" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="265">updated_at</text>
+<text class="ct" x="236" y="265" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(1382,3594)">
+<rect class="t" width="352" height="228"/>
+<rect class="tt" width="352" height="30"/>
+<text class="tn" x="176" y="20" text-anchor="middle">signature</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="340" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">field</text>
+<text class="ct" x="340" y="67" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="340" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">notation_id</text>
+<text class="cfk" x="340" y="111" text-anchor="end">record_notation FK</text>
+<text class="cn" x="12" y="133">provider</text>
+<text class="ct" x="340" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">provider_id</text>
+<text class="ct" x="340" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">signed_at</text>
+<text class="ct" x="340" y="177" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="199">signer_person_id</text>
+<text class="cfk" x="340" y="199" text-anchor="end">option_record_person FK</text>
+<text class="cn" x="12" y="221">updated_at</text>
+<text class="ct" x="340" y="221" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(30,3890)">
+<rect class="t" width="256" height="250"/>
+<rect class="tt" width="256" height="30"/>
+<text class="tn" x="128" y="20" text-anchor="middle">statutory_deadline</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="244" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">due_on</text>
+<text class="ct" x="244" y="67" text-anchor="end">string</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="244" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">kind</text>
+<text class="ct" x="244" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">project_id</text>
+<text class="cfk" x="244" y="133" text-anchor="end">record_project FK</text>
+<text class="cn" x="12" y="155">source</text>
+<text class="ct" x="244" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">status</text>
+<text class="ct" x="244" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">statute</text>
+<text class="ct" x="244" y="199" text-anchor="end">string</text>
+<text class="cn" x="12" y="221">trigger_on</text>
+<text class="ct" x="244" y="221" text-anchor="end">string</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="244" y="243" text-anchor="end">string</text>
+</g>
+<g transform="translate(454,3890)">
+<rect class="t" width="312" height="316"/>
+<rect class="tt" width="312" height="30"/>
+<text class="tn" x="156" y="20" text-anchor="middle">template</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="300" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">asset_id</text>
+<text class="cfk" x="300" y="67" text-anchor="end">option_record_asset FK</text>
+<text class="cn" x="12" y="89">code</text>
+<text class="ct" x="300" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">current_key</text>
+<text class="ct" x="300" y="111" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="133">form_code</text>
+<text class="ct" x="300" y="133" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="155">inserted_at</text>
+<text class="ct" x="300" y="155" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="177">is_current</text>
+<text class="ct" x="300" y="177" text-anchor="end">bool</text>
+<text class="cn" x="12" y="199">kind</text>
+<text class="ct" x="300" y="199" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="221">project_id</text>
+<text class="cfk" x="300" y="221" text-anchor="end">option_record_project FK</text>
+<text class="cn" x="12" y="243">respondent_type</text>
+<text class="ct" x="300" y="243" text-anchor="end">string</text>
+<text class="cn" x="12" y="265">source_commit_sha</text>
+<text class="ct" x="300" y="265" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="287">title</text>
+<text class="ct" x="300" y="287" text-anchor="end">string</text>
+<text class="cn" x="12" y="309">updated_at</text>
+<text class="ct" x="300" y="309" text-anchor="end">datetime</text>
+</g>
+<g transform="translate(910,3890)">
+<rect class="t" width="280" height="250"/>
+<rect class="tt" width="280" height="30"/>
+<text class="tn" x="140" y="20" text-anchor="middle">testimonial</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="268" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">attribution_label</text>
+<text class="ct" x="268" y="67" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="89">consented_at</text>
+<text class="ct" x="268" y="89" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="111">display_order</text>
+<text class="ct" x="268" y="111" text-anchor="end">int</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="268" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">person_id</text>
+<text class="cfk" x="268" y="155" text-anchor="end">record_person FK</text>
+<text class="cn" x="12" y="177">project_id</text>
+<text class="cfk" x="268" y="177" text-anchor="end">record_project FK</text>
+<text class="cn" x="12" y="199">published_at</text>
+<text class="ct" x="268" y="199" text-anchor="end">option_string</text>
+<text class="cn" x="12" y="221">quote</text>
+<text class="ct" x="268" y="221" text-anchor="end">string</text>
+<text class="cn" x="12" y="243">updated_at</text>
+<text class="ct" x="268" y="243" text-anchor="end">string</text>
+</g>
+<g transform="translate(1382,3890)">
+<rect class="t" width="312" height="228"/>
+<rect class="tt" width="312" height="30"/>
+<text class="tn" x="156" y="20" text-anchor="middle">verification</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="300" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">citation_id</text>
+<text class="cfk" x="300" y="67" text-anchor="end">record_citation FK</text>
+<text class="cn" x="12" y="89">inserted_at</text>
+<text class="ct" x="300" y="89" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="111">revision_sha</text>
+<text class="ct" x="300" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">status_citation</text>
+<text class="ct" x="300" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">status_proposition</text>
+<text class="ct" x="300" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">status_quote</text>
+<text class="ct" x="300" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">updated_at</text>
+<text class="ct" x="300" y="199" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="221">verifier_person_id</text>
+<text class="cfk" x="300" y="221" text-anchor="end">record_person FK</text>
+</g>
+<g transform="translate(30,4230)">
+<rect class="t" width="192" height="250"/>
+<rect class="tt" width="192" height="30"/>
+<text class="tn" x="96" y="20" text-anchor="middle">visitor_route_count</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="180" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">bucket_date</text>
+<text class="ct" x="180" y="67" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="89">country_code</text>
+<text class="ct" x="180" y="89" text-anchor="end">string</text>
+<text class="cn" x="12" y="111">inserted_at</text>
+<text class="ct" x="180" y="111" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="133">locale</text>
+<text class="ct" x="180" y="133" text-anchor="end">string</text>
+<text class="cn" x="12" y="155">route_pattern</text>
+<text class="ct" x="180" y="155" text-anchor="end">string</text>
+<text class="cn" x="12" y="177">source</text>
+<text class="ct" x="180" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">status_class</text>
+<text class="ct" x="180" y="199" text-anchor="end">string</text>
+<text class="cn" x="12" y="221">updated_at</text>
+<text class="ct" x="180" y="221" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="243">visits</text>
+<text class="ct" x="180" y="243" text-anchor="end">int</text>
+</g>
+<g transform="translate(454,4230)">
+<rect class="t" width="256" height="250"/>
+<rect class="tt" width="256" height="30"/>
+<text class="tn" x="128" y="20" text-anchor="middle">xero_invoice</text>
+<text class="cn" x="12" y="45">id</text>
+<text class="cpk" x="244" y="45" text-anchor="end">record PK</text>
+<text class="cn" x="12" y="67">amount_cents</text>
+<text class="ct" x="244" y="67" text-anchor="end">int</text>
+<text class="cn" x="12" y="89">amount_paid_cents</text>
+<text class="ct" x="244" y="89" text-anchor="end">int</text>
+<text class="cn" x="12" y="111">currency</text>
+<text class="ct" x="244" y="111" text-anchor="end">string</text>
+<text class="cn" x="12" y="133">inserted_at</text>
+<text class="ct" x="244" y="133" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="155">project_id</text>
+<text class="cfk" x="244" y="155" text-anchor="end">record_project FK</text>
+<text class="cn" x="12" y="177">reference</text>
+<text class="ct" x="244" y="177" text-anchor="end">string</text>
+<text class="cn" x="12" y="199">status</text>
+<text class="ct" x="244" y="199" text-anchor="end">string</text>
+<text class="cn" x="12" y="221">updated_at</text>
+<text class="ct" x="244" y="221" text-anchor="end">datetime</text>
+<text class="cn" x="12" y="243">xero_invoice_id</text>
+<text class="ct" x="244" y="243" text-anchor="end">string</text>
+</g>
+</g>
+</svg>

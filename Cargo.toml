@@ -1,0 +1,243 @@
+[workspace]
+resolver = "2"
+members = [
+    "github_webhooks",
+    "github-runner",
+    "rules",
+    "store",
+    "repos",
+    "import",
+    "cli",
+    "server",
+    "neon",
+    "webapp",
+    "views",
+    "workflows",
+    "workflows-service",
+    "cloud",
+    "mcp",
+    "features",
+    "forms",
+    "lsp",
+    "live-inquiry",
+    "pdf",
+    "portal",
+    "archives",
+    "billing",
+    "billing-workflows",
+    "gateway",
+    "telemetry",
+    "vfs",
+]
+
+[workspace.package]
+version = "26.8.15"
+edition = "2021"
+rust-version = "1.95"
+# Dual-licensed, the Rust ecosystem default: MIT for the permissiveness a
+# reader recognises on sight, Apache-2.0 for the express patent grant MIT does
+# not carry. See LICENSE.md; the legal prose under `templates/` is CC BY 4.0
+# instead, which that file explains.
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+anyhow = "1"
+# Dioxus 0.7 fullstack — the client-side framework the UI is migrating onto
+# (issue #641). `dioxus` provides the `App` component and the wasm client
+# entry in the `webapp` crate; `dioxus-server` provides the axum `render_handler`
+# and `FullstackState` that `web` uses to SSR that component into its existing
+# router. Pinned to the 0.7.x line (0.7 added axum 0.8 support, which this
+# workspace requires); the wasm client is built by `dx` via the `navigator` CLI.
+dioxus = { version = "0.7.9", features = ["fullstack"] }
+# `portal`'s generic `admin_listing_router` names `ComponentFunction` for its
+# type bound (the trait `dioxus-server`'s `FullstackState::new` already requires);
+# it is re-exported by the umbrella but named directly here at the pinned version.
+dioxus-core = "0.7.9"
+dioxus-server = "0.7.9"
+# The fullstack core exposes `extract` (read axum extractors inside a server
+# function); `dioxus::fullstack::extract` resolves to axum's module instead.
+dioxus-fullstack-core = "0.7.9"
+arrow = { version = "59", default-features = false }
+assert_cmd = "2"
+async-trait = "0.1"
+axum = "0.8"
+bytes = "1"
+# gzip codec — git smart-HTTP clients gzip the upload-pack RPC request body
+# (`Content-Encoding: gzip`); the transport in `web` decompresses it.
+flate2 = "1"
+# Compile-time directory embed — `web` bakes the workspace `templates/`
+# tree into the binary to serve raw non-confidential templates at
+# `/api/templates/...` without the dir leaving the workspace root.
+include_dir = "0.7"
+# Pure-Rust PDF read-modify-write, used by `pdf::fill_acroform` to
+# populate fillable government forms (AcroForm `/Fields`). Distinct from
+# the Typst `render` path, which only emits fresh PDFs.
+lopdf = "0.44"
+parquet = { version = "59", default-features = false, features = ["arrow", "snap"] }
+percent-encoding = "2"
+# Google Cloud SDKs. `google-cloud-storage` is consumed only by the
+# `cloud` crate (which wraps it in the provider-agnostic
+# `StorageService` trait). `google-cloud-auth` + `google-cloud-token`
+# are consumed by the `cli`'s `gcp setup` subcommand and by `archives`'s
+# BigQuery `REFRESH EXTERNAL TABLE` client — both talk directly to GCP
+# REST APIs. See CLAUDE.md → "Cloud: GCP only".
+# google-cloud-storage / google-cloud-auth: held at 0.24 / 0.17 (1.x is a full API rewrite — own session).
+google-cloud-storage = { version = "0.24", default-features = false, features = ["rustls-tls", "auth"] }
+google-cloud-auth = { version = "0.17", default-features = false, features = ["rustls-tls"] }
+google-cloud-token = "0.1"
+# The maintained AWS Rust SDK backs the S3-compatible Garage adapter in
+# `cloud`; the adapter forces path-style SigV4 requests at its endpoint.
+aws-credential-types = "1.3"
+aws-sdk-s3 = { version = "1.138", default-features = false, features = ["rustls", "rt-tokio"] }
+thiserror = "2"
+clap = { version = "4", features = ["derive", "env"] }
+comfy-table = { version = "8", default-features = false, features = ["tty"] }
+owo-colors = { version = "4", features = ["supports-colors"] }
+http-body-util = "0.1"
+# Image transcoding for `cli assets build` (responsive web variants):
+# `image` decodes the source JPEGs, resizes (Lanczos3) and re-encodes
+# JPEG; `webp` (libwebp via cc) handles lossy WebP; `ravif` (pure-Rust
+# rav1e) handles AVIF, the smallest of the three, with `rgb` for the
+# pixel slice. Lean — default features off, JPEG codec only on `image`.
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+webp = "0.3"
+ravif = { version = "0.13", default-features = false }
+rgb = "0.8"
+# Pure-Rust audio decoding for the `live-transcription` CLI. Symphonia
+# probes the container and decodes m4a/AAC, ALAC, MP3, FLAC, WAV, OGG, etc.
+# to PCM, so any common recording can be sent to Google Speech-to-Text as
+# LINEAR16 without the user pre-converting. `all` turns on every bundled
+# format + codec. MPL-2.0 (file-level copyleft; does not affect our code).
+symphonia = { version = "0.6", features = ["all"] }
+base64 = "0.23"
+hmac = "0.13"
+jsonwebtoken = { version = "11", default-features = false, features = ["use_pem", "rust_crypto"] }
+# P-256 ECDSA — verifies SendGrid's Signed Event Webhook signature. Already
+# compiled in the tree via `jsonwebtoken`'s ES256 support, so this direct dep
+# adds no new build cost.
+p256 = "0.14"
+rand = "0.10"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "query", "form", "multipart"] }
+# Rust-native Rego interpreter. The compatibility gate uses only the
+# thread-safe core needed by Navigator's policy; the default feature set
+# pulls in unrelated JSON Schema, URL, crypto, and coverage machinery.
+regorus = { version = "0.11.0", default-features = false, features = ["arc", "std"] }
+# NRS scraper: parse the legislature's HTML chapter pages. encoding_rs
+# decodes their windows-1252 bytes (MS-Word-filtered HTML) to UTF-8.
+scraper = "0.27"
+encoding_rs = "0.8"
+sha2 = "0.11"
+toml = "1.1"
+tower-cookies = "0.11"
+predicates = "3"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+# Pure-Rust regex engine (fancy-regex, not the C onig library) so the server-side
+# code highlighter builds without a C toolchain.
+syntect = { version = "5.3", default-features = false, features = ["default-fancy"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+archives = { path = "archives" }
+billing = { path = "billing" }
+billing-workflows = { path = "billing-workflows" }
+cloud = { path = "cloud" }
+features = { path = "features" }
+forms = { path = "forms" }
+gateway = { path = "gateway" }
+github_webhooks = { path = "github_webhooks" }
+github-runner = { path = "github-runner" }
+pingora = { version = "0.8", default-features = false, features = ["proxy"] }
+ipnet = "2"
+import = { path = "import" }
+live-inquiry = { path = "live-inquiry" }
+mcp = { path = "mcp" }
+pdf = { path = "pdf" }
+portal = { path = "portal" }
+neon = { path = "neon" }
+repos = { path = "repos" }
+server = { path = "server" }
+rules = { path = "rules" }
+store = { path = "store" }
+# SurrealDB, the store the workspace is porting onto (#1093). `store`
+# is its only consumer;
+# stay load-bearing until cutover. The crate default (`protocol-ws` +
+# `rustls`) is the remote client every deployment uses — the KIND
+# dependency tier locally, Surreal Cloud in production. The embedded
+# `kv-mem` engine is NOT enabled here: `store`'s `test-support` feature
+# turns it on, so the one-engine-per-test lane never compiles a whole
+# database into a production binary.
+# `EnumIter` over the closed question-type registry. The derive is
+# compiler-maintained, so a variant added without a matching token is a
+# build failure rather than a silently narrowed questionnaire vocabulary.
+strum = { version = "0.28", features = ["derive"] }
+surrealdb = { version = "3.2.3", default-features = false, features = ["protocol-http", "protocol-ws", "rustls"] }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "net", "process"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.7", features = ["fs", "trace", "set-header", "request-id"] }
+tracing = "0.1"
+url = "2"
+# ZIP writer/reader for the client "download all my documents" export
+# (`web::project_export`): packages a matter's current files (repo HEAD
+# working tree) into a plain ZIP — never a git packfile or bundle.
+# default-features off keeps the heavy codecs (aes, bzip2, zstd) out; we
+# only need deflate.
+zip = { version = "8", default-features = false, features = ["deflate"] }
+k8s-openapi = { version = "0.28", default-features = false, features = ["v1_36"] }
+kube = { version = "4.2", default-features = false, features = ["client", "rustls-tls"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+fantoccini = "0.22"
+opentelemetry = "0.32"
+opentelemetry_sdk = { version = "0.32", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["grpc-tonic", "trace", "metrics", "logs"] }
+# Bridges `tracing` log records to the OTLP LoggerProvider. Lockstep-versioned with
+# opentelemetry 0.32 — bump together, never alone.
+opentelemetry-appender-tracing = "0.32"
+tracing-opentelemetry = "0.33"
+telemetry = { path = "telemetry" }
+# The naming layer under every folder surface: the mounted matter folder and
+# the `site sync` tree on disk both derive their path components here, so a
+# matter renders under one name everywhere.
+vfs = { path = "vfs" }
+views = { path = "views" }
+walkdir = "2.5"
+webapp = { path = "webapp" }
+wiremock = "0.6"
+workflows = { path = "workflows" }
+restate-sdk = "0.11"
+serde_yaml = "0.9"
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock", "std"] }
+cucumber = "0.23"
+# `dotenvy` loads `.env` files at process start in every binary main().
+# Real deployment values live in your local `.env` (gitignored); the
+# checked-in `.env.example` documents every variable the workspace
+# reads. Calling `dotenvy::dotenv().ok()` is a no-op when no file is
+# present, so production deploys that inject env vars via Kubernetes
+# Secrets / ConfigMaps still work without any code change.
+dotenvy = "0.15"
+futures = "0.3"
+uuid = { version = "1", default-features = false, features = ["std", "v7", "serde"] }
+# Pure-Rust MIME parser. SendGrid Inbound Parse posts the raw RFC 5322
+# message (send_raw=true) with no parsed text part, so `web` extracts the
+# plain-text body itself when threading a support email.
+mail-parser = "0.11"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+dead_code = "deny"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+# The forms guard tests parse + fill the real multi-megabyte government
+# packets on every `cargo test`; debug-built lopdf turns that into
+# minutes. Optimizing just lopdf keeps the suite honest and fast.
+[profile.dev.package.lopdf]
+opt-level = 3

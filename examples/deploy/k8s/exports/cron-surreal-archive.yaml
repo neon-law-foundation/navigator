@@ -1,0 +1,48 @@
+# SurrealDB operational archive. This writes a recoverable SurrealQL artifact,
+# not the analytical Parquet/Iceberg output produced by `Archives`.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: surreal-archive
+  namespace: navigator
+  labels:
+    app: surreal-archive
+spec:
+  # 03:00 PST / 04:00 PDT, after the analytical archive trigger.
+  schedule: "0 11 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
+  startingDeadlineSeconds: 900
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app: surreal-archive
+        spec:
+          serviceAccountName: workflows-service
+          restartPolicy: OnFailure
+          containers:
+            - name: surreal-archive
+              image: YOUR_IMAGE_REGISTRY/navigator-surreal-archive:YY.M.D
+              imagePullPolicy: Always
+              args: ["ops", "surreal-archive", "export"]
+              env:
+                - name: NAVIGATOR_STORAGE_BACKEND
+                  value: gcs
+                - name: RUST_LOG
+                  value: info
+              envFrom:
+                - configMapRef:
+                    name: navigator-otel-env
+                - secretRef:
+                    name: navigator-web-secrets
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi

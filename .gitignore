@@ -1,0 +1,93 @@
+/target
+/.worktrees/
+# Agent harnesses create linked checkouts here. Each one is a whole second copy
+# of this tree, so a committed snapshot ships another branch's content — and the
+# brand guards skip any directory named `worktrees`, so nothing would catch it.
+/.claude/worktrees/
+**/*.rs.bk
+# macOS Finder metadata — never source
+.DS_Store
+/.devx/
+/navigator.sqlite
+/navigator.sqlite.stale.*
+/.claude/scheduled_tasks.lock
+# Local-only secret drop (Slack app creds, etc.) — deployed values live in
+# each deployment's SOPS-encrypted tree.
+/.slack.txt
+/.navigator
+/.agent/scheduled_tasks.lock
+# Local agent state stays local, but repo skills are source.
+/.agents/*
+!/.agents/skills/
+!/.agents/skills/**
+# Local Codex state stays local, but repo skills are source.
+/.codex/*
+!/.codex/skills/
+!/.codex/skills/**
+/.playwright-mcp/
+# Root-level screenshots taken during UI iteration (about-*.png,
+# mobile-*.png, www-neonlaw-*.png, help-page-*.png, …). Keep them
+# out of the repo; they belong on the operator's machine.
+/*.png
+
+# Environment files. The workspace loads `.env` at startup via
+# `dotenvy::dotenv().ok()`. Real deployment values (project IDs,
+# OAuth client IDs, domain names, secrets) belong in your local
+# `.env`, never in git. `.env.example` is the only env file checked
+# in — it documents every variable the workspace reads.
+.env
+.env.*
+!.env.example
+
+# The deployment tree lives in the private `neon-law-foundation/navigator-deploy`
+# now, and these patterns are kept anyway — deliberately, not by oversight.
+# A `deployments/` directory appearing here would be someone working on the
+# tree in the wrong checkout, and the one unrecoverable mistake in that work is
+# committing a decrypted copy: a plaintext secret that reaches a commit cannot
+# be un-committed, only rotated at the provider. The cost of the patterns is
+# nothing; the cost of their absence is unbounded.
+#
+# `no_public_source_instructs_a_deployment_by_name` is what notices the tree
+# came back at all. `navigator ops deployments` runs the full set of gates
+# against wherever the tree actually is.
+/deployments/**/secrets.yaml
+/deployments/**/secrets.json
+/deployments/**/*.dec.*
+/deployments/**/*.decrypted.*
+
+# Output of `scripts/publish-oss.sh` / `cargo run -p cli -- oss-publish`
+# (Phase 6 — the clean-history snapshot used to seed the public repo).
+/dist-oss/
+
+# Transcoded responsive photo variants (~17 MB, 117 files). Generated
+# by `cli assets build` from the `/tmp` source photos and served in
+# production from the public `<project>-assets` GCS bucket via
+# `cli assets upload` — never in git, never baked into the image. A
+# fresh clone has empty photo slots until a local `cli assets build`
+# repopulates this directory (matches the workshop/marketing asset
+# pattern). The rest of `server/public` (Bootstrap, brand SVGs) stays
+# tracked and still ships in the image.
+/server/public/img/
+
+# Licensed GORP WOFF2 files are operator-supplied assets. They are uploaded to
+# the deployment's public assets bucket by `navigator assets fonts upload`, not
+# committed to this open-source repository.
+/server/public/fonts/gorp-serif/*.woff2
+
+# Default local object-storage root (cloud::from_env fs backend)
+var/
+
+# Government form blanks are working copies, not source: the canonical
+# bytes live in the public assets bucket, pinned by the tracked sibling
+# `.sha256` files. `navigator forms sync` uploads a local blank and
+# records its pin; only text (`.md`, `.fields.toml`, `.sha256`) is
+# committed.
+/templates/forms/**/*.pdf
+
+# Still no third language.
+pyproject.toml
+.venv
+
+# Dioxus client bundle — built by `navigator dev build-webapp` (issue #641),
+# staged into the image by images/Containerfile.web. A build artifact, never committed.
+server/public/dioxus/

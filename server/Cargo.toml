@@ -1,0 +1,82 @@
+[package]
+name = "server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+# `server` has no source of its own beyond a module doc: every one of these is
+# here because the integration tests in `server/tests` resolve against the
+# package's dependencies, and those tests exercise the whole application.
+[dependencies]
+anyhow.workspace = true
+arrow.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+base64.workspace = true
+billing.workspace = true
+chrono.workspace = true
+clap.workspace = true
+cloud.workspace = true
+dioxus-server.workspace = true
+dotenvy.workspace = true
+flate2.workspace = true
+forms.workspace = true
+github_webhooks.workspace = true
+hmac.workspace = true
+include_dir.workspace = true
+jsonwebtoken.workspace = true
+live-inquiry.workspace = true
+mail-parser.workspace = true
+mcp.workspace = true
+p256.workspace = true
+parquet.workspace = true
+pdf.workspace = true
+neon.workspace = true
+portal.workspace = true
+pulldown-cmark.workspace = true
+rand.workspace = true
+repos.workspace = true
+reqwest.workspace = true
+rules.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sha2.workspace = true
+store.workspace = true
+telemetry.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tower.workspace = true
+tower-cookies.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+uuid.workspace = true
+views.workspace = true
+walkdir.workspace = true
+webapp = { workspace = true, features = ["server"] }
+workflows.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+base64.workspace = true
+fantoccini.workspace = true
+features = { workspace = true, features = ["webdriver"] }
+http-body-util.workspace = true
+jsonwebtoken.workspace = true
+scraper.workspace = true
+serde_json.workspace = true
+store = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
+toml.workspace = true
+uuid.workspace = true
+wiremock.workspace = true
+
+[lints]
+workspace = true

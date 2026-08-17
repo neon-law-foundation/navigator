@@ -1,0 +1,27 @@
+# Alert when the operational SurrealDB backup either fails or has not completed
+# in more than a day. Google Managed Service for Prometheus evaluates this Rule;
+# the deployment's alerting policy must route critical alerts to firm ops.
+#
+# The selectors carry NO namespace matcher on purpose: GMP's isolating
+# admission webhook injects `namespace="<the Rule's own namespace>"` into
+# every selector and REFUSES a Rule whose query names a different one — a
+# hardcoded namespace both broke the neon-law-stg reconcile and could
+# silently watch the wrong deployment's jobs.
+apiVersion: monitoring.googleapis.com/v1
+kind: Rules
+metadata:
+  name: surreal-archive-alerts
+  namespace: navigator
+spec:
+  groups:
+    - name: surreal-archive
+      interval: 5m
+      rules:
+        - alert: SurrealArchiveFailed
+          expr: max(kube_job_status_failed{job_name=~"surreal-archive-.*"}) > 0 or time() - max(kube_cronjob_status_last_successful_time{cronjob="surreal-archive"}) > 93600
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "SurrealDB operational archive failed or is overdue"
+            description: "The surreal-archive CronJob has a failed Job or no successful run in 26 hours. Investigate the Job logs and restore-drill readiness before the next backup window."

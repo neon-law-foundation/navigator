@@ -1,0 +1,8 @@
+/* GORP Serif — Neon Law's licensed web typeface. */
+/* PageLayout emits the asset-origin-specific @font-face declarations. */
+/* Regular is the reading face; Bold is the initial hierarchy face. */
+
+/* Navigator's token layer inherits this family into text and controls. */
+:root {
+  --nav-font-family: "GORP Serif", Georgia, serif;
+}

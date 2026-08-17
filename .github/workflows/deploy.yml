@@ -1,0 +1,2261 @@
+name: deploy
+
+# The nightly publish flow (see docs/gitops.md "CI/CD workflows"). ONE workflow
+# builds the images: the clock fires at 1:11 UTC, and this run proves the
+# workspace, publishes it to GHCR, cuts the tag, and reports it. In strict
+# order:
+#
+#   0. release-version — DERIVE the version. `YY.M.D` for the current UTC day,
+#      read from the runner clock. Nothing validates it against a pushed tag,
+#      because there is no tag: a cron has no ref to check and no Cargo.toml
+#      bump commit to match. Instead the derived version is passed to every
+#      image build as the `RELEASE_TAG` build-arg, which each Containerfile
+#      turns into a runtime `ENV NAVIGATOR_RELEASE_TAG` that `main.rs` reads —
+#      so a running container reports exactly the string its image is tagged
+#      with, which is the property the old tag-equals-Cargo.toml check existed
+#      to protect. This job creates nothing and holds `contents: read`. A
+#      `kind-ci/**` branch reports `publishable=false` and stops after
+#      integration.
+#   1. integration — build the KIND service images, stand up KIND, run the full
+#      e2e + interop + browser/accessibility suite against the live cluster.
+#   2. publish     — only if integration is green, push all images to GHCR
+#      tagged with the derived version + `nightly`. The service images go
+#      through `publish-service` (amd64-only, one native build per image); the
+#      CronJob images go through `publish-triggers` (also amd64-only).
+#      Prod runs on GKE Autopilot, which schedules on amd64 nodes, so amd64 is
+#      the only architecture any image is consumed on.
+#   2b. the CLI release lane — EVERY publishing run builds a Windows and a
+#      Linux `navigator` archive, then `release-windows-cli-publish` CUTS the
+#      `YY.M.D` tag and its GitHub Release at the SHA those archives were built
+#      from and attaches them. That job is the only holder of
+#      `contents: write`; nothing else in this file can move a ref.
+#
+#      IT IS LOAD-BEARING BEYOND THE HUMAN DOWNLOAD. `.github/actions/validate`
+#      — the composite gate EVERY Project repository runs — fetches
+#      `navigator-<version>-<platform>` from the Release this job creates. If
+#      it stops running, Project CI breaks everywhere with a download 404 and
+#      nothing in THIS repository goes red.
+#
+#      Each archive carries LICENSE.md, LICENSE-MIT, and LICENSE-APACHE beside
+#      the executable: whoever unpacks it holds the binary and not the
+#      repository, and both grants require the notice to travel with the copy.
+#   3. notify      — post the publish report to #navigator via the prod ops
+#      incoming webhook (SLACK_WEBHOOK_URL, a GitHub Actions secret): what this
+#      run published, then the `ops ship` command per `deployments/` row with
+#      the version already substituted.
+#
+# THIS WORKFLOW DEPLOYS NOTHING, AND HOLDS NO CLOUD CREDENTIAL. It ends at the
+# registry. Every rollout is `navigator ops ship`, run by a person from their
+# own machine against their own short-lived ADC — so compromising this pipeline
+# yields images, not a production cluster. Do not add a ship job back here: the
+# seam is what keeps "which version is production on?" a question answered by
+# the operator who rolled it rather than by whatever the last green run did.
+# `notify`'s second message exists to make that handoff a copyable command
+# instead of a runbook lookup.
+#
+# Plus one out-of-band guard: `notify-failure` posts to #navigator (tagging Nick)
+# whenever ANY stage fails. It carries only the version + run URL — the
+# "identifiers and counts, never content" rule binds here too. The nightly is
+# unattended, so this page is the ONLY thing distinguishing a night that broke
+# from a night nobody read.
+#
+# THE NIGHTLY IS ITSELF THE LIVENESS CHECK. A cron exercises this whole path
+# every day whether or not anything changed, so a defect introduced today
+# surfaces tomorrow morning rather than waiting for someone to decide to
+# release. That is the failure the tag-only era left open, and it is why
+# `notify-failure` matters: the run is unattended, so a night that broke and a
+# night nobody read look identical without the page. Push a `kind-ci/**` branch
+# to exercise the pipeline without publishing.
+#
+# And running underneath every stage: every forward-path step opens with a
+# `./.github/actions/slack-progress` post to #navigator, so the channel watches
+# the run advance instead of waiting ~45 silent minutes for a verdict, and the
+# last line posted names the step a failure died in. Those posts are advisory —
+# the action never fails a job over a webhook — and they self-gate on the
+# publishing events, so a `kind-ci/**` branch iteration stays silent exactly as
+# the two reports above do. Steps gated on `failure()`/`always()` are
+# post-mortem diagnostics rather than progress and are deliberately not
+# narrated; `notify-failure` already covers that moment.
+#
+# THE VERSION IS DERIVED FROM THE CLOCK, once, in job 0, and then threaded
+# through every build as the `RELEASE_TAG` build-arg. Every component is
+# unpadded — no leading zeros (June is `6`). Running the dispatch a second time
+# on the same UTC day republishes that version over itself, which is correct
+# rather than a collision: same commit, same images, same name.
+#
+# RECOVERING A FAILED NIGHT (docs/gitops.md § "Recovering a failed release"):
+# re-run the failed jobs for a flake. There is nothing to un-publish, because
+# nothing was deployed — the images either reached GHCR or they did not, and
+# tonight's fix simply publishes tomorrow.
+
+# TWO WAYS TO PUBLISH, and deliberately no third. The clock runs it nightly at
+# 1:11 UTC — an odd minute rather than :00, because the top of the hour is when
+# GitHub's hosted-runner queue is deepest and a scheduled run is delayed, not
+# queued fairly. A `workflow_dispatch` runs the same pipeline on demand, for
+# when waiting until tomorrow is not an answer.
+#
+# NO TAG TRIGGERS THIS WORKFLOW. `release-windows-cli-publish` CUTS the
+# `YY.M.D` tag rather than reacting to one, so a tag trigger would be this
+# workflow reacting to itself.
+#
+# The distinction worth holding: "publish an image" and "deploy to a cluster"
+# are different powers, and only the second was worth taking away. Publishing
+# on demand costs a registry push; deploying on demand is what put cloud
+# credentials in CI.
+on:
+  schedule:
+    - cron: "11 1 * * *"
+  workflow_dispatch:
+  push:
+    # CI-iteration seam, and the ONLY way to prove a change to this file.
+    # Pushing a branch named `kind-ci/**` runs ONLY the KIND integration job
+    # below — the publish-* jobs, notify, and notify-failure are all gated on
+    # the publishing events, so a branch run pushes no images and posts no
+    # Slack. Without it, editing this workflow would mean shipping the edit
+    # untested and finding out at 01:11 the next morning. Not a second
+    # workflow — same deploy.yml, just an extra trigger on the one job that
+    # needs pre-publish iteration.
+    branches:
+      - "kind-ci/**"
+
+permissions:
+  contents: read
+  # Image pushes authenticate to Artifact Registry via Workload Identity
+  # (each publish job requests `id-token: write`). `packages: write` is granted
+  # per job rather than here: only `publish-service` can mirror to `ghcr.io`,
+  # and only when `GHCR_PUBLISH` is set.
+
+# There is deliberately no published-asset origin probe (and no `env:` block)
+# in this workflow. Every deployment's assets bucket is private and served
+# same-origin through the live site's `/assets` proxy, so the only URL that
+# could verify publication is the deployment's own public host — which does
+# not exist until the first roll this workflow feeds. Publication correctness
+# lives with the operator lane (`ops assets upload` / `ops assets fonts
+# upload`) and `ops ship`'s NAVIGATOR_ASSET_BASE_URL gate; the KIND image
+# bakes stubbed placeholders and the integration job verifies KIND serves
+# them.
+
+concurrency:
+  # Releases share one serialized lane so a pushed tag and a `kind-ci/**`
+  # branch iteration never race each other.
+  group: deploy-release
+  cancel-in-progress: false
+
+jobs:
+  release-version:
+    name: derive the nightly version
+    if: github.repository == 'neon-law-foundation/navigator'
+    runs-on: ubuntu-latest
+    # This job CREATES NOTHING. It derives a name and hands it downstream; it
+    # moves no ref, cuts no tag, and writes nothing to the repository. The one
+    # job that DOES move a ref is `release-windows-cli-publish`, which cuts the
+    # tag at the SHA its archives were built from.
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      # The one place the "is this a real release?" question is answered.
+      # Downstream jobs read this instead of each re-deriving the same
+      # ref/event boolean — a `kind-ci/**` branch run reports false and stops
+      # after integration.
+      publishable: ${{ steps.version.outputs.publishable }}
+    steps:
+      # This job reads the ref it was triggered by and needs no working tree of
+      # its own — the checkout is here only so the local `slack-progress`
+      # action is on disk. Sparse, so it stays a metadata fetch.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions/slack-progress
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: ""
+          stage: "release-version"
+          step: "derive the nightly version"
+      - name: derive the nightly version
+        id: version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          # Three triggers reach this workflow, and the EVENT tells them apart —
+          # not the ref, because all three arrive on a branch now.
+          #
+          # A dispatch derives its version exactly as the nightly does. Running
+          # both on one UTC day republishes the same version over itself, which
+          # is correct rather than a collision: same commit, same images, same
+          # name. The `.H` fourth digit that once made those distinct was
+          # retired precisely because it produced versions no Git ref stood
+          # behind.
+          if [ "${EVENT_NAME}" = "schedule" ] || [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+              # `YY.M.D` in UTC, derived from the runner clock.
+              #
+              # UTC, not a local zone: it is the zone the `YY.M.D` convention
+              # has always been derived in, it has no DST discontinuity, and the
+              # runner clock is already UTC. `10#` forces base-10 so `08`/`09`
+              # are not read as bad octal, and every component is unpadded
+              # (August is `8`).
+              #
+              # NOTHING IS VALIDATED HERE, because there is nothing to validate
+              # against: a cron carries no tag and the commit it builds carries
+              # no matching Cargo.toml bump. The property the old
+              # tag-equals-Cargo.toml check protected — that a binary reports
+              # the version its image is labelled with — is preserved instead by
+              # passing this string as the `RELEASE_TAG` build-arg, which each
+              # Containerfile turns into a runtime `ENV NAVIGATOR_RELEASE_TAG`
+              # that `main.rs` reads. Derived once, consumed everywhere: the
+              # pipeline still cannot build one thing and label it another.
+              read -r y m d <<< "$(TZ=UTC date +'%y %m %d')"
+              tag="$((10#$y)).$((10#$m)).$((10#$d))"
+              publishable=true
+          else
+              # A `kind-ci/**` branch iteration: integration only. The ref name
+              # stands in for a version so progress lines and job titles name
+              # something real; nothing downstream consumes it, because every
+              # publishing job is gated on `publishable`.
+              tag="${REF_NAME}"
+              publishable=false
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version: ${tag}"
+          echo "publishable=${publishable}" >> "$GITHUB_OUTPUT"
+          echo "publishable: ${publishable}"
+
+
+  # ---------- Stage 0: build both service images in parallel ----------
+  # Each image cold-compiles the whole Rust workspace. Building them as a
+  # parallel matrix here — instead of sequential `docker build` steps inside
+  # `integration` — overlaps those compiles so the wall-clock is ~one build,
+  # not three. It also stops `integration` from spending most of its budget
+  # building before it can even start the e2e suite (itself only ~6 min),
+  # keeping that job under its own 60-min cap even on a cold cache.
+  #
+  # Each image is built locally under an ephemeral, per-run tag, saved to a
+  # tarball, and uploaded as a workflow artifact that `integration` downloads
+  # and loads into KIND. These per-commit CI images are NEVER pushed to any
+  # registry — they never leave the run, so no registry auth is needed here.
+  build:
+    name: build ${{ matrix.image }}
+    needs: release-version
+    if: github.repository == 'neon-law-foundation/navigator'
+    # Per-image runner: the Rust-workspace images exhaust the tenant
+    # `ubuntu-latest` disk before rustup even finishes (run 142012686,
+    # "No space left on device" at `rustup target add`), so they build on
+    # a wide runner. The gateway image compiles
+    # one small crate and stays on `ubuntu-latest` — a wide runner caps
+    # at two concurrent jobs and bills per-minute, so light builds must not
+    # queue behind heavy ones.
+    runs-on: ${{ matrix.runner }}
+    # Cold workspace compile; cap so a stuck build can't hang the run.
+    #
+    # 90 and not 45: `navigator-web` is the long pole, measured at 24m
+    # (warm, main) and 32m (warm, tag) on a hosted runner, and a cold
+    # `kind-ci/**` branch build ran straight through the old 45-minute cap
+    # (run 30393950030, killed at 45m32s). That kill cost the entire run:
+    # `fail-fast` skipped `integration`, so the job the branch existed to
+    # exercise never started, and dying mid-step also lost both cache
+    # exports — `Post cache cargo` skipped and buildx never reached its
+    # `cache-to` — so a retry would have begun just as cold and hit the
+    # same wall.
+    #
+    # The cap is a wedge detector, not a duration budget. A genuinely
+    # stuck build hangs forever and is caught just as surely at 90 as at
+    # 45, only later; a merely slow cold build now finishes instead of
+    # being thrown away. Over-provisioning costs wall-clock solely on runs
+    # that were already failing, so the asymmetry favors the larger number.
+    timeout-minutes: 90
+    strategy:
+      # One red build means the e2e can't run — stop the sibling too.
+      fail-fast: true
+      matrix:
+        include:
+          # `navigator-web` is now an alias tag for the Foundation brand image:
+          # the deployed GKE manifests still pull `navigator-web` (see
+          # `k8s/base/web/web.yaml`), and they flip to `neon-server` with #796's
+          # ship targets. Same Containerfile, so the two tags are byte-identical
+          # until that cutover retires this entry.
+          - image: navigator-web
+            dockerfile: images/Containerfile.neon
+            runner: ubuntu-latest
+          # The brand image every deployment actually rolls. `navigator-web`
+          # above is the same bytes from the same Containerfile and is retired
+          # once the ship targets flip.
+          - image: neon-server
+            dockerfile: images/Containerfile.neon
+            runner: ubuntu-latest
+          - image: navigator-workflows-service
+            dockerfile: images/Containerfile.workflows-service
+            runner: ubuntu-latest
+          - image: navigator-gateway
+            dockerfile: images/Containerfile.gateway
+            runner: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: ./.github/actions/slack-progress
+        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "build ${{ matrix.image }}"
+          step: "install rust toolchain"
+      # `web/public/img/` is gitignored and excluded from normal Docker
+      # builds, so the ephemeral KIND image gets generated placeholders at
+      # the same paths after the real public GCS origin has been verified.
+      # Production still serves images from GCS at runtime.
+      #
+      # This must cover both public-host images that the KIND browser gate
+      # serves (`navigator-web` and `neon-server`); otherwise its content-image
+      # assertions find the references but only 404 responses at their paths.
+      - name: install rust toolchain
+        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
+      - uses: ./.github/actions/slack-progress
+        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "build ${{ matrix.image }}"
+          step: "cache cargo"
+      # First-party `actions/cache`: it ships with the runner and needs no
+      # GitHub token, so nothing here reaches api.github.com with an
+      # enterprise-issued credential.
+      - name: cache cargo
+        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-
+      - uses: ./.github/actions/slack-progress
+        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "build ${{ matrix.image }}"
+          step: "stub public assets for KIND public-host images"
+      - name: stub public assets for KIND public-host images
+        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        run: |
+          set -euo pipefail
+          cargo run -p cli --quiet -- ops assets stub-referenced --out server/public
+          grep -vxF -e 'server/public/img/' \
+            -e 'server/public/fonts/gorp-serif/*.woff2' \
+            .dockerignore > /tmp/navigator-dockerignore
+          mv /tmp/navigator-dockerignore .dockerignore
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "build ${{ matrix.image }}"
+          step: "build and load (ephemeral CI tag)"
+      - name: build and load (ephemeral CI tag)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          # Load into the runner's local docker rather than push to a registry:
+          # the per-commit CI image is saved to a tarball and handed to
+          # `integration` as a workflow artifact, so it never leaves the run.
+          load: true
+          tags: ${{ matrix.image }}:ci-${{ github.sha }}
+          # This amd64 job warms the amd64-scoped cache the
+          # `publish-service` job reads — a tag run's service rebuild stays
+          # a near-no-op.
+          # This job stays on the Actions cache: it holds no registry
+          # credentials (no `id-token: write`, no WIF step) and must not gain
+          # any, because it also runs for `kind-ci/**` branch pushes. The
+          # publish jobs, which are already authenticated, cache into Artifact
+          # Registry instead — so these four images are now the only thing here
+          # drawing on the 10 GB Actions quota, leaving room for `ci.yml`'s
+          # Rust dependency cache to survive between PR pushes.
+          #
+          # On a tag run this export is also read back by `publish-service`,
+          # which lists this scope as a second `cache-from` so the workspace is
+          # compiled once per release rather than once here and again there.
+          # That is a read on publish's side, so it adds nothing to the quota
+          # accounted for above. Publish keeps its own registry cache as the
+          # primary source: that one persists across releases, while this one
+          # only ever spans a single run.
+          cache-from: type=gha,scope=${{ matrix.image }}-amd64
+          # ignore-error: the image is already pushed before the cache export
+          # runs, so a `not_found` from the GHA cache backend (a known
+          # intermittent failure on `mode=max` exports) must never fail an
+          # otherwise-successful build. A missed export only makes the next
+          # build colder.
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-amd64,ignore-error=true
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "build ${{ matrix.image }}"
+          step: "save image tarball"
+      - name: save image tarball
+        run: docker save "${{ matrix.image }}:ci-${{ github.sha }}" -o "/tmp/${{ matrix.image }}.tar"
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "build ${{ matrix.image }}"
+          step: "upload image artifact"
+      - name: upload image artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-image-${{ matrix.image }}
+          path: /tmp/${{ matrix.image }}.tar
+          retention-days: 1
+
+  # ---------- Stage 1: KIND end-to-end integration ----------
+  integration:
+    name: KIND integration (tag ${{ needs.release-version.outputs.tag }})
+    needs: [build, release-version]
+    if: github.repository == 'neon-law-foundation/navigator'
+    runs-on: ubuntu-latest
+    # Fail fast instead of hanging for hours. With the image builds moved
+    # to the parallel `build` job, a healthy run here is just the KIND
+    # stand-up + e2e/browser/accessibility suite (~15 min); a wedged
+    # dependency (e.g. Restate not provisioning) used to leave the `e2e`
+    # waits and smoke checks spinning until someone cancelled it by hand —
+    # one such run burned 2h15m. 60 min leaves wide headroom while capping
+    # a wedge at a bounded, log-bearing failure.
+    timeout-minutes: 60
+    env:
+      CHROME_FOR_TESTING_VERSION: 150.0.7871.46
+    steps:
+      # The standard ubuntu-latest runner ships ~21-28 GB free on `/`. This
+      # job pulls both service images, loads them into KIND, and compiles +
+      # runs the full e2e/browser suite on the runner — enough to risk "No
+      # space left on device" without a sweep. Reclaim the ~30 GB of
+      # pre-installed tooling we never use (Android SDK, .NET, Haskell, the
+      # tool cache), mirroring the `rust` job in `ci.yml`. `large-packages:
+      # false` skips the slow apt purge — the quick removals free enough. We
+      # keep `docker-images: false` because the pulled service images and the
+      # KIND node image live in the Docker store.
+      - name: free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: false
+          swap-storage: false
+      # free-disk-space deletes /opt/hostedtoolcache (tool-cache: true), but the
+      # runner is unprivileged and /opt is root-owned, so helm/kind-action below
+      # can't recreate it to install kubectl/kind — it dies with only "Cache
+      # directory '/opt/hostedtoolcache' does not exist". Recreate it, runner-owned.
+      - name: restore tool-cache dir
+        run: sudo mkdir -p /opt/hostedtoolcache && sudo chown "$USER":"$USER" /opt/hostedtoolcache
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "install kind"
+      - name: install kind
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: navigator
+          config: k8s/kind-config.yaml
+          wait: 60s
+          # Pin the kind BINARY in lockstep with the node image below. v0.32.0's
+          # `kind load` understands the containerd config v4 that the v1.36.1
+          # node writes, and it is the release that publishes this exact node
+          # digest — so binary and node land together on the latest. Bump this
+          # and node_image together.
+          version: v0.32.0
+          # Pin the node image to the exact digest we validate locally so CI
+          # can't silently drift onto a different Kubernetes/kindnet build —
+          # the classic "passes on my machine, hangs in CI" gap. This is the
+          # image the full stack (incl. Restate provisioning under enforcing
+          # kindnet v20260528) was verified Ready on; bump it deliberately,
+          # in lockstep with the local KIND node image.
+          node_image: kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "download built service images"
+      # The parallel `build` job saved each image to a tarball and uploaded it
+      # as a `ci-image-*` artifact; download them, load them into the runner's
+      # docker, retag to the `:dev` names the KIND manifests reference
+      # (imagePullPolicy: IfNotPresent), and load them into the node. These
+      # per-commit images never touch a registry.
+      - name: download built service images
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ci-image-*
+          path: /tmp/ci-images
+          merge-multiple: true
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "load service images into kind"
+      - name: load service images into kind
+        run: |
+          set -euo pipefail
+          for img in navigator-web neon-server navigator-workflows-service navigator-gateway; do
+              echo "::group::load ${img}"
+              docker load -i "/tmp/ci-images/${img}.tar"
+              docker tag "${img}:ci-${{ github.sha }}" "${img}:dev"
+              kind load docker-image "${img}:dev" --name navigator
+              echo "::endgroup::"
+          done
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "install nginx-ingress"
+      - name: install nginx-ingress
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.2/deploy/static/provider/kind/deploy.yaml
+          kubectl --namespace ingress-nginx wait \
+              --for=condition=ready pod \
+              --selector=app.kubernetes.io/component=controller \
+              --timeout=180s
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "install Restate Operator"
+      - name: install Restate Operator
+        # Keep this version in lockstep with `RESTATE_OPERATOR_VERSION`
+        # in `cli::devx`. The operator manages RestateCluster and
+        # RestateDeployment CRDs (see k8s/overlays/kind/).
+        #
+        # The explicit CRD apply mirrors `install_restate_operator` in
+        # `cli::devx::orchestrate`: since chart 2.8.1 the CRDs ship in a
+        # native `crds/` directory, which Helm installs but never upgrades,
+        # so the chart bump alone would leave an existing cluster's CRD
+        # schema frozen. Server-side because the chart owns these fields and
+        # `restateclusters` is ~236 KB, near the client-side annotation cap.
+        run: |
+          helm upgrade --install restate-operator \
+              oci://ghcr.io/restatedev/restate-operator-helm \
+              --version 2.8.1 \
+              --namespace restate-operator --create-namespace
+          for crd in restateclusters restatedeployments restatecloudenvironments; do
+            kubectl apply --server-side --force-conflicts -f \
+              "https://github.com/restatedev/restate-operator/releases/download/v2.8.1/${crd}.yaml"
+          done
+          kubectl --namespace restate-operator wait \
+              --for=condition=available --timeout=180s deployment --all
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "install rust toolchain"
+      - name: install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "cache cargo"
+      - name: cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-integration-
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "compile navigator CLI"
+      # Compile the CLI BEFORE the stack is applied. `kubectl apply` starts
+      # every Deployment's progressDeadline clock, and the very next thing
+      # the cluster needs is `dev garage-bootstrap` to mint the
+      # `navigator-garage-*` secrets. On a cold cargo cache that compile
+      # took 21 minutes (run 142058511), the deadline expired while pods
+      # sat in CreateContainerConfigError, and `dev e2e` failed on the
+      # stamped ProgressDeadlineExceeded even though the cluster was
+      # seconds from converging. Compiling here makes the bootstrap start
+      # within seconds of the apply regardless of cache warmth.
+      - name: compile navigator CLI
+        run: cargo build -p cli
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "deploy navigator stack"
+      - name: deploy navigator stack
+        run: kubectl apply -k k8s/overlays/kind
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "bootstrap Garage object storage"
+      # The Garage S3 credentials are minted by Garage at runtime
+      # (`garage key create`), so they can't ship as static manifests.
+      # `dev up`/`dev deploy` bootstrap them inline; the raw
+      # `kubectl apply -k` above does not, leaving the Garage StatefulSet
+      # in ContainerCreating and navigator-web/workflows-service in
+      # CreateContainerConfigError on the missing `navigator-garage-*`
+      # secrets. This step writes the control secret, waits for Garage to
+      # roll out, then mints and writes the S3 secret before the rollouts.
+      - name: bootstrap Garage object storage
+        run: cargo run -p cli -- dev garage-bootstrap
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "wait for rollouts, ClamAV readiness, and run attachment smoke checks"
+      - name: wait for rollouts, ClamAV readiness, and run attachment smoke checks
+        run: cargo run -p cli -- dev e2e
+
+      # ---------- cross-binary interop ----------
+      # Proves that `cli` and the in-cluster `web` cohabit on the same
+      # `store` schema + `rules` engine.
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "start ephemeral SurrealDB for cli interop"
+      # The cli needs a real store — stand up a throwaway one on the runner
+      # (not the in-cluster engine) so interop doesn't depend on
+      # port-forwarding. Memory-backed, and the same version the KIND
+      # overlay pins (k8s/overlays/kind/surreal/surreal.yaml).
+      - name: start ephemeral SurrealDB for cli interop
+        run: |
+          docker run -d --rm --name interop-surreal \
+            -p 28000:8000 \
+            surrealdb/surrealdb:v3.2.3 \
+            start --bind 0.0.0.0:8000 --no-banner \
+            --user root --pass root memory
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -sf http://127.0.0.1:28000/health >/dev/null 2>&1; then
+                  echo "interop-surreal ready after $i attempt(s)"
+                  exit 0
+              fi
+              sleep 1
+          done
+          echo "interop-surreal never came up" >&2
+          exit 1
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "interop — cli list / erd / glossary"
+      - name: interop — cli list / erd / glossary
+        env:
+          # `list` runs the canonical seed, which writes assets through
+          # `cloud::from_env()`. The interop store is a throwaway and nothing
+          # reads the blobs back cross-process, so name the `fs` backend
+          # against a scratch root — since #642 an unset selector fails closed
+          # rather than defaulting to fs (matches cli/tests/list.rs).
+          NAVIGATOR_STORAGE_BACKEND: fs
+          NAVIGATOR_STORAGE_FS_ROOT: /tmp/navigator-interop-storage
+          NAVIGATOR_SURREAL_ENDPOINT: ws://127.0.0.1:28000
+          NAVIGATOR_SURREAL_NAMESPACE: navigator
+          NAVIGATOR_SURREAL_DATABASE: navigator
+          NAVIGATOR_SURREAL_USER: root
+          NAVIGATOR_SURREAL_PASSWORD: root
+        run: |
+          set -euo pipefail
+          cargo run -p cli --quiet -- db list templates
+          cargo run -p cli --quiet -- db erd > /tmp/navigator-erd.mmd
+          sed -n '1,5p' /tmp/navigator-erd.mmd
+          cargo run -p cli --quiet -- dev docs glossary jurisdiction
+
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "verify content images are served by KIND web"
+      # ---------- public content images ----------
+      # `web/public/img/` is gitignored; the build stage stubbed every
+      # referenced asset into the ephemeral image before the bake, and this
+      # gate proves the local `/public` copy is actually served. Publication
+      # of the real bytes is the operator upload lane plus the live site's
+      # `/assets` proxy — see the top-of-file env comment for why no public
+      # origin is probed here.
+      - name: verify content images are served by KIND web
+        run: cargo run -p cli --quiet -- ops assets verify --base-url http://localhost:8080/public
+
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "port-forward in-cluster SurrealDB"
+      # ---------- chromedriver-driven browser tests ----------
+      # The full browser suite (login + admin-routes + retainer-walker)
+      # plus the axe-core WCAG A/AA accessibility gate against the live
+      # KIND web server. A guard step greps for `skipping browser test:`
+      # and fails the job if the tests self-skipped (harness unreachable)
+      # instead of passing green by accident.
+      # `grant-lawyer` and four fixtures in the browser suite connect to
+      # the SAME SurrealDB the in-cluster `web` reads (persons moved there
+      # with ENG-19), reached from the runner the same way the local loop
+      # reaches it: a port-forward on the local convention port 18000.
+      # Deploy run 142277536 died here with no endpoint configured.
+      - name: port-forward in-cluster SurrealDB
+        run: |
+          kubectl --namespace navigator port-forward \
+              service/surreal 18000:8000 \
+              > /tmp/surreal-port-forward.log 2>&1 &
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -sf http://127.0.0.1:18000/health >/dev/null 2>&1; then
+                  echo "surreal port-forward up after $i attempt(s)"
+                  exit 0
+              fi
+              sleep 1
+          done
+          echo "surreal port-forward never came up" >&2
+          cat /tmp/surreal-port-forward.log
+          exit 1
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "pre-grant the lawyer fixture its role"
+      - name: pre-grant the lawyer fixture its role
+        env:
+          NAVIGATOR_SURREAL_ENDPOINT: ws://127.0.0.1:18000
+          NAVIGATOR_SURREAL_NAMESPACE: navigator
+          NAVIGATOR_SURREAL_DATABASE: navigator
+          NAVIGATOR_SURREAL_USER: root
+          NAVIGATOR_SURREAL_PASSWORD: root
+        run: cargo run -p cli -- dev grant-lawyer
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "cache Chrome for Testing"
+      - name: cache Chrome for Testing
+        id: chrome-for-testing-cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.tool_cache }}/chrome-for-testing/${{ env.CHROME_FOR_TESTING_VERSION }}
+          key: chrome-for-testing-linux64-${{ env.CHROME_FOR_TESTING_VERSION }}
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "install Chrome for Testing + chromedriver"
+      - name: install Chrome for Testing + chromedriver
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+              ca-certificates unzip
+          cft_root="${RUNNER_TOOL_CACHE}/chrome-for-testing/${CHROME_FOR_TESTING_VERSION}"
+          chrome_zip="/tmp/chrome-linux64-${CHROME_FOR_TESTING_VERSION}.zip"
+          chromedriver_zip="/tmp/chromedriver-linux64-${CHROME_FOR_TESTING_VERSION}.zip"
+          base_url="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64"
+
+          if [ ! -x "${cft_root}/chrome-linux64/chrome" ] || \
+              [ ! -x "${cft_root}/chromedriver-linux64/chromedriver" ]; then
+              rm -rf "${cft_root}"
+              mkdir -p "${cft_root}"
+              curl --fail --show-error --location \
+                  --output "${chrome_zip}" \
+                  "${base_url}/chrome-linux64.zip"
+              curl --fail --show-error --location \
+                  --output "${chromedriver_zip}" \
+                  "${base_url}/chromedriver-linux64.zip"
+              unzip -q "${chrome_zip}" -d "${cft_root}"
+              unzip -q "${chromedriver_zip}" -d "${cft_root}"
+          fi
+
+          mkdir -p "${cft_root}/bin"
+          ln -sf "${cft_root}/chrome-linux64/chrome" "${cft_root}/bin/chrome"
+          ln -sf "${cft_root}/chrome-linux64/chrome" "${cft_root}/bin/google-chrome"
+          ln -sf "${cft_root}/chrome-linux64/chrome" "${cft_root}/bin/chromium-browser"
+          ln -sf "${cft_root}/chromedriver-linux64/chromedriver" "${cft_root}/bin/chromedriver"
+          echo "${cft_root}/bin" >> "${GITHUB_PATH}"
+          echo "CHROME_BINARY=${cft_root}/chrome-linux64/chrome" >> "${GITHUB_ENV}"
+          export PATH="${cft_root}/bin:${PATH}"
+          export CHROME_BINARY="${cft_root}/chrome-linux64/chrome"
+
+          echo "Chrome for Testing cache hit: ${{ steps.chrome-for-testing-cache.outputs.cache-hit }}"
+          echo "Chrome for Testing pin: ${CHROME_FOR_TESTING_VERSION}"
+          chromedriver --version
+          "${CHROME_BINARY}" --version
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "start chromedriver"
+      - name: start chromedriver
+        run: |
+          chromedriver --port=9515 --allowed-ips=127.0.0.1 \
+              --allowed-origins='*' > /tmp/chromedriver.log 2>&1 &
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -sS http://localhost:9515/status >/dev/null; then
+                  echo "chromedriver up after $i attempt(s)"
+                  exit 0
+              fi
+              sleep 1
+          done
+          echo "chromedriver never came up" >&2
+          cat /tmp/chromedriver.log
+          exit 1
+
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "port-forward in-cluster Garage S3"
+      # The client-portal "download all my documents" browser test
+      # (`client_portal_nest_download_all_documents_link_returns_zip`) files
+      # its fixture documents from the host through `record_document`, which
+      # writes each blob to object storage via `cloud::from_env()`. The host
+      # lane and the in-cluster `web` must be the *same* store: `web` reads
+      # Garage, so a host write anywhere else leaves it finding the shared DB
+      # `assets` rows but 404ing every blob, returning an empty ZIP. (An
+      # unconfigured host now fails closed rather than writing to the runner's
+      # local disk — cloud/src/lib.rs — but pointing both at one store is
+      # still what makes the assertion meaningful.) Port-forward the Garage
+      # S3 API so the host writes to the same bucket `web` reads; the env on
+      # the browser step below points the host lane at it.
+      - name: port-forward in-cluster Garage S3
+        run: |
+          kubectl --namespace navigator port-forward \
+              service/navigator-garage 30900:3900 \
+              > /tmp/garage-port-forward.log 2>&1 &
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -s -o /dev/null http://localhost:30900/; then
+                  echo "garage S3 port-forward up after $i attempt(s)"
+                  exit 0
+              fi
+              sleep 1
+          done
+          echo "garage S3 port-forward never came up" >&2
+          cat /tmp/garage-port-forward.log
+          exit 1
+
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "install cargo-nextest"
+      - name: install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          # Pin the runner version: the browser gate now depends on
+          # nextest-specific retry, JUnit-path, and --no-capture behavior, so a
+          # runner bump must be a deliberate repo change, not a silent drift
+          # that alters CI results or diagnostics under us.
+          tool: nextest@0.9.140
+
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "browser + accessibility e2e (nextest, retry-classified)"
+      # NAV_REQUIRE_HARNESS=1 turns the browser tests' "harness unreachable"
+      # self-skip into a hard panic (non-zero exit) — in CI the harness is
+      # always expected up, so a skip here is a real failure, not a green
+      # pass. nextest runs the suite under the `ci` profile (.config/
+      # nextest.toml): up to two exponential-backoff retries, so an
+      # intermittent click race is classified FLAKY in junit.xml instead of
+      # reddening the deploy, while a genuine failure (all retries exhausted)
+      # still exits non-zero. `--no-capture` streams each test's own stdout
+      # so the self-skip line still reaches the tee'd log for the guard below
+      # (nextest otherwise swallows a passing test's output); it also forces
+      # serial execution, preserving the single-threaded invariant these
+      # shared-fixture suites need. `set -o pipefail` makes the pipe through
+      # `tee` surface nextest's exit code rather than tee's.
+      - name: browser + accessibility e2e (nextest, retry-classified)
+        env:
+          NAV_BASE_URL: http://localhost:8080
+          WEBDRIVER_URL: http://localhost:9515
+          SESSION_SECRET: change-me-32-bytes-of-random-data-x
+          NAV_REQUIRE_HARNESS: "1"
+          # Host-side fixtures connect to the same Surreal the in-cluster
+          # `web` reads, through the port-forward opened above grant-lawyer.
+          NAVIGATOR_SURREAL_ENDPOINT: ws://127.0.0.1:18000
+          NAVIGATOR_SURREAL_NAMESPACE: navigator
+          NAVIGATOR_SURREAL_DATABASE: navigator
+          NAVIGATOR_SURREAL_USER: root
+          NAVIGATOR_SURREAL_PASSWORD: root
+          # Point the host document-storage lane at the port-forwarded Garage
+          # so the download-all-documents fixture writes blobs the in-cluster
+          # `web` can read back — the same store, same `navigator-documents`
+          # bucket. Without these, `cloud::from_env()` defaults to the `fs`
+          # backend and the export hands back an empty ZIP (see the
+          # port-forward step above). The access/secret keys are minted per
+          # run by `garage-bootstrap`, so they are read from the secret in the
+          # run block rather than hard-coded here.
+          NAVIGATOR_STORAGE_BACKEND: s3
+          NAVIGATOR_STORAGE_ENDPOINT: http://localhost:30900
+          NAVIGATOR_STORAGE_REGION: garage
+          NAVIGATOR_DOCUMENTS_BUCKET: navigator-documents
+        run: |
+          set -euo pipefail
+          NAVIGATOR_STORAGE_ACCESS_KEY="$(kubectl --namespace navigator get secret navigator-garage-s3 \
+              --output jsonpath='{.data.access_key}' | base64 --decode)"
+          NAVIGATOR_STORAGE_SECRET_KEY="$(kubectl --namespace navigator get secret navigator-garage-s3 \
+              --output jsonpath='{.data.secret_key}' | base64 --decode)"
+          export NAVIGATOR_STORAGE_ACCESS_KEY NAVIGATOR_STORAGE_SECRET_KEY
+          cargo nextest run -p server --profile ci \
+              --test browser_e2e --test accessibility_e2e \
+              --no-capture 2>&1 | tee /tmp/e2e.log
+
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "assert browser/accessibility tests did not self-skip"
+      - name: assert browser/accessibility tests did not self-skip
+        run: |
+          if grep -q "skipping browser test:" /tmp/e2e.log; then
+              echo "::error::a browser/accessibility test self-skipped — the KIND harness was unreachable, so the suite passed without asserting"
+              grep -n "skipping browser test:" /tmp/e2e.log || true
+              exit 1
+          fi
+          echo "confirmed: no 'skipping browser test:' line — every browser/accessibility test executed for real"
+
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "integration"
+          step: "verify private mode gates the deployment"
+      # ---------- private mode ----------
+      # `NAVIGATOR_PRIVATE_MODE` gates BOTH topologies through one component
+      # (`k8s/components/private-mode`): KIND selects it by swapping to the
+      # `kind-private` overlay, and `ops ship` appends that same component to
+      # the rendered GKE kustomization. Two patches, one mechanism — so
+      # exercising it here really does verify what a private cloud deploy
+      # gets, and this is the only place that verification can run without
+      # standing up a cloud cluster.
+      #
+      # It runs LAST because it is destructive to the plain topology: it
+      # repoints `Service/navigator-web` from the app (3001) at the Pingora
+      # sidecar (8080), and the browser/e2e gate above sends no Authorization
+      # header, so every one of its requests would 401 from here on.
+      - name: verify private mode gates the deployment
+        run: |
+          set -euo pipefail
+          kubectl apply -k k8s/overlays/kind-private
+          kubectl --namespace navigator rollout status deployment/navigator-web --timeout=300s
+
+          # Response code only — never the body. A private-mode failure is
+          # diagnosed from the status code, and dumping a page body here would
+          # put application content in a public log.
+          probe() {
+              curl --silent --show-error --output /dev/null \
+                  --write-out '%{http_code}' --max-time 30 "$@"
+          }
+
+          # Wait for the ingress upstream to converge on the gateway before
+          # asserting anything about it. `rollout status` returns as soon as
+          # the new ReplicaSet is available, which is NOT the same instant
+          # the old pod stops being routable: the run that first shipped this
+          # step logged "1 old replicas are pending termination" and then
+          # reported success 21 ms before the probe ran.
+          #
+          # That gap is a 502 rather than a stale page because private mode
+          # retargets `Service/navigator-web` at a NUMERIC port. A numeric
+          # `targetPort` publishes every selected pod on 8080 whether or not
+          # anything there listens — verified directly: a pod serving only
+          # 3001 is still admitted to the EndpointSlice as `ready` on 8080.
+          # The outgoing pod carries no gateway sidecar, so while it remains
+          # an upstream, ingress-nginx can forward to a port nothing answers
+          # and return 502.
+          #
+          # Poll rather than sleep a fixed interval, and leave the assertions
+          # below authoritative: if private mode is genuinely broken this
+          # loop simply runs out and assertion 1 reports the real code.
+          deadline=$((SECONDS + 120))
+          waited=0
+          while [ "$SECONDS" -lt "$deadline" ]; do
+              if [ "$(probe http://localhost:8080/)" = "401" ]; then
+                  break
+              fi
+              waited=1
+              sleep 2
+          done
+          if [ "$waited" = "1" ]; then
+              echo "note: the ingress upstream took a moment to converge on the gateway"
+          fi
+
+          # 1. The door is shut to an anonymous caller.
+          code="$(probe http://localhost:8080/)"
+          if [ "$code" != "401" ]; then
+              echo "::error::private mode did not challenge an anonymous request: expected 401, got ${code}"
+              exit 1
+          fi
+          echo "confirmed: an anonymous request is challenged (401)"
+
+          # 2. The configured credential opens it. Asserting "not 401" rather
+          #    than a specific success code deliberately: what is under test is
+          #    that the gateway ACCEPTED the credential and proxied through.
+          #    Whether the app then renders or redirects is the app's business,
+          #    and the e2e suite above already covers it.
+          code="$(probe --user go:bears http://localhost:8080/)"
+          if [ "$code" = "401" ]; then
+              echo "::error::private mode rejected the configured credential"
+              exit 1
+          fi
+          echo "confirmed: the configured credential is accepted (${code})"
+
+          # 3. `/health` stays OPEN, and this is the assertion that matters
+          #    most. In private mode `Service/navigator-web` targets the
+          #    gateway, so a GKE backend's health check resolves against this
+          #    path. If it ever slips behind `auth_basic`, every probe 401s,
+          #    the backend leaves rotation, and private mode reads as a total
+          #    outage instead of a password prompt — a failure that would only
+          #    ever surface in production.
+          code="$(probe http://localhost:8080/health)"
+          if [ "$code" != "200" ]; then
+              echo "::error::/health is not reachable unauthenticated (got ${code}) — a private-mode deploy would fail its load-balancer health check and drop out of rotation"
+              exit 1
+          fi
+          echo "confirmed: /health answers unauthenticated (200) — health checks survive private mode"
+
+      # Always publish the JUnit report so the FLAKY trend is visible even on
+      # a green deploy (a flake papered over by a retry still shows here); on
+      # failure the screenshots + streamed log make the next intermittent
+      # failure diagnosable. `if-no-files-found: ignore` because screenshots
+      # only exist on failure.
+      - name: upload E2E JUnit + diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-diagnostics
+          path: |
+            target/nextest/ci/junit.xml
+            /tmp/e2e.log
+            /tmp/neon-browser-port-forward.log
+            /tmp/navigator-screenshots/
+          if-no-files-found: ignore
+
+      - name: dump chromedriver log on failure
+        if: failure()
+        run: cat /tmp/chromedriver.log || true
+      - name: dump garage port-forward log on failure
+        if: failure()
+        run: cat /tmp/garage-port-forward.log || true
+      - name: dump surreal port-forward log on failure
+        if: failure()
+        run: cat /tmp/surreal-port-forward.log || true
+      - name: dump diagnostics on failure
+        if: failure()
+        run: |
+          set +e
+          # The timeout-minutes on this job makes a wedge fail (not hang till a
+          # human cancels it), so this block finally runs on the failures that
+          # matter. Cast wide: the app namespace AND the Restate namespaces,
+          # because the historical wedge was the operator failing to provision
+          # restate-0 — which lives in `restate`/`restate-operator`, never in
+          # `navigator`, so the old navigator-only dump showed nothing useful.
+          echo "##[group]nodes + disk pressure"
+          kubectl get nodes -o wide
+          kubectl describe nodes | grep -A6 -iE "Conditions:|DiskPressure|MemoryPressure|PIDPressure" || true
+          df -h / /var/lib/docker 2>/dev/null || df -h
+          echo "##[endgroup]"
+          echo "##[group]all pods, all namespaces"
+          kubectl get pods -A -o wide
+          echo "##[endgroup]"
+          echo "##[group]recent events (all namespaces, by time)"
+          kubectl get events -A --sort-by=.lastTimestamp | tail -80
+          echo "##[endgroup]"
+          # Restate CRs carry the provisioning status in their conditions —
+          # the single most useful signal when restate-0 sits at 0/1.
+          for ns in restate restate-operator navigator; do
+              echo "##[group]namespace: $ns"
+              kubectl --namespace "$ns" get all -o wide
+              kubectl --namespace "$ns" describe pods
+              echo "##[endgroup]"
+          done
+          echo "##[group]Restate CRs (provisioning status conditions)"
+          kubectl get restatecluster,restatedeployment -A -o wide
+          kubectl describe restatecluster -A
+          kubectl describe restatedeployment -A
+          echo "##[endgroup]"
+          for ns in restate restate-operator navigator; do
+              for pod in $(kubectl --namespace "$ns" get pods -o name); do
+                  echo "##[group]logs: $ns/$pod"
+                  kubectl --namespace "$ns" logs --all-containers "$pod" --tail=200
+                  echo "--- previous (if crash-looped) ---"
+                  kubectl --namespace "$ns" logs --all-containers --previous "$pod" --tail=80 2>/dev/null || true
+                  echo "##[endgroup]"
+              done
+          done
+
+  # ---------- Stage 2: publish every image to Artifact Registry ----------
+  # Only runs if integration is green. Publishes the service images — the
+  # per-brand hosts (neon-server, neon-server) and
+  # navigator-workflows-service, plus the navigator-web alias tag that
+  # `neon-server`'s leg points at its own manifest — plus the
+  # six CronJob images — all to the private Google Artifact Registry tagged
+  # with the release date + `latest`, so prod pulls every image from one
+  # registry fed by CI.
+  #
+  # Every image is amd64-only. Production runs on GKE Autopilot, which schedules
+  # workloads on x86/amd64 nodes (no manifest sets an `arm64` nodeSelector), so
+  # a single native amd64 build per image is all prod consumes — no multi-arch
+  # manifest list and no arm64 leg under emulation. Demos live on the staging
+  # website rather than an Apple-Silicon KIND cluster, so nothing needs a native
+  # arm64 pull either.
+  publish-service:
+    name: publish ${{ matrix.image }} to Artifact Registry
+    needs: [integration, release-version]
+    # Tag only. A `kind-ci/**` branch run stops after integration — it
+    # must never push branch-tagged images to the registry.
+    if: needs.release-version.outputs.publishable == 'true'
+    # Per-image runner, same split as `build`: Rust-workspace images need
+    # the wide runner's disk; the light gateway stays on `ubuntu-latest` so it
+    # never queues behind the heavies on the two-slot large pool.
+    runs-on: ${{ matrix.runner }}
+    # Workload Identity Federation needs id-token; contents:read to check out.
+    permissions:
+      contents: read
+      id-token: write
+      # Only for the optional GHCR mirror below, and only on this job.
+      packages: write
+    # Cold image build + registry push; cap it so a stuck registry/build can't
+    # hang the release indefinitely. A warm rebuild reads the `build` stage's
+    # cache and is far cheaper, so 45m leaves wide headroom while still
+    # catching a genuinely wedged build.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The three per-brand host images (#864 / #974). The binary is the
+          # site: `neon-server` runs `/app/neon`, so a deployment
+          # cannot be pointed at another legal entity's face by configuration.
+          # Each isolated deployment selects its matching brand image;
+          # every deployment pulls its own.
+          - image: neon-server
+            dockerfile: images/Containerfile.neon
+            runner: ubuntu-latest
+          # `navigator-web` is an alias tag for this same Foundation brand
+          # image: the deployed GKE manifests still pull `navigator-web` (see
+          # `k8s/base/web/web.yaml`), and they flip to `neon-server` with #796's
+          # ship targets. It was its own matrix leg building the identical
+          # Containerfile, which bought a byte-identical image for a second
+          # 21-minute large-runner bill every night. `alias` instead points the
+          # extra repository at the manifest this leg just pushed, so the two
+          # tags are identical by construction rather than by coincidence.
+          - image: neon-server
+            dockerfile: images/Containerfile.neon
+            alias: navigator-web
+            runner: ubuntu-latest
+          # `ci_cache_scope` names the `build`-stage Actions cache this leg may
+          # additionally read, so a tag run compiles these crates once instead
+          # of twice. Set it only where the two jobs feed the builder stage
+          # byte-identical inputs: same image name, same context, and nothing
+          # release-specific above `RUN cargo build`. That holds for these two —
+          # `RELEASE_TAG` is declared in the *runtime* stage
+          # (`Containerfile.workflows-service:114`) and `Containerfile.gateway`
+          # never declares it, so neither reaches the builder's cache key.
+          #
+          # The two public-host legs deliberately have no scope. `build` runs a
+          # stub-assets step that rewrites `server/public` and `.dockerignore`,
+          # and `COPY server server` sits above `RUN cargo build`, so their
+          # builder inputs genuinely differ and a lookup could only miss.
+          # Sharing those needs `server/public` moved below the compile.
+          - image: navigator-workflows-service
+            dockerfile: images/Containerfile.workflows-service
+            runner: ubuntu-latest
+            ci_cache_scope: navigator-workflows-service-amd64
+          - image: navigator-gateway
+            dockerfile: images/Containerfile.gateway
+            runner: ubuntu-latest
+            ci_cache_scope: navigator-gateway-amd64
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-service ${{ matrix.image }}"
+          step: "log in to the image registry"
+      # GHCR takes the run's own GITHUB_TOKEN. No Workload Identity
+      # Federation provider, no `navigator-ci-pusher` service account, and no
+      # cross-project `artifactregistry.reader` grant for every deployment —
+      # the `packages: write` permission on this job is the whole grant.
+      - name: log in to the image registry
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/slack-progress
+        if: vars.GHCR_PUBLISH == 'true'
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-service ${{ matrix.image }}"
+          step: "log in to the GHCR mirror"
+      # The GHCR mirror. Off unless the `GHCR_PUBLISH` repository variable is
+      # `true`; with it unset this job publishes exactly what it publishes
+      # today.
+      #
+      # `GITHUB_TOKEN` is the credential, with the `packages: write` scope this
+      # job requests. That works because the repository and its Actions live on
+      # github.com, whose own registry is `ghcr.io` — no PAT, and nothing to
+      # rotate.
+      #
+      # A GHCR package inherits the linked repository's visibility, so the
+      # mirror is public only once `neon-law-foundation/navigator` is public.
+      # Until then it pushes private packages — harmless, and pointless, which
+      # is why it stays off by default.
+      - name: log in to the GHCR mirror
+        if: vars.GHCR_PUBLISH == 'true'
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-service ${{ matrix.image }}"
+          step: "derive image name"
+      - name: derive image name
+        id: img
+        run: echo "name=ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-service ${{ matrix.image }}"
+          step: "compose registry list"
+      # Compose the registry list in bash rather than inline, for the reason
+      # `compose cache sources` below gives: the value is conditional, and a
+      # `kind-ci/**` run cannot exercise it, so an inline expression emitting a
+      # stray blank line would first fail on a live release. `metadata-action`
+      # fans every tag across every image named here, so ONE `build and push`
+      # writes both registries from a single build — a second push step would
+      # mean a second 21-minute large-runner compile for identical layers.
+      - name: compose registry list
+        id: imgs
+        run: |
+          set -euo pipefail
+          {
+            printf 'list<<__IMAGES_EOF__\n'
+            printf '%s\n' "${{ steps.img.outputs.name }}"
+            if [ "${{ vars.GHCR_PUBLISH }}" = "true" ]; then
+              printf 'ghcr.io/%s/%s\n' "${{ github.repository_owner }}" "${{ matrix.image }}"
+            fi
+            printf '__IMAGES_EOF__\n'
+          } >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-service ${{ matrix.image }}"
+          step: "image metadata"
+      - name: image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.imgs.outputs.list }}
+          # This `latest` is PUBLISHED, not consumed: a convenience pointer we
+          # offer on our own images, never a dependency we run from (prod rolls
+          # dated tags via `ops ship`). Exempt from the consumed-mutable-tag
+          # guard — see docs/gitops.md § "Pin every consumed image, binary, and
+          # action".
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ needs.release-version.outputs.tag }}
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-service ${{ matrix.image }}"
+          step: "compose build-args"
+      # Stamp the release into every image. RELEASE_TAG is the Artifact Registry
+      # tag derived above; `telemetry::init` reads it as `service.version` so the worker and
+      # the trigger CronJobs self-report their release in logs/traces — the
+      # headless counterpart to web's `GET /version`. The web image additionally
+      # gets GIT_SHA/BUILD_TIME for the `/version` commit fields (only its
+      # Containerfile declares those ARGs).
+      - name: compose build-args
+        id: ba
+        run: |
+          {
+            printf 'args<<__BUILD_ARGS_EOF__\n'
+            printf 'RELEASE_TAG=%s\n' "${{ needs.release-version.outputs.tag }}"
+            case "${{ matrix.image }}" in
+              neon-server|neon-server)
+                printf 'GIT_SHA=%s\n' "${{ github.sha }}"
+                printf 'BUILD_TIME=%s\n' "$(git show -s --format=%cI HEAD)"
+                ;;
+            esac
+            printf '__BUILD_ARGS_EOF__\n'
+          } >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-service ${{ matrix.image }}"
+          step: "compose cache sources"
+      # Compose `cache-from` here rather than inline, for the same reason
+      # `compose build-args` above exists: the value is conditional, and a
+      # `kind-ci/**` run cannot exercise it — `publish-service` is gated on a
+      # tag ref, so an inline expression that emitted a stray blank entry
+      # would first fail on a live nightly. Building the list in bash keeps
+      # the empty case impossible instead of merely unlikely.
+      - name: compose cache sources
+        id: cf
+        run: |
+          set -euo pipefail
+          {
+            printf 'sources<<__CACHE_FROM_EOF__\n'
+            printf 'type=registry,ref=%s:buildcache\n' "${{ steps.img.outputs.name }}"
+            if [ -n "${{ matrix.ci_cache_scope }}" ]; then
+              printf 'type=gha,scope=%s\n' "${{ matrix.ci_cache_scope }}"
+            fi
+            printf '__CACHE_FROM_EOF__\n'
+          } >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-service ${{ matrix.image }}"
+          step: "build and push"
+      - name: build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          build-args: ${{ steps.ba.outputs.args }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Cache into Artifact Registry, NOT the GitHub Actions cache.
+          #
+          # `type=gha` writes to a 10 GB per-repository quota that is shared
+          # with every other cache in this repo, and `mode=max` on eleven
+          # images fills it: 66 of 68 live entries were `buildkit-blob-*` at
+          # 9.51 GB, including single blobs of 5.3 GB and 2.64 GB. What that
+          # evicted was `ci.yml`'s Rust dependency cache — which runs on EVERY
+          # PR push, uploaded 2.19 GB at the end of each run, and was never
+          # restored once (zero `v0-rust-*` entries existed). The nightly
+          # release was starving the PR gate.
+          #
+          # A registry-backed cache has no quota and no LRU eviction, and is
+          # not scoped per-branch the way the Actions cache is, so consecutive
+          # releases genuinely read each other's layers. `image-manifest` +
+          # `oci-mediatypes` make the cache a standard OCI object that
+          # Artifact Registry stores like any other; without them GAR rejects
+          # buildkit's native cache manifest type.
+          #
+          # `:buildcache` is a WRITTEN tag, not a consumed one — no deployment
+          # ever pulls it, and `ops ship` rolls dated tags. It is a sibling of
+          # the published `latest` under the same exemption.
+          #
+          # The second `cache-from` reads the Actions cache the `build` job
+          # exported earlier in THIS run, which is what stops a tag run
+          # compiling the same crates twice. That does not reopen the quota
+          # incident above: the 9.51 GB came from `cache-to: type=gha,mode=max`
+          # — an export. A `cache-from` only issues lookups, creates no cache
+          # entry, and consumes no quota, so `cache-to` below stays
+          # registry-only.
+          #
+          # Reading it needs no credential and no WIF: the Actions cache is
+          # reachable from any job in the run through the runner's own token.
+          # `build` therefore keeps holding no registry credential, which
+          # matters because it also runs on `kind-ci/**` branch pushes.
+          #
+          # Ordering is safe by the needs graph — publish-service needs
+          # integration needs build — so the export is long finished. If it
+          # silently failed under its own `ignore-error`, this lookup misses
+          # and the registry cache above still serves the build.
+          cache-from: ${{ steps.cf.outputs.sources }}
+          # ignore-error: the release tag is pushed before this export, so a
+          # registry hiccup on the `mode=max` export must not fail the publish
+          # after the release image is already in Artifact Registry. This is
+          # the leg that failed run 29929842056 (navigator-web amd64) purely at
+          # cache export, image already pushed.
+          cache-to: type=registry,ref=${{ steps.img.outputs.name }}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true
+      - uses: ./.github/actions/slack-progress
+        if: matrix.alias != ''
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-service ${{ matrix.image }}"
+          step: "publish the alias tag"
+      # Point `matrix.alias`'s repository at the manifest just pushed, rather
+      # than compiling the same Containerfile a second time under a second
+      # name. `imagetools create` copies the existing manifest between
+      # repositories registry-side — no runner build, no pull, no push of
+      # layers — so the alias is the same digest by construction. Both tags
+      # this leg published (`latest` and the release tag) are re-pointed, which
+      # is what a consumer of `navigator-web` reads.
+      #
+      # This runs only on the leg that declares an alias; every other leg
+      # skips it.
+      - name: publish the alias tag
+        if: matrix.alias != ''
+        run: |
+          set -euo pipefail
+          registry="ghcr.io/${{ github.repository_owner }}"
+          for tag in latest "${{ needs.release-version.outputs.tag }}"; do
+              docker buildx imagetools create \
+                  --tag "${registry}/${{ matrix.alias }}:${tag}" \
+                  "${registry}/${{ matrix.image }}:${tag}"
+          done
+          # Prove the alias resolves to the same manifest the source tag does,
+          # so a silent no-op cannot ship a stale `navigator-web` to prod.
+          src="$(docker buildx imagetools inspect --format '{{ .Manifest.Digest }}' \
+              "${registry}/${{ matrix.image }}:${{ needs.release-version.outputs.tag }}")"
+          dst="$(docker buildx imagetools inspect --format '{{ .Manifest.Digest }}' \
+              "${registry}/${{ matrix.alias }}:${{ needs.release-version.outputs.tag }}")"
+          echo "${{ matrix.image }} -> ${src}"
+          echo "${{ matrix.alias }} -> ${dst}"
+          test "${src}" = "${dst}"
+
+  publish-triggers:
+    name: publish ${{ matrix.image }} to Artifact Registry
+    needs: [integration, release-version]
+    if: needs.release-version.outputs.publishable == 'true'
+    # Per-image runner. A trigger image compiles ONE musl binary out of the
+    # workspace — a very different shape from the 209 linked test binaries that
+    # make `ci.yml`'s workspace job genuinely disk-bound — so it does not need
+    # the 16-core pool, which bills per minute with no included quota.
+    #
+    # The five triggers are on the standard free runner, NOT
+    # `ubuntu-latest`. They were briefly pointed at `ubuntu-latest` on the
+    # strength of a comment claiming it is a 4-vCPU runner. It is 2 vCPU on
+    # this enterprise, measured — `nproc: 2` in run 144427521 — and these legs
+    # took 11-17 min on sixteen cores. Landing them on two would have put them
+    # at real risk of the 90-minute cap below, turning a cost optimization into
+    # a nightly that fails to publish. Eight cores keeps most of the saving
+    # without betting the release on it.
+    #
+    # `navigator-runner` stays on the wide runner: it is not a trigger but a
+    # developer toolchain image, and its `cargo chef cook --tests` layer
+    # compiles the entire dependency graph WITH test targets — the one build
+    # in this matrix whose footprint really does resemble the workspace test
+    # job. It was also the matrix's outlier at 35m against 11-17m for the
+    # triggers (run 143692286).
+    runs-on: ${{ matrix.runner }}
+    # Workload Identity Federation needs id-token; contents:read to check out.
+    permissions:
+      contents: read
+      packages: write
+    # 90, up from 45: the five downgraded legs trade wall-clock for cost on
+    # half the cores, and this cap is a wedge detector rather than a duration
+    # budget (see the `build` job's timeout for the same reasoning).
+    # `navigator-runner` keeps 16 cores and is unaffected either way.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Trigger images: shared Containerfile.trigger, one per CronJob,
+          # selected by CRATE (workspace crate) + BIN (its trigger binary).
+          - image: navigator-heartbeat-trigger
+            dockerfile: images/Containerfile.trigger
+            runner: ubuntu-latest
+            build-args: |
+              CRATE=workflows-service
+              BIN=heartbeat-trigger
+          - image: navigator-archives-trigger
+            dockerfile: images/Containerfile.trigger
+            runner: ubuntu-latest
+            build-args: |
+              CRATE=archives
+              BIN=trigger
+          - image: navigator-surreal-archive
+            dockerfile: images/Containerfile.trigger
+            runner: ubuntu-latest
+            build-args: |
+              CRATE=cli
+              BIN=navigator
+          - image: navigator-reconcile-invoices-trigger
+            dockerfile: images/Containerfile.trigger
+            runner: ubuntu-latest
+            build-args: |
+              CRATE=billing-workflows
+              BIN=reconcile-trigger
+          - image: navigator-billing-digest-trigger
+            dockerfile: images/Containerfile.trigger
+            runner: ubuntu-latest
+            build-args: |
+              CRATE=billing-workflows
+              BIN=billing-digest-trigger
+          # An amd64 job runner, not a CronJob trigger. It shares this
+          # publish lane because both are single-architecture OCI images and
+          # this job already waits for the full KIND integration proof.
+          - image: navigator-runner
+            dockerfile: images/Containerfile.runner
+            runner: ubuntu-latest
+            build-args: ""
+    steps:
+      # No reclaim on either runner in this matrix. The retired paid tiers
+      # measured 237 GB and ~527 GB free (runs 144671916 / 144149466),
+      # so the sweep would spend metered minutes freeing space neither needs.
+      # It is gated on the label rather than deleted, so pointing a leg back at
+      # `ubuntu-latest` — 2 vCPU and ~21-28 GB free here — re-arms it instead
+      # of silently running a docker build onto a disk that cannot hold it.
+      - name: free disk space
+        if: matrix.runner == 'ubuntu-latest'
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          # The build is about to populate the docker store, so purging it
+          # buys nothing and the base images would just be re-pulled.
+          docker-images: false
+          swap-storage: false
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-triggers ${{ matrix.image }}"
+          step: "log in to the image registry"
+      # GHCR takes the run's own GITHUB_TOKEN. No Workload Identity
+      # Federation provider, no `navigator-ci-pusher` service account, and no
+      # cross-project `artifactregistry.reader` grant for every deployment —
+      # the `packages: write` permission on this job is the whole grant.
+      - name: log in to the image registry
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-triggers ${{ matrix.image }}"
+          step: "derive image name"
+      - name: derive image name
+        id: img
+        run: echo "name=ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-triggers ${{ matrix.image }}"
+          step: "image metadata"
+      - name: image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.img.outputs.name }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ needs.release-version.outputs.tag }}
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-triggers ${{ matrix.image }}"
+          step: "compose build-args"
+      - name: compose build-args
+        id: ba
+        run: |
+          {
+            printf 'args<<__BUILD_ARGS_EOF__\n'
+            printf '%s\n' "${{ matrix.build-args }}"
+            printf 'RELEASE_TAG=%s\n' "${{ needs.release-version.outputs.tag }}"
+            printf '__BUILD_ARGS_EOF__\n'
+          } >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "publish-triggers ${{ matrix.image }}"
+          step: "build and push"
+      - name: build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          build-args: ${{ steps.ba.outputs.args }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Artifact Registry rather than the Actions cache quota — same
+          # reasoning as the service publishes above, and these six images are
+          # half of what was filling it.
+          cache-from: type=registry,ref=${{ steps.img.outputs.name }}:buildcache
+          # ignore-error: same contract as the service publishes — the image
+          # is pushed before the export, so a registry flake on the `mode=max`
+          # export must not fail an already-published image.
+          cache-to: type=registry,ref=${{ steps.img.outputs.name }}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true
+
+  # ---------- Stage 2b: build the Windows CLI release artifact ----------
+  # The container publishing lanes are Linux/amd64-only because that is what
+  # GKE consumes. People using Navigator on Windows, macOS, or Linux need a
+  # native executable, so every release that publishes images builds all three
+  # — one job per platform, all three attached by one publish job below.
+  #
+  # This job is a PEER of the publish jobs, not their successor: same `needs`, so
+  # the two start together and the Windows compile runs UNDER the staging roll
+  # rather than adding a serial stage. Both production rows then wait for it —
+  # a release that cannot produce its CLI does not reach production. A cold
+  # Windows compile can outrun staging, in which case production waits for
+  # whatever is left of it; that wait is the point, not a regression.
+  #
+  # There is deliberately NO `if:` here. `needs` alone decides: both publishes
+  # green means a real release, and a real release always builds its CLI. That
+  # covers the nightly cut, a hand-pushed tag, AND a dispatch — the last of
+  # which used to publish images while quietly shipping no Windows CLI. A
+  # `kind-ci/**` branch run skips the publishes and therefore skips this too,
+  # which is correct: it produces no release to carry an archive.
+  release-windows-cli-build:
+    name: build Windows navigator CLI release archive
+    needs: [publish-service, publish-triggers, release-version]
+    runs-on: windows-latest
+    # `windows-latest` is a standard GitHub-hosted Windows runner available to
+    # this GHE.com tenant. The CLI compiles the Rust dependency graph in release
+    # mode, so leave enough time for a cold two-core private-repository runner.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      # Check out the source this archive claims. Every run that reaches this
+      # job is a tag release — `needs` requires both publishes, which are gated
+      # on `publishable`, which is only ever true for a tag ref — so the tag is
+      # the ref, with no fallback to fold in.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-windows-cli-build"
+          step: "build the tagged Navigator CLI"
+      - name: build the tagged Navigator CLI
+        env:
+          NAVIGATOR_RELEASE_TAG: ${{ needs.release-version.outputs.tag }}
+        run: cargo build --locked --release -p cli
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-windows-cli-build"
+          step: "package the Windows CLI"
+      - name: package the Windows CLI
+        shell: pwsh
+        env:
+          TAG: ${{ needs.release-version.outputs.tag }}
+        run: |
+          New-Item -ItemType Directory -Force dist/navigator-windows | Out-Null
+          Copy-Item "target/release/navigator.exe" "dist/navigator-windows/navigator.exe"
+          # All three texts travel with the archive. LICENSE.md states the dual
+          # grant and the trademark reservation; LICENSE-MIT and LICENSE-APACHE
+          # are the two the recipient may choose between. MIT conditions its
+          # permission on the notice travelling with every copy, and Apache-2.0
+          # § 4(a) obliges a redistributor to hand over the License, so an
+          # archive without them is a compliance gap rather than an oversight.
+          Copy-Item "LICENSE.md" "dist/navigator-windows/LICENSE.md"
+          Copy-Item "LICENSE-MIT" "dist/navigator-windows/LICENSE-MIT"
+          Copy-Item "LICENSE-APACHE" "dist/navigator-windows/LICENSE-APACHE"
+          Compress-Archive -Path "dist/navigator-windows/*" -DestinationPath "dist/navigator-$env:TAG-windows.zip" -Force
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-windows-cli-build"
+          step: "upload the Windows CLI archive"
+      - name: upload the Windows CLI archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: navigator-windows-cli
+          path: dist/navigator-*-windows.zip
+          if-no-files-found: error
+
+
+  release-cli-build-linux:
+    name: build Linux navigator CLI release archive
+    needs: [publish-service, publish-triggers, release-version]
+    runs-on: ubuntu-latest
+    # This is the archive CI actually consumes. `.github/actions/validate`
+    # derives its download from the runner's platform and asks for
+    # `navigator-<tag>-linux.tar.gz`; its own comment says the Windows `.zip`
+    # ships "for humans, not runners". So without this job the notation gate
+    # cannot install the CLI in ANY consuming repository, which is why no
+    # content or Project repository has a working `ci` job today.
+    #
+    # Deliberately a plain glibc build rather than static musl: the consumer is
+    # an `ubuntu-latest` runner, and importing musl-tools plus its ring/openssl
+    # consequences buys portability nothing here needs. Static, signed,
+    # human-facing artifacts are ENG-115's lane.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      # Same ref logic as the Windows build: this job only runs for a tag
+      # release, so the tag is the ref.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-cli-build-linux"
+          step: "build the tagged Navigator CLI"
+      - name: build the tagged Navigator CLI
+        env:
+          NAVIGATOR_RELEASE_TAG: ${{ needs.release-version.outputs.tag }}
+        run: cargo build --locked --release -p cli
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-cli-build-linux"
+          step: "package the Linux CLI"
+      - name: package the Linux CLI
+        env:
+          TAG: ${{ needs.release-version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/navigator-linux
+          install -m 0755 target/release/navigator dist/navigator-linux/navigator
+          # All three texts travel with the archive, for the reason the Windows
+          # packaging step gives. `.github/actions/validate` extracts only
+          # `navigator`, so the extra members cost a CI consumer nothing.
+          install -m 0644 LICENSE.md dist/navigator-linux/LICENSE.md
+          install -m 0644 LICENSE-MIT dist/navigator-linux/LICENSE-MIT
+          install -m 0644 LICENSE-APACHE dist/navigator-linux/LICENSE-APACHE
+          # `-C` is load-bearing: the members must sit at the archive ROOT.
+          # `.github/actions/validate` unpacks with
+          # `tar -xzf "${asset}" -C "${tmp}" navigator`, which matches nothing
+          # if the binary carries a `dist/navigator-linux/` prefix.
+          tar -czf "dist/navigator-${TAG}-linux.tar.gz" \
+              -C dist/navigator-linux navigator LICENSE.md LICENSE-MIT LICENSE-APACHE
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-cli-build-linux"
+          step: "upload the Linux CLI archive"
+      - name: upload the Linux CLI archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: navigator-linux-cli
+          path: dist/navigator-*-linux.tar.gz
+          if-no-files-found: error
+
+  release-cli-build-macos:
+    name: build macOS navigator CLI release archive
+    needs: [publish-service, publish-triggers, release-version]
+    runs-on: macos-latest
+    # The third archive, and the one that closes a live hole rather than adding
+    # a convenience: `.github/actions/validate` ALREADY maps a macOS runner to
+    # `platform=macos` and downloads `navigator-<tag>-macos.tar.gz`. Until this
+    # job existed, every Project repository running the notation gate on a
+    # macOS runner failed on a download 404 — the same class of breakage the
+    # Linux job's comment describes, one platform over.
+    #
+    # `macos-latest` is arm64, and so is this archive. That is the whole macOS
+    # fleet GitHub hosts and every Mac sold since 2020; an Intel Mac needs a
+    # `x86_64-apple-darwin` cross-build lipo'd in, which is a second full
+    # release compile on the slowest runner class and is deliberately not
+    # bought here. State it rather than let someone infer "macOS" means
+    # universal.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      # Same ref logic as the other two builds: this job only runs for a real
+      # release, so the published SHA is the ref.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-cli-build-macos"
+          step: "build the tagged Navigator CLI"
+      - name: build the tagged Navigator CLI
+        env:
+          NAVIGATOR_RELEASE_TAG: ${{ needs.release-version.outputs.tag }}
+        run: cargo build --locked --release -p cli
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-cli-build-macos"
+          step: "package the macOS CLI"
+      - name: package the macOS CLI
+        env:
+          TAG: ${{ needs.release-version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/navigator-macos
+          install -m 0755 target/release/navigator dist/navigator-macos/navigator
+          # All three texts travel with the archive, for the reason the Windows
+          # packaging step gives.
+          install -m 0644 LICENSE.md dist/navigator-macos/LICENSE.md
+          install -m 0644 LICENSE-MIT dist/navigator-macos/LICENSE-MIT
+          install -m 0644 LICENSE-APACHE dist/navigator-macos/LICENSE-APACHE
+          # `-C` is load-bearing for the same reason it is on Linux: the
+          # validate action unpacks with `tar -xzf "${asset}" -C "${tmp}"
+          # navigator`, which matches nothing if the binary carries a
+          # `dist/navigator-macos/` prefix.
+          tar -czf "dist/navigator-${TAG}-macos.tar.gz" \
+              -C dist/navigator-macos navigator LICENSE.md LICENSE-MIT LICENSE-APACHE
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-cli-build-macos"
+          step: "upload the macOS CLI archive"
+      - name: upload the macOS CLI archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: navigator-macos-cli
+          path: dist/navigator-*-macos.tar.gz
+          if-no-files-found: error
+
+  release-windows-cli-publish:
+    name: attach the CLI archives to the GitHub Release
+    # One publish job attaches ALL THREE archives rather than one job per
+    # platform. `gh release create` is guarded by `if ! gh release view`, which
+    # is check-then-act: jobs racing on the same tag would all see no release
+    # and all try to create it, and the losers would fail. The job key keeps
+    # its original Windows-flavoured spelling because the notify lists and this
+    # job's own slack `stage:` strings reference it.
+    needs:
+      [
+        release-windows-cli-build,
+        release-cli-build-linux,
+        release-cli-build-macos,
+        release-version,
+      ]
+    # A GitHub Release hangs off an immutable Git tag, and a release IS a tag
+    # now, so `publishable` is the whole condition. The second clause this
+    # carried — `schedule` or a tag ref — existed to stop a dispatch's
+    # `YY.M.D.H` claiming a Release it had cut no tag for; with no dispatch,
+    # `publishable == 'true'` already means "a tag ref".
+    if: needs.release-version.outputs.publishable == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      # This job publishes an artifact built elsewhere and needs no working
+      # tree of its own — the checkout is here only so the local
+      # `slack-progress` action is on disk. Sparse, so it stays a metadata
+      # fetch.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/actions/slack-progress
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-windows-cli-publish"
+          step: "download the Windows CLI archive"
+      - name: download the Windows CLI archive
+        uses: actions/download-artifact@v8
+        with:
+          name: navigator-windows-cli
+          path: dist
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-windows-cli-publish"
+          step: "download the Linux CLI archive"
+      - name: download the Linux CLI archive
+        uses: actions/download-artifact@v8
+        with:
+          name: navigator-linux-cli
+          path: dist
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-windows-cli-publish"
+          step: "download the macOS CLI archive"
+      - name: download the macOS CLI archive
+        uses: actions/download-artifact@v8
+        with:
+          name: navigator-macos-cli
+          path: dist
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "release-windows-cli-publish"
+          step: "create the release if needed and attach the archive"
+      - name: create the release if needed and attach the archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          GH_HOST="${GITHUB_SERVER_URL#https://}"
+          export GH_HOST
+          if ! gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+              # `--target` is what makes this correct without a pushed tag: it
+              # creates the tag AT the SHA both archives were compiled from,
+              # rather than at whatever the default branch has drifted to while
+              # the Windows build ran.
+              gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" \
+                  --target "${GITHUB_SHA}" \
+                  --title "Neon Law Navigator ${TAG}" --generate-notes
+          fi
+          gh release upload "${TAG}" dist/navigator-*-windows.zip \
+              --repo "${GITHUB_REPOSITORY}" --clobber
+          gh release upload "${TAG}" dist/navigator-*-linux.tar.gz \
+              --repo "${GITHUB_REPOSITORY}" --clobber
+          gh release upload "${TAG}" dist/navigator-*-macos.tar.gz \
+              --repo "${GITHUB_REPOSITORY}" --clobber
+
+  # ---------- Stage 4: post the release report to Slack ----------
+  # Sent only after the container images are published. Posts to the
+  # #navigator channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL,
+  # a GitHub Actions secret) — the same channel and webhook the failure guard
+  # below uses. The webhook itself must be pinned to #navigator. The staging
+  # roll already happened in stage 3; this job only reports it.
+  #
+  # TWO messages, posted in order, because they answer two different questions
+  # and get read at two different times:
+  #
+  #   1. What was published — the asset manifest. Read once, when the tag lands,
+  #      to confirm the shelf holds what it should.
+  #   2. What was deployed — one line per deployments/-tree entry, saying
+  #      whether THIS run rolled it onto the tag. Only neon-law-stg can be
+  #      rolled by a tag, so every production row reports as awaiting
+  #      promotion and the report names the workflow that promotes it. The
+  #      manual `ops ship` runbook is documentation (docs/gitops.md § "The
+  #      manual deploy"), not a Slack message.
+  #
+  # The one rule still binds: identifiers and counts, never content — the bodies
+  # carry the tag, image names, the run URL, and commands, nothing
+  # client-bearing.
+  notify:
+    name: slack release report
+    needs:
+      [
+        publish-service,
+        publish-triggers,
+        release-windows-cli-publish,
+        release-version,
+      ]
+    # Tag only (publish is already gated; stated here too so a branch run never
+    # posts a deploy report).
+    #
+    # NO SHIP JOB IS NAMED HERE, because nothing in this workflow rolls a
+    # cluster. The report's second message is the `ops ship` command an operator
+    # runs instead.
+    #
+    # `release-windows-cli-publish` must SUCCEED rather than being allowed to
+    # skip. It cuts the tag and the Release, and
+    # `.github/actions/validate` — the gate every Project repository runs —
+    # downloads the CLI from that Release. A skipped attach breaks Project CI
+    # everywhere while this run reports green, so it is gated on success rather
+    # than on not-failure.
+    if: >-
+      !cancelled()
+      && needs.release-version.outputs.publishable == 'true'
+      && needs.publish-service.result == 'success'
+      && needs.publish-triggers.result == 'success'
+      && needs.release-windows-cli-publish.result == 'success'
+    runs-on: ubuntu-latest
+    # Two webhook POSTs — should be seconds; cap it so a hung HTTP request
+    # can't keep the workflow open.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      TAG: ${{ needs.release-version.outputs.tag }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      # The repository that holds the deployment tree. It lives in Actions
+      # configuration rather than in this file so renaming or replacing it is a
+      # variable change in one place, not a source edit in a public repository
+      # that would then need a release to take effect. Unset is not an error:
+      # the ship step falls back to naming no repository at all, because a
+      # blank in the middle of a copy-paste command is worse than prose that
+      # tells the operator to use the checkout they already have.
+      DEPLOY_REPO: ${{ vars.DEPLOY_REPO }}
+    # NO CHECKOUT. Every message below is composed from `env` and posted with
+    # `curl`, and this job uses no local composite action. The one step that
+    # needed the repository derived a line per row from the deployments/ tree,
+    # and that tree moved; the checkout outlived its only reason by exactly that
+    # long. Adding one back means a step reads a file — say which.
+    steps:
+      # ---- Message 1 of 2: what this tag published ----
+      # The asset manifest. Every name here is a real publish-matrix target in
+      # this same workflow; if a matrix entry is added or retired, this list is
+      # what tells the channel, so it must be edited alongside it.
+      #
+      # The three brand images are the headline (#864 / #974): the binary is the
+      # site, so `neon-server` runs `/app/neon` and cannot be pointed at another
+      # legal entity's face by configuration. `navigator-web` is an alias tag
+      # built from the same Containerfile as `neon-server` — byte-identical —
+      # kept only until #796's ship targets flip the deployed manifests off it.
+      - name: post the published-assets manifest to engineering Slack
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the assets manifest"
+              exit 1
+          fi
+          TEXT=":package: *Neon Law Navigator ${TAG} — published assets*
+
+          *Brand host image* (the binary is the site; no runtime flag selects the face)
+          • \`neon-server\` — www.neonlaw.com, the firm at the root and the Foundation under /foundation
+
+          *Service images*
+          • \`navigator-workflows-service\` — the durable-execution worker
+          • \`navigator-gateway\` — private-mode Pingora gateway
+          • \`navigator-web\` — alias tag, byte-identical to \`neon-server\`; retires with #796
+
+          *Scheduled-job images*
+          • \`navigator-heartbeat-trigger\`, \`navigator-archives-trigger\`, \`navigator-surreal-archive\`, \`navigator-reconcile-invoices-trigger\`, \`navigator-billing-digest-trigger\`
+          • \`navigator-runner\` — the CI/devx runner image
+
+          All 11 tagged \`${TAG}\` + \`latest\` on \`ghcr.io/${{ github.repository_owner }}\`.
+
+          Run: ${RUN_URL}"
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          code=$(curl -sS -o /tmp/slack-assets.out -w '%{http_code}' \
+              -X POST "${SLACK_WEBHOOK_URL}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}")
+          echo "Slack responded ${code}"
+          if [ "${code}" != "200" ]; then
+              echo "::error::Slack assets post failed (${code})"
+              cat /tmp/slack-assets.out || true
+              exit 1
+          fi
+          echo "Published-assets manifest posted to #navigator"
+
+      # Every release is a tag, so `git clone --branch ${TAG}` is always real
+      # guidance and this step carries no `if:`. It was gated when a dispatch
+      # could publish a `.H` image tag with no Git tag behind it.
+      - name: post tagged CLI installation instructions to engineering Slack
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the CLI installation instructions"
+              exit 1
+          fi
+          TEXT="*CLI installation for ${TAG}*
+
+          • Windows: download \`navigator-${TAG}-windows.zip\` from the \`${TAG}\` GitHub Release, extract it, and add its folder to \`PATH\`.
+          • macOS (Apple silicon): download \`navigator-${TAG}-macos.tar.gz\` from the same Release, then \`tar -xzf navigator-${TAG}-macos.tar.gz navigator && install -m 0755 navigator /usr/local/bin/navigator && navigator --version\`.
+          • Linux: download \`navigator-${TAG}-linux.tar.gz\` from the same Release, then \`tar -xzf navigator-${TAG}-linux.tar.gz navigator && install -m 0755 navigator /usr/local/bin/navigator && navigator --version\`.
+
+          On an Intel Mac there is no prebuilt archive; build the tagged source: \`tmp=\"\$(mktemp -d /tmp/navigator.XXXXXX)\" && git clone --depth 1 --branch \"${TAG}\" https://github.com/neon-law-foundation/navigator.git \"\$tmp\" && NAVIGATOR_RELEASE_TAG=\"${TAG}\" cargo install --locked --path \"\$tmp/cli\" --force && rm -rf \"\$tmp\" && navigator --version\`
+
+          Run: ${RUN_URL}"
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          code=$(curl -sS -o /tmp/slack-cli-install.out -w '%{http_code}' \
+              -X POST "${SLACK_WEBHOOK_URL}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}")
+          echo "Slack responded ${code}"
+          if [ "${code}" != "200" ]; then
+              echo "::error::Slack CLI-install post failed (${code})"
+              cat /tmp/slack-cli-install.out || true
+              exit 1
+          fi
+          echo "Tagged CLI-install instructions posted to #navigator"
+
+      # ---- Message 2 of 2: how to put this build in front of clients ----
+      # THIS RUN DEPLOYS NOTHING. It builds images, proves them in KIND, and
+      # pushes them to GHCR; every rollout is a deliberate act an operator takes
+      # from their own machine with their own credentials. So the second message
+      # is not a report of what happened — it is the command to run next, with
+      # the version already substituted so it can be copied without editing.
+      #
+      # That is the whole reason no cloud credential appears in this workflow
+      # any more. A pipeline that can roll production is a pipeline whose
+      # compromise rolls production; `ops ship` moves that authority to a human
+      # holding short-lived ADC.
+      #
+      # THIS REPOSITORY NAMES NO DEPLOYMENT. The tree moved to a private
+      # repository with the credential that rolls it, so this step has nothing
+      # to enumerate — it once listed the tree and read each row's public host
+      # out of its config.toml, and both are gone.
+      #
+      # It does not follow that the message should hardcode the names instead.
+      # A row is rollable because its directory exists, and this repository can
+      # no longer see whether one does; a literal name here would be an
+      # instruction to roll something that may have been renamed or retired,
+      # which is the exact failure the old `ls` derivation existed to prevent.
+      # So the hand-off points at the repository that DOES know, and
+      # `no_public_source_instructs_a_deployment_by_name` in
+      # cli/src/devx/deployments.rs fails the build if a name drifts back in.
+      #
+      # NOR DOES IT NAME THAT REPOSITORY. `DEPLOY_REPO` carries it from Actions
+      # configuration, so the coupling is one variable an operator can change
+      # without a pull request here. The deploy side already owns the other
+      # direction — its own workflow hardcodes THIS repository and derives the
+      # tag itself — so nothing in this file needs to know it exists.
+      # `the_ship_handoff_takes_the_deploy_repository_from_configuration` in
+      # cli/src/devx/deployments.rs holds the literal back out.
+      - name: post the ship instructions to #navigator
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the ship instructions"
+              exit 1
+          fi
+          # An unset DEPLOY_REPO degrades to prose rather than interpolating a
+          # blank, so the message stays copy-pasteable either way. Every
+          # operator who can roll a cluster already has the checkout; naming it
+          # saves them a step, it is not what makes the command runnable.
+          if [ -n "${DEPLOY_REPO}" ]; then
+              CHECKOUT="a \`${DEPLOY_REPO}\` checkout"
+          else
+              CHECKOUT="your deployments checkout"
+          fi
+          TEXT=":package: *Neon Law Navigator ${TAG} — images published, nothing deployed*
+
+          The nightly built and proved this version and pushed it to GHCR. Nothing is in front of clients until you roll it.
+
+          *To ship it*, from ${CHECKOUT} with \`gcloud auth application-default login\` current:
+          \`navigator ops ship --deployment <row> --deployments-dir . --tag ${TAG}\`
+
+          The rows are the directories under \`deployments/\` in that checkout; roll a \`-stg\` row and look at it before the one clients are on. Dry-run first if the manifests changed — \`--dry-run\` renders and diffs without applying. Then confirm the roll landed:
+          \`curl -fsS https://<host>/version | jq .release\`
+
+          Run: ${RUN_URL}"
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          code=$(curl -sS -o /tmp/slack-ship.out -w '%{http_code}' \
+              -X POST "${SLACK_WEBHOOK_URL}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}")
+          echo "Slack responded ${code}"
+          if [ "${code}" != "200" ]; then
+              echo "::error::Slack ship-instructions post failed (${code})"
+              cat /tmp/slack-ship.out || true
+              exit 1
+          fi
+          echo "Ship instructions posted to #navigator"
+
+  # ---------- Failure guard: alert #navigator ----------
+  # Fires whenever ANY of integration / the publish-* jobs / the staging ship /
+  # notify fails
+  # (failure() is true if any needed job — or its upstream — failed, even when
+  # later jobs were skipped as a result; a job that merely skipped is not a
+  # failure and does not page). Posts to
+  # #navigator via the prod ops
+  # incoming webhook (SLACK_WEBHOOK_URL, a GitHub Actions secret) and
+  # tags Nick —
+  # the @-mention is what separates this paging alert from the un-tagged
+  # success report above. Like that report: tag + run URL only, never client
+  # content.
+  #
+  # A FAILED PRODUCTION PROMOTION DOES NOT PAGE FROM HERE. `failure()` only sees
+  # this run's jobs, and promote.yml is a different run, so it carries its own
+  # `notify-failure` with the same shape. Two guards, one per workflow, because
+  # neither can observe the other — not a duplication to consolidate.
+  notify-failure:
+    name: slack — alert engineering on failure
+    needs:
+      [
+        release-version,
+        build,
+        integration,
+        publish-service,
+        publish-triggers,
+        release-windows-cli-build,
+        release-cli-build-linux,
+        release-cli-build-macos,
+        release-windows-cli-publish,
+        notify,
+      ]
+    # Tag only: a failed `kind-ci/**` branch iteration is expected churn and
+    # must not page engineering — only a failed release does.
+    #
+    # Deliberately NOT gated on release-version's `publishable` output: if that
+    # job itself dies — and it is the job that now REJECTS a wrong-dated tag —
+    # its outputs are empty and an output-gated guard would stay silent. That is
+    # exactly how the old two-workflow release failed unnoticed for four
+    # consecutive nights. Read the trigger ref directly, so a failure ANYWHERE,
+    # including the tag validation, still pages.
+    #
+    # This is now the ONLY automatic signal that a release broke, because there
+    # is no nightly run to notice a silent breakage. A pipeline defect nobody
+    # tags for stays invisible until the next release attempt; see
+    # docs/gitops.md § "What detects a broken pipeline".
+    if: failure() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    # A single webhook POST — cap it so a hung request can't keep the run open.
+    timeout-minutes: 10
+    steps:
+      - name: post failure alert to #navigator
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_OPS_MENTION: ${{ secrets.SLACK_OPS_MENTION }}
+          TAG: ${{ needs.release-version.outputs.tag }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the failure alert"
+              exit 1
+          fi
+          TEXT=":x: Neon Law Navigator deploy ${TAG} failed — ${SLACK_OPS_MENTION} please investigate.
+          Run: ${RUN_URL}"
+          PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')
+          code=$(curl -sS -o /tmp/slack.out -w '%{http_code}' \
+              -X POST "${SLACK_WEBHOOK_URL}" \
+              -H "Content-Type: application/json" \
+              -d "${PAYLOAD}")
+          echo "Slack responded ${code}"
+          # Slack incoming webhooks return 200 with body "ok" on success.
+          if [ "${code}" != "200" ]; then
+              echo "::error::Slack post failed (${code})"
+              cat /tmp/slack.out || true
+              exit 1
+          fi
+          echo "Failure alert posted to #navigator"

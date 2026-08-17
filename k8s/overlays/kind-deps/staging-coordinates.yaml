@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: navigator-staging-coordinates
+data:
+  restate_broker_url: http://restate.restate.svc.cluster.local:8080
+  openobserve_endpoint: http://openobserve:5081

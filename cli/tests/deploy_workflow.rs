@@ -1,0 +1,341 @@
+use std::path::Path;
+
+fn deploy_workflow() -> String {
+    repo_file(".github/workflows/deploy.yml")
+}
+
+fn repo_file(path: &str) -> String {
+    std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join(path),
+    )
+    .unwrap_or_else(|error| panic!("read {path}: {error}"))
+}
+
+/// The trigger block, parsed. `on` is the YAML 1.1 boolean `true`, so
+/// `serde_yaml` keys it as a bool rather than the string "on" — reading it by
+/// name silently finds nothing and every assertion below would pass vacuously.
+fn deploy_triggers() -> serde_yaml::Mapping {
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
+    let triggers = workflow
+        .get(serde_yaml::Value::Bool(true))
+        .or_else(|| workflow.get("on"))
+        .expect("deploy.yml must declare a trigger block");
+    triggers
+        .as_mapping()
+        .expect("the trigger block must be a mapping")
+        .clone()
+}
+
+fn has_trigger(name: &str) -> bool {
+    deploy_triggers().contains_key(serde_yaml::Value::String(name.to_string()))
+}
+
+#[test]
+fn deploy_workflow_has_no_pull_request_trigger() {
+    let workflow = deploy_workflow();
+
+    assert!(
+        !workflow.contains("\n  pull_request:\n"),
+        "deploy.yml must not trigger on pull_request — UI/browser proof runs on the \
+         release train and locally, never on a PR"
+    );
+}
+
+/// Publishing on demand is allowed; DEPLOYING on demand is not.
+///
+/// Both triggers were removed once, for reasons that no longer hold. The cron
+/// cut a tag every night whether or not anything changed; it derives a version
+/// now and cuts the tag from the job that builds the archives. The dispatch
+/// published a `YY.M.D.H` version no Git tag stood behind, and it was why
+/// `inputs.dry_run` could be referenced with no input declared (ENG-182) —
+/// this workflow declares no inputs at all, which
+/// `deploy_workflow_references_no_workflow_inputs` still enforces.
+///
+/// What made the old dispatch dangerous was never that it was manual, it was
+/// that the pipeline it started could roll a cluster. That reach is gone.
+#[test]
+fn deploy_workflow_publishes_on_a_schedule_and_on_demand() {
+    assert!(
+        has_trigger("schedule"),
+        "deploy.yml must publish nightly — the clock is the primary publish path"
+    );
+    assert!(
+        has_trigger("workflow_dispatch"),
+        "deploy.yml must keep `workflow_dispatch`: waiting until 01:11 UTC is not an answer when \
+         a publish is needed now, and the dispatch reaches no cloud provider"
+    );
+}
+
+/// THE WORKFLOW DEPLOYS NOTHING. It ends at the registry: every rollout is
+/// `navigator ops ship`, run by a person against their own short-lived
+/// credentials.
+///
+/// This is a security boundary, not a preference. A pipeline that can roll a
+/// cluster is a pipeline whose compromise rolls that cluster, and a ship job
+/// added back here would restore that reach silently — the run would go green
+/// and nobody would read the diff that did it. Two things are asserted, because
+/// a job can reach a cloud provider without being called `ship-*`: no such job
+/// exists, and no step federates an identity into one.
+#[test]
+fn deploy_workflow_ships_nothing_and_holds_no_cloud_credential() {
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
+    let jobs = workflow["jobs"]
+        .as_mapping()
+        .expect("deploy.yml must declare jobs");
+    let names: Vec<String> = jobs
+        .keys()
+        .map(|key| key.as_str().unwrap_or("<non-string job key>").to_string())
+        .collect();
+
+    let shipping: Vec<&String> = names
+        .iter()
+        .filter(|name| name.starts_with("ship"))
+        .collect();
+    assert!(
+        shipping.is_empty(),
+        "deploy.yml must contain no ship job: {shipping:?}. Publishing is automated; deploying is \
+         a human act run from `navigator ops ship`, so nothing here may roll a cluster"
+    );
+
+    // Comments are stripped first. The header explains at length that this
+    // workflow federates into no cloud provider, and naming the thing it does
+    // not do must not read as doing it.
+    let source = deploy_workflow();
+    let effective: String = source
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    for forbidden in ["google-github-actions/auth", "workload_identity_provider"] {
+        assert!(
+            !effective.contains(forbidden),
+            "deploy.yml still references `{forbidden}` — this workflow reaches no cloud provider, \
+             and a surviving credential exchange is reach it does not need"
+        );
+    }
+}
+
+/// The `inputs` context cannot exist without a declared input, so any reference
+/// to one is dead. This is ENG-182 as a guard.
+#[test]
+fn deploy_workflow_references_no_workflow_inputs() {
+    let workflow = deploy_workflow();
+
+    assert!(
+        !workflow.contains("inputs."),
+        "deploy.yml declares no inputs, so `inputs.<name>` always evaluates empty — a reference \
+         to one is dead and reads as a knob that exists (ENG-182)"
+    );
+}
+
+/// The nightly cron is the primary publish path, and no tag may start one.
+///
+/// 1:11 rather than 1:00 on purpose: GitHub delays scheduled runs when the
+/// hosted-runner queue is deep, and the top of the hour is when it is deepest.
+#[test]
+fn deploy_workflow_publishes_on_the_nightly_cron() {
+    let triggers = deploy_triggers();
+    let schedule = triggers
+        .get(serde_yaml::Value::String("schedule".into()))
+        .expect("deploy.yml must trigger on schedule");
+    let crons: Vec<String> = schedule
+        .as_sequence()
+        .expect("the schedule trigger must be a sequence")
+        .iter()
+        .filter_map(|entry| entry["cron"].as_str().map(str::to_string))
+        .collect();
+    assert!(
+        crons.iter().any(|cron| cron == "11 1 * * *"),
+        "deploy.yml must publish at 01:11 UTC nightly. Got: {crons:?}"
+    );
+
+    let push = triggers
+        .get(serde_yaml::Value::String("push".into()))
+        .expect("deploy.yml must keep its push trigger for the kind-ci seam");
+
+    // A TAG MUST NOT PUBLISH. `release-windows-cli-publish` cuts the `YY.M.D`
+    // tag, so a tag trigger would be this workflow reacting to itself.
+    assert!(
+        push.get("tags").is_none(),
+        "deploy.yml must not publish from a tag — it CUTS the tag, so a tag trigger would make \
+         every run start another"
+    );
+
+    // The pre-publish iteration seam: the only way to prove a change to this
+    // workflow without waiting for 01:11.
+    let branches: Vec<String> = serde_yaml::from_value(push["branches"].clone())
+        .expect("the push trigger must keep its `kind-ci/**` branch filter");
+    assert!(
+        branches.iter().any(|glob| glob == "kind-ci/**"),
+        "deploy.yml must keep the `kind-ci/**` integration-only trigger: it is the one way to \
+         prove a workflow change without waiting a day to find out. Got: {branches:?}"
+    );
+}
+
+/// The version is derived from the UTC clock, once, and every image is labelled
+/// with it.
+///
+/// The zone is a decision, and the wrong one names a whole night's images after
+/// yesterday for part of the year.
+#[test]
+fn the_nightly_version_is_todays_utc_date() {
+    let workflow = deploy_workflow();
+
+    assert!(
+        workflow.contains("TZ=UTC date +'%y %m %d'"),
+        "deploy.yml must derive the nightly version from the UTC clock"
+    );
+    assert!(
+        !workflow.contains("TZ=America"),
+        "the nightly version is UTC: it is the zone `YY.M.D` has always been derived in, and it \
+         has no DST discontinuity"
+    );
+}
+
+/// A CONTAINER MUST REPORT THE VERSION ITS IMAGE IS TAGGED WITH.
+///
+/// The tag-equals-Cargo.toml check used to hold this: it refused to publish
+/// when the tagged source carried a stale version, which is how `Cargo.toml`
+/// sat at `0.1.0` while tags marched on. A cron has no tag to check, so the
+/// property is held from the other end — the derived version is passed as the
+/// `RELEASE_TAG` build-arg, each Containerfile turns it into a runtime
+/// `ENV NAVIGATOR_RELEASE_TAG`, and `main.rs` reads that override.
+///
+/// Drop the build-arg and nothing fails: images still publish, and every one of
+/// them silently reports the workspace's between-release version instead of its
+/// own. That silence is why this is asserted.
+#[test]
+fn every_image_is_stamped_with_the_derived_version() {
+    let workflow = deploy_workflow();
+
+    assert!(
+        workflow.contains("printf 'RELEASE_TAG=%s"),
+        "deploy.yml must pass the derived version to every image build as the `RELEASE_TAG` \
+         build-arg — without it a published container reports the wrong version and nothing fails"
+    );
+
+    let containerfile = repo_file("images/Containerfile.neon");
+    assert!(
+        containerfile.contains("ARG RELEASE_TAG"),
+        "Containerfile.neon must accept the RELEASE_TAG build-arg deploy.yml passes it"
+    );
+    assert!(
+        containerfile.contains("ENV NAVIGATOR_RELEASE_TAG=$RELEASE_TAG"),
+        "Containerfile.neon must expose RELEASE_TAG as the runtime NAVIGATOR_RELEASE_TAG override \
+         `main.rs` reads — a build-arg that never becomes an ENV stamps nothing"
+    );
+}
+
+/// Nothing in the release pipeline may move a Git ref. `release-version` held
+/// `contents: write` to cut the nightly tag; a human pushes the tag now, so the
+/// permission is gone and the whole workflow is read-only against the
+/// repository.
+#[test]
+fn no_job_can_write_repository_contents() {
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
+
+    assert_eq!(
+        workflow["permissions"]["contents"].as_str(),
+        Some("read"),
+        "the workflow-level contents permission must stay `read`"
+    );
+
+    let jobs = workflow["jobs"]
+        .as_mapping()
+        .expect("deploy.yml must declare jobs");
+    let mut writers = Vec::new();
+    for (name, job) in jobs {
+        if job["permissions"]["contents"].as_str() == Some("write") {
+            writers.push(name.as_str().unwrap_or("<non-string job key>").to_string());
+        }
+    }
+
+    // `release-windows-cli-publish` is the ONE exception: it creates the
+    // GitHub Release that hangs off the already-pushed tag and uploads the CLI
+    // archives to it. It creates no ref.
+    assert_eq!(
+        writers,
+        ["release-windows-cli-publish"],
+        "only the Release-attach job may hold `contents: write`. `release-version` validates the \
+         ref it was handed and must never create one again"
+    );
+}
+
+/// The browser gate builds every image it then audits.
+///
+/// It used to clone the deployed pod on a second port and run a second brand
+/// binary beside it, because the firm and the Foundation were separate images.
+/// One binary serves both faces now, so that whole apparatus is gone — and what
+/// survives is the part that always mattered: the images the gate exercises are
+/// the ones a deployment rolls, not a route substitution.
+#[test]
+fn browser_accessibility_uses_the_shipped_images() {
+    let workflow = deploy_workflow();
+
+    for required in [
+        "          - image: neon-server\n            dockerfile: images/Containerfile.neon",
+        "for img in navigator-web neon-server navigator-workflows-service navigator-gateway; do",
+    ] {
+        assert!(
+            workflow.contains(required),
+            "deploy.yml must keep browser accessibility proof `{required}`"
+        );
+    }
+
+    // The retired second-host apparatus must not come back: it cloned the web
+    // Deployment onto port 3002 to run a second brand image, and there is no
+    // second brand image to run.
+    for retired in [
+        "neon-browser-a11y",
+        "NAV_BASE_URL: http://localhost:3002",
+        ".image = \"neon-server:dev\"",
+    ] {
+        assert!(
+            !workflow.contains(retired),
+            "deploy.yml still carries the retired second-host clone `{retired}`; \
+             one binary serves both faces, so the gate audits one host"
+        );
+    }
+}
+
+/// THE 502 RACE, kept as a guard against its return. A one-shot
+/// `curl --fail .../readyz` under `set -e`, fired while a load balancer is
+/// still swapping backends, went red on `neon-production` in run 154026811
+/// AFTER the roll had succeeded.
+///
+/// This workflow no longer probes a deployed host at all — it publishes images
+/// and stops — so the assertion is now the absence of the shape rather than the
+/// presence of the fix. If a probe is ever added back here, it must poll to a
+/// deadline with the curl inside an `if`, never bare under `set -e`.
+#[test]
+fn no_readyz_probe_is_one_shot_curled() {
+    let workflow = deploy_workflow();
+
+    let bare: Vec<&str> = workflow
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("curl ") && line.contains("/readyz"))
+        .collect();
+    assert!(
+        bare.is_empty(),
+        "a /readyz probe must never be a bare command under `set -e` — a transient 502 during \
+         the load-balancer swap then fails a step that already succeeded. Put the curl in an \
+         `if` condition and poll to a deadline. Found: {bare:#?}"
+    );
+}
+
+#[test]
+fn standalone_wasm_workflow_stays_retired() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+    assert!(
+        !root.join(".github/workflows/webapp-wasm.yml").exists(),
+        "the deploy image build is the one Dioxus wasm proof path"
+    );
+}

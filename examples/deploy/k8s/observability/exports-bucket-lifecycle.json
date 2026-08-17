@@ -1,0 +1,38 @@
+{
+  "_comment": [
+    "GCS Object Lifecycle for the <project>-exports bucket — split retention by",
+    "telemetry signal (decided 2026-06-14). Prefix-scoped so each Iceberg table",
+    "ages independently. Apply with:",
+    "  gcloud storage buckets update gs://YOUR_PROJECT_ID-exports \\",
+    "    --lifecycle-file=exports-bucket-lifecycle.json",
+    "",
+    "otel_logs: 10 years, Coldline at 365d. SAFE at 10y ONLY because the logs are",
+    "content-free (the fail-closed redaction allow-list, otel-collector.yaml) — a",
+    "decade-long internal operational record, not a discoverable client-privilege",
+    "surface. otel_traces / otel_metrics: 30 days. audit_events: NO rule here — it",
+    "has its own 10-year governance and must never be caught by an otel rule, so no",
+    "matchesPrefix below touches iceberg/audit_events/. The entity tables",
+    "(iceberg/<table>/, not otel_*) likewise keep their full history and are not",
+    "matched here. Scheduled + uniform = defensible deletion; content-free => no",
+    "preservation duty, so auto-expiry is not spoliation."
+  ],
+  "lifecycle": {
+    "rule": [
+      {
+        "action": { "type": "SetStorageClass", "storageClass": "COLDLINE" },
+        "condition": { "age": 365, "matchesPrefix": ["iceberg/otel_logs/"] }
+      },
+      {
+        "action": { "type": "Delete" },
+        "condition": { "age": 3650, "matchesPrefix": ["iceberg/otel_logs/"] }
+      },
+      {
+        "action": { "type": "Delete" },
+        "condition": {
+          "age": 30,
+          "matchesPrefix": ["iceberg/otel_traces/", "iceberg/otel_metrics/"]
+        }
+      }
+    ]
+  }
+}

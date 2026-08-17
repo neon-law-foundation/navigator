@@ -1,0 +1,53 @@
+# Optional deployment-owned branding. Copy this patch into a private overlay
+# and choose exactly one volume source (ConfigMap, Secret, or PVC). The public
+# repository intentionally contains no deployer's brand bytes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  template:
+    spec:
+      volumes:
+        - name: brand-bundle
+          configMap:
+            name: navigator-brand-bundle
+      containers:
+        - name: web
+          # Mounting the bundle is not enough — branding is Neon Law until a
+          # deployment opts in by naming the bundle path here.
+          env:
+            - name: NAVIGATOR_CUSTOM_BRANDING
+              value: /etc/navigator/brand
+          volumeMounts:
+            - name: brand-bundle
+              mountPath: /etc/navigator/brand
+              readOnly: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflows-service
+  namespace: navigator
+spec:
+  template:
+    spec:
+      volumes:
+        - name: brand-bundle
+          configMap:
+            name: navigator-brand-bundle
+      containers:
+        # The workflows Deployment's container is named `worker`, not
+        # `workflows-service`; a strategic-merge entry must key on it or the
+        # env + mount are never applied to the running container.
+        - name: worker
+          # Mounting the bundle is not enough — branding is Neon Law until a
+          # deployment opts in by naming the bundle path here.
+          env:
+            - name: NAVIGATOR_CUSTOM_BRANDING
+              value: /etc/navigator/brand
+          volumeMounts:
+            - name: brand-bundle
+              mountPath: /etc/navigator/brand
+              readOnly: true

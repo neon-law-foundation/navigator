@@ -1,0 +1,39 @@
+questionnaire:
+  BEGIN:
+    _: person__client
+  person__client:
+    _: project__engagement
+  project__engagement:
+    _: custom_single_choice__governing_law
+  custom_single_choice__governing_law:
+    _: END
+  END: {}
+prompts:
+  client_name: What is the client's full legal name?
+  project_name: What is the project name for this engagement?
+custom_questions:
+  governing_law:
+    prompt: >-
+      Which state's law governs this engagement? Nevada by default; choose California or Washington only if the
+      Client is located there.
+    choices:
+      nevada: Nevada
+      california: California
+      washington: Washington
+workflow:
+  BEGIN:
+    intake_submitted: intake_persisted__client
+  intake_persisted__client:
+    retainer_rendered: lawyer_review
+  lawyer_review:
+    approved: generate_pdf__retainer_pdf
+    changes_requested: reask__client
+    rejected: END
+  reask__client:
+    intake_resubmitted: lawyer_review
+  generate_pdf__retainer_pdf:
+    pdf_persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: END
+    signature_declined: END
+  END: {}

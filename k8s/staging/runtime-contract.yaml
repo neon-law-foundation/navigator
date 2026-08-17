@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navigator-web
+  namespace: navigator
+spec:
+  template:
+    spec:
+      containers:
+        - name: web
+          env:
+            - name: RESTATE_BROKER_URL
+              value: null
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-staging-coordinates
+                  key: restate_broker_url
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: null
+              valueFrom:
+                configMapKeyRef:
+                  name: navigator-staging-coordinates
+                  key: openobserve_endpoint
+            - name: NAVIGATOR_OPENOBSERVE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-openobserve
+                  key: username
+            - name: NAVIGATOR_OPENOBSERVE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-openobserve
+                  key: password
+            - name: NAVIGATOR_OPENOBSERVE_ORGANIZATION
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-openobserve
+                  key: organization
+            - name: NAVIGATOR_OPENOBSERVE_STREAM
+              valueFrom:
+                secretKeyRef:
+                  name: navigator-openobserve
+                  key: stream
+            - name: NAVIGATOR_CUSTOM_BRANDING
+              value: /etc/navigator/brand
+          volumeMounts:
+            - name: brand-bundle
+              mountPath: /etc/navigator/brand
+              readOnly: true
+      volumes:
+        - name: brand-bundle
+          configMap:
+            name: navigator-brand-bundle

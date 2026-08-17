@@ -1,0 +1,9 @@
+# Deployment operators replace this generic manifest in a private overlay.
+# The directory contract is mounted read-only by every branded renderer.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: navigator-brand-bundle
+data:
+  navigator.yaml: |
+    version: 1
