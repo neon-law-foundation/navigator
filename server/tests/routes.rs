@@ -1644,7 +1644,6 @@ async fn anonymous_access_to_the_shared_navigator_surface_lands_at_the_login_doo
         "/app/team",
         "/docs",
         "/docs/glossary",
-        "/design",
         "/templates",
         "/app/api",
     ] {
@@ -1682,6 +1681,37 @@ async fn anonymous_access_to_the_shared_navigator_surface_lands_at_the_login_doo
         let document: serde_json::Value = serde_json::from_str(&body_string(resp).await).unwrap();
         assert_eq!(document["error"], "unauthenticated", "{path}");
     }
+}
+
+#[tokio::test]
+async fn the_design_gallery_reads_anonymously() {
+    // `/design` is a public reference surface: it mounts outside the session
+    // boundary, so an anonymous reader gets the gallery itself rather than the
+    // `303` to the login door that every other shared Navigator tool answers
+    // with. Probed on the live router, because this is a property of router
+    // composition rather than of any policy bundle.
+    let mut state = empty_state().await;
+    state.docs = portal::docs::loader::bundled();
+    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/design")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "anonymous /design must render the gallery, not redirect"
+    );
+    let body = body_string(resp).await;
+    assert!(
+        body.contains("nav-form admin-form"),
+        "the gallery's own content renders for an anonymous reader: {body}"
+    );
 }
 
 #[tokio::test]
@@ -2081,9 +2111,10 @@ async fn robots_txt_advertises_sitemap_and_blocks_private_surfaces() {
     assert!(body.contains("Disallow: /lawyer"));
     assert!(body.contains("Disallow: /admin"));
     assert!(body.contains("Sitemap: https://www.neonlaw.com/sitemap.xml"));
-    // Every shared Navigator tool now sits behind the session boundary
-    // (#732), so the policy names each one rather than pointing a crawler
-    // at a login redirect.
+    // `/docs` and `/templates` sit behind the session boundary (#732), so the
+    // policy names each rather than pointing a crawler at a login redirect.
+    // `/design` reads anonymously now, and stays disallowed for the other
+    // reason: a contributor reference gallery is not a page to index.
     for authenticated in [
         "Disallow: /docs",
         "Disallow: /design",
@@ -2227,8 +2258,10 @@ async fn sitemap_xml_lists_public_routes_from_loaded_indexes() {
         !body.contains("<loc>https://www.neonlaw.com/app/team</loc>"),
         "sitemap should not list authenticated app routes: {body}"
     );
-    // Every shared Navigator tool is authenticated (#732). A sitemap entry
-    // pointing at a login redirect is worse than no entry at all.
+    // `/docs` and `/templates` are authenticated (#732), and a sitemap entry
+    // pointing at a login redirect is worse than no entry at all. `/design`
+    // reads anonymously now but stays unadvertised: it is a contributor
+    // reference, not a page a search result should land a client on.
     for authenticated in ["/docs", "/design", "/templates"] {
         assert!(
             !body.contains(&format!("<loc>https://www.neonlaw.com{authenticated}")),
@@ -2667,10 +2700,7 @@ async fn workshops_overview_renders_one_h1_and_links_steps() {
     assert!(body.contains("href=\"/workshops/use-the-navigator/step/1\""));
     assert!(body.contains("data-workshop-chapter=\"Intro\""));
     assert!(body.contains("data-workshop-chapter=\"Wrap Up\""));
-    assert!(body.contains("Copy as Markdown"));
-    // The overview advertises and links its Markdown twin; the copy
-    // button carries it as the hook first-party `copy-markdown.js`
-    // fetches, rather than reading an on-page raw node.
+    // The overview advertises and links its Markdown twin.
     // Asserted by parts rather than as one literal tag: `document::Link`
     // decides its own attribute order, and the contract is the three values,
     // not their sequence.
@@ -2680,9 +2710,13 @@ async fn workshops_overview_renders_one_h1_and_links_steps() {
             && body.contains("href=\"/workshops/use-the-navigator.md\""),
         "the markdown twin must be advertised in the head: {body}"
     );
-    assert!(body.contains("data-copy-markdown=\"/workshops/use-the-navigator.md\""));
-    // Served pages load the first-party script and never Alpine.
-    assert!(body.contains("/public/js/copy-markdown.js"));
+    // The clipboard button is gone, and so is the script that drove it — a
+    // page still loading it would be shipping dead first-party JavaScript.
+    assert!(!body.contains("data-copy-markdown"), "copy hook: {body}");
+    assert!(
+        !body.contains("/public/js/copy-markdown.js"),
+        "orphaned copy script: {body}"
+    );
     assert!(!body.contains("alpine"), "Alpine must not return: {body}");
 }
 

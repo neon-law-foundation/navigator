@@ -6,21 +6,18 @@ description: Rust in Peace tours the Rust monorepo behind a litigation-first law
 
 # Rust in Peace
 
-*A Neon Law talk for [Rust NYC](https://www.meetup.com/rust-nyc/events/316056830/).*
+A talk by [Nick](mailto:nick@neonlaw.com) for [Rust NYC](https://www.meetup.com/rust-nyc/events/316056830/)
 
 Rust in Peace is a eulogy to my programming career. Over the past year, teaching coding at Apple, I realized nearly all
 my students were vibe coding and had stopped needing me. That was the signal to go back to practicing law.
 
-Our firm runs its entire practice on one Rust monorepo: the store, the durable workflow engine, identity, telemetry, PDF
-generation, and the browser surface. We are currently litigating nine-figure matters, and the software is what gives us
-the context to win them. This talk walks through what that actually looks like in production, including our migration
-from Postgres to SurrealDB. That move came from discovering that the hardest question in legal work is a graph one,
-because we deal with people, their relationships, and their problems.
+Our firm runs its entire practice on the [Neon Law Navigator](/navigator), Rust-built software that flexes its great
+ecosystem. We built our practice to enable all lawyers to vibe-code custom client experiences and tell our clients'
+unique stories. In this presentation, you'll see how this all fits together beginning with how we architected the data,
+chose Rust-first vendors, and leverage agentic tooling for coding and lawyering.
 
-You will see how it fits together, and how we choose Rust vendors all the way down: Restate, Rauthy, OpenObserve,
-Pingora, Stalwart, and Regorus. Writing software is not my job anymore. That is only possible because the ecosystem is
-this good, because the LLMs are this good, and because communities like RustNYC are this good. Please come to my
-retirement party and let us get crabby together.
+Navigator is only possible because the ecosystem is this good, because the LLMs are this good, and because communities
+like RustNYC are this good. Please come to my retirement party and let us get crabby together.
 
 ## Intro
 
