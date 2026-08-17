@@ -36,12 +36,15 @@ allow = [
     "Zlib",
 ]
 exceptions = []
-# The allowlist above is the policy for *third-party* dependencies. The
-# workspace's own crates are `MIT OR Apache-2.0` (root `[workspace.package]`)
-# and never belong in it: this list governs what the workspace is willing to
-# *consume*, which is a different question from how the workspace is licensed
-# out. `publish = false` keeps the crates off crates.io, and `private.ignore`
-# exempts them from this check.
+# The allowlist above is the policy for *third-party* dependencies, and it stays
+# permissive on purpose. The workspace's own crates are `AGPL-3.0-only` (root
+# `[workspace.package]`) and never belong in it: this list governs what the
+# workspace is willing to *consume*, which is a different question from how the
+# workspace is licensed out. A permissive inbound policy under a copyleft
+# outbound grant is the combination that works — every license above may be
+# distributed inside an AGPL work, whereas the reverse would not hold.
+# `publish = false` keeps the crates off crates.io, and `private.ignore` exempts
+# them from this check.
 private = { ignore = true }
 
 [bans]

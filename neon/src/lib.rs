@@ -246,7 +246,7 @@ fn indexed_pages(mark: &str) -> Vec<portal::LlmsTxtLink> {
         page(
             "Neon Law Navigator",
             "/navigator",
-            "The firm's legal project platform, open source under MIT and Apache-2.0, with \
+            "The firm's legal project platform, free software under the AGPL-3.0, with \
                  an open invitation to co-counsel a pro bono case.",
         ),
         page(

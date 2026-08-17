@@ -60,15 +60,16 @@ fn cli_version() -> &'static str {
 ///
 /// A downloaded `navigator` arrives as one executable with no repository and
 /// no accompanying files, so the terms it is licensed under have to travel
-/// inside it. `--license` prints this verbatim. Root `LICENSE.md` stays the
+/// inside it. `--license` prints this verbatim. Root `LICENSE` stays the
 /// source of truth and `cli/tests/license_of_record.rs` pins the two together,
 /// so the printed terms cannot drift from the ones the repository publishes.
 ///
-/// Both grants require this rather than merely inviting it: MIT conditions its
-/// permission on the notice travelling with every copy, and Apache-2.0 § 4(a)
-/// obliges a redistributor to hand recipients a copy of the License. A bare
-/// executable someone was given is a copy.
-const LICENSE: &str = include_str!("../../LICENSE.md");
+/// The AGPL requires this rather than merely inviting it: § 4 conditions the
+/// permission to convey on handing every recipient a copy of this License along
+/// with the work. A bare executable someone was given is a copy, and § 13 may
+/// oblige its holder to pass the source on in turn — they cannot honour a
+/// licence they were never shown.
+const LICENSE: &str = include_str!("../../LICENSE");
 
 /// The third-party licence notices, compiled into the binary for the same
 /// reason as [`LICENSE`]: a single downloaded executable has to be able to

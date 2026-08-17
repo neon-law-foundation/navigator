@@ -51,9 +51,9 @@ name: deploy
 #      it stops running, Project CI breaks everywhere with a download 404 and
 #      nothing in THIS repository goes red.
 #
-#      Each archive carries LICENSE.md, LICENSE-MIT, and LICENSE-APACHE beside
-#      the executable: whoever unpacks it holds the binary and not the
-#      repository, and both grants require the notice to travel with the copy.
+#      Each archive carries LICENSE beside the executable: whoever unpacks it
+#      holds the binary and not the repository, and AGPL § 4 requires this
+#      License to travel with every copy conveyed.
 #   3. notify      — post the publish report to #navigator via the prod ops
 #      incoming webhook (SLACK_WEBHOOK_URL, a GitHub Actions secret): what this
 #      run published, then the `ops ship` command per `deployments/` row with
@@ -1766,15 +1766,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist/navigator-windows | Out-Null
           Copy-Item "target/release/navigator.exe" "dist/navigator-windows/navigator.exe"
-          # All three texts travel with the archive. LICENSE.md states the dual
-          # grant and the trademark reservation; LICENSE-MIT and LICENSE-APACHE
-          # are the two the recipient may choose between. MIT conditions its
-          # permission on the notice travelling with every copy, and Apache-2.0
-          # § 4(a) obliges a redistributor to hand over the License, so an
-          # archive without them is a compliance gap rather than an oversight.
-          Copy-Item "LICENSE.md" "dist/navigator-windows/LICENSE.md"
-          Copy-Item "LICENSE-MIT" "dist/navigator-windows/LICENSE-MIT"
-          Copy-Item "LICENSE-APACHE" "dist/navigator-windows/LICENSE-APACHE"
+          # LICENSE travels with the archive. It carries the AGPL text, the
+          # trademark reservation, and the § 13 network obligation. AGPL § 4
+          # conditions the permission to convey on handing every recipient this
+          # License along with the work, so an archive without it is a
+          # compliance gap rather than an oversight.
+          Copy-Item "LICENSE" "dist/navigator-windows/LICENSE"
           Compress-Archive -Path "dist/navigator-windows/*" -DestinationPath "dist/navigator-$env:TAG-windows.zip" -Force
       - uses: ./.github/actions/slack-progress
         with:
@@ -1840,18 +1837,16 @@ jobs:
           set -euo pipefail
           mkdir -p dist/navigator-linux
           install -m 0755 target/release/navigator dist/navigator-linux/navigator
-          # All three texts travel with the archive, for the reason the Windows
+          # LICENSE travels with the archive, for the reason the Windows
           # packaging step gives. `.github/actions/validate` extracts only
-          # `navigator`, so the extra members cost a CI consumer nothing.
-          install -m 0644 LICENSE.md dist/navigator-linux/LICENSE.md
-          install -m 0644 LICENSE-MIT dist/navigator-linux/LICENSE-MIT
-          install -m 0644 LICENSE-APACHE dist/navigator-linux/LICENSE-APACHE
+          # `navigator`, so the extra member costs a CI consumer nothing.
+          install -m 0644 LICENSE dist/navigator-linux/LICENSE
           # `-C` is load-bearing: the members must sit at the archive ROOT.
           # `.github/actions/validate` unpacks with
           # `tar -xzf "${asset}" -C "${tmp}" navigator`, which matches nothing
           # if the binary carries a `dist/navigator-linux/` prefix.
           tar -czf "dist/navigator-${TAG}-linux.tar.gz" \
-              -C dist/navigator-linux navigator LICENSE.md LICENSE-MIT LICENSE-APACHE
+              -C dist/navigator-linux navigator LICENSE
       - uses: ./.github/actions/slack-progress
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -1917,17 +1912,15 @@ jobs:
           set -euo pipefail
           mkdir -p dist/navigator-macos
           install -m 0755 target/release/navigator dist/navigator-macos/navigator
-          # All three texts travel with the archive, for the reason the Windows
+          # LICENSE travels with the archive, for the reason the Windows
           # packaging step gives.
-          install -m 0644 LICENSE.md dist/navigator-macos/LICENSE.md
-          install -m 0644 LICENSE-MIT dist/navigator-macos/LICENSE-MIT
-          install -m 0644 LICENSE-APACHE dist/navigator-macos/LICENSE-APACHE
+          install -m 0644 LICENSE dist/navigator-macos/LICENSE
           # `-C` is load-bearing for the same reason it is on Linux: the
           # validate action unpacks with `tar -xzf "${asset}" -C "${tmp}"
           # navigator`, which matches nothing if the binary carries a
           # `dist/navigator-macos/` prefix.
           tar -czf "dist/navigator-${TAG}-macos.tar.gz" \
-              -C dist/navigator-macos navigator LICENSE.md LICENSE-MIT LICENSE-APACHE
+              -C dist/navigator-macos navigator LICENSE
       - uses: ./.github/actions/slack-progress
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -644,16 +644,16 @@ fn the_pinned_wasm_bindgen_cli_matches_the_locked_wasm_bindgen_crate() {
 /// A Containerfile that compiles `cli` must stage the root files `cli` bakes in.
 ///
 /// The same class of drift as the `views`/`docs` invariant above, one crate
-/// over: `cli/src/main.rs` carries `include_str!("../../LICENSE.md")` and
+/// over: `cli/src/main.rs` carries `include_str!("../../LICENSE")` and
 /// `include_str!("../../THIRD-PARTY-NOTICES.txt")` so a downloaded binary can
 /// print its own terms and attributions with no accompanying files. Those two
 /// live at the workspace root, outside the crate directory, so any builder that
-/// stages `cli` without them fails at `couldn't read .../LICENSE.md` — and because
+/// stages `cli` without them fails at `couldn't read .../LICENSE` — and because
 /// no PR check builds an image, the break would first surface in the release
 /// deploy.
 #[test]
 fn images_that_copy_cli_also_copy_the_root_files_it_embeds() {
-    let embedded = ["LICENSE.md", "THIRD-PARTY-NOTICES.txt"];
+    let embedded = ["LICENSE", "THIRD-PARTY-NOTICES.txt"];
 
     // Pin the reason this test exists: if the embeds move or are removed, this
     // fails first and points at the guard rather than at eight image builds.

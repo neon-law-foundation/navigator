@@ -372,11 +372,10 @@ to no such guard.
 
 The release run proves the workspace in KIND and publishes all service and trigger images, plus three `navigator` CLI
 archives attached to the GitHub Release hanging off the pushed tag: `navigator-<tag>-windows.zip`,
-`navigator-<tag>-linux.tar.gz`, and `navigator-<tag>-macos.tar.gz`. Each carries the executable beside `LICENSE.md`,
-`LICENSE-MIT`, and `LICENSE-APACHE`. Container images are **linux/amd64 only**; GKE Autopilot consumes amd64. The macOS
-archive is arm64 — `macos-latest` is Apple silicon — so an Intel Mac still builds the immutable release tag locally with
-Cargo, and the `#navigator` report carries that exact command beside the three downloads. Failure at any stage pages
-`#navigator`.
+`navigator-<tag>-linux.tar.gz`, and `navigator-<tag>-macos.tar.gz`. Each carries the executable beside `LICENSE`.
+Container images are **linux/amd64 only**; GKE Autopilot consumes amd64. The macOS archive is arm64 — `macos-latest` is
+Apple silicon — so an Intel Mac still builds the immutable release tag locally with Cargo, and the `#navigator` report
+carries that exact command beside the three downloads. Failure at any stage pages `#navigator`.
 
 **Every publishing run builds all three CLI archives, and Project CI depends on them.** `release-windows-cli-build`,
 `release-cli-build-linux`, and `release-cli-build-macos` carry no `if:` of their own — they need the two publish jobs,

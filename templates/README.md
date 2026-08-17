@@ -144,13 +144,12 @@ attorneys in [`docs/frontmatter.md`](../docs/frontmatter.md); editor setup is in
 
 ## Licensing
 
-This tree is licensed differently from the rest of the repository, and deliberately so.
+This tree is licensed on the same terms as the rest of the repository, and deliberately so.
 
-**The notation bodies here are [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)** — the legal prose, the
-questionnaire prompts, and the workflow definitions carried in the same files. Adapt them, redistribute them, and use
-them commercially; the only obligation is attribution. The software that runs them is `MIT OR Apache-2.0`, but a
-retainer is a drafted document rather than a program, and the obligations a software licence imposes describe nothing it
-does. See [`../LICENSE.md`](../LICENSE.md).
+**The notation bodies here are `AGPL-3.0-only`** — the legal prose, the questionnaire prompts, and the workflow
+definitions carried in the same files, exactly like the code that renders them. Adapt them, redistribute them, and use
+them commercially. The prose and the state machine are the same file here, so a split licence would ask you to work out
+which half of a line you are editing; one grant means there is one answer. See [`../LICENSE`](../LICENSE).
 
 **The blank government PDFs under `forms/` are not the Firm's to license.** They are works of the issuing state or
 federal agency, reproduced here so the binary embeds the same bytes the repo carries. The Firm claims no copyright in
