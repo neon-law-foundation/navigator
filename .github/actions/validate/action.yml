@@ -146,7 +146,7 @@ runs:
             exit 1
         fi
 
-        # Unpack only the executable; the archive also carries LICENSE.md.
+        # Unpack only the executable; the archive also carries LICENSE.
         tar -xzf "${tmp}/${asset}" -C "${tmp}" navigator
         install -d "${RUNNER_TEMP}/navigator-bin"
         install -m 0755 "${tmp}/navigator" "${RUNNER_TEMP}/navigator-bin/navigator"

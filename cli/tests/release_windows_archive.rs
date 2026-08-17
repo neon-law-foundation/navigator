@@ -52,9 +52,7 @@ fn releases_build_and_attach_a_windows_cli_archive() {
         "runs-on: windows-latest",
         "NAVIGATOR_RELEASE_TAG: ${{ needs.release-version.outputs.tag }}",
         "Copy-Item \"target/release/navigator.exe\"",
-        "Copy-Item \"LICENSE.md\"",
-        "Copy-Item \"LICENSE-MIT\"",
-        "Copy-Item \"LICENSE-APACHE\"",
+        "Copy-Item \"LICENSE\"",
         "Compress-Archive -Path \"dist/navigator-windows/*\"",
         "release-windows-cli-publish:",
         "gh release create \"${TAG}\"",
@@ -217,10 +215,8 @@ fn releases_build_and_attach_a_macos_cli_archive() {
         "release-cli-build-macos:",
         "runs-on: macos-latest",
         "install -m 0755 target/release/navigator dist/navigator-macos/navigator",
-        "install -m 0644 LICENSE.md dist/navigator-macos/LICENSE.md",
-        "install -m 0644 LICENSE-MIT dist/navigator-macos/LICENSE-MIT",
-        "install -m 0644 LICENSE-APACHE dist/navigator-macos/LICENSE-APACHE",
-        "-C dist/navigator-macos navigator LICENSE.md LICENSE-MIT LICENSE-APACHE",
+        "install -m 0644 LICENSE dist/navigator-macos/LICENSE",
+        "-C dist/navigator-macos navigator LICENSE",
         "name: navigator-macos-cli",
         "gh release upload \"${TAG}\" dist/navigator-*-macos.tar.gz",
     ] {
@@ -302,10 +298,8 @@ fn releases_build_and_attach_a_linux_cli_archive() {
         "release-cli-build-linux:",
         "runs-on: ubuntu-latest",
         "install -m 0755 target/release/navigator dist/navigator-linux/navigator",
-        "install -m 0644 LICENSE.md dist/navigator-linux/LICENSE.md",
-        "install -m 0644 LICENSE-MIT dist/navigator-linux/LICENSE-MIT",
-        "install -m 0644 LICENSE-APACHE dist/navigator-linux/LICENSE-APACHE",
-        "-C dist/navigator-linux navigator LICENSE.md LICENSE-MIT LICENSE-APACHE",
+        "install -m 0644 LICENSE dist/navigator-linux/LICENSE",
+        "-C dist/navigator-linux navigator LICENSE",
         "name: navigator-linux-cli",
         "gh release upload \"${TAG}\" dist/navigator-*-linux.tar.gz",
     ] {
@@ -339,49 +333,48 @@ fn the_linux_archive_name_matches_what_the_validate_action_downloads() {
     );
 }
 
-/// Every CLI archive carries the licence and both grants.
+/// Every CLI archive carries the licence.
 ///
-/// They answer different questions and none substitutes for another:
-/// `LICENSE.md` states the dual grant, the content licence, and the trademark
-/// reservation, while `LICENSE-MIT` and `LICENSE-APACHE` are the two texts the
-/// recipient chooses between. A recipient holds the archive and not the
-/// repository — that is the whole point of shipping a binary — so MIT's
-/// condition that the notice travel with every copy, and Apache-2.0 § 4(a)'s
-/// obligation to hand recipients the License, are met by the archive or not at
-/// all. An archive naming a choice whose texts it omits offers no choice.
+/// A recipient holds the archive and not the repository — that is the whole
+/// point of shipping a binary — so AGPL § 4's condition that a conveyor hand
+/// every recipient this License along with the work is met by the archive or not
+/// at all. It matters more here than under the retired permissive grant: § 13
+/// can oblige that recipient to pass the corresponding source on in turn, and
+/// nobody honours an obligation from terms they were never shown.
 ///
 /// Asserted per platform rather than once over the file, because the packaging
 /// steps are written in different shells against different paths and a fix to
 /// one has already missed another.
 #[test]
-fn every_cli_archive_carries_the_licence_and_both_grants() {
+fn every_cli_archive_carries_the_licence() {
     let workflow = deploy_workflow();
 
-    for (platform, licence, second_grant) in [
+    for (platform, staged, archived) in [
         (
             "Windows",
-            "Copy-Item \"LICENSE.md\"",
-            "Copy-Item \"LICENSE-APACHE\"",
+            "Copy-Item \"LICENSE\" \"dist/navigator-windows/LICENSE\"",
+            "Compress-Archive -Path \"dist/navigator-windows/*\"",
         ),
         (
             "Linux",
-            "install -m 0644 LICENSE.md dist/navigator-linux/LICENSE.md",
-            "install -m 0644 LICENSE-APACHE dist/navigator-linux/LICENSE-APACHE",
+            "install -m 0644 LICENSE dist/navigator-linux/LICENSE",
+            "-C dist/navigator-linux navigator LICENSE",
         ),
         (
             "macOS",
-            "install -m 0644 LICENSE.md dist/navigator-macos/LICENSE.md",
-            "install -m 0644 LICENSE-APACHE dist/navigator-macos/LICENSE-APACHE",
+            "install -m 0644 LICENSE dist/navigator-macos/LICENSE",
+            "-C dist/navigator-macos navigator LICENSE",
         ),
     ] {
         assert!(
-            workflow.contains(licence),
-            "the {platform} archive must stage LICENSE.md"
+            workflow.contains(staged),
+            "the {platform} archive must stage LICENSE"
         );
         assert!(
-            workflow.contains(second_grant),
-            "the {platform} archive must stage LICENSE-APACHE — a dual licence \
-             whose second half is missing is a single licence"
+            workflow.contains(archived),
+            "the {platform} archive must carry LICENSE into the archive itself — \
+             staging it beside the binary and then packing only the binary ships \
+             an executable with no terms"
         );
     }
 }
