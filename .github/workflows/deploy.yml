@@ -181,6 +181,11 @@ jobs:
       # ref/event boolean — a `kind-ci/**` branch run reports false and stops
       # after integration.
       publishable: ${{ steps.version.outputs.publishable }}
+      # Whether this tag is a same-day `-hotfix.H` prerelease. It gates the two
+      # places a prerelease must NOT behave like an ordinary release: the GitHub
+      # Release is marked as a prerelease, and the Homebrew tap is not told
+      # about it at all (see `release-homebrew-tap`).
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       # Sparse, but NOT metadata-only: this job compares the tag against
       # `[workspace.package].version`, so the manifest has to be on disk. A path
@@ -214,6 +219,7 @@ jobs:
               # publishing job is gated on `publishable`.
               echo "tag=${REF_NAME}" >> "$GITHUB_OUTPUT"
               echo "publishable=false" >> "$GITHUB_OUTPUT"
+              echo "prerelease=false" >> "$GITHUB_OUTPUT"
               echo "branch iteration ${REF_NAME}: integration only, nothing publishes"
               exit 0
           fi
@@ -222,23 +228,35 @@ jobs:
 
           # 1. SHAPE. The push filter already admits only `[0-9]*.[0-9]*.[0-9]*`,
           #    but that glob is far looser than it looks — fnmatch's `*` matches
-          #    dots, so `26.8.17.13` and `26.8.x` both pass it. Anchor the real
-          #    shape here: two-digit year, unpadded month and day, three
-          #    components and no fourth.
+          #    dots, so `26.8.17.13`, `26.8.x`, and every `-hotfix.H` tag below
+          #    all pass it. Anchor the real shape here: two-digit year, unpadded
+          #    month and day, and an OPTIONAL `-hotfix.H` prerelease.
           #
-          #    THREE COMPONENTS IS NOT A STYLE CHOICE. Cargo parses
-          #    `[workspace.package].version` as strict semver and rejects a
-          #    fourth component outright ("unexpected character '.' after patch
-          #    version number"), so a `YY.M.D.H` tag could never equal the
-          #    manifest — check 3 below would be unsatisfiable, and the
-          #    hour-suffixed emergency release it implies has no valid spelling.
-          #    One release per UTC day is the constraint that falls out of that.
-          if ! printf '%s' "${tag}" | grep -Eq '^[0-9]{2}\.[0-9]{1,2}\.[0-9]{1,2}$'; then
-              echo "::error::tag ${tag} is not a YY.M.D release version (two-digit year, unpadded month and day, exactly three components)"
+          #    A FOURTH COMPONENT IS STILL IMPOSSIBLE, BUT A PRERELEASE IS NOT.
+          #    Cargo parses `[workspace.package].version` as strict semver and
+          #    rejects `26.8.17.13` outright ("unexpected character '.' after
+          #    patch version number") — so a `YY.M.D.H` tag could never equal
+          #    the manifest and check 3 would be unsatisfiable. A semver
+          #    PRERELEASE has no such problem: `26.8.18-hotfix.17` parses, and
+          #    Cargo holds it in the manifest verbatim. That is the whole reason
+          #    a same-day hotfix has a spelling at all.
+          #
+          #    `H` is bounded 0-23 with NO leading zero, because semver forbids
+          #    a leading zero in a numeric prerelease identifier — `hotfix.08`
+          #    is not a valid version, which is the same unpadded rule the date
+          #    components already follow.
+          if ! printf '%s' "${tag}" | grep -Eq '^[0-9]{2}\.[0-9]{1,2}\.[0-9]{1,2}(-hotfix\.([0-9]|1[0-9]|2[0-3]))?$'; then
+              echo "::error::tag ${tag} is not a YY.M.D release version, optionally suffixed -hotfix.H (two-digit year, unpadded month and day, H an unpadded UTC hour 0-23)"
               exit 1
           fi
 
-          # 2. DATE. `YY.M.D` admits one release per calendar day by
+          # Split the semver base from the optional prerelease. Every check
+          # below reasons about the base date; `prerelease` decides only whether
+          # this publishes as a hotfix (see the `prerelease` output).
+          base="${tag%%-*}"
+          if [ "${base}" = "${tag}" ]; then prerelease=false; else prerelease=true; fi
+
+          # 2. DATE. `YY.M.D` admits one ordinary release per calendar day by
           #    construction; checking it makes that a guarantee rather than a
           #    convention, and catches the midnight edge before anything is
           #    built.
@@ -257,10 +275,38 @@ jobs:
           #    refusing: nothing is built yet, so re-tagging costs a minute.
           read -r y m d <<< "$(TZ=UTC date +'%y %m %d')"
           today="$((10#$y)).$((10#$m)).$((10#$d))"
-          if [ "${tag}" != "${today}" ]; then
-              echo "::error::tag ${tag} is not today's UTC date — push ${today} instead (one release per UTC calendar day)"
+          read -r y m d <<< "$(TZ=UTC date -d 'tomorrow' +'%y %m %d' 2>/dev/null || TZ=UTC date -v+1d +'%y %m %d')"
+          tomorrow="$((10#$y)).$((10#$m)).$((10#$d))"
+
+          #    A HOTFIX HANGS OFF TOMORROW'S BASE, NOT TODAY'S, and that is a
+          #    correctness requirement rather than a naming taste. Semver ranks
+          #    a prerelease BELOW its own base version (spec §11.3), so
+          #    `26.8.17-hotfix.17` would sort as OLDER than the `26.8.17` it
+          #    exists to fix — Cargo, Homebrew, and every image sort would read
+          #    the fix as the earlier release. Hanging it off the next day makes
+          #    the order monotonic and true:
+          #
+          #        26.8.17 < 26.8.18-hotfix.17 < 26.8.18-hotfix.21 < 26.8.18
+          #
+          #    Read plainly, a hotfix IS tomorrow's release cut early: it
+          #    carries fixes that would otherwise wait for the next UTC day.
+          if [ "${prerelease}" = "true" ]; then
+              expected="${tomorrow}"
+              label="tomorrow's UTC date (a hotfix sorts below its own base, so it hangs off the NEXT day)"
+          else
+              expected="${today}"
+              label="today's UTC date (one ordinary release per UTC calendar day)"
+          fi
+          if [ "${base}" != "${expected}" ]; then
+              echo "::error::tag ${tag} has base ${base}, which is not ${label} — expected base ${expected}"
               exit 1
           fi
+
+          #    NOTHING CLOCK-CHECKS `H`. It is a uniqueness-and-ordering
+          #    discriminator, not an assertion this job can verify: a tag pushed
+          #    at 17:58 whose run starts at 18:01 carries an hour that was
+          #    correct when pushed, and failing it would burn an immutable tag
+          #    over queue latency. The shape check above is the whole contract.
 
           # 3. MANIFEST. The check that makes a published image's self-reported
           #    version true. `cli/build.rs` bakes
@@ -301,7 +347,12 @@ jobs:
 
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "publishable=true" >> "$GITHUB_OUTPUT"
-          echo "release ${tag}: shape, UTC date, and workspace version all agree"
+          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+          if [ "${prerelease}" = "true" ]; then
+              echo "hotfix ${tag}: shape, base date ${base} (tomorrow UTC), and workspace version all agree — publishes as a prerelease, and the Homebrew tap is NOT notified"
+          else
+              echo "release ${tag}: shape, UTC date, and workspace version all agree"
+          fi
 
 
   # ---------- Stage 0: build both service images in parallel ----------
@@ -2022,18 +2073,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release-version.outputs.tag }}
+          PRERELEASE: ${{ needs.release-version.outputs.prerelease }}
         run: |
           set -euo pipefail
           GH_HOST="${GITHUB_SERVER_URL#https://}"
           export GH_HOST
           if ! gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+              # A `-hotfix.H` tag is marked as a prerelease so GitHub stops
+              # reporting it as "Latest release". Without this the hotfix would
+              # become the front-page download even though it is, by semver
+              # precedence, ranked BELOW the ordinary release it precedes.
+              flags=(--title "Neon Law Navigator ${TAG}" --generate-notes)
+              if [ "${PRERELEASE}" = "true" ]; then
+                  flags+=(--prerelease)
+              fi
               # NO `--target`. The tag already exists — it is what started this
               # run — so the Release hangs off the ref a person pushed, at the
               # SHA every archive in this run was compiled from. `--target` was
               # load-bearing while this job CREATED the tag, and passing it now
               # would name a SHA for a ref that already has one.
-              gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" \
-                  --title "Neon Law Navigator ${TAG}" --generate-notes
+              gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" "${flags[@]}"
           fi
           gh release upload "${TAG}" dist/navigator-*-windows.zip \
               --repo "${GITHUB_REPOSITORY}" --clobber
@@ -2050,7 +2109,8 @@ jobs:
   # the bytes the job above just attached. Shipping digests in the payload would
   # let a malformed dispatch pin the formula to bytes nobody verified, and would
   # leave the tap unable to repair a bad bump without a new release here — which
-  # `YY.M.D` makes impossible until tomorrow.
+  # `YY.M.D` makes impossible until tomorrow, since the tap sees only ordinary
+  # releases and never the `-hotfix.H` tags below.
   #
   # WHY A SEPARATE REPOSITORY. A tap is a Git repository Homebrew clones and
   # re-reads on every `brew update`, and the formula changes on a cadence this
@@ -2066,6 +2126,14 @@ jobs:
   # A tap that silently stops updating reports a stale version to everyone who
   # installed through it, and nothing anywhere goes red — the same shape as the
   # Project-CI 404 the archive jobs above exist to prevent.
+  #
+  # A HOTFIX NEVER REACHES THE TAP. The formula has exactly one version and
+  # every `brew install` resolves to it, so bumping it to a `-hotfix.H`
+  # prerelease would hand an rc to every macOS user who ran `brew update` —
+  # while ranking BELOW the ordinary release, so the tap could not even be
+  # walked forward to it correctly. A hotfix publishes images and archives for
+  # the operator to ship; `brew` keeps resolving the last ordinary release until
+  # the next one lands.
   release-homebrew-tap:
     name: hand the release to the Homebrew tap
     needs: [release-windows-cli-publish, release-version]
@@ -2073,8 +2141,10 @@ jobs:
     # downloads the attached archives to digest them, and a dispatch sent
     # earlier would race an empty Release. `release-windows-cli-publish`
     # already carries the `publishable` gate, so needing it is the whole
-    # condition.
-    if: needs.release-version.outputs.publishable == 'true'
+    # condition — plus the hotfix exclusion above.
+    if: >-
+      needs.release-version.outputs.publishable == 'true' &&
+      needs.release-version.outputs.prerelease != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # No `contents: write`. This job writes nothing in THIS repository; the
@@ -2176,6 +2246,9 @@ jobs:
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       TAG: ${{ needs.release-version.outputs.tag }}
+      # Whether this is a `-hotfix.H` prerelease. The install message reads it
+      # to stop naming `brew`, which cannot resolve a tag the tap never saw.
+      PRERELEASE: ${{ needs.release-version.outputs.prerelease }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       # The repository that holds the deployment tree. It lives in Actions
       # configuration rather than in this file so renaming or replacing it is a
@@ -2245,14 +2318,25 @@ jobs:
               echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the CLI installation instructions"
               exit 1
           fi
+          # A hotfix is never handed to the tap (see `release-homebrew-tap`), so
+          # naming `brew` here would tell the channel to install a version brew
+          # cannot resolve — it would silently fetch the last ordinary release
+          # instead, under this tag's heading. Say so rather than imply it.
+          if [ "${PRERELEASE}" = "true" ]; then
+              BREW_LINE="• macOS and Linux via \`brew\`: *not available for a hotfix.* The tap is deliberately not bumped to a prerelease, so \`brew install\`/\`brew upgrade\` keeps resolving the last ordinary release. Use the direct archive below, or build the tagged source."
+              BREW_FALLBACK="."
+          else
+              BREW_LINE="• macOS and Linux, any architecture: \`brew install neon-law-foundation/navigator/navigator\` (or \`brew upgrade navigator\` if you already have it). This is the recommended path on a Mac — the released binary is unsigned, and Gatekeeper blocks an unsigned Mach-O downloaded through a browser but not one brew fetched with curl."
+              BREW_FALLBACK=" — or let \`brew\` do exactly that for you."
+          fi
           TEXT="*CLI installation for ${TAG}*
 
-          • macOS and Linux, any architecture: \`brew install neon-law-foundation/navigator/navigator\` (or \`brew upgrade navigator\` if you already have it). This is the recommended path on a Mac — the released binary is unsigned, and Gatekeeper blocks an unsigned Mach-O downloaded through a browser but not one brew fetched with curl.
+          ${BREW_LINE}
           • Windows: download \`navigator-${TAG}-windows.zip\` from the \`${TAG}\` GitHub Release, extract it, and add its folder to \`PATH\`.
           • macOS (Apple silicon): download \`navigator-${TAG}-macos.tar.gz\` from the same Release, then \`tar -xzf navigator-${TAG}-macos.tar.gz navigator && install -m 0755 navigator /usr/local/bin/navigator && navigator --version\`.
           • Linux: download \`navigator-${TAG}-linux.tar.gz\` from the same Release, then \`tar -xzf navigator-${TAG}-linux.tar.gz navigator && install -m 0755 navigator /usr/local/bin/navigator && navigator --version\`.
 
-          On an Intel Mac there is no prebuilt archive; build the tagged source: \`tmp=\"\$(mktemp -d /tmp/navigator.XXXXXX)\" && git clone --depth 1 --branch \"${TAG}\" https://github.com/neon-law-foundation/navigator.git \"\$tmp\" && NAVIGATOR_RELEASE_TAG=\"${TAG}\" cargo install --locked --path \"\$tmp/cli\" --force && rm -rf \"\$tmp\" && navigator --version\` — or let \`brew\` do exactly that for you.
+          On an Intel Mac there is no prebuilt archive; build the tagged source: \`tmp=\"\$(mktemp -d /tmp/navigator.XXXXXX)\" && git clone --depth 1 --branch \"${TAG}\" https://github.com/neon-law-foundation/navigator.git \"\$tmp\" && NAVIGATOR_RELEASE_TAG=\"${TAG}\" cargo install --locked --path \"\$tmp/cli\" --force && rm -rf \"\$tmp\" && navigator --version\`${BREW_FALLBACK}
 
           Run: ${RUN_URL}"
           PAYLOAD=$(jq -n --arg text "${TEXT}" '{ text: $text }')

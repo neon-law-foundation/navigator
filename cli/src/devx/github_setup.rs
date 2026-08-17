@@ -1454,6 +1454,61 @@ mod tests {
         assert_eq!(kinds, vec!["deletion", "update", "non_fast_forward"]);
     }
 
+    /// The ruleset must protect a `-hotfix.H` tag too, and it does so with no
+    /// pattern change: GitHub matches `ref_name` conditions with fnmatch, whose
+    /// `*` matches any character including `.` and `-`. That looseness is a
+    /// liability for the workflow's own shape check — which is why `deploy.yml`
+    /// anchors a real regex — but here it is exactly right: every tag the release
+    /// workflow will ever accept is immutable.
+    ///
+    /// This is the property a licensee depends on. A hotfix publishes images and
+    /// archives under its name, so a movable hotfix tag would let those bytes be
+    /// relabelled after the fact.
+    /// fnmatch semantics, narrowed to the `[0-9]` classes and `*` the
+    /// release-tag pattern uses — enough to prove which tag shapes GitHub's
+    /// `ref_name` condition covers.
+    fn fnmatch(pattern: &[u8], name: &[u8]) -> bool {
+        match pattern.first() {
+            None => name.is_empty(),
+            Some(b'*') => (0..=name.len()).any(|skip| fnmatch(&pattern[1..], &name[skip..])),
+            Some(b'[') => {
+                let close = pattern.iter().position(|&byte| byte == b']');
+                match (close, name.first()) {
+                    (Some(close), Some(&candidate)) => {
+                        let class = &pattern[1..close];
+                        let matched = class.windows(3).any(|window| {
+                            window[1] == b'-' && candidate >= window[0] && candidate <= window[2]
+                        });
+                        matched && fnmatch(&pattern[close + 1..], &name[1..])
+                    }
+                    _ => false,
+                }
+            }
+            Some(&literal) => match name.first() {
+                Some(&candidate) if candidate == literal => fnmatch(&pattern[1..], &name[1..]),
+                _ => false,
+            },
+        }
+    }
+
+    #[test]
+    fn release_tag_ruleset_also_covers_hotfix_prereleases() {
+        let value = serde_json::to_value(desired_tag_ruleset()).unwrap();
+        let pattern = value["conditions"]["ref_name"]["include"][0]
+            .as_str()
+            .expect("the ruleset must include a tag pattern");
+        let pattern = pattern
+            .strip_prefix("refs/tags/")
+            .expect("the pattern is scoped to tags");
+
+        for tag in ["26.8.17", "26.8.18-hotfix.17", "26.12.25-hotfix.0"] {
+            assert!(
+                fnmatch(pattern.as_bytes(), tag.as_bytes()),
+                "the release-tags ruleset must make {tag} immutable"
+            );
+        }
+    }
+
     #[test]
     fn desired_ruleset_serializes_to_github_put_payload() {
         let value = serde_json::to_value(desired_branch_ruleset()).unwrap();

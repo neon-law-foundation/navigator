@@ -74,6 +74,7 @@ lopdf.workspace = true
 neon.workspace = true
 predicates.workspace = true
 regorus.workspace = true
+semver.workspace = true
 store = { workspace = true, features = ["test-support"] }
 wiremock.workspace = true
 

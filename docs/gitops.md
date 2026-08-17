@@ -321,13 +321,13 @@ sat at `0.1.0` while published images marched on under names the source had neve
 itself. The tag threads into every image build as the `RELEASE_TAG` build-arg, which each Containerfile turns into the
 runtime environment variable `NAVIGATOR_RELEASE_TAG`.
 
-**Exactly three components, and no hour suffix.** An emergency same-day release has no valid spelling, because Cargo
-parses `[workspace.package].version` as strict semver and rejects a fourth component outright — `26.8.17.13` fails with
-`unexpected character '.' after patch version number`. A `YY.M.D.H` tag could therefore never equal the manifest, which
-would make the tag-equals-manifest check below unsatisfiable. One release per UTC calendar day is what falls out of
-that, not a policy layered on top of it. `release-version` anchors the shape with a regex rather than trusting the push
-filter, whose `[0-9]*.[0-9]*.[0-9]*` glob is looser than it looks: fnmatch's `*` matches dots, so that filter alone
-admits `26.8.17.13`.
+**Three components, plus an optional `-hotfix.H` prerelease.** No fourth component is possible: Cargo parses
+`[workspace.package].version` as strict semver and rejects one outright, so a `YY.M.D.H` tag could never equal the
+manifest and the tag-equals-manifest check below would be unsatisfiable. A semver *prerelease* has no such problem:
+`26.8.18-hotfix.17` parses, and Cargo holds it verbatim. That is the whole reason a same-day hotfix has a spelling at
+all — see [Releasing twice in one day](#releasing-twice-in-one-day). `release-version` anchors the shape with a regex
+rather than trusting the push filter, whose `[0-9]*.[0-9]*.[0-9]*` glob is looser than it looks: fnmatch's `*` matches
+dots and hyphens, so that filter alone admits `26.8.17.13`.
 
 **This workflow deploys nothing, and holds no cloud credential.** It ends at the registry. Putting a version in front of
 real clients' matters is a separate act a person takes from their own machine — see [The deploy is a human
@@ -346,10 +346,60 @@ cargo run -p cli -- dev browser-e2e
 Green locally is the precondition for pushing the tag. A `kind-ci/<topic>` branch push is the CI-side alternative when
 the change is to the workflow itself rather than to a page — it runs `integration` alone and publishes nothing.
 
-**One tag per calendar day, in UTC.** `YY.M.D` admits only one tag per day by construction, and `release-version`
-enforces it rather than trusting it: a tag that is not the current UTC date fails the run at its first job, before any
-image is built. UTC is the zone this convention has always been derived in, it carries no DST discontinuity, and the
-runner clock is already UTC.
+**One ordinary tag per calendar day, in UTC.** `YY.M.D` admits only one per day by construction, and `release-version`
+enforces it rather than trusting it: a tag whose base is not the current UTC date fails the run at its first job, before
+any image is built. UTC is the zone this convention has always been derived in, it carries no DST discontinuity, and the
+runner clock is already UTC. A day whose tag is already spent releases again through a `-hotfix.H` prerelease, below.
+
+### Releasing twice in one day
+
+The day's release name is spent the moment it is pushed: `YY.M.D` admits one ordinary tag per UTC day, and the
+`release-tags` ruleset restricts deletion, update, and non-fast-forward with no bypass actor, so the tag cannot be moved
+onto a fix. Releasing again that day means a new name, and the only valid one is a semver prerelease:
+
+```text
+26.8.18-hotfix.17
+```
+
+**The base is the NEXT day, and that is correctness rather than taste.** Semver ranks a prerelease *below* its own base
+version (spec §11.3), so `26.8.17-hotfix.17` would sort as **older** than the `26.8.17` it exists to fix — Cargo,
+Homebrew, and every image sort would read the fix as the earlier release. Hanging it off the next day makes the order
+monotonic and true:
+
+```text
+26.8.17  <  26.8.18-hotfix.17  <  26.8.18-hotfix.21  <  26.8.18
+```
+
+Read plainly, a hotfix *is* the next day's release cut early: it carries fixes that would otherwise wait for the next
+UTC day. Several hotfixes may run in one day, ordered by hour.
+
+`H` is the UTC hour, unpadded, `0`–`23`. The padding is not cosmetic — semver forbids a leading zero in a numeric
+prerelease identifier, so `hotfix.08` is not a valid version at all. Nothing clock-checks `H` against the run's own
+hour: it is a uniqueness-and-ordering discriminator, and a tag pushed at 17:58 whose run starts at 18:01 carries an hour
+that was correct when pushed. Failing that would burn an immutable tag over queue latency.
+
+Write the version the same way as any other release, then land it and tag the merged commit:
+
+```bash
+cargo run -p cli -- ops release-version --hotfix
+```
+
+**A hotfix does not become the default download.** Two things behave differently from an ordinary release, both because
+a prerelease must not present itself as the latest version:
+
+| Surface | Ordinary release | `-hotfix.H` |
+| --- | --- | --- |
+| GHCR images and CLI archives | published | published |
+| GitHub Release | latest | flagged `--prerelease` |
+| Homebrew tap | bumped | **not notified** |
+
+The tap holds exactly one version and every `brew install` resolves to it, so bumping it to a prerelease would hand an
+rc to everyone who ran `brew update` — while ranking below the ordinary release it precedes, leaving the formula unable
+to walk forward correctly. `brew` keeps resolving the last ordinary release until the next one lands; the Slack install
+message says so rather than naming a `brew` command that would silently fetch something else.
+
+A hotfix is still a full release in every way that matters to a deploy: it proves the workspace in KIND, publishes every
+image, and hands the operator the same `ops ship` command.
 
 **The tag must carry its own version.** The same first job also fails a tag that does not equal `Cargo.toml`'s
 `[workspace.package].version` — the value every crate inherits through `version.workspace = true` and `cli/build.rs`
@@ -405,8 +455,9 @@ until it lands.
 actually carries the archives, and it sends a `repository_dispatch` naming the tag **and nothing else**. The tap
 computes every `sha256` itself by downloading the artifacts it will then tell readers to download. A payload carrying
 digests would let a malformed dispatch pin the formula to bytes nobody verified, and would leave the tap unable to
-repair a bad bump from a bare tag — which matters, because `YY.M.D` admits no second release the same UTC day. The tap
-covers that with a `workflow_dispatch` that re-runs any tag by hand.
+repair a bad bump from a bare tag — which matters, because the tap sees only ordinary releases and `YY.M.D` admits no
+second one the same UTC day. A `-hotfix.H` tag is deliberately never dispatched here, so it is no escape hatch for the
+formula either. The tap covers that with a `workflow_dispatch` that re-runs any tag by hand.
 
 **A separate repository, not a folder here.** A tap is a Git repository Homebrew clones and re-reads on every `brew
 update`, and its formula changes once per release, mechanically, with no review to add. Keeping it here would mean
@@ -476,14 +527,15 @@ Three lanes, cheapest first.
 
    This is [The manual deploy](#the-manual-deploy). `ship` builds nothing, refuses a tag absent from the registry, and
    `--dry-run` rehearses it first.
-3. **Fix forward on the next UTC day.** If the source is wrong, land the fix on `main` and tag the next day.
+3. **Fix forward the same day with a `-hotfix.H` tag.** If the source is wrong, land the fix on `main`, bump with
+   `ops release-version --hotfix`, and tag the merged commit. See [Releasing twice in one
+   day](#releasing-twice-in-one-day) for the shape and for the two surfaces a hotfix deliberately does not touch.
 
-**A same-day re-release is not possible, by construction.** One tag per calendar day plus immutable tags means the day's
-release name is spent the moment it is pushed: the `release-tags` ruleset restricts deletion and update, so the tag
-cannot be moved onto the fix, and no second `YY.M.D` exists for that day. If a same-day fix is genuinely required, the
-options are re-running failed jobs when the source is fine, or rolling back with `ops ship --tag <previous>` while the
-fix waits for the next UTC day. Deleting and re-pushing a tag is never the answer — a moved tag makes every artifact
-already carrying that version a lie.
+**The day's `YY.M.D` name is still spent, and the tag still cannot move.** The `release-tags` ruleset restricts
+deletion, update, and non-fast-forward with no bypass actor, and no second `YY.M.D` exists for that day — so a same-day
+fix takes a *new* name rather than a moved one. Deleting and re-pushing a tag is never the answer: a moved tag makes
+every artifact already carrying that version a lie. Rolling back with `ops ship --tag <previous>` remains the right move
+while a fix is still being written, since a hotfix has to be proven before it is worth shipping.
 
 ### Keyless pushes to GHCR
 
