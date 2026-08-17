@@ -134,3 +134,56 @@ async fn litigation_demo_participation_drives_client_and_lawyer_visibility() {
         "an admin session with no linked person fails closed"
     );
 }
+
+/// The shared demo matter holds the ENG-81 line for the fixture Admin.
+///
+/// `admin@neonlaw.com` is given no participation on `simpsons`, so it is absent
+/// from that Admin's list — and because one row gates both the list and
+/// `/app/projects/{id}`, the same absence withholds the matter's detail view. An
+/// Admin who needs reach navigates to `/app/admin` and grants themselves a row,
+/// which is auditable rather than silent.
+#[tokio::test]
+async fn the_shared_demo_matter_is_withheld_from_an_unassigned_admin() {
+    let surreal = mem_surreal().await;
+    let storage = storage().await;
+    store::seed::seed_environment(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Dev,
+        store::seed::BrandSeed::Neon,
+    )
+    .await
+    .unwrap();
+
+    let fixture_admin = store::persons::find_by_email_ci(&surreal, "admin@neonlaw.com")
+        .await
+        .unwrap()
+        .expect("the KIND fixture admin");
+    let fixture_admin_names = project_names(
+        store::access::visible_projects(&surreal, Some(fixture_admin.id), fixture_admin.role)
+            .await
+            .unwrap(),
+    );
+    assert!(
+        !fixture_admin_names.contains(&"Simpson v. Flanders".to_string()),
+        "the fixture admin holds no participation on the demo matter, so it must not \
+         appear in their list: {fixture_admin_names:?}"
+    );
+
+    // The contrast that proves the seed still wires the matter up at all: the
+    // Owner *is* given a row and does see it. Without this, dropping every
+    // firm-side row would satisfy the assertion above.
+    let owner = store::persons::find_by_email_ci(&surreal, "owner@neonlaw.com")
+        .await
+        .unwrap()
+        .expect("the KIND fixture owner");
+    let owner_names = project_names(
+        store::access::visible_projects(&surreal, Some(owner.id), owner.role)
+            .await
+            .unwrap(),
+    );
+    assert!(
+        owner_names.contains(&"Simpson v. Flanders".to_string()),
+        "the fixture owner is seeded onto the demo matter and must see it: {owner_names:?}"
+    );
+}

@@ -146,9 +146,12 @@ Foundation training host turns this on when trainings open; production keeps it 
   `client@neonlaw.com` in the KIND fixture below is the sole local exception to that non-firm-address rule.
 - **The KIND-only Rauthy fixture** seeds one account per role, each with password `password`: `owner@neonlaw.com`,
   `admin@neonlaw.com`, `lawyer@neonlaw.com`, `clerk@neonlaw.com`, and `client@neonlaw.com` (per
-  [`AGENTS.md`](../AGENTS.md#authentication-and-lawyer-access)). All five share one seeded demo matter, *Simpson v.
-  Flanders* (project code `simpsons`), so each role can be exercised on the same project. `lawyer@neonlaw.com` carries
-  exactly one role, lawyer, not admin.
+  [`AGENTS.md`](../AGENTS.md#authentication-and-lawyer-access)). Four of the five are seeded onto one demo matter,
+  *Simpson v. Flanders* (project code `simpsons`), so each can be exercised on the same project. `admin@neonlaw.com`
+  deliberately holds **no** participation on it: one row gates both `/app/projects` and `/app/projects/{id}`, so the
+  fixture Admin demonstrates the ENG-81 decision — an unassigned administrator sees the matter in neither place, and
+  reach is granted at `/app/admin` where it is auditable. `lawyer@neonlaw.com` carries exactly one role, lawyer, not
+  admin.
 
 Email identifies exactly one person regardless of casing. `persons.email` carries a unique index on `lower(email)`
 (`persons_email_lower_key`), and every lookup keyed on email goes through `store::persons::find_by_email_ci`, so an

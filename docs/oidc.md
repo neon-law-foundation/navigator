@@ -179,8 +179,10 @@ supplies:
 - **Client:** `navigator-web` — confidential Authorization Code flow, `S256` PKCE, RS256 id/access tokens, and loopback
   wildcard redirect, logout, and origin URLs for isolated worktree ports.
 - **Role accounts:** `owner@neonlaw.com`, `admin@neonlaw.com`, `lawyer@neonlaw.com`, `clerk@neonlaw.com`, and
-  `client@neonlaw.com`, each with password `password` and each carrying the matching app role. All five share one seeded
-  demo matter, *Simpson v. Flanders* (project code `simpsons`), so each role can be exercised on the same project.
+  `client@neonlaw.com`, each with password `password` and each carrying the matching app role. Four of the five are
+  seeded onto one demo matter, *Simpson v. Flanders* (project code `simpsons`); `admin@neonlaw.com` deliberately holds
+  no participation on it, so the fixture Admin is an unassigned administrator and sees the matter in neither the list
+  nor the detail view.
 - **Rauthy administrator:** `nick@neonlaw.com` / `admin`, with the admin surface at
   `http://localhost:<rauthy-port>/auth/v1/admin`.
 
