@@ -1703,10 +1703,6 @@ pub fn bootstrap(
         dioxus_lawyer_people_new,
         dioxus_admin_person_show,
         dioxus_lawyer_person_show,
-        // The living design system renders through Dioxus at `/design`. It is a
-        // shared Navigator tool, so it joins the protected composition rather
-        // than standing as an accidental public reference surface.
-        dioxus_app::design_router(),
         // The supervised Clerk surface (#956 Phase 4) renders through Dioxus at
         // The per-notation clause editor (#956 Phase 4) renders through Dioxus
         // at `/lawyer/notations/{id}/clauses`.
@@ -1744,6 +1740,19 @@ pub fn bootstrap(
             &boundary_auth,
         ));
     }
+    // The living design system at `/design` is a public reference surface. It
+    // mounts OUTSIDE `session_boundary`, which would `303` an anonymous reader
+    // to login, and carries `inject_optional_session` so a signed-in caller
+    // still gets the authenticated nav rather than the anonymous one — the same
+    // anonymous treatment the host's marketing pages get below. It is not in
+    // `host_dioxus` because that list is firm-host-only and the gallery is a
+    // shared Navigator tool that must answer on both hosts.
+    router = router.merge(dioxus_app::design_router().route_layer(
+        axum::middleware::from_fn_with_state(
+            boundary_sessions.clone(),
+            crate::auth::inject_optional_session,
+        ),
+    ));
     // The host's own public Dioxus SSR pages (#730 PR6) — the firm host's ported
     // marketing pages, none for the Foundation host. Unlike the built-in Dioxus
     // routes, these are anonymous marketing pages, so they mount OUTSIDE
@@ -2442,8 +2451,8 @@ pub(crate) fn certificate_sent_content(
 }
 
 /// Serve a raw Markdown document as `text/markdown` — the
-/// machine-readable twin of a stepped-content page. LLM crawlers and
-/// the on-page "Copy as Markdown" button both fetch this; it is the one
+/// machine-readable twin of a stepped-content page. LLM crawlers and the
+/// on-page "View as Markdown" link both fetch this; it is the one
 /// canonical source for the corpus, so the HTML view never embeds the
 /// raw markdown itself.
 pub(crate) fn markdown_response_for(raw: &str) -> axum::response::Response {

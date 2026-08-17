@@ -37,6 +37,11 @@ enum Access {
     /// longer in this class — the A2A agent card moved under the private
     /// `/app/api` prefix with the rest of the API surface.
     PublicIngress,
+    /// A page the mounted portal serves to anyone. Distinct from
+    /// [`Access::HostPublic`], which a brand host owns and the portal answers
+    /// `404` for, and from [`Access::PublicIngress`], which is machine ingress
+    /// rather than a page: this one must render its own `200`.
+    PortalPublic,
 }
 
 /// Every first-tranche path and the single class it belongs to.
@@ -73,7 +78,10 @@ const CONTRACT: &[(&str, Access)] = &[
     // admits only the tiers who operate Navigator.
     ("/app/docs", Access::ProtectedHuman),
     ("/app/docs/glossary", Access::ProtectedHuman),
-    ("/design", Access::ProtectedHuman),
+    // The living design system reads anonymously: it is a contributor
+    // reference, so it renders for a reader who has no account rather than
+    // sending them through the login door.
+    ("/design", Access::PortalPublic),
     ("/templates", Access::ProtectedHuman),
     (
         "/templates/forms/united-states/federal/irs/us--form-990",
@@ -205,6 +213,22 @@ async fn every_first_tranche_path_answers_its_declared_anonymous_contract() {
                     status,
                     StatusCode::UNAUTHORIZED,
                     "{path} must stay reachable without a session"
+                );
+                let location = response
+                    .headers()
+                    .get(axum::http::header::LOCATION)
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or_default();
+                assert!(
+                    !location.starts_with("/auth/login"),
+                    "{path} must not be bounced to the login door"
+                );
+            }
+            Access::PortalPublic => {
+                assert_eq!(
+                    status,
+                    StatusCode::OK,
+                    "{path} is a public page and must render for an anonymous reader"
                 );
                 let location = response
                     .headers()

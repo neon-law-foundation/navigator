@@ -3,23 +3,14 @@
 //!
 //! This is the
 //! bookmarkable page a returning learner lands on: an orientation lede, a
-//! numbered outline grouped by chapter, a "start" button, and the
-//! copy-as-markdown affordance.
-//!
-//! The copy button is inert markup on its own — its behavior lives in
-//! first-party `copy-markdown.js`, keyed off the `data-copy-markdown` hook. The
-//! `PageLayout` loaded that script on every render; a Dioxus page loads
-//! only what it names, so [`NebulaMaterialPage`] hoists it explicitly. Dropping
-//! it would leave a button that looks right and does nothing.
+//! numbered outline grouped by chapter, a "start" button, and a link to the
+//! material's raw-Markdown twin.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::components::{PublicShell, SiteHeader, SiteNavLink, NEBULA_STYLESHEET_HREF};
 use crate::public_chrome::{PublicChrome, PublicFooter};
-
-/// The first-party script behind the "Copy as Markdown" button.
-pub const COPY_MARKDOWN_SCRIPT_HREF: &str = "/public/js/copy-markdown.js";
 
 /// One entry in the outline.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
@@ -55,9 +46,8 @@ pub struct MaterialContent {
     pub start_href: Option<String>,
     /// The light-table grid of every slide.
     pub slides_href: String,
-    /// This material's raw-Markdown twin. The copy button fetches it, the page
-    /// links to it, and the head advertises it as `rel="alternate"` — one
-    /// source, three uses.
+    /// This material's raw-Markdown twin. The page links to it and the head
+    /// advertises it as `rel="alternate"` — one source, two uses.
     pub md_href: String,
 }
 
@@ -133,13 +123,13 @@ pub fn NebulaMaterialPage(chrome: PublicChrome, content: MaterialContent) -> Ele
             href: "{content.md_href}",
         }
         document::Stylesheet { href: NEBULA_STYLESHEET_HREF }
-        // Without this the copy button below is inert markup.
-        document::Script { src: COPY_MARKDOWN_SCRIPT_HREF, defer: true }
         PublicShell { header, footer,
             article { class: "material-page",
+                // The description stays metadata — the `<meta>` tag above and
+                // the index card — rather than repeating on the page, where
+                // the material's own intro already opens it.
                 header { class: "material-header",
                     h1 { "{content.title}" }
-                    p { class: "lede", "{content.description}" }
                 }
                 if !content.intro_html.is_empty() {
                     div { class: "material-intro", dangerous_inner_html: "{content.intro_html}" }
@@ -153,7 +143,6 @@ pub fn NebulaMaterialPage(chrome: PublicChrome, content: MaterialContent) -> Ele
                             "View all slides"
                         }
                     }
-                    CopyMarkdownButton { md_href: content.md_href.clone() }
                     a { class: "nav-btn nav-btn--secondary", href: "{content.md_href}",
                         "View as Markdown"
                     }
@@ -202,26 +191,6 @@ fn OutlineChapter(chapter: MaterialChapter) -> Element {
                     }
                 }
             }
-        }
-    }
-}
-
-/// The "Copy as Markdown" button. It fetches the page's `.md` twin and writes
-/// the body to the clipboard — there is no on-page raw-markdown node to read
-/// from, so the corpus lives at one canonical URL that the button, the visible
-/// link, and the `rel="alternate"` head tag all point at.
-///
-/// The behavior lives in first-party [`COPY_MARKDOWN_SCRIPT_HREF`], keyed off
-/// the `data-copy-markdown` hook. It cannot be an inline handler: `script-src
-/// 'self'` forbids those.
-#[component]
-fn CopyMarkdownButton(md_href: String) -> Element {
-    rsx! {
-        button {
-            class: "nav-btn nav-btn--secondary",
-            r#type: "button",
-            "data-copy-markdown": "{md_href}",
-            span { "data-copy-markdown-label": true, "Copy as Markdown" }
         }
     }
 }
@@ -328,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    fn the_page_offers_start_slides_and_both_markdown_affordances() {
+    fn the_page_offers_start_slides_and_the_markdown_link() {
         let out = html();
         assert!(out.contains("Start →"), "start button: {out}");
         assert!(
@@ -336,27 +305,39 @@ mod tests {
             "light-table link: {out}"
         );
         assert!(out.contains("View as Markdown"), "visible md link: {out}");
-        assert!(out.contains("Copy as Markdown"), "copy button: {out}");
     }
 
     #[test]
-    fn the_copy_button_keeps_the_hooks_its_script_reads() {
-        // `copy-markdown.js` finds the button by `[data-copy-markdown]` and the
-        // label it swaps by `[data-copy-markdown-label]`. The script itself is
-        // hoisted through `document::Script`, which never appears in a
-        // component render — that half is asserted on the real route.
+    fn the_description_stays_metadata_and_never_renders_as_a_lede() {
+        // It is still the `<meta name="description">` and the index card's
+        // summary; it just no longer repeats above the material's own intro.
+        // `document::Meta` is head content, so its absence here is the page
+        // body's contract rather than a claim the metadata went away.
         let out = html();
         assert!(
-            out.contains(r#"data-copy-markdown="/workshops/use-the-navigator.md""#),
-            "the button carries its fetch target: {out}"
+            !out.contains("You walk out with a notation you built yourself."),
+            "description must not render as an on-page lede: {out}"
         );
         assert!(
-            out.contains("data-copy-markdown-label"),
-            "the label span the script rewrites: {out}"
+            out.contains("Read this first."),
+            "the intro still opens the page: {out}"
+        );
+    }
+
+    #[test]
+    fn the_page_offers_no_copy_to_clipboard_affordance() {
+        // The clipboard button was removed; the `.md` twin is reached through
+        // the visible link and the `rel="alternate"` head tag instead. Asserted
+        // on the hooks too, because a button whose label changed but whose
+        // markup returned would be the same regression wearing a new name.
+        let out = html();
+        assert!(
+            !out.contains("Copy as Markdown"),
+            "copy button label: {out}"
         );
         assert!(
-            out.contains(r#"type="button""#),
-            "not a submit button: {out}"
+            !out.contains("data-copy-markdown"),
+            "copy button hook: {out}"
         );
     }
 

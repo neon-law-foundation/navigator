@@ -111,10 +111,13 @@ async fn brand_swatches_resolve_through_nav_tokens_not_literal_colors() {
 }
 
 #[tokio::test]
-async fn gallery_explains_the_gated_brand_specific_primary() {
+async fn gallery_explains_the_brand_specific_primary() {
     let (status, html) = render_design().await;
     assert_eq!(status, StatusCode::OK, "{html}");
-    assert!(html.contains("signed-in design reference"), "{html}");
+    // The gallery reads anonymously now, so the copy no longer calls itself the
+    // signed-in reference; what it still owes the reader is which brand wears
+    // which primary.
+    assert!(!html.contains("signed-in design reference"), "{html}");
     assert!(html.contains("Neon Law uses copper"), "{html}");
     assert!(html.contains("Neon Law Foundation uses teal"), "{html}");
 }

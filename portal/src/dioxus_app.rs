@@ -2158,11 +2158,12 @@ where
 /// even without a client bundle — the gallery is a contributor reference and its
 /// content (theme swatches, icons, cards, toasts, the demo data table) is
 /// readable pre-hydration. The per-response nonce CSP allows Dioxus's inline
-/// hydration scripts, exactly as the lawyer and people routes do; `bootstrap`
-/// wraps this router in the session boundary, so the gallery is a signed-in
-/// tool rather than a public surface. The demo table exercises the URL
-/// contract, so the route carries the same `400`-on-unadvertised-`?sort=`
-/// pre-handler the people route does, scoped to the table's advertised keys.
+/// hydration scripts, exactly as the lawyer and people routes do. `bootstrap`
+/// mounts this router OUTSIDE the session boundary, so the gallery is a public
+/// reference surface an anonymous reader reaches without signing in. The demo
+/// table exercises the URL contract, so the route carries the same
+/// `400`-on-unadvertised-`?sort=` pre-handler the people route does, scoped to
+/// the table's advertised keys.
 pub fn design_router() -> Router {
     Router::<FullstackState>::new()
         .route(

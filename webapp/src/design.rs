@@ -1165,9 +1165,8 @@ fn PaletteSection() -> Element {
                  brands into shared code."
             }
             p {
-                "This is the signed-in design reference: Neon Law uses copper as its \
-                 primary. Neon Law Foundation uses teal. The two brands are intentionally \
-                 distinct. \
+                "Neon Law uses copper as its primary. Neon Law Foundation uses teal. The two \
+                 brands are intentionally distinct. \
                  Read the semantic token instead of carrying either brand's colour into a \
                  shared component."
             }
