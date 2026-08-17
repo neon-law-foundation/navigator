@@ -4,7 +4,7 @@
   "description": "Navigator markdown rule diagnostics + source.fixAll via navigator-lsp",
   "version": "0.1.0",
   "publisher": "neonlaw",
-  "license": "MIT OR Apache-2.0",
+  "license": "AGPL-3.0-only",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Linters"],
   "main": "./out/extension.js",

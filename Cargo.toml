@@ -33,11 +33,12 @@ members = [
 version = "26.8.17"
 edition = "2021"
 rust-version = "1.95"
-# Dual-licensed, the Rust ecosystem default: MIT for the permissiveness a
-# reader recognises on sight, Apache-2.0 for the express patent grant MIT does
-# not carry. See LICENSE.md; the legal prose under `templates/` is CC BY 4.0
-# instead, which that file explains.
-license = "MIT OR Apache-2.0"
+# Strong copyleft with a network clause: § 13 obliges anyone who modifies this
+# software and runs it for remote users to offer them the corresponding source,
+# which is the form a legal-services portal is actually deployed in. Version 3
+# exactly, never "or later", so the terms cannot move underneath us. One grant
+# covers the whole tree, `templates/` included — see LICENSE.
+license = "AGPL-3.0-only"
 publish = false
 
 [workspace.dependencies]
