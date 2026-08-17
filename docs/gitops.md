@@ -218,7 +218,8 @@ Add jobs to the workflow that owns their trigger; do not create a redundant work
 | Workflow | Trigger | Job |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | `pull_request` → `main` | Rust quality gate |
-| `.github/workflows/deploy.yml` | a dated `YY.M.D` tag, or a `kind-ci/**` branch | publish + ship staging |
+| `.github/workflows/deploy.yml` | a dated `YY.M.D` tag, or a `kind-ci/**` branch | prove + publish images |
+| `.github/workflows/ghcr-retention.yml` | 01:11 UTC nightly, or a dispatch | prune old GHCR versions |
 | `.github/workflows/codeql.yml` | `pull_request` → `main` | CodeQL scan — enable it, see below |
 
 ### CodeQL can be turned back on
@@ -307,15 +308,24 @@ development](../CLAUDE.md#local-kind-development) and the `web-preview` / `kind-
 
 ### One workflow owns publishing — `deploy.yml`
 
-Publishing is a calendar event. The cron fires at 01:11 UTC, and that run proves the workspace in KIND, builds every
-image, pushes them to GHCR, cuts the `YY.M.D` tag and its GitHub Release, and reports what it published. A
-`workflow_dispatch` runs the same pipeline on demand when waiting until tomorrow is not an answer. Versions omit leading
-zeros, remain valid semver, and align with image tags and `navigator --version`.
+Publishing is a deliberate act: a person pushes a `YY.M.D` tag, and that run proves the workspace in KIND, builds every
+image, pushes them to GHCR, attaches the three `navigator` CLI archives to the tag's GitHub Release, and reports what it
+published. Versions omit leading zeros, remain valid semver, and align with image tags and `navigator --version`.
 
-**No tag triggers this workflow, because it CUTS the tag.** `release-windows-cli-publish` creates the `YY.M.D` tag at
-the SHA the archives were built from, so a tag trigger would be this workflow reacting to itself. The version derives
-from the runner clock and threads into every image build as the `RELEASE_TAG` build-arg, which each Containerfile turns
-into the runtime environment variable `NAVIGATOR_RELEASE_TAG`.
+**A pushed tag is the only way to publish, and that is what makes a version trustworthy.** A cron and a
+`workflow_dispatch` both ran this pipeline once, and both are gone for one reason: neither carried a tag, so each could
+only *derive* a version from the runner clock, and a derived version stands behind no Git ref. That is how `Cargo.toml`
+sat at `0.1.0` while published images marched on under names the source had never heard of. A tag cannot drift from
+itself. The tag threads into every image build as the `RELEASE_TAG` build-arg, which each Containerfile turns into the
+runtime environment variable `NAVIGATOR_RELEASE_TAG`.
+
+**Exactly three components, and no hour suffix.** An emergency same-day release has no valid spelling, because Cargo
+parses `[workspace.package].version` as strict semver and rejects a fourth component outright — `26.8.17.13` fails with
+`unexpected character '.' after patch version number`. A `YY.M.D.H` tag could therefore never equal the manifest, which
+would make the tag-equals-manifest check below unsatisfiable. One release per UTC calendar day is what falls out of
+that, not a policy layered on top of it. `release-version` anchors the shape with a regex rather than trusting the push
+filter, whose `[0-9]*.[0-9]*.[0-9]*` glob is looser than it looks: fnmatch's `*` matches dots, so that filter alone
+admits `26.8.17.13`.
 
 **This workflow deploys nothing, and holds no cloud credential.** It ends at the registry. Putting a version in front of
 real clients' matters is a separate act a person takes from their own machine — see [The deploy is a human
@@ -359,12 +369,13 @@ to no such guard.
 
 ### What each stage does — `deploy.yml`
 
-The nightly run proves the workspace in KIND and publishes all service and trigger images, plus three `navigator` CLI
-archives attached to the `YY.M.D` GitHub Release it cuts: `navigator-<tag>-windows.zip`, `navigator-<tag>-linux.tar.gz`,
-and `navigator-<tag>-macos.tar.gz`. Each carries the executable beside `LICENSE.md`, `LICENSE-MIT`, and
-`LICENSE-APACHE`. Container images are **linux/amd64 only**; GKE Autopilot consumes amd64. The macOS archive is arm64 —
-`macos-latest` is Apple silicon — so an Intel Mac still builds the immutable release tag locally with Cargo, and the
-`#navigator` report carries that exact command beside the three downloads. Failure at any stage pages `#navigator`.
+The release run proves the workspace in KIND and publishes all service and trigger images, plus three `navigator` CLI
+archives attached to the GitHub Release hanging off the pushed tag: `navigator-<tag>-windows.zip`,
+`navigator-<tag>-linux.tar.gz`, and `navigator-<tag>-macos.tar.gz`. Each carries the executable beside `LICENSE.md`,
+`LICENSE-MIT`, and `LICENSE-APACHE`. Container images are **linux/amd64 only**; GKE Autopilot consumes amd64. The macOS
+archive is arm64 — `macos-latest` is Apple silicon — so an Intel Mac still builds the immutable release tag locally with
+Cargo, and the `#navigator` report carries that exact command beside the three downloads. Failure at any stage pages
+`#navigator`.
 
 **Every publishing run builds all three CLI archives, and Project CI depends on them.** `release-windows-cli-build`,
 `release-cli-build-linux`, and `release-cli-build-macos` carry no `if:` of their own — they need the two publish jobs,
@@ -406,9 +417,12 @@ Two consequences to plan around rather than discover:
 
 - A `kind-ci/**` push is the cheapest way to exercise the pipeline without releasing. It is the periodic check the cron
   used to be, and it now has to be a habit rather than a trigger.
-- **Image retention no longer depends on release cadence**, because it counts versions rather than days — see [Image
-  retention](#image-retention). An age-based rule would have made a quiet fortnight delete the versions production was
-  running; keeping the last ten releases removes that failure mode rather than documenting it.
+- **Image retention does not depend on release cadence**, because a count floor sits under its age rule — see [Image
+  retention](#image-retention). Age alone would let a quiet fortnight delete the versions production was running;
+  keeping the last ten versions of every image removes that failure mode rather than documenting it.
+- `ghcr-retention.yml` is on a clock, but it proves nothing about the release path: it prunes the registry and never
+  builds, publishes, or stands up KIND. It pages `#navigator` on its own failure, which is a signal about retention, not
+  about whether a release would work today.
 
 ### Recovering a failed release
 
@@ -474,27 +488,45 @@ can never revoke, and an org rename would otherwise leave the old principal stil
 
 ### Image retention
 
-Published images are garbage-collected by the registry itself, not by a workflow. `navigator ops gcp hub setup` PATCHes
-the hub repository's `cleanupPolicies` to a pair of rules (`cli::devx::gcp::artifact_registry`): a `KEEP` policy
-retaining the **last 10 versions of every image**, and a `DELETE` policy matching everything else. Change retention by
-changing `RETAINED_VERSIONS` and re-running the hub setup — there is no scheduled GitHub workflow in this repository to
-add it to.
+Published images are pruned by `.github/workflows/ghcr-retention.yml`, at 01:11 UTC nightly — the slot the release train
+held before publishing moved to a pushed tag. GHCR offers no server-side retention rule, so a workflow is the only place
+this can live. Its credential is the run's own `GITHUB_TOKEN` with `packages: write`: no PAT, nothing to rotate, and no
+cloud provider.
 
-**Retention is a count, not an age, and that is load-bearing.** An age-based rule is only safe while releases outrun it.
-Under the nightly train every running tag was a day old, so the old `delete-older-than-7d` rule could never reach one;
-with releases driven by tags, a quiet fortnight would have let the registry delete the exact versions production was
-running. Serving pods survive that — they already pulled — but a restart, a reschedule, or a node replacement cannot
-pull its image, and `ops ship` refuses a tag the registry no longer holds. A count cannot expire: the last ten releases
-stay pullable however long the gap between them, so retention no longer depends on release cadence.
+**A version must clear three independent floors to be deleted, and the count floor is the load-bearing one.** Age alone
+is only safe while releases outrun it. Under the nightly train every running tag was a day old, so the old
+`delete-older-than-7d` rule could never reach one; with releases driven by tags, a quiet month is ordinary and age alone
+would delete the exact versions production is running. Serving pods survive that — they already pulled — but a restart,
+a reschedule, or a node replacement cannot pull its image, and `ops ship` refuses a tag the registry no longer holds,
+which is also the documented rollback. So the sweep deletes a version only when *all three* hold:
 
-**The two policies are one unit.** Keep policies take precedence over delete policies in Artifact Registry, and that
-precedence is the only thing making the pair mean "keep ten, delete the rest". The `DELETE` half matches every version
-(`tagState: ANY`), so applying it without its `KEEP` partner would empty the repository on the next sweep. They are
-written in a single PATCH for that reason, and a test asserts both halves.
+| Floor | Rule | Why |
+| --- | --- | --- |
+| Age | older than `CUTOFF_DAYS` (30) | a version has to be genuinely old to qualify |
+| Count | outside its image's newest `RETAINED_VERSIONS` (10) | a count cannot expire, so cadence stops mattering |
+| Tag | not the version carrying `latest` | deleting it orphans a published pointer, failing at pull time |
 
-`keepCount` is per package, so each image keeps its own last ten rather than ten versions across the repository. One
-release pushes one version per image under two tags (`YY.M.D` and `latest`) — one digest, one version — so ten versions
-is ten releases, and with one tag per calendar day it is also at least the last ten release days.
+The count is per image, so each keeps its own newest ten rather than ten across the registry. One release pushes one
+version per image under two tags (`YY.M.D` and `latest`) — one digest, one version — so ten versions is ten releases.
+
+**The sweep may only touch packages this repository publishes.** A GHCR package is owned by the *organization*, and the
+org owns packages other repositories push, so enumerating `/orgs/{org}/packages` and deleting by age would prune those
+too — on a clock, with nothing going red. Candidates are filtered by their linked repository, and a package whose link
+is null is skipped rather than assumed to be ours.
+
+**Rehearse a change before a night runs it live.** Dispatch the workflow with `dry_run: true` (the dispatch default) and
+it lists every deletion it would make and deletes nothing. That is the only safe way to prove a change to a job whose
+mistakes are unrecoverable, and `cli/tests/ghcr_retention.rs` guards the floors, the scope bound, and the `#navigator`
+page so none of them can be dropped quietly.
+
+Change retention by changing `CUTOFF_DAYS` or `RETAINED_VERSIONS` in the workflow; the guard test pins both literals, so
+a change there is a change the test makes you state.
+
+**Artifact Registry's `cleanupPolicies` are a separate, unused lane.** `navigator ops gcp hub setup` still PATCHes a
+count-based `KEEP`/`DELETE` pair onto a GAR repository (`cli::devx::gcp::artifact_registry`, `RETAINED_VERSIONS = 10`),
+and GHCR never reads it. Nothing publishes to that registry any more — `cli::devx::registry::DEFAULT_REGISTRY` is
+`ghcr.io/neon-law-foundation` — so that policy governs whatever the GAR repository still holds and nothing this
+repository ships.
 
 ## Pin every consumed image, binary, and action
 

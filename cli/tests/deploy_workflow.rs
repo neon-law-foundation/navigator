@@ -45,28 +45,34 @@ fn deploy_workflow_has_no_pull_request_trigger() {
     );
 }
 
-/// Publishing on demand is allowed; DEPLOYING on demand is not.
+/// A PUSHED TAG IS THE ONLY WAY TO PUBLISH, and that is what makes an image's
+/// version trustworthy.
 ///
-/// Both triggers were removed once, for reasons that no longer hold. The cron
-/// cut a tag every night whether or not anything changed; it derives a version
-/// now and cuts the tag from the job that builds the archives. The dispatch
-/// published a `YY.M.D.H` version no Git tag stood behind, and it was why
-/// `inputs.dry_run` could be referenced with no input declared (ENG-182) —
-/// this workflow declares no inputs at all, which
-/// `deploy_workflow_references_no_workflow_inputs` still enforces.
+/// The clock and the dispatch both derived a version from `date`, so the name an
+/// image carried stood behind no Git ref: `Cargo.toml` sat at one version while
+/// published images marched on under another, and a plain build of the source a
+/// release was cut from misreported itself. Deriving is what allowed the drift —
+/// a tag cannot drift from itself, because `release-version` refuses a tag that
+/// does not equal `[workspace.package].version`.
 ///
-/// What made the old dispatch dangerous was never that it was manual, it was
-/// that the pipeline it started could roll a cluster. That reach is gone.
+/// Both retired triggers are asserted absent rather than merely unused. A
+/// surviving `workflow_dispatch` would publish whatever `date` returned, under a
+/// version no tag and no manifest agrees with, and would go green doing it.
 #[test]
-fn deploy_workflow_publishes_on_a_schedule_and_on_demand() {
+fn deploy_workflow_publishes_only_from_a_pushed_tag() {
     assert!(
-        has_trigger("schedule"),
-        "deploy.yml must publish nightly — the clock is the primary publish path"
+        !has_trigger("schedule"),
+        "deploy.yml must not publish on a clock: a cron carries no tag, so it can only derive a \
+         version, which is exactly the drift the tag-equals-manifest check exists to stop"
     );
     assert!(
-        has_trigger("workflow_dispatch"),
-        "deploy.yml must keep `workflow_dispatch`: waiting until 01:11 UTC is not an answer when \
-         a publish is needed now, and the dispatch reaches no cloud provider"
+        !has_trigger("workflow_dispatch"),
+        "deploy.yml must not publish on demand: a dispatch runs from a branch and would publish a \
+         derived version no Git tag stands behind. Push the tag instead"
+    );
+    assert!(
+        has_trigger("push"),
+        "deploy.yml publishes from a pushed tag, so it must keep its `push` trigger"
     );
 }
 
@@ -134,84 +140,131 @@ fn deploy_workflow_references_no_workflow_inputs() {
     );
 }
 
-/// The nightly cron is the primary publish path, and no tag may start one.
+/// The tag filter and the `release-tags` ruleset must admit the same shape.
 ///
-/// 1:11 rather than 1:00 on purpose: GitHub delays scheduled runs when the
-/// hosted-runner queue is deep, and the top of the hour is when it is deepest.
+/// `cli/src/devx/github_setup.rs` protects `refs/tags/[0-9]*.[0-9]*.[0-9]*`
+/// against deletion and update. A filter here that admitted more than that —
+/// `v*`, or a bare `*` — would let an unprotected, movable tag start a publish,
+/// and a moved tag makes every artifact already carrying that version a lie.
 #[test]
-fn deploy_workflow_publishes_on_the_nightly_cron() {
+fn deploy_workflow_publishes_from_a_dated_tag() {
     let triggers = deploy_triggers();
-    let schedule = triggers
-        .get(serde_yaml::Value::String("schedule".into()))
-        .expect("deploy.yml must trigger on schedule");
-    let crons: Vec<String> = schedule
-        .as_sequence()
-        .expect("the schedule trigger must be a sequence")
-        .iter()
-        .filter_map(|entry| entry["cron"].as_str().map(str::to_string))
-        .collect();
-    assert!(
-        crons.iter().any(|cron| cron == "11 1 * * *"),
-        "deploy.yml must publish at 01:11 UTC nightly. Got: {crons:?}"
-    );
-
     let push = triggers
         .get(serde_yaml::Value::String("push".into()))
-        .expect("deploy.yml must keep its push trigger for the kind-ci seam");
+        .expect("deploy.yml must keep its push trigger");
 
-    // A TAG MUST NOT PUBLISH. `release-windows-cli-publish` cuts the `YY.M.D`
-    // tag, so a tag trigger would be this workflow reacting to itself.
+    let tags: Vec<String> = serde_yaml::from_value(push["tags"].clone())
+        .expect("the push trigger must carry a `tags` filter — a tag is the publish path");
     assert!(
-        push.get("tags").is_none(),
-        "deploy.yml must not publish from a tag — it CUTS the tag, so a tag trigger would make \
-         every run start another"
+        tags.iter().any(|glob| glob == "[0-9]*.[0-9]*.[0-9]*"),
+        "deploy.yml must publish only from a dated tag matching the `release-tags` ruleset glob \
+         `[0-9]*.[0-9]*.[0-9]*`, so every publishing ref is one GitHub refuses to move. Got: \
+         {tags:?}"
     );
 
     // The pre-publish iteration seam: the only way to prove a change to this
-    // workflow without waiting for 01:11.
+    // workflow without spending a day's tag to find out.
     let branches: Vec<String> = serde_yaml::from_value(push["branches"].clone())
         .expect("the push trigger must keep its `kind-ci/**` branch filter");
     assert!(
         branches.iter().any(|glob| glob == "kind-ci/**"),
         "deploy.yml must keep the `kind-ci/**` integration-only trigger: it is the one way to \
-         prove a workflow change without waiting a day to find out. Got: {branches:?}"
+         prove a workflow change without spending a tag. Got: {branches:?}"
     );
 }
 
-/// The version is derived from the UTC clock, once, and every image is labelled
-/// with it.
+/// The tag is CHECKED against the UTC clock, not derived from it.
 ///
-/// The zone is a decision, and the wrong one names a whole night's images after
-/// yesterday for part of the year.
+/// The zone is a decision, and the wrong one rejects a whole day's releases for
+/// part of the year. UTC is the zone `YY.M.D` has always been derived in, it has
+/// no DST discontinuity, and `cli/src/release_version.rs` writes the manifest
+/// version in that same zone — so a local-zone check here would reject the tag
+/// the CLI just told the operator to push.
 #[test]
-fn the_nightly_version_is_todays_utc_date() {
+fn the_release_tag_must_be_todays_utc_date() {
     let workflow = deploy_workflow();
 
     assert!(
         workflow.contains("TZ=UTC date +'%y %m %d'"),
-        "deploy.yml must derive the nightly version from the UTC clock"
+        "deploy.yml must compare the pushed tag against the UTC clock"
     );
     assert!(
         !workflow.contains("TZ=America"),
-        "the nightly version is UTC: it is the zone `YY.M.D` has always been derived in, and it \
-         has no DST discontinuity"
+        "the release date is UTC: it is the zone `YY.M.D` has always been derived in, it has no \
+         DST discontinuity, and `ops release-version` writes the manifest in it"
+    );
+}
+
+/// THE TAG MUST CARRY ITS OWN VERSION. This is the check that makes a published
+/// image's self-reported version true.
+///
+/// Without it `Cargo.toml` sat at `0.1.0` while tags marched on, so `navigator
+/// --version` and a plain build of the tagged source both named a release the
+/// source had never heard of. `cli/build.rs` bakes
+/// `[workspace.package].version` into the binary, and `RELEASE_TAG` stamps the
+/// image — this comparison is the only thing forcing those two to agree.
+///
+/// It must fail the run at the FIRST job. A mismatch caught after forty minutes
+/// of image builds has already spent the day's tag, which the `release-tags`
+/// ruleset will not let anyone move.
+#[test]
+fn the_release_tag_must_equal_the_workspace_version() {
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
+    let steps = workflow["jobs"]["release-version"]["steps"]
+        .as_sequence()
+        .expect("release-version must declare steps");
+
+    let script: String = steps
+        .iter()
+        .filter_map(|step| step["run"].as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        script.contains("workspace.package"),
+        "release-version must read `[workspace.package].version` out of Cargo.toml and refuse a \
+         tag that does not equal it — otherwise a published container reports a version its own \
+         source never carried"
+    );
+
+    // Reading the manifest requires it on disk. The job checks out sparsely, so
+    // a path that is not listed is a file that silently is not there — and a
+    // comparison against an unreadable manifest is a comparison that cannot
+    // fail for the right reason.
+    let checkout = steps
+        .iter()
+        .find(|step| {
+            step["uses"]
+                .as_str()
+                .unwrap_or_default()
+                .starts_with("actions/checkout")
+        })
+        .expect("release-version must check out the tree it validates");
+    let sparse = checkout["with"]["sparse-checkout"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        sparse.contains("Cargo.toml"),
+        "release-version's sparse checkout must include Cargo.toml — it is the file the tag is \
+         compared against. Got: {sparse:?}"
     );
 }
 
 /// A CONTAINER MUST REPORT THE VERSION ITS IMAGE IS TAGGED WITH.
 ///
-/// The tag-equals-Cargo.toml check used to hold this: it refused to publish
-/// when the tagged source carried a stale version, which is how `Cargo.toml`
-/// sat at `0.1.0` while tags marched on. A cron has no tag to check, so the
-/// property is held from the other end — the derived version is passed as the
-/// `RELEASE_TAG` build-arg, each Containerfile turns it into a runtime
+/// Two independent things hold this, and both are needed. The
+/// tag-equals-`Cargo.toml` check above makes the *source* carry the release
+/// name, so a plain `cargo build` of the tagged tree self-reports correctly.
+/// This one makes the *image* carry it: the tag is passed as the `RELEASE_TAG`
+/// build-arg, each Containerfile turns it into a runtime
 /// `ENV NAVIGATOR_RELEASE_TAG`, and `main.rs` reads that override.
 ///
 /// Drop the build-arg and nothing fails: images still publish, and every one of
-/// them silently reports the workspace's between-release version instead of its
-/// own. That silence is why this is asserted.
+/// them silently reports whatever the manifest happened to say. That silence is
+/// why this is asserted.
 #[test]
-fn every_image_is_stamped_with_the_derived_version() {
+fn every_image_is_stamped_with_the_release_tag() {
     let workflow = deploy_workflow();
 
     assert!(

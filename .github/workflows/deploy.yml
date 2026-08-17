@@ -1,34 +1,49 @@
 name: deploy
 
-# The nightly publish flow (see docs/gitops.md "CI/CD workflows"). ONE workflow
-# builds the images: the clock fires at 1:11 UTC, and this run proves the
-# workspace, publishes it to GHCR, cuts the tag, and reports it. In strict
+# The publish flow (see docs/gitops.md "CI/CD workflows"). ONE workflow builds
+# the images: a person pushes a `YY.M.D` tag, and this run proves the workspace,
+# publishes it to GHCR, attaches the CLI archives, and reports it. In strict
 # order:
 #
-#   0. release-version — DERIVE the version. `YY.M.D` for the current UTC day,
-#      read from the runner clock. Nothing validates it against a pushed tag,
-#      because there is no tag: a cron has no ref to check and no Cargo.toml
-#      bump commit to match. Instead the derived version is passed to every
-#      image build as the `RELEASE_TAG` build-arg, which each Containerfile
-#      turns into a runtime `ENV NAVIGATOR_RELEASE_TAG` that `main.rs` reads —
-#      so a running container reports exactly the string its image is tagged
-#      with, which is the property the old tag-equals-Cargo.toml check existed
-#      to protect. This job creates nothing and holds `contents: read`. A
-#      `kind-ci/**` branch reports `publishable=false` and stops after
-#      integration.
+#   0. release-version — VALIDATE the pushed tag. It creates nothing, derives
+#      nothing, and holds `contents: read`; it reads the ref it was handed and
+#      refuses it on three counts, each of which would otherwise publish an
+#      image whose name is a lie:
+#
+#        a. SHAPE — `YY.M.D`, unpadded, matching the `release-tags` ruleset glob
+#           so every publishing ref is one GitHub refuses to move.
+#        b. DATE — the current UTC day. `YY.M.D` admits one release per calendar
+#           day by construction, and checking it makes that a guarantee rather
+#           than a convention.
+#        c. MANIFEST — equal to `[workspace.package].version`, the value every
+#           crate inherits and `cli/build.rs` bakes into `navigator --version`.
+#           This is the check the derived-version era could not make, and its
+#           absence is how `Cargo.toml` sat at `0.1.0` while tags marched on:
+#           a plain build of the tagged source named a release the source had
+#           never heard of. `navigator ops release-version` writes the bump; it
+#           lands through an ordinary PR, and the tag goes on that merged
+#           commit.
+#
+#      The tag then threads into every image build as the `RELEASE_TAG`
+#      build-arg, which each Containerfile turns into a runtime
+#      `ENV NAVIGATOR_RELEASE_TAG` that `main.rs` reads — so a running container
+#      reports exactly the string its image is tagged with AND the string its
+#      own source carries. A `kind-ci/**` branch reports `publishable=false` and
+#      stops after integration.
 #   1. integration — build the KIND service images, stand up KIND, run the full
 #      e2e + interop + browser/accessibility suite against the live cluster.
 #   2. publish     — only if integration is green, push all images to GHCR
-#      tagged with the derived version + `nightly`. The service images go
+#      tagged with the pushed tag + `latest`. The service images go
 #      through `publish-service` (amd64-only, one native build per image); the
 #      CronJob images go through `publish-triggers` (also amd64-only).
 #      Prod runs on GKE Autopilot, which schedules on amd64 nodes, so amd64 is
 #      the only architecture any image is consumed on.
-#   2b. the CLI release lane — EVERY publishing run builds a Windows and a
-#      Linux `navigator` archive, then `release-windows-cli-publish` CUTS the
-#      `YY.M.D` tag and its GitHub Release at the SHA those archives were built
-#      from and attaches them. That job is the only holder of
-#      `contents: write`; nothing else in this file can move a ref.
+#   2b. the CLI release lane — EVERY publishing run builds a Windows, a Linux,
+#      and a macOS `navigator` archive, then `release-windows-cli-publish`
+#      creates the GitHub Release hanging off the ALREADY-PUSHED tag and
+#      attaches them. That job is the only holder of `contents: write`, and it
+#      holds it to create a Release, not a ref: nothing in this file can move a
+#      ref, because the ref arrived before the run did.
 #
 #      IT IS LOAD-BEARING BEYOND THE HUMAN DOWNLOAD. `.github/actions/validate`
 #      — the composite gate EVERY Project repository runs — fetches
@@ -55,66 +70,73 @@ name: deploy
 #
 # Plus one out-of-band guard: `notify-failure` posts to #navigator (tagging Nick)
 # whenever ANY stage fails. It carries only the version + run URL — the
-# "identifiers and counts, never content" rule binds here too. The nightly is
-# unattended, so this page is the ONLY thing distinguishing a night that broke
-# from a night nobody read.
+# "identifiers and counts, never content" rule binds here too.
 #
-# THE NIGHTLY IS ITSELF THE LIVENESS CHECK. A cron exercises this whole path
-# every day whether or not anything changed, so a defect introduced today
-# surfaces tomorrow morning rather than waiting for someone to decide to
-# release. That is the failure the tag-only era left open, and it is why
-# `notify-failure` matters: the run is unattended, so a night that broke and a
-# night nobody read look identical without the page. Push a `kind-ci/**` branch
-# to exercise the pipeline without publishing.
+# NOTHING ON A CLOCK PROVES THIS PATH, and that is the deliberate cost of
+# releasing on a tag. A nightly cron exercised the whole pipeline whether or not
+# anything changed, so a defect introduced today surfaced the next morning; a
+# defect introduced today is now invisible until someone next tags. The cron was
+# never a reliable signal even while it ran — a silent nightly failure went
+# unnoticed for four consecutive nights — so the honest statement is that this
+# pipeline has no automatic breakage detection, not that it has a weaker one.
+# Push a `kind-ci/**` branch to exercise it without publishing; that is the
+# periodic check the cron used to be, and it is a habit rather than a trigger
+# now. See docs/gitops.md § "What detects a broken pipeline".
 #
 # And running underneath every stage: every forward-path step opens with a
 # `./.github/actions/slack-progress` post to #navigator, so the channel watches
 # the run advance instead of waiting ~45 silent minutes for a verdict, and the
 # last line posted names the step a failure died in. Those posts are advisory —
-# the action never fails a job over a webhook — and they self-gate on the
-# publishing events, so a `kind-ci/**` branch iteration stays silent exactly as
-# the two reports above do. Steps gated on `failure()`/`always()` are
-# post-mortem diagnostics rather than progress and are deliberately not
-# narrated; `notify-failure` already covers that moment.
+# the action never fails a job over a webhook — and they self-gate on the tag
+# ref, so a `kind-ci/**` branch iteration stays silent exactly as the two
+# reports above do. Steps gated on `failure()`/`always()` are post-mortem
+# diagnostics rather than progress and are deliberately not narrated;
+# `notify-failure` already covers that moment.
 #
-# THE VERSION IS DERIVED FROM THE CLOCK, once, in job 0, and then threaded
-# through every build as the `RELEASE_TAG` build-arg. Every component is
-# unpadded — no leading zeros (June is `6`). Running the dispatch a second time
-# on the same UTC day republishes that version over itself, which is correct
-# rather than a collision: same commit, same images, same name.
+# THE VERSION IS THE PUSHED TAG, validated in job 0 and threaded through every
+# build as the `RELEASE_TAG` build-arg. Every component is unpadded — no leading
+# zeros (June is `6`).
 #
-# RECOVERING A FAILED NIGHT (docs/gitops.md § "Recovering a failed release"):
-# re-run the failed jobs for a flake. There is nothing to un-publish, because
-# nothing was deployed — the images either reached GHCR or they did not, and
-# tonight's fix simply publishes tomorrow.
+# RECOVERING A FAILED RELEASE (docs/gitops.md § "Recovering a failed release"):
+# re-run the failed jobs for a flake — the tag is unchanged, so a re-run
+# republishes the same name over itself. There is nothing to un-publish, because
+# nothing was deployed: the images either reached GHCR or they did not. If the
+# SOURCE is wrong, the day's tag is spent — the `release-tags` ruleset forbids
+# moving it, and a moved tag would make every artifact already carrying that
+# version a lie — so fix forward and tag the next UTC day.
 
-# TWO WAYS TO PUBLISH, and deliberately no third. The clock runs it nightly at
-# 1:11 UTC — an odd minute rather than :00, because the top of the hour is when
-# GitHub's hosted-runner queue is deepest and a scheduled run is delayed, not
-# queued fairly. A `workflow_dispatch` runs the same pipeline on demand, for
-# when waiting until tomorrow is not an answer.
+# ONE WAY TO PUBLISH: push a `YY.M.D` tag. Deliberately no second.
 #
-# NO TAG TRIGGERS THIS WORKFLOW. `release-windows-cli-publish` CUTS the
-# `YY.M.D` tag rather than reacting to one, so a tag trigger would be this
-# workflow reacting to itself.
+# The clock and the `workflow_dispatch` both ran, and both are gone for the same
+# reason: neither carried a tag, so both could only DERIVE a version, and a
+# derived version stands behind no Git ref. That is how the manifest drifted from
+# the published images. A tag cannot drift from itself.
+#
+# What the cron did buy was liveness — it exercised this path nightly whether or
+# not anything changed — and losing that is a real cost, stated plainly above and
+# in docs/gitops.md § "What detects a broken pipeline" rather than papered over.
+# `kind-ci/**` is what replaces it, on demand.
 #
 # The distinction worth holding: "publish an image" and "deploy to a cluster"
-# are different powers, and only the second was worth taking away. Publishing
-# on demand costs a registry push; deploying on demand is what put cloud
-# credentials in CI.
+# are different powers. Publishing costs a registry push; deploying is what put
+# cloud credentials in CI, and it is a human act (`navigator ops ship`).
 on:
-  schedule:
-    - cron: "11 1 * * *"
-  workflow_dispatch:
   push:
+    # The publish path. This glob is the SAME shape the `release-tags` ruleset
+    # protects (`cli/src/devx/github_setup.rs`), which is what makes every
+    # publishing ref one GitHub refuses to delete or move — widen it here and
+    # you admit a mutable tag, which would let a re-push silently relabel an
+    # already-published version.
+    tags:
+      - "[0-9]*.[0-9]*.[0-9]*"
     # CI-iteration seam, and the ONLY way to prove a change to this file.
     # Pushing a branch named `kind-ci/**` runs ONLY the KIND integration job
     # below — the publish-* jobs, notify, and notify-failure are all gated on
-    # the publishing events, so a branch run pushes no images and posts no
-    # Slack. Without it, editing this workflow would mean shipping the edit
-    # untested and finding out at 01:11 the next morning. Not a second
-    # workflow — same deploy.yml, just an extra trigger on the one job that
-    # needs pre-publish iteration.
+    # `publishable`, so a branch run pushes no images and posts no Slack.
+    # Without it, editing this workflow would mean shipping the edit untested
+    # and finding out from a tag whose name is then spent for the day. Not a
+    # second workflow — same deploy.yml, just an extra trigger on the one job
+    # that needs pre-publish iteration.
     branches:
       - "kind-ci/**"
 
@@ -143,13 +165,13 @@ concurrency:
 
 jobs:
   release-version:
-    name: derive the nightly version
+    name: validate the release tag
     if: github.repository == 'neon-law-foundation/navigator'
     runs-on: ubuntu-latest
-    # This job CREATES NOTHING. It derives a name and hands it downstream; it
-    # moves no ref, cuts no tag, and writes nothing to the repository. The one
-    # job that DOES move a ref is `release-windows-cli-publish`, which cuts the
-    # tag at the SHA its archives were built from.
+    # This job CREATES NOTHING. It reads the ref it was handed, refuses it or
+    # passes it downstream, and writes nothing to the repository. It once cut
+    # the nightly tag and held `contents: write` for exactly that; a person
+    # pushes the tag now, so the permission is gone.
     permissions:
       contents: read
     outputs:
@@ -160,67 +182,126 @@ jobs:
       # after integration.
       publishable: ${{ steps.version.outputs.publishable }}
     steps:
-      # This job reads the ref it was triggered by and needs no working tree of
-      # its own — the checkout is here only so the local `slack-progress`
-      # action is on disk. Sparse, so it stays a metadata fetch.
+      # Sparse, but NOT metadata-only: this job compares the tag against
+      # `[workspace.package].version`, so the manifest has to be on disk. A path
+      # missing from this list is a file that silently is not there, and the
+      # comparison below reads an empty string rather than failing — hence the
+      # explicit `-f` check in the script.
       - uses: actions/checkout@v7
         with:
-          sparse-checkout: .github/actions/slack-progress
+          sparse-checkout: |
+            .github/actions/slack-progress
+            Cargo.toml
       - uses: ./.github/actions/slack-progress
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           tag: ""
           stage: "release-version"
-          step: "derive the nightly version"
-      - name: derive the nightly version
+          step: "validate the release tag"
+      - name: validate the release tag
         id: version
         env:
           REF_NAME: ${{ github.ref_name }}
-          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
           set -euo pipefail
-          # Three triggers reach this workflow, and the EVENT tells them apart —
-          # not the ref, because all three arrive on a branch now.
-          #
-          # A dispatch derives its version exactly as the nightly does. Running
-          # both on one UTC day republishes the same version over itself, which
-          # is correct rather than a collision: same commit, same images, same
-          # name. The `.H` fourth digit that once made those distinct was
-          # retired precisely because it produced versions no Git ref stood
-          # behind.
-          if [ "${EVENT_NAME}" = "schedule" ] || [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
-              # `YY.M.D` in UTC, derived from the runner clock.
-              #
-              # UTC, not a local zone: it is the zone the `YY.M.D` convention
-              # has always been derived in, it has no DST discontinuity, and the
-              # runner clock is already UTC. `10#` forces base-10 so `08`/`09`
-              # are not read as bad octal, and every component is unpadded
-              # (August is `8`).
-              #
-              # NOTHING IS VALIDATED HERE, because there is nothing to validate
-              # against: a cron carries no tag and the commit it builds carries
-              # no matching Cargo.toml bump. The property the old
-              # tag-equals-Cargo.toml check protected — that a binary reports
-              # the version its image is labelled with — is preserved instead by
-              # passing this string as the `RELEASE_TAG` build-arg, which each
-              # Containerfile turns into a runtime `ENV NAVIGATOR_RELEASE_TAG`
-              # that `main.rs` reads. Derived once, consumed everywhere: the
-              # pipeline still cannot build one thing and label it another.
-              read -r y m d <<< "$(TZ=UTC date +'%y %m %d')"
-              tag="$((10#$y)).$((10#$m)).$((10#$d))"
-              publishable=true
-          else
+          # Two refs reach this workflow and the REF TYPE tells them apart: a
+          # pushed `YY.M.D` tag publishes, a `kind-ci/**` branch does not.
+          if [ "${REF_TYPE}" != "tag" ]; then
               # A `kind-ci/**` branch iteration: integration only. The ref name
               # stands in for a version so progress lines and job titles name
               # something real; nothing downstream consumes it, because every
               # publishing job is gated on `publishable`.
-              tag="${REF_NAME}"
-              publishable=false
+              echo "tag=${REF_NAME}" >> "$GITHUB_OUTPUT"
+              echo "publishable=false" >> "$GITHUB_OUTPUT"
+              echo "branch iteration ${REF_NAME}: integration only, nothing publishes"
+              exit 0
           fi
+
+          tag="${REF_NAME}"
+
+          # 1. SHAPE. The push filter already admits only `[0-9]*.[0-9]*.[0-9]*`,
+          #    but that glob is far looser than it looks — fnmatch's `*` matches
+          #    dots, so `26.8.17.13` and `26.8.x` both pass it. Anchor the real
+          #    shape here: two-digit year, unpadded month and day, three
+          #    components and no fourth.
+          #
+          #    THREE COMPONENTS IS NOT A STYLE CHOICE. Cargo parses
+          #    `[workspace.package].version` as strict semver and rejects a
+          #    fourth component outright ("unexpected character '.' after patch
+          #    version number"), so a `YY.M.D.H` tag could never equal the
+          #    manifest — check 3 below would be unsatisfiable, and the
+          #    hour-suffixed emergency release it implies has no valid spelling.
+          #    One release per UTC day is the constraint that falls out of that.
+          if ! printf '%s' "${tag}" | grep -Eq '^[0-9]{2}\.[0-9]{1,2}\.[0-9]{1,2}$'; then
+              echo "::error::tag ${tag} is not a YY.M.D release version (two-digit year, unpadded month and day, exactly three components)"
+              exit 1
+          fi
+
+          # 2. DATE. `YY.M.D` admits one release per calendar day by
+          #    construction; checking it makes that a guarantee rather than a
+          #    convention, and catches the midnight edge before anything is
+          #    built.
+          #
+          #    UTC, not a local zone: it is the zone `YY.M.D` has always been
+          #    derived in, it has no DST discontinuity, the runner clock is
+          #    already UTC, and `navigator ops release-version` writes the
+          #    manifest in it — a local-zone check here would reject the tag the
+          #    CLI just told the operator to push. `10#` forces base-10 so
+          #    `08`/`09` are not read as bad octal, and every component is
+          #    unpadded (August is `8`).
+          #
+          #    THE MIDNIGHT EDGE IS REAL. On `-04:00`, from 20:00 local onward
+          #    UTC has already rolled over, so the only releasable tag is
+          #    tomorrow's local date. Name the tag to push instead of just
+          #    refusing: nothing is built yet, so re-tagging costs a minute.
+          read -r y m d <<< "$(TZ=UTC date +'%y %m %d')"
+          today="$((10#$y)).$((10#$m)).$((10#$d))"
+          if [ "${tag}" != "${today}" ]; then
+              echo "::error::tag ${tag} is not today's UTC date — push ${today} instead (one release per UTC calendar day)"
+              exit 1
+          fi
+
+          # 3. MANIFEST. The check that makes a published image's self-reported
+          #    version true. `cli/build.rs` bakes
+          #    `[workspace.package].version` into `navigator --version`, and
+          #    every crate inherits it through `version.workspace = true`;
+          #    without this the manifest sat at `0.1.0` while tags marched on,
+          #    so a plain build of the tagged source named a release the source
+          #    had never heard of. `navigator ops release-version` writes the
+          #    bump, it lands through an ordinary PR, and the tag goes on that
+          #    merged commit.
+          #
+          #    Read the value out of the `[workspace.package]` table only.
+          #    `[workspace.dependencies]` holds dozens of `version =` lines, and
+          #    a file-wide grep would compare the tag against the first
+          #    dependency pin it found — which is a check that passes and proves
+          #    nothing.
+          if [ ! -f Cargo.toml ]; then
+              echo "::error::Cargo.toml is not in this job's sparse checkout — the tag cannot be validated against the workspace version"
+              exit 1
+          fi
+          #    `rust-version` sits in that same table and must not be mistaken
+          #    for `version`, which is why the key is anchored rather than
+          #    matched loosely.
+          manifest="$(awk '
+              /^\[/ { in_package = ($0 ~ /^\[workspace\.package\]/); next }
+              in_package && /^[[:space:]]*version[[:space:]]*=/ {
+                  split($0, quoted, "\""); print quoted[2]; exit
+              }
+          ' Cargo.toml)"
+          if [ -z "${manifest}" ]; then
+              echo "::error::Cargo.toml has no version under [workspace.package] — the manifest shape moved"
+              exit 1
+          fi
+          if [ "${tag}" != "${manifest}" ]; then
+              echo "::error::tag ${tag} does not match [workspace.package] version ${manifest} — run \`navigator ops release-version\`, land the bump, and tag that commit"
+              exit 1
+          fi
+
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "version: ${tag}"
-          echo "publishable=${publishable}" >> "$GITHUB_OUTPUT"
-          echo "publishable: ${publishable}"
+          echo "publishable=true" >> "$GITHUB_OUTPUT"
+          echo "release ${tag}: shape, UTC date, and workspace version all agree"
 
 
   # ---------- Stage 0: build both service images in parallel ----------
@@ -1334,7 +1415,7 @@ jobs:
       # `compose build-args` above exists: the value is conditional, and a
       # `kind-ci/**` run cannot exercise it — `publish-service` is gated on a
       # tag ref, so an inline expression that emitted a stray blank entry
-      # would first fail on a live nightly. Building the list in bash keeps
+      # would first fail on a live release. Building the list in bash keeps
       # the empty case impossible instead of merely unlikely.
       - name: compose cache sources
         id: cf
@@ -1372,8 +1453,8 @@ jobs:
           # 9.51 GB, including single blobs of 5.3 GB and 2.64 GB. What that
           # evicted was `ci.yml`'s Rust dependency cache — which runs on EVERY
           # PR push, uploaded 2.19 GB at the end of each run, and was never
-          # restored once (zero `v0-rust-*` entries existed). The nightly
-          # release was starving the PR gate.
+          # restored once (zero `v0-rust-*` entries existed). The release
+          # pipeline was starving the PR gate.
           #
           # A registry-backed cache has no quota and no LRU eviction, and is
           # not scoped per-branch the way the Actions cache is, so consecutive
@@ -1462,7 +1543,7 @@ jobs:
     # this enterprise, measured — `nproc: 2` in run 144427521 — and these legs
     # took 11-17 min on sixteen cores. Landing them on two would have put them
     # at real risk of the 90-minute cap below, turning a cost optimization into
-    # a nightly that fails to publish. Eight cores keeps most of the saving
+    # a release that fails to publish. Eight cores keeps most of the saving
     # without betting the release on it.
     #
     # `navigator-runner` stays on the wide runner: it is not a trigger but a
@@ -1631,17 +1712,14 @@ jobs:
   # native executable, so every release that publishes images builds all three
   # — one job per platform, all three attached by one publish job below.
   #
-  # This job is a PEER of the publish jobs, not their successor: same `needs`, so
-  # the two start together and the Windows compile runs UNDER the staging roll
-  # rather than adding a serial stage. Both production rows then wait for it —
-  # a release that cannot produce its CLI does not reach production. A cold
-  # Windows compile can outrun staging, in which case production waits for
-  # whatever is left of it; that wait is the point, not a regression.
+  # These jobs are PEERS of each other, and `release-windows-cli-publish` waits
+  # for all three so one Release carries every platform. A release that cannot
+  # produce its CLI is not a complete release: `.github/actions/validate` — the
+  # gate every Project repository runs — downloads these archives, so a missing
+  # one breaks Project CI everywhere while this run reports green.
   #
   # There is deliberately NO `if:` here. `needs` alone decides: both publishes
-  # green means a real release, and a real release always builds its CLI. That
-  # covers the nightly cut, a hand-pushed tag, AND a dispatch — the last of
-  # which used to publish images while quietly shipping no Windows CLI. A
+  # green means a real release, and a real release always builds its CLI. A
   # `kind-ci/**` branch run skips the publishes and therefore skips this too,
   # which is correct: it produces no release to carry an archive.
   release-windows-cli-build:
@@ -1879,10 +1957,8 @@ jobs:
         release-version,
       ]
     # A GitHub Release hangs off an immutable Git tag, and a release IS a tag
-    # now, so `publishable` is the whole condition. The second clause this
-    # carried — `schedule` or a tag ref — existed to stop a dispatch's
-    # `YY.M.D.H` claiming a Release it had cut no tag for; with no dispatch,
-    # `publishable == 'true'` already means "a tag ref".
+    # now, so `publishable` is the whole condition — `release-version` sets it
+    # only for a validated tag ref.
     if: needs.release-version.outputs.publishable == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -1944,12 +2020,12 @@ jobs:
           GH_HOST="${GITHUB_SERVER_URL#https://}"
           export GH_HOST
           if ! gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-              # `--target` is what makes this correct without a pushed tag: it
-              # creates the tag AT the SHA both archives were compiled from,
-              # rather than at whatever the default branch has drifted to while
-              # the Windows build ran.
+              # NO `--target`. The tag already exists — it is what started this
+              # run — so the Release hangs off the ref a person pushed, at the
+              # SHA every archive in this run was compiled from. `--target` was
+              # load-bearing while this job CREATED the tag, and passing it now
+              # would name a SHA for a ref that already has one.
               gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" \
-                  --target "${GITHUB_SHA}" \
                   --title "Neon Law Navigator ${TAG}" --generate-notes
           fi
           gh release upload "${TAG}" dist/navigator-*-windows.zip \
@@ -1963,20 +2039,19 @@ jobs:
   # Sent only after the container images are published. Posts to the
   # #navigator channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL,
   # a GitHub Actions secret) — the same channel and webhook the failure guard
-  # below uses. The webhook itself must be pinned to #navigator. The staging
-  # roll already happened in stage 3; this job only reports it.
+  # below uses. The webhook itself must be pinned to #navigator. NOTHING WAS
+  # ROLLED by the time this job runs, and nothing in this workflow can roll
+  # anything; this job reports a shelf, not a deployment.
   #
-  # TWO messages, posted in order, because they answer two different questions
-  # and get read at two different times:
+  # THREE messages, posted in order, because they answer different questions and
+  # get read at different times:
   #
   #   1. What was published — the asset manifest. Read once, when the tag lands,
   #      to confirm the shelf holds what it should.
-  #   2. What was deployed — one line per deployments/-tree entry, saying
-  #      whether THIS run rolled it onto the tag. Only neon-law-stg can be
-  #      rolled by a tag, so every production row reports as awaiting
-  #      promotion and the report names the workflow that promotes it. The
-  #      manual `ops ship` runbook is documentation (docs/gitops.md § "The
-  #      manual deploy"), not a Slack message.
+  #   2. How to install the CLI this release cut, per platform.
+  #   3. What to run to put it in front of clients — the `ops ship` command with
+  #      the version already substituted, so the hand-off is copyable rather
+  #      than a runbook lookup.
   #
   # The one rule still binds: identifiers and counts, never content — the bodies
   # carry the tag, image names, the run URL, and commands, nothing
@@ -2079,9 +2154,8 @@ jobs:
           fi
           echo "Published-assets manifest posted to #navigator"
 
-      # Every release is a tag, so `git clone --branch ${TAG}` is always real
-      # guidance and this step carries no `if:`. It was gated when a dispatch
-      # could publish a `.H` image tag with no Git tag behind it.
+      # Every release IS a tag, so `git clone --branch ${TAG}` is always real
+      # guidance and this step carries no `if:`.
       - name: post tagged CLI installation instructions to engineering Slack
         run: |
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
@@ -2143,7 +2217,9 @@ jobs:
       # tag itself — so nothing in this file needs to know it exists.
       # `the_ship_handoff_takes_the_deploy_repository_from_configuration` in
       # cli/src/devx/deployments.rs holds the literal back out.
-      - name: post the ship instructions to #navigator
+      # Quoted: an unquoted `#` starts a YAML comment, so this name rendered as
+      # "post the ship instructions to" in every run log.
+      - name: "post the ship instructions to #navigator"
         run: |
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
               echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the ship instructions"
@@ -2160,7 +2236,7 @@ jobs:
           fi
           TEXT=":package: *Neon Law Navigator ${TAG} — images published, nothing deployed*
 
-          The nightly built and proved this version and pushed it to GHCR. Nothing is in front of clients until you roll it.
+          This tag built and proved this version and pushed it to GHCR. Nothing is in front of clients until you roll it.
 
           *To ship it*, from ${CHECKOUT} with \`gcloud auth application-default login\` current:
           \`navigator ops ship --deployment <row> --deployments-dir . --tag ${TAG}\`
@@ -2183,8 +2259,8 @@ jobs:
           echo "Ship instructions posted to #navigator"
 
   # ---------- Failure guard: alert #navigator ----------
-  # Fires whenever ANY of integration / the publish-* jobs / the staging ship /
-  # notify fails
+  # Fires whenever ANY of release-version / build / integration / the publish-*
+  # jobs / the CLI lane / notify fails
   # (failure() is true if any needed job — or its upstream — failed, even when
   # later jobs were skipped as a result; a job that merely skipped is not a
   # failure and does not page). Posts to
@@ -2195,10 +2271,10 @@ jobs:
   # success report above. Like that report: tag + run URL only, never client
   # content.
   #
-  # A FAILED PRODUCTION PROMOTION DOES NOT PAGE FROM HERE. `failure()` only sees
-  # this run's jobs, and promote.yml is a different run, so it carries its own
-  # `notify-failure` with the same shape. Two guards, one per workflow, because
-  # neither can observe the other — not a duplication to consolidate.
+  # A FAILED ROLLOUT DOES NOT PAGE FROM HERE, and cannot: `failure()` only sees
+  # this run's jobs, and a rollout is a person running `navigator ops ship` from
+  # their own machine. The GHCR retention sweep is likewise a different run and
+  # carries its own failure page for the same reason.
   notify-failure:
     name: slack — alert engineering on failure
     needs:
@@ -2217,23 +2293,24 @@ jobs:
     # Tag only: a failed `kind-ci/**` branch iteration is expected churn and
     # must not page engineering — only a failed release does.
     #
-    # Deliberately NOT gated on release-version's `publishable` output: if that
-    # job itself dies — and it is the job that now REJECTS a wrong-dated tag —
-    # its outputs are empty and an output-gated guard would stay silent. That is
-    # exactly how the old two-workflow release failed unnoticed for four
-    # consecutive nights. Read the trigger ref directly, so a failure ANYWHERE,
-    # including the tag validation, still pages.
+    # Deliberately NOT gated on release-version's `publishable` output: that is
+    # the job that REJECTS a wrong-dated or manifest-mismatched tag, so it is
+    # among the most likely to fail — and when it does, its outputs are empty and
+    # an output-gated guard would stay silent about the very failure it exists to
+    # report. That is exactly how the old two-workflow release failed unnoticed
+    # for four consecutive nights. Read the trigger ref directly, so a failure
+    # ANYWHERE, including the tag validation, still pages.
     #
-    # This is now the ONLY automatic signal that a release broke, because there
-    # is no nightly run to notice a silent breakage. A pipeline defect nobody
-    # tags for stays invisible until the next release attempt; see
-    # docs/gitops.md § "What detects a broken pipeline".
-    if: failure() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    # This is the ONLY automatic signal that a release broke, because no clock
+    # runs this pipeline any more. A pipeline defect nobody tags for stays
+    # invisible until the next release attempt; see docs/gitops.md § "What
+    # detects a broken pipeline".
+    if: failure() && github.ref_type == 'tag'
     runs-on: ubuntu-latest
     # A single webhook POST — cap it so a hung request can't keep the run open.
     timeout-minutes: 10
     steps:
-      - name: post failure alert to #navigator
+      - name: "post failure alert to #navigator"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_OPS_MENTION: ${{ secrets.SLACK_OPS_MENTION }}

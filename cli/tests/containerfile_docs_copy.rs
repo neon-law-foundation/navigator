@@ -241,7 +241,7 @@ fn repo_relative_copy_sources(body: &str) -> Vec<String> {
 /// line left pointing at a *deleted* directory. #906 deleted the two host crates
 /// of the day and left their `COPY` lines behind in all seven
 /// images, which every PR check happily ignored (`cargo test (workspace)` never
-/// builds an image) while the nightly deploy died at
+/// builds an image) while the release deploy died at
 /// `failed to compute cache key: "/web": not found` — for two days, publishing
 /// nothing.
 ///
@@ -283,7 +283,7 @@ fn no_containerfile_copies_a_path_that_no_longer_exists() {
     assert!(
         offenders.is_empty(),
         "these Containerfiles stage a path that is not in the workspace, so `docker build` fails \
-         with `failed to compute cache key: not found` in the nightly deploy while every PR check \
+         with `failed to compute cache key: not found` in the release deploy while every PR check \
          stays green; delete the stale COPY line: {offenders:?}"
     );
 }
@@ -384,7 +384,7 @@ fn every_workspace_staging_containerfile_copies_every_member() {
 /// No Containerfile may build or run a crate that is not a workspace member.
 ///
 /// `cargo test (workspace)` never builds an image, so a Containerfile left
-/// pointing at a deleted crate stays green here and fails the nightly deploy
+/// pointing at a deleted crate stays green here and fails the release deploy
 /// instead. That is exactly what #860 hit: collapsing the two host binaries
 /// into `server` left an image building `-p web`, and because the COPY-list
 /// guard above only checks staged directories it saw nothing wrong.
@@ -420,7 +420,7 @@ fn no_containerfile_builds_a_crate_that_no_longer_exists() {
     assert!(
         offenders.is_empty(),
         "these Containerfiles build a crate that is not a workspace member, so the image build \
-         fails in the nightly deploy while every PR check stays green: {offenders:?}"
+         fails in the release deploy while every PR check stays green: {offenders:?}"
     );
 }
 
@@ -618,7 +618,7 @@ fn every_dx_build_takes_its_tooling_from_pinned_binaries_not_the_network() {
 /// "project requires version X but version Y is installed". So a routine
 /// dependency bump of the `wasm-bindgen` *crate* breaks the image build unless
 /// the pinned *CLI* moves with it — and because no PR check builds an image,
-/// that break would first surface in the nightly deploy. Catch it in the
+/// that break would first surface in the release deploy. Catch it in the
 /// required workspace test instead.
 #[test]
 fn the_pinned_wasm_bindgen_cli_matches_the_locked_wasm_bindgen_crate() {
@@ -649,7 +649,7 @@ fn the_pinned_wasm_bindgen_cli_matches_the_locked_wasm_bindgen_crate() {
 /// print its own terms and attributions with no accompanying files. Those two
 /// live at the workspace root, outside the crate directory, so any builder that
 /// stages `cli` without them fails at `couldn't read .../LICENSE.md` — and because
-/// no PR check builds an image, the break would first surface in the nightly
+/// no PR check builds an image, the break would first surface in the release
 /// deploy.
 #[test]
 fn images_that_copy_cli_also_copy_the_root_files_it_embeds() {

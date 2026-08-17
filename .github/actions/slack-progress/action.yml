@@ -3,14 +3,12 @@ description: >-
   Post one line of deploy progress to #navigator through the prod ops
   incoming webhook.
 
-# The narration half of the Slack surface, shared by deploy.yml's release and
-# promote.yml's production promotion. Each workflow's own `notify` reports the
-# finished work and its `notify-failure` pages engineering when a stage dies;
-# neither says anything while the pipeline is running, so a release is silent
-# for the ~45 minutes between the tag push and its verdict, and a promotion for
-# the length of a cold CLI compile. This action is called at the top of each
-# step so #navigator watches the run advance and the last line posted names the
-# step a failure died in — without opening the run.
+# The narration half of the Slack surface. deploy.yml's `notify` reports the
+# finished release and its `notify-failure` pages engineering when a stage dies;
+# neither says anything while the pipeline is running, so a release is silent for
+# the ~45 minutes between the tag push and its verdict. This action is called at
+# the top of each step so #navigator watches the run advance and the last line
+# posted names the step a failure died in — without opening the run.
 #
 # Three properties this action holds, because it is called from every stage:
 #
@@ -18,8 +16,8 @@ description: >-
 #      network blip prints a notice and exits 0. A release must not be lost
 #      to its own narration.
 #   2. IT SELF-GATES. A `kind-ci/**` branch iteration posts nothing, matching
-#      the rule the terminal reports already follow: only a real release or
-#      promotion talks to #navigator.
+#      the rule the terminal reports already follow: only a real release — a
+#      pushed tag — talks to #navigator.
 #   3. IT CARRIES IDENTIFIERS ONLY. Tag, stage, step, run URL. The
 #      "identifiers and counts, never content" rule binds this surface as
 #      hard as it binds the reports.
@@ -40,8 +38,8 @@ inputs:
     required: true
   tag:
     description: >-
-      The release tag this run is building. Empty before `release-version`
-      has derived it.
+      The release tag this run is building. Empty for `release-version`'s own
+      first post, which runs before the tag has been validated.
     required: false
     default: ""
 
@@ -66,15 +64,16 @@ runs:
         # from the run rather than from a caller-supplied flag, so a new call
         # site cannot forget the gate.
         #
-        # TWO things talk to #navigator, so this is two tests. A tag ref is
-        # deploy.yml's release. A `workflow_dispatch` is promote.yml's
-        # production promotion, which runs from a BRANCH ref (`refs/heads/main`)
-        # and would be silenced by the ref test alone — the single-arm gate this
-        # carried was correct only while deploy.yml was the sole caller. Nothing
-        # else dispatches, so naming the event admits promotion and nothing
-        # more.
-        case "${GITHUB_EVENT_NAME}" in
-            schedule | workflow_dispatch) ;;
+        # ONE thing talks to #navigator now, and it runs from a TAG. This was an
+        # event test while the clock owned publishing, because a cron and a
+        # dispatch both ran from a branch ref; both triggers are gone, and
+        # `promote.yml` — the other caller, which dispatched from
+        # `refs/heads/main` — is gone with them. So the gate is a ref test
+        # again, and it admits exactly what deploy.yml's `push.tags` filter
+        # admits. Widening one without the other is how a release goes silent or
+        # a branch iteration reports a publish it never made.
+        case "${GITHUB_REF}" in
+            refs/tags/*) ;;
             *)
                 echo "not a publish run (${GITHUB_REF}, ${GITHUB_EVENT_NAME}) — skipping the #navigator progress post"
                 exit 0

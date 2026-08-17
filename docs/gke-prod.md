@@ -130,14 +130,16 @@ PR merged to main
   └─→ .github/workflows/ci.yml runs fmt + clippy + cargo test --workspace
       (no images built — the PR flow is lean by design)
 
-The clock reaches 01:11 UTC (or someone dispatches deploy.yml)
+A person bumps the version, lands it, and pushes the YY.M.D tag
+  └─→ navigator ops release-version   (writes Cargo.toml, commits)
+  └─→ PR, merge, then: git tag YY.M.D && git push origin YY.M.D
   └─→ .github/workflows/deploy.yml runs, holding no cloud credential
-                  ├─ derive YY.M.D from the runner clock
+                  ├─ validate the tag: YY.M.D shape, today in UTC, == Cargo.toml
                   ├─ KIND integration suite (e2e + interop + browser)
-                  ├─ build + push service images to GHCR tagged YY.M.D + nightly
-                  ├─ cut the YY.M.D tag and Release, attach both CLI archives
-                  └─ post two reports to the engineering Slack channel
-                        (what published; then the ops ship command per deployment)
+                  ├─ build + push service images to GHCR tagged YY.M.D + latest
+                  ├─ attach three CLI archives to the tag's GitHub Release
+                  └─ post three reports to the engineering Slack channel
+                        (what published; CLI install; then the ops ship command)
 
 A person decides the version should go in front of clients
   └─→ gcloud auth application-default login
@@ -164,14 +166,18 @@ the two service rollouts it started.
 The published images live in a **private** Google Artifact Registry — in the images project, which is not the cluster's
 — and the GKE nodes pull them via Workload Identity, so there is no imagePullSecret and no registry credential to
 rotate. That cross-project pull needs the node identity granted `roles/artifactregistry.reader` on the hub repository;
-`navigator ops gcp setup --images-project-id <project>` does it. The repository's own Artifact Registry cleanup policy
-keeps the **last 10 versions of each image** and deletes the rest, so the ten most recent releases stay pullable however
-long the gap between them — retention counts versions rather than days precisely so a deferred roll cannot age a running
-tag off the shelf.
+`navigator ops gcp setup --images-project-id <project>` does it.
 
-A version is `YY.M.D` — the UTC date the run fired on. `deploy.yml` publishes nightly and on `workflow_dispatch`, so a
-build is available on demand; rolling one onto the cluster is always `ops ship`, above, run by a person. To exercise the
-pipeline without publishing, push a `kind-ci/**` branch.
+Retention is `.github/workflows/ghcr-retention.yml`, nightly at 01:11 UTC: it deletes a version only when it is older
+than 30 days **and** outside its image's newest 10 **and** not the one carrying `latest`. That count floor is why a
+deferred roll cannot age a running tag off the shelf — the ten most recent versions of every image stay pullable however
+long the gap between releases. See [GitOps](gitops.md#image-retention).
+
+A version is `YY.M.D` — the UTC date the tag was pushed on, which `deploy.yml` verifies rather than derives, along with
+its equality to `[workspace.package].version`. Cargo rejects a fourth component, so there is no hour-suffixed emergency
+release and no more than one release per UTC day; see [GitOps](gitops.md#one-workflow-owns-publishing----deployyml).
+Rolling a published version onto the cluster is always `ops ship`, above, run by a person. To exercise the pipeline
+without publishing, push a `kind-ci/**` branch.
 
 ## Manifest delivery
 
