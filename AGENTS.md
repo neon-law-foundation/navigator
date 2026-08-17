@@ -3,7 +3,9 @@
 **Neon Law Navigator** is copyright the **Neon Law Foundation**, which produces it; **Shook Law PLLC** (the Firm), which
 trades as **Neon Law**, operates it and owns the NEON LAW mark. **This is a public, open-source repository** at
 [github.com/neon-law-foundation/navigator](https://github.com/neon-law-foundation/navigator): one grant,
-`AGPL-3.0-only`, over the whole tree including the legal prose under `templates/`, in one root [`LICENSE`](LICENSE).
+`AGPL-3.0-only`, over the whole tree including the legal prose under `templates/`. Root [`LICENSE`](LICENSE) holds that
+grant as the Free Software Foundation publishes it, unaltered so every licence scanner names it; [`NOTICE`](NOTICE)
+beside it carries the copyright line and the Foundation's own statements, and is where any wording of ours belongs.
 Section 13 is the clause that matters operationally — a modified Navigator run for remote users owes those users its
 source. Outside contributions are **currently closed** — point anyone asking at `contact@neonlaw.org` — though the
 inbound = outbound terms still stand, with no assignment. The marks are reserved. This monorepo holds one website — the

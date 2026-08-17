@@ -1,0 +1,70 @@
+Neon Law Navigator — NOTICE
+
+Copyright (C) 2026 Neon Law Foundation
+
+SPDX-License-Identifier: AGPL-3.0-only
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of version 3 of the GNU Affero General Public License as published by
+the Free Software Foundation.  Version 3 exactly, and not "or any later
+version": the terms this repository publishes under are the terms in the file
+beside this one.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See LICENSE for more details.
+
+LICENSE holds that licence and nothing else — the Free Software Foundation's
+text, unaltered, so every tool that reads a licence file recognises which one
+this is.  It is the instrument.  What follows is the Neon Law Foundation's own
+account of how it applies to this work: nothing here narrows the grant, and
+nothing here is a second licence.
+
+ONE LICENCE, OVER EVERYTHING THE FOUNDATION CAN LICENSE.  The Rust workspace,
+the `navigator` CLI, the build and deployment tooling, and the drafted legal
+prose under `templates/` are all AGPL-3.0-only.  One grant covers the tree, so
+there is nothing to look up per directory: a reader of a notation body holds the
+same terms as a reader of the code that renders it.
+
+RUNNING IT OVER A NETWORK.  Section 13 is what makes this the Affero licence
+rather than the ordinary GPL, and it is the clause to read before deploying: if
+you modify this software and let users interact with it remotely over a
+network, you must offer those users the corresponding source of your modified
+version.  Operating a legal-services portal for other people is exactly that
+case, so the obligation attaches to running it and not only to shipping it.
+
+GOVERNMENT FORMS ARE NOT THE FOUNDATION'S TO LICENSE.  The blank government
+PDFs under `templates/forms/` are works of the issuing state or federal agency.
+The Foundation claims no copyright in them and grants none; they are committed
+so the binary embeds the same bytes the repository carries, and for no other
+reason.  What the Foundation does license under the AGPL is its own material
+beside each blank form: the catalog card, the field map, and the workflow that
+fills the form in.
+
+TRADEMARKS.  The licence grants rights in copyright, not in trademarks, and
+here the two sit with different organizations.  Copyright in this work belongs
+to the Neon Law Foundation, which produces it.  NEON LAW is a registered
+trademark, U.S. Reg. No. 6,325,650, owned by Shook Law PLLC, the law firm that
+operates this software under the mark; that mark, the Neon Law wordmark, and
+the Neon Law logos are the Firm's and are not licensed here.  You may run,
+fork, and redistribute this software freely, and you may say your work is built
+on Neon Law Navigator.  You may not present your deployment as Neon Law — a law
+firm's mark is how a client identifies who is accountable for their legal work,
+and a fork wearing it would misdirect exactly the person least able to check.
+Rename your deployment through the brand manifest (see `views::brand_bundle`)
+rather than by editing sources; that seam exists for this.  The Foundation uses
+the mark for its charitable, pro bono, and public-education work under separate
+written permission from the Firm.
+
+CONTRIBUTIONS.  Unless you state otherwise, any contribution you intentionally
+submit for inclusion is licensed AGPL-3.0-only on the same terms, with no
+additional terms and no copyright assignment.  You keep the copyright in what
+you write.  Outside contributions are closed as a matter of capacity; write to
+contact@neonlaw.org instead.
+
+NO LEGAL ADVICE.  This licence is not legal advice and creates no
+attorney-client relationship.  A template here is a starting point drafted for
+the jurisdictions Neon Law practises in.  Running this software does not put a
+lawyer in your matter, and adapting a template does not make the result correct
+for your facts or your state.  An attorney-client relationship with Shook Law
+PLLC begins only with a signed retainer.

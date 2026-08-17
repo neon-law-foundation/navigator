@@ -44,6 +44,7 @@ COPY store             store
 COPY repos             repos
 COPY cli               cli
 COPY LICENSE        LICENSE
+COPY NOTICE         NOTICE
 COPY THIRD-PARTY-NOTICES.txt THIRD-PARTY-NOTICES.txt
 COPY portal            portal
 COPY server            server
@@ -115,6 +116,7 @@ LABEL org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.vendor="Neon Law Foundation"
 
 COPY LICENSE /app/LICENSE
+COPY NOTICE  /app/NOTICE
 
 USER nonroot:nonroot
 

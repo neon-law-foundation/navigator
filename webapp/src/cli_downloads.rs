@@ -287,10 +287,10 @@ fn PlatformMark(slug: String) -> Element {
 
 /// The licence the download travels under.
 ///
-/// The archive carries `LICENSE` beside the executable and the binary prints
-/// the same terms with `navigator --license`, so this note points at them rather
-/// than restating them. Restating licence terms in page copy would create a
-/// second, drifting version of an instrument the Firm relies on.
+/// The archive carries `LICENSE` and `NOTICE` beside the executable and the
+/// binary prints the same terms with `navigator --license`, so this note points
+/// at them rather than restating them. Restating licence terms in page copy
+/// would create a second, drifting version of an instrument the Firm relies on.
 ///
 /// The one obligation the note does name is § 13, because it is the one a reader
 /// will not infer from "open source": running a modified Navigator as a service
@@ -303,8 +303,8 @@ fn LicenceNote() -> Element {
         section { class: "licence-note", id: "cli-downloads-licence",
             h2 { "Terms" }
             p {
-                "Each archive carries the licence beside the executable, and the "
-                "installed binary prints it with "
+                "Each archive carries the licence and notice beside the "
+                "executable, and the installed binary prints both with "
                 code { "navigator --license" }
                 ". Navigator is free software under the GNU Affero General "
                 "Public License v3: read it, build it, fork it, and "
@@ -506,19 +506,19 @@ mod tests {
     }
 
     /// The download page is where a stranger reads what they may do with the
-    /// binary, so it has to describe the licence the binary actually carries.
-    ///
-    /// It once promised an end-user licence agreement and denied source,
-    /// modification, and redistribution rights — the terms of a proprietary
-    /// distribution. The AGPL grants all three, so that copy did not merely go
-    /// stale: it told a reader they lacked a permission the licence beside the
-    /// executable had already given them.
+    /// binary, so it has to describe the licence the binary actually carries:
+    /// the Affero grant, which gives source, modification, and redistribution
+    /// alike.
     ///
     /// § 13 is asserted alongside the grant because this page is where someone
     /// decides whether to deploy a fork, and a network-use obligation they learn
     /// about afterwards is one they have already breached.
+    ///
+    /// The marks are asserted too. They are the one thing the grant does not
+    /// carry, and a reader who takes "free software" to include the name has
+    /// read the page and still got it wrong.
     #[test]
-    fn the_terms_note_describes_the_agpl_grant_rather_than_a_retired_eula() {
+    fn the_terms_note_describes_the_agpl_grant() {
         let out = render(&view_with(vec![archive("linux", "Linux")]));
 
         assert!(
@@ -530,19 +530,10 @@ mod tests {
             "the terms note must state the network-use obligation, which is the \
              one a reader will not infer from \"open source\": {out}"
         );
-        for retired in ["MIT", "Apache-2.0", "dual-licensed"] {
-            assert!(
-                !out.contains(retired),
-                "the terms note must not still offer the retired permissive \
-                 grant `{retired}`: {out}"
-            );
-        }
-        for retired in ["end-user licence", "EULA", "conveys no source"] {
-            assert!(
-                !out.contains(retired),
-                "the terms note must not carry the retired proprietary copy \
-                 ({retired:?}): {out}"
-            );
-        }
+        assert!(
+            out.contains("NEON LAW marks are reserved"),
+            "the terms note must reserve the marks — the grant covers copyright \
+             and not the name: {out}"
+        );
     }
 }

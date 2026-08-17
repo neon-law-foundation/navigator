@@ -31,8 +31,11 @@ Affero licence rather than the ordinary GPL: modify this software, let users rea
 users the corresponding source of your version. Operating a legal-services portal for other people is exactly that
 shape, so the obligation attaches to running it and not only to shipping it.
 
-See <LICENSE> for the grant and the reservations, [`docs/licensing.md`](docs/licensing.md) for why this software is
-published at all, and <CONTRIBUTING.md> for how contributions are licensed.
+<LICENSE> holds that grant: the Free Software Foundation's text, unaltered, so every tool that reads a licence file
+names it correctly. <NOTICE> beside it carries the Foundation's own statements — the copyright line, section 13 in its
+own voice, the government forms it cannot license, and the marks it reserves. See
+[`docs/licensing.md`](docs/licensing.md) for why this software is published at all, and <CONTRIBUTING.md> for how
+contributions are licensed.
 
 Copyright (C) 2026 **Neon Law Foundation**.
 

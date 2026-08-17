@@ -100,6 +100,7 @@ COPY repos             repos
 COPY import            import
 COPY cli               cli
 COPY LICENSE        LICENSE
+COPY NOTICE         NOTICE
 COPY THIRD-PARTY-NOTICES.txt THIRD-PARTY-NOTICES.txt
 COPY portal            portal
 COPY server            server

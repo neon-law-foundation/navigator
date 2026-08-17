@@ -1,35 +1,41 @@
-//! Pin the licence of record: two organizations, one outbound grant, and no
-//! way back.
+//! Pin the licence of record: two organizations, one outbound grant, and two
+//! files that divide the work between them.
 //!
-//! Root `LICENSE` governs the work. Everything the Foundation can license —
-//! the Rust workspace, the `navigator` CLI, the build and deployment tooling,
-//! and the drafted legal prose under `templates/` — is `AGPL-3.0-only`. One
-//! grant, one file, no per-tree exception to look up.
+//! Root `LICENSE` governs everything the Foundation can license — the Rust
+//! workspace, the `navigator` CLI, the build and deployment tooling, and the
+//! drafted legal prose under `templates/`. One grant covers the tree, so a
+//! reader never has to work out which instrument applies to the file in front of
+//! them.
+//!
+//! **`LICENSE` is the Free Software Foundation's text and nothing else.** Not a
+//! stylistic choice: a licence file is read by machines as well as people, and
+//! every one of them — GitHub's own detection, `cargo deny`, an SBOM
+//! generator, a corporate review team's scanner — decides which licence it is
+//! looking at by comparing the file against the canonical text. Prepend a
+//! paragraph and the comparison drops below the threshold, the repository page
+//! stops naming the licence, and a reader who wanted one glance to see AGPL
+//! instead gets an unlabelled file to read. So the Foundation's own words live
+//! in `NOTICE` beside it, which is where everyone else puts them.
+//!
+//! **`NOTICE` is where this work meets that text.** The copyright line, the SPDX
+//! tag, § 13 in the Foundation's own voice, the government forms it cannot
+//! license, the marks it reserves, and the terms a contribution arrives under.
+//! `LICENSE` is the instrument; `NOTICE` says how it applies here and narrows
+//! nothing.
 //!
 //! The Affero clause is the point rather than a detail. Section 13 obliges
-//! anyone who modifies this software and lets users interact with it remotely
-//! to offer those users the corresponding source, and a legal-services portal
-//! run for other people is exactly that deployment shape. A migration that
-//! landed the SPDX tag but lost § 13 would keep the label and drop the
-//! obligation, so the section is asserted by name below.
+//! anyone who modifies this software and lets users interact with it remotely to
+//! offer those users the corresponding source, and a legal-services portal run
+//! for other people is exactly that deployment shape. A change that kept the
+//! SPDX tag but lost § 13 would keep the label and drop the obligation, so the
+//! section is asserted by name below.
 //!
 //! An open-source licence is a promise to everyone who has cloned the
 //! repository, and it cannot be quietly taken back: every copy keeps the rights
-//! it was given, whatever a later commit says. The risk this file guards is
-//! therefore an accidental *retraction*. A manifest drifting to
-//! `LicenseRef-Proprietary`, an `EULA.md` appearing, or an "all rights
-//! reserved" line landing in the licence file would each publish a
-//! contradiction: the tree says one thing and the licence file another, and a
-//! downstream reader has no way to tell which binds. The forbidden-strings
-//! lists below name the exact clauses that would do it.
-//!
-//! The retired *permissive* grant is guarded just as hard, and in the opposite
-//! direction from everything else here. `MIT OR Apache-2.0` was this
-//! workspace's grant, and every copy taken under it keeps it — that history is
-//! real and nothing here revokes it. What must not survive is a surface still
-//! *offering* it, because a stale `LICENSE-MIT` link or a manifest reading
-//! `MIT OR Apache-2.0` would tell a new reader they may take the code
-//! permissively today, which is a grant the Foundation no longer makes.
+//! it was given, whatever a later commit says. The guard against an accidental
+//! retraction is therefore structural rather than a list of forbidden clauses —
+//! `LICENSE` must begin at the licence text's first line and end at its last, so
+//! there is nowhere in the file for a contradicting clause to sit.
 //!
 //! The trademark reservation is guarded just as hard, and for a reason the
 //! copyright grant does not cover. Copyleft invites forks too, and a fork
@@ -40,10 +46,7 @@
 //!
 //! Structure only, never prose. The wording is expected to keep moving; only a
 //! change to the *structure* — the owner changing, a manifest drifting off the
-//! tag, the grant file disappearing, the reservation going missing — lands here.
-
-mod common;
-use common::is_sops_ciphertext;
+//! tag, a terms file disappearing, the reservation going missing — lands here.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -54,18 +57,20 @@ use std::path::{Path, PathBuf};
 /// the terms in its own licence file, and no future FSF revision moves them.
 const LICENSE: &str = "AGPL-3.0-only";
 
-/// The single licence file. One grant over the whole tree means one instrument,
-/// and a reader never has to work out which of several applies to the file in
-/// front of them.
+/// The grant itself: the Free Software Foundation's text, unaltered.
 const LICENSE_FILE: &str = "LICENSE";
+
+/// The Foundation's own statements about that grant, in the file every other
+/// project keeps them in.
+const NOTICE_FILE: &str = "NOTICE";
 
 /// The copyright holder: the organization that *produces* this software and
 /// makes the outbound grant.
 ///
-/// A rename edits this constant and root `LICENSE` together, and nothing else
-/// in this file. It is the legal person rather than the trade name on purpose:
-/// a copyright notice has to name someone who can hold a copyright, and "Neon
-/// Law" alone is a brand.
+/// A rename edits this constant and root `NOTICE` together, and nothing else in
+/// this file. It is the legal person rather than the trade name on purpose: a
+/// copyright notice has to name someone who can hold a copyright, and "Neon Law"
+/// alone is a brand.
 const OWNER: &str = "Neon Law Foundation";
 
 /// The trademark registrant, which is a *different* organization from the
@@ -78,40 +83,6 @@ const OWNER: &str = "Neon Law Foundation";
 /// needs to know the permission they would be asking for does not come from
 /// whoever holds the copyright.
 const REGISTRANT: &str = "Shook Law PLLC";
-
-/// Licence files that must not exist, because each contradicts the grant.
-///
-/// `LICENSE-MIT`, `LICENSE-APACHE`, and `LICENSE.md` are the retired permissive
-/// instruments. Their presence would offer a reader a permissive choice the
-/// Foundation no longer grants, beside a copyleft file granting something
-/// narrower — two instruments over the same bytes, and no way to tell which
-/// binds.
-///
-/// `EULA.md` is the other direction: it withholds the right to redistribute,
-/// which the AGPL permits. `LICENSE-BUSL.txt` is a source-available grant with
-/// a four-year clock over code published without one.
-const RETIRED_LICENSE_FILES: [&str; 7] = [
-    "LICENSE-MIT",
-    "LICENSE-APACHE",
-    "LICENSE.md",
-    "EULA.md",
-    "LICENSE-BUSL.txt",
-    "FIAT_LICENSE.md",
-    "NEON_LICENSE.md",
-];
-
-/// Vocabulary that would re-offer the retired permissive grant.
-///
-/// Matched lowercased against whitespace-flattened prose, because these are
-/// phrases and the Markdown line width splits phrases.
-const RETIRED_PERMISSIVE_GRANT: [&str; 6] = [
-    "mit or apache-2.0",
-    "license-mit",
-    "license-apache",
-    "dual-licensed",
-    "dual licensed",
-    "cc-by-4.0",
-];
 
 /// The workspace root (this test crate is `cli`).
 fn repo_root() -> PathBuf {
@@ -151,10 +122,9 @@ fn window(body: &str, at: usize, len: usize) -> &str {
 ///
 /// `worktrees` covers `.worktrees`, `.claude/worktrees`, and `.codex/worktrees`
 /// alike. Each holds a *complete other checkout*, so walking in reads another
-/// branch's files as if they were this one's — and a branch that predates this
-/// migration still carries `LICENSE-MIT`. CI clones fresh and never has them,
-/// which is exactly why the failure would only ever reproduce on the machine of
-/// whoever is working in a worktree.
+/// branch's files as if they were this one's. CI clones fresh and never has
+/// them, which is exactly why such a failure would only ever reproduce on the
+/// machine of whoever is working in a worktree.
 fn is_skipped_dir(name: &str) -> bool {
     matches!(name, "target" | ".git" | "node_modules" | "vendor")
         || name.trim_start_matches('.') == "worktrees"
@@ -253,8 +223,8 @@ fn workspace_root_pins_the_license_of_record() {
 }
 
 /// The VS Code extension ships outside the Cargo workspace (npm registry), so
-/// its manifest declares the tag by hand and drifts on its own. It is now the
-/// only manifest in the tree that can.
+/// its manifest declares the tag by hand and drifts on its own. It is the only
+/// manifest in the tree that can.
 #[test]
 fn editor_extension_manifest_declares_the_license_of_record() {
     let vscode: serde_json::Value =
@@ -266,39 +236,64 @@ fn editor_extension_manifest_declares_the_license_of_record() {
     );
 }
 
-/// Root `LICENSE` names the copyright holder and carries the SPDX tag.
-#[test]
-fn root_license_names_the_owner_and_the_spdx_tag() {
-    let license = read(LICENSE_FILE);
-    assert!(
-        license.contains(&format!("Copyright (C) 2026 {OWNER}")),
-        "root {LICENSE_FILE} must carry the copyright line \
-         `Copyright (C) 2026 {OWNER}`"
-    );
-    assert!(
-        license.contains(&format!("SPDX-License-Identifier: {LICENSE}")),
-        "root {LICENSE_FILE} must carry `SPDX-License-Identifier: {LICENSE}`"
-    );
-}
-
-/// The grant text ships in full, and it is the Affero one.
+/// `LICENSE` is the licence text and only the licence text.
 ///
-/// Checked section by section rather than by length. A truncated paste that
-/// stopped after the definitions would still look like a licence file, and the
-/// sections named here are the ones a reader actually relies on: § 4 obliges a
-/// conveyor to hand over this License, § 6 governs conveying a built binary,
-/// § 11 is the patent grant, and § 13 is the network clause that makes this the
-/// Affero licence rather than the ordinary GPL.
+/// This is the guard the rest of the file leans on, and it does two jobs at
+/// once.
+///
+/// **It keeps the licence machine-readable.** Every tool that identifies a
+/// licence — GitHub's repository page, an SBOM generator, a corporate scanner —
+/// compares this file against the canonical text and needs a near-exact match.
+/// A paragraph of the Foundation's own prose in front of the grant is enough to
+/// drop below that bar, at which point the repository stops telling a reader
+/// which licence it publishes under. So the file starts at the text's first line
+/// and stops at its last, and everything the Foundation has to say about the
+/// grant is in `NOTICE`.
+///
+/// **It makes a retraction structurally impossible.** A file bounded at both
+/// ends by the FSF's own lines, carrying every section between them, has nowhere
+/// to hide a clause that narrows what the grant gives away — which is a stronger
+/// promise than any list of forbidden wording, and it needs no maintenance.
+///
+/// The sections are checked by name rather than by length, because a truncated
+/// paste that stopped after the definitions would still look like a licence
+/// file. Each named section is one a reader relies on: § 4 obliges a conveyor to
+/// hand over this License, § 6 governs conveying a built binary, § 11 is the
+/// patent grant, and § 13 is the network clause that makes this the Affero
+/// licence rather than the ordinary GPL.
 #[test]
-fn the_grant_text_ships_and_is_complete() {
+fn the_licence_file_is_the_grant_text_unaltered() {
     assert!(
         repo_root().join(LICENSE_FILE).exists(),
         "{LICENSE_FILE} is the licence of record and must exist"
     );
-
     let license = read(LICENSE_FILE);
+
+    let first = license
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or_default()
+        .trim();
+    assert_eq!(
+        first, "GNU AFFERO GENERAL PUBLIC LICENSE",
+        "{LICENSE_FILE} must open on the licence text's own first line. Anything \
+         ahead of it — a copyright header, a scope note, a pointer to another \
+         file — is what stops licence detection from naming the grant, and the \
+         Foundation's own words belong in {NOTICE_FILE}."
+    );
+
+    let last = license
+        .lines()
+        .rfind(|line| !line.trim().is_empty())
+        .unwrap_or_default()
+        .trim();
+    assert_eq!(
+        last, "<https://www.gnu.org/licenses/>.",
+        "{LICENSE_FILE} must end on the licence text's own last line, so there is \
+         nowhere in the file for an added clause to sit"
+    );
+
     for required in [
-        "GNU AFFERO GENERAL PUBLIC LICENSE",
         "Version 3, 19 November 2007",
         "TERMS AND CONDITIONS",
         "0. Definitions.",
@@ -318,153 +313,114 @@ fn the_grant_text_ships_and_is_complete() {
     }
 }
 
+/// `NOTICE` is what ties this work to the text beside it.
+///
+/// The FSF's text names no author and no program, so on its own it says which
+/// licence the repository publishes under and nothing about who publishes or
+/// what. The copyright line, the SPDX tag, and the sentence putting *this*
+/// program under the grant are what close that gap, and they live here.
+#[test]
+fn the_notice_puts_this_work_under_the_grant() {
+    let notice = read(NOTICE_FILE);
+    assert!(
+        repo_root().join(NOTICE_FILE).exists(),
+        "{NOTICE_FILE} carries the copyright line and the Foundation's own \
+         statements about the grant, and must exist"
+    );
+    assert!(
+        notice.contains(&format!("Copyright (C) 2026 {OWNER}")),
+        "{NOTICE_FILE} must carry the copyright line \
+         `Copyright (C) 2026 {OWNER}` — {LICENSE_FILE} is the FSF's text and \
+         names no copyright holder"
+    );
+    assert!(
+        notice.contains(&format!("SPDX-License-Identifier: {LICENSE}")),
+        "{NOTICE_FILE} must carry `SPDX-License-Identifier: {LICENSE}`"
+    );
+
+    let flat = flat_lower(&notice);
+    for required in ["free software", "redistribute", "narrows the grant"] {
+        assert!(
+            flat.contains(required),
+            "{NOTICE_FILE} must state `{required}` — it is the file that says \
+             this program is published under {LICENSE} and that nothing beside \
+             the grant takes anything back from it"
+        );
+    }
+}
+
 /// The network clause is stated where a deployer will read it.
 ///
 /// § 13 is the whole reason this workspace is on the Affero licence rather than
 /// a permissive one, and it is the obligation a reader is least likely to expect
 /// from the SPDX tag alone. Someone who runs a modified Navigator as a legal
-/// portal owes their users the corresponding source, and the licence file has to
-/// say so in its own voice — not only inside § 13's own legalese, which a
+/// portal owes their users the corresponding source, and `NOTICE` has to say so
+/// in the Foundation's own voice — not only inside § 13's own legalese, which a
 /// deployer skims past on the way to deciding they may fork.
 #[test]
-fn the_licence_states_the_network_obligation_in_its_own_voice() {
-    let flat = flat_lower(&read(LICENSE_FILE));
+fn the_notice_states_the_network_obligation_in_its_own_voice() {
+    let flat = flat_lower(&read(NOTICE_FILE));
 
     assert!(
         flat.contains("section 13"),
-        "{LICENSE_FILE} must name section 13 in its own preamble — the network \
-         obligation is the reason this grant is Affero, and a deployer reads the \
-         top of the file rather than § 13's own text"
+        "{NOTICE_FILE} must name section 13 in its own voice — the network \
+         obligation is the reason this grant is Affero, and a deployer reads a \
+         short notice rather than § 13's own text"
     );
     assert!(
         flat.contains("corresponding source"),
-        "{LICENSE_FILE} must say that a modified network deployment owes users \
+        "{NOTICE_FILE} must say that a modified network deployment owes users \
          the corresponding source"
     );
     assert!(
         flat.contains("remotely"),
-        "{LICENSE_FILE} must say the obligation attaches to letting users \
+        "{NOTICE_FILE} must say the obligation attaches to letting users \
          interact with the software remotely, which is the deployment shape a \
          legal-services portal actually has"
     );
 }
 
-/// The marks are reserved, and `LICENSE` says so in the same breath as the
-/// grant.
+/// The marks are reserved, and `NOTICE` says so in the same breath as the grant.
 ///
 /// This is the reservation the copyright grant does not make, and it is the
 /// clause most likely to be lost in a rewrite, because every other sentence in
 /// the file is about giving things away. A reader deciding whether they may ship
-/// a fork called "Neon Law" reads the licence file, so the answer has to be
-/// there.
+/// a fork called "Neon Law" reads the terms files, so the answer has to be in
+/// one of them — and `LICENSE` is the FSF's text, which leaves this one.
 #[test]
-fn the_licence_reserves_the_marks_alongside_the_grant() {
-    let flat = read(LICENSE_FILE)
+fn the_notice_reserves_the_marks_alongside_the_grant() {
+    let flat = read(NOTICE_FILE)
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
 
     assert!(
         flat.contains("rights in copyright, not in trademarks"),
-        "{LICENSE_FILE} must state that the grant covers copyright and not \
+        "{NOTICE_FILE} must state that the grant covers copyright and not \
          trademarks — copyleft invites forks too, and the marks are the only \
          thing this repository withholds from one"
     );
     assert!(
         flat.contains("6,325,650"),
-        "{LICENSE_FILE} must cite the NEON LAW registration it reserves"
+        "{NOTICE_FILE} must cite the NEON LAW registration it reserves"
     );
     assert!(
         flat.contains("views::brand_bundle"),
-        "{LICENSE_FILE} must point a fork at the brand manifest — telling \
-         someone they may not use the marks without showing them the rename seam \
-         leaves patching sources as the obvious move"
+        "{NOTICE_FILE} must point a fork at the brand manifest — telling someone \
+         they may not use the marks without showing them the rename seam leaves \
+         patching sources as the obvious move"
     );
-}
-
-/// The grant cannot be walked back.
-///
-/// This is the guard that matters most. A reader who clones this repository
-/// holds real rights, and every copy already taken keeps them regardless of what
-/// a later commit says.
-///
-/// So the risk is an accidental *retraction*: a proprietary clause landing in
-/// the licence file would leave the repository claiming to be private while its
-/// own licence file grants the world a licence. Both cannot be true, and the one
-/// people have already relied on is the grant.
-#[test]
-fn the_license_grants_the_public_something_and_cannot_take_it_back() {
-    let license = flat_lower(&read(LICENSE_FILE));
-
-    for required in [
-        "gnu affero general public license",
-        "free software",
-        "redistribute",
-    ] {
-        assert!(
-            license.contains(required),
-            "root {LICENSE_FILE} must state `{required}` — the software is \
-             published under {LICENSE} and the file has to read as a grant"
-        );
-    }
-
-    // The retired vocabulary, matched as whole clauses rather than bare words.
-    // "All Rights Reserved" cannot be forbidden on its own — a copyright line
-    // may legitimately carry it — so the clauses named here are the ones the
-    // proprietary drafts actually used.
-    for retracted in [
-        "licenseref-proprietary",
-        "this is a private repository",
-        "not source-available",
-        "access to this repository is not a licence",
-        "access is not a licence",
-        "no licence is granted to anyone",
-        "confidential, proprietary property",
-        "may not be published, open-sourced, mirrored",
-        // Source-available vocabulary. Any of it here would put a four-year
-        // embargo over code published without one.
-        "business source license",
-        "additional use grant",
-        "change date",
-    ] {
-        assert!(
-            !license.contains(retracted),
-            "root {LICENSE_FILE} must not retract or narrow the outbound grant; \
-             found `{retracted}`. The software is published under {LICENSE} and \
-             every copy already taken keeps its rights — a clause like this \
-             makes the repository lie about what its readers already hold."
-        );
-    }
-}
-
-/// No retired licence file returns, and `LICENSE` is the only one.
-///
-/// A returning `LICENSE-MIT` is the live contradiction this guard exists for:
-/// it would offer a permissive grant the Foundation no longer makes, beside a
-/// copyleft file granting something narrower, with nothing to tell a reader
-/// which of the two binds.
-#[test]
-fn no_retired_license_file_returns() {
-    assert!(
-        repo_root().join(LICENSE_FILE).exists(),
-        "{LICENSE_FILE} is the license of record and must exist"
-    );
-    for retired in RETIRED_LICENSE_FILES {
-        assert!(
-            !repo_root().join(retired).exists(),
-            "{retired} is retired; {LICENSE} in {LICENSE_FILE} is the only \
-             instrument over this work, and a second licence file at the root \
-             leaves a reader guessing which one binds"
-        );
-    }
 }
 
 /// Exactly one licence file sits at the repository root.
 ///
-/// The count is the assertion. "One LICENSE file" is the shape this migration
-/// chose, and the way it decays is a helpful-looking sibling — `LICENSE.txt`
-/// beside `LICENSE`, or a `COPYING` a tool dropped in — rather than one of the
-/// specific names `RETIRED_LICENSE_FILES` already knows about.
+/// The count is the assertion. One grant over the whole tree means one
+/// instrument, and the way that decays is a helpful-looking sibling —
+/// `LICENSE.txt` beside `LICENSE`, or a `COPYING` a tool dropped in — which
+/// leaves a reader working out which of two files binds them.
+///
+/// `NOTICE` is not one of them and is deliberately named so: it holds no grant,
+/// and no licence scanner reads it as one.
 #[test]
 fn the_repository_root_carries_exactly_one_licence_file() {
     let mut found: Vec<String> = fs::read_dir(repo_root())
@@ -490,62 +446,6 @@ fn the_repository_root_carries_exactly_one_licence_file() {
     );
 }
 
-/// No manifest, workflow, or dependency policy still declares a retired tag.
-///
-/// Two failure directions, one list. A stale `LicenseRef-Proprietary` would
-/// tell a downstream reader they hold no rights when in fact they hold the
-/// AGPL's; a stale `MIT OR Apache-2.0` would tell them they may take the code
-/// permissively, which is a grant the Foundation no longer makes.
-#[test]
-fn no_surface_still_declares_a_retired_tag() {
-    let mut hits = Vec::new();
-    for rel in [
-        "Cargo.toml",
-        "lsp/vscode-ext/package.json",
-        "deny.toml",
-        ".github/workflows/deploy.yml",
-        "README.md",
-        "CONTRIBUTING.md",
-        "docs/licensing.md",
-        LICENSE_FILE,
-    ] {
-        let path = repo_root().join(rel);
-        let Ok(body) = fs::read_to_string(&path) else {
-            continue;
-        };
-        let flat = flat_lower(&body);
-        for stale in [
-            "licenseref-proprietary",
-            "eula.md",
-            "not source-available",
-            "access to this repository is not a licence",
-            // A manifest on `BUSL-1.1` would tell a downstream reader their
-            // rights expire on a clock that does not exist.
-            "busl-1.1",
-            "license-busl",
-        ] {
-            if flat.contains(stale) {
-                hits.push(format!("{rel}: `{stale}`"));
-            }
-        }
-        for stale in RETIRED_PERMISSIVE_GRANT {
-            // `deny.toml` names `MIT` and `Apache-2.0` as *inbound* dependency
-            // policy, which is a different question from the outbound grant and
-            // stays permissive on purpose. Only the composed dual-grant
-            // expression is forbidden there, and the flattened `contains` above
-            // already distinguishes them.
-            if flat.contains(stale) {
-                hits.push(format!("{rel}: re-offers the retired grant `{stale}`"));
-            }
-        }
-    }
-    assert!(
-        hits.is_empty(),
-        "these surfaces still declare a retired licence:\n  {}",
-        hits.join("\n  ")
-    );
-}
-
 /// Contributions are closed, contributions are inbound = outbound, and
 /// `CONTRIBUTING.md` states both without letting either read as the other.
 ///
@@ -560,14 +460,8 @@ fn no_surface_still_declares_a_retired_tag() {
 /// So the closed notice must arrive with a way to reach a human. A door with no
 /// address behind it is what makes an open-source project look abandoned rather
 /// than deliberate, and a security report has to land somewhere.
-///
-/// The "Contributor License and Feedback Agreement" must not appear: it names
-/// an acceptance ledger and a `cla` gate this workspace does not have, and
-/// there is nothing here for a contributor to sign.
 #[test]
 fn contributions_are_closed_but_the_licence_terms_are_stated_anyway() {
-    const RETIRED_AGREEMENT: &str = "Contributor License and Feedback Agreement";
-
     /// Where someone turned away by the notice is told to write instead.
     const CONTACT: &str = "contact@neonlaw.org";
 
@@ -601,13 +495,6 @@ fn contributions_are_closed_but_the_licence_terms_are_stated_anyway() {
         contributing.contains(OWNER),
         "CONTRIBUTING.md must name `{OWNER}`"
     );
-    for rel in ["CONTRIBUTING.md", LICENSE_FILE, "docs/licensing.md"] {
-        assert!(
-            !read(rel).contains(RETIRED_AGREEMENT),
-            "{rel} still cites the retired `{RETIRED_AGREEMENT}`; contributions \
-             are inbound = outbound and there is nothing to sign"
-        );
-    }
 }
 
 #[test]
@@ -622,84 +509,70 @@ fn readme_states_the_license_of_record() {
         flat.contains(LICENSE),
         "README.md must name `{LICENSE}` as the software's licence"
     );
-    for retired in RETIRED_LICENSE_FILES {
-        assert!(
-            !readme.contains(retired),
-            "README.md must not link the retired licence file `{retired}`"
-        );
-    }
 }
 
 /// One grant covers the whole tree, `templates/` included.
 ///
-/// The drafted legal prose used to carry `CC-BY-4.0` separately. It no longer
-/// does: a reader of a notation body is under the same licence as a reader of
-/// the code that renders it, and `templates/README.md` has to say so where a
-/// notation author will actually see it — someone editing a template is inside
+/// A reader of a notation body is under the same licence as a reader of the code
+/// that renders it, and `templates/README.md` has to say so where a notation
+/// author will actually see it — someone editing a template is inside
 /// `templates/`, not at the repository root.
 ///
-/// The carve-out inside the tree survives, because it is not a licensing choice
-/// at all: the blank government PDFs under `templates/forms/` are the issuing
-/// agency's work. An AGPL grant over a Nevada state form would claim a copyright
-/// the Foundation does not hold, and an over-claim in a law firm's own licence
-/// file is the kind of error that is quoted back.
+/// The carve-out inside the tree is not a licensing choice at all: the blank
+/// government PDFs under `templates/forms/` are the issuing agency's work. An
+/// AGPL grant over a Nevada state form would claim a copyright the Foundation
+/// does not hold, and an over-claim in a law firm's own terms file is the kind of
+/// error that is quoted back.
 #[test]
 fn the_single_grant_covers_the_templates_tree() {
-    let license = read(LICENSE_FILE);
-    let flat = license.split_whitespace().collect::<Vec<_>>().join(" ");
+    let flat = read(NOTICE_FILE)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
 
     assert!(
         flat.contains("templates/"),
-        "{LICENSE_FILE} must say that the grant reaches `templates/` — the \
-         drafted prose is no longer licensed apart from the software, and \
-         silence there is what sends a reader looking for a second instrument"
+        "{NOTICE_FILE} must say that the grant reaches `templates/` — the \
+         drafted prose is licensed with the software, and silence there is what \
+         sends a reader looking for a second instrument"
     );
     assert!(
         flat.contains("templates/forms/"),
-        "{LICENSE_FILE} must carve out the government forms under \
+        "{NOTICE_FILE} must carve out the government forms under \
          `templates/forms/` — they are the issuing agency's work and the \
          Foundation grants nothing in them"
     );
 
-    // The tree the licence describes has to exist, or the licence is describing
-    // a layout the repository no longer has.
+    // The tree the notice describes has to exist, or it is describing a layout
+    // the repository no longer has.
     assert!(
         repo_root().join("templates").is_dir(),
-        "{LICENSE_FILE} names `templates/`; that tree must exist"
+        "{NOTICE_FILE} names `templates/`; that tree must exist"
     );
     assert!(
         repo_root().join("templates/forms").is_dir(),
-        "{LICENSE_FILE} carves out `templates/forms/`; that tree must exist"
+        "{NOTICE_FILE} carves out `templates/forms/`; that tree must exist"
     );
 
     // The tree states its own terms, because someone reading a notation is
     // usually inside `templates/` and not at the repository root.
-    let templates_readme = read("templates/README.md");
     assert!(
-        templates_readme.contains(LICENSE),
+        read("templates/README.md").contains(LICENSE),
         "templates/README.md must state `{LICENSE}` where an author of a \
          notation will actually see it"
     );
-    let flat_templates = flat_lower(&templates_readme);
-    for stale in RETIRED_PERMISSIVE_GRANT {
-        assert!(
-            !flat_templates.contains(stale),
-            "templates/README.md still offers the retired grant `{stale}`; the \
-             prose here is under {LICENSE} with the rest of the tree"
-        );
-    }
 }
 
-/// Every published image declares the licence and carries its text.
+/// Every published image declares the licence and carries both terms files.
 ///
 /// A container image someone pulled is a copy, and its holder has neither the
 /// repository nor a release archive. AGPL § 4 conditions the permission to
 /// convey on handing every recipient this License along with the work, and § 13
 /// may oblige that holder to pass the source on in turn — which they cannot do
-/// from terms they were never shown. Two mechanisms, because they serve
+/// from terms they were never shown. Three mechanisms, because they serve
 /// different readers: the OCI label is what a registry page shows before anyone
-/// pulls, and the staged file is what a running container can actually be made
-/// to print.
+/// pulls, and the two staged files are what a running container can actually be
+/// made to print.
 ///
 /// `Containerfile.runner` is exempt. It is the CI runner image rather than a
 /// published artifact of the software, and it has no distroless runtime stage
@@ -720,25 +593,18 @@ fn every_published_image_declares_the_licence_and_stages_its_text() {
         for required in [
             &format!("org.opencontainers.image.licenses=\"{LICENSE}\"") as &str,
             &format!("COPY {LICENSE_FILE} /app/{LICENSE_FILE}") as &str,
+            &format!("COPY {NOTICE_FILE}  /app/{NOTICE_FILE}") as &str,
         ] {
             if !body.contains(required) {
                 offenders.push(format!("{name}: missing `{required}`"));
-            }
-        }
-
-        // A stale label would advertise a permissive grant on the registry page
-        // that the staged text does not make.
-        for stale in RETIRED_PERMISSIVE_GRANT {
-            if flat_lower(&body).contains(stale) {
-                offenders.push(format!("{name}: still declares `{stale}`"));
             }
         }
     }
 
     assert!(
         offenders.is_empty(),
-        "every published image must declare {LICENSE} and carry the licence \
-         text; a puller holds no repository and no archive:\n  {}",
+        "every published image must declare {LICENSE} and carry both terms \
+         files; a puller holds no repository and no archive:\n  {}",
         offenders.join("\n  ")
     );
 }
@@ -826,12 +692,12 @@ fn trademark_notices_name_the_firm_as_the_registrant() {
 
     let mut offenders = Vec::new();
     for rel in [
-        LICENSE_FILE,
+        NOTICE_FILE,
         "README.md",
         "docs/glossary.md",
-        // Where the ownership claim actually lives. `LICENSE` names the mark
-        // but not every surface does, so this is the doc that makes the
-        // numbered claim the licence deliberately does not grant.
+        // Where the ownership claim actually lives. `NOTICE` names the mark but
+        // not every surface does, so this is the doc that makes the numbered
+        // claim the licence deliberately does not grant.
         "docs/licensing.md",
         "templates/README.md",
         // One binary serves the firm at the root and the Foundation under
@@ -863,91 +729,5 @@ fn trademark_notices_name_the_firm_as_the_registrant() {
         offenders.is_empty(),
         "NEON LAW is registered to {REGISTRANT}; these notices say otherwise:\n  {}",
         offenders.join("\n  ")
-    );
-}
-
-/// No workspace surface still offers the retired permissive grant.
-///
-/// The inverse of the guard this file used to carry. `MIT OR Apache-2.0` was
-/// the grant, and every copy taken under it keeps it — nothing here revokes
-/// that history. What must not survive is a surface still *offering* it: a
-/// `LICENSE-MIT` link in a doc, a `dual-licensed` sentence in marketing copy, or
-/// a generated header pasted from an older commit each tell a reader they may
-/// take this code permissively today, which is a grant the Foundation no longer
-/// makes. A tree with one copyleft licence file and a dozen permissive claims
-/// scattered through its prose has published a contradiction.
-///
-/// Third-party facts are not claims about this workspace and are exempt:
-/// `THIRD-PARTY-NOTICES.txt` reproduces other projects' licence texts verbatim,
-/// `docs/multi-cloud.md` records that Garage is AGPL software Navigator runs
-/// unmodified, and `vendor/` is somebody else's code entirely.
-#[test]
-fn no_workspace_surface_re_offers_the_retired_permissive_grant() {
-    /// Files that legitimately name the retired grant.
-    ///
-    /// This test file names it to forbid it, and `cli_downloads.rs` does the
-    /// same for the download page's rendered copy — an assertion on absence is
-    /// the opposite of an offer, and that render test pins the page far more
-    /// precisely than a grep over its source could.
-    ///
-    /// `THIRD-PARTY-NOTICES.txt` and `Cargo.lock` describe the dependency tree,
-    /// where `MIT OR Apache-2.0` is the single most common inbound licence and
-    /// says nothing about the outbound grant. `deny.toml` is the inbound
-    /// allowlist for the same reason, and `notices.rs` documents how that tree's
-    /// texts are rendered.
-    fn is_exempt(path: &Path, name: &str) -> bool {
-        matches!(
-            name,
-            "license_of_record.rs"
-                | "cli_downloads.rs"
-                | "THIRD-PARTY-NOTICES.txt"
-                | "Cargo.lock"
-                | "deny.toml"
-                | "notices.rs"
-        ) || is_sops_ciphertext(name)
-            || path.ends_with("docs/multi-cloud.md")
-            // Third-party font and dependency licence texts vendored verbatim.
-            || path.components().any(|c| c.as_os_str() == "gorp-serif")
-    }
-
-    fn walk(dir: &Path, out: &mut Vec<String>) {
-        let Ok(entries) = fs::read_dir(dir) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if path.is_dir() {
-                if !is_skipped_dir(name.as_ref()) {
-                    walk(&path, out);
-                }
-                continue;
-            }
-            if is_exempt(&path, name.as_ref()) {
-                continue;
-            }
-            let Ok(body) = fs::read_to_string(&path) else {
-                continue;
-            };
-            for (i, line) in body.lines().enumerate() {
-                let lower = line.to_lowercase();
-                for stale in RETIRED_PERMISSIVE_GRANT {
-                    if lower.contains(stale) {
-                        out.push(format!("{}:{}: `{stale}`", path.display(), i + 1));
-                    }
-                }
-            }
-        }
-    }
-
-    let mut hits = Vec::new();
-    walk(&repo_root(), &mut hits);
-    assert!(
-        hits.is_empty(),
-        "these surfaces still offer the retired permissive grant; the workspace \
-         is {LICENSE} and a stale permissive claim tells a reader they hold \
-         rights nobody granted them:\n  {}",
-        hits.join("\n  ")
     );
 }

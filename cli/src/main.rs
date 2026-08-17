@@ -60,9 +60,10 @@ fn cli_version() -> &'static str {
 ///
 /// A downloaded `navigator` arrives as one executable with no repository and
 /// no accompanying files, so the terms it is licensed under have to travel
-/// inside it. `--license` prints this verbatim. Root `LICENSE` stays the
-/// source of truth and `cli/tests/license_of_record.rs` pins the two together,
-/// so the printed terms cannot drift from the ones the repository publishes.
+/// inside it. `--license` prints [`NOTICE`] and then this, verbatim. Root
+/// `LICENSE` stays the source of truth and `cli/tests/license_of_record.rs`
+/// pins the two together, so the printed terms cannot drift from the ones the
+/// repository publishes.
 ///
 /// The AGPL requires this rather than merely inviting it: § 4 conditions the
 /// permission to convey on handing every recipient a copy of this License along
@@ -70,6 +71,16 @@ fn cli_version() -> &'static str {
 /// oblige its holder to pass the source on in turn — they cannot honour a
 /// licence they were never shown.
 const LICENSE: &str = include_str!("../../LICENSE");
+
+/// The Foundation's own statements about the grant, compiled in beside it.
+///
+/// `LICENSE` is the Free Software Foundation's text unaltered, so it says
+/// nothing about this work in particular. `NOTICE` is what does: the copyright
+/// line, the marks the grant does not reach, the government forms the
+/// Foundation cannot license, and the § 13 network obligation in its own voice.
+/// `--license` prints it first for that reason — the holder of a bare
+/// executable has no other way to learn any of it.
+const NOTICE: &str = include_str!("../../NOTICE");
 
 /// The third-party licence notices, compiled into the binary for the same
 /// reason as [`LICENSE`]: a single downloaded executable has to be able to
@@ -1527,7 +1538,10 @@ fn main() -> ExitCode {
     // output a reader routinely pipes into a pager and quits early, and `print!`
     // panics on the resulting broken pipe. An unread tail is not an error.
     if cli.license {
-        let _ = std::io::stdout().write_all(LICENSE.as_bytes());
+        let mut out = std::io::stdout();
+        let _ = out.write_all(NOTICE.as_bytes());
+        let _ = out.write_all(b"\n");
+        let _ = out.write_all(LICENSE.as_bytes());
         return ExitCode::SUCCESS;
     }
     if cli.third_party_notices {
