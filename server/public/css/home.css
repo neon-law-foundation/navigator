@@ -1,8 +1,8 @@
-/* Home page (`/`) layout: the photographic hero, then the practice statement
-   over the litigation header. The brand layer (`brand-firm.css`) owns the
-   palette, the serif, the card, the chip, and the motion; this file only
-   places them. The page still publishes no services catalog — one statement,
-   one contact CTA, and the firm's own presentation of the practice it takes. */
+/* Home page (`/`) layout: the photographic hero, then the statement, then the
+   one service in prose. The brand layer (`brand-firm.css`) owns the palette,
+   the serif, the card, and the motion; this file only places them. The page
+   publishes no services catalog and no practice grid — one statement, one
+   contact CTA, and one section saying what the firm does. */
 
 /* ---- The hero ---------------------------------------------------------- */
 
@@ -132,129 +132,198 @@
   background: var(--firm-brand-strong);
 }
 
-/* ---- Litigation header ------------------------------------------------- */
+/* ---- The one service --------------------------------------------------- */
 
-.litigation {
-  display: grid;
-  gap: 1.5rem;
-}
-
-@media (min-width: 56rem) {
-  .litigation {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
-    gap: 3rem;
-  }
-}
-
-.litigation__head {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-@media (min-width: 56rem) {
-  .litigation__head {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1.25rem;
-  }
-}
-
-.litigation__mark,
-.practice__mark {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 3.5rem;
-  height: 3.5rem;
-  border-radius: 0.75rem;
-  background: var(--firm-brand-tint);
-  color: var(--firm-brand);
-}
-
-.litigation__mark svg,
-.practice__mark svg {
-  width: 1.75rem;
-  height: 1.75rem;
-}
-
-/* The two practices under the header carry the same mark at a smaller size, so
-   the litigation card keeps the lead. */
-.practice__mark {
-  width: 3rem;
-  height: 3rem;
-}
-
-.practice__mark svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-.litigation__heading {
-  margin: 0;
-  font-family: var(--firm-serif);
-  font-size: clamp(1.75rem, 4.5vw, 2.75rem);
-  font-weight: 600;
-  line-height: 1.1;
-}
-
-.litigation__detail {
+/* One card, holding one section of prose. There is no grid here on purpose:
+   the page states one offering, and a column of cards is how a reader is told
+   there are several to choose between. */
+.home-service {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
 }
 
-.litigation__paragraph,
-.practice__paragraph {
+.home-service__heading {
   margin: 0;
+  font-family: var(--firm-serif);
+  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+  font-weight: 600;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.home-service__paragraph {
+  margin: 0;
+  max-width: 68ch;
   line-height: 1.65;
   color: var(--nav-color-text);
   text-wrap: pretty;
 }
 
-.litigation__paragraph strong,
-.practice__paragraph strong {
+.home-service__paragraph strong {
   font-weight: 600;
 }
 
-/* ---- The practices under the header ------------------------------------ */
-
-/* Two abreast once there is room, stacked on a phone. */
-.practice-grid {
-  display: grid;
-  gap: 1.5rem;
-  margin-top: 1.5rem;
+/* A run that links, inside a paragraph. The brand layer owns the link colour;
+   this only keeps the underline from crowding the serif's descenders. */
+.home-service__link {
+  color: var(--firm-brand-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
 }
 
-@media (min-width: 56rem) {
-  .practice-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+/* ---- The other practices ------------------------------------------------ */
+
+/* Three boxes at the foot of the page. The page leads with one offering; these
+   say the firm practices law too, and hand the reader to the page for each. */
+.home-practices {
+  margin-top: clamp(2.5rem, 6vw, 4rem);
 }
 
-/* `.neon-card` spaces itself from the block above; inside the grid, the grid
-   gap does that instead. */
-.practice-grid > .practice {
-  margin: 0;
-}
-
-.practice {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.practice__head {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.practice__heading {
-  margin: 0;
+.home-practices__heading {
+  margin: 0 0 1.5rem;
   font-family: var(--firm-serif);
-  font-size: clamp(1.25rem, 2.5vw, 1.75rem);
+  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
   font-weight: 600;
   line-height: 1.15;
   text-wrap: balance;
+}
+
+/* Three abreast on any screen with room for them, stacked on a phone. Three
+   explicit columns rather than `auto-fit`: with three boxes `auto-fit` will drop
+   one to a second row as soon as the track minimum stops fitting, and a 2-and-1
+   split reads as though the third practice were an afterthought. */
+.home-practices__grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 48rem) {
+  .home-practices__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Each box is a link. `.neon-card` spaces itself from the block above; inside
+   the grid the gap does that instead.
+
+   `isolation` and `overflow` are what keep the hover wash inside the rounded
+   corner: the wave is a pseudo-element scaled well past the box, and without a
+   clip it would paint over the boxes beside it. */
+.home-practices__grid > .home-practice {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 240ms ease,
+    transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* `.nav-theme a:hover` underlines every link and recolours it, which on a card
+   whose whole surface is the anchor underlined the heading and both lines of
+   prose — the box read as a wall of link text. The selector matches that rule's
+   specificity to keep the box a box; the heading alone takes the brand colour,
+   which is the affordance that says it is clickable. */
+.nav-theme a.home-practice:hover,
+.nav-theme a.home-practice:focus-visible {
+  border-color: var(--firm-brand);
+  color: inherit;
+  text-decoration: none;
+  transform: translateY(-2px);
+}
+
+.home-practice:hover .home-practice__heading,
+.home-practice:focus-visible .home-practice__heading {
+  color: var(--firm-brand-strong);
+}
+
+/* The wave. A circle anchored off the box's bottom-left corner, scaled from
+   nothing to well past the top-right on hover, so the wash reads as a swell
+   crossing the card on the diagonal rather than a panel fading in.
+
+   `transform-origin` at the bottom-left corner is what sets the direction; the
+   long, decelerating curve is what makes it read as a wave rather than a flash.
+   It sits at `z-index: -1` under the card's own text, which is why the card
+   isolates a stacking context. */
+.home-practice::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-inline-start: -25%;
+  inset-block-end: -55%;
+  inline-size: 150%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 30% 70%,
+    var(--firm-brand) 0%,
+    color-mix(in srgb, var(--firm-brand) 45%, transparent) 45%,
+    transparent 72%
+  );
+  opacity: 0;
+  transform: scale(0.2);
+  transform-origin: 0% 100%;
+  transition:
+    transform 720ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 320ms ease;
+}
+
+.home-practice:hover::after,
+.home-practice:focus-visible::after {
+  opacity: 0.22;
+  transform: scale(1.5);
+}
+
+/* The wave is decoration. Suppressed, the border and the lift still answer the
+   pointer, so the box never stops responding — it just stops swelling. */
+@media (prefers-reduced-motion: reduce) {
+  .home-practices__grid > .home-practice,
+  .home-practice::after {
+    transition-duration: 1ms;
+  }
+
+  .home-practice:hover,
+  .home-practice:focus-visible {
+    transform: none;
+  }
+
+  .home-practice:hover::after,
+  .home-practice:focus-visible::after {
+    transform: scale(1.5);
+  }
+}
+
+/* The mark the box opens on, centred over the heading.
+
+   Stroked in `currentColor`, so it is white wherever the card's text is white
+   and dark wherever the text is dark — one rule serving both themes. That is
+   the thing a colour emoji could not do: `color` does not reach a colour glyph,
+   and flattening one with a filter turns a handshake into a blot. */
+.home-practice__mark {
+  align-self: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  color: var(--nav-color-text);
+}
+
+.home-practice__heading {
+  margin: 0;
+  font-family: var(--firm-serif);
+  font-size: clamp(1.25rem, 2.5vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.home-practice__body {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--nav-color-text-muted);
+  text-wrap: pretty;
 }

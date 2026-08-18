@@ -130,20 +130,188 @@ const FLAT_FEES: &[FlatFee] = &[
     },
 ];
 
-/// `/navigator` — why the firm builds Navigator and the co-counsel invitation.
+/// `/fractional-cto` — the firm's lead offering: it runs the technology
+/// function for a law firm.
+///
+/// **This page advertises a law-related service, and that is what makes it the
+/// most constrained page on the host.** Under RPC 5.7 in every jurisdiction the
+/// firm advertises in (CA, NV, WA), where a law firm provides non-legal services
+/// to a client, the protections of the attorney-client relationship are presumed
+/// to apply unless the firm takes reasonable measures to explain that they do
+/// not. So the closing band is a disclosure rather than a sales line, and
+/// `the_fractional_cto_page_discloses_the_law_related_service_boundary` is what
+/// keeps it there.
+///
+/// Two more constraints the cards are written against. Nothing here claims an
+/// attestation — the firm is readiness counsel beside the auditor and never the
+/// attester, so "readiness" appears and "certification" cannot. And nothing here
+/// publishes a turnaround or a fee: the scope of running a firm's technology
+/// function is not knowable in advance, so it is quoted through `/contact` like
+/// the litigation and fractional-GC practices.
+pub fn fractional_cto() -> PageContent {
+    PageContent {
+        head_title: format!("Fractional CTO — {}", views::brand::FIRM_BRAND.site_name),
+        meta_description: "Neon Law runs the technology function for law firms: AI enablement \
+                           delivered through the firm, the privacy and compliance work under it, \
+                           and complex counsel beside it."
+            .to_string(),
+        title: "Fractional CTO".to_string(),
+        tagline: "We run the technology function for law firms.".to_string(),
+        skin: webapp::foundation_marketing::PageSkin::Practice,
+        bands: vec![
+            fractional_cto_intro_band(),
+            fractional_cto_work_band(),
+            fractional_cto_disclosure_band(),
+            Band::Cta {
+                heading: "Tell us what your firm is trying to do".to_string(),
+                body: Some(
+                    "Write to us with what your practice runs on today and what you want it to \
+                     do. We answer with the scope we would take on and a quote for it."
+                        .to_string(),
+                ),
+                email: views::brand::firm_email().to_string(),
+                email_subject: Some("Fractional CTO".to_string()),
+            },
+        ],
+    }
+}
+
+/// Who the offering is for, and the one thing that makes it different from
+/// hiring a consultancy: it arrives through the firm.
+fn fractional_cto_intro_band() -> Band {
+    Band::Statement {
+        heading: "Who this is for".to_string(),
+        lead: "Our clients are law firms.".to_string(),
+        body: vec![
+            vec![
+                Run::plain(
+                    "A firm that engages us keeps its clients and its matters. We run the \
+                     technology underneath: the AI tooling a lawyer works in, the policies that \
+                     govern its use, and the judgement about what it may do in a given matter. It \
+                     arrives ",
+                ),
+                Run::link("through the law firm", "/navigator"),
+                Run::plain(", inside the engagement that firm already holds with its client."),
+            ],
+            vec![Run::plain(
+                "That is also why the platform is part of the offer rather than a product sold \
+                 beside it. A firm working with us works on Navigator, and the other firms on it \
+                 are the co-counsel network that firm joins by being there.",
+            )],
+        ],
+    }
+}
+
+/// The four things the engagement actually covers.
+///
+/// Areas of work, not a priced catalog and not named products — the same rule
+/// the litigation and fractional-GC practices are written under. Nothing here is
+/// orderable and no card carries a figure.
+fn fractional_cto_work_band() -> Band {
+    Band::Cards {
+        anchor: "work".to_string(),
+        overline: "The engagement".to_string(),
+        heading: "What we take on".to_string(),
+        description: Some(
+            "Scope is set per firm and quoted through the contact page, because what a practice \
+             runs on today is not knowable in advance."
+                .to_string(),
+        ),
+        items: vec![
+            Card {
+                title: "AI enablement".to_string(),
+                chips: vec!["Tooling".to_string(), "Policy".to_string()],
+                body: vec![vec![Run::plain(
+                    "The tools a lawyer works in, the written policy that governs their use, and \
+                     the training that makes the policy real rather than filed.",
+                )]],
+                href: None,
+                href_label: None,
+            },
+            Card {
+                title: "Privacy and compliance".to_string(),
+                chips: vec!["Data protection".to_string(), "Vendor review".to_string()],
+                body: vec![vec![Run::plain(
+                    "What a firm owes the people whose data it holds: data protection, the \
+                     vendors it hands that data to, and readiness for the audits a client asks \
+                     about.",
+                )]],
+                href: None,
+                href_label: None,
+            },
+            Card {
+                title: "Security incident response".to_string(),
+                chips: vec![],
+                body: vec![vec![Run::plain(
+                    "The plan before an incident and the hands during one — who is called, what \
+                     is preserved, and who must be told.",
+                )]],
+                href: None,
+                href_label: None,
+            },
+            Card {
+                title: "Complex counsel and co-counsel".to_string(),
+                chips: vec![],
+                body: vec![vec![Run::plain(
+                    "The legal half, which is legal work: the harder question under the \
+                     technology, and a second lawyer when a matter needs one.",
+                )]],
+                href: Some("/litigation".to_string()),
+                href_label: Some("Our litigation practice".to_string()),
+            },
+        ],
+    }
+}
+
+/// The RPC 5.7 disclosure: which half of this engagement is the practice of law
+/// and which is not.
+///
+/// This band exists because the page sells both. A reader who cannot tell them
+/// apart is exactly the reader the rule protects, and the engagement letter is
+/// where the line is actually drawn — the page says so rather than implying the
+/// whole relationship is privileged.
+fn fractional_cto_disclosure_band() -> Band {
+    Band::Statement {
+        heading: "What is legal work here, and what is not".to_string(),
+        lead: "Some of this is the practice of law. Some of it is not.".to_string(),
+        body: vec![
+            vec![Run::plain(
+                "Running a firm's technology function is a law-related service rather than legal \
+                 representation. Where we provide it, the protections of the attorney-client \
+                 relationship — privilege and confidentiality among them — do not apply to that \
+                 work unless we are separately engaged as your counsel.",
+            )],
+            vec![Run::plain(
+                "The counsel and co-counsel half is legal work, and it is engaged as legal work. \
+                 Every engagement letter states which services it covers and under which \
+                 relationship, before anything begins.",
+            )],
+        ],
+    }
+}
+
+/// `/navigator` — the platform the firms the firm serves work on: why we build
+/// it, why vibe coding is modern storytelling, what a firm works with, and the
+/// co-counsel invitation.
 pub fn navigator() -> PageContent {
     PageContent {
+        skin: webapp::foundation_marketing::PageSkin::Marketing,
         head_title: format!(
             "Neon Law Navigator — {}",
             views::brand::FIRM_BRAND.site_name
         ),
-        meta_description: "Neon Law Navigator is Neon Law's legal project platform \
-                           for accurate, expedient matter resolution."
+        meta_description: "Neon Law Navigator is the legal project platform the law firms we \
+                           serve work on — vibe coding for lawyers, where every pass at a \
+                           document is a change you can read."
             .to_string(),
         title: "Neon Law Navigator".to_string(),
-        tagline: "Our legal project platform to empower everyone to be a vibe coder.".to_string(),
+        tagline: "Vibe coding for lawyers. Lawyering is storytelling, and a story is written in \
+                  passes."
+            .to_string(),
         bands: vec![
             navigator_purpose_band(),
+            navigator_vibe_band(),
+            navigator_working_surface_band(),
             Band::Cta {
                 heading: "Co-Counsel a Pro Bono Case with us and the Neon Law Foundation"
                     .to_string(),
@@ -159,14 +327,120 @@ pub fn navigator() -> PageContent {
     }
 }
 
-/// The firm's client-serving purpose for Navigator.
+/// The firm's client-serving purpose for Navigator, and who works on it.
 fn navigator_purpose_band() -> Band {
     Band::Statement {
         heading: "Why we build it".to_string(),
         lead: "We build Navigator for the purpose of serving clients as expeditiously, \
                precisely, accurately, and in alignment with their interests."
             .to_string(),
-        body: vec![],
+        body: vec![vec![Run::plain(
+            "The firms we serve work on it too. A firm that engages us keeps its client and its \
+             matter; Navigator is where the work happens, and the other firms on it are the \
+             co-counsel network that firm joins by being there.",
+        )]],
+    }
+}
+
+/// Vibe coding as the firm's method, and why the interface is Claude Code and
+/// Codex rather than a chat window.
+///
+/// **The claims here are about how the firm works, not about a feature a client
+/// firm switches on.** That distinction is load-bearing: this is an
+/// attorney-advertising page, so a sentence in the present tense reads as a
+/// shipped promise. What is asserted is the method (passes, diffs, review) and
+/// the plain mechanics of a diff — never a turnaround, an outcome, or a
+/// capability the platform has not shipped.
+///
+/// No superlative on the token economics either. "The most token-efficient way
+/// to write a legal document" is not a claim anyone can substantiate, so the
+/// page says the substantiable thing instead: a revision costs the change
+/// rather than the whole document.
+fn navigator_vibe_band() -> Band {
+    Band::Statement {
+        heading: "Vibe coding is modern storytelling".to_string(),
+        // `Band::Statement` renders its heading screen-reader-only and its lead
+        // as the band's display line, so the lead has to be a line and not a
+        // paragraph. The argument goes in the body underneath it.
+        lead: "Vibe coding is modern storytelling.".to_string(),
+        body: vec![
+            vec![Run::plain(
+                "A brief, a contract, a filing: none of them arrives in one pass. You draft, you \
+                 read it back, you change what is not yet true, and you keep the version you \
+                 meant. Vibe coding is that same loop with VCS or version control, that makes your \
+                 inferences token-efficient. Navigator is built with the premise that it\u{2019}s \
+                 more efficient to use Claude Code and Codex rather than a chat window.",
+            )],
+            // The invitation carries its own links. A page that tells a reader to
+            // join a workshop or read the source and then hands them neither is a
+            // call to action with nowhere to go.
+            vec![
+                Run::plain(
+                    "Lawyers already know about markdown thanks to LLMs, and we think that \
+                     writing code is now just as approachable. We invite you to join us for a ",
+                ),
+                Run::link("workshop", "/workshops"),
+                Run::plain(" or check out our "),
+                Run::link(
+                    "open-source software",
+                    "https://github.com/neon-law-foundation/navigator",
+                ),
+                Run::plain(" to learn more."),
+            ],
+        ],
+    }
+}
+
+/// What a firm actually works with today.
+///
+/// Every card names something in the tree: the AIDA tool catalog exposed over
+/// MCP and A2A, the notation templates, and the portal. Nothing here describes
+/// a roadmap item — a card for an unshipped surface is an advertisement for
+/// something a firm cannot use.
+fn navigator_working_surface_band() -> Band {
+    Band::Cards {
+        anchor: "surface".to_string(),
+        overline: "The working surface".to_string(),
+        heading: "What a firm works with".to_string(),
+        description: Some(
+            "One platform, three things a lawyer touches. Every engagement is quoted through \
+             the contact page."
+                .to_string(),
+        ),
+        items: vec![
+            Card {
+                title: "AIDA and its tools".to_string(),
+                chips: vec!["MCP".to_string(), "A2A".to_string()],
+                body: vec![vec![Run::plain(
+                    "One catalog of tools over open protocols, so the agent a lawyer already \
+                     works in can read a matter, answer a questionnaire, or open a project \
+                     without leaving the editor.",
+                )]],
+                href: None,
+                href_label: None,
+            },
+            Card {
+                title: "Notation templates".to_string(),
+                chips: vec!["Typst".to_string()],
+                body: vec![vec![Run::plain(
+                    "The documents a matter produces are templates with the answers filled in, \
+                     so what the firm files is the template it reviewed rather than a fresh \
+                     draft each time.",
+                )]],
+                href: None,
+                href_label: None,
+            },
+            Card {
+                title: "The matter dashboard".to_string(),
+                chips: vec![],
+                body: vec![vec![Run::plain(
+                    "The projects, the people on them, the documents, and the questionnaires \
+                     still open — the shared view a firm and its co-counsel read the matter from.",
+                )]],
+                href: Some("/contact".to_string()),
+                href_label: Some("Ask us for a walkthrough".to_string()),
+            },
+        ],
     }
 }
 
@@ -197,6 +471,7 @@ pub fn legal_services() -> PageContent {
             .to_string(),
         title: "Legal Services".to_string(),
         tagline: "One scope, one fee, agreed before we start.".to_string(),
+        skin: webapp::foundation_marketing::PageSkin::Practice,
         bands: vec![
             legal_services_intro_band(),
             legal_services_fee_band(),
@@ -622,5 +897,127 @@ mod firm_copy_tests {
                 "{quoted} is quoted per engagement and must not appear in the fee schedule"
             );
         }
+    }
+    /// The page states the vibe-coding thesis and names the interfaces it rests
+    /// on.
+    ///
+    /// Vibe coding is the page's argument, not a garnish on it: it is modern
+    /// storytelling, a story is written in passes, and version control is what
+    /// makes each pass cost the change rather than the whole document. The named
+    /// interfaces are the reason that holds, so dropping either the thesis or the
+    /// names leaves the page asserting a preference with nothing under it.
+    #[test]
+    fn the_navigator_page_makes_the_vibe_coding_case_for_lawyers() {
+        let content = super::navigator();
+        let text = format!(
+            "{} {} {}",
+            content.tagline,
+            page_text(&content.bands),
+            content.meta_description
+        );
+        assert!(
+            text.contains("Vibe coding"),
+            "the page keeps the term of art: {text}"
+        );
+        for named in ["Claude Code", "Codex"] {
+            assert!(
+                text.contains(named),
+                "the page names {named}, the interface the method rests on: {text}"
+            );
+        }
+        // Version control is the mechanism the argument rests on, so the page
+        // has to name it rather than gesture at "efficiency".
+        assert!(
+            text.contains("version control"),
+            "the page names the mechanism: {text}"
+        );
+        assert!(
+            text.to_lowercase().contains("storytelling"),
+            "the page ties the method to lawyering as storytelling: {text}"
+        );
+    }
+
+    /// The vibe-coding case is argued without a claim the firm cannot
+    /// substantiate.
+    ///
+    /// This is the guard the drafting of that section needed. The thesis it came
+    /// from called version control "the most token-efficient way to write legal
+    /// documents over time" — a superlative no one can defend under RPC 7.1, on
+    /// a page that is lawyer advertising in California, Nevada, and Washington.
+    /// The page makes the substantiable claim instead: a revision costs the
+    /// change rather than the whole document.
+    ///
+    /// The banned list is a floor, not the whole rule. A superlative that is not
+    /// spelled here is still a superlative.
+    #[test]
+    fn the_navigator_page_publishes_no_superlative_and_no_turnaround_promise() {
+        let content = super::navigator();
+        let text = format!(
+            "{} {} {}",
+            content.tagline,
+            page_text(&content.bands),
+            content.meta_description
+        );
+        let lowered = text.to_lowercase();
+        for banned in [
+            "most token-efficient",
+            "fastest",
+            "cheapest",
+            "world-class",
+            "cutting-edge",
+            "industry-leading",
+            "best-in-class",
+            "premier",
+            "guarantee",
+            "certified",
+        ] {
+            assert!(
+                !lowered.contains(banned),
+                "the platform page must not publish {banned:?}: {text}"
+            );
+        }
+        // A turnaround on this page would be a service commitment about work the
+        // platform does not do — the retired fractional-GC page was where a
+        // redline turnaround belonged, and it is gone.
+        assert!(
+            !lowered.contains("business day") && !lowered.contains("turnaround"),
+            "the platform page promises no turnaround: {text}"
+        );
+    }
+
+    /// Every card on the working-surface band names something that ships.
+    ///
+    /// The band exists to tell a firm what it would actually touch, so a card
+    /// for a roadmap surface is an advertisement for something the reader cannot
+    /// use. AIDA's tool catalog (`mcp/src/tools/`, exposed over MCP and A2A),
+    /// the notation templates, and the matter dashboard are all in the tree.
+    #[test]
+    fn the_working_surface_band_names_three_shipped_surfaces() {
+        let content = super::navigator();
+        let cards = content
+            .bands
+            .iter()
+            .find_map(|band| match band {
+                Band::Cards { items, .. } => Some(items.as_slice()),
+                _ => None,
+            })
+            .expect("the platform page renders its working surface as a card band");
+        assert_eq!(cards.len(), 3, "three surfaces, one card each");
+        for card in cards {
+            assert!(
+                !card.body.is_empty(),
+                "{} names no work a lawyer does with it",
+                card.title
+            );
+        }
+        let titles: Vec<&str> = cards.iter().map(|card| card.title.as_str()).collect();
+        assert!(
+            titles.iter().any(|title| title.contains("AIDA")),
+            "the tool catalog is on the page: {titles:?}"
+        );
+        assert!(
+            titles.iter().any(|title| title.contains("Notation")),
+            "the notation templates are on the page: {titles:?}"
+        );
     }
 }

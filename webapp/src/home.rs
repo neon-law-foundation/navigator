@@ -1,15 +1,15 @@
-//! The firm home page (`/`) — the photographic hero the practice statement sits
-//! on, then the practice statement over the three practice cards.
+//! The firm home page (`/`) — the statement of the offering the firm leads
+//! with, then the engagements section that says what that means.
 //!
-//! The page still publishes no service catalog: the firm takes litigation and
-//! flat-fee transactional work, and every fee is quoted through `/contact`. It
-//! does carry the firm's own presentation of those practices — the litigation
-//! card with its record and the areas it litigates, then the transactional and
-//! regulatory cards under it — which is the section `www.neonlaw.com` opens
-//! "What we do" with. The only state is the static
-//! copy ([`HomeContent`]), resolved by the portal router at router-build time
-//! and injected via `ServeConfig::context_providers`; the page resolves no
-//! per-request data.
+//! The page publishes no service catalog and no practice grid. It leads with one
+//! offering, so it is one statement and one section of prose rather than a card
+//! per practice — a grid of cards is how a reader is told there are several
+//! things to choose between, and the firm's other practices have pages of their
+//! own that the header carries. Every fee is quoted through `/contact`.
+//!
+//! The only state is the static copy ([`HomeContent`]), resolved by the portal
+//! router at router-build time and injected via `ServeConfig::context_providers`;
+//! the page resolves no per-request data.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -25,44 +25,10 @@ pub const HOME_STYLESHEET_HREF: &str = "/public/css/home.css";
 pub struct CopyRun {
     pub text: String,
     pub emphasis: bool,
-}
-
-/// The litigation header — the eyebrow, the practice name, the areas litigated,
-/// and the prose under them.
-///
-/// There is deliberately no record strip. The figures it carried were claims
-/// about the firm's own matters, and every one of them has now come off the
-/// page: see `home_publishes_no_amount_in_controversy_and_no_co_counsel_claim`
-/// in `server/tests/firm_routes.rs` for the ones that are guarded against
-/// returning.
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
-pub struct LitigationHeader {
-    pub eyebrow: String,
-    pub heading: String,
-    pub areas: Vec<String>,
-    pub body: Vec<Vec<CopyRun>>,
-}
-
-/// Which mark a practice card carries. Presentation data rather than markup, so
-/// the copy stays wasm-safe and the drawing stays in the view.
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
-pub enum PracticeMark {
-    /// The shield and check, for the counsel the firm keeps on retainer.
-    #[default]
-    Shield,
-    /// The globe, for work that crosses jurisdictions.
-    Globe,
-}
-
-/// One practice under the litigation header — the mark, the practice name, the
-/// areas it covers, and the prose under them. Areas of practice, not a priced
-/// catalog: every fee is still quoted through `/contact`.
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
-pub struct PracticeCard {
-    pub mark: PracticeMark,
-    pub heading: String,
-    pub areas: Vec<String>,
-    pub body: Vec<Vec<CopyRun>>,
+    /// Where this run links, if it links. `Some` renders an inline anchor
+    /// instead of bare text, so a sentence can name another page of the site
+    /// without breaking out of the paragraph.
+    pub href: Option<String>,
 }
 
 /// One `<source>` of the hero `<picture>` — the MIME type the browser tests
@@ -92,6 +58,51 @@ pub struct HeroPicture {
     pub sizes: String,
 }
 
+/// The firm's engagements, in the firm's own words.
+///
+/// A heading and the paragraphs under it. Deliberately not a list of cards: the
+/// shape of the section is itself a claim about how many offerings the reader is
+/// choosing between, and the page leads with one.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+pub struct ServiceSection {
+    pub heading: String,
+    pub body: Vec<Vec<CopyRun>>,
+}
+
+/// Which mark a practice box opens on.
+///
+/// Presentation data rather than markup, so the copy stays wasm-safe and the
+/// drawing stays in the view — the same split the retired practice cards used.
+///
+/// **These were emoji first, and emoji could not do the job.** The brief was a
+/// bigger mark in white, and a colour emoji ignores `color`: the only way to
+/// recolour one is to flatten it to a silhouette with a filter, which turns the
+/// scales and the gavel into passable shapes and the handshake into an ink blot.
+/// A stroked line mark takes `currentColor`, so it is genuinely white on the dark
+/// theme and legible on the light one, and all three carry the same weight.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PracticeMark {
+    /// The scales, for litigation.
+    #[default]
+    Scales,
+    /// The handshake, for the company-counsel work.
+    Handshake,
+    /// The gavel, for the routine one-time matters.
+    Gavel,
+}
+
+/// One practice the home page points at, as a box at the foot of the page.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+pub struct PracticeLink {
+    /// The mark the box opens on, drawn by the view and hidden from assistive
+    /// technology: the heading under it already names the practice, so a screen
+    /// reader announcing "balance scale" would only repeat it.
+    pub mark: PracticeMark,
+    pub heading: String,
+    pub body: String,
+    pub href: String,
+}
+
 /// The static home copy — resolved brand-safely at router-build time and
 /// injected into the render context.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
@@ -107,9 +118,11 @@ pub struct HomeContent {
     pub lead: String,
     pub contact_href: String,
     pub contact_label: String,
-    pub litigation: LitigationHeader,
-    /// The practices listed under the litigation header, in site order.
-    pub practices: Vec<PracticeCard>,
+    /// The one service, in prose. `None` leaves the page at the statement.
+    pub service: Option<ServiceSection>,
+    /// The other practices, as boxes at the foot of the page. Empty renders no
+    /// section at all rather than an empty grid.
+    pub practices: Vec<PracticeLink>,
 }
 
 /// The [`HomeContent`] injected into the render context by the portal router.
@@ -218,8 +231,7 @@ pub fn HomePage(chrome: PublicChrome, content: HomeContent) -> Element {
                 // No glow behind the statement. The hero above it is now the
                 // page's decoration, and the wash bled past the photograph's
                 // edge into the margin, which read as a rendering fault rather
-                // than as lighting. The litigation and transactional pages keep
-                // theirs — they open on type, not on a picture.
+                // than as lighting.
                 h1 { class: "home-statement__heading", "{content.heading}" }
                 p { class: "home-statement__lead", "{content.lead}" }
                 a {
@@ -228,108 +240,120 @@ pub fn HomePage(chrome: PublicChrome, content: HomeContent) -> Element {
                     "{content.contact_label}"
                 }
             }
-            LitigationSection { content: content.litigation.clone() }
+            if let Some(service) = content.service.as_ref() {
+                ServiceProse { service: service.clone() }
+            }
             if !content.practices.is_empty() {
-                div { class: "practice-grid",
-                    for (index , card) in content.practices.iter().enumerate() {
-                        PracticeSection { index, card: card.clone() }
-                    }
-                }
+                PracticeLinks { practices: content.practices.clone() }
             }
         }
     }
 }
 
-/// The litigation header: the practice the firm leads with, its record, and the
-/// areas it litigates.
+/// The engagements section, in prose: the heading and the paragraphs under it.
 #[component]
-fn LitigationSection(content: LitigationHeader) -> Element {
+fn ServiceProse(service: ServiceSection) -> Element {
     rsx! {
-        section { class: "neon-card litigation", "aria-labelledby": "litigation-heading",
-            div { class: "litigation__head",
-                div { class: "litigation__mark", "aria-hidden": "true",
-                    // The scales of justice, drawn at the card's text colour.
-                    svg { "viewBox": "0 0 24 24", fill: "none", stroke: "currentColor",
-                        "stroke-width": "1.25", "stroke-linecap": "round",
-                        "stroke-linejoin": "round",
-                        path { d: "m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" }
-                        path { d: "m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" }
-                        path { d: "M7 21h10" }
-                        path { d: "M12 3v18" }
-                        path { d: "M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" }
-                    }
-                }
-                div {
-                    p { class: "firm-eyebrow", "{content.eyebrow}" }
-                    h2 { id: "litigation-heading", class: "litigation__heading", "{content.heading}" }
-                }
-            }
-            div { class: "litigation__detail",
-                ul { class: "firm-chips",
-                    for area in content.areas.iter() {
-                        li { class: "firm-chip", "{area}" }
-                    }
-                }
-                for paragraph in content.body.iter() {
-                    p { class: "litigation__paragraph",
-                        for run in paragraph.iter() {
-                            if run.emphasis {
-                                strong { "{run.text}" }
-                            } else {
-                                "{run.text}"
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// One practice under the litigation header: its mark, the areas it covers, and
-/// the prose under them. `index` names the heading the card labels itself by.
-#[component]
-fn PracticeSection(index: usize, card: PracticeCard) -> Element {
-    let heading_id = format!("practice-heading-{index}");
-    rsx! {
-        section { class: "neon-card practice", "aria-labelledby": "{heading_id}",
-            div { class: "practice__head",
-                div { class: "practice__mark", "aria-hidden": "true",
-                    svg { "viewBox": "0 0 24 24", fill: "none", stroke: "currentColor",
-                        "stroke-width": "1.25", "stroke-linecap": "round",
-                        "stroke-linejoin": "round",
-                        match card.mark {
-                            // A shield closed by a check.
-                            PracticeMark::Shield => rsx! {
-                                path { d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z" }
-                                path { d: "m9 12 2 2 4-4" }
-                            },
-                            // A globe: the meridian and the equator.
-                            PracticeMark::Globe => rsx! {
-                                circle { cx: "12", cy: "12", r: "10" }
-                                path { d: "M12 2a15 15 0 0 0 0 20 15 15 0 0 0 0-20" }
-                                path { d: "M2 12h20" }
-                            },
-                        }
-                    }
-                }
-                h3 { id: "{heading_id}", class: "practice__heading", "{card.heading}" }
-            }
-            ul { class: "firm-chips",
-                for area in card.areas.iter() {
-                    li { class: "firm-chip", "{area}" }
-                }
-            }
-            for paragraph in card.body.iter() {
-                p { class: "practice__paragraph",
+        section { class: "neon-card home-service", "aria-labelledby": "home-service-heading",
+            h2 { id: "home-service-heading", class: "home-service__heading", "{service.heading}" }
+            for paragraph in service.body.iter() {
+                p { class: "home-service__paragraph",
                     for run in paragraph.iter() {
-                        if run.emphasis {
+                        if let Some(href) = run.href.as_ref() {
+                            a { class: "home-service__link", href: "{href}", "{run.text}" }
+                        } else if run.emphasis {
                             strong { "{run.text}" }
                         } else {
                             "{run.text}"
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/// The other practices, as three boxes at the foot of the page.
+///
+/// Each box is a link with a sentence, and the whole box is not the link — the
+/// named anchor is, so a screen reader hears "Litigation" rather than the
+/// paragraph. The section labels itself so the boxes are not three unlabelled
+/// regions between the prose and the footer.
+#[component]
+fn PracticeLinks(practices: Vec<PracticeLink>) -> Element {
+    rsx! {
+        section { class: "home-practices", "aria-labelledby": "home-practices-heading",
+            h2 { id: "home-practices-heading", class: "home-practices__heading",
+                "We also practice law"
+            }
+            div { class: "home-practices__grid",
+                for (index , practice) in practices.iter().enumerate() {
+                    // The whole box is the link now that the "read more" label
+                    // is gone. An `<a>` rather than a card with a stretched
+                    // anchor inside it: with no label left to name, a stretched
+                    // link would have nothing to announce, and this way the box
+                    // is one tab stop that reads its heading and its sentence.
+                    a {
+                        class: "neon-card home-practice",
+                        href: "{practice.href}",
+                        "aria-labelledby": "home-practice-heading-{index}",
+                        PracticeMarkGlyph { mark: practice.mark }
+                        h3 {
+                            id: "home-practice-heading-{index}",
+                            class: "home-practice__heading",
+                            "{practice.heading}"
+                        }
+                        p { class: "home-practice__body", "{practice.body}" }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Draw one practice mark, stroked in `currentColor`.
+///
+/// `aria-hidden` and `focusable="false"`: the mark repeats what the heading
+/// beside it says, and an unfocusable SVG keeps it out of the tab order in the
+/// browsers that would otherwise put it there.
+#[component]
+fn PracticeMarkGlyph(mark: PracticeMark) -> Element {
+    rsx! {
+        svg {
+            class: "home-practice__mark",
+            "viewBox": "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            "stroke-width": "1.5",
+            "stroke-linecap": "round",
+            "stroke-linejoin": "round",
+            "aria-hidden": "true",
+            "focusable": "false",
+            match mark {
+                // The scales of justice.
+                PracticeMark::Scales => rsx! {
+                    path { d: "m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" }
+                    path { d: "m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" }
+                    path { d: "M7 21h10" }
+                    path { d: "M12 3v18" }
+                    path { d: "M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" }
+                },
+                // Two hands meeting.
+                PracticeMark::Handshake => rsx! {
+                    path { d: "m11 17 2 2a1 1 0 1 0 3-3" }
+                    path { d: "m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" }
+                    path { d: "m21 3 1 11h-2" }
+                    path { d: "M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" }
+                    path { d: "M3 4h8" }
+                },
+                // A gavel and its block.
+                PracticeMark::Gavel => rsx! {
+                    path { d: "m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8" }
+                    path { d: "m16 16 6-6" }
+                    path { d: "m8 8 6-6" }
+                    path { d: "m9 7 8 8" }
+                    path { d: "m21 11-8-8" }
+                },
             }
         }
     }
@@ -345,35 +369,8 @@ mod tests {
                 HomePage {
                     chrome: PublicChrome::default(),
                     content: HomeContent {
-                        practices: vec![
-                            PracticeCard {
-                                mark: PracticeMark::Shield,
-                                heading: "Fractional general counsel & transactional".to_string(),
-                                areas: vec!["Financings".to_string()],
-                                body: vec![vec![
-                                    CopyRun {
-                                        text: "We serve as ".to_string(),
-                                        emphasis: false,
-                                    },
-                                    CopyRun {
-                                        text: "fractional outside general counsel".to_string(),
-                                        emphasis: true,
-                                    },
-                                ]],
-                            },
-                            PracticeCard {
-                                mark: PracticeMark::Globe,
-                                heading: "AI & regulatory counseling".to_string(),
-                                areas: vec!["National security".to_string()],
-                                body: vec![vec![CopyRun {
-                                    text: "We counsel clients on AI regulation.".to_string(),
-                                    emphasis: false,
-                                }]],
-                            },
-                        ],
                         head_title: "Home".to_string(),
-                        meta_description: "Litigation and flat-fee transactional work."
-                            .to_string(),
+                        meta_description: "AI enablement for law firms.".to_string(),
                         hero: Some(HeroPicture {
                             sources: vec![
                                 HeroSource {
@@ -393,26 +390,42 @@ mod tests {
                             alt: "The San Francisco Bay seen from the Berkeley hills.".to_string(),
                             sizes: "100vw".to_string(),
                         }),
-                        heading: "Litigation and flat-fee transactional work".to_string(),
-                        lead: "Every fee is quoted per engagement.".to_string(),
+                        heading: "AI enablement for law firms".to_string(),
+                        lead: "Our clients are law firms.".to_string(),
                         contact_href: "/contact".to_string(),
                         contact_label: "Contact us".to_string(),
-                        litigation: LitigationHeader {
-                            eyebrow: "The practice".to_string(),
+                        practices: vec![PracticeLink {
+                            mark: PracticeMark::Scales,
                             heading: "Litigation".to_string(),
-                            areas: vec!["Trade secrets & trademarks".to_string()],
-                            body: vec![vec![
-                                CopyRun {
-                                    text: "We are comfortable on both sides of the v: "
-                                        .to_string(),
+                            body: "We try cases on both sides of the v.".to_string(),
+                            href: "/litigation".to_string(),
+                        }],
+                        service: Some(ServiceSection {
+                            heading: "What we do".to_string(),
+                            body: vec![
+                                vec![
+                                    CopyRun {
+                                        text: "AI reaches the matter ".to_string(),
+                                        emphasis: false,
+                                        href: None,
+                                    },
+                                    CopyRun {
+                                        text: "through the law firm".to_string(),
+                                        emphasis: true,
+                                        href: None,
+                                    },
+                                ],
+                                vec![CopyRun {
+                                    text: "we deploy ".to_string(),
                                     emphasis: false,
-                                },
-                                CopyRun {
-                                    text: "Plaintiff and Defense".to_string(),
-                                    emphasis: true,
-                                },
-                            ]],
-                        },
+                                    href: None,
+                                }, CopyRun {
+                                    text: "Neon Law Navigator".to_string(),
+                                    emphasis: false,
+                                    href: Some("/navigator".to_string()),
+                                }],
+                            ],
+                        }),
                     },
                 }
             }
@@ -426,10 +439,10 @@ mod tests {
     fn renders_the_practice_statement_and_contact_cta() {
         let out = html();
         assert!(
-            out.contains("Litigation and flat-fee transactional work"),
+            out.contains("AI enablement for law firms"),
             "the practice statement: {out}"
         );
-        assert!(out.contains("Every fee is quoted per engagement."), "lead");
+        assert!(out.contains("Our clients are law firms."), "lead");
         assert!(out.contains(r#"href="/contact""#), "CTA links to /contact");
         assert!(out.contains("Contact us"), "CTA label");
     }
@@ -487,19 +500,7 @@ mod tests {
         // The bytes live in a bucket, not in git, so an unpublished hero is a
         // real state rather than a bug — and it must degrade to the statement on
         // the brand surface, never to a broken image.
-        fn app() -> Element {
-            rsx! {
-                HomePage {
-                    chrome: PublicChrome::default(),
-                    content: HomeContent {
-                        ..HomeContent::default()
-                    },
-                }
-            }
-        }
-        let mut dom = VirtualDom::new(app);
-        dom.rebuild_in_place();
-        let out = dioxus_ssr::render(&dom);
+        let out = statement_only_html();
         assert!(!out.contains("<picture"), "no empty picture: {out}");
         assert!(!out.contains("home-hero__scrim"), "no scrim: {out}");
         assert!(
@@ -508,110 +509,198 @@ mod tests {
         );
     }
 
+    /// The page renders one offering, in prose, under one `<h2>`.
+    ///
+    /// The shape is the claim: a grid of cards tells a reader there are several
+    /// things to choose between, and the firm does one thing. This is what keeps
+    /// a practice card from growing back.
     #[test]
-    fn renders_the_litigation_header_with_its_areas_and_no_record_strip() {
+    fn the_service_is_one_prose_section_and_not_a_grid_of_cards() {
         let out = html();
-        assert!(out.contains("The practice"), "eyebrow: {out}");
-        assert!(out.contains(">Litigation<"), "the practice name");
-        assert!(out.contains("Trade secrets"), "an area chip: {out}");
-        // The record strip is gone, and the header must not leave an empty
-        // bordered `<dl>` where it used to rule off the areas below it.
-        assert!(
-            !out.contains("litigation__stats"),
-            "no record strip renders: {out}"
+        assert!(out.contains("What we do"), "the section heading: {out}");
+        // One card for the engagements prose, plus one per practice box. What
+        // must not come back is a card *per offering* in the prose itself.
+        assert_eq!(
+            out.matches(r#"class="neon-card home-service""#).count(),
+            1,
+            "exactly one engagements card: {out}"
         );
+        assert_eq!(
+            out.matches("<h2").count(),
+            2,
+            "one h2 for the prose, one for the boxes: {out}"
+        );
+        assert!(
+            out.contains(r#"aria-labelledby="home-service-heading""#),
+            "the section is labelled by its own heading: {out}"
+        );
+        // Matched on the full class attribute, not the bare word: the practice
+        // boxes at the foot of the page use `home-practice__heading`, which
+        // contains the retired card's class name as a substring. A loose match
+        // here would fail on markup that is correct.
+        for gone in [
+            r#"class="practice-grid""#,
+            r#"class="practice__heading""#,
+            r#"class="litigation__heading""#,
+            r#"class="firm-chip""#,
+        ] {
+            assert!(!out.contains(gone), "{gone} must not render: {out}");
+        }
+        let statement = out.find("home-statement").expect("the statement");
+        let service = out.find("home-service").expect("the service section");
+        assert!(statement < service, "the statement leads: {out}");
     }
 
     #[test]
-    fn litigation_prose_emphasises_the_phrases_the_firm_sets_in_bold() {
+    fn service_prose_emphasises_the_phrases_the_firm_sets_in_bold() {
         let out = html();
         assert!(
-            out.contains("<strong>Plaintiff and Defense</strong>"),
+            out.contains("<strong>through the law firm</strong>"),
             "the emphasised phrase is bold: {out}"
         );
         assert!(
-            !out.contains("<strong>We are comfortable"),
+            !out.contains("<strong>AI reaches the matter"),
             "the plain run stays plain: {out}"
         );
     }
 
+    /// A linking run renders as an inline anchor rather than breaking the
+    /// paragraph.
+    ///
+    /// The copy names Navigator mid-sentence and links its page, which is what
+    /// `CopyRun::href` exists for. Without it the only way to link from this
+    /// section would be a separate call-to-action under the prose, which is a
+    /// different thing on the page than a word in a sentence.
     #[test]
-    fn renders_the_two_practice_cards_under_the_litigation_header() {
+    fn a_linking_run_renders_as_an_inline_anchor() {
         let out = html();
-        // SSR escapes the ampersand in a practice name, so assert the escaped
-        // spelling rather than the source one.
         assert!(
-            out.contains("Fractional general counsel &#38; transactional"),
-            "the transactional practice: {out}"
+            out.contains(r#"<a class="home-service__link" href="/navigator">"#),
+            "the linking run is an anchor: {out}"
         );
         assert!(
-            out.contains("AI &#38; regulatory counseling"),
-            "the regulatory practice: {out}"
+            out.contains("Neon Law Navigator</a>"),
+            "the anchor carries the run's text: {out}"
+        );
+    }
+
+    /// The access-to-justice line came off the page.
+    ///
+    /// It closed the section as a separate ruled-off paragraph, and it is gone
+    /// deliberately rather than by an edit that lost it. This is what keeps the
+    /// markup that framed it from coming back empty.
+    #[test]
+    fn the_section_carries_no_commitment_line() {
+        let out = html();
+        assert!(
+            !out.contains("home-service__commitment"),
+            "no commitment paragraph renders: {out}"
         );
         assert!(
-            out.contains("Financings"),
-            "a transactional area chip: {out}"
-        );
-        assert!(
-            out.contains("National security"),
-            "a regulatory area chip: {out}"
-        );
-        assert!(
-            out.contains("<strong>fractional outside general counsel</strong>"),
-            "practice prose emphasises the phrases the firm sets in bold: {out}"
+            !out.contains("committed to using AI to improve access to justice"),
+            "the retired commitment line is gone: {out}"
         );
     }
 
     #[test]
-    fn the_three_practices_are_three_cards_the_litigation_one_first() {
-        let out = html();
-        assert_eq!(
-            out.matches("neon-card").count(),
-            3,
-            "one card per practice: {out}"
-        );
-        let litigation = out.find("litigation__heading").expect("litigation card");
-        let practices = out.find("practice-grid").expect("the practice grid");
-        assert!(
-            litigation < practices,
-            "litigation leads and the other two sit under it: {out}"
-        );
+    fn the_service_section_stays_out_of_the_markup_when_there_is_none() {
+        let out = statement_only_html();
+        assert!(!out.contains("home-service"), "no empty section: {out}");
+        assert!(!out.contains("neon-card"), "no empty card: {out}");
     }
 
+    /// The boxes at the foot of the page point at the practice pages.
+    ///
+    /// The whole box is the link. It used to end in a "The litigation practice"
+    /// label and the box was inert; with the label gone the box has to carry the
+    /// link itself, or the practices would be named on the page with no way to
+    /// reach them.
+    ///
+    /// The anchor names itself by its heading rather than by its contents. A
+    /// link whose accessible name is the heading *and* the sentence is read out
+    /// in full before a reader learns where it goes.
     #[test]
-    fn each_practice_card_labels_itself_by_its_own_heading() {
+    fn each_practice_box_is_itself_the_link() {
         let out = html();
-        for id in ["practice-heading-0", "practice-heading-1"] {
-            assert!(
-                out.contains(&format!(r#"aria-labelledby="{id}""#)),
-                "{id} labels its card: {out}"
-            );
-            assert!(out.contains(&format!(r#"id="{id}""#)), "{id} exists: {out}");
+        assert!(out.contains("home-practices"), "the section renders: {out}");
+        assert!(
+            out.contains(r#"aria-labelledby="home-practices-heading""#),
+            "the section labels itself: {out}"
+        );
+        assert!(
+            out.contains(r#"<a class="neon-card home-practice" href="/litigation""#),
+            "the box is the anchor: {out}"
+        );
+        assert!(
+            out.contains(r#"aria-labelledby="home-practice-heading-0""#),
+            "the anchor is named by its heading: {out}"
+        );
+        assert!(
+            out.contains(r#"<h3 id="home-practice-heading-0""#),
+            "each box heading carries its own id: {out}"
+        );
+        // Boxes, not an enumeration: no `<ul>`/`<li>` around them.
+        assert!(
+            !out.contains("<ul class=\"home-practices__grid\""),
+            "the boxes are not a list: {out}"
+        );
+        // The retired "read more" labels. Each was a second thing to click in a
+        // box that is now entirely clickable.
+        for retired in [
+            "The litigation practice",
+            "The fractional GC practice",
+            "The legal services schedule",
+            "home-practice__link",
+        ] {
+            assert!(!out.contains(retired), "{retired} must not render: {out}");
         }
+        // The mark is decorative — the heading beside it names the practice, so
+        // a screen reader must not read the glyph out as well, and it stays out
+        // of the tab order.
+        assert!(
+            out.contains(r#"class="home-practice__mark""#),
+            "the mark renders: {out}"
+        );
+        assert!(
+            out.contains(r#"aria-hidden="true""#) && out.contains(r#"focusable="false""#),
+            "the mark is hidden from assistive technology: {out}"
+        );
+        // Stroked in `currentColor`, which is what lets it be white on the dark
+        // theme — a colour emoji could not be recoloured at all.
+        assert!(
+            out.contains(r#"stroke="currentColor""#),
+            "the mark takes the card's colour: {out}"
+        );
+        assert!(
+            out.contains("M12 3v18"),
+            "the litigation box carries the scales' beam: {out}"
+        );
     }
 
     #[test]
-    fn the_practice_grid_stays_out_of_the_markup_when_there_are_no_cards() {
-        fn app() -> Element {
-            rsx! {
-                HomePage {
-                    chrome: PublicChrome::default(),
-                    content: HomeContent::default(),
-                }
-            }
-        }
-        let mut dom = VirtualDom::new(app);
-        dom.rebuild_in_place();
-        let out = dioxus_ssr::render(&dom);
-        assert!(!out.contains("practice-grid"), "no empty grid: {out}");
+    fn the_practice_boxes_stay_out_of_the_markup_when_there_are_none() {
+        let out = statement_only_html();
+        assert!(!out.contains("home-practices"), "no empty section: {out}");
+    }
+
+    /// The boxes sit at the foot of the page, under the engagements prose.
+    ///
+    /// Order is the claim: the page leads with one offering, and these say the
+    /// firm practices law too. Above the prose they would read as the page
+    /// offering four things.
+    #[test]
+    fn the_practice_boxes_sit_under_the_engagements_prose() {
+        let out = html();
+        let service = out.find("home-service").expect("the engagements section");
+        let practices = out.find("home-practices").expect("the practice boxes");
+        assert!(service < practices, "prose then boxes: {out}");
     }
 
     #[test]
     fn the_statement_carries_no_glow_behind_it() {
         // The wash bled past the hero photograph's edge into the page margin,
-        // which reads as a rendering fault. The photograph is the page's
-        // decoration now; this pins that the glow does not come back with the
-        // next copy edit.
+        // which reads as a rendering fault. This pins that the glow does not
+        // come back with the next copy edit.
         let out = html();
         assert!(
             !out.contains("firm-glow"),
@@ -624,5 +713,20 @@ mod tests {
         let out = html();
         assert!(out.contains("site-header"), "header chrome: {out}");
         assert!(out.contains("site-footer__legal"), "footer chrome");
+    }
+
+    /// The page with nothing but its defaults: no hero, no service section.
+    fn statement_only_html() -> String {
+        fn app() -> Element {
+            rsx! {
+                HomePage {
+                    chrome: PublicChrome::default(),
+                    content: HomeContent::default(),
+                }
+            }
+        }
+        let mut dom = VirtualDom::new(app);
+        dom.rebuild_in_place();
+        dioxus_ssr::render(&dom)
     }
 }
