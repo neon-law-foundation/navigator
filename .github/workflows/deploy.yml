@@ -57,10 +57,10 @@ name: deploy
 #      Each archive carries LICENSE beside the executable: whoever unpacks it
 #      holds the binary and not the repository, and AGPL § 4 requires this
 #      License to travel with every copy conveyed.
-#   3. notify      — post the publish report to #navigator via the prod ops
-#      incoming webhook (SLACK_WEBHOOK_URL, a GitHub Actions secret): what this
-#      run published, then the `ops ship` command per `deployments/` row with
-#      the version already substituted.
+#   3. notify      — when the prod ops incoming webhook is configured, post the
+#      publish report to #navigator: what this run published, then the
+#      `ops ship` command with the version already substituted. Reporting is
+#      advisory; an absent `SLACK_WEBHOOK_URL` notices and skips.
 #
 # THIS WORKFLOW DEPLOYS NOTHING, AND HOLDS NO CLOUD CREDENTIAL. It ends at the
 # registry. Every rollout is `navigator ops ship`, run by a person from their
@@ -71,9 +71,10 @@ name: deploy
 # `notify`'s second message exists to make that handoff a copyable command
 # instead of a runbook lookup.
 #
-# Plus one out-of-band guard: `notify-failure` posts to #navigator (tagging Nick)
-# whenever ANY stage fails. It carries only the version + run URL — the
-# "identifiers and counts, never content" rule binds here too.
+# Plus one out-of-band guard: when Slack is configured, `notify-failure` posts
+# to #navigator (tagging Nick) whenever ANY stage fails. It carries only the
+# version + run URL — the "identifiers and counts, never content" rule binds
+# here too. A missing webhook cannot turn one failed release into two failures.
 #
 # NOTHING ON A CLOCK PROVES THIS PATH, and that is the deliberate cost of
 # releasing on a tag. A nightly cron exercised the whole pipeline whether or not
@@ -425,13 +426,13 @@ jobs:
           # until that cutover retires this entry.
           - image: navigator-web
             dockerfile: images/Containerfile.neon
-            runner: ubuntu-latest
+            runner: blacksmith-8vcpu-ubuntu-2404
           # The brand image every deployment actually rolls. `navigator-web`
           # above is the same bytes from the same Containerfile and is retired
           # once the ship targets flip.
           - image: neon-server
             dockerfile: images/Containerfile.neon
-            runner: ubuntu-latest
+            runner: blacksmith-8vcpu-ubuntu-2404
           - image: navigator-workflows-service
             dockerfile: images/Containerfile.workflows-service
             runner: ubuntu-latest
@@ -2282,10 +2283,12 @@ jobs:
           echo "dispatched navigator-release ${TAG} to ${TAP_REPO}"
 
   # ---------- Stage 4: post the release report to Slack ----------
-  # Sent only after the container images are published. Posts to the
-  # #navigator channel via the prod ops incoming webhook (SLACK_WEBHOOK_URL,
-  # a GitHub Actions secret) — the same channel and webhook the failure guard
-  # below uses. The webhook itself must be pinned to #navigator. NOTHING WAS
+  # Sent only after the container images are published. When configured, posts
+  # to the #navigator channel via the prod ops incoming webhook
+  # (SLACK_WEBHOOK_URL, a GitHub Actions secret) — the same channel and webhook
+  # the failure guard below uses. An absent webhook notices and skips; reporting
+  # cannot invalidate published bytes. The webhook itself must be pinned to
+  # #navigator. NOTHING WAS
   # ROLLED by the time this job runs, and nothing in this workflow can roll
   # anything; this job reports a shelf, not a deployment.
   #
@@ -2370,8 +2373,8 @@ jobs:
       - name: post the published-assets manifest to engineering Slack
         run: |
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
-              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the assets manifest"
-              exit 1
+              echo "::notice::SLACK_WEBHOOK_URL is unset — skipping the assets manifest"
+              exit 0
           fi
           TEXT=":package: *Neon Law Navigator ${TAG} — published assets*
 
@@ -2408,8 +2411,8 @@ jobs:
       - name: post tagged CLI installation instructions to engineering Slack
         run: |
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
-              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the CLI installation instructions"
-              exit 1
+              echo "::notice::SLACK_WEBHOOK_URL is unset — skipping the CLI installation instructions"
+              exit 0
           fi
           # A hotfix is never handed to the tap (see `release-homebrew-tap`), so
           # naming `brew` here would tell the channel to install a version brew
@@ -2483,8 +2486,8 @@ jobs:
       - name: "post the ship instructions to #navigator"
         run: |
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
-              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the ship instructions"
-              exit 1
+              echo "::notice::SLACK_WEBHOOK_URL is unset — skipping the ship instructions"
+              exit 0
           fi
           # An unset DEPLOY_REPO degrades to prose rather than interpolating a
           # blank, so the message stays copy-pasteable either way. Every
@@ -2525,9 +2528,8 @@ jobs:
   # (failure() is true if any needed job — or its upstream — failed, even when
   # later jobs were skipped as a result; a job that merely skipped is not a
   # failure and does not page). Posts to
-  # #navigator via the prod ops
-  # incoming webhook (SLACK_WEBHOOK_URL, a GitHub Actions secret) and
-  # tags Nick —
+  # #navigator via the prod ops incoming webhook (SLACK_WEBHOOK_URL, a GitHub
+  # Actions secret) and tags Nick when that webhook is configured —
   # the @-mention is what separates this paging alert from the un-tagged
   # success report above. Like that report: tag + run URL only, never client
   # content.
@@ -2563,10 +2565,9 @@ jobs:
     # for four consecutive nights. Read the trigger ref directly, so a failure
     # ANYWHERE, including the tag validation, still pages.
     #
-    # This is the ONLY automatic signal that a release broke, because no clock
-    # runs this pipeline any more. A pipeline defect nobody tags for stays
-    # invisible until the next release attempt; see docs/gitops.md § "What
-    # detects a broken pipeline".
+    # This is the automatic Slack signal that a release broke when the optional
+    # webhook is configured. GitHub's run conclusion remains the source of truth
+    # either way; see docs/gitops.md § "What detects a broken pipeline".
     if: failure() && github.ref_type == 'tag'
     runs-on: ubuntu-latest
     # A single webhook POST — cap it so a hung request can't keep the run open.
@@ -2580,8 +2581,8 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
-              echo "::error::SLACK_WEBHOOK_URL is unset — cannot post the failure alert"
-              exit 1
+              echo "::notice::SLACK_WEBHOOK_URL is unset — skipping the failure alert"
+              exit 0
           fi
           TEXT=":x: Neon Law Navigator deploy ${TAG} failed — ${SLACK_OPS_MENTION} please investigate.
           Run: ${RUN_URL}"

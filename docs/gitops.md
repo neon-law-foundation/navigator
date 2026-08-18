@@ -489,15 +489,16 @@ Two platforms have no prebuilt archive — Intel macOS and arm64 Linux — and t
 for them instead. The tap's own CI installs the formula on all four platforms, gating every push on the two prebuilt
 ones and running the two source builds weekly, since a cold workspace compile is tens of minutes.
 
-The run narrates itself while it goes. Every forward-path step opens with a `.github/actions/slack-progress` post to
-`#navigator` naming the tag, the stage, and the step, so the channel watches the release advance rather than waiting ~45
-minutes for a verdict — and the last line posted names the step a failure died in, before anyone opens the run. Those
-posts are advisory: the action reports a failed webhook as a warning and never fails a job, because a release must not
-be lost to its own narration. They self-gate on the trigger ref the same way the two reports do, so a `kind-ci/**`
-branch iteration stays silent. Steps gated on `failure()` or `always()` are post-mortem diagnostics rather than progress
-and are deliberately not narrated; the failure page already covers that moment. `cli/tests/deploy_slack_progress.rs`
-holds the narration complete — a new step added without a post fails that gate, because nobody notices a *missing* Slack
-line.
+The run narrates itself while it goes when `SLACK_WEBHOOK_URL` is configured. Every forward-path step opens with a
+`.github/actions/slack-progress` post to `#navigator` naming the tag, the stage, and the step, so the channel watches
+the release advance rather than waiting ~45 minutes for a verdict — and the last line posted names the step a failure
+died in, before anyone opens the run. All Slack reporting is advisory: an absent webhook notices and skips, and a
+rejected post warns, because a release must not be lost to its own narration. GitHub's run conclusion remains the source
+of truth. The posts self-gate on the trigger ref the same way the two terminal reports do, so a `kind-ci/**` branch
+iteration stays silent. Steps gated on `failure()` or `always()` are post-mortem diagnostics rather than progress and
+are deliberately not narrated; the failure page already covers that moment when Slack is configured.
+`cli/tests/deploy_slack_progress.rs` holds the narration complete — a new step added without a post fails that gate,
+because nobody notices a *missing* Slack line.
 
 ### What detects a broken pipeline
 
@@ -509,8 +510,9 @@ pipeline has no automatic breakage detection, not that it has a weaker one.
 
 What remains, and what each does not cover:
 
-- `notify-failure` pages `#navigator` when a release fails, reading the trigger ref rather than a job output so that a
-  failure anywhere — including the tag validation — still pages. It can only fire on a run that happened.
+- When `SLACK_WEBHOOK_URL` is configured, `notify-failure` pages `#navigator` when a release fails, reading the trigger
+  ref rather than a job output so that a failure anywhere — including the tag validation — still pages. It can only fire
+  on a run that happened; without the optional webhook, the GitHub run conclusion is the signal.
 - `kind-ci/**` proves a release-workflow change on demand: push a `kind-ci/<topic>` branch to run the KIND integration
   job alone, publishing nothing and shipping nothing. On demand, not on a schedule.
 - `ci.yml` proves the Rust workspace on every PR and says nothing about images, KIND, or shipping.
@@ -683,8 +685,9 @@ roll production is a pipeline whose compromise rolls production, and CI's remain
 `cli/tests/deploy_workflow.rs` asserts both halves — no job named `ship*`, and no credential exchange step — so
 restoring that reach means deleting an assertion that says why it was removed.
 
-The handoff is a Slack message. When a publish run goes green, `notify` posts two messages to `#navigator`: what was
-published, then the `ops ship` command with the version already substituted, so it can be copied without editing.
+When Slack is configured, the handoff is a Slack message. After publication, `notify` posts what was published, CLI
+installation instructions, and the `ops ship` command with the version already substituted. Without the optional webhook
+those advisory reports skip successfully; the GitHub Release and workflow run remain the durable handoff.
 
 That second message enumerates nothing. It once derived a line per row from the tree at run time (`ls deployments`) and
 read each row's public host out of its `config.toml`; the tree moved, so both would now fail inside a Slack step whose
