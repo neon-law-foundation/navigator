@@ -356,7 +356,7 @@ pub(super) fn kind_down_only(cfg: &KindConfig) -> Result<()> {
 }
 
 /// `devx deploy`: full in-cluster stack from published Artifact Registry
-/// images. Pulls both images at a resolved `YY.M.D` tag, retags + loads them
+/// images. Pulls both images at a resolved immutable release tag, retags + loads them
 /// into KIND, applies every manifest under `k8s/`, waits for the
 /// navigator-web rollout to settle. CI builds and publishes the images;
 /// this pulls them. `tag_override` (e.g. `worktree-env --demo --tag`)
@@ -675,7 +675,7 @@ fn docker_daemon_arch() -> String {
         .unwrap_or_else(|| normalize_docker_arch(std::env::consts::ARCH))
 }
 
-/// Resolve the `YY.M.D` Artifact Registry tag the local cluster should
+/// Resolve the immutable GHCR release tag the local cluster should
 /// pull, in precedence order: an explicit `override_tag` (e.g.
 /// `worktree-env --demo --tag`), then `NAVIGATOR_IMAGE_TAG`, then the
 /// latest published tag from the registry. CI builds and publishes the

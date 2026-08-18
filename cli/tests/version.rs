@@ -1,6 +1,6 @@
 //! Integration tests for `navigator --version` / `-V`.
 //!
-//! The published binary must self-report the `YY.M.D` release tag (no
+//! The published binary must self-report its immutable release tag (no
 //! leading zeros on any component — June 5 is `26.6.5`) that
 //! `deploy.yml` built it from — not the workspace crate version `Cargo.toml`
 //! carries between releases (`0.1.0`). `deploy.yml` exposes that tag to `cargo build` as

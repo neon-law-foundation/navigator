@@ -140,7 +140,9 @@ implementation and run the dry-run command from [`oss-install.md`](oss-install.m
 Code reaches production through PRs and dated images:
 
 1. Merge through the normal PR flow in [`gitops.md`](gitops.md).
-2. An operator pushes a `YY.M.D` tag — the current UTC date, one per calendar day — which starts `deploy.yml`.
+2. After the version PR merges, an operator tags that merged `main` commit with `YY.M.D` or
+   `YY.M.D-hotfix.N`, which starts `deploy.yml`. The workflow fetches `origin/main` and rejects a tag on an unmerged
+   side branch before it publishes anything.
 3. The deploy workflow builds and publishes the service images to the Google Artifact Registry: the three brand server
    images and `navigator-workflows-service`.
 4. The same run rolls GKE onto that tag — `neon-law-stg` first, then `neon-law-prod` once staging is green — and reports

@@ -81,8 +81,10 @@ fn an_empty_tag_is_rejected() {
     );
 }
 
-/// `--hotfix` writes the same-day release spelling: a `-hotfix.H` prerelease on
-/// TOMORROW's date. This is the version a `deploy.yml` hotfix tag must equal, so
+/// `--hotfix` writes the same-day release spelling: a `-hotfix.N` prerelease on
+/// TOMORROW's date. It uses the UTC hour as a convenient default N; explicit
+/// `--tag` remains the way to choose another number. This is the version a
+/// `deploy.yml` hotfix tag must equal, so
 /// the shape is asserted against the workflow's own regex rather than eyeballed.
 #[test]
 fn hotfix_writes_a_prerelease_on_tomorrows_date() {
@@ -109,9 +111,9 @@ fn hotfix_writes_a_prerelease_on_tomorrows_date() {
         })
         .expect("the workspace version line must still be present");
 
-    let (base, hour) = version
+    let (base, number) = version
         .split_once("-hotfix.")
-        .expect("`--hotfix` must write a `-hotfix.H` prerelease");
+        .expect("`--hotfix` must write a `-hotfix.N` prerelease");
 
     // Tomorrow's base, derived independently of the command under test. Semver
     // ranks a prerelease BELOW its own base, so today's base would sort the fix
@@ -131,14 +133,17 @@ fn hotfix_writes_a_prerelease_on_tomorrows_date() {
         "a hotfix hangs off TOMORROW's base"
     );
 
-    // The hour is an unpadded 0-23, which is both `deploy.yml`'s regex and the
-    // semver rule that a numeric prerelease identifier carries no leading zero.
+    // The convenience command selects the UTC hour as its default N. It is
+    // unpadded, which is the semver rule for a numeric prerelease identifier.
     assert!(
-        !hour.starts_with('0') || hour == "0",
-        "the hour must be unpadded — `hotfix.08` is invalid semver, got {hour:?}"
+        !number.starts_with('0') || number == "0",
+        "the number must be unpadded — `hotfix.08` is invalid semver, got {number:?}"
     );
-    let hour: u32 = hour.parse().expect("the hour must be numeric");
-    assert!(hour <= 23, "the hour must be a real UTC hour, got {hour}");
+    let number: u32 = number.parse().expect("the hotfix number must be numeric");
+    assert!(
+        number <= 23,
+        "the convenience command's default N is a UTC hour, got {number}"
+    );
     assert!(
         written.contains("serde = { version = \"1\" }"),
         "a dependency pin must never be rewritten"
