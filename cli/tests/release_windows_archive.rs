@@ -65,26 +65,41 @@ fn releases_build_and_attach_a_windows_cli_archive() {
     }
 }
 
-/// Every release that publishes images also builds the Windows CLI. The job
-/// carries no `if:` of its own: `needs` alone decides when it runs, so a
-/// dispatch release can no longer publish images while quietly shipping no
-/// CLI for the people who run Navigator on Windows.
-#[test]
-fn every_published_release_builds_the_windows_cli() {
-    let build = deploy_job("release-windows-cli-build");
-
-    assert!(
-        build.get("if").is_none(),
-        "release-windows-cli-build must carry no `if:` gate — `needs` decides when it runs"
+/// The three CLI archives are compiled from the same SHA the images are built
+/// from, so they run BESIDE the image lane rather than after it: `release-version`
+/// hands over the tag and nothing else is waited on. A release's wall clock is
+/// then the longer of the two lanes instead of their sum, which on the 90-minute
+/// Windows compile is most of the run.
+///
+/// The gate that replaces the dependency is `publishable` — the SAME one
+/// `publish-service` carries. A run that publishes images therefore always
+/// builds all three archives, and a `kind-ci/**` branch iteration compiles none
+/// of them.
+fn assert_builds_beside_the_images(job: &str) {
+    let gate = deploy_job(job)["if"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{job} must declare an `if:` gate"))
+        .trim()
+        .to_string();
+    assert_eq!(
+        gate, "needs.release-version.outputs.publishable == 'true'",
+        "{job} must carry the same `publishable` gate the publish jobs do, so every run that \
+         publishes images also ships a CLI, got: {gate:?}"
     );
 
-    let needs = job_needs("release-windows-cli-build");
-    for required in ["publish-service", "publish-triggers", "release-version"] {
-        assert!(
-            needs.iter().any(|entry| entry == required),
-            "release-windows-cli-build must start with ship-staging, so it needs `{required}`"
-        );
-    }
+    assert_eq!(
+        job_needs(job),
+        vec!["release-version".to_string()],
+        "{job} must wait only for the tag, so it compiles beside the image jobs instead of \
+         queueing behind them"
+    );
+}
+
+/// Every release that publishes images also builds the Windows CLI, and builds
+/// it while the images are still being published.
+#[test]
+fn every_published_release_builds_the_windows_cli() {
+    assert_builds_beside_the_images("release-windows-cli-build");
 }
 
 /// Every run that reaches this job is a tag release, so the archive is built
@@ -241,23 +256,11 @@ fn the_macos_archive_name_matches_what_the_validate_action_downloads() {
     );
 }
 
-/// Same rule as the other two builds: no `if:` of its own.
+/// Same rule as the other two builds: gated on `publishable`, waiting on the tag
+/// alone.
 #[test]
 fn every_published_release_builds_the_macos_cli() {
-    let build = deploy_job("release-cli-build-macos");
-
-    assert!(
-        build.get("if").is_none(),
-        "release-cli-build-macos must carry no `if:` gate \u{2014} `needs` decides when it runs"
-    );
-
-    let needs = job_needs("release-cli-build-macos");
-    for required in ["publish-service", "publish-triggers", "release-version"] {
-        assert!(
-            needs.iter().any(|entry| entry == required),
-            "release-cli-build-macos must run beside the publish jobs, so it needs `{required}`"
-        );
-    }
+    assert_builds_beside_the_images("release-cli-build-macos");
 }
 
 #[test]
@@ -395,22 +398,28 @@ fn every_cli_archive_carries_the_licence_and_the_notice() {
     }
 }
 
-/// Same rule as the Windows build: no `if:` of its own, so a release cannot
-/// publish images while quietly shipping no CLI for CI to install.
+/// Same rule as the Windows build: the `publishable` gate is what makes a
+/// publishing release ship a CLI for CI to install, so a run cannot publish
+/// images while quietly shipping none.
 #[test]
 fn every_published_release_builds_the_linux_cli() {
-    let build = deploy_job("release-cli-build-linux");
+    assert_builds_beside_the_images("release-cli-build-linux");
+}
 
-    assert!(
-        build.get("if").is_none(),
-        "release-cli-build-linux must carry no `if:` gate \u{2014} `needs` decides when it runs"
-    );
-
-    let needs = job_needs("release-cli-build-linux");
-    for required in ["publish-service", "publish-triggers", "release-version"] {
+/// The archives compile beside the images, but the Release is still cut after
+/// them. `release-windows-cli-publish` is the first job in the run that
+/// publishes anything a stranger can fetch, and the CLI it attaches is only
+/// half a release without the images the same tag names — so it waits on both
+/// publish jobs, which is what keeps the KIND integration gate ahead of every
+/// published byte.
+#[test]
+fn the_release_is_cut_only_after_the_images_publish() {
+    let needs = job_needs("release-windows-cli-publish");
+    for required in ["publish-service", "publish-triggers"] {
         assert!(
             needs.iter().any(|entry| entry == required),
-            "release-cli-build-linux must run beside the publish jobs, so it needs `{required}`"
+            "the Release must not exist before the images it accompanies, so the attach job \
+             needs `{required}`"
         );
     }
 }

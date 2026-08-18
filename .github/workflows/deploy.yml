@@ -1841,7 +1841,18 @@ jobs:
   # which is correct: it produces no release to carry an archive.
   release-windows-cli-build:
     name: build Windows navigator CLI release archive
-    needs: [publish-service, publish-triggers, release-version]
+    # The tag, and nothing else. This archive is compiled from the same SHA the
+    # images are, so it has no reason to queue behind them: the three CLI builds
+    # run as a second lane beside `build` -> `integration` -> `publish-*`, and a
+    # release's wall clock is the longer of the two lanes rather than their sum.
+    # Nothing is published early — `release-windows-cli-publish` still waits on
+    # both publish jobs, so the KIND integration gate stays ahead of every byte a
+    # stranger can fetch.
+    needs: [release-version]
+    # The gate the dependency used to carry, stated directly. It is the SAME one
+    # `publish-service` carries, so a run that publishes images always ships all
+    # three archives, and a `kind-ci/**` branch iteration compiles none of them.
+    if: needs.release-version.outputs.publishable == 'true'
     runs-on: windows-latest
     # `windows-latest` is a standard GitHub-hosted Windows runner available to
     # this GHE.com tenant. The CLI compiles the Rust dependency graph in release
@@ -1851,9 +1862,8 @@ jobs:
       contents: read
     steps:
       # Check out the source this archive claims. Every run that reaches this
-      # job is a tag release — `needs` requires both publishes, which are gated
-      # on `publishable`, which is only ever true for a tag ref — so the tag is
-      # the ref, with no fallback to fold in.
+      # job is a tag release — `publishable` is only ever true for a tag ref —
+      # so the tag is the ref, with no fallback to fold in.
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
@@ -1908,7 +1918,9 @@ jobs:
 
   release-cli-build-linux:
     name: build Linux navigator CLI release archive
-    needs: [publish-service, publish-triggers, release-version]
+    # Same lane as the Windows archive: the tag alone, gated on `publishable`.
+    needs: [release-version]
+    if: needs.release-version.outputs.publishable == 'true'
     runs-on: ubuntu-latest
     # This is the archive CI actually consumes. `.github/actions/validate`
     # derives its download from the runner's platform and asks for
@@ -1982,7 +1994,9 @@ jobs:
 
   release-cli-build-macos:
     name: build macOS navigator CLI release archive
-    needs: [publish-service, publish-triggers, release-version]
+    # Same lane as the other two archives: the tag alone, gated on `publishable`.
+    needs: [release-version]
+    if: needs.release-version.outputs.publishable == 'true'
     runs-on: macos-latest
     # The third archive, and the one that closes a live hole rather than adding
     # a convenience: `.github/actions/validate` ALREADY maps a macOS runner to
@@ -2063,11 +2077,18 @@ jobs:
     # and all try to create it, and the losers would fail. The job key keeps
     # its original Windows-flavoured spelling because the notify lists and this
     # job's own slack `stage:` strings reference it.
+    # The three archives, plus both publishes. The builds compile beside the
+    # image lane, so this job is where the two lanes rejoin: it cuts the Release,
+    # the first thing in the run a stranger can fetch, and a CLI attached without
+    # the images its tag names is half a release. Needing the publishes also
+    # keeps the KIND integration gate — which they need — ahead of publication.
     needs:
       [
         release-windows-cli-build,
         release-cli-build-linux,
         release-cli-build-macos,
+        publish-service,
+        publish-triggers,
         release-version,
       ]
     # A GitHub Release hangs off an immutable Git tag, and a release IS a tag
