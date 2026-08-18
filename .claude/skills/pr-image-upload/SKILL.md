@@ -40,9 +40,9 @@ entirely. Symptoms, if someone tries anyway:
 #    (web-preview §5); a still (§3) only for a genuinely static change.
 # 2. Look at it yourself: Read the PNG/GIF so it renders inline, and confirm it shows the change.
 # 3. Upload. Keep the token out of `ps` by passing it through a curl config file, not `-H` in argv.
-REPO_ID=$(GH_HOST=github.com gh api repos/neon-law-foundation/navigator --jq .id)
+REPO_ID=$(gh api repos/neon-law-foundation/navigator --jq .id)
 umask 077
-GH_HOST=github.com gh auth token | sed 's/.*/header = "Authorization: Bearer &"/' > /tmp/.curlcfg
+gh auth token | sed 's/.*/header = "Authorization: Bearer &"/' > /tmp/.curlcfg
 URL=$(curl -sS -K /tmp/.curlcfg -X POST \
   -H "Accept: application/json" -H "Content-Type: image/gif" \
   --data-binary @/tmp/navigator-screenshots/walkthrough.gif \
@@ -52,9 +52,9 @@ rm -f /tmp/.curlcfg
 
 # 4a. New PR: reference $URL in the body you pass to `gh pr create` (an <img> tag or ![alt]($URL)).
 # 4b. Existing PR: splice it into the current body and update.
-GH_HOST=github.com gh pr view <N> --json body --jq .body > /tmp/body.md
+gh pr view <N> --json body --jq .body > /tmp/body.md
 printf '\n\n## Walkthrough\n\n<img alt="…" src="%s" />\n' "$URL" >> /tmp/body.md
-GH_HOST=github.com gh pr edit <N> --body-file /tmp/body.md
+gh pr edit <N> --body-file /tmp/body.md
 ```
 
 A `201` returns `{"url":"https://github.com/user-attachments/assets/<uuid>"}` — that is the only field.
@@ -70,7 +70,7 @@ Ask the host's own renderer instead. A working asset resolves to an `<img>` on `
 signed `X-Amz-Signature` and `response-content-type=image/…`:
 
 ```bash
-GH_HOST=github.com gh api /markdown -X POST -f mode=gfm -f context=neon-law-foundation/navigator \
+gh api /markdown -X POST -f mode=gfm -f context=neon-law-foundation/navigator \
   -f text="![probe]($URL)" | head -3
 ```
 

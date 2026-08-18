@@ -74,9 +74,9 @@ git rebase -S origin/main
 ```
 
 Rebase rather than merge — PRs squash to one commit and merge commits are disabled, so a merge commit only has to be
-unwound later. Sign the rebase: GitHub Enterprise verifies commits only for the `nick@neonlaw.com` identity, and an
-unsigned commit cannot enter the merge queue. A stacked PR rebases onto `origin/main` too, never onto the previous
-branch's tip; once its predecessor squash-merges, that tip describes a commit that no longer exists on `main`.
+unwound later. Sign the rebase: commit verification recognizes the `nick@neonlaw.com` identity, and an unsigned commit
+cannot enter the merge queue. A stacked PR rebases onto `origin/main` too, never onto the previous branch's tip; once
+its predecessor squash-merges, that tip describes a commit that no longer exists on `main`.
 
 In the app-created worktree, run the CLI once with the PR topic. It attaches or creates that branch **in this
 worktree**, including a detached Codex worktree; it does not create a second task checkout. The CLI creates a sibling

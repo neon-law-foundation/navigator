@@ -43,7 +43,7 @@ For every repository in scope, list its merged pull requests. Derive `<owner>/<r
 not silently assume that every connected repository is `navigator`.
 
 ```bash
-GH_HOST=github.com gh pr list -R <owner>/<repo> --state merged \
+gh pr list -R <owner>/<repo> --state merged \
     --json number,title,headRefName,body,url,mergedAt --limit 100
 ```
 
