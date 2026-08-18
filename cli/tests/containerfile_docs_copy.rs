@@ -318,21 +318,12 @@ fn workspace_members() -> Vec<String> {
 /// workspace member" — at image-build time in CI, not locally.
 ///
 /// This reads the member list rather than pinning one crate by name, so adding
-/// a workspace member cannot silently break the image builds. It previously
-/// pinned one crate by name, which meant `server` (#860) had to be caught by hand.
-/// This runs in `cargo test (workspace)`, which the image builds are not.
+/// a workspace member cannot silently break the image builds. It runs in
+/// `cargo test (workspace)`, which the image builds are not.
 ///
-/// It also *discovers* the Containerfiles rather than listing them, and is now
-/// the only guard for this invariant. A second one in `cli::devx` asserted the
-/// same thing against a hardcoded list of six images, which failed twice over:
-/// the list omitted `Containerfile.redirect`, which does stage the whole
-/// workspace and therefore does need every member; and retiring
-/// `Containerfile.web` turned its `read_to_string(...).expect(...)` into a
-/// panic, because a deleted entry is a hard failure rather than a skip. Both
-/// are properties of hardcoding the list, so the list is gone rather than
-/// re-edited. Discovery covers strictly more and cannot rot as images come and
-/// go — which matters immediately, since #796 retires the `navigator-web`
-/// alias next.
+/// It also *discovers* the Containerfiles rather than listing them, and is the
+/// only guard for this invariant. Discovery covers strictly more than a
+/// hardcoded list and cannot rot as images come and go.
 #[test]
 fn every_workspace_staging_containerfile_copies_every_member() {
     let dir = images_dir();
@@ -383,11 +374,10 @@ fn every_workspace_staging_containerfile_copies_every_member() {
 
 /// No Containerfile may build or run a crate that is not a workspace member.
 ///
-/// `cargo test (workspace)` never builds an image, so a Containerfile left
-/// pointing at a deleted crate stays green here and fails the release deploy
-/// instead. That is exactly what #860 hit: collapsing the two host binaries
-/// into `server` left an image building `-p web`, and because the COPY-list
-/// guard above only checks staged directories it saw nothing wrong.
+/// `cargo test (workspace)` never builds an image, so a Containerfile
+/// pointing at a crate the workspace does not have stays green here and fails
+/// the release deploy instead. The COPY-list guard above reads only staged
+/// directories, so this is the check that reads the build targets themselves.
 #[test]
 fn no_containerfile_builds_a_crate_that_no_longer_exists() {
     let members = workspace_members();
@@ -450,25 +440,21 @@ fn regex_lite_build_targets(body: &str) -> Vec<String> {
     out
 }
 
-/// The brand crates #974 introduced (`images/Containerfile.<brand>`), less the
-/// retired platform brand (#1180).
 /// The brand images this workspace publishes.
 ///
-/// One, since the consolidation: `neon` serves the firm at the site root and
-/// the Foundation beneath `/foundation`, so there is nothing for a second image
-/// to be. It stays a list rather than a constant because the white-label tenant
-/// shape (`portal::tenant`) is a second brand waiting to happen, and the guards
+/// One: `neon` serves the firm at the site root and the Foundation beneath
+/// `/foundation`, so there is nothing for a second image to be. It stays a
+/// list rather than a constant because the white-label tenant shape
+/// (`portal::tenant`) is a second brand waiting to happen, and the guards
 /// below are written to hold whenever it arrives.
 const BRAND_IMAGES: [&str; 1] = ["neon"];
 
 /// Each brand image builds its own brand binary and runs it with no flag.
 ///
-/// The binary *is* the site now, so the defect this guards has changed shape:
-/// it is no longer a stray `--site nlf` under the firm's tag, it is a
-/// `Containerfile` that builds one crate and publishes another under
-/// `neon-server`. Same failure, one layer down — an image serving the wrong
-/// legal entity — so pin the whole chain: the crate built, the binary staged,
-/// and the entrypoint that runs it.
+/// The binary *is* the site, so the defect this guards is a `Containerfile`
+/// that builds one crate and publishes another under `neon-server` — an image
+/// serving the wrong legal entity. Pin the whole chain: the crate built, the
+/// binary staged, and the entrypoint that runs it.
 #[test]
 fn each_brand_image_builds_and_entrypoints_its_own_brand_binary() {
     for brand in BRAND_IMAGES {

@@ -7,7 +7,7 @@
 //! document *inline* — no separate `workflows-service` worker process
 //! required. Used by:
 //!
-//! - Local `cargo run -p web` (no Restate broker → falls back to
+//! - Local `cargo run -p neon` (no Restate broker → falls back to
 //!   `InMemoryRuntime`; without this wrapper the welcome email
 //!   never fires locally because there's no worker to consume the
 //!   step).

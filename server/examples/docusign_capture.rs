@@ -14,7 +14,7 @@
 //! the tunnel URL:
 //!
 //! ```bash
-//! cargo run -p web --example docusign_capture          # listens on :8088
+//! cargo run -p server --example docusign_capture        # listens on :8088
 //! ngrok http 8088                                       # public https URL
 //! # DocuSign (DEMO account) → Admin → Connect → Add Configuration:
 //! #   URL = <ngrok-url>/anything   (path is ignored — every POST is captured)
