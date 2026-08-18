@@ -486,6 +486,67 @@ fn browser_accessibility_uses_the_shipped_images() {
     }
 }
 
+/// The two public-host images compile the full server and Dioxus web bundle.
+/// A stock `ubuntu-latest` runner timed out building `neon-server` at the
+/// release job's 90-minute wedge detector (run 32185875546), while the
+/// repository's established eight-vCPU Blacksmith lane already carries the
+/// workspace build. Keep only these two heavy matrix legs on that runner; the
+/// smaller service images do not earn a metered machine.
+#[test]
+fn public_host_images_build_on_the_blacksmith_eight_vcpu_runner() {
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
+    let matrix = workflow["jobs"]["build"]["strategy"]["matrix"]["include"]
+        .as_sequence()
+        .expect("the build job must declare an include matrix");
+
+    for image in ["navigator-web", "neon-server"] {
+        let leg = matrix
+            .iter()
+            .find(|leg| leg["image"].as_str() == Some(image))
+            .unwrap_or_else(|| panic!("the build matrix must include {image}"));
+        assert_eq!(
+            leg["runner"].as_str(),
+            Some("blacksmith-8vcpu-ubuntu-2404"),
+            "{image} compiles the full Rust and Dioxus application and must use the established \
+             eight-vCPU Blacksmith runner"
+        );
+    }
+}
+
+/// Slack is an optional reporting surface, not a publication gate. Progress
+/// posts already notice-and-skip when the webhook is absent; the terminal
+/// success report and failure alert must follow the same contract. Otherwise a
+/// fully published release ends red solely because this public repository has
+/// no Slack secret configured (run 32148764921).
+#[test]
+fn missing_slack_webhook_does_not_fail_the_release_workflow() {
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
+
+    for job in ["notify", "notify-failure"] {
+        let steps = workflow["jobs"][job]["steps"]
+            .as_sequence()
+            .unwrap_or_else(|| panic!("{job} must declare steps"));
+        for script in steps.iter().filter_map(|step| step["run"].as_str()) {
+            if script.contains("SLACK_WEBHOOK_URL is unset") {
+                assert!(
+                    script.contains("::notice::SLACK_WEBHOOK_URL is unset"),
+                    "{job} must report an absent optional webhook as a notice"
+                );
+                assert!(
+                    script.contains("exit 0"),
+                    "{job} must skip successfully when the optional webhook is absent"
+                );
+                assert!(
+                    !script.contains("::error::SLACK_WEBHOOK_URL is unset"),
+                    "{job} must not turn an absent optional webhook into a release failure"
+                );
+            }
+        }
+    }
+}
+
 /// THE 502 RACE, kept as a guard against its return. A one-shot
 /// `curl --fail .../readyz` under `set -e`, fired while a load balancer is
 /// still swapping backends, went red on `neon-production` in run 154026811
