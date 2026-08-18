@@ -153,6 +153,64 @@ fn not_found() -> Response {
     (StatusCode::NOT_FOUND, "Not Found").into_response()
 }
 
+/// Which gate closed on a portal request.
+///
+/// Every one of these returns the same non-disclosing 404, and that stays
+/// deliberate: a caller must not be able to tell "no such Project" from "not
+/// your Project". But the *operator* needs the distinction, and until deploy run
+/// 32102608866 there was nowhere to read it — the browser fixture failed three
+/// times against a 404 that named no gate, and the pod logs held only boot
+/// output. Naming the branch in a log costs the caller nothing and is the
+/// difference between a one-line answer and an afternoon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Refused {
+    /// An authenticated route reached with no session extension.
+    NoSession,
+    /// The code cannot name a Project, so the store is never asked.
+    MalformedCode,
+    /// A well-formed code no Project carries.
+    NoSuchProject,
+    /// A real Project the caller is not on. The participation ledger decides,
+    /// with no Owner/Admin bypass.
+    NotParticipating,
+    /// A traversal or otherwise unsafe path within the bundle.
+    UnsafeAssetPath,
+    /// Nothing is published for this Project — not even the entrypoint the
+    /// unmatched-path fallback looks for.
+    NothingPublished,
+}
+
+impl Refused {
+    /// The phrase logged for this gate. Distinct per variant, which
+    /// `every_refusal_names_a_distinct_closed_gate` holds to.
+    const fn reason(self) -> &'static str {
+        match self {
+            Self::NoSession => "no session on an authenticated route",
+            Self::MalformedCode => "code cannot name a Project",
+            Self::NoSuchProject => "no Project carries this code",
+            Self::NotParticipating => "caller does not participate in this Project",
+            Self::UnsafeAssetPath => "unsafe asset path",
+            Self::NothingPublished => "no bundle published for this Project",
+        }
+    }
+}
+
+/// Refuse a portal request, saying which gate closed.
+///
+/// `warn`, not `debug`: the portal link is rendered only to viewers who already
+/// pass this same gate, so a refusal is genuinely unexpected rather than routine
+/// traffic — and a level below the pod's `INFO` would not be recorded at all,
+/// which is exactly the hole this closes.
+fn refuse(code: &str, asset: &str, refused: Refused) -> Response {
+    tracing::warn!(
+        project_code = %code,
+        asset = %asset,
+        reason = refused.reason(),
+        "portal bundle refused"
+    );
+    not_found()
+}
+
 /// The bare mount carries no bundle path, so it redirects to the slashed root.
 ///
 /// Unconditional and pre-authorization: appending a slash discloses nothing
@@ -200,17 +258,17 @@ async fn serve_bundle(
     //    caller; a request that arrives with no session extension anyway is
     //    refused rather than treated as a participant.
     let Some(Extension(session)) = session else {
-        return not_found();
+        return refuse(code, &asset, Refused::NoSession);
     };
 
     // 2. Resolve the code. A malformed code cannot name a Project, so it is
     //    refused before the store is asked — `new` among them, which is the
     //    matter-open form rather than a Project.
     if !store::projects::is_valid_code(code) {
-        return not_found();
+        return refuse(code, &asset, Refused::MalformedCode);
     }
     let Ok(Some(project)) = store::projects::find_by_code(&state.surreal, code).await else {
-        return not_found();
+        return refuse(code, &asset, Refused::NoSuchProject);
     };
 
     // 3. Authorize through Project participation. `can_see_project` reads the
@@ -222,12 +280,12 @@ async fn serve_bundle(
             .await
             .unwrap_or(false);
     if !participates {
-        return not_found();
+        return refuse(code, &asset, Refused::NotParticipating);
     }
 
     // A traversal or otherwise-unsafe path cannot name a bundle object.
     if !asset_path_is_safe(&asset) {
-        return not_found();
+        return refuse(code, &asset, Refused::UnsafeAssetPath);
     }
 
     // 4. Stream the object. The bare mount and any unmatched path resolve to
@@ -248,7 +306,7 @@ async fn serve_bundle(
             match fetch(&state.applications, &format!("{prefix}/{INDEX}")).await {
                 Fetched::Found(index) => bundle_response(INDEX, index),
                 Fetched::Failed => StatusCode::BAD_GATEWAY.into_response(),
-                Fetched::Missing => not_found(),
+                Fetched::Missing => refuse(code, &requested, Refused::NothingPublished),
             }
         }
     }
@@ -352,10 +410,49 @@ fn content_type_for(path: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        asset_path_is_safe, content_type_for, is_index, PROJECT_PORTAL_ASSET, PROJECT_PORTAL_PATH,
-        PROJECT_PORTAL_ROOT,
+        asset_path_is_safe, content_type_for, is_index, Refused, PROJECT_PORTAL_ASSET,
+        PROJECT_PORTAL_PATH, PROJECT_PORTAL_ROOT,
     };
     use cloud::workspace::PORTAL_MOUNT_SEGMENT;
+
+    /// Every refusal reads differently in a log.
+    ///
+    /// The caller gets one indistinguishable 404 from all of them, deliberately
+    /// — so the log line is the *only* place the closed gate is named, and two
+    /// branches sharing a phrase would silently merge in an operator's search.
+    /// Deploy run 32102608866 is why this is asserted: the portal fixture
+    /// failed three times against a 404 that named no gate at all, and nothing
+    /// in the pod logs could narrow it.
+    #[test]
+    fn every_refusal_names_a_distinct_closed_gate() {
+        let all = [
+            Refused::NoSession,
+            Refused::MalformedCode,
+            Refused::NoSuchProject,
+            Refused::NotParticipating,
+            Refused::UnsafeAssetPath,
+            Refused::NothingPublished,
+        ];
+
+        for refused in all {
+            let reason = refused.reason();
+            assert!(
+                !reason.is_empty(),
+                "{refused:?} logs an empty reason, which names nothing"
+            );
+        }
+
+        for (index, refused) in all.iter().enumerate() {
+            for other in &all[index + 1..] {
+                assert_ne!(
+                    refused.reason(),
+                    other.reason(),
+                    "{refused:?} and {other:?} log the same reason, so a 404 cannot \
+                     distinguish them"
+                );
+            }
+        }
+    }
 
     /// The collision this segment exists to prevent.
     ///
