@@ -1091,13 +1091,32 @@ jobs:
           NAVIGATOR_STORAGE_ENDPOINT: http://localhost:30900
           NAVIGATOR_STORAGE_REGION: garage
           NAVIGATOR_DOCUMENTS_BUCKET: navigator-documents
+          # `the_project_page_links_to_the_client_portal_and_it_streams`
+          # publishes its portal bundle through `cloud::applications_from_env()`,
+          # which is a DIFFERENT LANE from the documents one above — and in
+          # Garage that has teeth. `dev garage-bootstrap` mints one key per
+          # bucket and grants it that bucket alone, so the generic
+          # `NAVIGATOR_STORAGE_*` credentials this step exports are the
+          # documents key and are denied on the applications bucket. The lane
+          # needs its own bucket and its own keys, exactly as
+          # `k8s/base/web/web.yaml` gives the pod. Run 32094090106 is where
+          # this surfaced: with the port-forwards supervised the suite reached
+          # all 26 tests for the first time, and this fixture failed three
+          # times on `MissingEnv("NAVIGATOR_APPLICATIONS_BUCKET or
+          # NAVIGATOR_STORAGE_BUCKET")`.
+          NAVIGATOR_APPLICATIONS_BUCKET: navigator-applications
         run: |
           set -euo pipefail
           NAVIGATOR_STORAGE_ACCESS_KEY="$(kubectl --namespace navigator get secret navigator-garage-s3 \
               --output jsonpath='{.data.access_key}' | base64 --decode)"
           NAVIGATOR_STORAGE_SECRET_KEY="$(kubectl --namespace navigator get secret navigator-garage-s3 \
               --output jsonpath='{.data.secret_key}' | base64 --decode)"
+          NAVIGATOR_APPLICATIONS_ACCESS_KEY="$(kubectl --namespace navigator get secret navigator-garage-s3 \
+              --output jsonpath='{.data.applications_access_key}' | base64 --decode)"
+          NAVIGATOR_APPLICATIONS_SECRET_KEY="$(kubectl --namespace navigator get secret navigator-garage-s3 \
+              --output jsonpath='{.data.applications_secret_key}' | base64 --decode)"
           export NAVIGATOR_STORAGE_ACCESS_KEY NAVIGATOR_STORAGE_SECRET_KEY
+          export NAVIGATOR_APPLICATIONS_ACCESS_KEY NAVIGATOR_APPLICATIONS_SECRET_KEY
           cargo nextest run -p server --profile ci \
               --test browser_e2e --test accessibility_e2e \
               --no-capture 2>&1 | tee /tmp/e2e.log
