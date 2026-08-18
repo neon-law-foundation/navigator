@@ -13,7 +13,7 @@ use dioxus::prelude::*;
 /// markup with no styling at all. The package version keeps a browser from
 /// reusing an older presentation layout after a deployment.
 pub const NEBULA_STYLESHEET_HREF: &str =
-    concat!("/public/css/nebula.css?v=", env!("CARGO_PKG_VERSION"), "-3");
+    concat!("/public/css/nebula.css?v=", env!("CARGO_PKG_VERSION"), "-4");
 
 /// The animated scene: two drifting starfields, a cloud of nebula gas, and a
 /// star being born (a pulsing core inside an expanding shockwave).

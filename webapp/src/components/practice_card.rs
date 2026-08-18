@@ -19,6 +19,22 @@ pub enum PracticeMark {
     Gavel,
     /// Angle brackets around a circuit node, for technology leadership.
     Technology,
+    /// A ship's wheel, for Neon Law Navigator.
+    Helm,
+}
+
+impl PracticeMark {
+    /// Stable identifier for the meaning carried by this mark.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Scales => "scales",
+            Self::Handshake => "handshake",
+            Self::Gavel => "gavel",
+            Self::Technology => "technology",
+            Self::Helm => "helm",
+        }
+    }
 }
 
 /// One linked firm-practice card.
@@ -35,7 +51,10 @@ pub(crate) fn PracticeCard(
             class: "neon-card home-practice",
             href: "{href}",
             "aria-labelledby": "{heading_id}",
-            PracticeMarkGlyph { mark }
+            PracticeMarkGlyph {
+                mark,
+                class: "home-practice__mark".to_string(),
+            }
             h3 { id: "{heading_id}", class: "home-practice__heading", "{heading}" }
             if !body.is_empty() {
                 p { class: "home-practice__body", "{body}" }
@@ -47,10 +66,11 @@ pub(crate) fn PracticeCard(
 /// Draw one practice mark, stroked in `currentColor` and hidden from assistive
 /// technology because the adjacent heading already names the card.
 #[component]
-fn PracticeMarkGlyph(mark: PracticeMark) -> Element {
+pub(crate) fn PracticeMarkGlyph(mark: PracticeMark, #[props(default)] class: String) -> Element {
     rsx! {
         svg {
-            class: "home-practice__mark",
+            class: "{class}",
+            "data-practice-mark": mark.name(),
             "viewBox": "0 0 24 24",
             fill: "none",
             stroke: "currentColor",
@@ -87,6 +107,12 @@ fn PracticeMarkGlyph(mark: PracticeMark) -> Element {
                     circle { cx: "12", cy: "12", r: "2.25" }
                     path { d: "M12 3v6.75M12 14.25V21" }
                 },
+                PracticeMark::Helm => rsx! {
+                    circle { cx: "12", cy: "12", r: "3.25" }
+                    circle { cx: "12", cy: "12", r: "7" }
+                    path { d: "M12 2v3M12 19v3M2 12h3M19 12h3" }
+                    path { d: "m4.93 4.93 2.12 2.12m9.9 9.9 2.12 2.12m0-14.14-2.12 2.12m-9.9 9.9-2.12 2.12" }
+                },
             }
         }
     }
@@ -120,6 +146,33 @@ mod tests {
         assert!(html.contains(r#"href="/fractional-cto""#), "{html}");
         assert!(html.contains(r#"aria-labelledby="practice-cto""#), "{html}");
         assert!(html.contains("Fractional CTO"), "{html}");
+        assert!(
+            html.contains(r#"data-practice-mark="technology""#),
+            "{html}"
+        );
         assert!(!html.contains("home-practice__body"), "{html}");
+    }
+
+    #[test]
+    fn the_navigator_mark_is_a_ship_wheel() {
+        fn app() -> Element {
+            rsx! {
+                PracticeMarkGlyph {
+                    mark: PracticeMark::Helm,
+                    class: "navigator-mark".to_string(),
+                }
+            }
+        }
+
+        let mut dom = VirtualDom::new(app);
+        dom.rebuild_in_place();
+        let html = dioxus_ssr::render(&dom);
+        assert!(html.contains(r#"data-practice-mark="helm""#), "{html}");
+        assert!(html.contains("navigator-mark"), "{html}");
+        assert_eq!(html.matches("<circle").count(), 2, "{html}");
+        assert!(
+            html.contains(r#"d="M12 2v3M12 19v3M2 12h3M19 12h3""#),
+            "{html}"
+        );
     }
 }

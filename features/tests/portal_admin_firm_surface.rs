@@ -271,6 +271,10 @@ fn truncate(s: &str) -> String {
 #[tokio::main]
 async fn main() {
     FirmWorld::cucumber()
+        // Every scenario composes a Dioxus-backed router. Serial execution
+        // keeps its pinned Tokio worker pools bounded while each scenario's
+        // world and store are torn down.
+        .max_concurrent_scenarios(1)
         .run_and_exit("tests/features/portal_admin_firm_surface.feature")
         .await;
 }

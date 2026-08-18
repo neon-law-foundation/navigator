@@ -1281,7 +1281,15 @@ async fn a_talk_hub_renders_under_the_firm_brand() {
     }
 
     let step8 = body_string(anon_get(&app, "/presentations/rust-in-peace/step/8").await).await;
-    assert!(step8.contains("<h3>Agenda</h3>"));
+    assert!(
+        step8.contains("NeonLawNavigator")
+            && step8.contains(r#"data-practice-mark="helm""#)
+            && step8.contains("github.com/neon-law-foundation/navigator"),
+        "the Navigator identity slide follows the four practice boxes: {step8}"
+    );
+
+    let step9 = body_string(anon_get(&app, "/presentations/rust-in-peace/step/9").await).await;
+    assert!(step9.contains("<h3>Agenda</h3>"));
 }
 
 /// A talk wears the firm's chrome, and the nonprofit's block beside it stays

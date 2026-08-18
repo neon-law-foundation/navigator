@@ -156,6 +156,7 @@ pub fn fractional_cto() -> PageContent {
                            and complex counsel beside it."
             .to_string(),
         title: "Fractional CTO".to_string(),
+        hero_mark: Some(webapp::components::PracticeMark::Technology),
         tagline: "We run the technology function for law firms.".to_string(),
         skin: webapp::foundation_marketing::PageSkin::Practice,
         bands: vec![
@@ -305,6 +306,7 @@ pub fn navigator() -> PageContent {
                            document is a change you can read."
             .to_string(),
         title: "Neon Law Navigator".to_string(),
+        hero_mark: Some(webapp::components::PracticeMark::Helm),
         tagline: "Vibe coding for lawyers. Lawyering is storytelling, and a story is written in \
                   passes."
             .to_string(),
@@ -470,6 +472,7 @@ pub fn legal_services() -> PageContent {
                            fixed fee and reviewed by a licensed attorney."
             .to_string(),
         title: "Legal Services".to_string(),
+        hero_mark: None,
         tagline: "One scope, one fee, agreed before we start.".to_string(),
         skin: webapp::foundation_marketing::PageSkin::Practice,
         bands: vec![

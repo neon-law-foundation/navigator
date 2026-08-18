@@ -16,7 +16,9 @@
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{PublicShell, SiteHeader, SiteNavLink, SocialMeta};
+use crate::components::{
+    PracticeMark, PracticeMarkGlyph, PublicShell, SiteHeader, SiteNavLink, SocialMeta,
+};
 use crate::public_chrome::{PublicChrome, PublicFooter};
 
 /// The self-contained transactional stylesheet, hoisted after the brand layer.
@@ -176,6 +178,10 @@ fn SpeedHero(content: TransactionalContent) -> Element {
         section { class: "speed-hero", "aria-labelledby": "speed-heading",
             div { class: "firm-glow speed-hero__glow", "aria-hidden": "true" }
             div { class: "speed-hero__statement",
+                PracticeMarkGlyph {
+                    mark: PracticeMark::Handshake,
+                    class: "speed-hero__mark".to_string(),
+                }
                 p { class: "firm-eyebrow", "{content.eyebrow}" }
                 h1 { id: "speed-heading", class: "speed-hero__heading", "{content.heading}" }
                 p { class: "speed-hero__lead", "{content.lead}" }
@@ -340,6 +346,10 @@ mod tests {
     #[test]
     fn leads_with_the_three_words_the_practice_is_named_by() {
         let out = html();
+        assert!(
+            out.contains(r#"data-practice-mark="handshake""#) && out.contains("speed-hero__mark"),
+            "the hero reuses the four-card transactional mark: {out}"
+        );
         assert_eq!(out.matches("<h1").count(), 1, "one h1: {out}");
         assert!(
             out.contains("Accurate. Efficient. Speedy."),

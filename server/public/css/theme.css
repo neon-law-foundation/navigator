@@ -822,15 +822,48 @@ a.nav-pagination__link:hover {
    column. That is what lines the footer up with the navbar above it instead of
    letting it run to the viewport edge. */
 .site-footer {
-  border-top: 1px solid var(--nav-color-border);
-  margin-top: 2rem;
+  position: relative;
+  overflow: clip;
+  border-top: 0;
+  margin-top: clamp(3rem, 8vw, 7rem);
+  background:
+    radial-gradient(
+      55rem 24rem at 12% -4rem,
+      color-mix(in oklab, var(--nav-color-primary) 13%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--nav-color-surface-raised) 88%, transparent),
+      var(--nav-color-surface)
+    );
+  box-shadow: inset 0 1px var(--nav-color-border);
+}
+
+.site-footer::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 50%;
+  width: min(72rem, calc(100% - 2rem));
+  height: 1px;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--nav-color-primary),
+    transparent
+  );
+  opacity: 0.7;
 }
 
 .site-footer__inner {
   width: min(100%, 72rem);
   box-sizing: border-box;
   margin: 0 auto;
-  padding: 1.5rem 1rem;
+  padding: clamp(2rem, 5vw, 4rem) 1rem clamp(2.25rem, 5vw, 3.5rem);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1.5rem 2rem;
 }
 
 /* The footer reuses the header's self-contained brand mark. Its SVG stays
@@ -840,18 +873,24 @@ a.nav-pagination__link:hover {
 .site-footer__brand {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-  margin-bottom: 1.25rem;
+  align-self: start;
+  gap: 0.8rem;
+  margin: 0;
 }
 
 .site-footer__logo {
   display: block;
-  width: 3rem;
-  height: 3rem;
+  width: 3.4rem;
+  height: 3.4rem;
+  padding: 0.45rem;
+  border: 1px solid color-mix(in oklab, var(--nav-color-primary) 35%, transparent);
+  border-radius: 0.9rem;
+  background: color-mix(in oklab, var(--nav-color-primary) 8%, transparent);
 }
 
 .site-footer__wordmark {
-  font-size: 1.125rem;
+  font-size: 1.2rem;
+  letter-spacing: -0.015em;
   white-space: nowrap;
 }
 
@@ -862,12 +901,30 @@ a.nav-pagination__link:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.35rem 1rem;
-  padding-bottom: 1.5rem;
+  justify-self: end;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
 }
 
 .site-footer__nav-link {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--nav-color-text-muted);
+  font-size: 0.875rem;
   font-weight: 600;
+  text-decoration: none;
+  transition: border-color 160ms ease-out, background-color 160ms ease-out,
+    color 160ms ease-out;
+}
+
+.site-footer__nav-link:hover,
+.site-footer__nav-link:focus-visible {
+  border-color: var(--nav-color-border);
+  color: var(--nav-color-text);
+  background: color-mix(in oklab, var(--nav-color-surface-raised) 76%, transparent);
 }
 
 /* A middot between the links, drawn by the row rather than written into the
@@ -882,41 +939,58 @@ a.nav-pagination__link:hover {
    atomic inline box, so this stops at the dot and the underline starts at the
    word. */
 .site-footer__nav-link + .site-footer__nav-link::before {
-  content: "·";
-  display: inline-block;
-  margin-inline-end: 1rem;
-  color: var(--nav-color-text-muted);
-  font-weight: 400;
-  text-decoration: none;
+  content: none;
 }
 
 /* The contact band. On a wide viewport the reach column (CTA + phone) sits
    beside the offices; both stack on a narrow one. */
 .site-footer__contact {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1.5rem;
-  padding-bottom: 1.25rem;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.65fr) minmax(0, 1.35fr);
+  align-items: stretch;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--nav-color-border);
+  border-radius: 1.25rem;
+  background: color-mix(in oklab, var(--nav-color-surface-raised) 84%, transparent);
+  box-shadow: 0 1.25rem 3.5rem color-mix(in oklab, var(--nav-color-text) 8%, transparent);
 }
 
 .site-footer__reach {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.75rem;
+  min-width: 0;
 }
 
 .site-footer__phone {
   font-weight: 600;
+  color: var(--nav-color-text-muted);
   white-space: nowrap;
 }
 
 /* The Foundation footer's §6104(d) public-disclosure link, in the reach column
    where the firm footer puts its voice line. */
 .site-footer__transparency {
+  display: block;
+  width: fit-content;
+  margin-top: 0.35rem;
   font-weight: 600;
+}
+
+.site-footer__nonprofit-office {
+  display: block;
+  margin-top: 0.75rem;
+  font-style: italic;
+}
+
+.site-footer__nonprofit-email {
+  display: block;
+  width: fit-content;
+  margin-top: 0.35rem;
 }
 
 /* A grid rather than a wrapping flex row: each office needs a column of its
@@ -924,14 +998,9 @@ a.nav-pagination__link:hover {
    that edge. Content-width flex items put one office's outline over the next
    office's text. */
 .site-footer__offices {
-  /* Its own full-width line under the CTA. A grid track has no intrinsic
-     width, so as a content-sized flex item this would collapse against the
-     reach block; claiming the whole line keeps the offices in one even row
-     with room for the watermark behind each. */
-  flex: 1 1 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -946,7 +1015,11 @@ a.nav-pagination__link:hover {
 .site-footer__office {
   position: relative;
   overflow: hidden;
-  min-height: 4.75rem;
+  min-height: 5.5rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in oklab, var(--nav-color-border) 78%, transparent);
+  border-radius: 0.9rem;
+  background: color-mix(in oklab, var(--nav-color-surface) 74%, transparent);
 }
 
 /* The state outline, drawn behind its own address. Decoration, so it is set at
@@ -957,13 +1030,13 @@ a.nav-pagination__link:hover {
 .site-footer__office-map {
   position: absolute;
   inset-block-start: 50%;
-  inset-inline-end: 0;
+  inset-inline-end: 0.35rem;
   z-index: 0;
-  width: 4.5rem;
-  height: 4.5rem;
+  width: 5rem;
+  height: 5rem;
   transform: translateY(-50%);
   color: var(--nav-color-primary);
-  opacity: 0.14;
+  opacity: 0.11;
   pointer-events: none;
 }
 
@@ -986,7 +1059,11 @@ a.nav-pagination__link:hover {
    own entity on its footer. Named for the role, not for either value. */
 .site-footer__office-label {
   display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.75rem;
   font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--nav-color-text);
 }
 
@@ -994,6 +1071,7 @@ a.nav-pagination__link:hover {
 .site-footer__office-address {
   font-style: normal;
   max-width: 16rem;
+  line-height: 1.45;
 }
 
 /* Street, unit, then city — the lines an envelope carries, so the suite has its
@@ -1017,10 +1095,31 @@ a.nav-pagination__link:hover {
 /* The legal strip. Muted and small so it reads as terminal fine print, and
    ruled off from the contact band above it. */
 .site-footer__legal {
+  grid-column: 1 / -1;
   border-top: 1px solid var(--nav-color-border);
-  padding-top: 1rem;
+  padding-top: 1.5rem;
   color: var(--nav-color-text-muted);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.site-footer__legal:has(> .site-footer__legal-practice) {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(13rem, 0.75fr);
+  gap: clamp(1.25rem, 3vw, 2.5rem);
+}
+
+.site-footer__legal:has(> .site-footer__legal-practice) > div + div {
+  padding-inline-start: clamp(1.25rem, 3vw, 2.5rem);
+  border-inline-start: 1px solid var(--nav-color-border);
+}
+
+.site-footer__legal-platform {
+  align-self: start;
+  padding: 1rem;
+  border: 1px solid var(--nav-color-border);
+  border-radius: 0.9rem;
+  background: color-mix(in oklab, var(--nav-color-surface-raised) 72%, transparent);
 }
 
 /* With no contact band above it the legal strip is the footer's first child,
@@ -1074,6 +1173,43 @@ a.nav-pagination__link:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
+}
+
+@media (max-width: 54rem) {
+  .site-footer__inner {
+    grid-template-columns: 1fr;
+  }
+
+  .site-footer__nav {
+    justify-self: start;
+    justify-content: flex-start;
+  }
+
+  .site-footer__contact {
+    grid-column: 1;
+    grid-template-columns: 1fr;
+  }
+
+  .site-footer__legal {
+    grid-column: 1;
+  }
+
+  .site-footer__legal:has(> .site-footer__legal-practice) {
+    grid-template-columns: 1fr;
+  }
+
+  .site-footer__legal:has(> .site-footer__legal-practice) > div + div {
+    padding-block-start: 1.25rem;
+    padding-inline-start: 0;
+    border-block-start: 1px solid var(--nav-color-border);
+    border-inline-start: 0;
+  }
+}
+
+@media (max-width: 34rem) {
+  .site-footer__offices {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* The repository link and its star count travel together and must not be

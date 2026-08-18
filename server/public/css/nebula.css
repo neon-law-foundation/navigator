@@ -1000,6 +1000,73 @@
   font-size: 0.48rem;
 }
 
+/* The Navigator interlude follows the four-practice slide with one deliberate
+   identity: name, helm, source. The mark is the same first-party SVG component
+   used by the page heroes, so the deck and site cannot drift into two logos. */
+.workshop-slide > .workshop-navigator-slide {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  justify-items: center;
+  row-gap: clamp(0.35rem, 1.25vw, 1rem);
+  text-align: center;
+}
+
+.workshop-navigator-slide h3 {
+  align-self: start;
+  margin: 0;
+  line-height: 1.05;
+}
+
+.workshop-navigator-slide__mark {
+  display: grid;
+  place-items: center;
+  width: min(38%, 38vh, 20rem);
+  max-height: 100%;
+  aspect-ratio: 1;
+  align-self: center;
+  border: 1px solid color-mix(in oklab, var(--firm-brand) 52%, transparent);
+  border-radius: 50%;
+  color: var(--firm-brand);
+  background:
+    radial-gradient(circle, var(--firm-brand-tint), transparent 66%),
+    var(--nav-color-surface);
+  box-shadow:
+    0 0 0 0.75rem color-mix(in oklab, var(--firm-brand) 8%, transparent),
+    0 1.5rem 4rem color-mix(in oklab, var(--firm-brand) 22%, transparent);
+}
+
+.workshop-navigator-slide__wheel {
+  width: 72%;
+  height: 72%;
+  stroke-width: 1.2;
+}
+
+.nav-theme a.workshop-navigator-slide__repo {
+  align-self: end;
+  color: var(--nav-color-text-muted);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: clamp(0.9rem, 1.8vw, 1.35rem);
+  text-underline-offset: 0.28em;
+}
+
+.slide-thumb__preview .workshop-navigator-slide {
+  height: 100%;
+  padding: 0;
+}
+
+.slide-thumb__preview .workshop-navigator-slide h3 {
+  font-size: 0.65rem;
+}
+
+.slide-thumb__preview .workshop-navigator-slide__mark {
+  width: 3.3rem;
+  box-shadow: 0 0 0 0.15rem color-mix(in oklab, var(--firm-brand) 8%, transparent);
+}
+
+.slide-thumb__preview .workshop-navigator-slide__repo {
+  font-size: 0.34rem;
+}
+
 /* A slide face or a workshop step can carry a screenshot. Markdown wraps a
    bare image in its own paragraph, so centre that paragraph and let the image
    be an inline block inside it. */

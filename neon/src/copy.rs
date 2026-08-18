@@ -368,6 +368,7 @@ mod foundation_copy {
                  credits a session carries in your jurisdiction."
                     .to_string(),
             title: "Education and CLE".to_string(),
+            hero_mark: None,
             tagline: "How to draft with a model, how to check it, and when to throw its answer \
                       away."
                 .to_string(),
@@ -497,6 +498,7 @@ mod foundation_copy {
                  the matter closes."
                     .to_string(),
             title: "For legal aid centers".to_string(),
+            hero_mark: None,
             tagline: "Send us the matters that would otherwise sit on a waitlist.".to_string(),
             bands: vec![
                 Band::Statement {
@@ -572,6 +574,7 @@ mod foundation_copy {
                  continuing legal education to volunteer attorneys."
                     .to_string(),
             title: "For volunteer attorneys".to_string(),
+            hero_mark: None,
             tagline: "Pro bono work that arrives scoped, organized, and ready to move.".to_string(),
             bands: vec![
                 Band::Statement {

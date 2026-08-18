@@ -22,7 +22,9 @@
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{PublicShell, SiteHeader, SiteNavLink, SocialMeta};
+use crate::components::{
+    PracticeMark, PracticeMarkGlyph, PublicShell, SiteHeader, SiteNavLink, SocialMeta,
+};
 use crate::public_chrome::{PublicChrome, PublicFooter};
 
 /// The Foundation marketing stylesheet, hoisted alongside `theme.css` and the
@@ -174,6 +176,9 @@ pub struct PageContent {
     pub meta_description: String,
     /// The page's `<h1>`.
     pub title: String,
+    /// The first-party line mark above the title. Practice and product pages
+    /// use the same SVGs as the four-card slide; audience pages omit it.
+    pub hero_mark: Option<PracticeMark>,
     /// The line under the title.
     pub tagline: String,
     pub bands: Vec<Band>,
@@ -409,7 +414,7 @@ pub fn FoundationPage(chrome: PublicChrome, content: PageContent) -> Element {
             chrome: chrome.clone(),
             title: content.head_title.clone(),
             description: content.meta_description.clone(),
-            firm_components: content.skin == PageSkin::Practice,
+            firm_components: content.skin == PageSkin::Practice || content.hero_mark.is_some(),
             div { class: "fm-page{content.skin.modifier()}",
                 section { class: "fm-hero fm-hero--page",
                     // The practice skin leads with the eyebrow and sets the
@@ -420,11 +425,23 @@ pub fn FoundationPage(chrome: PublicChrome, content: PageContent) -> Element {
                     if content.skin == PageSkin::Practice {
                         div { class: "firm-glow fm-hero__glow", "aria-hidden": "true" }
                         div { class: "fm-hero__inner",
+                            if let Some(mark) = content.hero_mark {
+                                PracticeMarkGlyph {
+                                    mark,
+                                    class: "fm-hero__mark".to_string(),
+                                }
+                            }
                             p { class: "firm-eyebrow", "{content.title}" }
                             h1 { class: "fm-hero__title", "{content.tagline}" }
                         }
                     } else {
                         div { class: "fm-hero__inner",
+                            if let Some(mark) = content.hero_mark {
+                                PracticeMarkGlyph {
+                                    mark,
+                                    class: "fm-hero__mark".to_string(),
+                                }
+                            }
                             h1 { class: "fm-hero__title", "{content.title}" }
                             p { class: "fm-hero__tagline", "{content.tagline}" }
                         }
@@ -826,6 +843,7 @@ mod tests {
                 head_title: "T".to_string(),
                 meta_description: "D".to_string(),
                 title: "Fractional CTO".to_string(),
+                hero_mark: Some(PracticeMark::Technology),
                 tagline: "We run the technology function for law firms.".to_string(),
                 bands: vec![],
                 skin,
@@ -858,6 +876,10 @@ mod tests {
             practice.contains("firm-glow"),
             "the practice skin carries the glow the practice pages wear: {practice}"
         );
+        assert!(
+            practice.contains(r#"data-practice-mark="technology""#),
+            "the practice page carries the same technology mark as the product card: {practice}"
+        );
 
         let marketing = page(PageSkin::Marketing);
         assert!(
@@ -885,6 +907,7 @@ mod tests {
                 head_title: "For attorneys — Neon Law Foundation".to_string(),
                 meta_description: "Take a pro bono matter.".to_string(),
                 title: "For volunteer attorneys".to_string(),
+                hero_mark: None,
                 tagline: "Work that arrives scoped.".to_string(),
                 bands: vec![Band::Cta {
                     heading: "Take a matter.".to_string(),

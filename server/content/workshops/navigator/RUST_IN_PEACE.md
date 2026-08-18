@@ -77,6 +77,15 @@ I decided to be a lawyer in New York.
 
 Our firm offers Fractional CTO, Litigation, Fractional GC, and one-time services.
 
+### NeonLawNavigator
+
+{{navigator-product}}
+
+---
+
+Neon Law Navigator is the open-source platform underneath the practice — the wheel that keeps every matter, workflow,
+document, and client experience on course.
+
 ### Agenda
 
 An agenda, not a lecture outline — you are here to argue back. By the end of the half hour you will be able to:

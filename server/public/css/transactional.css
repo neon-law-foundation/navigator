@@ -43,6 +43,17 @@
   max-width: 40rem;
 }
 
+.speed-hero__mark {
+  width: clamp(4.25rem, 9vw, 6.5rem);
+  height: clamp(4.25rem, 9vw, 6.5rem);
+  padding: 1rem;
+  border: 1px solid var(--firm-brand-edge);
+  border-radius: 50%;
+  color: var(--firm-brand);
+  background: var(--firm-brand-tint);
+  box-shadow: 0 1rem 3rem var(--firm-brand-glow);
+}
+
 /* The three words are one sentence in the markup, so the heading stays a
    single readable string for a screen reader and for search. The cadence comes
    from the type, not from splitting it into elements. */

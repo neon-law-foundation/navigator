@@ -135,6 +135,10 @@ async fn body_contains(world: &mut BrandWorld, needle: String) {
 #[tokio::main]
 async fn main() {
     BrandWorld::cucumber()
+        // Every scenario composes the Dioxus-backed public router. Serializing
+        // them keeps the pinned Tokio worker pools bounded on developer
+        // machines, matching the CI gate's constrained execution topology.
+        .max_concurrent_scenarios(1)
         .run_and_exit("tests/features/brand_routing.feature")
         .await;
 }
