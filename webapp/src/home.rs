@@ -14,8 +14,10 @@
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{PublicShell, SiteHeader, SiteNavLink, SocialMeta};
+use crate::components::{PracticeCard, PublicShell, SiteHeader, SiteNavLink, SocialMeta};
 use crate::public_chrome::{PublicChrome, PublicFooter};
+
+pub use crate::components::PracticeMark;
 
 /// The self-contained home stylesheet, hoisted alongside `theme.css`.
 pub const HOME_STYLESHEET_HREF: &str = "/public/css/home.css";
@@ -67,28 +69,6 @@ pub struct HeroPicture {
 pub struct ServiceSection {
     pub heading: String,
     pub body: Vec<Vec<CopyRun>>,
-}
-
-/// Which mark a practice box opens on.
-///
-/// Presentation data rather than markup, so the copy stays wasm-safe and the
-/// drawing stays in the view — the same split the retired practice cards used.
-///
-/// **These were emoji first, and emoji could not do the job.** The brief was a
-/// bigger mark in white, and a colour emoji ignores `color`: the only way to
-/// recolour one is to flatten it to a silhouette with a filter, which turns the
-/// scales and the gavel into passable shapes and the handshake into an ink blot.
-/// A stroked line mark takes `currentColor`, so it is genuinely white on the dark
-/// theme and legible on the light one, and all three carry the same weight.
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
-pub enum PracticeMark {
-    /// The scales, for litigation.
-    #[default]
-    Scales,
-    /// The handshake, for the company-counsel work.
-    Handshake,
-    /// The gavel, for the routine one-time matters.
-    Gavel,
 }
 
 /// One practice the home page points at, as a box at the foot of the page.
@@ -288,72 +268,14 @@ fn PracticeLinks(practices: Vec<PracticeLink>) -> Element {
             }
             div { class: "home-practices__grid",
                 for (index , practice) in practices.iter().enumerate() {
-                    // The whole box is the link now that the "read more" label
-                    // is gone. An `<a>` rather than a card with a stretched
-                    // anchor inside it: with no label left to name, a stretched
-                    // link would have nothing to announce, and this way the box
-                    // is one tab stop that reads its heading and its sentence.
-                    a {
-                        class: "neon-card home-practice",
-                        href: "{practice.href}",
-                        "aria-labelledby": "home-practice-heading-{index}",
-                        PracticeMarkGlyph { mark: practice.mark }
-                        h3 {
-                            id: "home-practice-heading-{index}",
-                            class: "home-practice__heading",
-                            "{practice.heading}"
-                        }
-                        p { class: "home-practice__body", "{practice.body}" }
+                    PracticeCard {
+                        mark: practice.mark,
+                        heading: practice.heading.clone(),
+                        body: practice.body.clone(),
+                        href: practice.href.clone(),
+                        heading_id: format!("home-practice-heading-{index}"),
                     }
                 }
-            }
-        }
-    }
-}
-
-/// Draw one practice mark, stroked in `currentColor`.
-///
-/// `aria-hidden` and `focusable="false"`: the mark repeats what the heading
-/// beside it says, and an unfocusable SVG keeps it out of the tab order in the
-/// browsers that would otherwise put it there.
-#[component]
-fn PracticeMarkGlyph(mark: PracticeMark) -> Element {
-    rsx! {
-        svg {
-            class: "home-practice__mark",
-            "viewBox": "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            "stroke-width": "1.5",
-            "stroke-linecap": "round",
-            "stroke-linejoin": "round",
-            "aria-hidden": "true",
-            "focusable": "false",
-            match mark {
-                // The scales of justice.
-                PracticeMark::Scales => rsx! {
-                    path { d: "m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" }
-                    path { d: "m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" }
-                    path { d: "M7 21h10" }
-                    path { d: "M12 3v18" }
-                    path { d: "M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" }
-                },
-                // Two hands meeting.
-                PracticeMark::Handshake => rsx! {
-                    path { d: "m11 17 2 2a1 1 0 1 0 3-3" }
-                    path { d: "m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" }
-                    path { d: "m21 3 1 11h-2" }
-                    path { d: "M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" }
-                    path { d: "M3 4h8" }
-                },
-                // A gavel and its block.
-                PracticeMark::Gavel => rsx! {
-                    path { d: "m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8" }
-                    path { d: "m16 16 6-6" }
-                    path { d: "m8 8 6-6" }
-                    path { d: "m9 7 8 8" }
-                    path { d: "m21 11-8-8" }
-                },
             }
         }
     }

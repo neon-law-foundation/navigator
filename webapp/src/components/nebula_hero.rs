@@ -10,8 +10,10 @@ use dioxus::prelude::*;
 
 /// The stylesheet that draws the hero scene and the show-and-tell cards.
 /// Hoisted by every page that renders a [`NebulaHero`]; without it the scene is
-/// markup with no styling at all.
-pub const NEBULA_STYLESHEET_HREF: &str = "/public/css/nebula.css";
+/// markup with no styling at all. The package version keeps a browser from
+/// reusing an older presentation layout after a deployment.
+pub const NEBULA_STYLESHEET_HREF: &str =
+    concat!("/public/css/nebula.css?v=", env!("CARGO_PKG_VERSION"), "-3");
 
 /// The animated scene: two drifting starfields, a cloud of nebula gas, and a
 /// star being born (a pulsing core inside an expanding shockwave).

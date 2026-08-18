@@ -69,6 +69,7 @@ pub mod nebula_certificate_sent;
 pub mod nebula_display;
 pub mod nebula_index;
 pub mod nebula_material;
+pub mod nebula_slide_body;
 pub mod nebula_slides;
 pub mod nebula_step;
 pub mod notations;

@@ -22,6 +22,7 @@ use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::components::{NEBULA_STYLESHEET_HREF, THEME_STYLESHEET_HREF};
+use crate::nebula_slide_body::NebulaSlideBody;
 use crate::nebula_step::NEBULA_DISPLAY_SCRIPT_HREF;
 
 /// Everything one projected slide renders.
@@ -91,7 +92,10 @@ pub fn NebulaDisplayPage(content: DisplayContent) -> Element {
             section {
                 class: "workshop-slide nebula-display-slide",
                 "data-nebula-advance": true,
-                div { class: "material-body", dangerous_inner_html: "{content.body_html}" }
+                NebulaSlideBody {
+                    title: content.title.clone(),
+                    body_html: content.body_html.clone(),
+                }
             }
             // Near-invisible controls that fade in on hover or focus, so a
             // full-screen slide stays uncluttered. The ends are inert spans

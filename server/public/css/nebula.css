@@ -925,6 +925,81 @@
   overflow-wrap: anywhere;
 }
 
+/* The firm's product interlude uses the exact linked practice-card component
+   from `/`, but four offerings need a 2 × 2 presentation composition rather
+   than the homepage's three-across row. The slide body is a flex column so the
+   grid consumes the canvas left after its title without introducing scroll. */
+.workshop-slide > .workshop-product-slide {
+  display: flex;
+  flex-direction: column;
+}
+
+.workshop-slide .workshop-product-cards.home-practices__grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  margin-top: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.workshop-slide .workshop-product-cards > .home-practice {
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.75rem, 2.5vw, 2rem);
+  border-color: var(--firm-brand);
+  color: inherit;
+  text-decoration: none;
+  transform: translateY(-2px);
+  transition: none;
+}
+
+.workshop-slide .workshop-product-cards .home-practice__mark {
+  inline-size: clamp(2.25rem, 4.5vw, 4rem);
+  block-size: clamp(2.25rem, 4.5vw, 4rem);
+}
+
+.workshop-slide .workshop-product-cards .home-practice__heading {
+  color: var(--firm-brand-strong);
+  font-size: clamp(1.2rem, 2.5vw, 2rem);
+  text-align: center;
+}
+
+/* A projected slide is a static composition, so hold the homepage card's
+   finished hover wash in place and remove the transition that normally draws
+   it in under a pointer. */
+.workshop-slide .workshop-product-cards > .home-practice::after {
+  opacity: 0.22;
+  transform: scale(1.5);
+  transition: none;
+}
+
+/* The light table clips every preview to nine rem. Compress this one component
+   rather than showing only the first card's corner in its thumbnail. */
+.slide-thumb__preview .workshop-product-slide {
+  height: 100%;
+  padding: 0;
+}
+
+.slide-thumb__preview .workshop-product-cards.home-practices__grid {
+  gap: 0.2rem;
+  margin-top: 0.2rem;
+}
+
+.slide-thumb__preview .workshop-product-cards > .home-practice {
+  gap: 0.15rem;
+  padding: 0.2rem;
+}
+
+.slide-thumb__preview .workshop-product-cards .home-practice__mark {
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+}
+
+.slide-thumb__preview .workshop-product-cards .home-practice__heading {
+  font-size: 0.48rem;
+}
+
 /* A slide face or a workshop step can carry a screenshot. Markdown wraps a
    bare image in its own paragraph, so centre that paragraph and let the image
    be an inline block inside it. */
@@ -964,6 +1039,19 @@
   max-height: 100%;
   width: auto;
   object-fit: contain;
+}
+
+/* The regular workshop page also includes navigation and presenter controls,
+   so its 16:9 slide can extend below a short browser viewport. Keep media in
+   the visible portion of that page, with breathing room above and below. The
+   full-screen display has its own viewport-fitting canvas and stays unchanged. */
+.workshop-step .workshop-slide .material-body p:has(> img, > video) {
+  align-items: center;
+  padding-block: clamp(0.75rem, 2dvh, 1.5rem);
+}
+
+.workshop-step .workshop-slide .material-body :is(img, video) {
+  max-height: min(100%, 45dvh);
 }
 
 /* The contact sheet renders the same slide HTML into a fixed 9rem cell that

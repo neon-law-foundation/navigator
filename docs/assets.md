@@ -1,19 +1,19 @@
 # Public assets
 
-Neon Law Navigator's marketing, workshop, and blog pages render public images through the shared asset lane. Responsive
-photos use `views::assets::responsive_picture`; hand-authored blog or illustration heroes can be dropped directly under
-`server/public/img/<slug>/` as PNGs. The bytes are **never** stored in git. Production serves them from the public
-Google Cloud Storage origin, while local development and the ephemeral KIND integration image hydrate
-`server/public/img/` from that same public origin. That keeps the repository small (a clone is code, not megabytes of
-binaries) without making the local test harness depend on a runtime GCP mount.
+Neon Law Navigator's marketing, presentation, workshop, and blog pages render public images through the shared asset
+lane. Responsive photos use `views::assets::responsive_picture`; hand-authored heroes and slide media can be dropped
+directly under `server/public/img/<slug>/` as PNGs or JPEGs. The bytes are **never** stored in git. Production serves
+them from the Google Cloud Storage origin, while local development and the ephemeral KIND integration image hydrate
+`server/public/img/` from that same origin. That keeps the repository small (a clone is code, not megabytes of binaries)
+without making the local test harness depend on a runtime GCP mount.
 
 ## The four commands
 
 The `navigator ops assets` subcommands form a build → publish → restore → verify loop. For responsive photos, the
 `views::assets::GALLERY` manifest and the width set (`WIDTHS = [400, 800, 1200]`) are the single source of truth shared
-with the view layer, so adding a photo is a manifest edit plus a JPEG — never a code change. Standalone blog or
-illustration assets do not go through `assets build`; put the finished PNG at its final
-`server/public/img/<slug>/<name>.png` path, then use `assets upload` to publish it.
+with the view layer, so adding a photo is a manifest edit plus a JPEG — never a code change. Standalone blog,
+illustration, or Nebula slide assets do not go through `assets build`; put the finished PNG or JPEG at its final
+`server/public/img/<slug>/<name>` path, then use `assets upload` to publish it.
 
 | Command | Direction | What it does |
 | --- | --- | --- |
@@ -35,6 +35,45 @@ the manifest rather than reporting a successful build of nothing.
 ```bash
 cargo run -p cli -- ops assets build --src ~/photos --only berkeley-bay
 ```
+
+## Adding an image to a presentation or workshop slide
+
+A bucket-lane slide image is complete only when the same file has two homes:
+
+1. The ignored local source at `server/public/img/<deck-slug>/<filename>`, where the development server can preview it.
+2. The object `img/<deck-slug>/<filename>` in every deployment bucket that will render the deck.
+
+When an image generator, clipboard, Notes attachment, or conversion tool produces a temporary file, save the
+full-resolution result into that final local path before editing the slide Markdown. A file left only under `/tmp`, in a
+clipboard attachment, or in the image-generation result is not the local copy. Use PNG for text, diagrams, and
+flat-colour art; use JPEG for photographs. HEIC and other unsupported sources must be converted first.
+
+Reference the bucket key without `/public`:
+
+```markdown
+![A concise description of the picture](img/rust-in-peace/example.jpg)
+```
+
+Then preview locally, publish to staging, and confirm the exact object before production:
+
+```bash
+cargo run -p cli -- ops assets verify --base-url http://localhost:<web-port>/public
+cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-stg-assets
+gcloud storage ls gs://neon-law-stg-assets/img/<deck-slug>/<filename>
+```
+
+Production is a separate cloud write, not a consequence of staging. An authorized operator uploads and checks the same
+key in the production bucket:
+
+```bash
+cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-prod-assets
+gcloud storage ls gs://neon-law-prod-assets/img/<deck-slug>/<filename>
+```
+
+An agent that cannot perform the production write must report it as pending and provide the exact command; it must not
+describe the image as published everywhere. After the deployed origin is reachable, run `assets verify` against that
+origin as the browser-level publication check. Because the local directory is ignored, another checkout restores the
+cloud copy with `assets pull` or `assets fetch-referenced`.
 
 ## Publishing one photo to every deployment
 

@@ -61,10 +61,10 @@ the topology you test locally is the topology a firm deploys. And because the fu
 need a cloud account or someone else's cloud bill to verify your work: clone the repository, run `dev up`, prove the
 change against the running stack, and open the pull request.
 
-### View blog images locally
+### View content images locally
 
-The repository deliberately leaves published blog-image bytes out of Git. Before running the site locally, hydrate the
-images referenced by the content tree from the public asset route:
+The repository deliberately leaves published blog, presentation, and workshop image bytes out of Git. Before running the
+site locally, hydrate the images referenced by the content tree from the public asset route:
 
 ```bash
 cargo run -p cli -- ops assets fetch-referenced \
@@ -83,6 +83,10 @@ Keep the two access boundaries distinct. The production bucket is not public and
 developer to preview the blog: the public asset route reads only the marketing-image lane. `fetch-referenced` uses that
 route, so it fetches the same bytes a visitor's browser can reach while keeping documents, exports, and logs out of the
 path. The downloaded bytes remain local and ignored; they are a development cache, not repository content.
+
+When creating a new slide image, keep the full-resolution PNG or JPEG at `server/public/img/<deck-slug>/<filename>` for
+local preview. Upload that same relative key to staging first and then to production; publishing one bucket never
+publishes the other. Production upload remains an authorized operator action.
 
 ### Ship through GitOps
 

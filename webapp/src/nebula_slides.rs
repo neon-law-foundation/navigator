@@ -18,6 +18,7 @@ use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::components::{PublicShell, SiteHeader, SiteNavLink, NEBULA_STYLESHEET_HREF};
+use crate::nebula_slide_body::NebulaSlideBody;
 use crate::public_chrome::{PublicChrome, PublicFooter};
 
 /// The first-party script that paints slide-seen state and reveals the
@@ -188,7 +189,10 @@ fn LightTableChapter(chapter: SlideChapter) -> Element {
                             class: "slide-thumb__preview",
                             "aria-hidden": "true",
                             inert: true,
-                            dangerous_inner_html: "{slide.body_html}",
+                            NebulaSlideBody {
+                                title: slide.title.clone(),
+                                body_html: slide.body_html.clone(),
+                            }
                         }
                         div { class: "slide-thumb__caption", "{slide.number}. {slide.title}" }
                     }

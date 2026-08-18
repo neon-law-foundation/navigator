@@ -33,6 +33,10 @@ fn public_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("public")
 }
 
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
+}
+
 #[test]
 fn vendored_assets_match_manifest() {
     let public = public_dir();
@@ -242,6 +246,87 @@ fn the_dioxus_theme_is_set_in_gorp_serif() {
     assert!(
         theme.contains("button,\ninput,\nselect,\ntextarea {\n  font: inherit;\n}"),
         "form controls must inherit the brand font instead of the UA default"
+    );
+}
+
+#[test]
+fn workshop_step_media_fits_the_visible_page_without_changing_display_mode() {
+    let css = std::fs::read_to_string(public_dir().join("css/nebula.css"))
+        .expect("read the workshop stylesheet");
+
+    let media_frame = css
+        .split_once(".workshop-step .workshop-slide .material-body p:has(> img, > video) {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the regular workshop page must frame image and video media together");
+    assert!(media_frame.contains("align-items: center;"));
+    assert!(media_frame.contains("padding-block:"));
+
+    let media = css
+        .split_once(".workshop-step .workshop-slide .material-body :is(img, video) {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the regular workshop page must size image and video media together");
+    assert!(
+        media.contains("max-height: min(100%, 45dvh);"),
+        "regular workshop media must remain within the visible page"
+    );
+}
+
+#[test]
+fn presentation_practice_cards_hold_the_hover_treatment_without_motion() {
+    let css = std::fs::read_to_string(public_dir().join("css/nebula.css"))
+        .expect("read the workshop stylesheet");
+
+    let card = css
+        .split_once(".workshop-slide .workshop-product-cards > .home-practice {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the presentation must style its practice cards");
+    assert!(card.contains("border-color: var(--firm-brand);"));
+    assert!(card.contains("transform: translateY(-2px);"));
+    assert!(card.contains("transition: none;"));
+
+    let heading = css
+        .split_once(".workshop-slide .workshop-product-cards .home-practice__heading {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the presentation must style its practice-card headings");
+    assert!(heading.contains("color: var(--firm-brand-strong);"));
+
+    let wash = css
+        .split_once(".workshop-slide .workshop-product-cards > .home-practice::after {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the presentation must keep the practice-card hover wash visible");
+    assert!(wash.contains("opacity: 0.22;"));
+    assert!(wash.contains("transform: scale(1.5);"));
+    assert!(wash.contains("transition: none;"));
+}
+
+#[test]
+fn slide_image_authoring_keeps_the_local_staging_and_production_copies_together() {
+    let guide =
+        std::fs::read_to_string(repo_root().join(".claude/skills/authoring-slides/SKILL.md"))
+            .expect("read the slide-authoring guide");
+
+    let local = guide
+        .find("server/public/img/<deck-slug>/<filename>")
+        .expect("slide images must name their ignored local source path");
+    let staging = guide
+        .find("neon-law-stg-assets")
+        .expect("slide images must name the staging publication target");
+    let production = guide
+        .find("neon-law-prod-assets")
+        .expect("slide images must name the production publication target");
+
+    assert!(
+        local < staging && staging < production,
+        "slide image guidance must teach local preview, staging, then production"
+    );
+    assert!(
+        guide.contains("If production remains pending, say"),
+        "an incomplete production handoff must stay explicit"
     );
 }
 

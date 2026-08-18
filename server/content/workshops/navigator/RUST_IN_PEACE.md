@@ -21,20 +21,61 @@ like RustNYC are this good. Please come to my retirement party and let us get cr
 
 ## Intro
 
-### A eulogy in Rust
+### May my soul rust in peace
 
 ![Ferris the Rust crab in goggles holds a glowing vial, Megadeth Rust in Peace parody](img/rust-in-peace/cover.png)
 
 ---
 
-*Rust in Peace* is a play on the Megadeth album, and a eulogy to my programming career — a Neon Law talk given for [Rust
-NYC](https://www.meetup.com/rust-nyc/events/316056830/).
+Rust in Peace is a Eulogy to my programming career, as I know I'll never see myself as a full-time developer again.
 
-Open here. The title plays on Megadeth's *Rust in Peace*, and I mean it: this talk is a eulogy to my programming career.
-Over the past year, teaching coding at Apple, I watched nearly all of my students turn to vibe coding and stop needing
-me — that was the signal to go back to practicing law. What follows is how a two-person firm runs an entire litigation
-practice on one Rust monorepo: the store, the durable workflow engine, identity, telemetry, PDF generation, and the
-browser surface. Going all in on Rust is what lets me lay the old career down and Rust in peace.
+### 5 Years at the Fruit
+
+![A hand holds a kiwi in front of a colorful rainbow sculpture](img/rust-in-peace/kiwi-rainbow.jpg)
+
+---
+
+Twenty days in New York. Thank you to Rob, my friend of twenty years.
+
+### 4 years finance data & platform engineering
+
+![Ten colleagues standing together in an Apple office](img/rust-in-peace/apple-team.jpg)
+
+---
+
+Over 30 petabytes of data, high stress but high performing team.
+
+### 1 year teaching programming
+
+![Colleagues share dinner together at a restaurant](img/rust-in-peace/apple-teaching.jpg)
+
+---
+
+The man in the front is Owen, my beloved boss. Apple is an incredible place.
+
+### What I realized is
+
+![Groovy card: asterisk everyone loves vibing; nearly](img/rust-in-peace/everyone-loves-vibing.png)
+
+---
+
+Nearly everyone loves vibing.
+
+### Decided to be a lawyer in New York
+
+![New York City seen beyond a hillside cemetery](img/rust-in-peace/new-york-lawyer-decision.jpg)
+
+---
+
+I decided to be a lawyer in New York.
+
+### What our firm does
+
+{{firm-product-cards}}
+
+---
+
+Our firm offers Fractional CTO, Litigation, Fractional GC, and one-time services.
 
 ### Agenda
 
