@@ -94,6 +94,20 @@
   text-align: center;
 }
 
+/* Product/practice identity, drawn by the same component the Rust in Peace
+   four-card slide uses. The round frame gives the line mark enough presence to
+   read as a page logo without turning it into a second wordmark. */
+.fm-hero__mark {
+  width: clamp(4.25rem, 9vw, 6.5rem);
+  height: clamp(4.25rem, 9vw, 6.5rem);
+  padding: 1rem;
+  border: 1px solid color-mix(in oklab, var(--nav-color-primary) 42%, transparent);
+  border-radius: 50%;
+  color: var(--nav-color-primary);
+  background: color-mix(in oklab, var(--nav-color-primary) 9%, var(--nav-color-surface));
+  box-shadow: 0 1rem 3rem color-mix(in oklab, var(--nav-color-primary) 15%, transparent);
+}
+
 .fm-badge {
   display: inline-flex;
   align-items: center;
@@ -474,6 +488,13 @@
   max-width: 46rem;
   margin-inline: 0;
   text-align: start;
+}
+
+.fm-page--practice .fm-hero__mark {
+  color: var(--firm-brand);
+  border-color: var(--firm-brand-edge);
+  background: var(--firm-brand-tint);
+  box-shadow: 0 1rem 3rem var(--firm-brand-glow);
 }
 
 /* The statement, in the firm's serif at the practice pages' size. */

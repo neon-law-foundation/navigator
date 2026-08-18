@@ -18,11 +18,17 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use http_body_util::BodyExt;
 use portal::{session::SESSION_COOKIE_NAME, AppState, SessionData, SessionStore};
+use std::sync::OnceLock;
 use store::test_support::mem_surreal;
 use tower::ServiceExt;
 
 fn sessions() -> SessionStore {
     SessionStore::new("csrf-test-session-key")
+}
+
+fn test_lock() -> &'static tokio::sync::Mutex<()> {
+    static LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
 }
 
 async fn state(s: SessionStore) -> AppState {
@@ -81,6 +87,7 @@ async fn entity_form_body(surreal: &store::surreal::SurrealDb, token: Option<&st
 
 #[tokio::test]
 async fn admin_form_renders_csrf_hidden_input_when_session_present() {
+    let _lock = test_lock().lock().await;
     let store = sessions();
     let app = server::neon_router(
         state(store.clone()).await,
@@ -107,6 +114,7 @@ async fn admin_form_renders_csrf_hidden_input_when_session_present() {
 
 #[tokio::test]
 async fn admin_post_with_session_and_matching_csrf_redirects() {
+    let _lock = test_lock().lock().await;
     let store = sessions();
     let st = state(store.clone()).await;
     let (cookie, token) = fresh_session_cookie(&store);
@@ -133,6 +141,7 @@ async fn admin_post_with_session_and_matching_csrf_redirects() {
 
 #[tokio::test]
 async fn admin_post_with_session_and_missing_csrf_returns_403() {
+    let _lock = test_lock().lock().await;
     let store = sessions();
     let app = server::neon_router(
         state(store.clone()).await,
@@ -157,6 +166,7 @@ async fn admin_post_with_session_and_missing_csrf_returns_403() {
 
 #[tokio::test]
 async fn admin_post_with_session_and_wrong_csrf_returns_403() {
+    let _lock = test_lock().lock().await;
     let store = sessions();
     let app = server::neon_router(
         state(store.clone()).await,
@@ -181,6 +191,7 @@ async fn admin_post_with_session_and_wrong_csrf_returns_403() {
 
 #[tokio::test]
 async fn admin_post_without_session_passes_through_csrf_layer() {
+    let _lock = test_lock().lock().await;
     // The previous suite already proves this works — we re-assert
     // here so a future regression of the "no session = passthrough"
     // behavior fails this file too.
@@ -207,6 +218,7 @@ async fn admin_post_without_session_passes_through_csrf_layer() {
 
 #[tokio::test]
 async fn admin_post_with_tampered_session_cookie_passes_through() {
+    let _lock = test_lock().lock().await;
     // A tampered/expired session cookie fails to decode → middleware
     // treats request as anonymous → CSRF layer no-ops → handler
     // succeeds in the dev/test path (no auth enforced).
@@ -254,6 +266,7 @@ const CREATE_PERSON_JSON: &str = r#"{"name":"Libra Example","email":"libra-api-c
 
 #[tokio::test]
 async fn api_json_write_with_cookie_and_valid_csrf_header_succeeds() {
+    let _lock = test_lock().lock().await;
     let store = sessions();
     let app = server::neon_router(
         state(store.clone()).await,
@@ -279,6 +292,7 @@ async fn api_json_write_with_cookie_and_valid_csrf_header_succeeds() {
 
 #[tokio::test]
 async fn api_patch_write_with_cookie_and_missing_csrf_is_403() {
+    let _lock = test_lock().lock().await;
     // The re-key guards every mutating `/app/api/*` verb, not just POST: a
     // cookie-authenticated PATCH with no `X-CSRF-Token` is rejected
     // before it reaches the handler (so no person row is needed).
@@ -308,6 +322,7 @@ async fn api_patch_write_with_cookie_and_missing_csrf_is_403() {
 
 #[tokio::test]
 async fn api_json_write_with_cookie_and_missing_csrf_is_403() {
+    let _lock = test_lock().lock().await;
     let store = sessions();
     let app = server::neon_router(
         state(store.clone()).await,
@@ -332,6 +347,7 @@ async fn api_json_write_with_cookie_and_missing_csrf_is_403() {
 
 #[tokio::test]
 async fn api_json_write_with_cookie_and_wrong_csrf_header_is_403() {
+    let _lock = test_lock().lock().await;
     let store = sessions();
     let app = server::neon_router(
         state(store.clone()).await,
@@ -357,6 +373,7 @@ async fn api_json_write_with_cookie_and_wrong_csrf_header_is_403() {
 
 #[tokio::test]
 async fn api_json_write_with_bearer_and_no_csrf_stays_exempt() {
+    let _lock = test_lock().lock().await;
     // Bearer is not browser-CSRF-vulnerable (no auto-attached cookie),
     // so it must succeed with no token — the CLI / MCP path.
     let store = sessions();
@@ -382,6 +399,7 @@ async fn api_json_write_with_bearer_and_no_csrf_stays_exempt() {
 
 #[tokio::test]
 async fn api_write_with_bearer_and_cookie_runs_as_the_bearer_principal() {
+    let _lock = test_lock().lock().await;
     // Regression for the stale-principal bug: when a request carries BOTH
     // a bearer credential and a session cookie, `require_policy` (which
     // runs before `require_csrf`) authorizes the bearer principal that
@@ -420,6 +438,7 @@ async fn api_write_with_bearer_and_cookie_runs_as_the_bearer_principal() {
 
 #[tokio::test]
 async fn api_json_write_with_cross_site_origin_is_403_even_with_valid_token() {
+    let _lock = test_lock().lock().await;
     // Defense-in-depth: a cross-site Origin on a cookie-authenticated
     // state change is rejected outright, independent of the token — so
     // even a leaked/guessed token can't be replayed from another origin.
@@ -450,6 +469,7 @@ async fn api_json_write_with_cross_site_origin_is_403_even_with_valid_token() {
 
 #[tokio::test]
 async fn api_json_write_with_same_origin_and_valid_token_succeeds() {
+    let _lock = test_lock().lock().await;
     // The origin check must not false-positive on a legitimate
     // same-origin browser write.
     let store = sessions();

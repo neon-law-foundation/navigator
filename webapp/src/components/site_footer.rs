@@ -372,7 +372,8 @@ pub fn SiteFooterLegal(
                     }
                 }
                 div { class: "site-footer__legal",
-                    p { class: "site-footer__copyright",
+                    div { class: "site-footer__legal-practice",
+                        p { class: "site-footer__copyright",
                         // The site and the words on it belong to the firm's
                         // legal person, which is what a copyright notice names
                         // — the wordmark cannot hold one. This heads the legal
@@ -386,27 +387,29 @@ pub fn SiteFooterLegal(
                     // is the footer's only bar disclosure: a firm-level
                     // "Admitted in …" line said nothing these rows do not, in
                     // the jurisdictions they already name.
-                    if !attorneys.is_empty() {
-                        ul { class: "site-footer__licenses",
-                            for attorney in attorneys.iter() {
-                                li { class: "site-footer__licensee", key: "{attorney.name}",
-                                    span { class: "site-footer__licensee-name", "{attorney.name}" }
-                                    " — "
-                                    for (index, license) in attorney.licenses.iter().enumerate() {
-                                        if index > 0 {
-                                            " · "
-                                        }
-                                        ExternalLink {
-                                            href: license.license_url.clone(),
-                                            class: "link-secondary".to_string(),
-                                            "{license.jurisdiction} Bar No. {license.number}"
+                        if !attorneys.is_empty() {
+                            ul { class: "site-footer__licenses",
+                                for attorney in attorneys.iter() {
+                                    li { class: "site-footer__licensee", key: "{attorney.name}",
+                                        span { class: "site-footer__licensee-name", "{attorney.name}" }
+                                        " — "
+                                        for (index, license) in attorney.licenses.iter().enumerate() {
+                                            if index > 0 {
+                                                " · "
+                                            }
+                                            ExternalLink {
+                                                href: license.license_url.clone(),
+                                                class: "link-secondary".to_string(),
+                                                "{license.jurisdiction} Bar No. {license.number}"
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
+                        p { class: "site-footer__disclaimer", "{disclaimer}" }
                     }
-                    p { class: "site-footer__disclaimer", "{disclaimer}" }
+                    div { class: "site-footer__legal-foundation",
                     // The other half of the attribution the Foundation's footer
                     // carries, and the last line on the page. It sits after the
                     // bar disclosures and after the disclaimer, so a reader has
@@ -473,6 +476,8 @@ pub fn SiteFooterLegal(
                             }
                         }
                     }
+                    }
+                    div { class: "site-footer__legal-platform",
                     // The platform attribution, last in the strip. It names
                     // software, not a legal service, so it sits below the
                     // regulated disclosures rather than among them — a reader
@@ -508,6 +513,7 @@ pub fn SiteFooterLegal(
                                 stars: source_stars,
                             }
                         }
+                    }
                     }
                 }
             }
@@ -842,6 +848,16 @@ mod tests {
             inner < legal,
             "the legal strip sits inside the column: {out}"
         );
+        for region in [
+            "site-footer__legal-practice",
+            "site-footer__legal-foundation",
+            "site-footer__legal-platform",
+        ] {
+            assert!(
+                out.contains(region),
+                "the legal copy has a {region} region: {out}"
+            );
+        }
     }
 
     #[test]

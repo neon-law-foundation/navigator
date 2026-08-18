@@ -8,12 +8,15 @@
 use dioxus::prelude::*;
 
 use crate::brand_style::{BRAND_STYLESHEET_HREF, BRAND_TOKENS_HREF};
-use crate::components::{PracticeCard, PracticeMark};
+use crate::components::{PracticeCard, PracticeMark, PracticeMarkGlyph};
 use crate::home::HOME_STYLESHEET_HREF;
 
 /// Markdown marker that replaces the ordinary slide body with the firm's four
 /// product cards.
 pub const FIRM_PRODUCT_CARDS_MARKER: &str = "{{firm-product-cards}}";
+
+/// Markdown marker that renders the Navigator identity slide.
+pub const NAVIGATOR_PRODUCT_MARKER: &str = "{{navigator-product}}";
 
 struct FirmProduct {
     mark: PracticeMark,
@@ -48,6 +51,27 @@ const FIRM_PRODUCTS: &[FirmProduct] = &[
 /// explicit marker is present.
 #[component]
 pub fn NebulaSlideBody(title: String, body_html: String) -> Element {
+    if body_html.contains(NAVIGATOR_PRODUCT_MARKER) {
+        return rsx! {
+            document::Stylesheet { href: BRAND_TOKENS_HREF }
+            document::Stylesheet { href: BRAND_STYLESHEET_HREF }
+            div { class: "material-body workshop-navigator-slide",
+                h3 { "{title}" }
+                div { class: "workshop-navigator-slide__mark",
+                    PracticeMarkGlyph {
+                        mark: PracticeMark::Helm,
+                        class: "workshop-navigator-slide__wheel".to_string(),
+                    }
+                }
+                a {
+                    class: "workshop-navigator-slide__repo",
+                    href: crate::source_repository::REPOSITORY_HREF,
+                    "github.com/neon-law-foundation/navigator"
+                }
+            }
+        };
+    }
+
     if !body_html.contains(FIRM_PRODUCT_CARDS_MARKER) {
         return rsx! {
             div { class: "material-body", dangerous_inner_html: "{body_html}" }
@@ -127,5 +151,25 @@ mod tests {
         let html = render("Ordinary", "<h3>Ordinary</h3><p>Body</p>");
         assert!(html.contains("<h3>Ordinary</h3><p>Body</p>"), "{html}");
         assert!(!html.contains("workshop-product-cards"), "{html}");
+    }
+
+    #[test]
+    fn the_navigator_marker_renders_the_wheel_and_repository() {
+        let html = render(
+            "NeonLawNavigator",
+            &format!("<h3>NeonLawNavigator</h3><p>{NAVIGATOR_PRODUCT_MARKER}</p>"),
+        );
+        assert!(html.contains("workshop-navigator-slide"), "{html}");
+        assert!(html.contains(r#"data-practice-mark="helm""#), "{html}");
+        assert!(html.contains("NeonLawNavigator"), "{html}");
+        assert!(
+            html.contains(r#"href="https://github.com/neon-law-foundation/navigator""#),
+            "{html}"
+        );
+        assert!(
+            html.contains("github.com/neon-law-foundation/navigator"),
+            "{html}"
+        );
+        assert!(!html.contains(NAVIGATOR_PRODUCT_MARKER), "{html}");
     }
 }

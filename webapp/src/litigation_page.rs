@@ -30,7 +30,9 @@
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{PublicShell, SiteHeader, SiteNavLink, SocialMeta};
+use crate::components::{
+    PracticeMark, PracticeMarkGlyph, PublicShell, SiteHeader, SiteNavLink, SocialMeta,
+};
 use crate::public_chrome::{PublicChrome, PublicFooter};
 
 /// The self-contained litigation stylesheet, hoisted after the brand layer.
@@ -161,6 +163,10 @@ fn ZealHero(content: LitigationContent) -> Element {
         section { class: "zeal-hero", "aria-labelledby": "zeal-heading",
             div { class: "firm-glow zeal-hero__glow", "aria-hidden": "true" }
             div { class: "zeal-hero__statement",
+                PracticeMarkGlyph {
+                    mark: PracticeMark::Scales,
+                    class: "zeal-hero__mark".to_string(),
+                }
                 p { class: "firm-eyebrow", "{content.eyebrow}" }
                 h1 { id: "zeal-heading", class: "zeal-hero__heading",
                     for (index , word) in content.heading.iter().enumerate() {
@@ -247,6 +253,10 @@ mod tests {
     #[test]
     fn leads_with_the_zealous_advocacy_statement() {
         let out = html();
+        assert!(
+            out.contains(r#"data-practice-mark="scales""#) && out.contains("zeal-hero__mark"),
+            "the hero reuses the four-card litigation mark: {out}"
+        );
         assert_eq!(out.matches("<h1").count(), 1, "one h1: {out}");
         assert!(out.contains("Zealous"), "the statement: {out}");
         assert!(out.contains("advocates"), "the statement: {out}");
