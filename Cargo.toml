@@ -30,7 +30,7 @@ members = [
 ]
 
 [workspace.package]
-version = "26.8.19-hotfix.5"
+version = "26.8.19-hotfix.14"
 edition = "2021"
 rust-version = "1.95"
 # Strong copyleft with a network clause: § 13 obliges anyone who modifies this
