@@ -34,12 +34,9 @@ Never expand from one to the other in the same commit. Report the other findings
 
 ## Orient first
 
-Every `gh` call needs the right host. Navigator and the Project repositories live on GitHub Enterprise, and a `401`
-against them usually means the wrong host rather than a bad token:
-
-```bash
-export GH_HOST=github.com
-```
+Navigator and its sibling repositories live on github.com, in the `neon-law-foundation` organization. `gh` defaults to
+that host, so no `GH_HOST` and no `--hostname` is needed. The posture those repositories carry — issues in Linear,
+squash-only behind a signed ruleset — is [[public-repositories]].
 
 ```bash
 gh repo view --json nameWithOwner -q .nameWithOwner

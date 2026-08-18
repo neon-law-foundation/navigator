@@ -31,7 +31,7 @@ git fetch origin main
 ```
 
 ```bash
-GH_HOST=github.com gh pr list -R <owner>/<repo> --state merged \
+gh pr list -R <owner>/<repo> --state merged \
     --json number,title,headRefName,body,url,mergedAt --limit 100
 ```
 

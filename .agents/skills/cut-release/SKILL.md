@@ -72,8 +72,8 @@ tag goes on the **merged** commit, not on the branch tip that produced it.
 
 ## 4. Tag the merged commit and push
 
-Sign the tag: an unsigned commit cannot enter the merge queue, and GitHub Enterprise verifies only the
-`nick@neonlaw.com` identity.
+Sign the tag: an unsigned commit cannot enter the merge queue, and commit verification recognizes the `nick@neonlaw.com`
+identity.
 
 ```bash
 git fetch origin && git checkout main && git pull --ff-only

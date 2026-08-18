@@ -31,7 +31,7 @@ graph LR
 
     REG --> LS
     REG --> NP
-    LS --> LSTG["neon-law-stg<br/><i>simulated matters</i>"]
+    LS --> LSTG["neon-law-stg<br/>staging.neonlaw.com<br/><i>simulated matters</i>"]
     NP --> NPRD["neon-law-prod<br/>www.neonlaw.com<br/><i>real matters</i>"]
 ```
 
@@ -43,8 +43,16 @@ instance, buckets, and cluster.
 
 | Deployment | GCP project | Public host | Matters | Image | Resource prefix |
 | --- | --- | --- | --- | --- | --- |
-| `neon-law-stg` | `neon-law-stg` | — | simulated | `neon-server` | `neon-law-stg` |
+| `neon-law-stg` | `neon-law-stg` | `staging.neonlaw.com` | simulated | `neon-server` | `neon-law-stg` |
 | `neon-law-prod` | `neon-law-prod` | `www.neonlaw.com` | real | `neon-server` | `neon-law-prod` |
+
+Each row also serves a workflows host beside its public one: `workflows-staging.neonlaw.com` for `neon-law-stg` and
+`workflows.neonlaw.com` for `neon-law-prod`. Both are set per deployment as `NAVIGATOR_PUBLIC_HOST` and
+`NAVIGATOR_WORKFLOWS_HOST`.
+
+**One production.** `neon-law-prod` is the only deployment serving real matters, and `www.neonlaw.com` is the only
+public host that reaches them. Staging carries a public name so a link to it resolves, not so it is open: its perimeter
+is the tailnet allowlist, which is what "private mode" configures.
 
 `neon-law-prod` is a rollable deployment. Its `deployments/<name>/` directory in the deploy repository carries both
 `config.toml` and `secrets.enc.yaml`, and nothing in this repository's CI rolls it. A person runs the `ops ship` command
@@ -61,10 +69,10 @@ by this deployment's Ingress, with both `ManagedCertificate` resources Active. T
 holds the name. See [`marketing-sites`](marketing-sites.md).
 
 Each deployment serves its own host, and the host says what the deployment is. `www.neonlaw.com` is production: the firm
-at the root and the Foundation under `/foundation`, over real matters. Staging serves its own host over simulated data,
-so a visitor never has to guess which one they reached. `neon` is the identifier that names the GCP projects
-`neon-law-stg` and `neon-law-prod` and the image `neon-server`; the public brand lives only in the domain. Each row's
-Workspace is in the Drive table under [Matter storage](#matter-storage-and-workspace-attachment).
+at the root and the Foundation under `/foundation`, over real matters. Staging serves `staging.neonlaw.com` over
+simulated data, so a visitor never has to guess which one they reached. `neon` is the identifier that names the GCP
+projects `neon-law-stg` and `neon-law-prod` and the image `neon-server`; the public brand lives only in the domain. Each
+row's Workspace is in the Drive table under [Matter storage](#matter-storage-and-workspace-attachment).
 
 For a resource prefix `<name>`, set:
 
@@ -87,9 +95,10 @@ For a resource prefix `<name>`, set:
 Bucket names are globally scoped in GCS. If one of these short names is already taken, add a stable organization prefix
 to all four bucket names; do not change the deployment prefix used for other resources.
 
-`NAVIGATOR_PUBLIC_HOST` is the exact public host in the matrix. `NAVIGATOR_WORKFLOWS_HOST` is `workflows.<domain>` on
-that same row's own domain—`workflows.neonlaw.com` for production, and staging's own `workflows.<domain>` for staging. A
-deployment never borrows another row's domain. Set `NAV_BASE_URL` to `https://$NAVIGATOR_PUBLIC_HOST`,
+`NAVIGATOR_PUBLIC_HOST` is the exact public host in the matrix, and `NAVIGATOR_WORKFLOWS_HOST` is the workflows host
+beside it: `workflows.neonlaw.com` for `neon-law-prod`, `workflows-staging.neonlaw.com` for `neon-law-stg`. Both rows
+sit on `neonlaw.com`, and staging's names are a subdomain and a hyphenated sibling rather than a separate domain, so a
+deployment never borrows another row's host. Set `NAV_BASE_URL` to `https://$NAVIGATOR_PUBLIC_HOST`,
 `NAVIGATOR_WORKFLOWS_URL` to `https://$NAVIGATOR_WORKFLOWS_HOST/`, and `NAVIGATOR_ASSET_BASE_URL` to
 `$NAV_BASE_URL/assets`. The backing GCS bucket remains private; the application reads it through Workload Identity and
 serves this bounded public marketing lane at the same origin. Set both `CANONICAL_HOST` and `NAVIGATOR_PRIMARY_DOMAIN`
