@@ -868,11 +868,25 @@ jobs:
       # with ENG-19), reached from the runner the same way the local loop
       # reaches it: a port-forward on the local convention port 18000.
       # Deploy run 142277536 died here with no endpoint configured.
+      # SUPERVISED, because this forward has to outlive its own step by about
+      # half an hour. `kubectl port-forward` never reconnects: when its stream
+      # to the pod breaks it prints the error and exits, and nothing notices —
+      # the port simply stops answering. Deploy run 32082116362 died exactly
+      # there. Eleven browser tests passed, then
+      # `admin_edits_matter_participation_from_the_project_workbench` got
+      # `Connection refused` on ws://127.0.0.1:18000 on all three nextest
+      # retries, sixteen minutes after this step had reported itself healthy.
+      # Re-running kubectl in a loop makes a dropped stream cost a reconnect
+      # rather than every fixture that touches the store afterwards.
       - name: port-forward in-cluster SurrealDB
         run: |
-          kubectl --namespace navigator port-forward \
-              service/surreal 18000:8000 \
-              > /tmp/surreal-port-forward.log 2>&1 &
+          nohup bash -c '
+              while true; do
+                  kubectl --namespace navigator port-forward \
+                      service/surreal 18000:8000
+                  echo "surreal port-forward exited ($?) — respawning"
+                  sleep 1
+              done' > /tmp/surreal-port-forward.log 2>&1 &
           for i in 1 2 3 4 5 6 7 8 9 10; do
               if curl -sf http://127.0.0.1:18000/health >/dev/null 2>&1; then
                   echo "surreal port-forward up after $i attempt(s)"
@@ -993,11 +1007,20 @@ jobs:
       # still what makes the assertion meaningful.) Port-forward the Garage
       # S3 API so the host writes to the same bucket `web` reads; the env on
       # the browser step below points the host lane at it.
+      # Supervised for the same reason the SurrealDB forward above is: it has
+      # to answer for the whole browser suite, and a one-shot `kubectl
+      # port-forward` that loses its stream would leave the host lane writing
+      # nowhere — the download-all-documents fixture would hand back an empty
+      # ZIP rather than say why.
       - name: port-forward in-cluster Garage S3
         run: |
-          kubectl --namespace navigator port-forward \
-              service/navigator-garage 30900:3900 \
-              > /tmp/garage-port-forward.log 2>&1 &
+          nohup bash -c '
+              while true; do
+                  kubectl --namespace navigator port-forward \
+                      service/navigator-garage 30900:3900
+                  echo "garage S3 port-forward exited ($?) — respawning"
+                  sleep 1
+              done' > /tmp/garage-port-forward.log 2>&1 &
           for i in 1 2 3 4 5 6 7 8 9 10; do
               if curl -s -o /dev/null http://localhost:30900/; then
                   echo "garage S3 port-forward up after $i attempt(s)"
@@ -1198,6 +1221,14 @@ jobs:
       # failure the screenshots + streamed log make the next intermittent
       # failure diagnosable. `if-no-files-found: ignore` because screenshots
       # only exist on failure.
+      #
+      # THE PORT-FORWARD LOGS ARE THE POINT, and until run 32082116362 this
+      # list did not actually collect them: it named
+      # `/tmp/neon-browser-port-forward.log`, which no step has ever written,
+      # while the two real logs went uncollected. `if-no-files-found: ignore`
+      # meant the artifact uploaded quietly without them, so the one run that
+      # needed them had nothing to read. `cli/tests/deploy_port_forwards.rs`
+      # now fails on a collected path nothing writes.
       - name: upload E2E JUnit + diagnostics
         if: always()
         uses: actions/upload-artifact@v7
@@ -1206,7 +1237,9 @@ jobs:
           path: |
             target/nextest/ci/junit.xml
             /tmp/e2e.log
-            /tmp/neon-browser-port-forward.log
+            /tmp/surreal-port-forward.log
+            /tmp/garage-port-forward.log
+            /tmp/chromedriver.log
             /tmp/navigator-screenshots/
           if-no-files-found: ignore
 
