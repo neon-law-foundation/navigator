@@ -33,6 +33,10 @@ fn public_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("public")
 }
 
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
+}
+
 #[test]
 fn vendored_assets_match_manifest() {
     let public = public_dir();
@@ -298,6 +302,32 @@ fn presentation_practice_cards_hold_the_hover_treatment_without_motion() {
     assert!(wash.contains("opacity: 0.22;"));
     assert!(wash.contains("transform: scale(1.5);"));
     assert!(wash.contains("transition: none;"));
+}
+
+#[test]
+fn slide_image_authoring_keeps_the_local_staging_and_production_copies_together() {
+    let guide =
+        std::fs::read_to_string(repo_root().join(".claude/skills/authoring-slides/SKILL.md"))
+            .expect("read the slide-authoring guide");
+
+    let local = guide
+        .find("server/public/img/<deck-slug>/<filename>")
+        .expect("slide images must name their ignored local source path");
+    let staging = guide
+        .find("neon-law-stg-assets")
+        .expect("slide images must name the staging publication target");
+    let production = guide
+        .find("neon-law-prod-assets")
+        .expect("slide images must name the production publication target");
+
+    assert!(
+        local < staging && staging < production,
+        "slide image guidance must teach local preview, staging, then production"
+    );
+    assert!(
+        guide.contains("If production remains pending, say"),
+        "an incomplete production handoff must stay explicit"
+    );
 }
 
 /// A blog post's body is authored in Markdown, so every picture arrives as a

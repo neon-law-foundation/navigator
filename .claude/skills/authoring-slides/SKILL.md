@@ -131,36 +131,34 @@ needs neither: drop the file under `server/public/img/<slug>/` and `upload` carr
 
 ### Publishing
 
-Each deployment reads its own bucket, named by `NAVIGATOR_ASSETS_BUCKET` in `deployments/<name>/config.toml`. Publishing
-to one publishes to none of the others:
+A generated or converted slide image is not finished while it exists only in a temporary directory, clipboard
+attachment, or image-generation result. Save the full-resolution PNG or JPEG at
+`server/public/img/<deck-slug>/<filename>` first. That ignored file is the local preview copy. The matching cloud key is
+`img/<deck-slug>/<filename>`.
 
-| Deployment | Bucket | Serves |
-| --- | --- | --- |
-| `neon-law-prod` | `neon-law-prod-assets` | `https://www.neonlaw.com/assets` |
-| `neon-law-stg` | `neon-law-stg-assets` | `https://www.neonlaw.com/assets` |
-| `neon-law-prod` | `neon-law-prod-assets` | `https://www.neonlaw.com/assets` |
-
-Nebula is a Foundation surface, so a deck's media only ever needs the first row. Note what that implies: the Foundation
-has **no staging deployment**, so there is no lower environment in which to rehearse a deck's upload. Check it against a
-running local loop, publish once, then verify against the real origin.
+Each deployment reads its own bucket. Publishing to staging publishes nothing to production, so the bucket lane always
+has this order: local copy, staging upload and check, production operator upload and check. Presentations and workshops
+mount under the firm site at the root, so both configured environments need the object.
 
 ```bash
 gcloud auth application-default login
-cargo run -p cli -- ops assets upload --bucket neon-law-prod-assets
+cargo run -p cli -- ops assets verify --base-url http://localhost:<web-port>/public
+cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-stg-assets
+gcloud storage ls gs://neon-law-stg-assets/img/<deck-slug>/<filename>
 ```
 
-That is a **real cloud write**: an agent proposes it, the operator runs it. `upload` walks the whole of
-`server/public/img/`, so it publishes everything staged there rather than only what you just added — re-uploading an
-unchanged tree is idempotent and cheap.
-
-Then verify against the origin a browser actually uses, because rendering locally proves nothing about production:
+The production upload is a **real production cloud write**. An agent prepares the local file, can publish staging when
+authorized, and hands the production command to an operator:
 
 ```bash
-NAVIGATOR_ASSET_BASE_URL=https://www.neonlaw.com/assets cargo run -p cli -- ops assets verify
+cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-prod-assets
+gcloud storage ls gs://neon-law-prod-assets/img/<deck-slug>/<filename>
 ```
 
-`verify` prints only the misses, so a slug's absence from that list is the pass. Pass `--base-url` with a running local
-loop's `/public` mount to check the same references against the dev server instead.
+`upload` walks the whole directory passed with `--dir`, so re-uploading an unchanged tree is idempotent. The PR carries
+the Markdown reference; the ignored local tree and the two buckets carry the bytes. If production remains pending, say
+so and provide the exact command rather than claiming the slide is published everywhere. After deployment, run `assets
+verify` against the public origin a browser actually uses.
 
 ### Removing media
 
