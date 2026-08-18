@@ -426,3 +426,102 @@
   background: var(--nav-color-primary-hover);
   color: var(--nav-color-on-primary);
 }
+
+/* ---- The firm's practice skin ------------------------------------------- */
+
+/* One renderer serves the Foundation's audience pages and the firm's, and they
+   want different typography. A page that names `PageSkin::Practice` gets the
+   look the `/litigation` and `/fractional-gc` pages wear: an eyebrow over a
+   serif statement, left-aligned, with the body in the firm's card.
+
+   The rules mirror `litigation.css` rather than importing it — that sheet is the
+   litigation page's own and is hoisted only there — but the card, the glow, and
+   the eyebrow come from `brand-firm.css`, which a practice-skin page hoists (see
+   `MarketingShell`'s `firm_components`). Everything below is scoped under the
+   modifier, so the Foundation's pages and the firm's platform page are
+   untouched.
+
+   The base layer centres every band: `.fm-hero__inner`, `.fm-band__heading`, and
+   `.fm-band--statement .fm-band__inner` all set `align-items: center` and
+   `text-align: center`, and the inners carry `margin-inline: auto`. A practice
+   page reads as one column of prose, so each of those is undone explicitly —
+   `text-align` alone would leave the blocks centred inside their own max-width. */
+
+/* The bands carry 1.5rem of inline padding and the hero carries none, so the
+   statement sat 24px left of every heading under it. The hero takes the bands'
+   padding instead: on a practice page the eyebrow, the statement, and the first
+   band heading all begin on one line down the left edge.
+
+   The base hero's own wash comes off. It is a radial gradient centred at 50%,
+   and the practice skin adds `firm-glow` — a second centred wash — so the two
+   stacked into a blotch sitting in the middle of a hero whose type is hard
+   left. The glow is the one that stays, which is what `/litigation` carries over
+   a plain background. */
+.fm-page--practice .fm-hero--page {
+  position: relative;
+  padding: clamp(2.5rem, 7vw, 5rem) 1.5rem clamp(2rem, 5vw, 3rem);
+  background: none;
+}
+
+.fm-page--practice .fm-hero__glow {
+  inset-inline: -25vw;
+}
+
+.fm-page--practice .fm-hero__inner {
+  position: relative;
+  z-index: 1;
+  align-items: flex-start;
+  max-width: 46rem;
+  margin-inline: 0;
+  text-align: start;
+}
+
+/* The statement, in the firm's serif at the practice pages' size. */
+.fm-page--practice .fm-hero__title {
+  font-family: var(--firm-serif);
+  font-size: clamp(2.25rem, 6vw, 3.75rem);
+  font-weight: 600;
+  line-height: 1.05;
+}
+
+/* Every band reads as one left-aligned column. */
+.fm-page--practice .fm-band__inner {
+  max-width: 62rem;
+  margin-inline: 0;
+}
+
+.fm-page--practice .fm-band__heading {
+  align-items: flex-start;
+  text-align: start;
+}
+
+.fm-page--practice .fm-band__title {
+  font-family: var(--firm-serif);
+}
+
+.fm-page--practice .fm-band--statement .fm-band__inner {
+  align-items: flex-start;
+  text-align: start;
+}
+
+/* A statement's lead is its display line, in the serif the practice pages use. */
+.fm-page--practice .fm-statement__lead {
+  max-width: 40rem;
+  font-family: var(--firm-serif);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+/* The prose sits in the firm's card, the way the practice pages carry a body. */
+.fm-page--practice .fm-band--statement .fm-statement__body {
+  max-width: none;
+  padding: clamp(1.5rem, 4vw, 2.25rem);
+  border: 1px solid var(--nav-color-border);
+  border-radius: 1rem;
+  background: var(--nav-color-surface);
+}
+
+.fm-page--practice .fm-statement__body p {
+  max-width: 68ch;
+  color: var(--nav-color-text);
+}

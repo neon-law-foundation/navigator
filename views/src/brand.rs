@@ -132,27 +132,29 @@ impl NavLink {
     }
 }
 
-/// The firm's header navigation: the priced work first, then the two quoted
-/// practices, then the people who run them.
+/// The firm's header navigation: the lead offering, then the three practices
+/// under it.
 ///
-/// A visitor at the top of a consumer law firm's site is deciding whether they
-/// can afford a lawyer at all. `/services` answers that before anything else,
-/// because it carries the actual fee for every routine matter — a will, a
-/// trust, a name change, a formation — and a person who has been told all their
-/// life that a lawyer is out of reach will not find that answer in a footer.
-/// So Legal Services leads, where it used to sit below the fold precisely
-/// because it had no price to show.
+/// Fractional CTO leads because it is what the firm leads with — it runs the
+/// technology function for the law firms it serves, and the home page states it
+/// as the one thing above the fold. The order is the claim, so it is asserted
+/// rather than left to this literal.
 ///
-/// `/litigation` and `/fractional-gc` (fractional general counsel) follow: real
-/// practices, quoted per engagement rather than published, because their scope
-/// is not knowable in advance.
+/// The three that follow are real practices with pages of their own, and a
+/// reader who came for one of them must not have to hunt the footer:
+/// `/litigation` the disputes practice, `/fractional-gc` (fractional general
+/// counsel) the company-counsel work, and `/services` the flat-fee schedule of
+/// routine one-time matters. The two quoted practices sit nearer the lead
+/// offering than the schedule does, because a firm reading the lead is the
+/// reader those two are for.
 ///
-/// Everything a reader looks for second — the Blog, the Foundation, how to
-/// reach the firm — stays in [`FIRM_FOOTER_NAV`].
+/// Everything a reader looks for second — the Blog, the Foundation, Navigator,
+/// how to reach the firm — stays in [`FIRM_FOOTER_NAV`].
 const FIRM_NAV: &[NavLink] = &[
-    NavLink::leaf("Legal Services", "/services"),
+    NavLink::leaf("Fractional CTO", "/fractional-cto"),
     NavLink::leaf("Litigation", "/litigation"),
     NavLink::leaf("Fractional GC", "/fractional-gc"),
+    NavLink::leaf("Legal Services", "/services"),
 ];
 
 /// The rest of the firm's public surface, rendered in the footer rather than the
@@ -162,8 +164,14 @@ const FIRM_NAV: &[NavLink] = &[
 /// from the site on every page; it is linked where a reader looks for it
 /// second.
 ///
-/// Services is deliberately absent: it carries the published fee schedule now,
-/// so it leads [`FIRM_NAV`] rather than waiting in the footer.
+/// Services is deliberately absent: it carries the published fee schedule, so it
+/// sits in [`FIRM_NAV`] under the lead offering rather than waiting here.
+///
+/// `/navigator` describes the platform the firms we serve work on, which a
+/// reader asks about after deciding the firm does their kind of work — the same
+/// shape of question as the Blog. The platform attribution at the very bottom of
+/// the footer names the running release and links the same page; this is the
+/// reader-facing route to it, not a version stamp.
 ///
 /// The Foundation is here rather than in the header. One binary serves both
 /// faces, so the nonprofit is one link away from every firm page — but a
@@ -171,16 +179,10 @@ const FIRM_NAV: &[NavLink] = &[
 /// and sending them to a different organization first answers a question they
 /// did not ask.
 ///
-/// `/navigator` describes the software the firm runs its practice on, which is a
-/// thing a reader asks about after deciding the firm does their kind of work —
-/// the same shape of question as the Blog. The platform attribution at the very
-/// bottom of the footer names the running release and links the same page; this
-/// is the reader-facing route to it, not a version stamp.
-///
 /// Presentations sits here for the same reason. The talks are the firm's, given
 /// at meetups and conferences and published here; a reader deciding whether to
-/// hire the firm is not looking for them first, and a reader who saw one at a
-/// conference knows to look at the bottom of the page.
+/// work with the firm is not looking for them first, and a reader who saw one at
+/// a conference knows to look at the bottom of the page.
 const FIRM_FOOTER_NAV: &[NavLink] = &[
     NavLink::leaf("Blog", "/blog"),
     NavLink::leaf("Contact", "/contact"),
@@ -1261,26 +1263,32 @@ mod tests {
         }
     }
 
-    /// The firm's nav leads with the priced work, then the two quoted
-    /// practices — and nothing else.
+    /// The firm's header leads with the lead offering, then the three practices.
     ///
-    /// Legal Services is first on purpose and this is the assertion that keeps
-    /// it there. It carries the fee schedule, and a consumer deciding whether
-    /// they can afford a lawyer at all must not have to hunt the footer for the
-    /// answer. Demoting it back below the fold would undo the point of
-    /// publishing prices in the first place.
+    /// Fractional CTO is first on purpose and this is the assertion that keeps
+    /// it there: it is what the firm leads with, and the home page states it
+    /// above the fold. Demoting it below the practices would put the lead behind
+    /// the things it leads.
     ///
     /// Team used to close the row. The page was retired outright — routers,
     /// views, path constants, sitemap and llms.txt rows — so a header entry
     /// would now be a link to a `404`.
     #[test]
-    fn the_firm_nav_leads_with_the_priced_work() {
+    fn the_firm_nav_leads_with_the_lead_offering_then_the_practices() {
         let labels: Vec<&str> = FIRM_BRAND.nav.iter().map(|n| n.label).collect();
-        assert_eq!(labels, ["Legal Services", "Litigation", "Fractional GC"]);
+        assert_eq!(
+            labels,
+            [
+                "Fractional CTO",
+                "Litigation",
+                "Fractional GC",
+                "Legal Services"
+            ]
+        );
         assert_eq!(
             FIRM_BRAND.nav.first().map(|link| link.href),
-            Some("/services"),
-            "the published fee schedule is the first thing in the header"
+            Some("/fractional-cto"),
+            "the lead offering is the first thing in the header"
         );
         assert!(
             FIRM_BRAND.nav.iter().all(|link| !link.is_dropdown()),

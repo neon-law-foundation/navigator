@@ -173,6 +173,13 @@ pub fn firm_public_dioxus_routers(state: &AppState) -> Vec<Router> {
     // Foundation's because it carries a commercial offer — the nonprofit may
     // disclose who built its software, but it may not advertise that firm's
     // consulting practice.
+    // The lead offering. A marketing page like the platform page beside it, and
+    // the first thing the header carries: the firm runs the technology function
+    // for the law firms it serves, and the other three practices sit under it.
+    routers.push(dioxus_app::firm_marketing_page_router(
+        dioxus_app::FIRM_FRACTIONAL_CTO_PATH,
+        firm_copy::fractional_cto(),
+    ));
     routers.push(dioxus_app::firm_marketing_page_router(
         dioxus_app::FIRM_NAVIGATOR_PATH,
         firm_copy::navigator(),
@@ -275,141 +282,115 @@ fn resolve_firm_contact_content(
     }
 }
 
-/// The litigation areas the firm takes, in the order the public site lists
-/// them. Areas of practice, not a priced catalog: nothing here is orderable,
-/// and every fee is still quoted through `/contact`.
-const LITIGATION_AREAS: &[&str] = &[
-    "Deceptive business practices",
-    "Cybersecurity",
-    "E-Privacy",
-    "Unauthorized transfers",
-    "Unfair competition",
-    "Crypto",
-    "AI",
-    "Defamation",
-    "Trade secrets & trademarks",
-    "Contract disputes",
-    "Complex commercial litigation",
-    "Technology product liability",
-];
-
-/// The areas the firm's fractional general counsel and transactional practice
-/// covers, in the order the public site lists them.
-const TRANSACTIONAL_AREAS: &[&str] = &[
-    "Contracts",
-    "Licenses",
-    "Financings",
-    "General corporate advice",
-];
-
-/// The areas the firm's regulatory, investigations, and crisis-response
-/// practice covers, in the order the public site lists them.
-const REGULATORY_AREAS: &[&str] = &[
-    "AI",
-    "Data",
-    "National security",
-    "Privacy",
-    "Security incident response",
-    "Sensitive crisis investigations",
-    "Copyright",
-    "Right of publicity",
-    "Anti-circumvention",
-];
-
-/// The routine, one-time work the firm's Legal Services page covers, in the
-/// order the public site lists them. Areas of practice, not a priced catalog
-/// and not named products.
-const LEGAL_SERVICES_AREAS: &[&str] = &[
-    "Business formation",
-    "Nonprofit formation",
-    "Trademarks",
-    "Licensing",
-    "Mutual NDAs",
-    "Wills & trusts",
-];
-
 /// One plain run of practice prose.
 fn plain(text: &str) -> webapp::home::CopyRun {
     webapp::home::CopyRun {
         text: text.to_string(),
         emphasis: false,
+        href: None,
     }
 }
 
-/// Build the litigation header the home page leads its practice section with.
-fn resolve_litigation_header() -> webapp::home::LitigationHeader {
-    webapp::home::LitigationHeader {
-        eyebrow: "The practice".to_string(),
-        heading: "Litigation".to_string(),
-        areas: LITIGATION_AREAS
-            .iter()
-            .map(|area| (*area).to_string())
-            .collect(),
-        // Body copy carries no emphasis runs. Bold inside a paragraph pulls the
-        // eye to a phrase the sentence had already earned, and three cards each
-        // bolding their own two phrases read as a page shouting in six places.
+/// One run of practice prose that links, rendered as an inline anchor.
+fn link(text: &str, href: &str) -> webapp::home::CopyRun {
+    webapp::home::CopyRun {
+        text: text.to_string(),
+        emphasis: false,
+        href: Some(href.to_string()),
+    }
+}
+
+/// Build the engagements section the home page carries under its statement.
+///
+/// Four paragraphs, and the firm's own words in each: what vibe coding buys a
+/// lawyer, what we configure and deploy, what Navigator does and does not see,
+/// and the co-counsel half. Not four cards — the page leads with one offering,
+/// and a card grid here would read as four to choose between.
+///
+/// The named third parties are named deliberately: a firm evaluating this wants
+/// to know whether we work with the tools it already runs, and a list is a
+/// factual statement about what we configure rather than a claim about outcomes.
+/// The Navigator mention links its own page rather than repeating that page here.
+fn resolve_service_section() -> webapp::home::ServiceSection {
+    webapp::home::ServiceSection {
+        heading: "Our engagements".to_string(),
         body: vec![
             vec![plain(
-                "We represent founders, emerging companies, consumers, and investors in \
-                 high-stakes disputes, with active matters in state and federal courts, as well \
-                 as arbitration, in California, D.C., New York, and elsewhere.",
+                "We believe vibe coding is an incredibly powerful storytelling tool that allows \
+                 you to connect on a deeper level of understanding with your clients. Using \
+                 state-of-the-art frontier models, you can create dynamic worlds that are unique \
+                 and bespoke to the unique client needs, such as litigation or an estate plan. We \
+                 empower you with a safety harness to build these worlds responsibly.",
+            )],
+            vec![
+                plain(
+                    "We configure your technical architecture, common software as a service tools \
+                     such as Google Workspace, DocuSign, and Xero, AI tooling like Claude and \
+                     OpenAI, MCP servers like Descrybe, Midpage, and Trellis, and deploy ",
+                ),
+                link("Neon Law Navigator", "/navigator"),
+                plain(" securely in your environment."),
+            ],
+            vec![plain(
+                "Neon Law Navigator is designed with privacy disclosure and professional ethics \
+                 in mind. By default, we do not see our clients' matters. We only collect \
+                 anonymized telemetry to ensure your systems are still working.",
             )],
             vec![plain(
-                "We are comfortable on both sides of the v: Plaintiff and Defense.",
+                "That being said, our partner firms tap into our litigation and transactional \
+                 experience routinely to co-counsel on matters. We work fast, diligently, and \
+                 cost-effectively.",
             )],
         ],
     }
 }
 
-/// Build the two practices the home page lists under the litigation header:
-/// fractional general counsel — the company-counsel and transactional work with
-/// the regulatory, investigations, and crisis-response counseling folded into
-/// it — and Legal Services, the routine one-time work. Areas of practice like
-/// the litigation card's, so neither publishes a price or names a product.
-fn resolve_practice_cards() -> Vec<webapp::home::PracticeCard> {
-    use webapp::home::{PracticeCard, PracticeMark};
+/// Build the three boxes at the foot of the home page: the practices the firm
+/// runs beside its lead offering.
+///
+/// A sentence each and a link out. No area chips and no figure: the chip lists
+/// belong on the pages these link to, and every one of these practices is quoted
+/// per engagement — `no_firm_page_publishes_a_fee` covers this page like the
+/// rest.
+///
+/// Each sentence names the fee *arrangement* rather than an amount, because for
+/// these three the arrangement is part of the offer: a reader deciding whether to
+/// call needs to know a contingency case costs nothing to bring and that the
+/// company-counsel work is one monthly figure rather than an hourly meter.
+///
+/// The marks are drawn line icons rather than emoji. The brief asked for a bigger
+/// mark in white, and a colour emoji cannot be recoloured — see
+/// [`webapp::home::PracticeMark`] for why that ruled emoji out.
+fn resolve_practice_links() -> Vec<webapp::home::PracticeLink> {
+    use webapp::home::{PracticeLink, PracticeMark};
 
     vec![
-        PracticeCard {
-            mark: PracticeMark::Globe,
-            heading: "Fractional general counsel".to_string(),
-            areas: TRANSACTIONAL_AREAS
-                .iter()
-                .chain(REGULATORY_AREAS.iter())
-                .map(|area| (*area).to_string())
-                .collect(),
-            body: vec![
-                vec![plain(
-                    "We serve as fractional outside general counsel for multiple fast-growing \
-                     companies, from innovative AI solutions to cybersecurity platforms to \
-                     consumer products. We partner with our clients and manage their legal \
-                     roadmap in a way that enables them to focus on growing their business.",
-                )],
-                vec![plain(
-                    "We also counsel clients on AI and emerging technology regulation across \
-                     global jurisdictions, adapting policies and risk to agentic workflows.",
-                )],
-            ],
+        PracticeLink {
+            mark: PracticeMark::Scales,
+            heading: "Litigation".to_string(),
+            body: "We try cases on both sides of the v., in complex disputes over technology, \
+                   trade secrets, and fraud. Contingency and monthly arrangements rather than an \
+                   hourly meter."
+                .to_string(),
+            href: "/litigation".to_string(),
         },
-        PracticeCard {
-            mark: PracticeMark::Shield,
-            heading: "Legal Services".to_string(),
-            areas: LEGAL_SERVICES_AREAS
-                .iter()
-                .map(|area| (*area).to_string())
-                .collect(),
-            body: vec![
-                vec![plain(
-                    "For clients who are not engaged with us on litigation or fractional GC \
-                     projects, we offer one-time legal work such as forming a company, planning \
-                     an estate, or other routine matters.",
-                )],
-                vec![plain(
-                    "Our process is designed with speed in mind. Create an account, answer some \
-                     questions, upload your documentation, and we will turn around and file what \
-                     you need expeditiously.",
-                )],
-            ],
+        PracticeLink {
+            mark: PracticeMark::Handshake,
+            heading: "Fractional general counsel".to_string(),
+            body: "Company counsel on one flat monthly fee, working at the pace your sales cycle \
+                   already runs at — contracts, licences, financings, and the corporate advice \
+                   under them."
+                .to_string(),
+            href: "/fractional-gc".to_string(),
+        },
+        PracticeLink {
+            mark: PracticeMark::Gavel,
+            heading: "One-time legal services".to_string(),
+            body: "The routine matters a person or a company walks in with: a will, a trust, a \
+                   formation, a trademark, an annual report. One scope and one flat fee, agreed \
+                   before we start."
+                .to_string(),
+            href: "/services".to_string(),
         },
     ]
 }
@@ -417,38 +398,41 @@ fn resolve_practice_cards() -> Vec<webapp::home::PracticeCard> {
 /// Resolve the firm home page's static copy from the mounted `branding` — the
 /// wasm-safe [`webapp::home::HomeContent`] the Dioxus home router injects.
 /// Brand-safe like [`resolve_firm_contact_content`]: the `<title>` names the
-/// mounted brand, resolved at router-build time. The body is the hero the
-/// page opens on, then the practice statement over the practice cards — the
-/// litigation header, then fractional general counsel and Legal Services under
-/// it. Areas of practice and a record, not a priced service catalog.
+/// mounted brand, resolved at router-build time.
+///
+/// The page leads with one offering. The firm's clients here are other law
+/// firms: it runs their technology function, carries the privacy and compliance
+/// work, and sits beside them as complex counsel and co-counsel. So the body is
+/// the statement, then one section of prose — no practice grid and no price.
+/// Litigation, Fractional GC, and Legal Services are real practices with their
+/// own pages; the header carries them, and every fee is quoted through
+/// `/contact`.
 pub(crate) fn resolve_firm_home_content(
     branding: &views::brand::Branding,
 ) -> webapp::home::HomeContent {
     let mark = branding.firm.site_name;
     webapp::home::HomeContent {
         head_title: format!("{mark} | {}", "Home"),
-        meta_description: "A boutique law firm for high-stakes disputes and emerging technology \
-                           companies — litigation on both sides of the v., and company counsel on \
-                           a flat monthly fee."
+        meta_description: "Fractional CTO for law firms — AI enablement delivered through the \
+                           firm, with the privacy and compliance work, complex counsel, and a \
+                           co-counsel network on Navigator."
             .to_string(),
-        // No hero photograph. The page opens on the practice statement itself:
-        // a consumer deciding whether they can afford a lawyer is served by the
-        // first sentence, not by a landscape above it.
+        // No hero photograph. The page opens on the statement itself: a firm
+        // deciding whether to bring us in is served by the first sentence, not
+        // by a landscape above it.
         hero: None,
-        // One line. The hero is the first thing under the wordmark and it has
-        // to be read at a glance; the list of who the firm serves and what it
-        // protects them from is what the practice cards below are for.
-        heading: "A boutique law firm for high-stakes disputes and emerging technology companies"
-            .to_string(),
-        lead: "We represent clients in litigation and handle transactional work on a flat fee, \
-               monthly, or contingency fee basis. We enjoy working with our clients to design \
-               case-specific arrangements to align our incentives as much as possible with our \
-               clients' successes."
+        // One line, read at a glance. What the sentence means is the section
+        // below it.
+        heading: "Fractional CTO for law firms".to_string(),
+        lead: "We leverage our litigation, transactional, and FAANG-engineering experience to \
+               enhance legal practices with state-of-the-art agentic tooling. We help all lawyers \
+               and clerks tell wonderful stories with vibe-coding that align to their clients' \
+               needs."
             .to_string(),
         contact_href: "/contact".to_string(),
         contact_label: "Contact us".to_string(),
-        litigation: resolve_litigation_header(),
-        practices: resolve_practice_cards(),
+        service: Some(resolve_service_section()),
+        practices: resolve_practice_links(),
     }
 }
 

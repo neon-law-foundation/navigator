@@ -177,6 +177,36 @@ pub struct PageContent {
     /// The line under the title.
     pub tagline: String,
     pub bands: Vec<Band>,
+    /// Which visual language the page wears. Defaults to the marketing skin
+    /// every Foundation page uses.
+    pub skin: PageSkin,
+}
+
+/// Which visual language a marketing page wears.
+///
+/// One renderer serves the Foundation's audience pages and the firm's, and they
+/// want different typography: the Foundation's read as a campaign, the firm's
+/// practice pages as a practice. Rather than fork the renderer, a page names its
+/// skin and the stylesheet keys off a modifier class.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PageSkin {
+    /// The Foundation's campaign look, and the firm's platform page.
+    #[default]
+    Marketing,
+    /// The firm's practice look — the serif statement, the glow, and the carded
+    /// body the `/litigation` and `/fractional-gc` pages wear.
+    Practice,
+}
+
+impl PageSkin {
+    /// The modifier class this skin puts on the page root, if any.
+    #[must_use]
+    pub const fn modifier(self) -> &'static str {
+        match self {
+            Self::Marketing => "",
+            Self::Practice => " fm-page--practice",
+        }
+    }
 }
 
 /// The [`HomeContent`] the portal router injects for `/`.
@@ -285,6 +315,13 @@ fn MarketingShell(
     chrome: PublicChrome,
     title: String,
     description: String,
+    /// Hoist the firm's component layer (`brand-firm.css`) alongside this
+    /// page's own rules. The practice skin is written against that layer's
+    /// vocabulary — the card, the glow, the eyebrow — so a page wearing it
+    /// needs the sheet that defines them. Marketing-skin pages do not, and
+    /// hoisting it there would put the firm's component rules on the
+    /// Foundation's pages.
+    firm_components: bool,
     children: Element,
 ) -> Element {
     let header = rsx! {
@@ -316,9 +353,13 @@ fn MarketingShell(
             site_name: chrome.brand_name.clone(),
             image: chrome.social_image.clone(),
         }
-        // Only this page's own rules. The palette comes from the shared token
-        // layer `PublicShell` hoists, and there is no per-brand colour
-        // stylesheet to order against it.
+        // The palette comes from the shared token layer `PublicShell` hoists.
+        // A practice-skin page also needs the firm's component layer, whose
+        // card, glow, and eyebrow the skin styles against; it is hoisted first
+        // so this page's own rules order after it.
+        if firm_components {
+            document::Stylesheet { href: crate::brand_style::BRAND_STYLESHEET_HREF }
+        }
         document::Stylesheet { href: FOUNDATION_MARKETING_STYLESHEET_HREF }
         PublicShell { header, footer, {children} }
     }
@@ -333,6 +374,7 @@ pub fn FoundationHome(chrome: PublicChrome, content: HomeContent) -> Element {
             chrome: chrome.clone(),
             title: content.head_title.clone(),
             description: content.meta_description.clone(),
+            firm_components: false,
             section { class: "fm-hero",
                 div { class: "fm-hero__inner",
                     if !content.hero.badge.is_empty() {
@@ -367,13 +409,29 @@ pub fn FoundationPage(chrome: PublicChrome, content: PageContent) -> Element {
             chrome: chrome.clone(),
             title: content.head_title.clone(),
             description: content.meta_description.clone(),
-            section { class: "fm-hero fm-hero--page",
-                div { class: "fm-hero__inner",
-                    h1 { class: "fm-hero__title", "{content.title}" }
-                    p { class: "fm-hero__tagline", "{content.tagline}" }
+            firm_components: content.skin == PageSkin::Practice,
+            div { class: "fm-page{content.skin.modifier()}",
+                section { class: "fm-hero fm-hero--page",
+                    // The practice skin leads with the eyebrow and sets the
+                    // tagline as the `<h1>`, the way `/litigation` does: on a
+                    // practice page the statement is the headline and the
+                    // practice name is the label above it. The marketing skin
+                    // keeps the title as the headline.
+                    if content.skin == PageSkin::Practice {
+                        div { class: "firm-glow fm-hero__glow", "aria-hidden": "true" }
+                        div { class: "fm-hero__inner",
+                            p { class: "firm-eyebrow", "{content.title}" }
+                            h1 { class: "fm-hero__title", "{content.tagline}" }
+                        }
+                    } else {
+                        div { class: "fm-hero__inner",
+                            h1 { class: "fm-hero__title", "{content.title}" }
+                            p { class: "fm-hero__tagline", "{content.tagline}" }
+                        }
+                    }
                 }
+                Bands { items: content.bands.clone() }
             }
-            Bands { items: content.bands.clone() }
         }
     }
 }
@@ -753,6 +811,73 @@ mod tests {
         assert!(out.contains(r#"<ol class="fm-steps""#), "ordered: {out}");
     }
 
+    /// The two skins put the page's `<h1>` in different places, and that is the
+    /// whole point of the flag.
+    ///
+    /// A Foundation audience page is a campaign: the title is the headline. A
+    /// firm practice page is a practice: the practice name is the label and the
+    /// statement is the headline, the way `/litigation` reads. One renderer
+    /// serves both, so this is what keeps a change to one from silently
+    /// restyling the other.
+    #[test]
+    fn the_practice_skin_leads_with_the_eyebrow_and_the_marketing_skin_with_the_title() {
+        fn page(skin: PageSkin) -> String {
+            let content = PageContent {
+                head_title: "T".to_string(),
+                meta_description: "D".to_string(),
+                title: "Fractional CTO".to_string(),
+                tagline: "We run the technology function for law firms.".to_string(),
+                bands: vec![],
+                skin,
+            };
+            let mut dom = VirtualDom::new_with_props(
+                FoundationPage,
+                FoundationPageProps {
+                    chrome: chrome(),
+                    content,
+                },
+            );
+            dom.rebuild_in_place();
+            dioxus_ssr::render(&dom)
+        }
+
+        let practice = page(PageSkin::Practice);
+        assert!(
+            practice.contains("fm-page--practice"),
+            "the practice skin marks the page root: {practice}"
+        );
+        assert!(
+            practice.contains(r#"<p class="firm-eyebrow">Fractional CTO</p>"#),
+            "the practice name is the eyebrow: {practice}"
+        );
+        assert!(
+            practice.contains("We run the technology function for law firms."),
+            "the statement is on the page: {practice}"
+        );
+        assert!(
+            practice.contains("firm-glow"),
+            "the practice skin carries the glow the practice pages wear: {practice}"
+        );
+
+        let marketing = page(PageSkin::Marketing);
+        assert!(
+            !marketing.contains("fm-page--practice"),
+            "the marketing skin does not mark the root: {marketing}"
+        );
+        assert!(
+            !marketing.contains("firm-eyebrow"),
+            "the marketing skin renders no eyebrow: {marketing}"
+        );
+        assert!(
+            !marketing.contains("firm-glow"),
+            "the marketing skin carries no glow: {marketing}"
+        );
+        assert!(
+            marketing.contains(r#"class="fm-hero__tagline""#),
+            "the marketing skin keeps the tagline under the title: {marketing}"
+        );
+    }
+
     #[test]
     fn an_audience_page_renders_its_title_and_bands_without_a_badge() {
         fn app() -> Element {
@@ -767,6 +892,7 @@ mod tests {
                     email: "support@neonlaw.org".to_string(),
                     email_subject: None,
                 }],
+                skin: PageSkin::Marketing,
             };
             rsx! { FoundationPage { chrome: chrome(), content } }
         }

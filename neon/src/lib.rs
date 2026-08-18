@@ -46,6 +46,7 @@ pub use redirects::retired_path_routes;
 pub const PUBLIC_PATHS: &[&str] = &[
     // --- The firm ---------------------------------------------------------
     "/",
+    "/fractional-cto",
     "/services",
     "/litigation",
     "/fractional-gc",
@@ -130,6 +131,7 @@ pub const PUBLIC_PATHS: &[&str] = &[
 pub fn sitemap_paths(state: &AppState) -> std::collections::BTreeSet<String> {
     let mut paths: std::collections::BTreeSet<String> = [
         "/",
+        "/fractional-cto",
         "/services",
         "/litigation",
         "/fractional-gc",
@@ -223,6 +225,13 @@ fn indexed_pages(mark: &str) -> Vec<portal::LlmsTxtLink> {
             "The firm's practice — flat-fee consumer legal work with every price published, \
                  litigation on both sides of the v., and company counsel for emerging technology \
                  companies.",
+        ),
+        page(
+            "Fractional CTO",
+            "/fractional-cto",
+            "The firm runs the technology function for a law firm: AI enablement delivered \
+                 through the firm, the privacy and compliance work under it, and complex counsel \
+                 beside it. A law-related service, quoted per engagement.",
         ),
         page(
             "Legal Services and fees",

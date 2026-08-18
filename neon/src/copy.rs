@@ -359,6 +359,7 @@ mod foundation_copy {
     /// `/education` — the CLE and training curriculum.
     pub fn education() -> PageContent {
         PageContent {
+            skin: webapp::foundation_marketing::PageSkin::Marketing,
             head_title: format!("Education and CLE — {}", views::brand::FOUNDATION_BRAND.site_name),
             meta_description:
                 "The Neon Law Foundation teaches continuing legal education and hands-on training \
@@ -485,6 +486,7 @@ mod foundation_copy {
     /// `/legal-aid` — the pitch to legal aid centers.
     pub fn legal_aid() -> PageContent {
         PageContent {
+            skin: webapp::foundation_marketing::PageSkin::Marketing,
             head_title: format!(
                 "For legal aid centers — {}",
                 views::brand::FOUNDATION_BRAND.site_name
@@ -559,6 +561,7 @@ mod foundation_copy {
     /// `/attorneys` — the pitch to volunteer attorneys.
     pub fn attorneys() -> PageContent {
         PageContent {
+            skin: webapp::foundation_marketing::PageSkin::Marketing,
             head_title: format!(
                 "For volunteer attorneys — {}",
                 views::brand::FOUNDATION_BRAND.site_name

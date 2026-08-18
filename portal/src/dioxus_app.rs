@@ -2512,6 +2512,12 @@ pub fn firm_marketing_page_router(
 /// and the invitation to co-counsel a pro bono case alongside the Foundation.
 pub const FIRM_NAVIGATOR_PATH: &str = "/navigator";
 
+/// The firm's lead offering: it runs the technology function for a law firm —
+/// AI enablement, the privacy and compliance work under it, and complex counsel
+/// beside it. A law-related service, which is why its page carries an RPC 5.7
+/// disclosure the other marketing pages do not need.
+pub const FIRM_FRACTIONAL_CTO_PATH: &str = "/fractional-cto";
+
 /// The firm's Legal Services page: the published flat-fee catalog of one-time
 /// consumer legal work — a will, a trust, a name change, a formation — each
 /// with the fee the firm charges for it printed on the page. A single page,
