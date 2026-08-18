@@ -429,14 +429,18 @@ Apple silicon — so an Intel Mac still builds the immutable release tag locally
 carries that exact command beside the three downloads. Failure at any stage pages `#navigator`.
 
 **Every publishing run builds all three CLI archives, and Project CI depends on them.** `release-windows-cli-build`,
-`release-cli-build-linux`, and `release-cli-build-macos` carry no `if:` of their own — they need the two publish jobs,
-so they run whenever a run publishes images and skip whenever one does not (a `kind-ci/**` branch iteration). This is
-not only for human downloads: the `.github/actions/validate` composite action, the gate **every** Project repository
-runs, downloads `navigator-<version>-<platform>` from the Release these jobs cut. If they stop running, Project CI
-breaks everywhere with a download 404 and nothing in this repository goes red — which is exactly the kind of failure
-worth stating in prose, because no test here will catch it. The macOS archive existed nowhere until it was added:
-`validate` had always mapped a macOS runner to `platform=macos`, so that download 404'd for every Project repository
-whose gate ran on one.
+`release-cli-build-linux`, and `release-cli-build-macos` need `release-version` alone and carry the same `publishable`
+gate the publish jobs do, so they run whenever a run publishes images and skip whenever one does not (a `kind-ci/**`
+branch iteration). Waiting on the tag and nothing else is what makes them a second lane running *beside* `build` →
+`integration` → `publish-*` rather than behind it: a release's wall clock is the longer of the two lanes instead of
+their sum, which on the 90-minute Windows compile is most of the run. Nothing reaches a stranger early, because
+`release-windows-cli-publish` needs both publish jobs as well as the three archives — the Release, the first fetchable
+artifact of the run, is still cut after the KIND integration gate the publishes carry. This is not only for human
+downloads: the `.github/actions/validate` composite action, the gate **every** Project repository runs, downloads
+`navigator-<version>-<platform>` from the Release these jobs cut. If they stop running, Project CI breaks everywhere
+with a download 404 and nothing in this repository goes red — which is exactly the kind of failure worth stating in
+prose, because no test here will catch it. The macOS archive existed nowhere until it was added: `validate` had always
+mapped a macOS runner to `platform=macos`, so that download 404'd for every Project repository whose gate ran on one.
 
 **The three archive jobs run on the free GitHub-hosted runners** — `windows-latest`, `ubuntu-latest`, and
 `macos-latest`. Public repositories are not billed for any of them, including the macOS and Windows classes a private
