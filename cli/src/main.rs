@@ -23,6 +23,7 @@ mod notices;
 mod palette;
 mod project;
 mod projects;
+mod release_provenance;
 mod release_version;
 mod remote;
 mod scaffold;
@@ -638,15 +639,16 @@ enum OpsCmd {
     Github(GithubCmd),
     /// One-shot deployment reconciler — the "do everything" button documented
     /// in `docs/cloud-operations.md`. CI (`deploy.yml`) builds and publishes
-    /// the images to Artifact Registry tagged `YY.M.D`; `ops ship` reconciles
-    /// the cluster. Flow: take the `--tag` `YY.M.D` Artifact Registry tag →
+    /// the images to GHCR under an immutable release tag; `ops ship` reconciles
+    /// the cluster. Flow: take the `--tag` (`YY.M.D`, legacy `YY.M.D.H`, or
+    /// `YY.M.D-hotfix.N`) →
     /// reconcile the manifests (render the embedded GKE tree with the selected
     /// deployment's `NAVIGATOR_*` coordinates into a temp dir and `kubectl
     /// apply -k` it) → confirm the selected deployment's Secret satisfies the
     /// new binary's boot invariants → roll out its runtime workloads at that
     /// tag → pin every trigger `CronJob` to the same tag → re-register the
     /// worker with Restate, so every navigator image ends in sync at one
-    /// `YY.M.D`. Reads every project / region / domain / cluster value from
+    /// immutable release tag. Reads every project / region / domain / cluster value from
     /// the repository's `deployments/<name>/config.toml`, selected by the
     /// required `--deployment` flag — never from the process environment, so a
     /// stale shell cannot select the wrong deployment. Never builds images
@@ -679,9 +681,9 @@ enum OpsCmd {
         /// differ from the cluster, because it applies none of that diff.
         #[arg(long)]
         image_only: bool,
-        /// The `YY.M.D` registry tag to roll onto. Required for a roll — name
-        /// the exact published release (both deployments pin to the same tag,
-        /// never a skew). Omit only with `--restart-only`.
+        /// Immutable registry tag to roll onto: `YY.M.D`, legacy `YY.M.D.H`,
+        /// or `YY.M.D-hotfix.N`. Required for a roll; omit only with
+        /// `--restart-only`.
         #[arg(long)]
         tag: Option<String>,
     },
@@ -794,17 +796,19 @@ enum OpsCmd {
     /// tag whose source version does not match, so tag and source cannot drift.
     /// Pass `--tag` to write an explicit version instead of today's UTC date, or
     /// `--hotfix` to cut a same-day hotfix when today's release already
-    /// happened: a `-hotfix.H` prerelease hung off TOMORROW's date, where `H` is
-    /// the current UTC hour. The next day is the base because semver ranks a
+    /// happened: a `-hotfix.N` prerelease hung off TOMORROW's date. The
+    /// convenience command uses the current UTC hour as `N`; pass an explicit
+    /// `--tag` when another numeric discriminator is required. The next day is
+    /// the base because semver ranks a
     /// prerelease below its own base, so `26.8.17-hotfix.17` would sort as older
     /// than the `26.8.17` it fixes.
     ReleaseVersion {
         /// Version to write. Defaults to today's UTC `YY.M.D`.
         #[arg(long)]
         tag: Option<String>,
-        /// Write a same-day hotfix version instead — `YY.M.D-hotfix.H` on
-        /// tomorrow's date, at the current UTC hour. The spelling for releasing
-        /// again on a day whose `YY.M.D` tag is already spent.
+        /// Write a same-day `YY.M.D-hotfix.N` version on tomorrow's date, using
+        /// the current UTC hour as the default numeric N. Use `--tag` to choose
+        /// another N when needed.
         #[arg(long, conflicts_with = "tag")]
         hotfix: bool,
         /// The workspace manifest to rewrite.
@@ -813,6 +817,19 @@ enum OpsCmd {
         /// Write the manifest but create no commit — commit and tag it yourself.
         #[arg(long)]
         no_commit: bool,
+    },
+    /// Verify that a release tag resolves to a commit already reachable from
+    /// `origin/main`. Fetches `origin/main` first, peels annotated or
+    /// lightweight tags to their commit, and refuses an unmerged PR or side
+    /// branch. Run by `deploy.yml` before it publishes images, CLI archives, or
+    /// a GitHub Release.
+    ReleaseProvenance {
+        /// Immutable release tag to verify.
+        #[arg(long)]
+        tag: String,
+        /// Git checkout containing the tag and an `origin` remote.
+        #[arg(long, default_value = ".")]
+        repo: PathBuf,
     },
     /// Regenerate `THIRD-PARTY-NOTICES.txt` from `Cargo.lock` — the licence
     /// texts the downloadable binary must carry, deduplicated so each distinct
@@ -1685,6 +1702,7 @@ fn main() -> ExitCode {
             action @ (OpsCmd::Lsp { .. }
             | OpsCmd::Assets { .. }
             | OpsCmd::CliRelease { .. }
+            | OpsCmd::ReleaseProvenance { .. }
             | OpsCmd::ReleaseVersion { .. }
             | OpsCmd::Notices { .. }),
         ) => match action {
@@ -1695,6 +1713,7 @@ fn main() -> ExitCode {
                 manifest_path,
                 no_commit,
             } => release_version::run(&manifest_path, tag, hotfix, no_commit),
+            OpsCmd::ReleaseProvenance { tag, repo } => release_provenance::run(&repo, &tag),
             OpsCmd::CliRelease { action } => match action {
                 CliReleaseAction::Upload { dir, tag } => cli_release::run_upload(&dir, &tag),
             },

@@ -157,8 +157,8 @@ What the gate proves:
   Navigator's own namespaces, `/app/` and `/auth/`, are the deliberate exception: a portal links back to `/app/projects`
   and out through `/auth/logout`, and those are outside the mount on purpose.
 
-Pin the action to an exact `YY.M.D` release tag, never `main` or `latest`. Publishing a rolling pointer is allowed;
-consuming one is not.
+Pin the action to an exact immutable release tag (`YY.M.D`, legacy `YY.M.D.H`, or `YY.M.D-hotfix.N`), never `main` or
+`latest`. Publishing a rolling pointer is allowed; consuming one is not.
 
 ## Publishing the built bundle
 

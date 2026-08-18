@@ -7,7 +7,7 @@ name: deploy
 #
 #   0. release-version — VALIDATE the pushed tag. It creates nothing, derives
 #      nothing, and holds `contents: read`; it reads the ref it was handed and
-#      refuses it on three counts, each of which would otherwise publish an
+#      refuses it on four counts, each of which would otherwise publish an
 #      image whose name is a lie:
 #
 #        a. SHAPE — `YY.M.D`, unpadded, matching the `release-tags` ruleset glob
@@ -23,6 +23,9 @@ name: deploy
 #           never heard of. `navigator ops release-version` writes the bump; it
 #           lands through an ordinary PR, and the tag goes on that merged
 #           commit.
+#        d. PROVENANCE — the tag peels to a commit reachable from the freshly
+#           fetched `origin/main`. A PR branch is never a release source, even
+#           when every other tag check passes.
 #
 #      The tag then threads into every image build as the `RELEASE_TAG`
 #      build-arg, which each Containerfile turns into a runtime
@@ -181,22 +184,28 @@ jobs:
       # ref/event boolean — a `kind-ci/**` branch run reports false and stops
       # after integration.
       publishable: ${{ steps.version.outputs.publishable }}
-      # Whether this tag is a same-day `-hotfix.H` prerelease. It gates the two
+      # Whether this tag is a same-day `-hotfix.N` prerelease. It gates the two
       # places a prerelease must NOT behave like an ordinary release: the GitHub
       # Release is marked as a prerelease, and the Homebrew tap is not told
       # about it at all (see `release-homebrew-tap`).
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      # Sparse, but NOT metadata-only: this job compares the tag against
-      # `[workspace.package].version`, so the manifest has to be on disk. A path
-      # missing from this list is a file that silently is not there, and the
-      # comparison below reads an empty string rather than failing — hence the
-      # explicit `-f` check in the script.
+      # Full history is required for `release-provenance` to prove ancestry,
+      # and the full source is required to build that Rust CLI guard. A shallow
+      # tag checkout cannot prove that its commit is behind `origin/main`.
       - uses: actions/checkout@v7
         with:
-          sparse-checkout: |
-            .github/actions/slack-progress
-            Cargo.toml
+          fetch-depth: 0
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: ""
+          stage: "release-version"
+          step: "install rust toolchain"
+      - name: install rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
       - uses: ./.github/actions/slack-progress
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -228,9 +237,9 @@ jobs:
 
           # 1. SHAPE. The push filter already admits only `[0-9]*.[0-9]*.[0-9]*`,
           #    but that glob is far looser than it looks — fnmatch's `*` matches
-          #    dots, so `26.8.17.13`, `26.8.x`, and every `-hotfix.H` tag below
+          #    dots, so `26.8.17.13`, `26.8.x`, and every `-hotfix.N` tag below
           #    all pass it. Anchor the real shape here: two-digit year, unpadded
-          #    month and day, and an OPTIONAL `-hotfix.H` prerelease.
+          #    month and day, and an OPTIONAL `-hotfix.N` prerelease.
           #
           #    A FOURTH COMPONENT IS STILL IMPOSSIBLE, BUT A PRERELEASE IS NOT.
           #    Cargo parses `[workspace.package].version` as strict semver and
@@ -241,12 +250,11 @@ jobs:
           #    Cargo holds it in the manifest verbatim. That is the whole reason
           #    a same-day hotfix has a spelling at all.
           #
-          #    `H` is bounded 0-23 with NO leading zero, because semver forbids
-          #    a leading zero in a numeric prerelease identifier — `hotfix.08`
-          #    is not a valid version, which is the same unpadded rule the date
-          #    components already follow.
-          if ! printf '%s' "${tag}" | grep -Eq '^[0-9]{2}\.[0-9]{1,2}\.[0-9]{1,2}(-hotfix\.([0-9]|1[0-9]|2[0-3]))?$'; then
-              echo "::error::tag ${tag} is not a YY.M.D release version, optionally suffixed -hotfix.H (two-digit year, unpadded month and day, H an unpadded UTC hour 0-23)"
+          #    `N` is an unpadded numeric release discriminator. It is not an
+          #    hour and is not bounded at 23. Semver forbids a leading zero in
+          #    a numeric prerelease identifier, so `hotfix.014` is invalid.
+          if ! printf '%s' "${tag}" | grep -Eq '^[0-9]{2}\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)(-hotfix\.(0|[1-9][0-9]*))?$'; then
+              echo "::error::tag ${tag} is not a YY.M.D release version, optionally suffixed -hotfix.N (two-digit year; unpadded numeric month, day, and N)"
               exit 1
           fi
 
@@ -302,7 +310,7 @@ jobs:
               exit 1
           fi
 
-          #    NOTHING CLOCK-CHECKS `H`. It is a uniqueness-and-ordering
+          #    NOTHING CLOCK-CHECKS `N`. It is a uniqueness-and-ordering
           #    discriminator, not an assertion this job can verify: a tag pushed
           #    at 17:58 whose run starts at 18:01 carries an hour that was
           #    correct when pushed, and failing it would burn an immutable tag
@@ -345,13 +353,21 @@ jobs:
               exit 1
           fi
 
+          # 4. PROVENANCE. A tag carries no branch name, so shape, date, and
+          #    manifest equality cannot distinguish merged main from an
+          #    unmerged PR commit. The Rust CLI fetches `origin/main`, peels
+          #    annotated or lightweight tags to a commit, and runs Git's own
+          #    `merge-base --is-ancestor` check. Every publisher needs this job,
+          #    so a refusal happens before any image, archive, or Release.
+          cargo run --locked -p cli --quiet -- ops release-provenance --tag "${REF_NAME}"
+
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "publishable=true" >> "$GITHUB_OUTPUT"
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
           if [ "${prerelease}" = "true" ]; then
-              echo "hotfix ${tag}: shape, base date ${base} (tomorrow UTC), and workspace version all agree — publishes as a prerelease, and the Homebrew tap is NOT notified"
+              echo "hotfix ${tag}: shape, base date ${base} (tomorrow UTC), workspace version, and main provenance all agree — publishes as a prerelease, and the Homebrew tap is NOT notified"
           else
-              echo "release ${tag}: shape, UTC date, and workspace version all agree"
+              echo "release ${tag}: shape, UTC date, workspace version, and main provenance all agree"
           fi
 
 
@@ -1320,7 +1336,7 @@ jobs:
   # per-brand hosts (neon-server, neon-server) and
   # navigator-workflows-service, plus the navigator-web alias tag that
   # `neon-server`'s leg points at its own manifest — plus the
-  # six CronJob images — all to the private Google Artifact Registry tagged
+  # six CronJob images — all to GHCR under the immutable release tag
   # with the release date + `latest`, so prod pulls every image from one
   # registry fed by CI.
   #
@@ -2156,7 +2172,7 @@ jobs:
           GH_HOST="${GITHUB_SERVER_URL#https://}"
           export GH_HOST
           if ! gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-              # A `-hotfix.H` tag is marked as a prerelease so GitHub stops
+              # A `-hotfix.N` tag is marked as a prerelease so GitHub stops
               # reporting it as "Latest release". Without this the hotfix would
               # become the front-page download even though it is, by semver
               # precedence, ranked BELOW the ordinary release it precedes.
@@ -2187,7 +2203,7 @@ jobs:
   # let a malformed dispatch pin the formula to bytes nobody verified, and would
   # leave the tap unable to repair a bad bump without a new release here — which
   # `YY.M.D` makes impossible until tomorrow, since the tap sees only ordinary
-  # releases and never the `-hotfix.H` tags below.
+  # releases and never the `-hotfix.N` tags below.
   #
   # WHY A SEPARATE REPOSITORY. A tap is a Git repository Homebrew clones and
   # re-reads on every `brew update`, and the formula changes on a cadence this
@@ -2205,7 +2221,7 @@ jobs:
   # Project-CI 404 the archive jobs above exist to prevent.
   #
   # A HOTFIX NEVER REACHES THE TAP. The formula has exactly one version and
-  # every `brew install` resolves to it, so bumping it to a `-hotfix.H`
+  # every `brew install` resolves to it, so bumping it to a `-hotfix.N`
   # prerelease would hand an rc to every macOS user who ran `brew update` —
   # while ranking BELOW the ordinary release, so the tap could not even be
   # walked forward to it correctly. A hotfix publishes images and archives for
@@ -2323,7 +2339,7 @@ jobs:
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       TAG: ${{ needs.release-version.outputs.tag }}
-      # Whether this is a `-hotfix.H` prerelease. The install message reads it
+      # Whether this is a `-hotfix.N` prerelease. The install message reads it
       # to stop naming `brew`, which cannot resolve a tag the tap never saw.
       PRERELEASE: ${{ needs.release-version.outputs.prerelease }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

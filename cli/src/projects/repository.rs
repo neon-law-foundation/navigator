@@ -397,7 +397,9 @@ fn validate_workflow(path: &Path, contents: &str, errors: &mut Vec<Finding>) {
     if !is_release_tag(action_version) {
         errors.push(Finding::at(
             path,
-            format!("validation action ref `{action_version}` must be an exact YY.M.D release tag"),
+            format!(
+                "validation action ref `{action_version}` must be an exact YY.M.D, YY.M.D.H, or YY.M.D-hotfix.N release tag"
+            ),
         ));
     }
     if !contents.contains("project_repository: true") {
@@ -409,11 +411,7 @@ fn validate_workflow(path: &Path, contents: &str, errors: &mut Vec<Finding>) {
 }
 
 fn is_release_tag(version: &str) -> bool {
-    let segments: Vec<&str> = version.split('.').collect();
-    (segments.len() == 3 || segments.len() == 4)
-        && segments
-            .iter()
-            .all(|segment| !segment.is_empty() && segment.bytes().all(|byte| byte.is_ascii_digit()))
+    crate::devx::registry::is_release_tag(version)
 }
 
 fn validate_templates(
@@ -627,7 +625,10 @@ mod tests {
     fn generated_template_has_a_stable_code() {
         assert!(example_template().contains("code: project_template"));
         assert!(is_release_tag("26.7.27"));
+        assert!(is_release_tag("26.7.27.4"));
+        assert!(is_release_tag("26.8.19-hotfix.14"));
         assert!(!is_release_tag("main"));
+        assert!(!is_release_tag("26.8.19-hotfix."));
     }
 
     /// The generated gate is one always-running required job.

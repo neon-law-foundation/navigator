@@ -211,9 +211,9 @@ fn a_hotfix_tag_is_a_prerelease_on_tomorrows_utc_date() {
     let workflow = deploy_workflow();
 
     assert!(
-        workflow.contains("(-hotfix\\.([0-9]|1[0-9]|2[0-3]))?$"),
-        "the shape check must admit an optional `-hotfix.H` suffix bounded 0-23, with no leading \
-         zero — a padded `hotfix.08` is invalid semver"
+        workflow.contains("(-hotfix\\.(0|[1-9][0-9]*))?$"),
+        "the shape check must admit an optional `-hotfix.N` suffix with any unpadded numeric N — \
+         a missing, empty, nonnumeric, or padded number is invalid"
     );
     assert!(
         workflow.contains("date -d 'tomorrow'"),
@@ -227,6 +227,72 @@ fn a_hotfix_tag_is_a_prerelease_on_tomorrows_utc_date() {
         workflow.contains("expected=\"${today}\""),
         "an ordinary release must still be validated against today's base"
     );
+}
+
+/// The release source must already have passed through `main`. A tag can be
+/// pushed from any commit, and Git commits retain no branch name, so the first
+/// job has to fetch `origin/main`, peel the tag to its commit, and prove that
+/// commit is an ancestor before any image, archive, or GitHub Release publishes.
+#[test]
+fn publication_waits_for_the_main_reachability_guard() {
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
+    let release = &workflow["jobs"]["release-version"];
+    let steps = release["steps"]
+        .as_sequence()
+        .expect("release-version must declare steps");
+
+    let guard = steps
+        .iter()
+        .find(|step| {
+            step["run"]
+                .as_str()
+                .is_some_and(|run| run.contains("ops release-provenance"))
+        })
+        .expect("release-version must invoke the Rust release-provenance guard");
+    let run = guard["run"].as_str().expect("the guard must be a run step");
+    assert!(run.contains("--tag \"${REF_NAME}\""), "{run}");
+
+    let checkout = steps
+        .iter()
+        .find(|step| {
+            step["uses"]
+                .as_str()
+                .unwrap_or_default()
+                .starts_with("actions/checkout")
+        })
+        .expect("release-version must check out the tagged tree");
+    assert_eq!(
+        checkout["with"]["fetch-depth"].as_u64(),
+        Some(0),
+        "the ancestry test needs the complete tag and main history"
+    );
+
+    for publisher in [
+        "publish-service",
+        "publish-triggers",
+        "release-windows-cli-build",
+        "release-cli-build-linux",
+        "release-cli-build-macos",
+        "release-windows-cli-publish",
+    ] {
+        let needs = match &workflow["jobs"][publisher]["needs"] {
+            serde_yaml::Value::String(need) => vec![need.clone()],
+            serde_yaml::Value::Sequence(needs) => needs
+                .iter()
+                .map(|need| {
+                    need.as_str()
+                        .unwrap_or_else(|| panic!("{publisher} has a non-string need"))
+                        .to_string()
+                })
+                .collect(),
+            other => panic!("{publisher} needs must be a string or list, got {other:?}"),
+        };
+        assert!(
+            needs.iter().any(|need| need == "release-version"),
+            "{publisher} must wait for the main-reachability guard"
+        );
+    }
 }
 
 /// A hotfix must not masquerade as the latest release, in either place that
@@ -295,10 +361,9 @@ fn the_release_tag_must_equal_the_workspace_version() {
          source never carried"
     );
 
-    // Reading the manifest requires it on disk. The job checks out sparsely, so
-    // a path that is not listed is a file that silently is not there — and a
-    // comparison against an unreadable manifest is a comparison that cannot
-    // fail for the right reason.
+    // Reading the manifest and building the Rust provenance guard require the
+    // source on disk. A sparse metadata checkout would make one or both checks
+    // impossible.
     let checkout = steps
         .iter()
         .find(|step| {
@@ -308,13 +373,9 @@ fn the_release_tag_must_equal_the_workspace_version() {
                 .starts_with("actions/checkout")
         })
         .expect("release-version must check out the tree it validates");
-    let sparse = checkout["with"]["sparse-checkout"]
-        .as_str()
-        .unwrap_or_default();
     assert!(
-        sparse.contains("Cargo.toml"),
-        "release-version's sparse checkout must include Cargo.toml — it is the file the tag is \
-         compared against. Got: {sparse:?}"
+        checkout["with"]["sparse-checkout"].is_null(),
+        "release-version must check out the full source for Cargo.toml and the Rust provenance guard"
     );
 }
 

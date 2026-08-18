@@ -8,13 +8,13 @@
 //!
 //! **CI builds and publishes; ship only rolls.** The daily
 //! `deploy.yml` tag flow builds service images and publishes them to
-//! the private Artifact Registry tagged `YY.M.D`; this module never
+//! GHCR under an immutable release tag; this module never
 //! builds or pushes an image — it pins the running cluster to an
 //! already-published tag.
 //!
 //! Two flows, matching the documented rollout path:
 //!
-//! - **Roll** (default): take the `YY.M.D` release tag to deploy (required
+//! - **Roll** (default): take an immutable release tag to deploy (required
 //!   `--tag`) → confirm every image is published at that tag → render the
 //!   embedded GKE tree with the deployer's `NAVIGATOR_*` values **and the
 //!   tag** → confirm the prod Secret satisfies the new binary's boot
@@ -1127,7 +1127,8 @@ pub struct ShipOpts {
     /// apply — silently running the cheap lane against a changed tree is
     /// the failure this flag would otherwise introduce.
     pub image_only: bool,
-    /// The `YY.M.D[.H]` release tag to roll onto. Required for a roll —
+    /// The immutable `YY.M.D`, legacy `YY.M.D.H`, or `YY.M.D-hotfix.N` tag to
+    /// roll onto. Required for a roll —
     /// `None` is rejected (we never guess the latest tag); only the
     /// `--restart-only` path, which changes no image, runs without it.
     pub tag: Option<String>,
@@ -1302,7 +1303,8 @@ fn image_only_image_writes(cfg: &ShipConfig, tag: &str) -> [(&'static str, Strin
 /// Two refusals, not one. The lane's only job is to move images to a named
 /// release, so an absent `--tag` leaves it with nothing to do — and it never
 /// guesses the latest published tag, exactly as the full roll never does.
-/// A present tag still has to be a real `YY.M.D[.H]` release name: the
+/// A present tag still has to be a real `YY.M.D`, legacy `YY.M.D.H`, or
+/// `YY.M.D-hotfix.N` release name: the
 /// scheduled caller derives the tag from a clock, and a derivation that
 /// produces `2026-08-17` or an empty string must fail here rather than as a
 /// pod pulling an image that does not exist.
@@ -1369,7 +1371,7 @@ fn drift_verdict(code: Option<i32>) -> Result<()> {
     }
 }
 
-/// Roll the cluster onto an already-published `YY.M.D` release tag.
+/// Roll the cluster onto an already-published immutable release tag.
 /// CI built and published the images; this only updates the cluster:
 /// resolve the tag → confirm the Secret satisfies the new binary's boot
 /// invariants → pin service deployments AND every trigger `CronJob` to
@@ -1395,12 +1397,12 @@ fn roll(
     //     mint if its GSA holds serviceAccountTokenCreator on itself.
     ensure_web_signing_iam(cfg, dry_run)?;
 
-    // 2. The YY.M.D[.H] tag to roll — always an explicit `--tag`, so the
+    // 2. The immutable release tag to roll — always an explicit `--tag`, so the
     //    operator names the exact published release rather than letting the
     //    roll guess. Present service deployments get the SAME tag.
     let Some(tag) = opts.tag.as_deref() else {
         bail!(
-            "`--tag YY.M.D` is required: name the published release to roll onto. \
+            "`--tag <YY.M.D|YY.M.D.H|YY.M.D-hotfix.N>` is required: name the published release to roll onto. \
              We never guess the latest tag; pass the tag from the deploy hand-off \
              (or use `--restart-only` to re-read a rotated Secret without changing the image)."
         );
@@ -4586,9 +4588,8 @@ spec:
 
     #[test]
     fn render_pins_a_same_day_h_tag() {
-        // `YY.M.D` is the substitution TOKEN, not a shape constraint: an
-        // ad-hoc same-day release carries a fourth `.H` group
-        // (`registry::is_release_tag` accepts 3 or 4). The render must pin it
+        // `YY.M.D` is the substitution TOKEN, not a shape constraint: a
+        // legacy ad-hoc same-day release carries a fourth `.H` group. The render must pin it
         // verbatim rather than assume three components.
         let subs = resolve_substitutions_for_deployment(
             "neon-production",
@@ -4605,6 +4606,29 @@ spec:
         )
         .unwrap();
         assert!(web_image.contains("neon-server:26.7.15.4"), "{web_image}");
+        assert!(!web_image.contains(RELEASE_TAG_TOKEN));
+    }
+
+    #[test]
+    fn render_pins_a_hotfix_tag_verbatim() {
+        let subs = resolve_substitutions_for_deployment(
+            "neon-production",
+            "26.8.19-hotfix.14",
+            env_getter(FULL_ENV),
+        )
+        .expect("full env resolves");
+        let rendered = render_manifests_with(&subs, false).expect("render succeeds");
+        let web_image = fs::read_to_string(
+            rendered
+                .path()
+                .join(GKE_KUSTOMIZE_SUBPATH)
+                .join("patches/web-image.yaml"),
+        )
+        .unwrap();
+        assert!(
+            web_image.contains("neon-server:26.8.19-hotfix.14"),
+            "{web_image}"
+        );
         assert!(!web_image.contains(RELEASE_TAG_TOKEN));
     }
 
@@ -5169,6 +5193,7 @@ spec:
         // that produces the wrong shape must fail here rather than as a pod
         // pulling an image nobody published.
         assert!(super::image_only_tag(Some("26.8.17")).is_ok());
+        assert!(super::image_only_tag(Some("26.8.19-hotfix.14")).is_ok());
         for wrong in ["", "2026-08-17", "latest", "v26.8.17"] {
             assert!(
                 super::image_only_tag(Some(wrong)).is_err(),

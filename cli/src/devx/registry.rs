@@ -1,8 +1,9 @@
 //! Shared container-registry helpers.
 //!
 //! CI (`deploy.yml`) builds and pushes every navigator image once, to
-//! `ghcr.io/<owner>` tagged `YY.M.D`. Three callers resolve and verify those
-//! tags and must do it identically, so the logic lives here once:
+//! `ghcr.io/<owner>` tagged with an immutable release name. Three callers
+//! resolve and verify those tags and must do it identically, so the logic lives
+//! here once:
 //!
 //! - `ship` — rolls **prod** onto a published tag.
 //! - `deploy` / `up` — pull the published images into the **local KIND**
@@ -60,43 +61,56 @@ pub fn image_ref(registry: &str, image: &str, tag: &str) -> String {
     format!("{registry}/{image}:{tag}")
 }
 
-/// True when `tag` is the `YY.M.D` release shape — three dot-separated
-/// numeric groups (e.g. `26.6.23`) — with an optional `.H` fourth group
-/// for an ad-hoc same-day release (e.g. `26.6.25.14`).
-///
-/// Each component carries **no leading zeros** (the firm-wide version
-/// convention: June is `6`), so groups are 1–2 digits — a four-digit year
-/// (`2026.…`) is rejected.
-#[must_use]
-pub fn is_release_tag(tag: &str) -> bool {
-    let parts: Vec<&str> = tag.split('.').collect();
-    (parts.len() == 3 || parts.len() == 4)
-        && parts
-            .iter()
-            .all(|p| (1..=2).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_digit()))
+/// One parsed immutable release tag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ReleaseTag {
+    year: u32,
+    month: u32,
+    day: u32,
+    variant: ReleaseVariant,
 }
 
-/// Reject a `--tag` that is not a `YY.M.D[.H]` release tag — rolling a
-/// `latest` or a `ci-<sha>` tag onto a workload is exactly the
-/// un-auditable deploy we forbid.
+/// Same-day release variants, in their compatibility order.
+///
+/// The legacy `.H` form predates `-hotfix.N`. Keeping it between the base and
+/// the current hotfix form makes the ordering deterministic if a registry
+/// contains both conventions for one date: base < `.H` < `-hotfix.N`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReleaseVariant {
+    Base,
+    Legacy(u32),
+    Hotfix(u32),
+}
+
+/// True when `tag` is one of the immutable release shapes: `YY.M.D`, the
+/// legacy `YY.M.D.H`, or the current `YY.M.D-hotfix.N`.
+///
+/// Each component carries **no leading zeros** (the firm-wide version
+/// convention: June is `6`). Date and legacy components are one or two digits;
+/// the hotfix number is any `u32`, written unpadded so it remains valid semver.
+#[must_use]
+pub fn is_release_tag(tag: &str) -> bool {
+    parse_release_tag(tag).is_some()
+}
+
+/// Reject a `--tag` that is not an immutable release tag — rolling `latest`,
+/// `buildcache`, or `ci-<sha>` onto a workload is exactly the unauditable
+/// deploy we forbid.
 pub fn validate_release_tag(tag: &str) -> Result<()> {
     if is_release_tag(tag) {
         Ok(())
     } else {
         bail!(
-            "--tag must be a YY.M.D release tag, optionally with an .H suffix for an ad-hoc same-day release (e.g. 26.6.23 or 26.6.25.14), got `{tag}`"
+            "--tag must be an immutable YY.M.D, YY.M.D.H, or YY.M.D-hotfix.N release tag (for example 26.8.19, 26.8.19.4, or 26.8.19-hotfix.14), got `{tag}`"
         );
     }
 }
 
-/// The newest `YY.M.D[.H]` tag in `tags`. Compares **numerically** per
-/// component, not lexicographically: with no-leading-zeros tags the plain
-/// string order is wrong (`26.6.5` would sort after `26.6.30`, and
-/// `26.6.x` after `26.10.x`), so we parse each group to an integer and
-/// take the max by `(year, month, day, hour)`. A bare same-day tag sorts
-/// *before* any `.H` ad-hoc extension of it (`26.6.25` < `26.6.25.0` <
-/// `26.6.25.14`) via a sentinel hour of `-1`. Non-release tags (`latest`,
-/// `ci-<sha>`) are ignored.
+/// The newest immutable release tag in `tags`.
+///
+/// Comparison is numeric, never lexical. Dates order by `(year, month, day)`;
+/// variants on the same date order base < legacy `.H` < `-hotfix.N`, and
+/// numbers within each variant order numerically. Non-release tags are ignored.
 #[must_use]
 pub fn pick_latest_release_tag(tags: &[String]) -> Option<String> {
     tags.iter()
@@ -105,31 +119,78 @@ pub fn pick_latest_release_tag(tags: &[String]) -> Option<String> {
         .cloned()
 }
 
-/// Parse a release tag into a numerically-comparable
-/// `(year, month, day, hour)` key. The hour defaults to the sentinel `-1`
-/// for a bare three-group tag so it orders before any `.H` extension of
-/// the same day. Assumes `is_release_tag(tag)` already held, so every
-/// group parses; an unexpected non-numeric group falls back to `0` rather
-/// than panicking.
-fn release_sort_key(tag: &str) -> (u32, u32, u32, i32) {
-    let mut groups = tag.split('.').map(|p| p.parse::<u32>().unwrap_or(0));
-    let year = groups.next().unwrap_or(0);
-    let month = groups.next().unwrap_or(0);
-    let day = groups.next().unwrap_or(0);
-    let hour = groups
-        .next()
-        .map_or(-1, |h| i32::try_from(h).unwrap_or(i32::MAX));
-    (year, month, day, hour)
+/// Parse a release tag into a numerically comparable key.
+fn release_sort_key(tag: &str) -> (u32, u32, u32, u8, u32) {
+    let parsed = parse_release_tag(tag).expect("caller filtered with is_release_tag");
+    let (variant, number) = match parsed.variant {
+        ReleaseVariant::Base => (0, 0),
+        ReleaseVariant::Legacy(number) => (1, number),
+        ReleaseVariant::Hotfix(number) => (2, number),
+    };
+    (parsed.year, parsed.month, parsed.day, variant, number)
 }
 
-/// Resolve the latest published `YY.M.D[.H]` tag for `<registry>/<image>`.
+fn parse_release_tag(tag: &str) -> Option<ReleaseTag> {
+    let (base, variant) = if let Some((base, number)) = tag.split_once("-hotfix.") {
+        if base.contains('-') || number.contains('.') {
+            return None;
+        }
+        (
+            base,
+            ReleaseVariant::Hotfix(number_component(number, None)?),
+        )
+    } else {
+        (tag, ReleaseVariant::Base)
+    };
+
+    let mut groups = base.split('.');
+    let year = short_component(groups.next()?)?;
+    let month = short_component(groups.next()?)?;
+    let day = short_component(groups.next()?)?;
+    let trailing = groups.next();
+    if groups.next().is_some() {
+        return None;
+    }
+
+    let variant = match (variant, trailing) {
+        (ReleaseVariant::Base, None) => ReleaseVariant::Base,
+        (ReleaseVariant::Base, Some(number)) => ReleaseVariant::Legacy(short_component(number)?),
+        (ReleaseVariant::Hotfix(number), None) => ReleaseVariant::Hotfix(number),
+        (ReleaseVariant::Hotfix(_), Some(_)) => return None,
+        (ReleaseVariant::Legacy(_), _) => unreachable!("parser never constructs legacy early"),
+    };
+
+    Some(ReleaseTag {
+        year,
+        month,
+        day,
+        variant,
+    })
+}
+
+fn short_component(component: &str) -> Option<u32> {
+    number_component(component, Some(2))
+}
+
+fn number_component(component: &str, max_len: Option<usize>) -> Option<u32> {
+    if component.is_empty()
+        || max_len.is_some_and(|max| component.len() > max)
+        || (component.len() > 1 && component.starts_with('0'))
+        || !component.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return None;
+    }
+    component.parse().ok()
+}
+
+/// Resolve the latest published immutable release tag for `<registry>/<image>`.
 /// Errors when the package has no release tag yet (e.g. the daily deploy
 /// has never run for this fork).
 pub fn resolve_latest_tag(registry: &str, image: &str) -> Result<String> {
     let tags = fetch_tags(registry, image)?;
     pick_latest_release_tag(&tags).ok_or_else(|| {
         anyhow::anyhow!(
-            "no YY.M.D[.H] release tag on {registry}/{image} — has the daily deploy published one yet?"
+            "no YY.M.D, YY.M.D.H, or YY.M.D-hotfix.N release tag on {registry}/{image} — has a release published one yet?"
         )
     })
 }
@@ -229,7 +290,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn is_release_tag_accepts_yy_m_d_and_optional_h() {
+    fn is_release_tag_accepts_every_immutable_release_form() {
         // Canonical no-leading-zeros shape.
         assert!(is_release_tag("26.6.23"));
         assert!(is_release_tag("26.6.5")); // single-digit day
@@ -237,13 +298,22 @@ mod tests {
         assert!(is_release_tag("26.6.25.14")); // ad-hoc same-day .H suffix
         assert!(is_release_tag("26.6.25.4")); // single-digit hour
         assert!(is_release_tag("26.6.25.0"));
+        assert!(is_release_tag("26.8.19-hotfix.14"));
+        assert!(is_release_tag("26.8.19-hotfix.0"));
+        assert!(is_release_tag("26.8.19-hotfix.214"));
         // Non-releases and malformed shapes stay rejected.
         assert!(!is_release_tag("latest"));
+        assert!(!is_release_tag("buildcache"));
         assert!(!is_release_tag("ci-6a5f96a"));
         assert!(!is_release_tag("2026.6.23")); // four-digit year
         assert!(!is_release_tag("26.6")); // too few groups
         assert!(!is_release_tag("26.6.25.14.30")); // too many groups
         assert!(!is_release_tag("26..6")); // empty group
+        assert!(!is_release_tag("26.8.19-hotfix")); // missing number
+        assert!(!is_release_tag("26.8.19-hotfix.")); // empty number
+        assert!(!is_release_tag("26.8.19-hotfix.x")); // nonnumeric number
+        assert!(!is_release_tag("26.8.19-hotfix.14.1")); // too many groups
+        assert!(!is_release_tag("26.8.19-hotfix.014")); // invalid semver number
     }
 
     #[test]
@@ -264,6 +334,17 @@ mod tests {
                 "26.6.10".to_string(),
             ]),
             Some("26.6.25.14".to_string())
+        );
+        // Same-day forms have one explicit compatibility order: the base is
+        // first, then the legacy `.H` form, then the current `-hotfix.N` form.
+        assert_eq!(
+            pick_latest_release_tag(&[
+                "26.8.19-hotfix.9".to_string(),
+                "26.8.19".to_string(),
+                "26.8.19.99".to_string(),
+                "26.8.19-hotfix.14".to_string(),
+            ]),
+            Some("26.8.19-hotfix.14".to_string())
         );
         // Regression: numeric, not lexical, ordering. A plain string `max`
         // would pick `26.6.5` over `26.6.30` ("5" > "3") and `26.6.x` over
@@ -290,7 +371,9 @@ mod tests {
     #[test]
     fn validate_release_tag_rejects_non_release() {
         assert!(validate_release_tag("26.6.23").is_ok());
+        assert!(validate_release_tag("26.8.19-hotfix.14").is_ok());
         assert!(validate_release_tag("latest").is_err());
+        assert!(validate_release_tag("buildcache").is_err());
         assert!(validate_release_tag("ci-abc").is_err());
     }
 

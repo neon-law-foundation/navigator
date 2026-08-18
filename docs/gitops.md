@@ -6,8 +6,8 @@ a deliberate rollout. This flow supports the actions in [`agent-workflows.md`](a
 ## `main` is sacred and squash-merge-only
 
 - **Never commit directly to `main`.** PRs squash to one commit; merge and rebase-merge are disabled.
-- **Production follows `main`.** GKE reconciles `examples/deploy/k8s/gke`, and release tags point at its tip. See
-  [`gke-prod.md`](gke-prod.md).
+- **Production follows `main`.** GKE reconciles `examples/deploy/k8s/gke`, and release tags target commits reachable
+  from `main`. A PR branch is never a release source. See [`gke-prod.md`](gke-prod.md).
 
 ## The branch → PR → auto-merge flow
 
@@ -309,10 +309,10 @@ development](../CLAUDE.md#local-kind-development) and the `web-preview` / `kind-
 
 ### One workflow owns publishing — `deploy.yml`
 
-Publishing is a deliberate act: a person pushes a `YY.M.D` tag, and that run proves the workspace in KIND, builds every
-image, pushes them to GHCR, attaches the three `navigator` CLI archives to the tag's GitHub Release, hands the release
-to the Homebrew tap, and reports what it published. Versions omit leading zeros, remain valid semver, and align with
-image tags and `navigator --version`.
+Publishing is a deliberate act: a person pushes an immutable release tag, and that run proves the workspace in KIND,
+builds every image, pushes them to GHCR, attaches the three `navigator` CLI archives to the tag's GitHub Release, hands
+the release to the Homebrew tap, and reports what it published. Versions omit leading zeros, remain valid semver, and
+align with image tags and `navigator --version`.
 
 **A pushed tag is the only way to publish, and that is what makes a version trustworthy.** A cron and a
 `workflow_dispatch` both ran this pipeline once, and both are gone for one reason: neither carried a tag, so each could
@@ -321,13 +321,23 @@ sat at `0.1.0` while published images marched on under names the source had neve
 itself. The tag threads into every image build as the `RELEASE_TAG` build-arg, which each Containerfile turns into the
 runtime environment variable `NAVIGATOR_RELEASE_TAG`.
 
-**Three components, plus an optional `-hotfix.H` prerelease.** No fourth component is possible: Cargo parses
+**Three components, plus an optional `-hotfix.N` prerelease.** No fourth component is possible: Cargo parses
 `[workspace.package].version` as strict semver and rejects one outright, so a `YY.M.D.H` tag could never equal the
 manifest and the tag-equals-manifest check below would be unsatisfiable. A semver *prerelease* has no such problem:
 `26.8.18-hotfix.17` parses, and Cargo holds it verbatim. That is the whole reason a same-day hotfix has a spelling at
 all — see [Releasing twice in one day](#releasing-twice-in-one-day). `release-version` anchors the shape with a regex
 rather than trusting the push filter, whose `[0-9]*.[0-9]*.[0-9]*` glob is looser than it looks: fnmatch's `*` matches
 dots and hyphens, so that filter alone admits `26.8.17.13`.
+
+The registry and deploy parser also retains the historical `YY.M.D.H` form. Its numeric ordering is explicit when a
+registry contains every convention for one date: base `YY.M.D` first, then legacy `.H`, then current `-hotfix.N`;
+numbers within either variant sort numerically. New GitHub Releases use the semver-compatible base or `-hotfix.N` forms,
+because Cargo cannot represent a four-component version.
+
+**Only merged source may publish.** Before any GitHub Release, CLI archive, or image can be published, the first job
+fetches `origin/main`, peels the pushed lightweight or annotated tag to its commit, and runs `git merge-base
+--is-ancestor <release-commit> origin/main`. A tag on an unmerged PR or side branch fails there. Release creation must
+wait for the version PR to merge, and the tag goes on the merged commit.
 
 **This workflow deploys nothing, and holds no cloud credential.** It ends at the registry. Putting a version in front of
 real clients' matters is a separate act a person takes from their own machine — see [The deploy is a human
@@ -349,7 +359,7 @@ the change is to the workflow itself rather than to a page — it runs `integrat
 **One ordinary tag per calendar day, in UTC.** `YY.M.D` admits only one per day by construction, and `release-version`
 enforces it rather than trusting it: a tag whose base is not the current UTC date fails the run at its first job, before
 any image is built. UTC is the zone this convention has always been derived in, it carries no DST discontinuity, and the
-runner clock is already UTC. A day whose tag is already spent releases again through a `-hotfix.H` prerelease, below.
+runner clock is already UTC. A day whose tag is already spent releases again through a `-hotfix.N` prerelease, below.
 
 ### Releasing twice in one day
 
@@ -371,12 +381,11 @@ monotonic and true:
 ```
 
 Read plainly, a hotfix *is* the next day's release cut early: it carries fixes that would otherwise wait for the next
-UTC day. Several hotfixes may run in one day, ordered by hour.
+UTC day. Several hotfixes may run in one day, ordered by their numeric discriminator.
 
-`H` is the UTC hour, unpadded, `0`–`23`. The padding is not cosmetic — semver forbids a leading zero in a numeric
-prerelease identifier, so `hotfix.08` is not a valid version at all. Nothing clock-checks `H` against the run's own
-hour: it is a uniqueness-and-ordering discriminator, and a tag pushed at 17:58 whose run starts at 18:01 carries an hour
-that was correct when pushed. Failing that would burn an immutable tag over queue latency.
+`N` is an unpadded nonnegative integer. The padding is not cosmetic — semver forbids a leading zero in a numeric
+prerelease identifier, so `hotfix.08` is not a valid version at all. `release-version --hotfix` uses the current UTC
+hour as a convenient default, while `--tag` accepts any available numeric `N`; the workflow does not clock-check it.
 
 Write the version the same way as any other release, then land it and tag the merged commit:
 
@@ -387,7 +396,7 @@ cargo run -p cli -- ops release-version --hotfix
 **A hotfix does not become the default download.** Two things behave differently from an ordinary release, both because
 a prerelease must not present itself as the latest version:
 
-| Surface | Ordinary release | `-hotfix.H` |
+| Surface | Ordinary release | `-hotfix.N` |
 | --- | --- | --- |
 | GHCR images and CLI archives | published | published |
 | GitHub Release | latest | flagged `--prerelease` |
@@ -401,12 +410,13 @@ message says so rather than naming a `brew` command that would silently fetch so
 A hotfix is still a full release in every way that matters to a deploy: it proves the workspace in KIND, publishes every
 image, and hands the operator the same `ops ship` command.
 
-**The tag must carry its own version.** The same first job also fails a tag that does not equal `Cargo.toml`'s
-`[workspace.package].version` — the value every crate inherits through `version.workspace = true` and `cli/build.rs`
-bakes into `navigator --version`. Without this the manifest sat at `0.1.0` while tags marched on, so a plain build of
-the tagged source misreported the release it was cut from. The bump is one line — `navigator ops release-version` writes
-today's UTC `YY.M.D` (or `--tag` for an explicit value) and commits it. Because the tag points at `main`, that commit
-lands through an ordinary PR — `main` takes no direct commits.
+**The tag must carry its own version and main provenance.** The same first job also fails a tag that does not equal
+`Cargo.toml`'s `[workspace.package].version` — the value every crate inherits through `version.workspace = true` and
+`cli/build.rs` bakes into `navigator --version`. Without this the manifest sat at `0.1.0` while tags marched on, so the
+tagged source misreported its release. The one-line bump is `navigator ops release-version`; it writes today's UTC
+`YY.M.D` (or `--tag` for an explicit value) and commits it. That commit lands through an ordinary PR — `main` takes no
+direct commits — and release creation waits for the merge. The provenance guard then refreshes `origin/main` and rejects
+any tag whose peeled commit is not reachable from it.
 
 **The midnight edge is real.** The date that matters is UTC's, not yours. On `-04:00`, from 20:00 local onward UTC has
 already rolled over, so the only releasable tag is *tomorrow's* local date and pushing the one that matches your wall
@@ -460,7 +470,7 @@ actually carries the archives, and it sends a `repository_dispatch` naming the t
 computes every `sha256` itself by downloading the artifacts it will then tell readers to download. A payload carrying
 digests would let a malformed dispatch pin the formula to bytes nobody verified, and would leave the tap unable to
 repair a bad bump from a bare tag — which matters, because the tap sees only ordinary releases and `YY.M.D` admits no
-second one the same UTC day. A `-hotfix.H` tag is deliberately never dispatched here, so it is no escape hatch for the
+second one the same UTC day. A `-hotfix.N` tag is deliberately never dispatched here, so it is no escape hatch for the
 formula either. The tap covers that with a `workflow_dispatch` that re-runs any tag by hand.
 
 **A separate repository, not a folder here.** A tap is a Git repository Homebrew clones and re-reads on every `brew
@@ -531,7 +541,7 @@ Three lanes, cheapest first.
 
    This is [The manual deploy](#the-manual-deploy). `ship` builds nothing, refuses a tag absent from the registry, and
    `--dry-run` rehearses it first.
-3. **Fix forward the same day with a `-hotfix.H` tag.** If the source is wrong, land the fix on `main`, bump with
+3. **Fix forward the same day with a `-hotfix.N` tag.** If the source is wrong, land the fix on `main`, bump with
    `ops release-version --hotfix`, and tag the merged commit. See [Releasing twice in one
    day](#releasing-twice-in-one-day) for the shape and for the two surfaces a hotfix deliberately does not touch.
 

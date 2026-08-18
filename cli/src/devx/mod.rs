@@ -35,7 +35,7 @@ mod lifecycle;
 mod native;
 mod observability;
 mod orchestrate;
-mod registry;
+pub(crate) mod registry;
 mod runtime;
 mod sample_project;
 mod ship;

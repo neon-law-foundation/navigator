@@ -491,6 +491,7 @@ fn ops_help_lists_operator_members() {
             "assets",
             "cli-release",
             "release-version",
+            "release-provenance",
             "notices",
             "help",
         ]

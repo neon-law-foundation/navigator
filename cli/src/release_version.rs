@@ -41,8 +41,9 @@ fn version_for(date: NaiveDate) -> String {
     format!("{}.{}.{}", date.year() % 100, date.month(), date.day())
 }
 
-/// Today's hotfix version: a `-hotfix.H` prerelease hung off TOMORROW's
-/// `YY.M.D`, where `H` is the current UTC hour.
+/// Today's hotfix version: a `-hotfix.N` prerelease hung off TOMORROW's
+/// `YY.M.D`. The current UTC hour is a convenient default numeric `N`; the
+/// grammar is not hour-bounded, and `--tag` accepts another discriminator.
 ///
 /// This is the spelling for cutting a release when today's ordinary release
 /// already happened — `YY.M.D` admits exactly one of those per UTC day, and the
@@ -52,7 +53,7 @@ fn todays_hotfix_version() -> String {
     hotfix_version_for(now.date_naive(), now.hour())
 }
 
-/// The hotfix version for one UTC date and hour.
+/// The hotfix version for one UTC date and numeric discriminator.
 ///
 /// THE BASE IS THE DAY AFTER `date`, and that is a correctness requirement
 /// rather than a naming choice. Semver ranks a prerelease BELOW its own base
@@ -68,15 +69,15 @@ fn todays_hotfix_version() -> String {
 /// Read plainly, a hotfix IS the next day's release cut early: it carries fixes
 /// that would otherwise wait for the next UTC day.
 ///
-/// `hour` is written unpadded because semver forbids a leading zero in a numeric
+/// `number` is written unpadded because semver forbids a leading zero in a numeric
 /// prerelease identifier — `hotfix.08` is not a valid version at all, which is
 /// the same unpadded rule the date components already follow.
-fn hotfix_version_for(date: NaiveDate, hour: u32) -> String {
+fn hotfix_version_for(date: NaiveDate, number: u32) -> String {
     // A date one day past the maximum representable date cannot arise from
     // `Utc::now()`; fall back to the same date rather than panicking, so this
     // helper has no failure mode a caller must handle.
     let base = date.checked_add_days(Days::new(1)).unwrap_or(date);
-    format!("{}-hotfix.{hour}", version_for(base))
+    format!("{}-hotfix.{number}", version_for(base))
 }
 
 /// Replace the `version` value inside the `[workspace.package]` table only,
@@ -244,16 +245,16 @@ mod tests {
     use chrono::NaiveDate;
 
     /// The hotfix shape must match `deploy.yml`'s regex byte for byte: the base
-    /// is TOMORROW's unpadded `YY.M.D` and the hour is unpadded.
+    /// is TOMORROW's unpadded `YY.M.D` and the number is unpadded.
     #[test]
-    fn hotfix_version_hangs_off_tomorrow_at_the_given_hour() {
+    fn hotfix_version_hangs_off_tomorrow_at_the_given_number() {
         let date = NaiveDate::from_ymd_opt(2026, 8, 17).expect("valid date");
         assert_eq!(hotfix_version_for(date, 17), "26.8.18-hotfix.17");
     }
 
     /// THE PROPERTY THE WHOLE CONVENTION EXISTS FOR. A hotfix must sort ABOVE
-    /// the release it fixes and BELOW the next ordinary release, and later hours
-    /// must sort above earlier ones. Hanging the prerelease off the SAME day
+    /// the release it fixes and BELOW the next ordinary release, and larger
+    /// numbers must sort above smaller ones. Hanging the prerelease off the SAME day
     /// would invert the first comparison — semver ranks a prerelease below its
     /// own base — which is the bug this ordering test pins shut.
     #[test]
@@ -273,18 +274,18 @@ mod tests {
             today < early,
             "a hotfix must rank above the release it fixes"
         );
-        assert!(early < late, "a later hour must rank above an earlier one");
+        assert!(early < late, "a larger N must rank above a smaller one");
         assert!(
             late < tomorrow,
             "a hotfix must rank below the next ordinary release"
         );
     }
 
-    /// An unpadded hour is not cosmetic: semver forbids a leading zero in a
+    /// An unpadded number is not cosmetic: semver forbids a leading zero in a
     /// numeric prerelease identifier, so a padded `hotfix.08` would not parse at
     /// all and `deploy.yml`'s regex rejects it.
     #[test]
-    fn hotfix_hour_is_unpadded_and_parses_as_semver() {
+    fn hotfix_number_is_unpadded_and_parses_as_semver() {
         let date = NaiveDate::from_ymd_opt(2026, 8, 17).expect("valid date");
         let version = hotfix_version_for(date, 8);
         assert_eq!(version, "26.8.18-hotfix.8");

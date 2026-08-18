@@ -1454,7 +1454,7 @@ mod tests {
         assert_eq!(kinds, vec!["deletion", "update", "non_fast_forward"]);
     }
 
-    /// The ruleset must protect a `-hotfix.H` tag too, and it does so with no
+    /// The ruleset must protect a `-hotfix.N` tag too, and it does so with no
     /// pattern change: GitHub matches `ref_name` conditions with fnmatch, whose
     /// `*` matches any character including `.` and `-`. That looseness is a
     /// liability for the workflow's own shape check — which is why `deploy.yml`

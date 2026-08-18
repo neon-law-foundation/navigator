@@ -130,11 +130,11 @@ PR merged to main
   └─→ .github/workflows/ci.yml runs fmt + clippy + cargo test --workspace
       (no images built — the PR flow is lean by design)
 
-A person bumps the version, lands it, and pushes the YY.M.D tag
+A person bumps the version, lands it, and pushes an immutable release tag
   └─→ navigator ops release-version   (writes Cargo.toml, commits)
-  └─→ PR, merge, then: git tag YY.M.D && git push origin YY.M.D
+  └─→ PR, wait for merge, then tag the merged main commit and push
   └─→ .github/workflows/deploy.yml runs, holding no cloud credential
-                  ├─ validate the tag: YY.M.D shape, today in UTC, == Cargo.toml
+                  ├─ validate shape/date/manifest and reachability from origin/main
                   ├─ KIND integration suite (e2e + interop + browser)
                   ├─ build + push service images to GHCR tagged YY.M.D + latest
                   ├─ attach three CLI archives to the tag's GitHub Release
@@ -158,8 +158,8 @@ Re-roll an already-published tag (no build, no publish)
         (add --dry-run to rehearse: Secret preflight + diff, nothing applied)
 ```
 
-The release run publishes and rolls staging; the promotion rolls production. Operator-driven `ship` remains available
-for a roll outside either — a re-roll, a rehearsal, a rollback, or a deployment neither workflow reached.
+The release run publishes and stops at the registry. Operator-driven `ship` performs every roll — a first release, a
+re-roll, a rehearsal, a rollback, or a deployment the workflow deliberately never reaches.
 
 `navigator ops ship --tag YY.M.D` pins the selected brand server and `workflows-service` to the published tag. Those two
 Deployments are the whole rollout: Navigator serves no Git and mounts no repository volume, so a ship waits on exactly
@@ -185,11 +185,11 @@ than 30 days **and** outside its image's newest 10 **and** not the one carrying 
 deferred roll cannot age a running tag off the shelf — the ten most recent versions of every image stay pullable however
 long the gap between releases. See [GitOps](gitops.md#image-retention).
 
-A version is `YY.M.D` — the UTC date the tag was pushed on, which `deploy.yml` verifies rather than derives, along with
-its equality to `[workspace.package].version`. Cargo rejects a fourth component, so there is no hour-suffixed emergency
-release and no more than one release per UTC day; see [GitOps](gitops.md#one-workflow-owns-publishing----deployyml).
-Rolling a published version onto the cluster is always `ops ship`, above, run by a person. To exercise the pipeline
-without publishing, push a `kind-ci/**` branch.
+A release version is `YY.M.D` or the semver-compatible `YY.M.D-hotfix.N`; registry consumption also retains legacy
+`YY.M.D.H`. `deploy.yml` verifies the UTC date and manifest equality, fetches `origin/main`, and refuses a tag whose
+peeled commit is not reachable from it. A PR branch is never a release source: wait for its merge, then tag the merged
+commit. See [GitOps](gitops.md#one-workflow-owns-publishing----deployyml). Rolling a published version onto the cluster
+is always `ops ship`, above, run by a person. To exercise the pipeline without publishing, push a `kind-ci/**` branch.
 
 ## Manifest delivery
 

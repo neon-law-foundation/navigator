@@ -10,10 +10,10 @@ description: >
 
 # cut-release
 
-Publishing has exactly one trigger: **a person pushes a `YY.M.D` tag**. There is no cron and no `workflow_dispatch`,
-because neither carries a tag and both could only *derive* a version — which is how the manifest once sat at `0.1.0`
-while tags marched on. Read [`docs/gitops.md`](../../../docs/gitops.md) for the authoritative flow; this file is the
-order of operations and the checks that must happen *before* the ref exists.
+Publishing has exactly one trigger: **a person pushes an immutable release tag**. There is no cron and no
+`workflow_dispatch`, because neither carries a tag and both could only *derive* a version — which is how the manifest
+once sat at `0.1.0` while tags marched on. Read [`docs/gitops.md`](../../../docs/gitops.md) for the authoritative flow;
+this file is the order of operations and the checks that must happen *before* the ref exists.
 
 **The tag is immutable and the day's name is spent the moment it is pushed.** The `release-tags` ruleset restricts
 deletion, update, and non-fast-forward with no bypass actor. Every check below exists because discovering the problem
@@ -27,9 +27,10 @@ Run these first. Each one maps to a way the pipeline refuses a tag, and each is 
 git fetch origin && git status --short
 ```
 
-- **On `main`, current, clean.** The tag must point at a commit on `main`, and `main` takes no direct commits.
-- **The three tag checks `release-version` will run** — shape, UTC date, and manifest equality. Compute the tag the
-  same way the workflow does, in UTC:
+- **On `main`, current, clean.** The tag must target a commit reachable from `origin/main`, and `main` takes no direct
+  commits. A PR branch is never a release source; wait for the PR to merge.
+- **The four tag checks `release-version` will run** — shape, UTC date, manifest equality, and reachability from the
+  freshly fetched `origin/main`. Compute the tag the same way the workflow does, in UTC:
 
 ```bash
 TZ=UTC date +'%y.%-m.%-d'
@@ -100,10 +101,11 @@ sort as **older** than the `26.8.17` it fixes. Hanging it off the next day keeps
 cargo run -p cli -- ops release-version --hotfix
 ```
 
-`H` is the UTC hour, unpadded, `0`–`23` — semver forbids a leading zero in a numeric prerelease identifier, so
-`hotfix.08` is not a version at all. A hotfix publishes every image and archive, but it is flagged as a prerelease and
-**the Homebrew tap is not notified**: the tap holds one version and every `brew install` resolves to it, so bumping it
-to a prerelease would hand an rc to everyone who ran `brew update`.
+`N` is an unpadded nonnegative integer — semver forbids a leading zero in a numeric prerelease identifier, so
+`hotfix.08` is not a version at all. The command uses the current UTC hour as its default `N`; `--tag` selects another
+available numeric value. A hotfix publishes every image and archive, but it is flagged as a prerelease and **the
+Homebrew tap is not notified**: the tap holds one version and every `brew install` resolves to it, so bumping it to a
+prerelease would hand an rc to everyone who ran `brew update`.
 
 ## What the push actually does
 

@@ -87,7 +87,7 @@ fn only_a_publishable_run_dispatches_to_the_tap() {
 /// Digests belong to whoever downloads the bytes. Shipping them in the payload
 /// would let a malformed dispatch pin the formula to bytes nobody verified, and
 /// would leave the tap unable to repair a bad bump from a bare tag — which
-/// matters because the tap sees only ordinary releases — a `-hotfix.H` tag is
+/// matters because the tap sees only ordinary releases — a `-hotfix.N` tag is
 /// never dispatched to it — and `YY.M.D` admits no second ordinary release the
 /// same UTC day.
 #[test]

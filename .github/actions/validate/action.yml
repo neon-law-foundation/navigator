@@ -5,7 +5,8 @@ description: >-
 
 # The one-line gate for repositories that hold content, but do not hold
 # Navigator. `deploy.yml` already attaches `navigator-<TAG>-<platform>` archives
-# to every `YY.M.D` GitHub Release; this action downloads the one that matches
+# to every immutable release (`YY.M.D`, legacy `YY.M.D.H`, or
+# `YY.M.D-hotfix.N`); this action downloads the one that matches
 # the runner and runs `navigator validate` over the checked-out tree.
 #
 # Consuming repository, in full:
@@ -46,8 +47,9 @@ description: >-
 inputs:
   version:
     description: >-
-      Exact `YY.M.D` release tag to download, e.g. `26.7.27`. Required and
-      never `latest` — consumed binaries are pinned.
+      Exact immutable release tag to download, e.g. `26.7.27` or
+      `26.8.19-hotfix.14`. Required and never `latest` — consumed binaries are
+      pinned.
     required: true
   dir:
     description: Directory to validate, relative to the workspace.
@@ -109,7 +111,7 @@ runs:
         set -euo pipefail
 
         if [ -z "${VERSION}" ]; then
-            echo "::error::'version' is required — pass the exact YY.M.D release tag."
+            echo "::error::'version' is required — pass the exact immutable release tag."
             exit 1
         fi
         # Rolling pointers are rejected rather than resolved: a job that cannot
