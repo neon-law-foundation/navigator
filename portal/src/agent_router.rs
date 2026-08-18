@@ -145,10 +145,9 @@ pub const DEFAULT_VERTEX_LOCATION: &str = "us-west4";
 /// Default Vertex AI Gemini model. Flash is cheap, fast, and good at
 /// the kind of "map this sentence to one of these tool descriptors"
 /// task we hand it. `gemini-2.5-flash` is the unpinned alias that
-/// Vertex resolves to the current 2.5-series Flash build — Google
-/// retired the `-001` suffix when the 2.0 line aged out, so any
-/// pinned reference like `gemini-2.0-flash-001` 404s in every
-/// region. Overridable via `NAVIGATOR_ROUTER_MODEL`.
+/// Vertex resolves to the current 2.5-series Flash build. Keep it
+/// unpinned: a suffixed reference like `gemini-2.0-flash-001` 404s in
+/// every region. Overridable via `NAVIGATOR_ROUTER_MODEL`.
 pub const DEFAULT_VERTEX_MODEL: &str = "gemini-2.5-flash";
 
 /// Vertex AI–backed natural-language router.
@@ -808,14 +807,13 @@ mod tests {
     /// deterministic tests above prove the loop plumbing; this proves
     /// the one thing a stub can't: that real Gemini Flash, handed the
     /// real tool catalog, runs the lookup-then-act chain instead of
-    /// stopping at the lookup (the exact failure that motivated the
-    /// `ANY` -> `AUTO` switch and the loop). It compiles in CI — so a
-    /// change to the tool descriptors or the router contract breaks it
-    /// at build time rather than letting it rot — but runs only on
-    /// demand, on a machine with GCP credentials:
+    /// stopping at the lookup. It compiles in CI — so a change to the
+    /// tool descriptors or the router contract breaks it at build time
+    /// rather than letting it rot — but runs only on demand, on a
+    /// machine with GCP credentials:
     ///
     /// ```text
-    /// cargo test -p web --lib real_gemini -- --ignored
+    /// cargo test -p portal --lib real_gemini -- --ignored
     /// ```
     ///
     /// Needs `NAVIGATOR_GCP_PROJECT_ID` (+ Workload Identity / ADC) so
@@ -827,7 +825,7 @@ mod tests {
         // so it never costs money or flakes in the default suite or CI —
         // it self-skips (a green no-op) unless `NAVIGATOR_RUN_LIVE_VERTEX`
         // is set. With the flag set (and GCP creds present) it runs for
-        // real: `NAVIGATOR_RUN_LIVE_VERTEX=1 cargo test -p web --lib real_gemini`.
+        // real: `NAVIGATOR_RUN_LIVE_VERTEX=1 cargo test -p portal --lib real_gemini`.
         if std::env::var("NAVIGATOR_RUN_LIVE_VERTEX").is_err() {
             eprintln!(
                 "skipping live Vertex probe; set NAVIGATOR_RUN_LIVE_VERTEX=1 \

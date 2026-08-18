@@ -5,9 +5,7 @@
 //!
 //! Two tiers, each behind its OWN opt-in env flag so neither can fire
 //! from `cargo test --workspace` (the main CI command sets no flag). No
-//! workflow runs these: the former `docusign-sandbox.yml` canary was
-//! removed when the live-sandbox flow was retired (see docs/gitops.md
-//! "CI/CD workflows"), so every live DocuSign path is now on-demand only.
+//! workflow runs these: every live DocuSign path is on-demand only.
 //!
 //! 1. [`prod_jwt_and_billing_plan_checkpoint`] — gated on
 //!    `NAVIGATOR_RUN_LIVE_PROD_CHECK=1`. FREE: mints a prod JWT and reads
@@ -20,7 +18,7 @@
 //!    ```bash
 //!    sops exec-env deployments/neon-law-prod/secrets.enc.yaml \
 //!      'env NAVIGATOR_RUN_LIVE_PROD_CHECK=1 \
-//!       cargo test -p web --test docusign_live -- --nocapture prod_jwt_and_billing'
+//!       cargo test -p server --test docusign_live -- --nocapture prod_jwt_and_billing'
 //!    ```
 //!
 //! 2. [`emailed_envelope_to_a_real_signer`] — gated on
@@ -38,13 +36,13 @@
 //!    set -a; source .env; set +a
 //!    NAVIGATOR_RUN_LIVE_EMAILED_ENVELOPE=1 \
 //!      NAVIGATOR_LIVE_SIGNER_EMAIL=nick@shook.family \
-//!      cargo test -p web --test docusign_live -- --nocapture emailed_envelope
+//!      cargo test -p server --test docusign_live -- --nocapture emailed_envelope
 //!
 //!    # The real, billable prod send (1 envelope):
 //!    sops exec-env deployments/neon-law-prod/secrets.enc.yaml \
 //!      'env NAVIGATOR_RUN_LIVE_EMAILED_ENVELOPE=1 \
 //!           NAVIGATOR_LIVE_SIGNER_EMAIL=nick@shook.family \
-//!       cargo test -p web --test docusign_live -- --nocapture emailed_envelope'
+//!       cargo test -p server --test docusign_live -- --nocapture emailed_envelope'
 //!    ```
 //!
 //! DO NOT add a workflow that sets either flag, and DO NOT set

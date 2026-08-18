@@ -25,7 +25,7 @@
 //! locally with the sandbox vars set:
 //!
 //! ```bash
-//! NAVIGATOR_RUN_LIVE_SANDBOX=1 cargo test -p web --test docusign_sandbox
+//! NAVIGATOR_RUN_LIVE_SANDBOX=1 cargo test -p server --test docusign_sandbox
 //! ```
 //!
 //! Required env — the CI `DOCUSIGN_SANDBOX_*` scheme, each falling back

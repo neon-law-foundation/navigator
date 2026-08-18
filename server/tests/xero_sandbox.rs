@@ -26,7 +26,7 @@
 //!
 //! ```bash
 //! set -a; source .env; set +a
-//! NAVIGATOR_RUN_LIVE_SANDBOX=1 cargo test -p web --test xero_sandbox -- --nocapture
+//! NAVIGATOR_RUN_LIVE_SANDBOX=1 cargo test -p server --test xero_sandbox -- --nocapture
 //! ```
 //!
 //! Required env — the CI `XERO_SANDBOX_*` scheme, each falling back to the

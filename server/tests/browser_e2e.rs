@@ -24,7 +24,7 @@
 //! the harness) stays green. With the harness up they run automatically:
 //!
 //! ```sh
-//! cargo test -p web --test browser_e2e -- --test-threads=1
+//! cargo test -p server --test browser_e2e -- --test-threads=1
 //! ```
 //!
 //! `NAV_BASE_URL` overrides the target (default `http://localhost:8080`);
@@ -135,9 +135,9 @@ async fn lawyer_logs_in_and_reaches_the_signed_in_chrome() {
     };
     login_as_lawyer(&c).await;
 
-    // Sanity: the signed-in chrome is present. Since ENG-81 the nav no longer
-    // names the viewer, so this looks for the sign-out link rather than a
-    // per-role desk.
+    // Sanity: the signed-in chrome is present. The nav does not name the
+    // viewer, so this looks for the sign-out link rather than a per-role
+    // desk.
     let _ = c
         .wait()
         .at_most(Duration::from_secs(10))
@@ -337,9 +337,9 @@ async fn lawyer_walks_the_full_retainer_questionnaire_end_to_end() {
     }
 
     // --- Attorney writes the fee terms as a clause -----------
-    // #203 removed the product catalog that used to carry the fee, so the
-    // engagement agreement now leaves it to a custom clause and the send gate
-    // refuses an empty one (`ClausesRequired`). Add one before approving; a
+    // The engagement agreement leaves the fee to a custom clause, and the
+    // send gate refuses an empty one (`ClausesRequired`). Add one before
+    // approving; a
     // clause routes the notation back through review, so it has to land before
     // the approve rather than after it.
     c.goto(&format!(
@@ -584,12 +584,11 @@ async fn lawyer_adds_a_person_through_the_people_form() {
 #[tokio::test]
 async fn lawyer_creates_a_client_inline_on_the_project_form() {
     // Drives the inline "New client" form on /app/projects/new end to end in
-    // a real browser. It used to be an HTMX-swapped Bootstrap modal; it is now
-    // a native <details> disclosure with its own POST, answered
-    // post/redirect/get. What the browser has to prove is unchanged: after the
-    // create, the new client is the selected option in the matter form's Client
-    // DRI picker. Rendering tests cannot prove the redirect round-trip actually
-    // preselects it; this does.
+    // a real browser. The form is a native <details> disclosure with its own
+    // POST, answered post/redirect/get. What the browser has to prove: after
+    // the create, the new client is the selected option in the matter form's
+    // Client DRI picker. Rendering tests cannot prove the redirect round-trip
+    // actually preselects it; this does.
     let Some(c) = new_client_or_skip().await else {
         return;
     };

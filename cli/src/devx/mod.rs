@@ -243,7 +243,7 @@ const SURREAL_NAMESPACE: &str = "navigator";
 const SURREAL_LOCAL_USER: &str = "root";
 const SURREAL_LOCAL_PASSWORD: &str = "root";
 
-// Local `web` defaults — matches `cargo run -p web` defaults.
+// Local `web` defaults — matches `cargo run -p neon` defaults.
 const DEFAULT_LOCAL_WEB_PORT: u16 = 3001;
 
 // OpenObserve's UI (5080) and direct OTLP gRPC ingest port (5081) are
@@ -2188,10 +2188,10 @@ mod tests {
         reqwest::StatusCode::from_u16(code).expect("valid status code")
     }
 
-    /// The exact prod failure that motivated the retry: a force re-register the
-    /// admin API answers with `500`/`META0003` wrapping a GFE `502` while the
-    /// NEG readiness gate lags after a rollout. It must classify as transient so
-    /// ship retries instead of aborting on a healthy worker.
+    /// A force re-register draws a `500`/`META0003` wrapping a GFE `502` from
+    /// the admin API while the NEG readiness gate lags after a rollout. It must
+    /// classify as transient so ship retries instead of aborting on a healthy
+    /// worker.
     #[test]
     fn meta0003_wrapping_a_502_is_transient() {
         let body = r#"{"message":"[META0003] [META0003] got status code '502 Bad Gateway'. Response headers: {...}. Body: \n<html><head><title>502 Server Error</title></head><body><h1>Error: Server Error</h1></body></html>\n","restate_code":"META0003"}"#;
@@ -2456,11 +2456,10 @@ mod tests {
             .expect("deploy.yml stub step must cover the KIND web image");
     }
 
-    /// ENG-142 removed the second web-family image. No KIND overlay may
-    /// reintroduce a web-container `image:` override: the base pin is the
-    /// single source of truth for what the in-cluster pod runs, and an
-    /// override is exactly how the retired git-bearing tier would creep
-    /// back in — silently, because the stub-step guard above reads the base.
+    /// No KIND overlay may override the web-container `image:`. The base pin
+    /// is the single source of truth for what the in-cluster pod runs, and an
+    /// override diverges from it silently, because the stub-step guard above
+    /// reads the base.
     #[test]
     fn no_kind_overlay_overrides_the_web_image() {
         use std::path::Path;
@@ -2538,7 +2537,7 @@ mod tests {
         );
         assert!(
             !deploy.contains("navigator-git") && !deploy.contains("Containerfile.git"),
-            "deploy.yml must not reference the retired git-bearing image"
+            "deploy.yml must not reference a git-bearing image"
         );
     }
 
@@ -2919,11 +2918,11 @@ mod tests {
 
         assert!(
             !manifests.contains("grafana/otel-lgtm"),
-            "the retired LGTM image must not return in the KIND dependency tier"
+            "the KIND dependency tier exports to OpenObserve directly, with no LGTM image"
         );
         assert!(
             !manifests.contains("name: lgtm"),
-            "the retired LGTM Service and Deployment must not return"
+            "no LGTM Service or Deployment belongs in the KIND dependency tier"
         );
 
         let service = ship::manifest_doc(&manifests, "Service", "openobserve");

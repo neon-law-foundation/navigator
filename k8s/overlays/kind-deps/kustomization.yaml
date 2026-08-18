@@ -4,7 +4,7 @@ kind: Kustomization
 # Deps-only KIND stack — everything from the `kind` overlay except
 # the navigator-web Deployment + Service + ConfigMap + Secret +
 # Ingress. Use this when running `web` from the host
-# (`cargo run -p web`) for the fast edit-compile-reload loop.
+# (`cargo run -p neon`) for the fast edit-compile-reload loop.
 #
 # Apply: kubectl apply -k k8s/overlays/kind-deps
 #

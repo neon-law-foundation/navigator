@@ -4,7 +4,7 @@
 # drop your logos next to it, and run:
 #
 #     cargo run -p cli -- ops rebrand build --out .devx/brand-bundle
-#     NAVIGATOR_CUSTOM_BRANDING=.devx/brand-bundle cargo run -p web
+#     NAVIGATOR_CUSTOM_BRANDING=.devx/brand-bundle cargo run -p neon
 #
 # `rebrand build` makes this manifest and its static files a self-contained,
 # read-only mounted bundle. Branding is Neon Law by default; setting

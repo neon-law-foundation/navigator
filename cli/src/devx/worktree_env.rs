@@ -1682,7 +1682,9 @@ fn dev_summary(slug: &str, db_name: &str, runtime: Runtime, cfg: &KindConfig) ->
 }
 
 fn web_start_instructions(web_port: u16) -> String {
-    format!("    set -a; source .devx/env; set +a\n    cargo run -p web   # listens on :{web_port}")
+    format!(
+        "    set -a; source .devx/env; set +a\n    cargo run -p neon   # listens on :{web_port}"
+    )
 }
 
 impl WorktreeEnv {
@@ -1703,16 +1705,16 @@ mod tests {
         // alone: the integration-tier requirements (SENDGRID_EVENTS_*,
         // DOCUSIGN_HMAC_KEY) are filtered out of
         // `enforce_deployment_invariants` under the harness. Sourcing the
-        // generated env is therefore sufficient — re-introducing a secrets
-        // provider prefix here would advertise a dependency the binary
-        // doesn't have.
+        // generated env is therefore sufficient, and naming a secrets
+        // provider here would advertise a dependency the binary doesn't
+        // have.
         let instructions = web_start_instructions(3042);
         assert!(instructions.contains("source .devx/env"));
-        assert!(instructions.contains("cargo run -p web"));
+        assert!(instructions.contains("cargo run -p neon"));
         assert!(instructions.contains(":3042"), "must name the chosen port");
         assert!(
             !instructions.to_lowercase().contains("doppler"),
-            "local web start is self-contained; the retired provider must not resurface: {instructions}"
+            "local web start is self-contained and names no secrets provider: {instructions}"
         );
     }
 
