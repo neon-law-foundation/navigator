@@ -245,6 +245,61 @@ fn the_dioxus_theme_is_set_in_gorp_serif() {
     );
 }
 
+#[test]
+fn workshop_step_media_fits_the_visible_page_without_changing_display_mode() {
+    let css = std::fs::read_to_string(public_dir().join("css/nebula.css"))
+        .expect("read the workshop stylesheet");
+
+    let media_frame = css
+        .split_once(".workshop-step .workshop-slide .material-body p:has(> img, > video) {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the regular workshop page must frame image and video media together");
+    assert!(media_frame.contains("align-items: center;"));
+    assert!(media_frame.contains("padding-block:"));
+
+    let media = css
+        .split_once(".workshop-step .workshop-slide .material-body :is(img, video) {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the regular workshop page must size image and video media together");
+    assert!(
+        media.contains("max-height: min(100%, 45dvh);"),
+        "regular workshop media must remain within the visible page"
+    );
+}
+
+#[test]
+fn presentation_practice_cards_hold_the_hover_treatment_without_motion() {
+    let css = std::fs::read_to_string(public_dir().join("css/nebula.css"))
+        .expect("read the workshop stylesheet");
+
+    let card = css
+        .split_once(".workshop-slide .workshop-product-cards > .home-practice {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the presentation must style its practice cards");
+    assert!(card.contains("border-color: var(--firm-brand);"));
+    assert!(card.contains("transform: translateY(-2px);"));
+    assert!(card.contains("transition: none;"));
+
+    let heading = css
+        .split_once(".workshop-slide .workshop-product-cards .home-practice__heading {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the presentation must style its practice-card headings");
+    assert!(heading.contains("color: var(--firm-brand-strong);"));
+
+    let wash = css
+        .split_once(".workshop-slide .workshop-product-cards > .home-practice::after {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the presentation must keep the practice-card hover wash visible");
+    assert!(wash.contains("opacity: 0.22;"));
+    assert!(wash.contains("transform: scale(1.5);"));
+    assert!(wash.contains("transition: none;"));
+}
+
 /// A blog post's body is authored in Markdown, so every picture arrives as a
 /// bare `<img>` with no width of its own. Without a cap it lays out at the
 /// file's intrinsic pixel width and overruns the article's 65ch measure, so the

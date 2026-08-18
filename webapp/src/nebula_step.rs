@@ -26,6 +26,7 @@ use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::components::{PublicShell, SiteHeader, SiteNavLink, NEBULA_STYLESHEET_HREF};
+use crate::nebula_slide_body::NebulaSlideBody;
 use crate::nebula_slides::WORKSHOP_PROGRESS_SCRIPT_HREF;
 use crate::public_chrome::{PublicChrome, PublicFooter};
 
@@ -167,7 +168,10 @@ pub fn NebulaStepPage(chrome: PublicChrome, content: StepContent) -> Element {
                 // The slide face: a 16:9 canvas so the deck reads like a
                 // Keynote wide presentation.
                 section { class: "workshop-slide",
-                    div { class: "material-body", dangerous_inner_html: "{content.body_html}" }
+                    NebulaSlideBody {
+                        title: content.title.clone(),
+                        body_html: content.body_html.clone(),
+                    }
                 }
                 if !content.notes_html.is_empty() {
                     aside { class: "presenter-notes", "aria-label": "Presenter notes",

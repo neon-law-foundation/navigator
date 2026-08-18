@@ -1253,16 +1253,35 @@ async fn a_talk_hub_renders_under_the_firm_brand() {
     // Section 1 is the cover slide — its heading and the Megadeth/Ferris cover
     // image — with the rail showing chapter and section progress.
     let step = body_string(anon_get(&app, "/presentations/rust-in-peace/step/1").await).await;
-    assert!(step.contains("<h3>A eulogy in Rust</h3>"));
+    assert!(step.contains("<h3>May my soul rust in peace</h3>"));
     assert!(
         step.contains("img/rust-in-peace/cover.png"),
         "the cover slide renders its published image: {step}"
     );
     assert!(step.contains("Chapter 1 of"));
     assert!(step.contains("Section 1 of"));
-    // The agenda follows it as section 2.
+    // The new career-history sequence follows the cover, and the agenda stays
+    // at the end of the expanded intro rather than interrupting that story.
     let step2 = body_string(anon_get(&app, "/presentations/rust-in-peace/step/2").await).await;
-    assert!(step2.contains("<h3>Agenda</h3>"));
+    assert!(step2.contains("<h3>5 Years at the Fruit</h3>"));
+    assert!(step2.contains("img/rust-in-peace/kiwi-rainbow.jpg"));
+
+    let step7 = body_string(anon_get(&app, "/presentations/rust-in-peace/step/7").await).await;
+    assert!(
+        step7.contains("workshop-product-slide") && step7.contains("What our firm does"),
+        "the custom firm-services slide must replace its Markdown marker: {step7}"
+    );
+    for heading in [
+        "Fractional CTO",
+        "Litigation",
+        "Fractional GC",
+        "One-time services",
+    ] {
+        assert!(step7.contains(heading), "missing {heading}: {step7}");
+    }
+
+    let step8 = body_string(anon_get(&app, "/presentations/rust-in-peace/step/8").await).await;
+    assert!(step8.contains("<h3>Agenda</h3>"));
 }
 
 /// A talk wears the firm's chrome, and the nonprofit's block beside it stays
