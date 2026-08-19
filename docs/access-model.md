@@ -428,9 +428,9 @@ The marker matters beyond visibility: a lawyer DRI is who closes the matter. The
 closing is bespoke, asked for by email — so the accountable lawyers are who that request goes to.
 
 The route layer carries a second gate for the lawyer project-write surface: `Role::is_lawyer_tier` is `true` for lawyer
-`lawyer` and `admin`, never `clerk`. A `client` or `clerk` who reaches `/app/projects/:id/edit` and friends is stopped
-by the handler's own tier check rather than by embedded Rego, which admits every authenticated caller onto the collapsed
-matter path. A failed handler-level Project ACL returns `404` so unrelated matters do not announce themselves.
+`lawyer` and `admin`, never `clerk`. A `client` or `clerk` who reaches `/app/projects/:project_code/edit` and friends is
+stopped by the handler's own tier check rather than by embedded Rego, which admits every authenticated caller onto the
+collapsed matter path. A failed handler-level Project ACL returns `404` so unrelated matters do not announce themselves.
 
 ## Where SurrealDB authorization lives
 

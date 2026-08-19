@@ -31,8 +31,8 @@ that gates client visibility:
 - `pending_review` — an attorney has advanced it. The client may read and comment.
 - `approved` — the client has signed off; ready for signature.
 
-The client reads one draft at `/app/projects/:id/review/:doc_id` and leaves comments anchored to a text range. The
-surface is read-only — a comment is the only thing the client writes. Comments live in `document_comments`, each
+The client reads one draft at `/app/projects/:project_code/review/:doc_id` and leaves comments anchored to a text range.
+The surface is read-only — a comment is the only thing the client writes. Comments live in `document_comments`, each
 carrying a character-offset range (`anchor_start`/`anchor_end`) into the document text, the `quoted_text` it covered,
 the comment `body`, and a `resolved` flag lawyer flip once addressed. Comments anchor to a specific `review_documents`
 row, never to the bare notation, so the will's thread and the trust's thread stay separate.
@@ -110,7 +110,7 @@ first and swapped in DocuSign). Status:
 - **Shipped** — estate-matter creation starts the `onboarding__estate` workflow. `POST /lawyer/retainers/new`
   with the estate template reuses the retainer's create plumbing but, detecting a `transcript_uploaded` edge out of
   `BEGIN`, starts the workflow machine and lands lawyer on the matter page (`portal::retainer_walk::start_post`).
-- **Shipped** — the transcript-upload surface. The handler `POST /app/projects/:id/notations/:nid/transcript`
+- **Shipped** — the transcript-upload surface. The handler `POST /app/projects/:project_code/notations/:nid/transcript`
   (`portal::transcript_intake`) accepts text/file/link, files it via `document_intake__*`, and the lawyer matter page
   renders the phone-friendly upload form while the workflow is at `BEGIN` (`webapp::lawyer_project_detail`).
 - **Shipped (stub)** — extraction behind `extract__inputs`. An `EstateExtractor` seam (`portal::estate`) maps the
@@ -120,7 +120,7 @@ first and swapped in DocuSign). Status:
   `review_documents` row each at `status = draft`, web-side via `store::review_documents::create`.
 - **Shipped** — the review gates. The attorney releases the drafts (the `release-drafts` route under
   `/lawyer/notations/:id`), which fires `approved` (lawyer_review → client_review) and flips each draft to
-  `pending_review`; the client then approves (the `approve-plan` route under `/app/projects/:id`), which fires
+  `pending_review`; the client then approves (the `approve-plan` route under `/app/projects/:project_code`), which fires
   `client_approved` (client_review → sent_for_signature__pending) and flips each draft to `approved`. Both are scoped to
   the matter (404 otherwise), with a dedicated embedded Rego rule for the client path; `portal::estate` enforces that
   all drafts are released and the client can approve only once.

@@ -132,9 +132,9 @@ fork.
 **Question audience.** `questions.audience` (`lawyer` | `client` | `both`, default `both`) marks which side sees a
 question. It is data, not code — set it in `store/seeds/Question.yaml`, never branch per product.
 
-**Client intake.** `GET/POST /app/projects/:id/intake/:notation_id` uses the ordinary cookie session and project ACL,
-not another token. Clients edit client-facing answers without moving lawyer's runtime pointer; latest-per-code wins at
-render. The walker emails this URL.
+**Client intake.** `GET/POST /app/projects/:project_code/intake/:notation_id` uses the ordinary cookie session and
+project ACL, not another token. Clients edit client-facing answers without moving lawyer's runtime pointer;
+latest-per-code wins at render. The walker emails this URL.
 
 **Custom clauses.** `notation_clauses` stores ordered, analyzable per-matter prose. The lawyer editor writes rows and
 `store::notation_clauses::splice` inserts them at `{{custom_clauses}}`.
