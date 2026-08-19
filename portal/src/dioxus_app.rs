@@ -3583,19 +3583,10 @@ mod tests {
         assert!(!fragment.contains("<script>"), "{fragment}");
     }
 
-    /// The Foundation chrome swaps the header; the footer stays the one
-    /// shared component on both faces.
-    ///
-    /// The header is still an either/or: a Foundation page renders the
-    /// nonprofit's wordmark, its logo, and its own hub as home, never the
-    /// firm's.
-    ///
-    /// What stays asymmetric is the firm's *regulated* data. It is cleared on
-    /// Foundation chrome rather than merely left unrendered, so a Foundation
-    /// page that reached for the firm's footer would still emit no bar number,
-    /// no registered mark, and no firm inbox.
+    /// The Foundation chrome swaps the header; every footer field is
+    /// identical to the firm's.
     #[test]
-    fn the_foundation_chrome_swaps_the_header_but_shares_the_footer_component() {
+    fn the_foundation_chrome_swaps_the_header_and_shares_every_footer_field() {
         let foundation = webapp::public_chrome::foundation_public_chrome(Vec::new());
         let firm = webapp::public_chrome::firm_public_chrome(Vec::new());
 
@@ -3618,44 +3609,21 @@ mod tests {
             "the two brands must not render the same wordmark"
         );
 
-        // None of the firm's REGULATED footer data survives onto Foundation
-        // chrome — the entity of record, the bar licences, and the firm's
-        // street addresses. Cleared rather than left unrendered, so a
-        // Foundation page that reached for the firm's footer would still emit
-        // none of it. That matters more now than it did: both faces render the
-        // same footer component, so the chrome is the only thing keeping them
-        // apart.
-        assert!(foundation.legal_entity.is_empty());
-        assert!(foundation.attorneys.is_empty());
-        assert!(foundation.offices.is_empty());
-        assert!(!firm.legal_entity.is_empty(), "the firm keeps its own");
-        assert!(!firm.offices.is_empty(), "the firm keeps its own");
-        // `attorneys` is empty on BOTH faces, and that is the firm's own
-        // choice rather than the Foundation's clearing: `FIRM_ATTORNEYS` is
-        // empty, so the footer publishes no bar number anywhere. Asserted so
-        // that refilling it is a deliberate act which has to come past this
-        // line — the Foundation's page must not inherit the numbers when it
-        // does.
-        assert!(
-            firm.attorneys.is_empty(),
-            "the firm publishes no bar number in its footer"
-        );
-
-        // The contact band is the deliberate exception, and it is not
-        // regulated data. One site serves both organizations and the firm is
-        // the entity a visitor calls or writes to, so the inbox and the phone
-        // are anchored to it on both faces. The nonprofit's own inbox renders
-        // beside them, from its block above.
+        // Every footer field carries over unchanged: the legal entity, the
+        // attorneys and their bar licenses, the offices, and the contact
+        // band. The chrome resolver differs only in what it names as the
+        // header brand.
+        assert_eq!(foundation.legal_entity, firm.legal_entity);
+        assert_eq!(foundation.attorneys.len(), firm.attorneys.len());
+        assert_eq!(foundation.offices.len(), firm.offices.len());
+        assert!(!firm.legal_entity.is_empty(), "the firm names its own");
+        assert!(!firm.offices.is_empty(), "the firm publishes its offices");
         assert_eq!(foundation.firm_email, firm.firm_email);
         assert_eq!(foundation.firm_phone, firm.firm_phone);
         assert!(
             !firm.firm_email.is_empty(),
             "the band has something to show"
         );
-
-        // Both names still reach both brands' chrome: the Foundation's footer
-        // carries a joint copyright, and the firm's names its own legal person
-        // from `legal_entity`.
         assert_eq!(foundation.firm_name, firm.firm_name);
         assert_eq!(foundation.foundation_name, firm.foundation_name);
     }

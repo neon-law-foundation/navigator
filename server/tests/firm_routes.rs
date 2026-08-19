@@ -534,20 +534,15 @@ async fn the_firm_nav_leads_with_the_lead_offering_then_the_practices() {
 
 #[tokio::test]
 async fn the_footer_carries_the_pages_the_header_does_not() {
-    // Blog, Contact, Foundation, Navigator, Presentations, and Workshops are one
+    // Blog, Contact, Navigator, Neon Law, Presentations, and Workshops are one
     // click away from every public page. Checked on `/litigation` rather than
     // `/`, because the footer is shared chrome and a page that is not the home
     // page proves it renders everywhere.
-    //
-    // Workshops joined the row when the classes became public. While they were
-    // gated neither row carried them, so that the site never sent a signed-out
-    // reader at a login door; now that anyone may read them, this link is what
-    // stops the catalog being reachable only by typing the URL.
     const ROW: [&str; 6] = [
         "/blog",
         "/contact",
-        "/foundation",
         "/navigator",
+        "/",
         "/presentations",
         "/workshops",
     ];

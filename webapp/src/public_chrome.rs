@@ -115,15 +115,13 @@ pub struct PublicChrome {
 
 /// The public footer, mapped from an already-resolved [`PublicChrome`].
 ///
-/// ONE footer, on every page of both faces. [`crate::components::SiteFooterLegal`]
-/// is the only footer this renders; what differs between the two faces is the
-/// DATA: [`foundation_public_chrome`] clears the firm's regulated fields, so a
-/// Foundation page renders no bar number, no firm office, and no firm inbox
-/// even though it renders the same component. Clearing beats not-rendering —
-/// data that isn't there cannot leak through a page that reaches for it.
+/// ONE footer, byte-identical on every page of both faces:
+/// [`crate::components::SiteFooterLegal`] renders the same copyright, bar
+/// licenses, offices, and contact channels regardless of which organization's
+/// header the page wears.
 ///
-/// [`crate::components::SiteFooterFoundation`] survives as the standalone
-/// component the design gallery drives with literal props; nothing routes to it.
+/// [`crate::components::SiteFooterFoundation`] is a standalone component the
+/// design gallery drives with literal props; no page routes to it.
 ///
 /// Pages call `rsx! { PublicFooter { chrome } }` and pass the result to
 /// [`crate::components::PublicShell`].
@@ -214,42 +212,24 @@ pub fn firm_public_chrome(utility: Vec<ChromeNavLink>) -> PublicChrome {
     chrome_for(&views::brand::FIRM_BRAND, utility)
 }
 
-/// Resolve the Foundation's public chrome from the process brand — the 501(c)(3)'s
-/// header identity, on the one shared footer.
+/// Resolve the Foundation's public chrome from the process brand — the
+/// 501(c)(3)'s own header identity, on the one shared footer.
 ///
-/// The header differs as it always did: the wordmark, the logo, the home link
+/// Only the header differs: the wordmark, the logo, the home link
 /// (`/foundation`, not `/`), the social image, and the destination nav. The
-/// two entities are separate, so the Foundation no longer borrows the firm's
-/// regulated footer copy: no bar admissions, no per-attorney bar numbers, and
-/// no firm street address.
+/// footer is identical to the firm's on every page of the site.
 #[cfg(feature = "server")]
 #[must_use]
 pub fn foundation_public_chrome(utility: Vec<ChromeNavLink>) -> PublicChrome {
-    use views::brand::FOUNDATION_BRAND;
-
-    let mut chrome = chrome_for(&FOUNDATION_BRAND, utility);
-    // Strip the firm's REGULATED footer data rather than merely declining to
-    // render it: the entity of record, the bar licences, and the firm's street
-    // addresses. Data that isn't there cannot leak through a page that reaches
-    // for the firm's footer directly, which matters more now that both faces
-    // render the same footer component.
-    //
-    // `firm_name` survives because the joint copyright names both entities, and
-    // the contact band survives too — an inbox and a phone number are not
-    // regulated disclosures, and the firm is the entity a visitor on either
-    // face calls or writes to.
-    chrome.legal_entity = String::new();
-    chrome.attorneys = Vec::new();
-    chrome.offices = Vec::new();
-    chrome
+    chrome_for(&views::brand::FOUNDATION_BRAND, utility)
 }
 
-/// Build the public chrome for `brand`'s header, with the firm's footer.
+/// Build the public chrome for `brand`'s header, with the firm's footer data.
 ///
 /// `brand` supplies the header half (wordmark, logo, home link, social image,
-/// destinations). The footer half always reads the firm brand, because this
-/// builds the *firm's* footer; [`foundation_public_chrome`] replaces it
-/// wholesale with the Foundation's own afterwards.
+/// destinations). The footer half always reads the firm brand: the legal
+/// entity, the attorneys and their bar licenses, and the offices are the same
+/// on every page of the site, whichever organization's header it wears.
 #[cfg(feature = "server")]
 fn chrome_for(brand: &views::brand::SiteBrand, utility: Vec<ChromeNavLink>) -> PublicChrome {
     use views::brand::FIRM_BRAND;
@@ -410,21 +390,10 @@ mod tests {
         }
     }
 
-    /// The same chrome with the Foundation's header identity — what
-    /// `foundation_public_chrome` produces.
+    /// The same chrome `foundation_public_chrome` produces: identical footer
+    /// data to the firm's, on the Foundation's own header.
     fn foundation_chrome() -> PublicChrome {
-        PublicChrome {
-            // What `foundation_public_chrome` clears, cleared here too. The
-            // fixture has to model the resolver: both faces render the same
-            // footer component now, so a fixture that left the firm's
-            // regulated data in place would prove nothing about the page the
-            // resolver actually builds — it would only prove the component
-            // ignores it, which it no longer does.
-            legal_entity: String::new(),
-            attorneys: Vec::new(),
-            offices: Vec::new(),
-            ..firm_chrome()
-        }
+        firm_chrome()
     }
 
     /// Firm chrome renders the firm's footer: the copyright that names the
@@ -467,46 +436,30 @@ mod tests {
         assert!(ssr(unincorporated).contains("© 2026 Neon Law"));
     }
 
-    /// Foundation chrome renders the one shared footer — and none of the
-    /// firm's REGULATED copy.
-    ///
-    /// There is no footer swap any more. Both faces render
-    /// [`crate::components::SiteFooterLegal`]; what differs is the data the
-    /// chrome resolver puts in it. That is a stronger guarantee than the swap
-    /// was, not a weaker one: a new Foundation page cannot ship a bar number by
-    /// forgetting to opt out, because the number is not in its chrome at all.
+    /// Foundation chrome renders the one shared footer, byte-identical to the
+    /// firm's: the bar licenses, the offices, and the contact band all carry
+    /// over unchanged.
     #[test]
-    fn foundation_chrome_renders_the_shared_footer_without_the_firms_regulated_copy() {
-        fn app() -> Element {
+    fn foundation_chrome_renders_the_same_footer_as_the_firm() {
+        fn firm_app() -> Element {
+            rsx! { PublicFooter { chrome: firm_chrome() } }
+        }
+        fn foundation_app() -> Element {
             rsx! { PublicFooter { chrome: foundation_chrome() } }
         }
-        let out = ssr(app);
-        // One footer, and it is the shared one.
-        assert!(
-            !out.contains("site-footer--foundation"),
-            "the Foundation-only footer is retired: {out}"
-        );
+        let firm_out = ssr(firm_app);
+        let foundation_out = ssr(foundation_app);
         assert_eq!(
-            out.matches(r#"role="contentinfo""#).count(),
-            1,
-            "exactly one footer landmark: {out}"
+            firm_out, foundation_out,
+            "the two faces render the same footer"
         );
-        // The firm's REGULATED copy must not travel onto this face: a bar
-        // admission or a bar number here would read as the Foundation holding
-        // a licence, which is the confusion the two-entity split exists to
-        // remove.
-        for firm_only in ["Admitted in", "Bar No."] {
-            assert!(
-                !out.contains(firm_only),
-                "Foundation chrome must not carry {firm_only:?}: {out}"
-            );
-        }
-        // The firm's inbox is NOT in that set. The contact band is shared and
-        // firm-anchored on both faces — an email address is not a regulated
-        // disclosure, and the firm is who a visitor on either page writes to.
         assert!(
-            out.contains("mailto:support@neonlaw.com"),
-            "the shared contact band still reaches the firm: {out}"
+            foundation_out.contains("Bar No."),
+            "the bar license carries over: {foundation_out}"
+        );
+        assert!(
+            foundation_out.contains("mailto:support@neonlaw.com"),
+            "the contact band carries over: {foundation_out}"
         );
     }
 

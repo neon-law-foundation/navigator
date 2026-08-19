@@ -148,8 +148,8 @@ impl NavLink {
 /// offering than the schedule does, because a firm reading the lead is the
 /// reader those two are for.
 ///
-/// Everything a reader looks for second — the Blog, the Foundation, Navigator,
-/// how to reach the firm — stays in [`FIRM_FOOTER_NAV`].
+/// Everything a reader looks for second — the Blog, Navigator, how to reach
+/// the firm — stays in [`FIRM_FOOTER_NAV`].
 const FIRM_NAV: &[NavLink] = &[
     NavLink::leaf("Fractional CTO", "/fractional-cto"),
     NavLink::leaf("Litigation", "/litigation"),
@@ -173,21 +173,22 @@ const FIRM_NAV: &[NavLink] = &[
 /// the footer names the running release and links the same page; this is the
 /// reader-facing route to it, not a version stamp.
 ///
-/// The Foundation is here rather than in the header. One binary serves both
-/// faces, so the nonprofit is one link away from every firm page — but a
-/// visitor at the top of the firm's site is deciding whether to hire a lawyer,
-/// and sending them to a different organization first answers a question they
-/// did not ask.
+/// The "Neon Law" entry is this row's cross-link to the firm's own home,
+/// which the shared footer carries on both faces — so on the Foundation's own
+/// pages it is the way back to the firm, and on the firm's own pages it names
+/// the site the reader is already on. Fixed to the wordmark and `/` rather
+/// than resolved per face, so the label and the destination never drift
+/// apart from each other.
 ///
-/// Presentations sits here for the same reason. The talks are the firm's, given
-/// at meetups and conferences and published here; a reader deciding whether to
-/// work with the firm is not looking for them first, and a reader who saw one at
-/// a conference knows to look at the bottom of the page.
+/// Presentations sits here rather than the header. The talks are the firm's,
+/// given at meetups and conferences and published here; a reader deciding
+/// whether to work with the firm is not looking for them first, and a reader
+/// who saw one at a conference knows to look at the bottom of the page.
 const FIRM_FOOTER_NAV: &[NavLink] = &[
     NavLink::leaf("Blog", "/blog"),
     NavLink::leaf("Contact", "/contact"),
-    NavLink::leaf("Foundation", "/foundation"),
     NavLink::leaf("Navigator", "/navigator"),
+    NavLink::leaf("Neon Law", "/"),
     NavLink::leaf("Presentations", "/presentations"),
     NavLink::leaf("Workshops", "/workshops"),
 ];
@@ -1288,8 +1289,8 @@ mod tests {
             [
                 "Blog",
                 "Contact",
-                "Foundation",
                 "Navigator",
+                "Neon Law",
                 "Presentations",
                 "Workshops"
             ]
@@ -1324,12 +1325,12 @@ mod tests {
     /// possible and correct — and it belongs in the footer, because a visitor
     /// at the top of a law firm's page is deciding whether to hire a lawyer.
     #[test]
-    fn the_firm_footer_reaches_the_foundation() {
-        let foundation = super::firm_footer_nav()
+    fn the_footer_nav_names_neon_law_at_the_site_root() {
+        let neon_law = super::firm_footer_nav()
             .iter()
-            .find(|link| link.label == "Foundation")
-            .expect("the Foundation is linked from the firm's footer");
-        assert_eq!(foundation.href, "/foundation");
+            .find(|link| link.label == "Neon Law")
+            .expect("Neon Law is linked from the shared footer");
+        assert_eq!(neon_law.href, "/");
     }
 
     /// The Foundation's nav is trimmed to two entries: the training catalog
