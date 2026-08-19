@@ -1,4 +1,4 @@
-//! The client portal matter-detail page (`/app/projects/{id}`) as a Dioxus
+//! The client portal matter-detail page (`/app/projects/{code}`) as a Dioxus
 //! component (#641 Phase 3, projects cluster) — the single-matter client view.
 //!
 //! The successor to the `portal::projects::detail` render. Every caller
@@ -71,9 +71,7 @@ pub struct ReviewDocRow {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
 pub struct ProjectDetailView {
     pub id: String,
-    /// The Project code, which the client-portal mount is keyed by
-    /// (`/app/projects/{code}/portal/`). The matter page itself is keyed by
-    /// `id`, so both are carried.
+    /// The Project code, which keys both the matter page and client portal.
     pub code: String,
     pub name: String,
     pub status: String,
@@ -138,8 +136,8 @@ fn format_usd(cents: i64) -> String {
 pub async fn get_project_detail() -> Result<ProjectDetailView, ServerFnError> {
     use std::sync::Arc;
 
-    let axum::extract::Path(id) =
-        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<uuid::Uuid>, _>()
+    let axum::extract::Path(code) =
+        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<String>, _>()
             .await?;
     let PersonId(person_id) =
         dioxus_fullstack_core::FullstackContext::extract::<axum::Extension<PersonId>, _>()
@@ -171,6 +169,13 @@ pub async fn get_project_detail() -> Result<ProjectDetailView, ServerFnError> {
 
     let surreal = consume_context::<store::surreal::SurrealDb>();
     let storage = consume_context::<Arc<dyn cloud::StorageService>>();
+    let Some(project) = store::projects::find_by_code(&surreal, &code)
+        .await
+        .map_err(server_error)?
+    else {
+        return Ok(not_found(uuid::Uuid::nil(), role, logo, csrf_token));
+    };
+    let id = project.id;
 
     // Row-visibility runs before the row load, so an unauthorised caller never
     // even pulls the matter name into the response — the same 404 a missing id
@@ -194,13 +199,6 @@ pub async fn get_project_detail() -> Result<ProjectDetailView, ServerFnError> {
     if !visible {
         return Ok(not_found(id, role, logo, csrf_token));
     }
-    let Some(project) = store::projects::find_by_id(&surreal, id)
-        .await
-        .map_err(server_error)?
-    else {
-        return Ok(not_found(id, role, logo, csrf_token));
-    };
-
     // Notations, each with which of its three PDFs exist in storage.
     let notation_rows = notation_rows(&surreal, storage.as_ref(), id).await?;
 

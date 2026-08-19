@@ -72,7 +72,7 @@ pub async fn upload(
         return StatusCode::NOT_FOUND.into_response();
     }
 
-    let redirect_back = format!("/app/projects/{project_id}");
+    let redirect_back = crate::dioxus_app::project_show_path(&state.surreal, project_id).await;
 
     // Verify the `_csrf` first field before parsing the (possibly large)
     // upload — the multipart equivalent of the middleware's form-field

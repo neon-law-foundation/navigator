@@ -74,9 +74,13 @@ so a manifest cannot smuggle path segments into a bucket key.
 The trailing slash is load-bearing twice: Vite joins asset URLs directly onto the base, and Navigator redirects the bare
 mount to the slashed form.
 
-**The extra `portal` segment is the point.** Mounting at `/app/projects/<code>` directly would shadow Navigator's own
-matter show page at `/app/projects/{id}`. The two differ in path shape — three segments after `/app/projects` versus two
-— so neither can match the other's request.
+**The extra `portal` segment is the point.** Navigator's matter show page is `/app/projects/<code>` and the client
+application is `/app/projects/<code>/portal/`. The Project code is the stable lowercase-kebab URL slug; the internal
+UUID is not exposed in the show-page route.
+
+During local development, `navigator dev up` and `navigator dev worktree-env up` clone, build, and stage the Simpsons
+sample project before writing `.devx/env`. The host `web` process therefore starts against the same refreshed portal
+bundle for every developer.
 
 ## The organization is configuration, not a name in source
 

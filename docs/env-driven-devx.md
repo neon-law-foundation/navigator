@@ -7,7 +7,8 @@ the three `*-staging` rows included, because staging names a role in the release
 
 It changes neither database engine nor authorization. Every boot applies two seed layers that reach production — the
 canonical seed every deployment shares, and the booting brand's own seed — and `dev` additionally and idempotently
-applies the disposable development portfolio.
+applies the Simpsons development fixture. Local boot also refreshes and stages the Simpsons sample application before
+writing `.devx/env` for `web`.
 
 The brand layer is selected by the binary rather than by this variable. the brand layer seeds the Firm's own data and
 the Foundation's, and a white-label `tenant` boot seeds neither; each brand declares its `BrandSeed` in the `Brand`

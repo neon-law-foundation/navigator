@@ -1,6 +1,6 @@
 //! Cucumber runner for `features/portal_projects_detail.feature`.
 //!
-//! Exercises `GET /app/projects/:id` end-to-end with row-level
+//! Exercises `GET /app/projects/:code` end-to-end with row-level
 //! scoping via [`store::access::visible_projects`]. The runner shape
 //! mirrors `portal_landing.rs`: forge a session cookie, send the
 //! request, assert on the response.
@@ -28,6 +28,7 @@ struct DetailWorld {
     sessions: Option<SessionStore>,
     persons: HashMap<String, Uuid>,
     projects: HashMap<String, Uuid>,
+    project_codes: HashMap<String, String>,
     last_status: Option<StatusCode>,
     last_body: String,
 }
@@ -47,6 +48,12 @@ impl DetailWorld {
 
     fn app(&self) -> axum::Router {
         self.app.as_ref().expect("app not built").clone()
+    }
+
+    fn project_code(&self, name: &str) -> &str {
+        self.project_codes
+            .get(name)
+            .expect("project was seeded earlier")
     }
 }
 
@@ -120,10 +127,11 @@ async fn ensure_project(world: &mut DetailWorld, project_name: &str) -> Uuid {
         return *id;
     }
     let surreal = features::shared_surreal().await;
+    let code = format!("test-{}", Uuid::now_v7().simple());
     let inserted = store::projects::create(
         &surreal,
         &store::projects::NewProject {
-            code: format!("test-{}", Uuid::now_v7().simple()),
+            code: code.clone(),
             name: project_name.into(),
             status: "open".into(),
             entity_id: store::test_support::seed_entity(&features::shared_surreal().await).await,
@@ -133,16 +141,14 @@ async fn ensure_project(world: &mut DetailWorld, project_name: &str) -> Uuid {
     .await
     .expect("insert project");
     world.projects.insert(project_name.to_string(), inserted.id);
+    world.project_codes.insert(project_name.to_string(), code);
     inserted.id
 }
 
 #[when(regex = r#"^"([^"]+)" opens the detail page for "([^"]+)"$"#)]
 async fn open_detail(world: &mut DetailWorld, email: String, project_name: String) {
     let person_id = *world.persons.get(&email).expect("actor was seeded earlier");
-    let project_id = *world
-        .projects
-        .get(&project_name)
-        .expect("project was seeded earlier");
+    let project_code = world.project_code(&project_name);
     let role = role_for(&features::shared_surreal().await, person_id).await;
     let session = SessionData {
         sub: format!("rauthy-{email}-subject"),
@@ -162,7 +168,7 @@ async fn open_detail(world: &mut DetailWorld, email: String, project_name: Strin
         .app()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{project_id}"))
+                .uri(format!("/app/projects/{project_code}"))
                 .header("cookie", cookie)
                 .body(Body::empty())
                 .unwrap(),

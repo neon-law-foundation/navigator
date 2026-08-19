@@ -225,7 +225,7 @@ async fn participating_admin(surreal: &store::surreal::SurrealDb, projects: &[Uu
 
 /// The matter show page — the page lawyer land on straight after opening a
 /// matter, when it legitimately has no engagement letter yet.
-async fn get_project(app: &axum::Router, id: Uuid, admin_person: Uuid) -> String {
+async fn get_project(app: &axum::Router, code: &str, admin_person: Uuid) -> String {
     let mut admin = SessionData::fresh("admin-sub", Role::Admin);
     // The matter surface scopes every tier by participation, so the acting
     // admin has to be on the matter — a bare session used to ride the bypass.
@@ -238,7 +238,7 @@ async fn get_project(app: &axum::Router, id: Uuid, admin_person: Uuid) -> String
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{id}"))
+                .uri(format!("/app/projects/{code}"))
                 .header("cookie", cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -258,8 +258,13 @@ async fn a_matter_show_page_carries_no_engagement_letter_disclaimer() {
     let (app, surreal) = build_app().await;
     let bare = project(&surreal, "Bare show matter", "open").await;
     let admin_person = participating_admin(&surreal, &[bare]).await;
+    let bare_code = store::projects::find_by_id(&surreal, bare)
+        .await
+        .unwrap()
+        .expect("bare matter")
+        .code;
 
-    let html = get_project(&app, bare, admin_person).await;
+    let html = get_project(&app, &bare_code, admin_person).await;
     assert!(!html.contains("no retainer"), "{html}");
     assert!(!html.contains("has no engagement letter"), "{html}");
     assert!(!html.contains("notation create"), "{html}");

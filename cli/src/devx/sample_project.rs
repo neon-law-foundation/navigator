@@ -1,13 +1,10 @@
 //! `navigator dev sample-project` — clone, build, and stage the reference
 //! project application.
 //!
-//! The `simpsons` demo matter carries a client portal at
-//! `/app/projects/simpsons/portal/`. By default `web` boot publishes a stub
-//! compiled into the binary, which needs no network and no Node. This command
-//! is the opt-in upgrade: it clones the repository **the Project itself
-//! records** (`store::projects::Project::repository_url`), builds it with
-//! `pnpm`, and stages the resulting `dist/` where the next boot will publish it
-//! instead.
+//! The `simpsons` demo matter carries the client portal at
+//! `/app/projects/simpsons/portal/`. Development boot clones the repository
+//! recorded on that Project, builds it with `pnpm`, and stages the resulting
+//! `dist/` before writing the environment that `web` reads.
 //!
 //! The URL comes from the Project rather than a constant here, so pointing a
 //! matter at a different forge — or standing up a second Project's application
@@ -23,8 +20,7 @@
 //! travels together. `--keep` retains the temp tree for debugging a failed
 //! build.
 //!
-//! Nothing here runs in production: the seed reads
-//! [`store::sample_project::STAGE_ENV`], and only this command sets it.
+//! Nothing here runs in production: only the local `dev` boot path stages it.
 //!
 //! ## Testing
 //!
@@ -254,11 +250,28 @@ fn built_bundle(checkout: &Path) -> Result<PathBuf> {
     Ok(built)
 }
 
-/// `navigator dev sample-project`: clone, build, stage.
+/// Refresh the Simpsons application for a local boot.
 pub fn run(repo: Option<&str>, git_ref: Option<&str>, keep: bool) -> Result<()> {
     super::require_tools(&["git", "pnpm"])?;
     let repo = &resolve_repo(repo)?;
     let workspace_root = super::orchestrate::workspace_root()?;
+
+    let (stage, copied) = run_for_root(repo, git_ref, keep, &workspace_root)?;
+    print!("{}", staging_instructions(copied, &stage));
+    Ok(())
+}
+
+/// Clone, build, and stage the one local Simpsons application for `root`.
+///
+/// The development orchestrator calls this before it renders `.devx/env`, so
+/// the following `web` process always reads the freshly staged bundle.
+pub(super) fn run_for_root(
+    repo: &str,
+    git_ref: Option<&str>,
+    keep: bool,
+    workspace_root: &Path,
+) -> Result<(PathBuf, usize)> {
+    super::require_tools(&["git", "pnpm"])?;
 
     // The checkout and the build live in a temp tree; only `dist/` survives.
     let temp = tempfile::Builder::new()
@@ -293,7 +306,7 @@ pub fn run(repo: Option<&str>, git_ref: Option<&str>, keep: bool) -> Result<()> 
 
     // Stage the manifest beside the bundle: boot re-reads the declared Project
     // rather than trusting whoever set the environment variable.
-    let stage = staged_root(&workspace_root);
+    let stage = staged_root(workspace_root);
     let copied = copy_tree(&built, &stage.join(store::sample_project::DIST_DIR))?;
     std::fs::write(stage.join(store::sample_project::MANIFEST_FILE), &manifest)
         .with_context(|| format!("staging the manifest in {}", stage.display()))?;
@@ -304,25 +317,17 @@ pub fn run(repo: Option<&str>, git_ref: Option<&str>, keep: bool) -> Result<()> 
         println!("navigator: kept the build tree at {}", path.display());
     }
 
-    print!("{}", staging_instructions(copied, &stage));
-    Ok(())
+    Ok((stage, copied))
 }
 
 /// What to tell the operator once the bundle is staged.
 ///
-/// Built as a string rather than printed inline so the one thing that must be
-/// exactly right — the `export` line they will copy — is asserted rather than
-/// eyeballed. A wrong variable name here sends the reader to a page still
-/// serving the compiled stub with no indication why.
+/// Built as a string so the refresh output is covered by a focused test.
 fn staging_instructions(copied: usize, stage: &Path) -> String {
     format!(
         "\nnavigator: staged {copied} file(s) to {}\n\n\
-         Point the next `web` boot at it, then restart `web`:\n\n\
-         \x20   export {}={}\n\n\
-         Unset it to go back to the compiled stub.\n",
+         The next `web` boot reads it from the generated `.devx/env`.\n",
         stage.display(),
-        store::sample_project::STAGE_ENV,
-        stage.display()
     )
 }
 
@@ -500,26 +505,15 @@ mod tests {
         );
     }
 
-    /// The `export` line names the key boot actually reads, and the staged path.
-    ///
-    /// This is the one line an operator copies, so it is asserted against the
-    /// store's own constant rather than a literal — a rename there must not
-    /// leave this printing a variable nothing consumes.
+    /// The refresh output names the staged path and the generated environment.
     #[test]
     fn the_instructions_name_the_key_boot_reads_and_the_staged_path() {
         let text = staging_instructions(5, Path::new("/w/.devx/sample-project"));
         assert!(
-            text.contains(&format!(
-                "export {}=/w/.devx/sample-project",
-                store::sample_project::STAGE_ENV
-            )),
-            "the copyable line must carry the real key and path: {text}"
+            text.contains("The next `web` boot reads it from the generated `.devx/env`."),
+            "{text}"
         );
         assert!(text.contains("staged 5 file(s)"), "{text}");
-        assert!(
-            text.contains("Unset it to go back to the compiled stub."),
-            "the way back must be stated: {text}"
-        );
     }
 
     /// `run_in` reports a failing command and a missing one differently.

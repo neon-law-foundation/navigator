@@ -754,8 +754,8 @@ sole manifest owner, so a `RootSync` cannot revert one site's environment-specif
 
 | Operating mode | Selector | Runtime and data posture |
 | --- | --- | --- |
-| **Test** | `dev` + `NAVIGATOR_CI_HARNESS=1` | Schemas/KIND; stubs; canonical + development portfolio + test fixtures |
-| **Dev** | `dev`; harness normally unset | KIND/cloud namespace; sandbox vendors; canonical + dev portfolio |
+| **Test** | `dev` + `NAVIGATOR_CI_HARNESS=1` | Schemas/KIND; Simpsons fixture; canonical seed + test fixtures |
+| **Dev** | `dev`; harness normally unset | KIND/cloud namespace; sandbox vendors; canonical seed + Simpsons fixture |
 | **Production** | `production`, empty, or unset | Hosted services; production vendors; canonical seed + live data |
 
 ---
@@ -775,10 +775,9 @@ simulated matters.
 
 The data rule is small but not flat: every boot applies the same embedded, environment-blind canonical seed —
 jurisdictions above all, the reference table every entity and licensure record points at — and a `dev` boot additionally
-and idempotently applies the compiled disposable development portfolio (the _Using the Navigator_ matters, their
-clients, mailroom, invoices, and answers). Production never receives that portfolio. Tests may add rows inside their
-isolated schemas; the deployment selector never chooses a second seed _file_ — it chooses whether the one compiled
-development portfolio is applied.
+and idempotently applies the compiled Simpsons development fixture (one synthetic matter, its local participants, and
+the rows used by the portal walkthrough). Production never receives that fixture. Tests may add rows inside their
+isolated schemas; the deployment selector chooses whether the Simpsons fixture is applied.
 
 ### Configuration precedence: the first source wins
 
@@ -1168,7 +1167,7 @@ disposable `navigator dev staging` lane, not `neon-law-stg`.
 | Surface | Local dev | Disposable `dev staging` | Persistent hosted rows |
 | --- | --- | --- | --- |
 | **Canonical database seed** | Always runs | Always runs | Always runs |
-| **Disposable development portfolio** | Always runs (`dev`) | Always runs (`dev`) | Never |
+| **Simpsons development fixture** | Always runs (`dev`) | Always runs (`dev`) | Never |
 | **Test-local database fixtures** | Browser/E2E harness only | Integration harness only | Never |
 | Email | `CapturingEmail` by default | Non-production SendGrid | Production SendGrid |
 | E-signature | Stub IDs and documents | Non-binding DocuSign demo | Live DocuSign |
@@ -1183,17 +1182,14 @@ the bundled catalog and firm-owned baseline rows in every deployment, production
 clearest example of the distinction this table encodes. The full reference set — all 248 rows of
 `store/seeds/Jurisdiction.yaml`, every US state plus DC and every sovereign a matter can touch — is seeded on **every**
 boot in **every** environment, because an entity's domicile and an attorney's licensure must resolve wherever the
-application runs; since ENG-20 those rows live in SurrealDB, but the rule is engine-blind. The simulated cases — the
-_Using the Navigator_ matters (Henderson Bungalow Purchase, the litigation demo, the training cohort) and their example
-Projects, invoices, mail, and answers — are the opposite: a second, idempotent layer that only a `dev` boot (local KIND,
-the disposable `dev staging` lane) applies and the test harnesses recreate, and that no persistent hosted row ever
-receives from a boot. The persistent staging deployment at `www.neonlaw.com` holds _only_ simulated matters, but by
-data-plane policy — everything ever entered there is synthetic — not because the compiled portfolio seeds it; the firm's
-production holds real matters and neither simulated cases nor test fixtures, while its jurisdictions are identical to
-every other environment's. Both layers are applied by one environment-aware orchestration call
-(`store::seed::seed_environment`), so a reset or recreate restores the same canonical + development baseline
-automatically. Provider simulation is a separate axis again: the test harness permits fakes, while a non-harness dev
-uses sandbox integrations. Test suites add further records inside isolated test schemas.
+application runs; since ENG-20 those rows live in SurrealDB, but the rule is engine-blind. The Simpsons fixture — one
+synthetic Project, its participants, and its walkthrough rows — is the second, idempotent layer that a `dev` boot (local
+KIND or the disposable `dev staging` lane) applies. The persistent staging deployment at `www.neonlaw.com` holds
+synthetic matters by data-plane policy, while production holds live matters; both deployment lanes receive the same
+canonical reference data. Both layers are applied by one environment-aware orchestration call
+(`store::seed::seed_environment`), so a reset or recreate restores the same canonical + Simpsons baseline automatically.
+Provider simulation is a separate axis: the test harness permits fakes, while non-harness dev uses sandbox integrations.
+Test suites add further records inside isolated test schemas.
 
 ## Configure the Trust Boundaries
 

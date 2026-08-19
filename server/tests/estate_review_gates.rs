@@ -115,7 +115,7 @@ async fn attorney_releases_drafts_then_client_approves_the_plan() {
         )
         .await
         .unwrap();
-    let project_id = resp
+    let project_code = resp
         .headers()
         .get("location")
         .unwrap()
@@ -124,8 +124,12 @@ async fn attorney_releases_drafts_then_client_approves_the_plan() {
         .rsplit('/')
         .next()
         .unwrap()
-        .parse::<Uuid>()
-        .unwrap();
+        .to_string();
+    let project_id = store::projects::find_by_code(&f.surreal, &project_code)
+        .await
+        .unwrap()
+        .expect("redirected project exists")
+        .id;
     let notation = store::notations::list_by_project(&f.surreal, project_id)
         .await
         .unwrap()
@@ -233,7 +237,7 @@ async fn attorney_releases_drafts_then_client_approves_the_plan() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{project_id}"))
+                .uri(format!("/app/projects/{project_code}"))
                 .header("cookie", &client_cookie)
                 .body(Body::empty())
                 .unwrap(),

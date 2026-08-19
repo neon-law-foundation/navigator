@@ -13,7 +13,7 @@
 //!   naming the brand it serves so that brand's own seeds apply too.
 //!
 //! Seeds come in three layers — canonical, brand, and the `dev`-only
-//! development portfolio. [`seed_environment`] documents which reaches
+//! development Simpsons fixture. [`seed_environment`] documents which reaches
 //! production and why.
 
 use anyhow::Context as _;
@@ -121,7 +121,7 @@ pub const FIRM_ENTITY_NAME: &str = "Shook Law PLLC";
 ///
 /// This is the third seed layer, and the only one besides the canonical set
 /// that reaches production. The canonical layer is what every deployment
-/// shares; the development portfolio is disposable and `dev`-only; this layer
+/// shares; the Simpsons fixture is disposable and `dev`-only; this layer
 /// is the data one brand owns and the other must not carry. The Firm's postal
 /// identities and the Foundation's are the founding case: both are real, both
 /// belong in production, and neither belongs in the other's database.
@@ -274,14 +274,6 @@ mod canonical {
         include_str!("../../templates/neon_law/nautilus/fcra_dispute.md");
     pub const TEMPLATE_NATURALIZATION: &str =
         include_str!("../../templates/forms/united_states/federal/uscis/us__naturalization.md");
-}
-
-mod development {
-    /// A deliberately small, renderable, synthetic PDF. Keeping it alongside
-    /// the dev-only seed makes a fresh KIND cluster useful without bringing
-    /// any client document or external fixture into the repository.
-    pub const INITIAL_CASE_ASSESSMENT_PDF: &[u8] =
-        include_bytes!("../seeds/dev/initial-case-assessment.pdf");
 }
 
 /// One bundled notation template that the canonical seed inserts into the
@@ -438,12 +430,11 @@ pub async fn seed_canonical(
     Ok(r)
 }
 
-/// Apply the compiled disposable development portfolio on top of the
-/// canonical seed. Everything here is the throwaway simulated portfolio —
-/// the *Using the Navigator* matters, their clients, participation,
-/// mailroom, and answers — that makes a fresh `dev` environment
-/// useful immediately. It is never applied in production. Idempotent: a
-/// second run inserts zero duplicates.
+/// Apply the compiled Simpsons development fixture on top of the canonical
+/// seed. It gives a fresh `dev` environment one synthetic matter, its local
+/// participants, and the reference rows needed by the portal walkthrough.
+/// It is never applied in production. Idempotent: a second run inserts zero
+/// duplicates.
 pub async fn seed_dev_portfolio(
     surreal: &SurrealDb,
     storage: &std::sync::Arc<dyn cloud::StorageService>,
@@ -476,9 +467,9 @@ pub async fn seed_brand(surreal: &SurrealDb, brand: BrandSeed) -> anyhow::Result
 ///    including production. This is the layer that carries data one brand
 ///    owns and the other must not: the brand layer seeds the Firm's mailboxes,
 ///    `neon` the Foundation's, and neither sees the other's.
-/// 3. The disposable **development portfolio**, only when `environment` is
-///    `Dev`, so a simulated Project, mail, or answer row can never
-///    reach production.
+/// 3. The disposable **Simpsons development fixture**, only when `environment`
+///    is `Dev`, so synthetic Project, mail, or answer rows never reach
+///    production.
 ///
 /// Every layer is idempotent, so a reset/recreate that runs this again
 /// restores the exact same baseline.
@@ -541,15 +532,10 @@ async fn seed_canonical_into(
 
 async fn seed_dev_portfolio_into(
     surreal: &SurrealDb,
-    storage: &std::sync::Arc<dyn cloud::StorageService>,
+    _storage: &std::sync::Arc<dyn cloud::StorageService>,
     r: &mut SeedReport,
 ) -> anyhow::Result<()> {
-    remove_obsolete_dev_project(surreal).await?;
-    seed_practice_portfolio(surreal, storage, r).await?;
     seed_role_matrix_simpsons(surreal, r).await?;
-    seed_training_portfolio(surreal, r).await?;
-    seed_henderson_deed_template(surreal, storage, r).await?;
-    seed_litigation_demo_matter(surreal, storage, r).await?;
     seed_git_repositories(surreal, r).await?;
     seed_letters(surreal, r).await?;
     seed_answers(surreal, r).await?;
@@ -749,16 +735,17 @@ pub const SIMPSONS_REPOSITORY_URL: &str =
 
 /// Publish the `simpsons` client portal, preferring a locally built bundle.
 ///
-/// `navigator dev sample-project` clones and builds
+/// Local `dev` boot clones and builds
 /// `neon-law-foundation/navigator-sample-project` and stages it, naming the
-/// staged directory in [`crate::sample_project::STAGE_ENV`]. When that names a
-/// real directory, boot publishes the real bundle; otherwise it publishes the
-/// compiled stub, which is what every tier without the opt-in keeps serving.
+/// staged directory in [`crate::sample_project::STAGE_ENV`]. Boot publishes
+/// that bundle for the Simpsons matter; the generated environment points the
+/// web process at the staged directory.
 ///
 /// The staged bundle must declare its Project in `navigator.yml`, and it must
 /// be this one. Publishing a bundle that names another matter would put one
 /// client's application on another client's portal, so a mismatch — like an
-/// unbuilt or unparsable staging directory — falls back to the stub.
+/// unbuilt or unparsable staging directory — is reported as a failed local
+/// application build.
 async fn publish_simpsons_portal(
     applications: &std::sync::Arc<dyn cloud::StorageService>,
 ) -> anyhow::Result<()> {
@@ -773,12 +760,12 @@ async fn publish_simpsons_portal(
                 return Ok(());
             }
             Err(error) => {
-                // Never fatal: a bad staging directory is a local-development
-                // mistake, and boot still owes the portal a document.
+                // Keep the deterministic portal document available while the
+                // local application build is repaired.
                 tracing::warn!(
                     root = %staged.root.display(),
                     %error,
-                    "seed: staged sample project unusable; publishing the stub"
+                    "seed: staged sample project unusable; keeping the portal document"
                 );
             }
         }
@@ -800,8 +787,8 @@ async fn publish_simpsons_portal(
 }
 
 /// Publish one staged bundle, returning how many objects landed. Every failure
-/// mode — missing manifest, wrong Project, unbuilt `dist/` — is an error the
-/// caller turns into the stub fallback.
+/// mode — missing manifest, wrong Project, or unbuilt `dist/` — is returned as
+/// an error for the local boot to report.
 async fn publish_staged_portal(
     applications: &std::sync::Arc<dyn cloud::StorageService>,
     staged: &crate::sample_project::StagedProject,
@@ -835,375 +822,6 @@ async fn publish_staged_portal(
             .await?;
     }
     Ok(count)
-}
-
-/// Seed the *Using the Navigator* material's pre-authored deed as a
-/// **project-scoped** template on the Henderson matter the portfolio just
-/// opened. It is the bespoke instrument
-/// an attorney authored for this one purchase, not a shared catalog blueprint,
-/// so — exactly like a repo-authored version — its content-addressed asset
-/// keeps the full markdown (frontmatter included). That lets `notation_session`
-/// resolve the deed's own questionnaire and workflow straight from the body
-/// when AIDA binds it, with no compile-time bundled spec for the code. Dev-only
-/// and idempotent.
-async fn seed_henderson_deed_template(
-    surreal: &SurrealDb,
-    storage: &std::sync::Arc<dyn cloud::StorageService>,
-    report: &mut SeedReport,
-) -> anyhow::Result<()> {
-    const LABEL: &str = "henderson_bungalow_purchase_deed.md";
-    let markdown = include_str!("../seeds/henderson_bungalow_purchase_deed.md");
-
-    let project_id = crate::projects::find_by_name(surreal, DEV_PORTFOLIO_HENDERSON_NAME)
-        .await?
-        .map(|p| p.id)
-        .ok_or_else(|| {
-            anyhow::anyhow!("seed: the Henderson matter must be seeded before its deed template")
-        })?;
-
-    let (fm_str, _body) = split_template(markdown)
-        .ok_or_else(|| anyhow::anyhow!("{LABEL}: missing YAML frontmatter"))?;
-    let fm: TemplateFrontmatter = serde_yaml::from_str(fm_str)
-        .map_err(|e| anyhow::anyhow!("{LABEL}: parse frontmatter: {e}"))?;
-
-    // A project-scoped version stores the whole markdown (frontmatter + body)
-    // as its content-addressed asset, just as `template_source` does for a
-    // repo-authored version, so `questionnaire_definition_for` reads the deed's
-    // own `questionnaire:` block from the body instead of a bundled spec.
-    let asset_id =
-        crate::assets::ingest_content(surreal, storage, markdown.as_bytes(), "text/markdown")
-            .await
-            .map_err(|e| anyhow::anyhow!("{LABEL}: ingest body asset: {e}"))?;
-    let saved = crate::templates::save_version(
-        surreal,
-        Some(project_id),
-        &fm.code,
-        crate::templates::Version {
-            title: fm.title,
-            respondent_type: fm.respondent_type,
-            asset_id: Some(asset_id),
-            form_code: fm.form,
-            kind: fm.kind,
-            source_commit_sha: None,
-        },
-    )
-    .await?;
-    if saved.was_written() {
-        report.templates_inserted += 1;
-    }
-    Ok(())
-}
-
-/// `navigator-examples` was the old, generic development matter opened by the
-/// retired `seed_projects` step: a bare matter against the firm Entity with
-/// Nick named on both DRIs. It is disposable data, so retire it on the first
-/// boot that installs the useful portfolio rather than leaving an obsolete
-/// fixture behind.
-///
-/// The delete is scoped to that exact seeded shape — firm Entity, Nick on both
-/// DRIs — not the display name alone. `projects.name` is not unique, so a
-/// reused development database may hold an unrelated matter that merely shares
-/// the name; matching the full fixture shape leaves it untouched instead of
-/// deleting it or aborting the whole seed on its dependent-row foreign keys.
-///
-/// Accountability is a flag on Nick's membership row now, not a `projects`
-/// column, so the match is "a `navigator-examples` matter against the firm
-/// Entity carrying Nick's row flagged as both lawyer and client DRI". That
-/// membership row is itself a dependent of the project, so it is cleared
-/// before the project delete.
-async fn remove_obsolete_dev_project(surreal: &SurrealDb) -> anyhow::Result<()> {
-    let Some(firm_id) = crate::entities::find_by_name(surreal, FIRM_ENTITY_NAME)
-        .await?
-        .map(|e| e.id)
-    else {
-        return Ok(());
-    };
-    let Some(nick_id) = crate::persons::find_by_email_ci(surreal, "nick@neonlaw.com")
-        .await?
-        .map(|p| p.id)
-    else {
-        return Ok(());
-    };
-    let candidate_ids: Vec<Uuid> = crate::projects::all(surreal)
-        .await?
-        .into_iter()
-        .filter(|project| project.name == "navigator-examples" && project.entity_id == firm_id)
-        .map(|project| project.id)
-        .collect();
-    if candidate_ids.is_empty() {
-        return Ok(());
-    }
-    let obsolete_ids: Vec<Uuid> = crate::projects::all_participations(surreal)
-        .await?
-        .into_iter()
-        .filter(|role| {
-            candidate_ids.contains(&role.project_id)
-                && role.person_id == nick_id
-                && role.is_lawyer_dri
-                && role.is_client_dri
-        })
-        .map(|role| role.project_id)
-        .collect();
-    if obsolete_ids.is_empty() {
-        return Ok(());
-    }
-    for project_id in obsolete_ids {
-        for role in crate::projects::participations_for_project(surreal, project_id).await? {
-            crate::projects::remove_participation(surreal, role.id).await?;
-        }
-        crate::projects::delete_project_with_surreal(surreal, project_id).await?;
-    }
-    Ok(())
-}
-
-/// Synthetic matters available after every `dev` boot:
-/// `(project_code, project_name, client_name, client_email, summary)`. Each
-/// carries a reserved, stable code of its own — a real development matter may
-/// legitimately share a client-facing name, but it must never be claimed by
-/// this disposable fixture.
-const DEV_PORTFOLIO: &[(&str, &str, &str, &str, &str)] = &[
-    (
-        "dev-portfolio-henderson-bungalow",
-        "Henderson Bungalow Purchase",
-        "Cleo Client",
-        "client@neonlaw.com",
-        "real-estate purchase",
-    ),
-    (
-        "dev-portfolio-sagebrush-formation",
-        "Sagebrush LLC Formation",
-        "Aries",
-        "aries@example.com",
-        "Nevada LLC formation",
-    ),
-    (
-        "dev-portfolio-orion-estate-plan",
-        "Orion Family Estate Plan",
-        "Taurus",
-        "taurus@example.com",
-        "trust and will planning",
-    ),
-    (
-        "dev-portfolio-lyra-screening-dispute",
-        "Lyra Tenant Screening Dispute",
-        "Gemini",
-        "gemini@example.com",
-        "tenant screening dispute",
-    ),
-    (
-        "dev-portfolio-mira-naturalization",
-        "Mira Naturalization",
-        "Cancer",
-        "cancer@example.com",
-        "naturalization preparation",
-    ),
-    (
-        "dev-portfolio-capella-litigation",
-        "Capella Commercial Litigation",
-        "Leo",
-        "leo@example.com",
-        "commercial litigation",
-    ),
-];
-
-/// Rauthy's local `lawyer/lawyer` account is also a real development
-/// portfolio participant, so the existing browser gate observes seeded
-/// matters rather than manufacturing a replacement fixture.
-pub const DEV_PORTFOLIO_LAWYER_EMAIL: &str = "lawyer@neonlaw.com";
-pub const DEV_PORTFOLIO_HENDERSON_NAME: &str = "Henderson Bungalow Purchase";
-
-/// The disposable training cohort's shared trainer — a lawyer-tier attorney on
-/// every training matter, firm-domain by the `require_firm_domain` rule. The
-/// Foundation training host (#738) turns on self-signup so trainees self-serve;
-/// this trainer and the matters below give the curriculum ready dummy data.
-pub const TRAINING_PORTFOLIO_TRAINER_EMAIL: &str = "trainer@neonlaw.com";
-
-/// Training matters layered on the development portfolio, one per trainee:
-/// `(project_code, project_name, trainee_name, trainee_email, summary)`.
-/// Trainee emails use the reserved `example.com` domain (the no-client-data
-/// rule), so a trainee walks a real matter flow on synthetic data.
-const TRAINING_PORTFOLIO: &[(&str, &str, &str, &str, &str)] = &[
-    (
-        "dev-training-llc-formation",
-        "Training — LLC Formation Walkthrough",
-        "Nova Trainee",
-        "nova.trainee@example.com",
-        "training matter for the LLC-formation curriculum",
-    ),
-    (
-        "dev-training-real-estate",
-        "Training — Real-Estate Purchase Walkthrough",
-        "Orion Trainee",
-        "orion.trainee@example.com",
-        "training matter for the real-estate-purchase curriculum",
-    ),
-];
-
-/// A deliberately tiny but structurally valid one-page PDF. The development
-/// portfolio seeds it as a generated document so the normal document reader
-/// and validator have a deterministic artifact without compiling Typst on
-/// every local application boot.
-const HENDERSON_DEED_PREVIEW_PDF: &[u8] = b"%PDF-1.1\n\
-1 0 obj\n\
-<< /Type /Catalog /Pages 2 0 R >>\n\
-endobj\n\
-2 0 obj\n\
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>\n\
-endobj\n\
-3 0 obj\n\
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\n\
-endobj\n\
-xref\n\
-0 4\n\
-0000000000 65535 f\x20\n\
-0000000009 00000 n\x20\n\
-0000000058 00000 n\x20\n\
-0000000115 00000 n\x20\n\
-trailer\n\
-<< /Size 4 /Root 1 0 R >>\n\
-startxref\n\
-186\n\
-%%EOF\n";
-
-/// Seed the simulated portfolio, including Project-scoped documents and the
-/// privileged conversation spine. All rows have stable natural keys so a
-/// second boot is a no-op.
-async fn seed_practice_portfolio(
-    surreal: &SurrealDb,
-    storage: &std::sync::Arc<dyn cloud::StorageService>,
-    report: &mut SeedReport,
-) -> anyhow::Result<()> {
-    let human = crate::entity_types::find_by_name(surreal, "Human")
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("seed: entity_type `Human` must be seeded first"))?;
-    let nevada = jurisdictions::find_by_name(surreal, "Nevada")
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("seed: jurisdiction `Nevada` must be seeded first"))?;
-
-    let nick_id = crate::persons::find_by_email_ci(surreal, "nick@neonlaw.com")
-        .await?
-        .map(|p| p.id)
-        .ok_or_else(|| anyhow::anyhow!("seed: person `nick@neonlaw.com` must be seeded first"))?;
-
-    let lawyer_id = ensure_dev_person(
-        surreal,
-        report,
-        "Lawyer Member",
-        DEV_PORTFOLIO_LAWYER_EMAIL,
-        crate::persons::Role::Lawyer,
-    )
-    .await?;
-
-    for &(project_code, project_name, client_name, client_email, summary) in DEV_PORTFOLIO {
-        let entity_id =
-            ensure_dev_human_entity(surreal, report, client_name, human.id, nevada.id).await?;
-        let client_id = ensure_dev_person(
-            surreal,
-            report,
-            client_name,
-            client_email,
-            crate::persons::Role::Client,
-        )
-        .await?;
-        let project_id = ensure_dev_project(
-            surreal,
-            report,
-            project_code,
-            project_name,
-            entity_id,
-            summary,
-        )
-        .await?;
-        ensure_participation(surreal, report, project_id, client_id, "client").await?;
-        ensure_participation(surreal, report, project_id, nick_id, "attorney").await?;
-        ensure_participation(surreal, report, project_id, lawyer_id, "paralegal").await?;
-        // Accountability rides the participation rows just ensured: the lawyer
-        // DRI is the attorney and the client DRI is the client of record, so
-        // each seeded matter carries a DRI that is also a matter person — the
-        // invariant this collapse enforces.
-        crate::projects::designate_dri_in_surreal(
-            surreal,
-            project_id,
-            nick_id,
-            crate::projects::DriSide::Lawyer,
-        )
-        .await?;
-        crate::projects::designate_dri_in_surreal(
-            surreal,
-            project_id,
-            client_id,
-            crate::projects::DriSide::Client,
-        )
-        .await?;
-        seed_portfolio_document(surreal, storage, report, project_id, project_name, summary)
-            .await?;
-        seed_portfolio_communications(surreal, report, project_id, nick_id, client_email).await?;
-    }
-    Ok(())
-}
-
-/// Seed the disposable training cohort layered on the development portfolio: a
-/// shared trainer (lawyer/attorney) plus one trainee (client) per training
-/// matter, each wired through `person_project_roles` so the trainer sees the
-/// matter in the `/lawyer` lens and the trainee in the client lens at
-/// `/app/projects`. `dev`-only and
-/// idempotent — production (which never calls [`seed_dev_portfolio_into`])
-/// never receives it. The Foundation training host recreates it on each
-/// version deploy (reset mechanics live in the cloud child, not here).
-async fn seed_training_portfolio(
-    surreal: &SurrealDb,
-    report: &mut SeedReport,
-) -> anyhow::Result<()> {
-    let human = crate::entity_types::find_by_name(surreal, "Human")
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("seed: entity_type `Human` must be seeded first"))?;
-    let nevada = jurisdictions::find_by_name(surreal, "Nevada")
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("seed: jurisdiction `Nevada` must be seeded first"))?;
-
-    let attorney_id = ensure_dev_person(
-        surreal,
-        report,
-        "Training Attorney",
-        TRAINING_PORTFOLIO_TRAINER_EMAIL,
-        crate::persons::Role::Lawyer,
-    )
-    .await?;
-
-    for &(code, project_name, trainee_name, trainee_email, summary) in TRAINING_PORTFOLIO {
-        let entity_id =
-            ensure_dev_human_entity(surreal, report, trainee_name, human.id, nevada.id).await?;
-        let client_id = ensure_dev_person(
-            surreal,
-            report,
-            trainee_name,
-            trainee_email,
-            crate::persons::Role::Client,
-        )
-        .await?;
-        let project_id =
-            ensure_dev_project(surreal, report, code, project_name, entity_id, summary).await?;
-        // Visibility rides participation: the trainee is the client, the
-        // trainer the attorney. Each side is also the matter's DRI, so a
-        // training matter carries a DRI that is a matter person by construction.
-        ensure_participation(surreal, report, project_id, client_id, "client").await?;
-        ensure_participation(surreal, report, project_id, attorney_id, "attorney").await?;
-        crate::projects::designate_dri_in_surreal(
-            surreal,
-            project_id,
-            attorney_id,
-            crate::projects::DriSide::Lawyer,
-        )
-        .await?;
-        crate::projects::designate_dri_in_surreal(
-            surreal,
-            project_id,
-            client_id,
-            crate::projects::DriSide::Client,
-        )
-        .await?;
-    }
-    Ok(())
 }
 
 async fn ensure_dev_person(
@@ -1307,437 +925,6 @@ async fn ensure_dev_project(
     };
     report.projects_inserted += 1;
     Ok(row.id)
-}
-
-async fn seed_portfolio_document(
-    surreal: &SurrealDb,
-    storage: &std::sync::Arc<dyn cloud::StorageService>,
-    report: &mut SeedReport,
-    project_id: Uuid,
-    project_name: &str,
-    summary: &str,
-) -> anyhow::Result<()> {
-    let (filename, source, content_type, bytes) = if project_name == DEV_PORTFOLIO_HENDERSON_NAME {
-        (
-            "henderson-deed-preview.pdf",
-            crate::documents::source::GENERATED,
-            "application/pdf",
-            HENDERSON_DEED_PREVIEW_PDF.to_vec(),
-        )
-    } else {
-        (
-            "portfolio-intake-summary.txt",
-            crate::documents::source::UPLOAD,
-            "text/plain",
-            format!("{project_name}: {summary}. Synthetic development portfolio fixture.")
-                .into_bytes(),
-        )
-    };
-    let storage_key = format!("blobs/{}", crate::documents::sha256_hex(&bytes));
-    if storage.get(&storage_key).await.is_err() {
-        storage.put(&storage_key, &bytes, content_type).await?;
-    }
-    if crate::assets::find_by_project_and_filename(surreal, project_id, filename)
-        .await?
-        .is_some()
-    {
-        return Ok(());
-    }
-    crate::documents::ingest_bytes(
-        surreal,
-        storage,
-        &crate::documents::IngestArgs {
-            project_id,
-            source,
-            filename,
-            // A portfolio matter's one document is the firm's written
-            // summary of it — `memo`, the analytical work product kind.
-            // `workshop` named a teaching page, which the asset lane does
-            // not admit (`Kind::valid_for(Lane::Asset)`).
-            kind: "memo",
-            content_type,
-            description: Some("Synthetic development portfolio fixture"),
-            secondary_storage_key: None,
-            // The one document each portfolio matter carries is its
-            // client-facing demonstration: the seeded client of record must
-            // find it under "Your documents" at `/app/projects`. Internal is the
-            // right default for real work product, but it empties the client
-            // lens of the whole disposable portfolio.
-            visibility: crate::documents::visibility::CLIENT,
-        },
-        &bytes,
-    )
-    .await?;
-    report.assets_inserted += 1;
-    Ok(())
-}
-
-async fn seed_portfolio_communications(
-    surreal: &crate::surreal::SurrealDb,
-    report: &mut SeedReport,
-    project_id: Uuid,
-    author_id: Uuid,
-    client_email: &str,
-) -> anyhow::Result<()> {
-    for (channel, direction, body, source_ref) in [
-        (
-            crate::communications::channel::EMAIL_OUTBOUND,
-            crate::communications::direction::OUTBOUND,
-            "Your attorney has prepared a development-portfolio update.",
-            format!("dev-portfolio:{project_id}:client-update"),
-        ),
-        (
-            crate::communications::channel::PORTAL_MESSAGE,
-            crate::communications::direction::INTERNAL,
-            "Internal workshop preparation note.",
-            format!("dev-portfolio:{project_id}:internal-note"),
-        ),
-    ] {
-        let out = crate::communications::ingest(
-            surreal,
-            &crate::communications::IngestArgs {
-                project_id,
-                channel,
-                direction,
-                author_person_id: Some(author_id),
-                counterparty: Some(client_email),
-                subject: Some("Development portfolio update"),
-                body,
-                source_ref: Some(&source_ref),
-                asset_id: None,
-                occurred_at: "2026-07-20T00:00:00Z",
-            },
-        )
-        .await?;
-        if !out.deduped {
-            report.communications_inserted += 1;
-        }
-    }
-    Ok(())
-}
-
-/// The smallest complete litigation story for a local KIND demonstration.
-/// Every identity and artifact is synthetic, and this function is reached
-/// only from the disposable development portfolio.
-#[allow(clippy::too_many_lines)]
-async fn seed_litigation_demo_matter(
-    surreal: &SurrealDb,
-    storage: &std::sync::Arc<dyn cloud::StorageService>,
-    report: &mut SeedReport,
-) -> anyhow::Result<()> {
-    const ENTITY_NAME: &str = "Example Signal Labs LLC";
-    const CLIENT_NAME: &str = "Leo Example";
-    const CLIENT_EMAIL: &str = "leo.litigation@example.com";
-    const LAWYER_NAME: &str = "Lawyer";
-    const LAWYER_EMAIL: &str = "lawyer@neonlaw.com";
-    const PROJECT_NAME: &str = "Example Signal Labs v. Example Data Systems";
-    const PROJECT_CODE: &str = "dev-litigation-demo";
-    const TEMPLATE_CODE: &str = "onboarding__retainer";
-
-    let llc = crate::entity_types::find_by_name(surreal, "Single Member LLC")
-        .await?
-        .ok_or_else(|| {
-            anyhow::anyhow!("seed: entity_type `Single Member LLC` must be seeded first")
-        })?;
-    let nevada = jurisdictions::find_by_name(surreal, "Nevada")
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("seed: jurisdiction `Nevada` must be seeded first"))?;
-
-    let entity_id = if let Some(row) =
-        crate::entities::find_by_name_and_type(surreal, ENTITY_NAME, llc.id).await?
-    {
-        row.id
-    } else {
-        let row =
-            crate::entities::create(surreal, &new_entity(ENTITY_NAME, llc.id, nevada.id)).await?;
-        report.entities_inserted += 1;
-        row.id
-    };
-
-    // Reconcile the demo client through the shared helper so a persisted dev
-    // database that promoted this login to lawyer/clerk is restored to
-    // `Role::Client`; otherwise authorization would select a non-client path
-    // and the client could lose access to their own litigation matter.
-    let client_id = ensure_dev_person(
-        surreal,
-        report,
-        CLIENT_NAME,
-        CLIENT_EMAIL,
-        crate::persons::Role::Client,
-    )
-    .await?;
-
-    require_firm_domain(LAWYER_EMAIL, crate::persons::Role::Lawyer)?;
-    let existing_lawyer = crate::persons::find_by_email_ci(surreal, LAWYER_EMAIL).await?;
-    let lawyer = crate::persons::find_or_create(
-        surreal,
-        &crate::persons::NewPerson::with_role(
-            LAWYER_NAME,
-            LAWYER_EMAIL,
-            crate::persons::Role::Lawyer,
-        ),
-    )
-    .await?;
-    if existing_lawyer.is_none() {
-        report.persons_inserted += 1;
-    } else if lawyer.role == crate::persons::Role::Client
-        || lawyer.role == crate::persons::Role::Clerk
-    {
-        // Do not demote an administrator if a developer has promoted the
-        // standard local login; otherwise ensure the demo identity is lawyer.
-        crate::persons::set_role(surreal, lawyer.id, crate::persons::Role::Lawyer).await?;
-        report.persons_updated += 1;
-    }
-    let lawyer_id = lawyer.id;
-
-    // Key on a reserved, stable code rather than the display name: a real
-    // development matter may share this caption, but it must never be claimed
-    // by this fixture. The shared helper also reconciles ownership and status
-    // so a persisted database cannot attach the demo to a stale row.
-    let project_id = ensure_dev_project(
-        surreal,
-        report,
-        PROJECT_CODE,
-        PROJECT_NAME,
-        entity_id,
-        "Synthetic Nevada software and data-access dispute for the local KIND demonstration.",
-    )
-    .await?;
-
-    // Presence of these two ledger rows is the access grant. Deliberately do
-    // not create an adverse-party person: that would widen project visibility.
-    ensure_participation(surreal, report, project_id, client_id, "client").await?;
-    ensure_participation(surreal, report, project_id, lawyer_id, "attorney").await?;
-    // Accountability rides those rows: the lawyer DRI is the attorney and the
-    // client DRI is the client of record, so the demo matter carries a DRI
-    // that is also a matter person.
-    crate::projects::designate_dri_in_surreal(
-        surreal,
-        project_id,
-        lawyer_id,
-        crate::projects::DriSide::Lawyer,
-    )
-    .await?;
-    crate::projects::designate_dri_in_surreal(
-        surreal,
-        project_id,
-        client_id,
-        crate::projects::DriSide::Client,
-    )
-    .await?;
-
-    let template = crate::templates::resolve(surreal, Some(project_id), TEMPLATE_CODE)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("seed: template `{TEMPLATE_CODE}` must be seeded first"))?;
-    let notation_id = if let Some(row) = crate::notations::find_by_project_template_person(
-        surreal,
-        project_id,
-        template.id,
-        client_id,
-    )
-    .await?
-    {
-        row.id
-    } else {
-        let row = crate::notations::create(
-            surreal,
-            &crate::notations::NewNotation::new(
-                template.id,
-                client_id,
-                project_id,
-                "lawyer_review",
-            )
-            .with_entity(entity_id)
-            .with_delivery(crate::notations::DELIVERY_EMBEDDED),
-        )
-        .await?;
-        report.notations_inserted += 1;
-        row.id
-    };
-
-    ensure_litigation_notation_answer(
-        surreal,
-        report,
-        notation_id,
-        client_id,
-        lawyer_id,
-        "person",
-        "person__client",
-        CLIENT_NAME,
-        Some(client_id),
-    )
-    .await?;
-    ensure_litigation_notation_answer(
-        surreal,
-        report,
-        notation_id,
-        client_id,
-        lawyer_id,
-        "project",
-        "project__engagement",
-        PROJECT_NAME,
-        Some(project_id),
-    )
-    .await?;
-    ensure_litigation_notation_answer(
-        surreal,
-        report,
-        notation_id,
-        client_id,
-        lawyer_id,
-        "custom_single_choice",
-        "custom_single_choice__governing_law",
-        "nevada",
-        None,
-    )
-    .await?;
-
-    ensure_litigation_document(
-        surreal,
-        storage,
-        report,
-        project_id,
-        "example-signal-first-discovery-requests.txt",
-        "discovery_request",
-        crate::documents::source::UPLOAD,
-        "text/plain",
-        "Synthetic first discovery requests from Example Data Systems.",
-        b"Example Signal Labs v. Example Data Systems\n\nSynthetic First Requests for Production\n\n1. Produce the data-access logs identified in the complaint.\n2. Produce the current data-retention policy.\n",
-    )
-    .await?;
-    ensure_litigation_document(
-        surreal,
-        storage,
-        report,
-        project_id,
-        "initial-case-assessment.pdf",
-        "case_assessment",
-        crate::documents::source::GENERATED,
-        "application/pdf",
-        "Synthetic initial case assessment for the local demo.",
-        development::INITIAL_CASE_ASSESSMENT_PDF,
-    )
-    .await?;
-
-    for message in [
-        crate::communications::IngestArgs {
-            project_id,
-            channel: crate::communications::channel::EMAIL_INBOUND,
-            direction: crate::communications::direction::INBOUND,
-            author_person_id: Some(client_id),
-            counterparty: Some(CLIENT_EMAIL),
-            subject: Some("Data access dispute documents"),
-            body: "I uploaded the first discovery requests. Please let me know what you need next.",
-            source_ref: Some("litigation-demo-inbound-001"),
-            asset_id: None,
-            occurred_at: "2026-06-12T16:00:00Z",
-        },
-        crate::communications::IngestArgs {
-            project_id,
-            channel: crate::communications::channel::EMAIL_OUTBOUND,
-            direction: crate::communications::direction::OUTBOUND,
-            author_person_id: Some(lawyer_id),
-            counterparty: Some(CLIENT_EMAIL),
-            subject: Some("Next steps for the discovery response"),
-            body: "We are reviewing the requests and will prepare the response plan for your approval.",
-            source_ref: Some("litigation-demo-outbound-001"),
-            asset_id: None,
-            occurred_at: "2026-06-13T17:30:00Z",
-        },
-        crate::communications::IngestArgs {
-            project_id,
-            channel: crate::communications::channel::PORTAL_MESSAGE,
-            direction: crate::communications::direction::INTERNAL,
-            author_person_id: Some(lawyer_id),
-            counterparty: None,
-            subject: Some("Internal discovery review note"),
-            body: "Confirm custodians and preservation scope before proposing a response schedule.",
-            source_ref: Some("litigation-demo-internal-001"),
-            asset_id: None,
-            occurred_at: "2026-06-13T18:00:00Z",
-        },
-    ] {
-        if !crate::communications::ingest(surreal, &message).await?.deduped {
-            report.communications_inserted += 1;
-        }
-    }
-
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn ensure_litigation_notation_answer(
-    surreal: &SurrealDb,
-    report: &mut SeedReport,
-    notation_id: Uuid,
-    respondent_id: Uuid,
-    authored_by_id: Uuid,
-    question_code: &str,
-    state_name: &str,
-    value: &str,
-    reference_id: Option<Uuid>,
-) -> anyhow::Result<()> {
-    if crate::answers::exists_for_state(surreal, notation_id, state_name).await? {
-        return Ok(());
-    }
-    let question = crate::questions::find_by_code(surreal, question_code)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("seed: question `{question_code}` must be seeded first"))?;
-    let value = match reference_id {
-        Some(id) => serde_json::json!({ "value": value, "name": value, "id": id }),
-        None => crate::answers::primitive(value),
-    };
-    crate::answers::record(
-        surreal,
-        &crate::answers::NewAnswer::new(question.id, respondent_id, value)
-            .in_notation(notation_id, state_name)
-            .authored_by(crate::answers::SOURCE_LAWYER, Some(authored_by_id)),
-    )
-    .await?;
-    report.answers_inserted += 1;
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn ensure_litigation_document(
-    surreal: &SurrealDb,
-    storage: &std::sync::Arc<dyn cloud::StorageService>,
-    report: &mut SeedReport,
-    project_id: Uuid,
-    filename: &str,
-    kind: &str,
-    source: &str,
-    content_type: &str,
-    description: &str,
-    bytes: &[u8],
-) -> anyhow::Result<()> {
-    // Dedupe on the natural key (project, filename), not the content hash:
-    // keying on the hash would insert a second asset whenever a bundled
-    // document is re-authored, leaving the matter with duplicate visible
-    // versions and an orphaned blob. One filename is one demo document.
-    if crate::assets::find_by_project_and_filename(surreal, project_id, filename)
-        .await?
-        .is_none()
-    {
-        crate::documents::ingest_bytes(
-            surreal,
-            storage,
-            &crate::documents::IngestArgs {
-                project_id,
-                source,
-                filename,
-                kind,
-                content_type,
-                description: Some(description),
-                secondary_storage_key: None,
-                visibility: crate::documents::visibility::INTERNAL,
-            },
-            bytes,
-        )
-        .await?;
-        report.assets_inserted += 1;
-    }
-    Ok(())
 }
 
 /// Idempotently record one person's participation on a project.

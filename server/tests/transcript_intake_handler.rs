@@ -141,6 +141,11 @@ fn multipart_body(csrf: &str, fields: &[(&str, &str)]) -> Vec<u8> {
 #[tokio::test]
 async fn transcript_text_upload_files_a_document_and_advances_state() {
     let (app, surreal, project_id, notation_id, admin_id) = build_app().await;
+    let project_code = store::projects::find_by_id(&surreal, project_id)
+        .await
+        .unwrap()
+        .expect("seeded project")
+        .code;
 
     let transcript = "Consent recorded. Executor: Aries. Successor trustee: Capricorn.";
     let (cookie, csrf) = admin_cookie_and_csrf(admin_id);
@@ -169,7 +174,7 @@ async fn transcript_text_upload_files_a_document_and_advances_state() {
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
     assert_eq!(
         resp.headers().get("location").unwrap().to_str().unwrap(),
-        format!("/app/projects/{project_id}")
+        format!("/app/projects/{project_code}")
     );
 
     // The transcript filed as a document `assets` row on the matter's project.

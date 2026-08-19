@@ -25,6 +25,7 @@ use crate::components::{question_fields, FormCard, PeopleListInputs};
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
 pub struct IntakeStepData {
     pub project_id: String,
+    pub project_code: String,
     pub notation_id: String,
     /// The bound template's title ("Retainer Agreement") — names what the client
     /// is filling in.
@@ -53,7 +54,7 @@ pub struct IntakeStepData {
 pub enum IntakeState {
     NeedsAnswer(Box<IntakeStepData>),
     Complete {
-        project_id: String,
+        project_code: String,
         flow_label: String,
         total: usize,
     },
@@ -62,7 +63,7 @@ pub enum IntakeState {
 impl Default for IntakeState {
     fn default() -> Self {
         Self::Complete {
-            project_id: String::new(),
+            project_code: String::new(),
             flow_label: String::new(),
             total: 0,
         }
@@ -148,10 +149,10 @@ fn intake_body(view: &ClientIntakeView) -> Element {
     match &view.state {
         IntakeState::NeedsAnswer(step) => step_body(step, view),
         IntakeState::Complete {
-            project_id,
+            project_code,
             flow_label,
             total,
-        } => complete_body(project_id, flow_label, *total),
+        } => complete_body(project_code, flow_label, *total),
     }
 }
 
@@ -165,7 +166,7 @@ fn step_body(step: &IntakeStepData, view: &ClientIntakeView) -> Element {
         "/app/projects/{}/intake/{}",
         step.project_id, step.notation_id
     );
-    let cancel = format!("/app/projects/{}", step.project_id);
+    let cancel = format!("/app/projects/{}", step.project_code);
     let title = format!(
         "{} — step {} of {}",
         step.flow_label, step.position, step.total
@@ -212,9 +213,9 @@ fn step_body(step: &IntakeStepData, view: &ClientIntakeView) -> Element {
 /// The "you're done with your part" landing, once the client has answered every
 /// client-facing question — or once the document has gone out for signature and
 /// the answers are frozen.
-fn complete_body(project_id: &str, flow_label: &str, total: usize) -> Element {
+fn complete_body(project_code: &str, flow_label: &str, total: usize) -> Element {
     let page_title = format!("Your {flow_label} — Neon Law Navigator");
-    let back = format!("/app/projects/{project_id}");
+    let back = format!("/app/projects/{project_code}");
     let _ = total;
     rsx! {
         document::Title { "{page_title}" }
@@ -245,6 +246,7 @@ mod tests {
         ClientIntakeView {
             state: IntakeState::NeedsAnswer(Box::new(IntakeStepData {
                 project_id: "00000000-0000-0000-0000-000000000001".to_string(),
+                project_code: "simpsons".to_string(),
                 notation_id: "00000000-0000-0000-0000-000000000002".to_string(),
                 flow_label: "Application for Naturalization".to_string(),
                 question_code: "country__of_birth".to_string(),
@@ -344,7 +346,7 @@ mod tests {
     fn the_completion_landing_links_back_to_the_matter_and_offers_no_write() {
         let html = render(&ClientIntakeView {
             state: IntakeState::Complete {
-                project_id: "00000000-0000-0000-0000-000000000001".to_string(),
+                project_code: "simpsons".to_string(),
                 flow_label: "Retainer Agreement".to_string(),
                 total: 4,
             },
@@ -352,10 +354,7 @@ mod tests {
             error: None,
         });
         assert!(html.contains("Thank you — your part is done"), "{html}");
-        assert!(
-            html.contains("href=\"/app/projects/00000000-0000-0000-0000-000000000001\""),
-            "{html}"
-        );
+        assert!(html.contains("href=\"/app/projects/simpsons\""), "{html}");
         // Nothing on the finished page invites another answer.
         assert!(!html.contains("<form"), "{html}");
     }

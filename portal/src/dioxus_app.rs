@@ -688,7 +688,7 @@ pub fn app_forms_router(
 /// `/review/*`, `/conversation`, `/approve-plan`, …) and the edit-save `POST`
 /// on this path stay on the router; axum merges the same-path methods and
 /// routes the deeper paths.
-pub const PROJECT_DETAIL_PATH: &str = "/app/projects/{id}";
+pub const PROJECT_DETAIL_PATH: &str = "/app/projects/{code}";
 
 /// Compute the estate "Approve my plan" decision for the matter in the request
 /// path and inject it as [`webapp::portal_project_detail::ShowApprovePlan`]. The
@@ -696,20 +696,15 @@ pub const PROJECT_DETAIL_PATH: &str = "/app/projects/{id}";
 /// at `client_review` with every released draft still awaiting the client — and
 /// lives in `crate::estate`, which `webapp` cannot see, so the portal router
 /// resolves it here and injects the plain boolean the Dioxus page renders. A
-/// missing/unparseable id or any read failure yields `false` (the control hides);
+/// missing project code or any read failure yields `false` (the control hides);
 /// the `#[server]` loader is the authority on visibility and the 404.
 async fn inject_show_approve_plan(
     axum::extract::State(surreal): axum::extract::State<store::surreal::SurrealDb>,
     mut req: Request,
     next: Next,
 ) -> Response {
-    let show = match req
-        .uri()
-        .path()
-        .rsplit('/')
-        .next()
-        .and_then(|seg| seg.parse::<uuid::Uuid>().ok())
-    {
+    let path = req.uri().path().to_string();
+    let show = match project_id_from_path(&surreal, &path).await {
         Some(id) => show_approve_plan(&surreal, id).await,
         None => false,
     };
@@ -793,13 +788,31 @@ pub fn project_detail_router(
         .route_layer(from_fn_with_state(auth, crate::auth::require_auth))
 }
 
-/// Parse the trailing path segment of `/app/projects/{id}` as the matter id.
-fn project_id_from_path(req: &Request) -> Option<uuid::Uuid> {
-    req.uri()
-        .path()
-        .rsplit('/')
-        .next()
-        .and_then(|seg| seg.parse::<uuid::Uuid>().ok())
+/// Resolve the trailing project code of `/app/projects/{code}` to its internal id.
+async fn project_id_from_path(
+    surreal: &store::surreal::SurrealDb,
+    path: &str,
+) -> Option<uuid::Uuid> {
+    let code = path.rsplit('/').next().filter(|seg| !seg.is_empty())?;
+    store::projects::find_by_code(surreal, code)
+        .await
+        .ok()
+        .flatten()
+        .map(|project| project.id)
+}
+
+pub(crate) async fn project_show_path(
+    surreal: &store::surreal::SurrealDb,
+    project_id: uuid::Uuid,
+) -> String {
+    store::projects::find_by_id(surreal, project_id)
+        .await
+        .ok()
+        .flatten()
+        .map_or_else(
+            || "/app/projects".to_string(),
+            |project| format!("/app/projects/{}", project.code),
+        )
 }
 
 /// Resolve this matter's recorded repository URL and inject it as
@@ -815,7 +828,8 @@ async fn inject_project_repository_pointer(
     mut req: Request,
     next: Next,
 ) -> Response {
-    let pointer = match project_id_from_path(&req) {
+    let path = req.uri().path().to_string();
+    let pointer = match project_id_from_path(&surreal, &path).await {
         Some(id) => project_repository_pointer(&surreal, id).await,
         None => None,
     };
@@ -846,7 +860,8 @@ async fn inject_lawyer_estate(
     mut req: Request,
     next: Next,
 ) -> Response {
-    let estate = match project_id_from_path(&req) {
+    let path = req.uri().path().to_string();
+    let estate = match project_id_from_path(&surreal, &path).await {
         Some(id) => lawyer_estate(&surreal, id).await,
         None => None,
     };

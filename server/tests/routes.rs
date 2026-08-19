@@ -7582,8 +7582,13 @@ async fn lawyer_pages_preserve_lawyer_tier_nav_links() {
 
 #[tokio::test]
 async fn lawyer_projects_list_links_each_row_to_detail_page() {
-    let (state, _surreal) = state_with_engines().await;
+    let (state, surreal) = state_with_engines().await;
     let (project_id, _lawyer, cookie, _csrf) = lawyer_project_fixture(&state.surreal).await;
+    let project_code = store::projects::find_by_id(&surreal, project_id)
+        .await
+        .unwrap()
+        .expect("fixture project")
+        .code;
 
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     let resp = app
@@ -7599,7 +7604,7 @@ async fn lawyer_projects_list_links_each_row_to_detail_page() {
 
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
-    let detail_href = format!("/app/projects/{project_id}");
+    let detail_href = format!("/app/projects/{project_code}");
     assert!(
         body.contains(&format!("href=\"{detail_href}\"")),
         "project row should link to its detail page: {body}",
@@ -7635,7 +7640,10 @@ async fn client_portal_lists_single_project_with_kpi_cards() {
     let body = body_string(resp).await;
     assert!(body.contains("Your services"), "{body}");
     assert!(body.contains("Engagements"), "{body}");
-    assert!(!body.contains(&project_code), "{body}");
+    assert!(
+        body.contains(&format!("/app/projects/{project_code}")),
+        "the project code keys the detail link: {body}"
+    );
     assert!(body.contains("Northstar Service"), "{body}");
     // Every matter is priced bespoke, so the dashboard carries no service
     // label, no price, and no Services tile.
@@ -7687,7 +7695,7 @@ async fn client_portal_shows_the_matter_without_a_service_or_price() {
 #[tokio::test]
 async fn client_direct_projects_url_uses_portal_list_not_admin_table() {
     let (state, _surreal) = state_with_engines().await;
-    let (project_id, _project_code, cookie) = client_project_fixture(&state.surreal).await;
+    let (project_id, project_code, cookie) = client_project_fixture(&state.surreal).await;
 
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     let resp = app
@@ -7706,7 +7714,7 @@ async fn client_direct_projects_url_uses_portal_list_not_admin_table() {
     assert!(body.contains("Your services"), "{body}");
     assert!(body.contains("Northstar Service"), "{body}");
     assert!(
-        body.contains(&format!("/app/projects/{project_id}")),
+        body.contains(&format!("/app/projects/{project_code}")),
         "client list should link to the matter detail: {body}",
     );
     for forbidden in [
@@ -7735,7 +7743,7 @@ async fn client_portal_projects_scopes_and_aggregates_the_signed_in_client_dashb
 
     // The signed-in client's own open Northstar matter, plus two filed documents
     // so the Documents KPI is a distinctive, non-trivial count.
-    let (project_id, _project_code, cookie) = client_project_fixture(&state.surreal).await;
+    let (project_id, project_code, cookie) = client_project_fixture(&state.surreal).await;
     for filename in ["homer-v-flanders-i.pdf", "homer-v-flanders-ii.pdf"] {
         let args = store::documents::IngestArgs {
             project_id,
@@ -7753,7 +7761,7 @@ async fn client_portal_projects_scopes_and_aggregates_the_signed_in_client_dashb
     }
 
     // A different client's matter must never surface on this client's board.
-    let (other_project_id, _other_code, _other_cookie) = client_project_fixture_for_product(
+    let (_other_project_id, other_code, _other_cookie) = client_project_fixture_for_product(
         &surreal,
         "Other Client",
         "other-client@example.com",
@@ -7779,13 +7787,13 @@ async fn client_portal_projects_scopes_and_aggregates_the_signed_in_client_dashb
     );
     assert!(!body.contains('$'), "no price: {body}");
     assert!(
-        body.contains(&format!("/app/projects/{project_id}")),
+        body.contains(&format!("/app/projects/{project_code}")),
         "own matter links to its detail page: {body}",
     );
 
     // Person scoping: the other client's matter, service label, and detail
     // link are all absent from this client's dashboard.
-    let other_detail = format!("/app/projects/{other_project_id}");
+    let other_detail = format!("/app/projects/{other_code}");
     for leaked in [
         "Someone Else's Matter",
         "Neon Law Nest",
@@ -7836,13 +7844,13 @@ async fn client_project_detail_shows_no_service_panel_and_no_price() {
     // detail page carries no service card and no price at all — and, as
     // before, never the internal matter id.
     let (state, _surreal) = state_with_engines().await;
-    let (project_id, _project_code, cookie) = client_project_fixture(&state.surreal).await;
+    let (project_id, project_code, cookie) = client_project_fixture(&state.surreal).await;
 
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{project_id}"))
+                .uri(format!("/app/projects/{project_code}"))
                 .header("cookie", cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -7870,7 +7878,7 @@ async fn client_project_detail_shows_no_service_panel_and_no_price() {
 #[tokio::test]
 async fn client_project_detail_links_the_documents_zip() {
     let (state, surreal) = state_with_engines().await;
-    let (project_id, _project_code, cookie) = client_project_fixture_for_product(
+    let (project_id, project_code, cookie) = client_project_fixture_for_product(
         &surreal,
         "Nest Detail Client",
         "nest-detail-client@example.com",
@@ -7899,7 +7907,7 @@ async fn client_project_detail_links_the_documents_zip() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{project_id}"))
+                .uri(format!("/app/projects/{project_code}"))
                 .header("cookie", cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -7949,7 +7957,7 @@ async fn client_project_detail_hides_internal_review_memo_but_lawyer_sees_it() {
     // `review_memo` (attorney work product) stays off the client's list
     // while a lawyer/admin caller on `/app/projects/:id` still sees it.
     let (state, _surreal) = state_with_engines().await;
-    let (project_id, _project_code, cookie) = client_project_fixture(&state.surreal).await;
+    let (project_id, project_code, cookie) = client_project_fixture(&state.surreal).await;
 
     let internal_args = store::documents::IngestArgs {
         project_id,
@@ -7989,7 +7997,7 @@ async fn client_project_detail_hides_internal_review_memo_but_lawyer_sees_it() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{project_id}"))
+                .uri(format!("/app/projects/{project_code}"))
                 .header("cookie", &cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -8010,7 +8018,7 @@ async fn client_project_detail_hides_internal_review_memo_but_lawyer_sees_it() {
     let lawyer_resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{project_id}"))
+                .uri(format!("/app/projects/{project_code}"))
                 .header("cookie", admin_session_cookie())
                 .body(Body::empty())
                 .unwrap(),
@@ -8033,7 +8041,7 @@ async fn client_project_detail_404s_a_matter_the_client_cannot_see() {
     // perspective, and its name never reaches the response.
     let (state, surreal) = state_with_engines().await;
     let (_own_project_id, _own_code, cookie) = client_project_fixture(&state.surreal).await;
-    let (other_project_id, _other_code, _other_cookie) = client_project_fixture_for_product(
+    let (_other_project_id, other_code, _other_cookie) = client_project_fixture_for_product(
         &surreal,
         "Other Client",
         "other-detail-client@example.com",
@@ -8045,7 +8053,7 @@ async fn client_project_detail_404s_a_matter_the_client_cannot_see() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{other_project_id}"))
+                .uri(format!("/app/projects/{other_code}"))
                 .header("cookie", cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -12045,7 +12053,9 @@ async fn project_documents_upload_writes_blob_and_document_with_description() {
 
     // Seed one project to upload into.
     let __dri = store::test_support::dri_person(&surreal).await;
-    let project_id = test_project(&surreal, "Upload Test", "open").await.id;
+    let project = test_project(&surreal, "Upload Test", "open").await;
+    let project_id = project.id;
+    let project_code = project.code;
 
     let app = server::neon_router(
         state.clone(),
@@ -12103,7 +12113,7 @@ async fn project_documents_upload_writes_blob_and_document_with_description() {
         .get("location")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    assert_eq!(location, format!("/app/projects/{project_id}"));
+    assert_eq!(location, format!("/app/projects/{project_code}"));
 
     // One document asset — carrying the byte pointer plus upload
     // provenance and the optional description from the form.
@@ -12131,7 +12141,9 @@ async fn project_documents_upload_files_one_document_per_file_in_a_batch() {
     let (state, surreal) = state_with_engines().await; // auth disabled
 
     let __dri = store::test_support::dri_person(&surreal).await;
-    let project_id = test_project(&surreal, "Batch Upload Test", "open").await.id;
+    let project = test_project(&surreal, "Batch Upload Test", "open").await;
+    let project_id = project.id;
+    let project_code = project.code;
 
     let app = server::neon_router(
         state.clone(),
@@ -12184,7 +12196,7 @@ async fn project_documents_upload_files_one_document_per_file_in_a_batch() {
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
     assert_eq!(
         resp.headers().get("location").and_then(|v| v.to_str().ok()),
-        Some(format!("/app/projects/{project_id}").as_str())
+        Some(format!("/app/projects/{project_code}").as_str())
     );
 
     let mut docs = store::assets::list_all(&state.surreal).await.unwrap();
@@ -12652,7 +12664,9 @@ async fn project_detail_page_renders_documents_and_upload_form() {
     let (state, surreal) = state_with_engines().await;
 
     let __dri = store::test_support::dri_person(&surreal).await;
-    let project_id = test_project(&surreal, "Acme Formation", "open").await.id;
+    let project = test_project(&surreal, "Acme Formation", "open").await;
+    let project_id = project.id;
+    let project_code = project.code;
 
     // Seed one document asset via the same ingest helper the upload
     // handler uses, so we exercise the read-side render against the
@@ -12675,7 +12689,7 @@ async fn project_detail_page_renders_documents_and_upload_form() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{project_id}"))
+                .uri(format!("/app/projects/{project_code}"))
                 .header(
                     "cookie",
                     &admin_cookie_on_project(&surreal, project_id).await,
@@ -13023,13 +13037,15 @@ async fn project_detail_page_renders_empty_state_when_project_has_no_documents()
     let (state, surreal) = state_with_engines().await;
 
     let __dri = store::test_support::dri_person(&surreal).await;
-    let project_id = test_project(&surreal, "Empty Matter", "open").await.id;
+    let project = test_project(&surreal, "Empty Matter", "open").await;
+    let project_id = project.id;
+    let project_code = project.code;
 
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{project_id}"))
+                .uri(format!("/app/projects/{project_code}"))
                 .header(
                     "cookie",
                     &admin_cookie_on_project(&surreal, project_id).await,
@@ -13068,7 +13084,9 @@ async fn project_detail_page_renders_an_empty_matter_calendar() {
     let (state, surreal) = state_with_engines().await;
 
     let __dri = store::test_support::dri_person(&surreal).await;
-    let project_id = test_project(&surreal, "Calendared Matter", "open").await.id;
+    let project = test_project(&surreal, "Calendared Matter", "open").await;
+    let project_id = project.id;
+    let project_code = project.code;
 
     // A document is a witness, not an event: the calendar must not pass the
     // rows the page already holds off as something scheduled (#350).
@@ -13091,7 +13109,7 @@ async fn project_detail_page_renders_an_empty_matter_calendar() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{project_id}?sort=event&dir=asc"))
+                .uri(format!("/app/projects/{project_code}?sort=event&dir=asc"))
                 .header("cookie", &cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -13115,12 +13133,14 @@ async fn project_detail_page_renders_an_empty_matter_calendar() {
     assert!(calendar.contains("Event (asc)"), "{calendar}");
     assert!(
         calendar.contains(&format!(
-            "/app/projects/{project_id}?sort=event&#38;dir=desc"
+            "/app/projects/{project_code}?sort=event&#38;dir=desc"
         )),
         "{calendar}"
     );
     assert!(
-        calendar.contains(&format!("/app/projects/{project_id}?sort=date&#38;dir=asc")),
+        calendar.contains(&format!(
+            "/app/projects/{project_code}?sort=date&#38;dir=asc"
+        )),
         "{calendar}"
     );
     // The matter calendar advertises no `Project` column — the matter is the
@@ -13134,7 +13154,9 @@ async fn project_detail_calendar_falls_back_to_its_leftmost_column() {
     let (state, surreal) = state_with_engines().await;
 
     let __dri = store::test_support::dri_person(&surreal).await;
-    let project_id = test_project(&surreal, "Lenient Matter", "open").await.id;
+    let project = test_project(&surreal, "Lenient Matter", "open").await;
+    let project_id = project.id;
+    let project_code = project.code;
 
     let cookie = admin_cookie_on_project(&surreal, project_id).await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
@@ -13144,7 +13166,7 @@ async fn project_detail_calendar_falls_back_to_its_leftmost_column() {
         .oneshot(
             Request::builder()
                 .uri(format!(
-                    "/app/projects/{project_id}?sort=project&dir=sideways"
+                    "/app/projects/{project_code}?sort=project&dir=sideways"
                 ))
                 .header("cookie", &cookie)
                 .body(Body::empty())
@@ -13159,7 +13181,7 @@ async fn project_detail_calendar_falls_back_to_its_leftmost_column() {
     assert!(calendar.contains("Date (asc)"), "{calendar}");
     assert!(
         calendar.contains(&format!(
-            "/app/projects/{project_id}?sort=date&#38;dir=desc"
+            "/app/projects/{project_code}?sort=date&#38;dir=desc"
         )),
         "{calendar}"
     );
@@ -13172,7 +13194,7 @@ async fn project_detail_page_404s_when_project_missing() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}", uuid::Uuid::now_v7()))
+                .uri("/app/projects/missing-project")
                 .header("cookie", admin_session_cookie())
                 .body(Body::empty())
                 .unwrap(),
@@ -15827,6 +15849,14 @@ async fn tiered_participant(
     cookie
 }
 
+async fn code_for_project(surreal: &store::surreal::SurrealDb, project_id: uuid::Uuid) -> String {
+    store::projects::find_by_id(surreal, project_id)
+        .await
+        .unwrap()
+        .expect("fixture project")
+        .code
+}
+
 /// The guard for the 2026-08-05 authorization decision, and the one assertion
 /// here that would otherwise pass by accident: before this slice, the
 /// `is_admin_tier()` short-circuit handed Owner and Admin every matter without
@@ -15837,6 +15867,7 @@ async fn tiered_participant(
 async fn owner_and_admin_without_participation_are_denied_the_matter() {
     let (state, surreal) = state_with_engines().await;
     let (project_id, _lawyer, _cookie, _csrf) = lawyer_project_fixture(&surreal).await;
+    let project_code = code_for_project(&surreal, project_id).await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
 
     for (role, email) in [
@@ -15844,8 +15875,12 @@ async fn owner_and_admin_without_participation_are_denied_the_matter() {
         (store::persons::Role::Admin, "unassigned-admin@neonlaw.com"),
     ] {
         let cookie = tiered_participant(&surreal, project_id, role, email, None).await;
-        let resp =
-            get_with_cookie(app.clone(), &format!("/app/projects/{project_id}"), &cookie).await;
+        let resp = get_with_cookie(
+            app.clone(),
+            &format!("/app/projects/{project_code}"),
+            &cookie,
+        )
+        .await;
         assert_eq!(
             resp.status(),
             StatusCode::NOT_FOUND,
@@ -15860,6 +15895,7 @@ async fn owner_and_admin_without_participation_are_denied_the_matter() {
 async fn every_firm_tier_reaches_a_matter_it_participates_on() {
     let (state, surreal) = state_with_engines().await;
     let (project_id, _lawyer, _cookie, _csrf) = lawyer_project_fixture(&surreal).await;
+    let project_code = code_for_project(&surreal, project_id).await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
 
     for (role, email) in [
@@ -15871,8 +15907,12 @@ async fn every_firm_tier_reaches_a_matter_it_participates_on() {
         // (#108) — the same word as the role, and firm-side by construction.
         let kind = store::projects::participation_for_role(role);
         let cookie = tiered_participant(&surreal, project_id, role, email, Some(kind)).await;
-        let resp =
-            get_with_cookie(app.clone(), &format!("/app/projects/{project_id}"), &cookie).await;
+        let resp = get_with_cookie(
+            app.clone(),
+            &format!("/app/projects/{project_code}"),
+            &cookie,
+        )
+        .await;
         assert_eq!(
             resp.status(),
             StatusCode::OK,
@@ -15894,6 +15934,7 @@ async fn every_firm_tier_reaches_a_matter_it_participates_on() {
 async fn a_supervised_clerk_gets_the_narrow_rendering_and_no_documents() {
     let (state, surreal) = state_with_engines().await;
     let (project_id, lawyer, _cookie, _csrf) = lawyer_project_fixture(&surreal).await;
+    let project_code = code_for_project(&surreal, project_id).await;
     // Supervision is the whole condition: the matter must name a currently
     // licensed lawyer as its lawyer DRI, or this Clerk is not supervised on it
     // and correctly sees nothing. The fixture only records participation.
@@ -15909,7 +15950,7 @@ async fn a_supervised_clerk_gets_the_narrow_rendering_and_no_documents() {
     )
     .await;
     let body =
-        body_string(get_with_cookie(app, &format!("/app/projects/{project_id}"), &cookie).await)
+        body_string(get_with_cookie(app, &format!("/app/projects/{project_code}"), &cookie).await)
             .await;
 
     assert!(
@@ -15949,7 +15990,7 @@ async fn a_clerk_without_a_licensed_supervisor_is_denied_the_matter() {
         Some("clerk"),
     )
     .await;
-    let resp = get_with_cookie(app, &format!("/app/projects/{}", project.id), &cookie).await;
+    let resp = get_with_cookie(app, &format!("/app/projects/{}", project.code), &cookie).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
@@ -16032,6 +16073,7 @@ async fn the_app_dashboards_keep_their_tier_gates() {
 async fn a_counterparty_is_denied_the_firm_lens_on_the_shared_path() {
     let (state, surreal) = state_with_engines().await;
     let (project_id, _lawyer, _cookie, _csrf) = lawyer_project_fixture(&surreal).await;
+    let project_code = code_for_project(&surreal, project_id).await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
 
     // A lawyer-tier person recorded as the adverse party: the tier alone would
@@ -16045,7 +16087,7 @@ async fn a_counterparty_is_denied_the_firm_lens_on_the_shared_path() {
     )
     .await;
     let body =
-        body_string(get_with_cookie(app, &format!("/app/projects/{project_id}"), &cookie).await)
+        body_string(get_with_cookie(app, &format!("/app/projects/{project_code}"), &cookie).await)
             .await;
     assert!(
         !body.contains("Participation ledger") && !body.contains("Upload documents"),
@@ -16062,6 +16104,7 @@ async fn a_counterparty_is_denied_the_firm_lens_on_the_shared_path() {
 async fn the_workbench_points_every_firm_participant_at_email_to_close_a_matter() {
     let (state, surreal) = state_with_engines().await;
     let (project_id, lawyer, dri_cookie, _csrf) = lawyer_project_fixture(&surreal).await;
+    let project_code = code_for_project(&surreal, project_id).await;
     disclose_lawyer_dri(&surreal, lawyer.id, project_id).await;
     let paralegal_cookie = tiered_participant(
         &surreal,
@@ -16078,7 +16121,12 @@ async fn the_workbench_points_every_firm_participant_at_email_to_close_a_matter(
         ("a paralegal", paralegal_cookie),
     ] {
         let body = body_string(
-            get_with_cookie(app.clone(), &format!("/app/projects/{project_id}"), &cookie).await,
+            get_with_cookie(
+                app.clone(),
+                &format!("/app/projects/{project_code}"),
+                &cookie,
+            )
+            .await,
         )
         .await;
 
@@ -16113,9 +16161,10 @@ async fn a_client_on_another_matter_is_denied_on_the_new_path() {
     let (state, surreal) = state_with_engines().await;
     let (_mine, _code, cookie) = client_project_fixture(&surreal).await;
     let (theirs, _lawyer, _c, _csrf) = lawyer_project_fixture(&surreal).await;
+    let their_code = code_for_project(&surreal, theirs).await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
 
-    let resp = get_with_cookie(app, &format!("/app/projects/{theirs}"), &cookie).await;
+    let resp = get_with_cookie(app, &format!("/app/projects/{their_code}"), &cookie).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
@@ -16144,9 +16193,9 @@ fn strip_csp_nonces(body: &str) -> String {
 #[tokio::test]
 async fn a_client_lens_response_is_byte_identical_across_module_toggles() {
     let (state, surreal) = state_with_engines().await;
-    let (project_id, _code, cookie) = client_project_fixture(&surreal).await;
+    let (project_id, project_code, cookie) = client_project_fixture(&surreal).await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    let uri = format!("/app/projects/{project_id}");
+    let uri = format!("/app/projects/{project_code}");
 
     let disabled = body_string(get_with_cookie(app.clone(), &uri, &cookie).await).await;
 

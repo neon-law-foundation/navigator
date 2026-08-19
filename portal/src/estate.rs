@@ -472,7 +472,10 @@ pub async fn approve_plan_post(
     )
     .await
     {
-        Ok(()) => Redirect::to(&format!("/app/projects/{project_id}")).into_response(),
+        Ok(()) => {
+            Redirect::to(&crate::dioxus_app::project_show_path(&state.surreal, project_id).await)
+                .into_response()
+        }
         Err(ApproveEstatePlanError::NotAuthorized | ApproveEstatePlanError::NothingToApprove) => {
             not_found()
         }

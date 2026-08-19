@@ -26,7 +26,7 @@ an `ActiveEnum`. The authority order is `owner > admin > lawyer > clerk > client
 
 The human accountable for and in control of the deployed system. Owner is the highest tier and inherits every Admin and
 Lawyer capability. It does **not** bypass project-scoping on the matter surface: `/app/projects` and
-`/app/projects/{id}` require a firm-side `person_project_roles` row of every tier, Owner included. Only an Owner may
+`/app/projects/{code}` require a firm-side `person_project_roles` row of every tier, Owner included. Only an Owner may
 create, edit, or demote an Owner identity; Admin cannot govern the tier above it. Person deletion remains client-only,
 so no privileged identity is deletable through that command.
 
@@ -148,7 +148,7 @@ Foundation training host turns this on when trainings open; production keeps it 
   `admin@neonlaw.com`, `lawyer@neonlaw.com`, `clerk@neonlaw.com`, and `client@neonlaw.com` (per
   [`AGENTS.md`](../AGENTS.md#authentication-and-lawyer-access)). Four of the five are seeded onto one demo matter,
   *Simpson v. Flanders* (project code `simpsons`), so each can be exercised on the same project. `admin@neonlaw.com`
-  deliberately holds **no** participation on it: one row gates both `/app/projects` and `/app/projects/{id}`, so the
+deliberately holds **no** participation on it: one row gates both `/app/projects` and `/app/projects/{code}`, so the
   fixture Admin demonstrates the ENG-81 decision — an unassigned administrator sees the matter in neither place, and
   reach is granted at `/app/admin` where it is auditable. `lawyer@neonlaw.com` carries exactly one role, lawyer, not
   admin.
@@ -295,7 +295,7 @@ request:
 }
 ```
 
-`project_id` is populated by the route handler when the URL is project-scoped (`/app/projects/:id` and its document
+`project_id` is populated by the route handler when the URL is project-scoped (`/app/projects/:code` and its document
 subroutes). Routes without a project parameter leave it absent.
 
 Embedded Rego's allow rules in priority order:
@@ -308,13 +308,12 @@ Embedded Rego's allow rules in priority order:
    handlers, so the broader `/lawyer/*` lawyer-tier gate cannot expose them.
 2. **Lawyer-tier writes** — `/lawyer/persons`, `/lawyer/templates`, and other firm-internal CRUD gate on
    `session.role` being `"owner"`, `"admin"`, or `"lawyer"`. `"clerk"` is intentionally absent.
-3. **Clerk supervised lens** — `/clerk` is retired. A Clerk enters `/app/projects` with everyone else, and
-   `store::access::matter_viewer` resolves them to `MatterViewer::Clerk` only when they hold a firm-side row *and* the
+3. **Clerk supervised lens** — a Clerk enters `/app/projects` with everyone else, and
+   `store::access::matter_viewer` resolves them to `MatterViewer::Clerk` only when they hold a firm-side row and the
    matter has a flagged lawyer DRI who currently holds the lawyer tier. That variant renders the matter name, status,
-   and supervisor and nothing else. The boundary the separate mount used to carry structurally is now carried by that
-   resolver plus the dispatcher branch, so it is a conditional rather than a topological guarantee — and therefore has
-   to stay pinned by test.
-4. **The one matter surface** — `/app/projects` and `/app/projects/{id}/...` admit any authenticated caller in embedded
+   and supervisor. The resolver and dispatcher branch keep the supervised view conditional, and the behavior is pinned
+   by test.
+4. **The one matter surface** — `/app/projects` and `/app/projects/{code}/...` admit authenticated callers in embedded
    Rego, because the firm/client split is not a distinction the policy can make: it cannot read the participation
    ledger. The handler makes it, from `persons.role` plus the caller's `person_project_roles` row
    (`store::access::can_see_project`). A firm tier needs a firm-side row and a client needs a client-side one, so a
@@ -322,8 +321,7 @@ Embedded Rego's allow rules in priority order:
    does not put the matter in a client's list. Owner and Admin are scoped the same way — there is no bypass here. Naming
    a lawyer DRI cannot grant access without a membership row, because `is_lawyer_dri` rides that membership row. The
    lawyer-only writes under this path (matter open/edit/delete, the participation forms, document upload, transcript
-   intake) additionally re-check the lawyer tier in their own handlers, which is what carries the guard the `/lawyer/*`
-   policy rule used to provide.
+   intake) additionally re-check the lawyer tier in their own handlers, preserving the firm-side write boundary.
 5. **API project reads** — `/app/api/projects/:id/...` allow if there is a `person_project_roles` row with
    `person_id = session.person_id` and `project_id = input.project_id`. Embedded Rego does not check participation;
    action-level distinctions live in the route layer.
@@ -415,9 +413,9 @@ or `client_dri_removed`. The entry lands *before* the marker write: these are tw
 them, so an entry describing a change that did not happen is the recoverable failure, and a marker that moved with
 nothing recording it is the one the trail exists to prevent.
 
-The two surfaces differ by what they can see. The firm-wide participation form under `/app/projects/{id}/people` stays
+The two surfaces differ by what they can see. The firm-wide participation form under `/app/projects/{code}/people` stays
 admin-only because it reads the whole people directory; a matter's own lawyer DRIs govern their side from the workbench
-at `/app/projects/{id}`, which offers add/remove on people already assigned to that matter and so needs no directory
+at `/app/projects/{code}`, which offers add/remove on people already assigned to that matter and so needs no directory
 read.
 
 The marker matters beyond visibility: a lawyer DRI is who closes the matter. The workbench carries no close control —

@@ -1359,7 +1359,7 @@ pub fn bootstrap(
         state.policy.clone(),
         state.auth.clone(),
     );
-    // ENG-81: the single matter renders through Dioxus at GET /app/projects/{id}
+    // ENG-81: the single matter renders through Dioxus at GET /app/projects/{code}
     // — one mount for every tier. The firm gets the workbench (header + DRIs +
     // missing-retainer notice + estate section + forge repo link + participation
     // ledger + document uploader + close-matter control); a client gets service,
@@ -1664,7 +1664,7 @@ pub fn bootstrap(
         dioxus_admin_people,
         dioxus_app_forms,
         // ENG-81: the matter list and the single matter each render through one
-        // Dioxus mount, at `/app/projects` and `/app/projects/{id}`. The lens
+        // Dioxus mount, at `/app/projects` and `/app/projects/{code}`. The lens
         // comes from the caller's role.
         dioxus_projects,
         dioxus_project_detail,

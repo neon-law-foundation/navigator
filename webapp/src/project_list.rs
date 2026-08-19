@@ -277,7 +277,7 @@ pub fn LawyerProjects() -> Element {
                             td { class: "project-code",
                                 a {
                                     class: "nav-link",
-                                    href: "/app/projects/{row.id}",
+                                    href: "/app/projects/{row.code}",
                                     "data-action": "view",
                                     "aria-label": "View details for {row.name}",
                                     "{row.code}"

@@ -192,7 +192,7 @@ async fn notation_pdfs_are_gated_by_project_participation_and_listed_on_the_proj
     // agreements" with a working signed-copy link.
     let page = get(
         &f.app,
-        &format!("/app/projects/{project_id}"),
+        &format!("/app/projects/{}", project.code),
         &spouse_cookie,
     )
     .await;

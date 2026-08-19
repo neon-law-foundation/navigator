@@ -3,7 +3,7 @@
 //! Exercises the lawyer write surface under `/app/projects/*` and
 //! proves those write URLs are absent from the client portal. The
 //! lightweight client detail at
-//! `/app/projects/:id` continues to render without admin chrome
+//! `/app/projects/:code` continues to render without admin chrome
 //! (no Edit / Upload buttons).
 
 // Cucumber's step-attribute macros want `async fn` everywhere.
@@ -31,6 +31,7 @@ struct WritesWorld {
     sessions: Option<SessionStore>,
     persons: HashMap<String, Uuid>,
     projects: HashMap<String, Uuid>,
+    project_codes: HashMap<String, String>,
     last_status: Option<StatusCode>,
     last_body: String,
     last_location: Option<String>,
@@ -51,6 +52,12 @@ impl WritesWorld {
     }
     fn app(&self) -> axum::Router {
         self.app.as_ref().expect("app not built").clone()
+    }
+
+    fn project_code(&self, name: &str) -> &str {
+        self.project_codes
+            .get(name)
+            .expect("project was seeded earlier")
     }
 }
 
@@ -174,10 +181,11 @@ async fn ensure_project(world: &mut WritesWorld, project_name: &str) -> Uuid {
         return *id;
     }
     let surreal = features::shared_surreal().await;
+    let code = format!("test-{}", Uuid::now_v7().simple());
     let inserted = store::projects::create(
         &surreal,
         &store::projects::NewProject {
-            code: format!("test-{}", Uuid::now_v7().simple()),
+            code: code.clone(),
             name: project_name.into(),
             status: "open".into(),
             entity_id: store::test_support::seed_entity(&features::shared_surreal().await).await,
@@ -187,6 +195,7 @@ async fn ensure_project(world: &mut WritesWorld, project_name: &str) -> Uuid {
     .await
     .expect("insert project");
     world.projects.insert(project_name.to_string(), inserted.id);
+    world.project_codes.insert(project_name.to_string(), code);
     inserted.id
 }
 
@@ -290,11 +299,8 @@ async fn open_edit(world: &mut WritesWorld, email: String, project_name: String)
 
 #[when(regex = r#"^"([^"]+)" opens the detail page for "([^"]+)"$"#)]
 async fn open_detail(world: &mut WritesWorld, email: String, project_name: String) {
-    let project_id = *world
-        .projects
-        .get(&project_name)
-        .expect("project was seeded earlier");
-    get_path(world, &email, &format!("/app/projects/{project_id}")).await;
+    let project_code = world.project_code(&project_name).to_owned();
+    get_path(world, &email, &format!("/app/projects/{project_code}")).await;
 }
 
 async fn get_path(world: &mut WritesWorld, email: &str, path: &str) {

@@ -1,7 +1,7 @@
 #![allow(clippy::doc_markdown, clippy::too_many_lines)]
 //! Integration test for the Northstar estate admin matter page (seam 2).
 //!
-//! `GET /app/projects/:id` renders the lawyer matter page. For a
+//! `GET /app/projects/:code` renders the lawyer matter page. For a
 //! transcript-driven estate matter parked at `BEGIN`, that page must
 //! carry the phone-friendly transcript-upload form pointing at the
 //! shipped handler — but only for lawyer **disclosed to the matter**
@@ -25,6 +25,7 @@ const KEY: &str = "test-session-key-not-for-production";
 struct Fixture {
     app: axum::Router,
     project_id: Uuid,
+    project_code: String,
     notation_id: Uuid,
     /// A lawyer disclosed to the matter (has a person_project_roles
     /// row) — sees the matter page and the transcript form.
@@ -126,6 +127,7 @@ async fn build_fixture() -> Fixture {
     Fixture {
         app,
         project_id: proj.id,
+        project_code: proj.code,
         notation_id,
         disclosed_cookie,
         outsider_cookie,
@@ -145,7 +147,7 @@ async fn disclosed_lawyer_sees_the_transcript_upload_form_at_begin() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}", f.project_id))
+                .uri(format!("/app/projects/{}", f.project_code))
                 .header("cookie", &f.disclosed_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -175,7 +177,7 @@ async fn lawyer_not_disclosed_to_the_matter_gets_404() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}", f.project_id))
+                .uri(format!("/app/projects/{}", f.project_code))
                 .header("cookie", &f.outsider_cookie)
                 .body(Body::empty())
                 .unwrap(),

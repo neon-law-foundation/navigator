@@ -26,6 +26,7 @@ pub struct PersonId(pub Option<String>);
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct ClientProjectRow {
     pub id: String,
+    pub code: String,
     pub name: String,
     pub status: String,
 }
@@ -111,6 +112,7 @@ pub async fn list_client_projects() -> Result<ClientProjectsView, ServerFnError>
         .into_iter()
         .map(|p| ClientProjectRow {
             id: p.id.to_string(),
+            code: p.code,
             name: p.name,
             status: p.status,
         })
@@ -172,7 +174,7 @@ pub fn ClientProjects() -> Element {
             }
             div { class: "portal-projects",
                 for row in view.rows.iter().cloned() {
-                    a { class: "portal-project-card", key: "{row.id}", href: "/app/projects/{row.id}",
+                    a { class: "portal-project-card", key: "{row.id}", href: "/app/projects/{row.code}",
                         div { class: "portal-project-card__name", "{row.name}" }
                         div { class: "portal-project-card__status", "Status: {row.status}" }
                     }

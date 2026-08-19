@@ -398,7 +398,10 @@ pub async fn start_post(
                 tracing::error!(error = %e, %notation_id, "start_post: estate workflow start failed");
                 return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
             }
-            return Redirect::to(&format!("/app/projects/{project_id}")).into_response();
+            return Redirect::to(
+                &crate::dioxus_app::project_show_path(&state.surreal, project_id).await,
+            )
+            .into_response();
         }
     }
 

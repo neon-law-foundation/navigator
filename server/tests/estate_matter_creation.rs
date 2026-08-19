@@ -6,7 +6,7 @@
 //! Project + role + Notation) but, because the estate flow is
 //! transcript-driven and has no questionnaire to walk before intake,
 //! it must instead **start the workflow machine at BEGIN** and land
-//! lawyer on the matter page (`/app/projects/:id`) where the
+//! lawyer on the matter page (`/app/projects/:code`) where the
 //! transcript-upload form lives — not on the questionnaire walker.
 //!
 //! This proves the created matter is a live timeline the shipped
@@ -22,7 +22,6 @@ use axum::http::{Request, StatusCode};
 use portal::AppState;
 use store::test_support::mem_surreal;
 use tower::ServiceExt;
-use uuid::Uuid;
 use workflows::{MachineKind, StateMachineRuntime};
 
 /// Session-cookie signing key shared by [`build_app`] and the tests that
@@ -158,11 +157,15 @@ async fn creating_an_estate_matter_starts_the_workflow_and_lands_on_the_matter_p
         .await
         .unwrap()
         .expect("estate template");
-    let project_id: Uuid = location
+    let project_code = location
         .strip_prefix("/app/projects/")
         .expect("estate creation lands on the matter page")
-        .parse()
-        .expect("redirect carries the project id");
+        .to_string();
+    let project_id = store::projects::find_by_code(&surreal, &project_code)
+        .await
+        .unwrap()
+        .expect("redirected project exists")
+        .id;
     let notation = store::notations::list_by_project(&surreal, project_id)
         .await
         .unwrap()
@@ -170,7 +173,7 @@ async fn creating_an_estate_matter_starts_the_workflow_and_lands_on_the_matter_p
         .find(|n| n.template_id == template.id)
         .expect("estate notation created");
     assert_eq!(notation.state, "BEGIN");
-    assert_eq!(location, format!("/app/projects/{}", notation.project_id));
+    assert_eq!(location, format!("/app/projects/{project_code}"));
 
     let person = store::persons::find_by_id(&surreal, notation.person_id)
         .await
@@ -202,7 +205,7 @@ async fn creating_an_estate_matter_starts_the_workflow_and_lands_on_the_matter_p
     assert_eq!(next.as_str(), "document_intake__transcript");
 }
 
-/// The matter page (`GET /app/projects/:id`) is project-scoped:
+/// The matter page (`GET /app/projects/:code`) is project-scoped:
 /// `can_see_project` 404s a lawyer with no `person_project_roles`
 /// row on the matter. Estate creation redirects the opener *straight to*
 /// that page, so unless creation discloses the opener as the matter's
@@ -260,11 +263,15 @@ async fn creating_lawyer_is_disclosed_to_the_estate_matter_they_open() {
         .to_str()
         .unwrap()
         .to_string();
-    let project_id: Uuid = location
+    let project_code = location
         .strip_prefix("/app/projects/")
         .expect("estate creation lands on the matter page")
-        .parse()
-        .expect("redirect carries the project id");
+        .to_string();
+    let project_id = store::projects::find_by_code(&surreal, &project_code)
+        .await
+        .unwrap()
+        .expect("redirected project exists")
+        .id;
 
     // The opener is disclosed to the new matter as its lawyer DRI.
     let dri = store::projects::participation_for_person(&surreal, lawyer.id, project_id)

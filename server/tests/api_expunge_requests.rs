@@ -30,6 +30,11 @@ static REPO_ROOT: LazyLock<tempfile::TempDir> = LazyLock::new(|| {
     dir
 });
 
+// The test binary shares one process-wide Git root. Serializing its Git-backed
+// document setup avoids instrumented macOS child processes racing inherited
+// file descriptors while one test rewrites another matter's history.
+static REPO_GIT_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 struct Fixture {
     app: axum::Router,
     surreal: store::surreal::SurrealDb,
@@ -175,6 +180,7 @@ async fn request_status(fx: &Fixture, request_id: Uuid) -> String {
 
 #[tokio::test]
 async fn an_admin_authorizes_and_the_document_is_scrubbed() {
+    let _repo_guard = REPO_GIT_LOCK.lock().await;
     let fx = build_fixture().await;
     let request_id = seed_pending_request(&fx).await;
 
@@ -189,6 +195,7 @@ async fn an_admin_authorizes_and_the_document_is_scrubbed() {
 
 #[tokio::test]
 async fn a_lawyer_cannot_authorize_an_expunge() {
+    let _repo_guard = REPO_GIT_LOCK.lock().await;
     let fx = build_fixture().await;
     let request_id = seed_pending_request(&fx).await;
 
@@ -204,6 +211,7 @@ async fn a_lawyer_cannot_authorize_an_expunge() {
 
 #[tokio::test]
 async fn a_client_cannot_authorize_and_anonymous_is_401() {
+    let _repo_guard = REPO_GIT_LOCK.lock().await;
     let fx = build_fixture().await;
     let request_id = seed_pending_request(&fx).await;
 
@@ -221,6 +229,7 @@ async fn a_client_cannot_authorize_and_anonymous_is_401() {
 
 #[tokio::test]
 async fn a_lawyer_denies_a_request() {
+    let _repo_guard = REPO_GIT_LOCK.lock().await;
     let fx = build_fixture().await;
     let request_id = seed_pending_request(&fx).await;
 
@@ -231,6 +240,7 @@ async fn a_lawyer_denies_a_request() {
 
 #[tokio::test]
 async fn a_client_cannot_deny_and_anonymous_is_401() {
+    let _repo_guard = REPO_GIT_LOCK.lock().await;
     let fx = build_fixture().await;
     let request_id = seed_pending_request(&fx).await;
 
@@ -248,6 +258,7 @@ async fn a_client_cannot_deny_and_anonymous_is_401() {
 
 #[tokio::test]
 async fn denying_an_unknown_request_is_404() {
+    let _repo_guard = REPO_GIT_LOCK.lock().await;
     let fx = build_fixture().await;
     let resp = act(&fx, Uuid::now_v7(), "deny", Some(&fx.lawyer)).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);

@@ -512,7 +512,7 @@ fn register_firm_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminStat
 /// outer `/lawyer/*` policy rule those paths used to sit behind.
 fn register_project_routes(r: Router<AdminState>) -> Router<AdminState> {
     let prefix = APP_PROJECTS_PATH;
-    // `{prefix}` (the list), `{prefix}/{id}` (the matter workbench), the forms,
+    // `{prefix}` (the list), `{prefix}/{code}` (the matter workbench), the forms,
     // and the read pages all render through Dioxus (`dioxus_app`); the `POST`s
     // stay here and axum merges the same-path methods.
     r.route(prefix, post(projects_create_lawyer_only))
@@ -529,7 +529,7 @@ fn register_project_routes(r: Router<AdminState>) -> Router<AdminState> {
             post(projects_new_client_inline),
         )
         .route(
-            &format!("{prefix}/{{id}}"),
+            &format!("{prefix}/{{code}}"),
             post(projects_update_lawyer_only),
         )
         .route(
@@ -1659,7 +1659,7 @@ async fn projects_create_lawyer_only(
             // Creating a matter lands on the matter. Its engagement letter is
             // the next step, not this one — the show page names that gap and
             // links to it, so lawyers choose the retainer deliberately.
-            Redirect::to(&format!("/app/projects/{}", created.id)).into_response()
+            Redirect::to(&format!("/app/projects/{}", created.code)).into_response()
         }
         Err(e) => open_matter_form_error(session.as_deref(), &input, e),
     }
@@ -1763,6 +1763,17 @@ async fn project_participation_access(
     }
 }
 
+async fn project_show_path(surreal: &store::surreal::SurrealDb, project_id: Uuid) -> String {
+    store::projects::find_by_id(surreal, project_id)
+        .await
+        .ok()
+        .flatten()
+        .map_or_else(
+            || APP_PROJECTS_PATH.to_string(),
+            |project| format!("/app/projects/{}", project.code),
+        )
+}
+
 async fn participation_people(
     surreal: &store::surreal::SurrealDb,
 ) -> Result<Vec<store::persons::Person>, Response> {
@@ -1850,7 +1861,7 @@ async fn project_participation_create(
     )
     .await
     {
-        Ok(_) => Redirect::to(&format!("/app/projects/{id}")).into_response(),
+        Ok(_) => Redirect::to(&project_show_path(&surreal, id).await).into_response(),
         Err(e) => {
             use store::participation::AddParticipantError as E;
             let message = match e {
@@ -1911,7 +1922,7 @@ async fn project_participation_update(
     )
     .await
     {
-        Ok(_) => Redirect::to(&format!("/app/projects/{id}")).into_response(),
+        Ok(_) => Redirect::to(&project_show_path(&surreal, id).await).into_response(),
         Err(e) => {
             use store::participation::UpdateParticipantError as E;
             let message = match e {
@@ -1944,7 +1955,7 @@ async fn project_participation_delete(
     // removing the DRI's row would strand the matter's accountable lawyer).
     match store::participation::remove_participant(&surreal, id, role_id, dri_actor(session)).await
     {
-        Ok(()) => Redirect::to(&format!("/app/projects/{id}")).into_response(),
+        Ok(()) => Redirect::to(&project_show_path(&surreal, id).await).into_response(),
         Err(store::participation::RemoveParticipantError::NotFound) => not_found_response(),
         Err(store::participation::RemoveParticipantError::DriLockout) => {
             delete_refused_response(PROJECT_PARTICIPATION_DRI_LOCKOUT_ERROR, APP_PROJECTS_PATH)
@@ -2060,6 +2071,7 @@ async fn matter_dri_write(
     dri: store::participation::DriRequest,
     actor: store::participation::DriActor,
 ) -> Response {
+    let show_path = project_show_path(surreal, project_id).await;
     let result = store::participation::update_participant(
         surreal,
         &store::participation::UpdateParticipantCommand {
@@ -2076,13 +2088,13 @@ async fn matter_dri_write(
     // that is where the sentence has to appear.
     let refused = |message: &str| {
         Redirect::to(&format!(
-            "/app/projects/{project_id}?error={}",
+            "{show_path}?error={}",
             encode_query_value(message)
         ))
         .into_response()
     };
     match result {
-        Ok(_) => Redirect::to(&format!("/app/projects/{project_id}")).into_response(),
+        Ok(_) => Redirect::to(&show_path).into_response(),
         Err(store::participation::UpdateParticipantError::NotFound) => not_found_response(),
         Err(store::participation::UpdateParticipantError::Dri(error)) => {
             refused(&error.to_string())
@@ -2097,7 +2109,7 @@ async fn matter_dri_write(
 async fn projects_update_lawyer_only(
     State(surreal): State<store::surreal::SurrealDb>,
     session: Option<Extension<SessionData>>,
-    Path(id): Path<Uuid>,
+    Path(code): Path<String>,
     Form(input): Form<ProjectInput>,
 ) -> Response {
     if !is_lawyer_tier(session.as_deref()) {
@@ -2112,6 +2124,14 @@ async fn projects_update_lawyer_only(
     // posted by the form nor forwarded here. The form always sends
     // `description`, the two Slack fields, and the repository URL, so pass each
     // as `Some` to keep the blank-clears behavior.
+    let Some(project) = store::projects::find_by_code(&surreal, &code)
+        .await
+        .ok()
+        .flatten()
+    else {
+        return (StatusCode::NOT_FOUND, webapp::error_pages::not_found()).into_response();
+    };
+    let project_id = project.id;
     let command = store::projects::UpdateProjectCommand {
         name: input.name,
         entity_id: input.entity_id,
@@ -2120,7 +2140,7 @@ async fn projects_update_lawyer_only(
         external_slack_channel_url: Some(input.external_slack_channel_url),
         repository_url: Some(input.repository_url),
     };
-    match store::projects::update_project(&surreal, id, &command).await {
+    match store::projects::update_project(&surreal, project_id, &command).await {
         Ok(_) => Redirect::to("/app/projects").into_response(),
         Err(store::projects::ProjectCommandError::NotFound) => {
             (StatusCode::NOT_FOUND, webapp::error_pages::not_found()).into_response()
@@ -2132,7 +2152,7 @@ async fn projects_update_lawyer_only(
         // raises it, but the enum is shared, so treat it as the same
         // server-side fault rather than leaving the match non-exhaustive.
         Err(store::projects::ProjectCommandError::Db(e)) => {
-            tracing::error!(error = %e, project_id = %id, "projects_update: failed");
+            tracing::error!(error = %e, %project_id, "projects_update: failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 webapp::error_pages::server_error(),
@@ -2140,7 +2160,7 @@ async fn projects_update_lawyer_only(
                 .into_response()
         }
         Err(e @ store::projects::ProjectCommandError::Referenced(_)) => {
-            tracing::error!(error = %e, project_id = %id, "projects_update: unexpected referenced");
+            tracing::error!(error = %e, %project_id, "projects_update: unexpected referenced");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 webapp::error_pages::server_error(),

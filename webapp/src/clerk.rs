@@ -1,5 +1,5 @@
 //! The supervised Clerk rendering of the matter surface (`/app/projects` and
-//! `/app/projects/{id}`) as Dioxus
+//! `/app/projects/{code}`) as Dioxus
 //! components (#956 Phase 4) — the supervised, read-only Project lens.
 //!
 //! The successor to the `views::pages::clerk` renders. The surface is
@@ -27,8 +27,7 @@ use crate::portal_project_list::PersonId;
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct ClerkProjectRow {
     pub id: String,
-    /// The Project code, which keys the client-portal mount
-    /// (`/app/projects/{code}/portal/`). The matter page is keyed by `id`.
+    /// The Project code, which keys both the matter page and client portal.
     pub code: String,
     pub name: String,
     pub status: String,
@@ -167,8 +166,8 @@ pub async fn get_clerk_projects() -> Result<ClerkProjectsView, ServerFnError> {
 /// — is the same `404`.
 #[server]
 pub async fn get_clerk_project() -> Result<ClerkProjectDetailView, ServerFnError> {
-    let axum::extract::Path(id) =
-        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<uuid::Uuid>, _>()
+    let axum::extract::Path(code) =
+        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<String>, _>()
             .await?;
     let role = injected_role().await;
     let firm_name = crate::app_chrome::firm_name_from_context().await;
@@ -193,7 +192,7 @@ pub async fn get_clerk_project() -> Result<ClerkProjectDetailView, ServerFnError
         .map_err(server_error)?;
     let Some((project, supervisor)) = supervised
         .into_iter()
-        .find(|(project, _supervisor)| project.id == id)
+        .find(|(project, _supervisor)| project.code == code)
     else {
         return not_found(role);
     };
@@ -293,7 +292,7 @@ pub fn ClerkProjects() -> Element {
                     }
                     div { class: "portal-projects",
                         for row in view.rows.iter().cloned() {
-                            a { class: "portal-project-card", key: "{row.id}", href: "/app/projects/{row.id}",
+                            a { class: "portal-project-card", key: "{row.id}", href: "/app/projects/{row.code}",
                                 div { class: "portal-project-card__name", "{row.name}" }
                                 div { class: "portal-project-card__status", "Status: {row.status}" }
                                 div { class: "clerk-supervisor",

@@ -1,23 +1,17 @@
 //! Publishing a built **sample project** bundle into the applications bucket.
 //!
 //! The `simpsons` demo matter carries a client portal at
-//! `/app/projects/simpsons/portal/`. Two things can supply that bundle:
+//! `/app/projects/simpsons/portal/`. Local development refreshes the real Vite
+//! build of
+//! [navigator-sample-project](https://github.com/neon-law-foundation/navigator-sample-project),
+//! stages its `dist/` beside the `navigator.yml` that names its Project, and
+//! points [`STAGE_ENV`] at the pair through generated `.devx/env`.
 //!
-//! 1. The hand-written stub in [`crate::seed`], compiled into the binary. It
-//!    needs no network, no Node, and no checkout, so it is what a plain boot
-//!    publishes and what production-shaped tiers keep serving.
-//! 2. A real Vite build of
-//!    [navigator-sample-project](https://github.com/neon-law-foundation/navigator-sample-project),
-//!    cloned and built by `navigator dev sample-project`, which stages its
-//!    `dist/` beside the `navigator.yml` that names its Project and points
-//!    [`STAGE_ENV`] at the pair.
-//!
-//! Boot prefers the staged build when the variable names a real directory, so
-//! the opt-in is a single environment key rather than a code path. It re-reads
-//! the manifest rather than trusting that variable, and refuses a bundle
-//! naming a different Project — publishing one would put a matter's
-//! application on another matter's portal. Everything that decides *what* gets
-//! published is pure and unit-tested here; the seed owns only the `await`s.
+//! Boot re-reads the manifest rather than trusting the staging path, and
+//! refuses a bundle naming a different Project — publishing one would put a
+//! matter's application on another matter's portal. Everything that decides
+//! *what* gets published is pure and unit-tested here; the seed owns only the
+//! `await`s.
 //!
 //! ## Why the ordering is load-bearing
 //!
@@ -29,8 +23,8 @@
 use std::path::{Path, PathBuf};
 
 /// Names the staged project directory — a `navigator.yml` beside a built
-/// `dist/`. Set by `navigator dev sample-project`; unset everywhere else,
-/// which is what keeps production on the compiled stub.
+/// `dist/`. Generated local development environments set it before `web`
+/// starts.
 pub const STAGE_ENV: &str = "NAVIGATOR_SAMPLE_PROJECT_DIR";
 
 /// The manifest a project application carries at its root. It names the
@@ -254,8 +248,8 @@ impl StagedProject {
 
 /// Resolve the staged project from the environment, if one is both configured
 /// and present. A configured-but-missing directory is *not* an error: a
-/// worktree whose `.devx` was torn down should fall back to the stub rather
-/// than fail boot.
+/// worktree whose `.devx` was torn down should keep the deterministic portal
+/// document rather than fail boot.
 #[must_use]
 pub fn staged_from_env() -> Option<StagedProject> {
     staged_from(|key| std::env::var(key).ok())
@@ -408,7 +402,7 @@ mod tests {
         assert_eq!(
             staged_from(|_| Some("/nonexistent/navigator/sample".to_string())),
             None,
-            "a torn-down worktree falls back to the stub instead of failing boot"
+            "a missing staged bundle is not treated as a built application"
         );
 
         // Present, but nobody built it.

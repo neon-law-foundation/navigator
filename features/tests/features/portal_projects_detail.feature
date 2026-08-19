@@ -1,4 +1,4 @@
-Feature: /app/projects/:id — single matter detail, scoped to the caller
+Feature: /app/projects/:code — single matter detail, scoped to the caller
 
   The project detail page is the place clients spend their time. It
   reads from the same client-lens visibility rule that gates the

@@ -153,7 +153,10 @@ pub async fn upload(
         }
     };
     if batch.files.is_empty() {
-        return Redirect::to(&format!("/app/projects/{project_id}")).into_response();
+        return Redirect::to(
+            &crate::dioxus_app::project_show_path(&state.surreal, project_id).await,
+        )
+        .into_response();
     }
     let UploadBatch {
         files: uploads,
@@ -194,7 +197,8 @@ pub async fn upload(
         }
     }
 
-    Redirect::to(&format!("/app/projects/{project_id}")).into_response()
+    Redirect::to(&crate::dioxus_app::project_show_path(&state.surreal, project_id).await)
+        .into_response()
 }
 
 /// File one document from a batch, skipping it when the matter already
