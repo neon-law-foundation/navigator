@@ -65,17 +65,27 @@ fn releases_build_and_attach_a_windows_cli_archive() {
     }
 }
 
-/// The three CLI archives are compiled from the same SHA the images are built
-/// from, so they run BESIDE the image lane rather than after it: `release-version`
-/// hands over the tag and nothing else is waited on. A release's wall clock is
-/// then the longer of the two lanes instead of their sum, which on the 90-minute
-/// Windows compile is most of the run.
+/// The three CLI archives compile in the SAME stage that publishes the images to
+/// GHCR: each waits on `integration` — the KIND e2e, interop, and
+/// browser/accessibility suite — exactly as `publish-service` and
+/// `publish-triggers` do. One gate decides whether a release produces artifacts
+/// at all, and it is the e2e run.
 ///
-/// The gate that replaces the dependency is `publishable` — the SAME one
-/// `publish-service` carries. A run that publishes images therefore always
-/// builds all three archives, and a `kind-ci/**` branch iteration compiles none
-/// of them.
-fn assert_builds_beside_the_images(job: &str) {
+/// That ordering is what makes a CLI archive mean the same thing an image tag
+/// means. A release ships one version across four surfaces — the GHCR images,
+/// the three archives, `navigator --version`, and the Release page — and a
+/// stranger reading that version has no way to tell which surfaces the e2e
+/// suite actually stood behind. Compiling the archives before the gate made
+/// "e2e-proven" true of the images and merely coincidental for the CLI. It also
+/// occupied three runners, one a 90-minute Windows compile, on every release
+/// whose integration job then went red — building an archive for a Release that
+/// never gets cut.
+///
+/// `publishable` stays as the second half of the gate — the SAME condition the
+/// publish jobs carry — so a run that publishes images always ships all three
+/// archives, and a `kind-ci/**` branch iteration stops at integration and
+/// compiles none of them.
+fn assert_builds_after_the_e2e_gate(job: &str) {
     let gate = deploy_job(job)["if"]
         .as_str()
         .unwrap_or_else(|| panic!("{job} must declare an `if:` gate"))
@@ -87,19 +97,21 @@ fn assert_builds_beside_the_images(job: &str) {
          publishes images also ships a CLI, got: {gate:?}"
     );
 
-    assert_eq!(
-        job_needs(job),
-        vec!["release-version".to_string()],
-        "{job} must wait only for the tag, so it compiles beside the image jobs instead of \
-         queueing behind them"
-    );
+    let needs = job_needs(job);
+    for required in ["integration", "release-version"] {
+        assert!(
+            needs.iter().any(|entry| entry == required),
+            "{job} must need `{required}` so the CLI is compiled in the same stage that pushes \
+             the images to GHCR — after the e2e run, never beside it. Got: {needs:?}"
+        );
+    }
 }
 
-/// Every release that publishes images also builds the Windows CLI, and builds
-/// it while the images are still being published.
+/// Every release that publishes images also builds the Windows CLI, and starts
+/// that build only once the e2e suite is green.
 #[test]
 fn every_published_release_builds_the_windows_cli() {
-    assert_builds_beside_the_images("release-windows-cli-build");
+    assert_builds_after_the_e2e_gate("release-windows-cli-build");
 }
 
 /// Every run that reaches this job is a tag release, so the archive is built
@@ -256,11 +268,11 @@ fn the_macos_archive_name_matches_what_the_validate_action_downloads() {
     );
 }
 
-/// Same rule as the other two builds: gated on `publishable`, waiting on the tag
-/// alone.
+/// Same rule as the other two builds: gated on `publishable`, and queued behind
+/// the e2e run.
 #[test]
 fn every_published_release_builds_the_macos_cli() {
-    assert_builds_beside_the_images("release-cli-build-macos");
+    assert_builds_after_the_e2e_gate("release-cli-build-macos");
 }
 
 #[test]
@@ -271,9 +283,9 @@ fn the_macos_build_checks_out_the_commit_it_claims() {
 /// A build that fails must page, and only the jobs `notify-failure` lists can.
 ///
 /// The list is hand-maintained and the CLI builds are the easiest rows to
-/// forget: they are peers of the publishes rather than successors, so a green
-/// publish reads like a green release right up until the Release carries two
-/// archives instead of three.
+/// forget: they are peers of the publishes rather than dependencies of them, so
+/// a green publish reads like a green release right up until the Release carries
+/// two archives instead of three.
 #[test]
 fn a_failed_cli_build_pages_engineering() {
     let needs = job_needs("notify-failure");
@@ -403,15 +415,14 @@ fn every_cli_archive_carries_the_licence_and_the_notice() {
 /// images while quietly shipping none.
 #[test]
 fn every_published_release_builds_the_linux_cli() {
-    assert_builds_beside_the_images("release-cli-build-linux");
+    assert_builds_after_the_e2e_gate("release-cli-build-linux");
 }
 
-/// The archives compile beside the images, but the Release is still cut after
-/// them. `release-windows-cli-publish` is the first job in the run that
-/// publishes anything a stranger can fetch, and the CLI it attaches is only
-/// half a release without the images the same tag names — so it waits on both
-/// publish jobs, which is what keeps the KIND integration gate ahead of every
-/// published byte.
+/// The archives and the images are peers in stage 2, so neither is cut into a
+/// Release by the other finishing. `release-windows-cli-publish` is the first
+/// job in the run that publishes anything a stranger can fetch, and the CLI it
+/// attaches is only half a release without the images the same tag names — so it
+/// waits on both publish jobs as well as the three builds.
 #[test]
 fn the_release_is_cut_only_after_the_images_publish() {
     let needs = job_needs("release-windows-cli-publish");

@@ -41,12 +41,21 @@ name: deploy
 #      CronJob images go through `publish-triggers` (also amd64-only).
 #      Prod runs on GKE Autopilot, which schedules on amd64 nodes, so amd64 is
 #      the only architecture any image is consumed on.
-#   2b. the CLI release lane — EVERY publishing run builds a Windows, a Linux,
-#      and a macOS `navigator` archive, then `release-windows-cli-publish`
-#      creates the GitHub Release hanging off the ALREADY-PUSHED tag and
-#      attaches them. That job is the only holder of `contents: write`, and it
-#      holds it to create a Release, not a ref: nothing in this file can move a
-#      ref, because the ref arrived before the run did.
+#   2b. the CLI archives — EVERY publishing run builds a Windows, a Linux, and a
+#      macOS `navigator` archive, IN THIS SAME STAGE and behind the same
+#      `integration` gate the image publishes carry. Then
+#      `release-windows-cli-publish` creates the GitHub Release hanging off the
+#      ALREADY-PUSHED tag and attaches them. That job is the only holder of
+#      `contents: write`, and it holds it to create a Release, not a ref:
+#      nothing in this file can move a ref, because the ref arrived before the
+#      run did.
+#
+#      The archives share stage 2 with the images because they share a version.
+#      One tag names the GHCR image tags, these three archives,
+#      `navigator --version`, and the Release page, and a reader of that version
+#      cannot see which of those the e2e suite proved — so every one of them
+#      waits for it. Building them earlier also billed three runners, one a
+#      90-minute cold Windows compile, on releases whose e2e then went red.
 #
 #      IT IS LOAD-BEARING BEYOND THE HUMAN DOWNLOAD. `.github/actions/validate`
 #      — the composite gate EVERY Project repository runs — fetches
@@ -1840,35 +1849,43 @@ jobs:
           # export must not fail an already-published image.
           cache-to: type=registry,ref=${{ steps.img.outputs.name }}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true
 
-  # ---------- Stage 2b: build the Windows CLI release artifact ----------
+  # ---------- Stage 2b: build the CLI release archives ----------
   # The container publishing lanes are Linux/amd64-only because that is what
   # GKE consumes. People using Navigator on Windows, macOS, or Linux need a
   # native executable, so every release that publishes images builds all three
   # — one job per platform, all three attached by one publish job below.
   #
-  # These jobs are PEERS of each other, and `release-windows-cli-publish` waits
-  # for all three so one Release carries every platform. A release that cannot
-  # produce its CLI is not a complete release: `.github/actions/validate` — the
-  # gate every Project repository runs — downloads these archives, so a missing
-  # one breaks Project CI everywhere while this run reports green.
+  # THE THREE BUILDS SIT IN STAGE 2 ALONGSIDE THE GHCR PUBLISHES, behind the
+  # same `integration` gate those carry. A release ships ONE version across four
+  # surfaces — the GHCR image tags, these three archives, `navigator --version`,
+  # and the Release page — and nobody reading that version can tell which of
+  # those the e2e suite stood behind. So all of them wait for it: the archive a
+  # Project runner installs is proven by the same KIND run as the image prod
+  # pulls, rather than by the fact that both happened to be cut from one SHA.
   #
-  # There is deliberately NO `if:` here. `needs` alone decides: both publishes
-  # green means a real release, and a real release always builds its CLI. A
-  # `kind-ci/**` branch run skips the publishes and therefore skips this too,
-  # which is correct: it produces no release to carry an archive.
+  # It also stops occupying three runners — one a 90-minute cold Windows compile
+  # — on releases whose e2e then goes red. They are free on a public repository,
+  # so this is not a billing argument: the point is that an archive built for a
+  # Release that never gets cut has no consumer at all.
+  #
+  # These jobs are PEERS of each other and of the publishes, and
+  # `release-windows-cli-publish` waits for all three so one Release carries
+  # every platform. A release that cannot produce its CLI is not a complete
+  # release: `.github/actions/validate` — the gate every Project repository runs
+  # — downloads these archives, so a missing one breaks Project CI everywhere
+  # while this run reports green.
   release-windows-cli-build:
     name: build Windows navigator CLI release archive
-    # The tag, and nothing else. This archive is compiled from the same SHA the
-    # images are, so it has no reason to queue behind them: the three CLI builds
-    # run as a second lane beside `build` -> `integration` -> `publish-*`, and a
-    # release's wall clock is the longer of the two lanes rather than their sum.
-    # Nothing is published early — `release-windows-cli-publish` still waits on
-    # both publish jobs, so the KIND integration gate stays ahead of every byte a
-    # stranger can fetch.
-    needs: [release-version]
-    # The gate the dependency used to carry, stated directly. It is the SAME one
-    # `publish-service` carries, so a run that publishes images always ships all
-    # three archives, and a `kind-ci/**` branch iteration compiles none of them.
+    # The e2e gate and the tag — the SAME `needs` the GHCR publishes declare, so
+    # this archive is compiled in the stage that pushes the images rather than in
+    # a lane beside it. `integration` is the KIND e2e, interop, and
+    # browser/accessibility suite; nothing this job produces can outlive a red
+    # one, because nothing is compiled until it is green.
+    needs: [integration, release-version]
+    # The second half of that same gate, stated directly. `publish-service`
+    # carries it too, so a run that publishes images always ships all three
+    # archives, and a `kind-ci/**` branch iteration — which stops after
+    # integration — compiles none of them.
     if: needs.release-version.outputs.publishable == 'true'
     runs-on: windows-latest
     # `windows-latest` is a standard GitHub-hosted Windows runner available to
@@ -1935,8 +1952,9 @@ jobs:
 
   release-cli-build-linux:
     name: build Linux navigator CLI release archive
-    # Same lane as the Windows archive: the tag alone, gated on `publishable`.
-    needs: [release-version]
+    # Same stage as the Windows archive and the GHCR publishes: the e2e gate plus
+    # the tag, gated on `publishable`.
+    needs: [integration, release-version]
     if: needs.release-version.outputs.publishable == 'true'
     runs-on: ubuntu-latest
     # This is the archive CI actually consumes. `.github/actions/validate`
@@ -2011,8 +2029,9 @@ jobs:
 
   release-cli-build-macos:
     name: build macOS navigator CLI release archive
-    # Same lane as the other two archives: the tag alone, gated on `publishable`.
-    needs: [release-version]
+    # Same stage as the other two archives: the e2e gate plus the tag, gated on
+    # `publishable`.
+    needs: [integration, release-version]
     if: needs.release-version.outputs.publishable == 'true'
     runs-on: macos-latest
     # The third archive, and the one that closes a live hole rather than adding
@@ -2094,11 +2113,10 @@ jobs:
     # and all try to create it, and the losers would fail. The job key keeps
     # its original Windows-flavoured spelling because the notify lists and this
     # job's own slack `stage:` strings reference it.
-    # The three archives, plus both publishes. The builds compile beside the
-    # image lane, so this job is where the two lanes rejoin: it cuts the Release,
-    # the first thing in the run a stranger can fetch, and a CLI attached without
-    # the images its tag names is half a release. Needing the publishes also
-    # keeps the KIND integration gate — which they need — ahead of publication.
+    # The three archives, plus both publishes — every artifact of stage 2. This
+    # job cuts the Release, the first thing in the run a stranger can fetch, and
+    # a CLI attached without the images its tag names is half a release, so it
+    # waits on all five rather than on the archives it uploads.
     needs:
       [
         release-windows-cli-build,
