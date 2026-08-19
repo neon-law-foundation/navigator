@@ -194,10 +194,11 @@ jobs:
       # ref/event boolean — a `kind-ci/**` branch run reports false and stops
       # after integration.
       publishable: ${{ steps.version.outputs.publishable }}
-      # Whether this tag is a same-day `-hotfix.N` prerelease. It gates the two
-      # places a prerelease must NOT behave like an ordinary release: the GitHub
-      # Release is marked as a prerelease, and the Homebrew tap is not told
-      # about it at all (see `release-homebrew-tap`).
+      # Whether this tag is a same-day `-hotfix.N` prerelease. It gates the one
+      # place a prerelease must NOT behave like an ordinary release: the GitHub
+      # Release is marked as a prerelease, so GitHub stops reporting it as
+      # "Latest release". The Homebrew tap IS told about a hotfix — see
+      # `release-homebrew-tap` for why that is safe.
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       # Full history is required for `release-provenance` to prove ancestry,
@@ -375,7 +376,7 @@ jobs:
           echo "publishable=true" >> "$GITHUB_OUTPUT"
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
           if [ "${prerelease}" = "true" ]; then
-              echo "hotfix ${tag}: shape, base date ${base} (tomorrow UTC), workspace version, and main provenance all agree — publishes as a prerelease, and the Homebrew tap is NOT notified"
+              echo "hotfix ${tag}: shape, base date ${base} (tomorrow UTC), workspace version, and main provenance all agree — publishes as a prerelease, and the Homebrew tap is notified"
           else
               echo "release ${tag}: shape, UTC date, workspace version, and main provenance all agree"
           fi
@@ -2221,8 +2222,8 @@ jobs:
   # the bytes the job above just attached. Shipping digests in the payload would
   # let a malformed dispatch pin the formula to bytes nobody verified, and would
   # leave the tap unable to repair a bad bump without a new release here — which
-  # `YY.M.D` makes impossible until tomorrow, since the tap sees only ordinary
-  # releases and never the `-hotfix.N` tags below.
+  # `YY.M.D` makes impossible until tomorrow, since it admits one ordinary
+  # release per UTC day. The tap's own `workflow_dispatch` re-runs any tag.
   #
   # WHY A SEPARATE REPOSITORY. A tap is a Git repository Homebrew clones and
   # re-reads on every `brew update`, and the formula changes on a cadence this
@@ -2239,13 +2240,29 @@ jobs:
   # installed through it, and nothing anywhere goes red — the same shape as the
   # Project-CI 404 the archive jobs above exist to prevent.
   #
-  # A HOTFIX NEVER REACHES THE TAP. The formula has exactly one version and
-  # every `brew install` resolves to it, so bumping it to a `-hotfix.N`
-  # prerelease would hand an rc to every macOS user who ran `brew update` —
-  # while ranking BELOW the ordinary release, so the tap could not even be
-  # walked forward to it correctly. A hotfix publishes images and archives for
-  # the operator to ship; `brew` keeps resolving the last ordinary release until
-  # the next one lands.
+  # A HOTFIX REACHES THE TAP TOO, and the reason is that the tap can always walk
+  # forward off one. The formula holds exactly one version and every `brew
+  # install` resolves to it, so the question a hotfix raises is not "is this an
+  # rc?" — every published tag passed the same KIND gate — but "can the NEXT
+  # ordinary release replace it?"
+  #
+  # By itself it could not. Homebrew's comparator is not semver: it orders
+  # `26.8.20-hotfix.4` ABOVE `26.8.20`, the reverse of the semver §11.3 ranking
+  # this workflow relies on everywhere else. A formula bumped to a hotfix and
+  # then to its own base version would look like a DOWNGRADE to `brew`, which
+  # reports the keg as current and never upgrades it. That stranding — not the
+  # rc worry — is what kept hotfixes away from the tap.
+  #
+  # `scripts/bump.sh` in the tap closes it with `version_scheme`, the mechanism
+  # Homebrew provides for exactly this: a formula whose scheme is higher than an
+  # installed keg's is newer regardless of how the two versions compare. The
+  # bump compares the new tag to the old one with Homebrew's OWN comparator and
+  # increments the scheme whenever the new tag does not sort strictly above, so
+  # every bump is an upgrade whatever the shape of either tag.
+  #
+  # What stays true: a hotfix is still marked `--prerelease` on GitHub, so it is
+  # not the front-page download. Only `brew`, which resolves one version and
+  # needs that version to be the newest good build, follows it.
   release-homebrew-tap:
     name: hand the release to the Homebrew tap
     needs: [release-windows-cli-publish, release-version]
@@ -2253,10 +2270,8 @@ jobs:
     # downloads the attached archives to digest them, and a dispatch sent
     # earlier would race an empty Release. `release-windows-cli-publish`
     # already carries the `publishable` gate, so needing it is the whole
-    # condition — plus the hotfix exclusion above.
-    if: >-
-      needs.release-version.outputs.publishable == 'true' &&
-      needs.release-version.outputs.prerelease != 'true'
+    # condition — every publishable tag is dispatched, hotfix or not.
+    if: needs.release-version.outputs.publishable == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # No `contents: write`. This job writes nothing in THIS repository; the
@@ -2360,9 +2375,6 @@ jobs:
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       TAG: ${{ needs.release-version.outputs.tag }}
-      # Whether this is a `-hotfix.N` prerelease. The install message reads it
-      # to stop naming `brew`, which cannot resolve a tag the tap never saw.
-      PRERELEASE: ${{ needs.release-version.outputs.prerelease }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       # The repository that holds the deployment tree. It lives in Actions
       # configuration rather than in this file so renaming or replacing it is a
@@ -2432,17 +2444,12 @@ jobs:
               echo "::notice::SLACK_WEBHOOK_URL is unset — skipping the CLI installation instructions"
               exit 0
           fi
-          # A hotfix is never handed to the tap (see `release-homebrew-tap`), so
-          # naming `brew` here would tell the channel to install a version brew
-          # cannot resolve — it would silently fetch the last ordinary release
-          # instead, under this tag's heading. Say so rather than imply it.
-          if [ "${PRERELEASE}" = "true" ]; then
-              BREW_LINE="• macOS and Linux via \`brew\`: *not available for a hotfix.* The tap is deliberately not bumped to a prerelease, so \`brew install\`/\`brew upgrade\` keeps resolving the last ordinary release. Use the direct archive below, or build the tagged source."
-              BREW_FALLBACK="."
-          else
-              BREW_LINE="• macOS and Linux, any architecture: \`brew install neon-law-foundation/navigator/navigator\` (or \`brew upgrade navigator\` if you already have it). This is the recommended path on a Mac — the released binary is unsigned, and Gatekeeper blocks an unsigned Mach-O downloaded through a browser but not one brew fetched with curl."
-              BREW_FALLBACK=" — or let \`brew\` do exactly that for you."
-          fi
+          # ONE brew line for every published tag, hotfix included. The tap is
+          # dispatched for both (see `release-homebrew-tap`), so naming `brew`
+          # here resolves to the tag in this heading rather than to whatever the
+          # tap last saw. There is no `PRERELEASE` branch to make.
+          BREW_LINE="• macOS and Linux, any architecture: \`brew install neon-law-foundation/navigator/navigator\` (or \`brew upgrade navigator\` if you already have it). This is the recommended path on a Mac — the released binary is unsigned, and Gatekeeper blocks an unsigned Mach-O downloaded through a browser but not one brew fetched with curl."
+          BREW_FALLBACK=" — or let \`brew\` do exactly that for you."
           TEXT="*CLI installation for ${TAG}*
 
           ${BREW_LINE}

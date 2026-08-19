@@ -103,9 +103,10 @@ cargo run -p cli -- ops release-version --hotfix
 
 `N` is an unpadded nonnegative integer — semver forbids a leading zero in a numeric prerelease identifier, so
 `hotfix.08` is not a version at all. The command uses the current UTC hour as its default `N`; `--tag` selects another
-available numeric value. A hotfix publishes every image and archive, but it is flagged as a prerelease and **the
-Homebrew tap is not notified**: the tap holds one version and every `brew install` resolves to it, so bumping it to a
-prerelease would hand an rc to everyone who ran `brew update`.
+available numeric value. A hotfix publishes every image and archive and **bumps the Homebrew tap** like any other
+release — the tap holds one version and every `brew install` resolves to it, so that version has to be the newest build
+that exists. The one surface that treats it differently is the GitHub Release, flagged as a prerelease so it is not
+reported as "Latest".
 
 ## What the push actually does
 

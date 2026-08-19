@@ -11,6 +11,11 @@
 //! dispatch stops firing, `brew upgrade` keeps resolving the previous release
 //! and nothing in this repository goes red. The contract is only holdable by a
 //! test.
+//!
+//! It has already broken once in exactly that way, which is why
+//! `a_hotfix_is_dispatched_to_the_tap` exists: the dispatch fired for ordinary
+//! releases only, three ordinary releases failed at the KIND gate in a row, and
+//! `brew install` served a 404 for days with every check green.
 
 use std::fs;
 use std::path::PathBuf;
@@ -82,14 +87,44 @@ fn only_a_publishable_run_dispatches_to_the_tap() {
     );
 }
 
+/// EVERY publishable tag reaches the tap, hotfixes included.
+///
+/// This is the assertion the 404 was made of. While the gate also excluded
+/// prereleases, the tap could only be bumped by an ordinary `YY.M.D` release —
+/// and when three of those failed at the KIND gate in a row, the formula sat on
+/// its seeded placeholder for days while `brew install` served a 404 for a
+/// Release that was never cut. Nothing here went red, because a skipped job is
+/// not a failed one.
+///
+/// The stranding this exclusion was protecting against is real but belongs to
+/// the tap: Homebrew's comparator orders `26.8.20-hotfix.4` ABOVE `26.8.20`, so
+/// a formula walked from a hotfix to its own base version looks like a
+/// downgrade and `brew` refuses to upgrade it. `scripts/bump.sh` in the tap
+/// handles that with `version_scheme`, which is the mechanism Homebrew provides
+/// for precisely this case. Fixing it there rather than by refusing the bump is
+/// what lets `brew` resolve the newest build that exists.
+#[test]
+fn a_hotfix_is_dispatched_to_the_tap() {
+    let gate = deploy_job(JOB)["if"]
+        .as_str()
+        .expect("`release-homebrew-tap` must declare an `if:` gate")
+        .to_string();
+
+    assert!(
+        !gate.contains("prerelease"),
+        "`{JOB}` must not gate on `prerelease`: excluding hotfixes leaves `brew` resolving \
+         whatever the last SUCCESSFUL ordinary release was, and a run of failed ordinary \
+         releases silently strands the formula. Got: {gate:?}"
+    );
+}
+
 /// The payload carries a tag and nothing else.
 ///
 /// Digests belong to whoever downloads the bytes. Shipping them in the payload
 /// would let a malformed dispatch pin the formula to bytes nobody verified, and
 /// would leave the tap unable to repair a bad bump from a bare tag — which
-/// matters because the tap sees only ordinary releases — a `-hotfix.N` tag is
-/// never dispatched to it — and `YY.M.D` admits no second ordinary release the
-/// same UTC day.
+/// matters because `YY.M.D` admits no second ordinary release the same UTC day,
+/// so a bump that went wrong cannot be fixed by re-cutting the release.
 #[test]
 fn the_dispatch_carries_the_tag_and_computes_no_digest() {
     let workflow = deploy_workflow();
