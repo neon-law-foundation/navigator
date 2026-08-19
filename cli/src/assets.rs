@@ -20,6 +20,7 @@ use cloud::{GcsStorage, GcsStorageConfig, StorageService};
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
 use image::{ExtendedColorType, ImageEncoder};
+use include_dir::{include_dir, Dir};
 use rgb::FromSlice;
 use views::assets::{GALLERY, WIDTHS};
 use workflows::notify::{Notifier, SlackNotifier};
@@ -39,6 +40,13 @@ const ASSET_CACHE_CONTROL: &str = "public, max-age=604800";
 /// covers the Firm's deployments, not redistribution to everyone who clones.
 const GORP_FONT_FILES: [&str; 2] = ["GORPSerif-Regular.woff2", "GORPSerif-Bold.woff2"];
 const GORP_FONT_PREFIX: &str = "fonts/gorp-serif";
+
+/// Slide markdown is embedded in the release binary so `ops ship` can discover
+/// every presentation/workshop `](img/…)` key without depending on an operator
+/// checkout. The standalone CLI archive contains only the binary and licence
+/// files.
+static SLIDE_CONTENT: Dir<'static> =
+    include_dir!("$CARGO_MANIFEST_DIR/../server/content/workshops");
 
 /// The full GORP Serif desktop family (the licensed `.otf` faces from the
 /// `TrashType` delivery), packaged as one ZIP. Firm workers download it from
@@ -523,6 +531,27 @@ fn content_image_refs(content_root: &Path) -> anyhow::Result<BTreeSet<String>> {
     Ok(refs)
 }
 
+fn embedded_content_image_refs(dir: &Dir<'_>, refs: &mut BTreeSet<String>) {
+    for file in dir.files() {
+        if file.path().extension().and_then(|ext| ext.to_str()) == Some("md") {
+            if let Some(markdown) = file.contents_utf8() {
+                refs.extend(parse_image_refs(markdown));
+            }
+        }
+    }
+    for child in dir.dirs() {
+        embedded_content_image_refs(child, refs);
+    }
+}
+
+/// Every bucket-lane image or video a released presentation/workshop can
+/// request, carried inside the standalone CLI that performs a ship.
+fn bundled_slide_asset_keys() -> BTreeSet<String> {
+    let mut keys = BTreeSet::new();
+    embedded_content_image_refs(&SLIDE_CONTENT, &mut keys);
+    keys
+}
+
 /// Every bucket key under `img/` the site can actually reach.
 ///
 /// Two independent sources, and the union matters more than either half.
@@ -740,6 +769,74 @@ async fn verify_refs(
         missing,
         unknown,
     }
+}
+
+/// Reconcile the complete slide-media key set against a storage backend.
+/// Direct bucket metadata is the deploy preflight: it checks the selected
+/// deployment's destination before any rollout mutation and does not depend
+/// on which release the public hostname currently serves.
+async fn verify_storage_refs(
+    storage: &dyn StorageService,
+    refs: &BTreeSet<String>,
+) -> VerifyReport {
+    let mut missing = Vec::new();
+    let mut unknown = Vec::new();
+    for rel in refs {
+        match storage.exists(rel).await {
+            Ok(true) => {}
+            Ok(false) => missing.push(rel.clone()),
+            Err(e) => unknown.push(format!("{rel}: {e}")),
+        }
+    }
+    VerifyReport {
+        checked: refs.len(),
+        missing,
+        unknown,
+    }
+}
+
+fn storage_report_result(report: &VerifyReport, bucket: &str) -> anyhow::Result<()> {
+    if report.missing.is_empty() && report.unknown.is_empty() {
+        eprintln!(
+            "==> asset preflight: all {} public asset(s) exist in gs://{bucket}",
+            report.checked
+        );
+        return Ok(());
+    }
+
+    let mut detail = String::new();
+    for key in &report.missing {
+        let _ = writeln!(detail, "\n  missing: gs://{bucket}/{key}");
+    }
+    for line in &report.unknown {
+        let _ = writeln!(detail, "\n  unknown: gs://{bucket}/{line}");
+    }
+    anyhow::bail!(
+        "slide asset preflight failed for gs://{bucket}: {} missing, {} could not be checked.\
+         {detail}\nPublish every presentation/workshop asset to this deployment's bucket before shipping.",
+        report.missing.len(),
+        report.unknown.len()
+    )
+}
+
+/// Refuse an image or full roll unless every presentation/workshop object
+/// bundled into this CLI exists in the selected deployment's GCS assets
+/// bucket. Restart-only ships do not call this because they change no content
+/// or image version.
+pub(crate) fn verify_bundled_slide_assets_bucket(bucket: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(!bucket.trim().is_empty(), "assets bucket is blank");
+    let runtime = tokio::runtime::Runtime::new().context("create asset preflight runtime")?;
+    runtime.block_on(async {
+        let storage = GcsStorage::new_from_config(GcsStorageConfig {
+            bucket: bucket.to_string(),
+            endpoint: None,
+        })
+        .await
+        .with_context(|| format!("open public assets bucket `gs://{bucket}`"))?;
+        let refs = bundled_slide_asset_keys();
+        let report = verify_storage_refs(&storage, &refs).await;
+        storage_report_result(&report, bucket)
+    })
 }
 
 /// Render a [`VerifyReport`] and return its process exit code: `0` only
@@ -1502,13 +1599,14 @@ async fn download(storage: &dyn StorageService, out: &Path) -> anyhow::Result<us
 #[cfg(test)]
 mod tests {
     use super::{
-        asset_exists, build_gorp_otf_zip, content_image_refs, content_type_for,
-        destination_for_ref, download, fetch_asset, fetch_referenced_content, fetch_report_exit,
-        gorp_font_refs, join_public_url, orphan_keys, orphan_report, parse_image_refs,
-        placeholder_bytes_for, reachable_image_keys, report_exit, resolve_public_origin,
-        run_fetch_referenced, run_upload_desktop_fonts, run_upload_fonts, select, upload,
-        upload_gorp_fonts, upload_gorp_otf_zip, verify_content, verify_refs, AssetProbe,
-        FetchReport, VerifyReport, ASSET_CACHE_CONTROL, GORP_OTF_ZIP_KEY,
+        asset_exists, build_gorp_otf_zip, bundled_slide_asset_keys, content_image_refs,
+        content_type_for, destination_for_ref, download, fetch_asset, fetch_referenced_content,
+        fetch_report_exit, gorp_font_refs, join_public_url, orphan_keys, orphan_report,
+        parse_image_refs, placeholder_bytes_for, reachable_image_keys, report_exit,
+        resolve_public_origin, run_fetch_referenced, run_upload_desktop_fonts, run_upload_fonts,
+        select, upload, upload_gorp_fonts, upload_gorp_otf_zip, verify_content, verify_refs,
+        verify_storage_refs, AssetProbe, FetchReport, VerifyReport, ASSET_CACHE_CONTROL,
+        GORP_OTF_ZIP_KEY,
     };
     use cloud::{FsStorage, ObjectListing, StorageError, StorageService, StoredObject};
     use std::collections::BTreeSet;
@@ -1667,6 +1765,47 @@ Inline raw-HTML tile: <div>![Team](img/thanks-apple/team-lunch.jpg)</div>\n";
             refs.iter().all(|r| r.starts_with("img/")),
             "every discovered reference is an `img/` key, got: {refs:?}"
         );
+    }
+
+    #[test]
+    fn bundled_slide_asset_keys_carry_every_workshop_image_into_ship() {
+        let refs = bundled_slide_asset_keys();
+        let expected: BTreeSet<String> = [
+            "img/rust-in-peace/cover.png",
+            "img/lvrug/lvrug.png",
+            "img/rust-in-peace/apple-teaching.jpg",
+            "img/rust-in-peace/apple-team.jpg",
+            "img/rust-in-peace/everyone-loves-vibing.png",
+            "img/rust-in-peace/kiwi-rainbow.jpg",
+            "img/rust-in-peace/new-york-lawyer-decision.jpg",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        assert_eq!(
+            refs, expected,
+            "the standalone ship binary must carry the exact workshop media set"
+        );
+    }
+
+    #[tokio::test]
+    async fn storage_verifier_reports_every_missing_bucket_key() {
+        let bucket = TempDir::new().unwrap();
+        let storage = FsStorage::new(bucket.path().to_path_buf()).await.unwrap();
+        storage
+            .put("img/present.png", b"present", "image/png")
+            .await
+            .unwrap();
+        let refs = ["img/missing.png", "img/present.png"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+
+        let report = verify_storage_refs(&storage, &refs).await;
+
+        assert_eq!(report.checked, 2);
+        assert_eq!(report.missing, vec!["img/missing.png".to_string()]);
+        assert!(report.unknown.is_empty(), "got: {:?}", report.unknown);
     }
 
     #[test]

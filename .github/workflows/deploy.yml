@@ -166,9 +166,9 @@ permissions:
 # could verify publication is the deployment's own public host — which does
 # not exist until the first roll this workflow feeds. Publication correctness
 # lives with the operator lane (`ops assets upload` / `ops assets fonts
-# upload`) and `ops ship`'s NAVIGATOR_ASSET_BASE_URL gate; the KIND image
-# bakes stubbed placeholders and the integration job verifies KIND serves
-# them.
+# upload`) and `ops ship`'s direct slide-media NAVIGATOR_ASSETS_BUCKET
+# preflight; the KIND image bakes stubbed placeholders and the integration job
+# verifies KIND serves them.
 
 concurrency:
   # Releases share one serialized lane so a pushed tag and a `kind-ci/**`

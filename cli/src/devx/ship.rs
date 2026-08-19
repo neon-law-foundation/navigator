@@ -838,6 +838,7 @@ pub(super) fn images_registry(configured: Option<&str>) -> String {
 /// `/public` and every hero 404s. A coordinate of the selected
 /// `deployments/<name>/config.toml`.
 const ASSET_BASE_URL_KEY: &str = "NAVIGATOR_ASSET_BASE_URL";
+const ASSETS_BUCKET_KEY: &str = "NAVIGATOR_ASSETS_BUCKET";
 
 /// Whether the asset origin is usably configured (present and not blank).
 fn asset_base_url_present(value: Option<&str>) -> bool {
@@ -874,6 +875,36 @@ fn require_asset_base_url_value(deployment: &str, value: Option<&str>) -> Result
         );
     }
     Ok(())
+}
+
+fn verify_assets_bucket_value_with<F>(
+    deployment: &str,
+    value: Option<&str>,
+    verify: F,
+) -> Result<()>
+where
+    F: FnOnce(&str) -> Result<()>,
+{
+    let Some(bucket) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        bail!(
+            "{ASSETS_BUCKET_KEY} must be set in deployments/{deployment}/config.toml before \
+             shipping — the asset preflight checks that deployment's bucket directly"
+        );
+    };
+    verify(bucket).with_context(|| {
+        format!("verify public assets for deployment `{deployment}` in bucket `gs://{bucket}`")
+    })
+}
+
+fn verify_assets_bucket(deployment: &super::deployments::Deployment) -> Result<()> {
+    verify_assets_bucket_value_with(
+        &deployment.name,
+        deployment
+            .coordinates
+            .get(ASSETS_BUCKET_KEY)
+            .map(String::as_str),
+        crate::assets::verify_bundled_slide_assets_bucket,
+    )
 }
 
 /// A boot requirement shared with web's deployment-invariant validator.
@@ -1159,7 +1190,14 @@ pub fn run_ship(opts: &ShipOpts) -> Result<()> {
     // rolls onto the new tag — enforced for both the roll and the
     // restart-only push, since both recreate pods that read it.
     require_asset_base_url(&deployment)?;
-    match ship_lane(opts) {
+    let lane = ship_lane(opts);
+    if lane_requires_asset_preflight(lane) {
+        // Slide-media references are embedded in the standalone CLI, so this
+        // checks the selected bucket before either rollout lane can mutate the
+        // cluster. A restart changes no image or content version.
+        verify_assets_bucket(&deployment)?;
+    }
+    match lane {
         ShipLane::ImageOnly => image_only(&cfg, opts, &root),
         ShipLane::RestartOnly => restart_only(&cfg, opts.dry_run),
         ShipLane::Roll => roll(&cfg, &deployment, opts),
@@ -1189,6 +1227,10 @@ fn ship_lane(opts: &ShipOpts) -> ShipLane {
     } else {
         ShipLane::Roll
     }
+}
+
+fn lane_requires_asset_preflight(lane: ShipLane) -> bool {
+    matches!(lane, ShipLane::ImageOnly | ShipLane::Roll)
 }
 
 /// The no-rebuild push: restart service deployments so the pods re-read
@@ -3383,6 +3425,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn asset_bucket_preflight_uses_the_selected_deployments_coordinate() {
+        let mut checked = None;
+        verify_assets_bucket_value_with(
+            "example-prod",
+            Some("  example-prod-assets  "),
+            |bucket| {
+                checked = Some(bucket.to_string());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(checked.as_deref(), Some("example-prod-assets"));
+
+        let error = verify_assets_bucket_value_with("example-prod", None, |_| Ok(()))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains(ASSETS_BUCKET_KEY), "got: {error}");
+        assert!(
+            error.contains("deployments/example-prod/config.toml"),
+            "got: {error}"
+        );
+    }
+
     /// The keystone of the no-fallback design: every deployment in the tree
     /// resolves to a complete, self-consistent `ShipConfig` with no process
     /// environment at all. A deployment this test passes for is one
@@ -5234,6 +5300,9 @@ spec:
             }),
             ShipLane::ImageOnly
         );
+        assert!(lane_requires_asset_preflight(ShipLane::ImageOnly));
+        assert!(lane_requires_asset_preflight(ShipLane::Roll));
+        assert!(!lane_requires_asset_preflight(ShipLane::RestartOnly));
     }
 
     #[test]

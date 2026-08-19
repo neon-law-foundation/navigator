@@ -107,7 +107,7 @@ to the responsible human.
 
 ### Las Vegas, 2011 — where I learned to program
 
-![The Las Vegas Ruby Group logo: a ruby beside the wordmark, lvrug.org, @LVRUG](img/lvrug/lvrug.png)
+![The Las Vegas Ruby Group's red ruby profile mark](img/lvrug/lvrug.png)
 
 ---
 

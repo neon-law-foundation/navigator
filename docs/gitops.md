@@ -726,7 +726,8 @@ navigator ops ship --deployment <row> --deployments-dir . --tag YY.M.D
 ```
 
 `--deployment` is required and reads every coordinate from `deployments/<name>/config.toml` — never from the shell, so a
-stale environment cannot select the wrong deployment. `ship` builds nothing. It validates the deployment's secrets,
+stale environment cannot select the wrong deployment. `ship` builds nothing. Before a full or image-only roll it checks
+every embedded slide-media key directly in that deployment's `NAVIGATOR_ASSETS_BUCKET`. It then validates the secrets,
 reconciles manifests, rolls every service and trigger to one tag, and re-registers Restate. After a secret rotation, a
 `--restart-only` ship restarts the pods without changing the version; that lane is manual only. See
 [`cloud-operations.md`](cloud-operations.md) and [`gke-prod.md`](gke-prod.md#trust-boundary).

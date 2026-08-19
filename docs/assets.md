@@ -59,7 +59,7 @@ Then preview locally, publish to staging, and confirm the exact object before pr
 ```bash
 cargo run -p cli -- ops assets verify --base-url http://localhost:<web-port>/public
 cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-stg-assets
-gcloud storage ls gs://neon-law-stg-assets/img/<deck-slug>/<filename>
+gcloud storage ls -L gs://neon-law-stg-assets/img/<deck-slug>/<filename>
 ```
 
 Production is a separate cloud write, not a consequence of staging. An authorized operator uploads and checks the same
@@ -67,13 +67,18 @@ key in the production bucket:
 
 ```bash
 cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-prod-assets
-gcloud storage ls gs://neon-law-prod-assets/img/<deck-slug>/<filename>
+gcloud storage ls -L gs://neon-law-prod-assets/img/<deck-slug>/<filename>
 ```
 
 An agent that cannot perform the production write must report it as pending and provide the exact command; it must not
 describe the image as published everywhere. After the deployed origin is reachable, run `assets verify` against that
 origin as the browser-level publication check. Because the local directory is ignored, another checkout restores the
 cloud copy with `assets pull` or `assets fetch-referenced`.
+
+Exact-key checks must report the same byte length and hashes in staging and production. During a full or image-only
+roll, `ops ship` opens the selected `NAVIGATOR_ASSETS_BUCKET` directly and refuses to continue if any embedded
+presentation or workshop media key is absent. Restart-only skips that preflight because it changes no content or image
+version.
 
 ## Publishing one photo to every deployment
 
