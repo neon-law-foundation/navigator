@@ -639,7 +639,16 @@ fn set_private_dir_mode(path: &Path) -> Result<(), RepoError> {
     Ok(())
 }
 
+// The signature must match the `#[cfg(unix)]` variant above, because both
+// callers are platform-agnostic: `ensure_private_dir` returns this directly,
+// and `ensure_private_root` hands it to `tolerate_unowned_mount`, which
+// matches on `Err(RepoError::Io(_))`. Off Unix, clippy sees only the
+// always-`Ok` body and suggests dropping the `Result` — taking that
+// suggestion breaks both call sites, and CI's Linux runners never compile
+// this variant to catch it. There is no mode to set here, so the stub stays
+// infallible and keeps the shared signature.
 #[cfg(not(unix))]
+#[allow(clippy::unnecessary_wraps)]
 fn set_private_dir_mode(_path: &Path) -> Result<(), RepoError> {
     Ok(())
 }
