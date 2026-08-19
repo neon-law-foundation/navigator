@@ -70,6 +70,15 @@ textarea {
   color: #ffffff;
 }
 
+/* Same fix as the button variants above, for the footer's filled contact-
+   channel tiles: without this, the link color from `.nav-theme a` renders
+   over their own filled brand-color background — the icon and the address
+   both go invisible at teal-on-teal. */
+.nav-theme a.site-footer__channel-link,
+.nav-theme a.site-footer__channel-link:hover {
+  color: var(--nav-color-on-primary);
+}
+
 /* Authenticated Navigator chrome. The route adapter supplies the visible
  * destinations plus host-specific footer content; these classes only provide
  * the global application frame and stay independent of roles and routes. */
@@ -901,6 +910,7 @@ a.nav-pagination__link:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
+  align-self: center;
   justify-self: end;
   justify-content: flex-end;
   gap: 0.5rem;
@@ -942,34 +952,15 @@ a.nav-pagination__link:hover {
   content: none;
 }
 
-/* The contact band. On a wide viewport the reach column (CTA + phone) sits
-   beside the offices; both stack on a narrow one. */
+/* The contact band: one bordered surface wrapping the tile grid (the email
+   and phone channels, then every office) at a consistent tile size. */
 .site-footer__contact {
   grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: minmax(15rem, 0.65fr) minmax(0, 1.35fr);
-  align-items: stretch;
-  gap: clamp(1.5rem, 4vw, 3rem);
   padding: clamp(1.25rem, 3vw, 2rem);
   border: 1px solid var(--nav-color-border);
   border-radius: 1.25rem;
   background: color-mix(in oklab, var(--nav-color-surface-raised) 84%, transparent);
   box-shadow: 0 1.25rem 3.5rem color-mix(in oklab, var(--nav-color-text) 8%, transparent);
-}
-
-.site-footer__reach {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 0.75rem;
-  min-width: 0;
-}
-
-.site-footer__phone {
-  font-weight: 600;
-  color: var(--nav-color-text-muted);
-  white-space: nowrap;
 }
 
 /* The Foundation footer's §6104(d) public-disclosure link, in the reach column
@@ -981,31 +972,36 @@ a.nav-pagination__link:hover {
   font-weight: 600;
 }
 
-.site-footer__nonprofit-office {
-  display: block;
-  margin-top: 0.75rem;
-  font-style: italic;
-}
-
-.site-footer__nonprofit-email {
-  display: block;
-  width: fit-content;
-  margin-top: 0.35rem;
-}
-
 /* A grid rather than a wrapping flex row: each office needs a column of its
    own with a known edge, because the state watermark behind it is anchored to
    that edge. Content-width flex items put one office's outline over the next
-   office's text. */
+   office's text.
+
+   Three columns. The email and phone channel tiles are pinned into column 1
+   (rows 1 and 2 — see the `:has()` rules below), stacking them vertically;
+   the offices are unpositioned, so grid auto-placement fills every cell
+   *around* that reserved column — column 2/3 of row 1, then column 2/3 of
+   row 2, and so on — without either side needing to know how many offices
+   the other renders. */
 .site-footer__offices {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
   margin: 0;
   padding: 0;
   list-style: none;
   font-size: 0.85rem;
   color: var(--nav-color-text-muted);
+}
+
+.site-footer__offices > li:has(> .site-footer__channel-link[href^="mailto:"]) {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.site-footer__offices > li:has(> .site-footer__channel-link[href^="tel:"]) {
+  grid-column: 1;
+  grid-row: 2;
 }
 
 /* Each office is its own positioning context and its own clip, so the state
@@ -1020,6 +1016,39 @@ a.nav-pagination__link:hover {
   border: 1px solid color-mix(in oklab, var(--nav-color-border) 78%, transparent);
   border-radius: 0.9rem;
   background: color-mix(in oklab, var(--nav-color-surface) 74%, transparent);
+}
+
+/* The two actionable contact channels (email, phone) are tiles in the same
+   grid as the offices, sized identically by `.site-footer__office`, but
+   filled with the brand color rather than bordered — a visual cue that these
+   two are links to act on, not addresses to read. */
+.site-footer__office--channel {
+  display: flex;
+  border-color: transparent;
+  background: var(--nav-color-primary);
+}
+
+.site-footer__channel-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  color: var(--nav-color-on-primary);
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+
+.site-footer__channel-link:hover,
+.site-footer__channel-link:focus-visible {
+  text-decoration: underline;
+}
+
+.site-footer__channel-link .nav-icon {
+  flex-shrink: 0;
+  font-size: 1.3rem;
 }
 
 /* The state outline, drawn behind its own address. Decoration, so it is set at
@@ -1105,7 +1134,7 @@ a.nav-pagination__link:hover {
 
 .site-footer__legal:has(> .site-footer__legal-practice) {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(13rem, 0.75fr);
+  grid-template-columns: minmax(0, 1fr) minmax(13rem, 1fr);
   gap: clamp(1.25rem, 3vw, 2.5rem);
 }
 
@@ -1116,10 +1145,30 @@ a.nav-pagination__link:hover {
 
 .site-footer__legal-platform {
   align-self: start;
-  padding: 1rem;
-  border: 1px solid var(--nav-color-border);
-  border-radius: 0.9rem;
-  background: color-mix(in oklab, var(--nav-color-surface-raised) 72%, transparent);
+}
+
+/* The closing address row spans both columns rather than sitting in either
+   one — it is a fact about the two entities, not part of the practice
+   column's disclosures or the platform column's attribution. Overrides the
+   `div + div` divider above at matching specificity (see the 90rem platform
+   override for why a bare class selector would lose that fight): spacing
+   only, no rule line — the strip is quiet fine print throughout, not a
+   stack of separately-boxed sections. */
+.site-footer__legal:has(> .site-footer__legal-practice) > .site-footer__legal-addresses {
+  grid-column: 1 / -1;
+  padding-inline-start: 0;
+  border-inline-start: 0;
+  padding-block-start: 1rem;
+  border-block-start: 0;
+}
+
+.site-footer__legal-address {
+  display: block;
+  font-style: normal;
+}
+
+.site-footer__legal-address + .site-footer__legal-address {
+  margin-top: 0.3rem;
 }
 
 /* With no contact band above it the legal strip is the footer's first child,
@@ -1140,29 +1189,6 @@ a.nav-pagination__link:hover {
 
 .site-footer__legal a {
   color: inherit;
-}
-
-/* The firm's support for the Foundation. Sits in the legal strip because it is
-   a statement about the entity named on the line above it, but a shade louder
-   than the strip's default: it is something the firm is saying, not fine print
-   it is obliged to print. */
-.site-footer__foundation {
-  font-size: 0.9rem;
-}
-
-/* The Foundation's name reads as part of the sentence: no weight, no underline.
-   The legal strip already sets `color: inherit` on its links, so the only thing
-   marking this one is the pointer and the focus ring — which is the firm's call
-   on its own footer, and the hover underline below keeps it discoverable. */
-.site-footer__foundation a {
-  font-weight: inherit;
-  text-decoration: none;
-}
-
-.site-footer__foundation a:hover,
-.site-footer__foundation a:focus-visible {
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
 }
 
 /* Where to read the software the platform attribution above names. Sized with
@@ -1187,7 +1213,6 @@ a.nav-pagination__link:hover {
 
   .site-footer__contact {
     grid-column: 1;
-    grid-template-columns: 1fr;
   }
 
   .site-footer__legal {
@@ -1201,7 +1226,7 @@ a.nav-pagination__link:hover {
   .site-footer__legal:has(> .site-footer__legal-practice) > div + div {
     padding-block-start: 1.25rem;
     padding-inline-start: 0;
-    border-block-start: 1px solid var(--nav-color-border);
+    border-block-start: 0;
     border-inline-start: 0;
   }
 }
@@ -1209,6 +1234,28 @@ a.nav-pagination__link:hover {
 @media (max-width: 34rem) {
   .site-footer__offices {
     grid-template-columns: 1fr;
+  }
+}
+
+/* On a very wide viewport the platform attribution reads as a full-width band
+   under the practice column rather than half of it — so it drops out of the
+   2-column grid onto a row of its own, leaving practice alone in the row
+   above (an empty second cell beside it is fine — no content is missing, the
+   row is just narrower than the one below it). The `div + div` rule above
+   still matches it as a later sibling, so its inherited left border/padding
+   are cleared in favor of matching top spacing, no rule line. */
+@media (min-width: 90rem) {
+  /* Matches the `div + div` rule's own selector shape so this reliably wins
+     on specificity rather than losing to it as a bare `.site-footer__legal-
+     platform` rule would (that rule is two classes deep; a plain class
+     selector here is one, and a weaker selector cannot override a stronger
+     one regardless of source order or media-query nesting). */
+  .site-footer__legal:has(> .site-footer__legal-practice) > .site-footer__legal-platform {
+    grid-column: 1 / -1;
+    padding-inline-start: 0;
+    border-inline-start: 0;
+    padding-block-start: 1.5rem;
+    border-block-start: 0;
   }
 }
 

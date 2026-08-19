@@ -264,7 +264,7 @@ fn PracticeLinks(practices: Vec<PracticeLink>) -> Element {
     rsx! {
         section { class: "home-practices", "aria-labelledby": "home-practices-heading",
             h2 { id: "home-practices-heading", class: "home-practices__heading",
-                "We also practice law"
+                "Our legal practice"
             }
             div { class: "home-practices__grid",
                 for (index , practice) in practices.iter().enumerate() {

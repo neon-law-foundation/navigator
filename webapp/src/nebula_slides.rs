@@ -3,16 +3,14 @@
 //!
 //! Almost everything dynamic here is client-side and deliberately so. Progress
 //! lives in `localStorage` and is never sent anywhere: `workshop-progress.js`
-//! reads the `data-workshop-progress` hooks, paints a check on each slide the
-//! learner has opened, keeps the `0 / N viewed` count, and reveals the
-//! certificate form once every slide has been seen. That gate is **a courtesy,
-//! not an access control** — completion is client-trusted by design, because
-//! the alternative is telemetry on how someone reads.
+//! reads the `data-workshop-progress` hooks and reveals the certificate form
+//! once every slide has been seen. That gate is **a courtesy, not an access
+//! control** — completion is client-trusted by design, because the
+//! alternative is telemetry on how someone reads.
 //!
 //! The `PageLayout` loaded that script on every render; a Dioxus page
 //! loads only what it names, so [`NebulaSlidesPage`] hoists it explicitly.
-//! Without it the checks never appear, the count stays at zero, and the
-//! certificate form stays hidden forever.
+//! Without it the certificate form stays hidden forever.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -53,7 +51,8 @@ pub struct LightTableContent {
     /// Back to the material hub.
     pub material_href: String,
     pub chapters: Vec<SlideChapter>,
-    /// Total slide count — the denominator in "0 / N viewed".
+    /// Total slide count — the certificate gate unlocks once this many slides
+    /// have been seen.
     pub total: usize,
     /// Where the certificate form posts.
     pub certificate_action: String,
@@ -141,9 +140,6 @@ pub fn NebulaSlidesPage(chrome: PublicChrome, content: LightTableContent) -> Ele
                 }
                 header { class: "lighttable-header",
                     h1 { "{content.workshop_title}" }
-                    span { class: "nebula-badge", "data-progress-count": true,
-                        "0 / {content.total} viewed"
-                    }
                 }
                 p { class: "nebula-empty",
                     "Open any slide to read it. View them all to unlock your certificate."
@@ -309,7 +305,6 @@ mod tests {
             r#"data-workshop-progress="lighttable""#,
             r#"data-workshop-slug="use-the-navigator""#,
             r#"data-total="2""#,
-            "data-progress-count",
             "data-cert-gate",
             r#"data-slide="1""#,
             r#"data-workshop-chapter="Intro""#,
@@ -372,11 +367,5 @@ mod tests {
         // Styling-free class the nightly deploy gate selects on.
         let out = html();
         assert!(out.contains("admin-form"), "e2e form hook: {out}");
-    }
-
-    #[test]
-    fn the_progress_count_starts_at_zero_of_the_total() {
-        let out = html();
-        assert!(out.contains("0 / 2 viewed"), "initial count: {out}");
     }
 }
