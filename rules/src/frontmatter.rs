@@ -14,18 +14,47 @@ use std::ops::RangeInclusive;
 /// Returns `Some(body)` when `contents` starts with `---` on its own
 /// line and a matching `---` closer follows (with or without a trailing
 /// newline). Returns `None` if either marker is absent.
+///
+/// Accepts both LF and CRLF line endings. Git for Windows defaults to
+/// `core.autocrlf=true`, so a checkout on a Windows workstation
+/// materialises these files with `\r\n`; probing only for `\n` made
+/// every frontmatter rule report the frontmatter as absent, and made
+/// frontmatter-derived checks pass silently for want of anything to
+/// read. The returned slice is borrowed and so may retain interior
+/// `\r`, which `serde_yaml` accepts.
 #[must_use]
 pub fn extract(contents: &str) -> Option<&str> {
-    let after_open = contents.strip_prefix("---\n")?;
+    let after_open = contents
+        .strip_prefix("---\n")
+        .or_else(|| contents.strip_prefix("---\r\n"))?;
     // Empty frontmatter: closer immediately follows the opener.
-    if after_open == "---" || after_open.starts_with("---\n") {
+    if after_open == "---"
+        || after_open == "---\r"
+        || after_open.starts_with("---\n")
+        || after_open.starts_with("---\r\n")
+    {
         return Some("");
     }
-    if let Some(end) = after_open.find("\n---\n") {
+    if let Some(end) = find_closer(after_open) {
         return Some(&after_open[..end]);
     }
     // Closer at EOF without a trailing newline.
-    after_open.strip_suffix("\n---")
+    after_open
+        .strip_suffix("\r\n---")
+        .or_else(|| after_open.strip_suffix("\n---"))
+}
+
+/// Byte offset of the closing `---` delimiter line within the text
+/// following the opener, for either line-ending style. Takes the
+/// earlier of the two matches so a file with mixed endings closes at
+/// the first delimiter rather than the first *LF* delimiter.
+fn find_closer(after_open: &str) -> Option<usize> {
+    match (after_open.find("\n---\n"), after_open.find("\r\n---\r\n")) {
+        (Some(lf), Some(crlf)) => Some(lf.min(crlf)),
+        (Some(lf), None) => Some(lf),
+        (None, Some(crlf)) => Some(crlf),
+        (None, None) => None,
+    }
 }
 
 /// Yields `(line_number, line)` for every line of `contents` that
@@ -135,7 +164,14 @@ pub fn mask_code_spans(line: &str) -> String {
 /// setext underline or `respondent_type: …` as a list marker).
 #[must_use]
 pub fn line_range(contents: &str) -> Option<RangeInclusive<usize>> {
-    if !contents.starts_with("---\n") && contents != "---" {
+    // Both line-ending styles, for the reason given on `extract`. Without
+    // this the frontmatter block is never excluded from `body_lines`, and
+    // its `---` delimiters get read as setext heading underlines.
+    let opens = contents.starts_with("---\n")
+        || contents.starts_with("---\r\n")
+        || contents == "---"
+        || contents == "---\r";
+    if !opens {
         return None;
     }
     // Walk lines looking for the second `---`.
@@ -257,7 +293,7 @@ fn leading_ws_len(line: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract, field, folded_scalar_lines};
+    use super::{extract, field, folded_scalar_lines, line_range};
 
     #[test]
     fn extract_returns_body_between_markers() {
@@ -282,6 +318,58 @@ mod tests {
     #[test]
     fn extract_handles_empty_frontmatter() {
         assert_eq!(extract("---\n---\n"), Some(""));
+    }
+
+    // A Windows checkout (`core.autocrlf=true`) delivers these files with
+    // CRLF. Probing only for `\n` made `extract` return `None`, so every
+    // frontmatter rule reported the frontmatter as missing while
+    // frontmatter-derived checks silently passed.
+
+    #[test]
+    fn extract_returns_body_between_crlf_markers() {
+        assert_eq!(extract("---\r\nfoo: bar\r\n---\r\nrest"), Some("foo: bar"));
+    }
+
+    #[test]
+    fn extract_handles_crlf_closer_at_eof_without_newline() {
+        assert_eq!(extract("---\r\nfoo: bar\r\n---"), Some("foo: bar"));
+    }
+
+    #[test]
+    fn extract_handles_crlf_empty_frontmatter() {
+        assert_eq!(extract("---\r\n---\r\n"), Some(""));
+    }
+
+    #[test]
+    fn extract_returns_none_for_crlf_without_closing_marker() {
+        assert_eq!(extract("---\r\nfoo: bar\r\n"), None);
+    }
+
+    #[test]
+    fn line_range_covers_crlf_frontmatter() {
+        assert_eq!(line_range("---\r\nfoo: bar\r\n---\r\nbody"), Some(1..=3));
+    }
+
+    /// The regression that mattered: a document must produce identical
+    /// results under either line-ending style. Asserting on the parsed
+    /// values rather than on a count, because the CRLF failure mode was
+    /// silent absence, not a louder error.
+    #[test]
+    fn lf_and_crlf_documents_are_equivalent() {
+        let lf = "---\ntitle: Hello\ncode: t_s_e\nconfidential: true\n---\n# Body\n";
+        let crlf = lf.replace('\n', "\r\n");
+
+        let fm_lf = extract(lf).expect("LF frontmatter");
+        let fm_crlf = extract(&crlf).expect("CRLF frontmatter");
+
+        for key in ["title", "code", "confidential"] {
+            assert_eq!(
+                field(fm_lf, key),
+                field(fm_crlf, key),
+                "field `{key}` differs between LF and CRLF"
+            );
+        }
+        assert_eq!(line_range(lf), line_range(&crlf));
     }
 
     #[test]
