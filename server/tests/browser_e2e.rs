@@ -1088,7 +1088,23 @@ async fn the_project_page_links_to_the_client_portal_and_it_streams() {
     // Following the link streams the published bundle from the applications
     // bucket — proof the link, the route, and the participation-gated serve all
     // line up end to end.
-    link.click().await.unwrap();
+    //
+    // `click_and_reach`, never a native `link.click()`. A WebDriver click
+    // dispatches one pointer event at the element's in-view center and returns
+    // on dispatch, so it can land on nothing and report success — issue #512.
+    // This fixture was the one click-through in the suite that still used the
+    // native call, and deploy run 32208649130 is what that costs: three
+    // retries timed out here while the web pod's complete log named no gate
+    // and Garage was never asked for the bundle, because the navigation was
+    // never made. Reaching the path first is also what keeps a lost navigation
+    // from being reported as a failure of the bundle below it.
+    click_and_reach(
+        &c,
+        &format!("a[href='{href}']"),
+        &href,
+        Duration::from_secs(10),
+    )
+    .await;
     let heading = c
         .wait()
         .at_most(Duration::from_secs(10))
