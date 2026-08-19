@@ -92,7 +92,7 @@ Write an ordinary markdown image. The workshop loader routes every image source 
 (`views::assets::rewrite_image_src`), the same one the blog uses, which is what makes the choice below a choice at all:
 
 ```markdown
-![The Las Vegas Ruby Group logo: a ruby beside the wordmark, lvrug.org, @LVRUG](img/lvrug/lvrug.png)
+![The Las Vegas Ruby Group's red ruby profile mark](img/lvrug/lvrug.png)
 ```
 
 ### Which lane
@@ -144,7 +144,7 @@ mount under the firm site at the root, so both configured environments need the 
 gcloud auth application-default login
 cargo run -p cli -- ops assets verify --base-url http://localhost:<web-port>/public
 cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-stg-assets
-gcloud storage ls gs://neon-law-stg-assets/img/<deck-slug>/<filename>
+gcloud storage ls -L gs://neon-law-stg-assets/img/<deck-slug>/<filename>
 ```
 
 The production upload is a **real production cloud write**. An agent prepares the local file, can publish staging when
@@ -152,13 +152,16 @@ authorized, and hands the production command to an operator:
 
 ```bash
 cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-prod-assets
-gcloud storage ls gs://neon-law-prod-assets/img/<deck-slug>/<filename>
+gcloud storage ls -L gs://neon-law-prod-assets/img/<deck-slug>/<filename>
 ```
 
 `upload` walks the whole directory passed with `--dir`, so re-uploading an unchanged tree is idempotent. The PR carries
 the Markdown reference; the ignored local tree and the two buckets carry the bytes. If production remains pending, say
 so and provide the exact command rather than claiming the slide is published everywhere. After deployment, run `assets
-verify` against the public origin a browser actually uses.
+verify` against the public origin a browser actually uses. A bucket-lane slide is not complete until the exact-key
+metadata exists in **both** configured buckets, staging and production report the same byte length and hashes, and the
+deployed slide's image has non-zero natural dimensions in a browser. `ops ship` independently repeats the complete
+presentation/workshop key check against the selected deployment bucket before every full or image-only roll.
 
 ### Removing media
 
@@ -295,4 +298,5 @@ Browsers cache the stylesheet aggressively across reloads, so bust it before tru
 4. A code slide: an exact copy of the cited workspace file (§5).
 5. `validate` the file, one path per invocation (§2).
 6. Restart the server, then look at the result in projector view (§7).
-7. Bucket lane: propose the per-deployment `upload`, then `verify` against the real origin (§3).
+7. Bucket lane: upload and inspect the exact key in staging **and** production; matching size and hashes are required.
+8. After deployment, verify the real origin and confirm the slide image has non-zero natural dimensions (§3, §7).

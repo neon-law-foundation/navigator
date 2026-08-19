@@ -20,6 +20,7 @@ use cloud::{GcsStorage, GcsStorageConfig, StorageService};
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
 use image::{ExtendedColorType, ImageEncoder};
+use include_dir::{include_dir, Dir};
 use rgb::FromSlice;
 use views::assets::{GALLERY, WIDTHS};
 use workflows::notify::{Notifier, SlackNotifier};
@@ -39,6 +40,13 @@ const ASSET_CACHE_CONTROL: &str = "public, max-age=604800";
 /// covers the Firm's deployments, not redistribution to everyone who clones.
 const GORP_FONT_FILES: [&str; 2] = ["GORPSerif-Regular.woff2", "GORPSerif-Bold.woff2"];
 const GORP_FONT_PREFIX: &str = "fonts/gorp-serif";
+
+/// Slide markdown is embedded in the release binary so `ops ship` can discover
+/// every presentation/workshop `](img/…)` key without depending on an operator
+/// checkout. The standalone CLI archive contains only the binary and licence
+/// files.
+static SLIDE_CONTENT: Dir<'static> =
+    include_dir!("$CARGO_MANIFEST_DIR/../server/content/workshops");
 
 /// The full GORP Serif desktop family (the licensed `.otf` faces from the
 /// `TrashType` delivery), packaged as one ZIP. Firm workers download it from
@@ -523,6 +531,27 @@ fn content_image_refs(content_root: &Path) -> anyhow::Result<BTreeSet<String>> {
     Ok(refs)
 }
 
+fn embedded_content_image_refs(dir: &Dir<'_>, refs: &mut BTreeSet<String>) {
+    for file in dir.files() {
+        if file.path().extension().and_then(|ext| ext.to_str()) == Some("md") {
+            if let Some(markdown) = file.contents_utf8() {
+                refs.extend(parse_image_refs(markdown));
+            }
+        }
+    }
+    for child in dir.dirs() {
+        embedded_content_image_refs(child, refs);
+    }
+}
+
+/// Every bucket-lane image or video a released presentation/workshop can
+/// request, carried inside the standalone CLI that performs a ship.
+fn bundled_slide_asset_keys() -> BTreeSet<String> {
+    let mut keys = BTreeSet::new();
+    embedded_content_image_refs(&SLIDE_CONTENT, &mut keys);
+    keys
+}
+
 /// Every bucket key under `img/` the site can actually reach.
 ///
 /// Two independent sources, and the union matters more than either half.
@@ -740,6 +769,85 @@ async fn verify_refs(
         missing,
         unknown,
     }
+}
+
+/// Reconcile the complete slide-media key set against a storage backend.
+/// Direct bucket metadata is the deploy preflight: it checks the selected
+/// deployment's destination before any rollout mutation and does not depend
+/// on which release the public hostname currently serves.
+async fn verify_storage_refs(
+    storage: &dyn StorageService,
+    refs: &BTreeSet<String>,
+) -> VerifyReport {
+    let mut missing = Vec::new();
+    let mut unknown = Vec::new();
+    for rel in refs {
+        match storage.exists(rel).await {
+            Ok(true) => {}
+            Ok(false) => missing.push(rel.clone()),
+            Err(e) => unknown.push(format!("{rel}: {e}")),
+        }
+    }
+    VerifyReport {
+        checked: refs.len(),
+        missing,
+        unknown,
+    }
+}
+
+fn storage_report_result(report: &VerifyReport, bucket: &str) -> anyhow::Result<()> {
+    if report.missing.is_empty() && report.unknown.is_empty() {
+        eprintln!(
+            "==> asset preflight: all {} public asset(s) exist in gs://{bucket}",
+            report.checked
+        );
+        return Ok(());
+    }
+
+    let mut detail = String::new();
+    for key in &report.missing {
+        let _ = writeln!(detail, "\n  missing: gs://{bucket}/{key}");
+    }
+    for line in &report.unknown {
+        let _ = writeln!(detail, "\n  unknown: gs://{bucket}/{line}");
+    }
+    anyhow::bail!(
+        "slide asset preflight failed for gs://{bucket}: {} missing, {} could not be checked.\
+         {detail}\nPublish every presentation/workshop asset to this deployment's bucket before shipping.",
+        report.missing.len(),
+        report.unknown.len()
+    )
+}
+
+/// The preflight decision, against any storage backend. Split from the GCS
+/// client construction below so the whole judgement — a pass, a named
+/// missing key, an unreadable bucket — is proven against a filesystem
+/// backend and a failing fake instead of a real deployment's bucket.
+async fn verify_bundled_slide_assets(
+    storage: &dyn StorageService,
+    bucket: &str,
+) -> anyhow::Result<()> {
+    let refs = bundled_slide_asset_keys();
+    let report = verify_storage_refs(storage, &refs).await;
+    storage_report_result(&report, bucket)
+}
+
+/// Refuse an image or full roll unless every presentation/workshop object
+/// bundled into this CLI exists in the selected deployment's GCS assets
+/// bucket. Restart-only ships do not call this because they change no content
+/// or image version.
+pub(crate) fn verify_bundled_slide_assets_bucket(bucket: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(!bucket.trim().is_empty(), "assets bucket is blank");
+    let runtime = tokio::runtime::Runtime::new().context("create asset preflight runtime")?;
+    runtime.block_on(async {
+        let storage = GcsStorage::new_from_config(GcsStorageConfig {
+            bucket: bucket.to_string(),
+            endpoint: None,
+        })
+        .await
+        .with_context(|| format!("open public assets bucket `gs://{bucket}`"))?;
+        verify_bundled_slide_assets(&storage, bucket).await
+    })
 }
 
 /// Render a [`VerifyReport`] and return its process exit code: `0` only
@@ -1502,13 +1610,15 @@ async fn download(storage: &dyn StorageService, out: &Path) -> anyhow::Result<us
 #[cfg(test)]
 mod tests {
     use super::{
-        asset_exists, build_gorp_otf_zip, content_image_refs, content_type_for,
-        destination_for_ref, download, fetch_asset, fetch_referenced_content, fetch_report_exit,
-        gorp_font_refs, join_public_url, orphan_keys, orphan_report, parse_image_refs,
-        placeholder_bytes_for, reachable_image_keys, report_exit, resolve_public_origin,
-        run_fetch_referenced, run_upload_desktop_fonts, run_upload_fonts, select, upload,
-        upload_gorp_fonts, upload_gorp_otf_zip, verify_content, verify_refs, AssetProbe,
-        FetchReport, VerifyReport, ASSET_CACHE_CONTROL, GORP_OTF_ZIP_KEY,
+        asset_exists, build_gorp_otf_zip, bundled_slide_asset_keys, content_image_refs,
+        content_type_for, destination_for_ref, download, fetch_asset, fetch_referenced_content,
+        fetch_report_exit, gorp_font_refs, join_public_url, orphan_keys, orphan_report,
+        parse_image_refs, placeholder_bytes_for, reachable_image_keys, report_exit,
+        resolve_public_origin, run_fetch_referenced, run_orphans, run_pull, run_upload,
+        run_upload_desktop_fonts, run_upload_fonts, select, storage_report_result, upload,
+        upload_gorp_fonts, upload_gorp_otf_zip, verify_bundled_slide_assets,
+        verify_bundled_slide_assets_bucket, verify_content, verify_refs, verify_storage_refs,
+        AssetProbe, FetchReport, VerifyReport, ASSET_CACHE_CONTROL, GORP_OTF_ZIP_KEY,
     };
     use cloud::{FsStorage, ObjectListing, StorageError, StorageService, StoredObject};
     use std::collections::BTreeSet;
@@ -1666,6 +1776,143 @@ Inline raw-HTML tile: <div>![Team](img/thanks-apple/team-lunch.jpg)</div>\n";
         assert!(
             refs.iter().all(|r| r.starts_with("img/")),
             "every discovered reference is an `img/` key, got: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn bundled_slide_asset_keys_carry_every_workshop_image_into_ship() {
+        let refs = bundled_slide_asset_keys();
+        let expected: BTreeSet<String> = [
+            "img/rust-in-peace/cover.png",
+            "img/lvrug/lvrug.png",
+            "img/rust-in-peace/apple-teaching.jpg",
+            "img/rust-in-peace/apple-team.jpg",
+            "img/rust-in-peace/everyone-loves-vibing.png",
+            "img/rust-in-peace/kiwi-rainbow.jpg",
+            "img/rust-in-peace/new-york-lawyer-decision.jpg",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect();
+        assert_eq!(
+            refs, expected,
+            "the standalone ship binary must carry the exact workshop media set"
+        );
+    }
+
+    #[tokio::test]
+    async fn storage_verifier_reports_every_missing_bucket_key() {
+        let bucket = TempDir::new().unwrap();
+        let storage = FsStorage::new(bucket.path().to_path_buf()).await.unwrap();
+        storage
+            .put("img/present.png", b"present", "image/png")
+            .await
+            .unwrap();
+        let refs = ["img/missing.png", "img/present.png"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+
+        let report = verify_storage_refs(&storage, &refs).await;
+
+        assert_eq!(report.checked, 2);
+        assert_eq!(report.missing, vec!["img/missing.png".to_string()]);
+        assert!(report.unknown.is_empty(), "got: {:?}", report.unknown);
+    }
+
+    #[tokio::test]
+    async fn slide_preflight_passes_when_the_bucket_holds_every_bundled_key() {
+        let bucket = TempDir::new().unwrap();
+        let storage = FsStorage::new(bucket.path().to_path_buf()).await.unwrap();
+        for key in bundled_slide_asset_keys() {
+            storage.put(&key, b"bytes", "image/png").await.unwrap();
+        }
+
+        verify_bundled_slide_assets(&storage, "example-prod-assets")
+            .await
+            .expect("a fully published bucket is a shippable bucket");
+    }
+
+    #[tokio::test]
+    async fn slide_preflight_names_the_key_the_selected_bucket_is_missing() {
+        let bucket = TempDir::new().unwrap();
+        let storage = FsStorage::new(bucket.path().to_path_buf()).await.unwrap();
+        let keys = bundled_slide_asset_keys();
+        let withheld = keys.iter().next().expect("bundled keys").clone();
+        for key in keys.iter().filter(|key| **key != withheld) {
+            storage.put(key, b"bytes", "image/png").await.unwrap();
+        }
+
+        let error = verify_bundled_slide_assets(&storage, "example-prod-assets")
+            .await
+            .expect_err("one unpublished slide asset blocks the roll")
+            .to_string();
+
+        assert!(
+            error.contains("1 missing, 0 could not be checked"),
+            "got: {error}"
+        );
+        assert!(
+            error.contains(&format!("missing: gs://example-prod-assets/{withheld}")),
+            "the operator needs the exact object to publish, got: {error}"
+        );
+        assert!(
+            error.contains("Publish every presentation/workshop asset"),
+            "got: {error}"
+        );
+    }
+
+    #[test]
+    fn slide_preflight_fails_closed_on_a_key_it_could_not_check() {
+        // A probe that errored is not a probe that passed: an unreadable
+        // bucket must block the roll exactly like a missing object, and name
+        // the key so the operator knows what to look at.
+        let report = VerifyReport {
+            checked: 2,
+            missing: Vec::new(),
+            unknown: vec!["img/lvrug/lvrug.png: gcs error: connection reset".to_string()],
+        };
+
+        let error = storage_report_result(&report, "example-prod-assets")
+            .expect_err("an unreadable bucket is not a published bucket")
+            .to_string();
+
+        assert!(
+            error.contains("0 missing, 1 could not be checked"),
+            "got: {error}"
+        );
+        assert!(
+            error.contains("unknown: gs://example-prod-assets/img/lvrug/lvrug.png"),
+            "got: {error}"
+        );
+    }
+
+    #[test]
+    fn slide_preflight_refuses_a_blank_bucket_before_opening_a_client() {
+        let error = verify_bundled_slide_assets_bucket("   ")
+            .expect_err("a blank coordinate cannot be verified")
+            .to_string();
+        assert!(error.contains("assets bucket is blank"), "got: {error}");
+    }
+
+    /// The bucket-lane commands that reach real GCS all refuse a blank
+    /// coordinate before a client is opened, the same guard the ship
+    /// preflight above applies. Exit 2 with a named coordinate beats an
+    /// opaque ADC failure.
+    #[test]
+    fn every_bucket_command_reports_a_missing_bucket_without_touching_the_network() {
+        let dir = TempDir::new().unwrap();
+        assert_eq!(
+            run_upload(dir.path(), Some("   ".to_string())),
+            ExitCode::from(2)
+        );
+        assert_eq!(
+            run_pull(dir.path(), Some("   ".to_string())),
+            ExitCode::from(2)
+        );
+        assert_eq!(
+            run_orphans(dir.path(), Some("   ".to_string()), false),
+            ExitCode::from(2)
         );
     }
 
