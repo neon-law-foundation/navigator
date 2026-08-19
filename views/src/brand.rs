@@ -192,33 +192,32 @@ const FIRM_FOOTER_NAV: &[NavLink] = &[
     NavLink::leaf("Workshops", "/workshops"),
 ];
 
-/// The Foundation nav: the two bands of the home page, then the three
-/// audiences.
+/// The Foundation nav: the training catalog, and the legal aid audience.
 ///
-/// This is the header the retired static marketing site carried (ENG-139).
-/// The two `/#…` entries jump to bands on the home page rather than to pages
-/// of their own, which is why the home page's card and step bands render
-/// matching `id`s.
+/// Trimmed to two entries by deliberate choice. The home page's own bands
+/// ("What we do", "How it works") and the education/attorneys audience pages
+/// (ENG-139) still serve at their own paths and stay listed in the sitemap;
+/// they are simply no longer carried in the header row.
 ///
 /// Presentations is deliberately absent. The talks are the firm's and publish
 /// from the firm's host, so they are linked from [`FIRM_FOOTER_NAV`]; a
 /// Foundation header entry would send a reader to a page this host answers
 /// `404` for.
 ///
-/// The gated catalogs — Notations, Workshops, Show-and-tell — are
-/// deliberately absent. They still serve at their own paths and stay listed
-/// in the sitemap; the header does not send a signed-out reader to a login
-/// door.
+/// Workshops is a deliberate exception to "every Foundation link stays under
+/// `/foundation`": [`crate::NavLink`]'s own `/workshops` route is the public,
+/// ungated index (the individual classes gate on sign-in, the catalog does
+/// not) — the same reasoning that put it in [`FIRM_FOOTER_NAV`] once the
+/// classes became public. Notations and Show-and-tell stay off this row:
+/// unlike the workshop catalog, their own index pages are gated too, so a
+/// header entry would still send a signed-out reader at a login door.
 ///
 /// These are leaves rather than a dropdown because the public header
 /// (`webapp::components::SiteHeader`) renders a flat link row with no
 /// submenu: a dropdown would emit a dead `href="#"`.
 const FOUNDATION_NAV: &[NavLink] = &[
-    NavLink::leaf("What we do", "/foundation#what-we-do"),
-    NavLink::leaf("How it works", "/foundation#how-it-works"),
-    NavLink::leaf("Education & CLE", "/foundation/education"),
+    NavLink::leaf("Workshops", "/workshops"),
     NavLink::leaf("Legal aid centers", "/foundation/legal-aid"),
-    NavLink::leaf("Attorneys", "/foundation/attorneys"),
 ];
 
 /// One bar license a named attorney holds: the jurisdiction, the number that
@@ -357,10 +356,11 @@ pub struct Branding {
     /// through [`SiteBrand::legal_entity`] instead — which is the entity that
     /// *renders legal services* and is deliberately empty here.
     pub foundation_entity: &'static str,
-    /// The Foundation's footer disclaimer. Not the firm's: a 501(c)(3) that
-    /// publishes legal templates and an AI assistant must say affirmatively
-    /// that it does not practice law and cannot represent the reader, rather
-    /// than borrowing a law firm's attorney-advertising copy.
+    /// The Foundation's footer disclaimer. Deliberately the SAME sentence as
+    /// [`SiteBrand::firm_disclaimer`] rather than a second, differently-worded
+    /// one: one short line, standardized site-wide, covering both "not legal
+    /// advice" and "no attorney-client relationship absent a signed retainer"
+    /// for whichever organization's page a reader is on.
     pub foundation_disclaimer: &'static str,
     pub mission_description: &'static str,
     pub service_description: &'static str,
@@ -451,9 +451,9 @@ pub static DEFAULT_BRANDING: Branding = Branding {
     privacy_url: "/privacy",
     base_url: "",
     primary_domain: "neonlaw.com",
-    firm_disclaimer: "This is attorney advertisement. Nothing on this site is legal advice. Neon Law is the trade name of Shook Law PLLC, and an attorney-client relationship begins only with a signed retainer between you and Shook Law PLLC. Published flat fees cover the scope each one names and do not include third-party filing fees. Every legal matter is different, and past results do not guarantee a similar result.",
+    firm_disclaimer: "Nothing here is legal advice without a signed retainer for an active project. Past results do not guarantee future outcomes.",
     foundation_entity: "Neon Law Foundation",
-    foundation_disclaimer: "Nothing on this site is legal advice, and nothing here creates an attorney-client relationship.",
+    foundation_disclaimer: "Nothing here is legal advice without a signed retainer for an active project. Past results do not guarantee future outcomes.",
     mission_description: "How Neon Law and the Neon Law Foundation make routine legal services affordable without sacrificing correctness, and what a licensed attorney in the loop actually buys you.",
     service_description: "Flat-fee legal services from Neon Law, with every price published.",
     portal_only: false,
@@ -1068,47 +1068,22 @@ mod tests {
         assert!(FIRM_BRAND.is_law_firm);
     }
 
-    /// The disclaimer names the entity a retainer actually binds, not the mark.
-    ///
-    /// A reader who signs with "Neon Law" has signed with Shook Law PLLC, and
-    /// the sentence that tells them an attorney-client relationship begins with
-    /// a signed retainer is exactly where that has to be said.
+    /// The disclaimer states the two things that matter regardless of which
+    /// face renders it: nothing here is legal advice, and no attorney-client
+    /// relationship exists without a signed retainer for an active project.
     #[test]
-    fn the_disclaimer_names_the_entity_the_retainer_binds() {
+    fn the_disclaimer_requires_a_signed_retainer_for_an_active_project() {
         let disclaimer = super::firm_disclaimer();
-        assert!(disclaimer.contains("Shook Law PLLC"));
-        assert!(disclaimer.contains("Neon Law"));
-        assert!(disclaimer.contains("Nothing on this site is legal advice"));
+        assert!(disclaimer.contains("Nothing here is legal advice"));
         assert!(disclaimer.contains("signed retainer"));
-        assert!(disclaimer.contains("past results do not guarantee a similar result"));
+        assert!(disclaimer.contains("active project"));
     }
 
-    /// The disclaimer bounds what a published flat fee covers.
-    ///
-    /// The site prints dollar figures now. A fee shown without its scope reads
-    /// as "everything this matter could need", and a filing fee the client is
-    /// separately billed for then arrives as a surprise charge from a firm that
-    /// advertised a fixed price. The bound travels in the footer, on every page.
+    /// The firm and Foundation disclaimers are the SAME sentence, standardized
+    /// site-wide rather than two differently-worded ones.
     #[test]
-    fn the_disclaimer_bounds_what_a_published_fee_covers() {
-        let disclaimer = super::firm_disclaimer();
-        assert!(
-            disclaimer.contains("flat fees") && disclaimer.contains("filing fees"),
-            "the published-fee scope and its third-party exclusion must be disclosed: {disclaimer}"
-        );
-    }
-
-    /// The advertisement disclosure leads the line rather than trailing it. It
-    /// is the label a reader needs before the sentences it qualifies, and it is
-    /// the footer's only such disclosure — the strip carries one disclaimer
-    /// paragraph, so a separate advertising line would have nowhere to render.
-    #[test]
-    fn firm_disclaimer_opens_with_the_advertisement_disclosure() {
-        assert!(
-            super::firm_disclaimer().starts_with("This is attorney advertisement."),
-            "the disclosure leads the disclaimer: {}",
-            super::firm_disclaimer()
-        );
+    fn the_firm_and_foundation_disclaimers_are_the_same_sentence() {
+        assert_eq!(super::firm_disclaimer(), super::foundation_disclaimer());
     }
 
     /// Every request-scoped accessor reads the field it is named for.
@@ -1357,37 +1332,33 @@ mod tests {
         assert_eq!(foundation.href, "/foundation");
     }
 
-    /// The Foundation's nav is its own programs and audiences, every one of
-    /// them beneath `/foundation`.
+    /// The Foundation's nav is trimmed to two entries: the training catalog
+    /// and the legal aid audience.
     ///
-    /// The prefix is what keeps the two surfaces separable on one host. A
-    /// Foundation link that dropped it would land on a firm page — `/attorneys`
-    /// on the firm's side of the site is not the volunteer pitch — so this
-    /// asserts the prefix on every entry rather than only on the list.
+    /// Workshops is the one deliberate exception to "every Foundation link
+    /// stays under its own prefix" — its index is the public, ungated
+    /// catalog (see [`FOUNDATION_NAV`]'s doc comment) — so this asserts the
+    /// prefix on every entry except that named one, rather than on all of
+    /// them.
     #[test]
-    fn every_foundation_nav_entry_stays_beneath_its_own_prefix() {
+    fn every_foundation_nav_entry_but_workshops_stays_beneath_its_own_prefix() {
         fn assert_prefixed(links: &[NavLink]) {
             for link in links {
-                assert!(
-                    link.href.starts_with("/foundation"),
-                    "{} leaves the Foundation's prefix: {}",
-                    link.label,
-                    link.href
-                );
+                if link.label == "Workshops" {
+                    assert_eq!(link.href, "/workshops");
+                } else {
+                    assert!(
+                        link.href.starts_with("/foundation"),
+                        "{} leaves the Foundation's prefix: {}",
+                        link.label,
+                        link.href
+                    );
+                }
                 assert_prefixed(link.children);
             }
         }
         let labels: Vec<&str> = FOUNDATION_BRAND.nav.iter().map(|n| n.label).collect();
-        assert_eq!(
-            labels,
-            [
-                "What we do",
-                "How it works",
-                "Education & CLE",
-                "Legal aid centers",
-                "Attorneys",
-            ]
-        );
+        assert_eq!(labels, ["Workshops", "Legal aid centers"]);
         assert_prefixed(FOUNDATION_BRAND.nav);
         assert_eq!(
             FOUNDATION_BRAND.home_href, "/foundation",
@@ -1396,59 +1367,33 @@ mod tests {
     }
 
     #[test]
-    fn foundation_nav_fragments_target_the_home_page_bands() {
-        // `#what-we-do` and `#how-it-works` are the only two entries that are
-        // not whole pages. They resolve against the Foundation home page's card
-        // and step band ids; if a band stops rendering its anchor these scroll
-        // nowhere, which is why `foundation_marketing` asserts the ids.
-        let fragments: Vec<&str> = FOUNDATION_BRAND
-            .nav
-            .iter()
-            .map(|n| n.href)
-            .filter(|href| href.contains('#'))
-            .collect();
-        assert_eq!(
-            fragments,
-            ["/foundation#what-we-do", "/foundation#how-it-works"]
+    fn foundation_nav_reaches_the_legal_aid_audience_page() {
+        // This page exists because the static marketing site that carried it
+        // is being retired (ENG-139). The header is how that audience finds
+        // the page written for it.
+        let hrefs: Vec<_> = FOUNDATION_BRAND.nav.iter().map(|n| n.href).collect();
+        assert!(
+            hrefs.contains(&"/foundation/legal-aid"),
+            "/foundation/legal-aid must stay linked"
         );
-        for href in fragments {
-            assert!(
-                href.starts_with("/foundation#"),
-                "a band fragment hangs off the Foundation home page: {href}"
-            );
-        }
     }
 
     #[test]
-    fn foundation_nav_reaches_all_three_audience_pages() {
-        // These three pages exist because the static marketing site that
-        // carried them is being retired (ENG-139). The header is how each
-        // audience finds the page written for it; dropping one silently
-        // unpublishes that pitch.
+    fn the_foundation_nav_advertises_no_gated_catalog_but_the_public_one() {
+        // Notations and Show-and-tell sit behind the session boundary even at
+        // their own index, so a nav entry pointing at either sends a
+        // signed-out reader to a login door. They keep serving at their own
+        // paths and stay listed for crawlers; the header does not advertise
+        // them. Workshops is different — its index is public — which is why
+        // it alone is in this row (see `FOUNDATION_NAV`'s doc comment).
         let hrefs: Vec<_> = FOUNDATION_BRAND.nav.iter().map(|n| n.href).collect();
-        for audience in [
-            "/foundation/education",
-            "/foundation/legal-aid",
-            "/foundation/attorneys",
-        ] {
-            assert!(hrefs.contains(&audience), "{audience} must stay linked");
-        }
-    }
-
-    #[test]
-    fn the_foundation_nav_advertises_nothing_gated() {
-        // The gated catalogs sit behind the session boundary, so a nav entry
-        // pointing at one sends a signed-out reader to a login door. They keep
-        // serving at their own paths and stay listed for crawlers; the header
-        // no longer advertises them.
-        let hrefs: Vec<_> = FOUNDATION_BRAND.nav.iter().map(|n| n.href).collect();
-        for gated in [
-            "/foundation/notations",
-            "/workshops",
-            "/foundation/show-and-tell",
-        ] {
+        for gated in ["/foundation/notations", "/foundation/show-and-tell"] {
             assert!(!hrefs.contains(&gated), "{gated} must not be in the nav");
         }
+        assert!(
+            hrefs.contains(&"/workshops"),
+            "the public workshop catalog is linked"
+        );
         assert!(
             FOUNDATION_BRAND.nav.iter().all(|n| !n.is_dropdown()),
             "the public header renders no submenu; a dropdown emits a dead link"
