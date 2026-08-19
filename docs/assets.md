@@ -87,9 +87,8 @@ all three read. The buckets are `NAVIGATOR_ASSETS_BUCKET` in each `deployments/<
 
 | Deployment | Bucket | Public origin (`NAVIGATOR_ASSET_BASE_URL`) |
 | --- | --- | --- |
-| `neon-law-stg` | `neon-law-stg-assets` | `https://www.neonlaw.com/assets` |
+| `neon-law-stg` | `neon-law-stg-assets` | `https://staging.neonlaw.com/assets` |
 | `neon-law-prod` | `neon-law-prod-assets` | `https://www.neonlaw.com/assets` |
-| `neon-law-prod` | see its `config.toml` | see its `config.toml` |
 
 The origin is the app's own `/assets/{key}` route, not a raw `storage.googleapis.com` URL, which is why the browser
 never leaves the site's origin for an image. Publish to staging, verify, then production:
@@ -134,6 +133,19 @@ The route `GET /lawyer/fonts/gorp-serif.zip` streams that object; the lawyer das
 under **Brand assets**. Embedded Rego admits Lawyer and admin under `/lawyer`. Clerk has one exact-path exception: a
 font ZIP is a firm brand asset, not lawyer work. Client and anonymous callers are denied. A missing object is a loud
 `502`, never a fallback — the same pull-and-verify posture as the vendored government forms.
+
+Publication is not verified by CI. `deploy.yml` builds and publishes images; it never probes a rolled deployment's asset
+origin, so an empty bucket reaches production silently. Run `assets verify` against the deployment's own public host
+after its roll — that is the only check that looks at what a browser would actually receive:
+
+```bash
+cargo run -p cli -- ops assets verify --base-url https://staging.neonlaw.com/assets
+cargo run -p cli -- ops assets verify --base-url https://www.neonlaw.com/assets
+```
+
+`verify` probes the same key set `orphan` treats as reachable — every markdown `](img/…)` reference, every
+`views::assets::GALLERY` variant, and both licensed GORP faces — and exits `2` naming whatever the origin does not
+serve.
 
 ## Verify before shipping
 
