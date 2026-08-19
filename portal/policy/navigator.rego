@@ -80,11 +80,11 @@ allow if {
 # how the firm runs the product, not anything a client does.
 #
 # Note what this does and does not change. `/docs` carries no rule in this
-# policy: it sits behind the session boundary alone, so any authenticated
-# person reaches it, client included. `/app/docs` is therefore not a gate over
-# previously open material — it is a second, role-restricted door wearing the
-# application chrome. Tightening `/docs` itself is a separate decision and is
-# deliberately not made here.
+# policy and is not behind the session boundary either: it is an anonymous
+# public surface, because the repository is AGPL-3.0-only and those documents
+# are the manual for software anyone can clone. `/app/docs` is therefore not a
+# gate over the documents at all — it is a second door to the same index
+# wearing the application chrome, and what it restricts is that surface.
 #
 # Clerk is admitted by an explicit rule rather than by widening `lawyer_tier`:
 # per the note at the top of this file, a non-lawyer role must never inherit

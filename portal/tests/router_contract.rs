@@ -70,12 +70,16 @@ const CONTRACT: &[(&str, Access)] = &[
     // subtree onto `/app/forms`. Any authenticated person may browse it; an
     // anonymous browser goes through the login door like every `/app` page.
     ("/app/forms", Access::ProtectedHuman),
-    // Shared contributor/reference tools that used to render anonymously.
-    ("/docs", Access::ProtectedHuman),
-    ("/docs/glossary", Access::ProtectedHuman),
-    // The same documentation inside the application. `/docs` above is reached
-    // by any authenticated person; these carry a policy rule on top that
-    // admits only the tiers who operate Navigator.
+    // The workspace documentation reads anonymously. The repository is
+    // AGPL-3.0-only, so these documents are the manual for software anyone can
+    // clone — a login door in front of them guarded nothing and cost a reader
+    // the one page that explains how to run it.
+    ("/docs", Access::PortalPublic),
+    ("/docs/glossary", Access::PortalPublic),
+    // The same documentation inside the application. `/docs` above renders for
+    // anyone; these carry the session boundary plus a policy rule that admits
+    // only the tiers who operate Navigator. What that gates is the application
+    // surface, not the documents.
     ("/app/docs", Access::ProtectedHuman),
     ("/app/docs/glossary", Access::ProtectedHuman),
     // The living design system reads anonymously: it is a contributor
@@ -380,6 +384,7 @@ async fn web_does_not_serve_the_github_webhook_receiver() {
 #[tokio::test]
 async fn a_signed_session_passes_the_shared_boundary() {
     let app = portal::router(contract_state().await);
+    let app_for_gallery = app.clone();
     let sessions = portal::SessionStore::new(portal::test_support::TEST_SESSION_KEY);
     let cookie = format!(
         "{}={}",
@@ -389,6 +394,7 @@ async fn a_signed_session_passes_the_shared_boundary() {
             store::persons::Role::Lawyer,
         ))
     );
+    let gallery_cookie = cookie.clone();
 
     let response = app
         .oneshot(
@@ -405,6 +411,24 @@ async fn a_signed_session_passes_the_shared_boundary() {
         response.status(),
         StatusCode::OK,
         "an authenticated reader still gets the shared docs"
+    );
+    // `/docs` is anonymous, so this no longer proves the boundary passes a
+    // signed session — a gated surface does. `/templates` is behind the same
+    // boundary and renders for any authenticated person.
+    let gallery = app_for_gallery
+        .oneshot(
+            Request::builder()
+                .uri("/templates")
+                .header("cookie", gallery_cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        gallery.status(),
+        StatusCode::OK,
+        "a signed session passes the boundary onto a gated shared surface"
     );
 }
 
@@ -456,9 +480,12 @@ async fn mount_keeps_host_public_routes_and_protects_portal_routes() {
         "the host keeps serving its own public page"
     );
 
-    let docs_response = anonymous_get(&app, "/docs/glossary").await;
+    // `/templates`, not `/docs`: the documentation reads anonymously now, so it
+    // can no longer stand for "the boundary still closes under a host mount".
+    // The template gallery is the nearest shared surface that is still gated.
+    let gallery_response = anonymous_get(&app, "/templates").await;
     assert_eq!(
-        docs_response.status(),
+        gallery_response.status(),
         StatusCode::SEE_OTHER,
         "a shared Navigator tool stays behind the session boundary under a host mount"
     );

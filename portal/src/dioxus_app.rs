@@ -3195,8 +3195,15 @@ async fn inject_transparency_doc(
 /// [`inject_doc`] resolves the doc and owns every non-render outcome on the
 /// path — the kebab-case redirect, the `/docs/index` → `/docs` redirect, and the
 /// unknown-slug 404 — because axum cannot register a second `GET` handler where
-/// the render sits. It joins the protected composition as the routes it replaces
-/// did.
+/// the render sits.
+///
+/// **Anonymous.** These routes mount outside the session boundary, beside
+/// `/design`, and carry `inject_optional_session` so a signed-in reader still
+/// gets the authenticated nav. The repository is AGPL-3.0-only and the
+/// documentation is the manual for software anyone can clone, so a login door in
+/// front of it guarded nothing. [`app_docs_router`] is the second, role-scoped
+/// door to the same index; it stays gated because it is part of the
+/// authenticated application, not because these documents are restricted.
 ///
 /// **Firm-branded on every host.** These routes live in the shared composition
 /// [`crate::bootstrap`] mounts, so one mount serves `neon` and a
@@ -3229,10 +3236,11 @@ pub fn docs_router(
 /// `/app/docs` and `/app/docs/{slug}` — the same workspace documentation,
 /// inside the authenticated application.
 ///
-/// The existing `/docs` mount stays exactly as it is — it sits behind the
-/// session boundary and carries no policy rule, so any authenticated person
-/// reaches it. This is a second door to the same [`crate::DocsIndex`], for the
-/// people who operate Navigator. It differs from [`docs_router`] in two ways,
+/// The `/docs` mount is anonymous — the source is public, so its manual is too.
+/// This is a second door to the same [`crate::DocsIndex`], for the people who
+/// operate Navigator: it wears the application chrome and is scoped to the tiers
+/// that run the product. It restricts a *surface*, not the documents, which
+/// anyone can read at `/docs`. It differs from [`docs_router`] in two ways,
 /// both deliberate:
 ///
 /// * **It wears the application chrome, not the Foundation's.** A signed-in

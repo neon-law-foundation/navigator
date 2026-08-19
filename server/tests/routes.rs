@@ -1637,13 +1637,18 @@ async fn anonymous_access_to_the_shared_navigator_surface_lands_at_the_login_doo
     state.docs = portal::docs::loader::bundled();
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
 
+    // `/docs` and `/docs/glossary` have left this list. The workspace
+    // documentation reads anonymously now — the repository is AGPL-3.0-only, so
+    // a login door stood in front of the manual for software anyone can clone.
+    // `/app/docs` is the surface that still answers the login door, and it is
+    // listed below in its place.
     for path in [
         "/app/projects",
         "/app/lawyer",
         "/app/admin",
         "/app/team",
-        "/docs",
-        "/docs/glossary",
+        "/app/docs",
+        "/app/docs/glossary",
         "/templates",
         "/app/api",
     ] {
@@ -2258,10 +2263,12 @@ async fn sitemap_xml_lists_public_routes_from_loaded_indexes() {
         !body.contains("<loc>https://www.neonlaw.com/app/team</loc>"),
         "sitemap should not list authenticated app routes: {body}"
     );
-    // `/docs` and `/templates` are authenticated (#732), and a sitemap entry
-    // pointing at a login redirect is worse than no entry at all. `/design`
-    // reads anonymously now but stays unadvertised: it is a contributor
-    // reference, not a page a search result should land a client on.
+    // `/templates` is authenticated (#732), and a sitemap entry pointing at a
+    // login redirect is worse than no entry at all. `/docs` and `/design` read
+    // anonymously now but stay unadvertised for the same reason as each other:
+    // both are contributor references, not pages a search result should land a
+    // prospective client on. Advertising the documentation is a separate
+    // decision from un-gating it, and is deliberately not made here.
     for authenticated in ["/docs", "/design", "/templates"] {
         assert!(
             !body.contains(&format!("<loc>https://www.neonlaw.com{authenticated}")),

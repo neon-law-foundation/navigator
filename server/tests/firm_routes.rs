@@ -46,6 +46,17 @@ async fn site_app() -> Router {
     site_router(site_state().await)
 }
 
+/// The firm host with the bundled workspace documentation loaded.
+///
+/// The shared builder ships `DocsIndex::empty()`, so `/docs` would 404 on it for
+/// want of content rather than for want of a route — which would let an
+/// anonymous-access assertion pass against a page that renders nothing.
+async fn site_app_with_docs() -> Router {
+    let mut state = site_state().await;
+    state.docs = portal::docs::loader::bundled();
+    site_router(state)
+}
+
 /// The firm host with the bundled Nebula materials loaded.
 ///
 /// The shared builder ships an empty `WorkshopIndex`, so a talk's own page
@@ -534,13 +545,20 @@ async fn the_firm_nav_leads_with_the_lead_offering_then_the_practices() {
 
 #[tokio::test]
 async fn the_footer_carries_the_pages_the_header_does_not() {
-    // Blog, Contact, Navigator, Neon Law, Presentations, and Workshops are one
-    // click away from every public page. Checked on `/litigation` rather than
+    // Blog, Contact, Docs, Navigator, Neon Law, Presentations, and Workshops are
+    // one click away from every public page. Checked on `/litigation` rather than
     // `/`, because the footer is shared chrome and a page that is not the home
     // page proves it renders everywhere.
-    const ROW: [&str; 6] = [
+    //
+    // Workshops joined the row when the classes became public, and Docs when the
+    // workspace documentation did. While either was gated neither row carried
+    // it, so that the site never sent a signed-out reader at a login door; now
+    // that anyone may read them, these links are what stop each being reachable
+    // only by typing the URL.
+    const ROW: [&str; 7] = [
         "/blog",
         "/contact",
+        "/docs",
         "/navigator",
         "/",
         "/presentations",
@@ -937,6 +955,44 @@ async fn the_navigator_page_publishes_the_cli_at_the_release_it_runs() {
         body.contains("not yet signed or notarized"),
         "the page says why brew is the macOS route rather than implying the \
          browser download just works: {body}"
+    );
+}
+
+/// The workspace documentation reads for a visitor with no account.
+///
+/// It sat behind the session boundary while the source was closed. The
+/// repository is AGPL-3.0-only now, so a login door stood in front of the one
+/// document that explains how to run software anyone can clone. This asserts the
+/// hub, one document beneath it, and the `/docs/{slug}` redirect all answer a
+/// browser that has never signed in — a `303` to `/auth/login` is the failure.
+#[tokio::test]
+async fn the_workspace_documentation_reads_anonymously() {
+    let app = site_app_with_docs().await;
+
+    for path in ["/docs", "/docs/glossary"] {
+        let response = anon_get(&app, path).await;
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "{path} renders for a reader with no account"
+        );
+    }
+
+    // The canonicalizing redirect is the pre-layer's, not the login door's.
+    let response = anon_get(&app, "/docs/index").await;
+    assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        response.headers().get("location").unwrap(),
+        "/docs",
+        "an anonymous reader gets the canonical URL, not a login redirect"
+    );
+
+    // `/app/docs` is untouched. It is a second door to the same index wearing
+    // the application chrome, and what it gates is that surface.
+    assert_eq!(
+        anon_get(&app, "/app/docs").await.status(),
+        StatusCode::SEE_OTHER,
+        "the in-application documentation surface stays behind the boundary"
     );
 }
 

@@ -1707,8 +1707,6 @@ pub fn bootstrap(
         // The per-notation clause editor (#956 Phase 4) renders through Dioxus
         // at `/lawyer/notations/{id}/clauses`.
         dioxus_clause_editor,
-        dioxus_docs_index,
-        dioxus_doc,
         dioxus_app_docs_index,
         dioxus_app_doc,
         dioxus_app_team,
@@ -1747,12 +1745,23 @@ pub fn bootstrap(
     // anonymous treatment the host's marketing pages get below. It is not in
     // `host_dioxus` because that list is firm-host-only and the gallery is a
     // shared Navigator tool that must answer on both hosts.
-    router = router.merge(dioxus_app::design_router().route_layer(
-        axum::middleware::from_fn_with_state(
-            boundary_sessions.clone(),
-            crate::auth::inject_optional_session,
-        ),
-    ));
+    //
+    // `/docs` and `/docs/{slug}` mount the same way, and for the same reason:
+    // the workspace documentation is the manual for software anyone can clone.
+    // It sat behind the session boundary while the source was closed, which put
+    // a login door in front of the one document that explains how to run what is
+    // now public — the argument that already un-gated the Navigator classes.
+    // `/app/docs` is untouched: it is the second, role-restricted door to the
+    // same index wearing the application chrome, and it stays gated because it
+    // is part of the authenticated surface, not because the documents are.
+    for public_router in [dioxus_app::design_router(), dioxus_docs_index, dioxus_doc] {
+        router = router.merge(
+            public_router.route_layer(axum::middleware::from_fn_with_state(
+                boundary_sessions.clone(),
+                crate::auth::inject_optional_session,
+            )),
+        );
+    }
     // The host's own public Dioxus SSR pages (#730 PR6) — the firm host's ported
     // marketing pages, none for the Foundation host. Unlike the built-in Dioxus
     // routes, these are anonymous marketing pages, so they mount OUTSIDE
