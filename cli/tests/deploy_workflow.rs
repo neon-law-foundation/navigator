@@ -295,15 +295,15 @@ fn publication_waits_for_the_main_reachability_guard() {
     }
 }
 
-/// A hotfix must not masquerade as the latest release, in either place that
-/// decides what a user gets by default.
+/// A hotfix must not masquerade as the latest release on the one surface that
+/// decides what a browsing reader gets by default.
 ///
-/// The GitHub Release is flagged so it stops being reported as "Latest", and the
-/// Homebrew tap is not told about it at all — the formula holds exactly one
-/// version, so bumping it to a prerelease would hand an rc to every `brew
-/// upgrade` while ranking below the ordinary release it precedes.
+/// The GitHub Release is flagged so it stops being reported as "Latest". That is
+/// now the ONLY place a `-hotfix.N` behaves differently: `brew` resolves exactly
+/// one version and needs it to be the newest good build, so the tap follows
+/// every publishable tag. `a_hotfix_is_dispatched_to_the_tap` holds that half.
 #[test]
-fn a_hotfix_publishes_as_a_prerelease_and_never_reaches_the_tap() {
+fn a_hotfix_publishes_as_a_prerelease() {
     let workflow: serde_yaml::Value =
         serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
 
@@ -311,14 +311,6 @@ fn a_hotfix_publishes_as_a_prerelease_and_never_reaches_the_tap() {
     assert!(
         outputs["prerelease"].as_str().is_some(),
         "`release-version` must publish a `prerelease` output for downstream jobs to gate on"
-    );
-
-    let gate = workflow["jobs"]["release-homebrew-tap"]["if"]
-        .as_str()
-        .expect("the tap job must declare an `if:` gate");
-    assert!(
-        gate.contains("prerelease != 'true'"),
-        "the Homebrew tap must be skipped for a hotfix, got: {gate:?}"
     );
 
     assert!(

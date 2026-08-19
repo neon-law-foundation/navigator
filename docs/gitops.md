@@ -393,19 +393,28 @@ Write the version the same way as any other release, then land it and tag the me
 cargo run -p cli -- ops release-version --hotfix
 ```
 
-**A hotfix does not become the default download.** Two things behave differently from an ordinary release, both because
-a prerelease must not present itself as the latest version:
+**A hotfix does not become the default download.** Exactly one thing behaves differently from an ordinary release,
+because a prerelease must not present itself as the latest version to someone browsing the releases page:
 
 | Surface | Ordinary release | `-hotfix.N` |
 | --- | --- | --- |
 | GHCR images and CLI archives | published | published |
 | GitHub Release | latest | flagged `--prerelease` |
-| Homebrew tap | bumped | **not notified** |
+| Homebrew tap | bumped | bumped |
 
-The tap holds exactly one version and every `brew install` resolves to it, so bumping it to a prerelease would hand an
-rc to everyone who ran `brew update` — while ranking below the ordinary release it precedes, leaving the formula unable
-to walk forward correctly. `brew` keeps resolving the last ordinary release until the next one lands; the Slack install
-message says so rather than naming a `brew` command that would silently fetch something else.
+**The tap follows every publishable tag, hotfix included.** It holds exactly one version and every `brew install`
+resolves to it, so the version it holds has to be the newest build that exists — not the newest build of a particular
+shape. Excluding hotfixes meant the formula could only move when an ordinary `YY.M.D` release succeeded end to end, and
+a run of ordinary releases failing at the KIND gate left `brew install` serving a 404 for days with every check green,
+because a skipped job is not a failed one.
+
+What made the exclusion look necessary is real, but it belongs to the tap: **Homebrew's comparator is not semver.** It
+orders `26.8.20-hotfix.4` *above* `26.8.20`, the reverse of the §11.3 ranking [Releasing twice in one
+day](#releasing-twice-in-one-day) relies on. A formula walked from a hotfix to its own base version therefore looks like
+a downgrade, and `brew` reports the keg as current instead of upgrading it. `scripts/bump.sh` in the tap closes that
+with `version_scheme` — Homebrew's own mechanism for a version series that stops sorting forward — comparing each new
+tag to the outgoing one with Homebrew's comparator and incrementing the scheme whenever the new tag does not sort
+strictly above. Every bump is an upgrade, whatever the shape of either tag.
 
 A hotfix is still a full release in every way that matters to a deploy: it proves the workspace in KIND, publishes every
 image, and hands the operator the same `ops ship` command.
@@ -473,9 +482,9 @@ until it lands.
 actually carries the archives, and it sends a `repository_dispatch` naming the tag **and nothing else**. The tap
 computes every `sha256` itself by downloading the artifacts it will then tell readers to download. A payload carrying
 digests would let a malformed dispatch pin the formula to bytes nobody verified, and would leave the tap unable to
-repair a bad bump from a bare tag — which matters, because the tap sees only ordinary releases and `YY.M.D` admits no
-second one the same UTC day. A `-hotfix.N` tag is deliberately never dispatched here, so it is no escape hatch for the
-formula either. The tap covers that with a `workflow_dispatch` that re-runs any tag by hand.
+repair a bad bump from a bare tag — which matters, because `YY.M.D` admits no second ordinary release the same UTC day,
+so a bump that went wrong cannot be fixed by re-cutting the release it came from. The tap covers that with a
+`workflow_dispatch` that re-runs any tag by hand.
 
 **A separate repository, not a folder here.** A tap is a Git repository Homebrew clones and re-reads on every `brew
 update`, and its formula changes once per release, mechanically, with no review to add. Keeping it here would mean
