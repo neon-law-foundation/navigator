@@ -50,7 +50,7 @@ collide with a literal route. Which side of a genuine collision wins depends on 
 refused rather than the precedence reasoned about — in `store::projects::is_valid_code` and in an `ASSERT` on
 `project.code`, because a Rust check only guards the write paths that call it.
 
-## A bundle declares which Project it mounts on
+## The repository name is the Project code
 
 Navigator serves a Project's portal at its **code** plus one literal segment:
 
@@ -58,21 +58,29 @@ Navigator serves a Project's portal at its **code** plus one literal segment:
 /app/projects/<project-code>/portal/
 ```
 
-The mount comes from the code, but the repository does not, so nothing can recover the code from the repository name —
-`navigator-sample-project` is no rule's way of spelling `simpsons`. A project application therefore declares its Project
-in a root `navigator.yml`:
+**Nothing in a Project repository declares that code, so nothing can disagree with it.** The repository name *is* the
+code: `cli/src/projects/repository.rs` takes it from the checkout directory, `.github/actions/application-publish` takes
+it from `github.event.repository.name`, and Vite derives its base from the checkout directory too
+(`basename(resolve(__dirname, '..'))`). One name, read three times, never transcribed. The gate re-derives it and
+refuses a name that is not a valid code, so a checkout cloned into a differently named directory fails there rather than
+publishing under the wrong prefix.
 
-```yaml
-name: simpsons
-```
-
-That single field is the Vite base and the publish prefix. Boot re-reads the manifest rather than trusting whoever
-staged the bundle, and refuses one naming a different Project: publishing it would put one matter's application on
-another matter's portal. The declared code is validated with the same `store::projects::is_valid_code` the store uses,
-so a manifest cannot smuggle path segments into a bucket key.
+There is deliberately **no manifest**, and `navigator.yml` is not one: it names the locally staged Simpsons sample
+bundle (`store/src/sample_project.rs`), which `navigator dev up` builds outside any Project repository. A Project
+repository carrying one at its root fails the gate — `navigator.yml` is not in the source-only layout's allowed root
+entries.
 
 The trailing slash is load-bearing twice: Vite joins asset URLs directly onto the base, and Navigator redirects the bare
 mount to the slashed form.
+
+**Every path below the mount resolves, not only the files the build published.** A portal writes its own section links
+as `<base><slug>/`, and a reader bookmarks and refreshes them, so Navigator is asked for paths no publish ever wrote.
+One request resolves in order: the path itself when it names a published object, then that path's `<dir>/index.html`,
+then the bundle's root `index.html`. A build of many pages therefore serves its own pages, and a build of one bundle
+serves its entrypoint so the client-side router renders the route. Reaching for the directory index first is what keeps
+the entrypoint a fallback — without it a multi-page build answers every page with the wrong document. Every `index.html`
+is served `no-store`, because it names the build's content-hashed assets and is never hashed itself; those assets cache
+for a year.
 
 **The extra `portal` segment is the point.** Navigator's matter show page is `/app/projects/<code>` and the client
 application is `/app/projects/<code>/portal/`. The Project code is the stable lowercase-kebab URL slug; the internal
@@ -137,10 +145,10 @@ One composite action is the whole gate, consumed identically by every Project re
     project_repository: true
 ```
 
-It carries no organization, host, deployment, or client name, because none of those vary: the mount is the Project code
-the bundle's own `navigator.yml` declares, plus a literal segment. A forge host never appears in a Vite base, which is
-why a repository may move between forges without touching the gate. `cli/tests/project_gate.rs` pins the shell against
-the Rust definitions it transcribes, because bash cannot call Rust.
+It carries no organization, host, deployment, or client name, because none of those vary: the mount is the repository
+name, which is the Project code, plus a literal segment. A forge host never appears in a Vite base, which is why a
+repository may move between forges without touching the gate. `cli/tests/project_gate.rs` pins the shell against the
+Rust definitions it transcribes, because bash cannot call Rust.
 
 **There is no path filter, and that is deliberate.** A filtered job that skips reports success for work it never did,
 and a required check a skip can satisfy is not a gate. So the one job always runs and each half no-ops over a repository
@@ -169,9 +177,9 @@ Pin the action to an exact immutable release tag (`YY.M.D`, legacy `YY.M.D.H`, o
 The gate proves the bundle; a second composite action publishes it.
 `neon-law-foundation/navigator/.github/actions/application-publish@YY.M.D` runs after the gate, in the same job, and
 uploads `portal/dist/` to `<code>/portal/` in the deployment's private `<deployment>-applications` bucket, which
-Navigator streams object-by-object. Objects land **flat** under that prefix; the action reads `<code>` from the bundle's
-own `navigator.yml`, exactly as the gate and boot do, so the object prefix cannot disagree with the served mount however
-the repository is named or wherever it is hosted.
+Navigator streams object-by-object. Objects land **flat** under that prefix; the action derives `<code>` from
+`github.event.repository.name`, exactly as the gate derives it from the checkout directory, so the object prefix cannot
+disagree with the served mount wherever the repository is hosted.
 
 It carries no organization, host, or client. The three coordinates it cannot derive are passed from GHE repository
 **variables** — a provider resource name, a service-account email, and a bucket name are public identifiers, and the
@@ -180,13 +188,22 @@ trust lives in the Workload Identity binding on Google's side, not in the workfl
 | Variable | Value |
 | --- | --- |
 | `NAVIGATOR_APPLICATIONS_BUCKET` | the deployment's private applications bucket, e.g. `neon-law-applications` |
-| `NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER` | the full `ghe-oidc` Workload Identity provider resource |
+| `NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER` | the full Workload Identity provider resource, pool and provider id included |
 | `NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT` | `navigator-app-publisher@<project>.iam.gserviceaccount.com` |
 
-Authentication is keyless: the job mints a short-lived OIDC token from the enterprise issuer
+Authentication is keyless: the job mints a short-lived OIDC token from GitHub's issuer
 `https://token.actions.githubusercontent.com` and federates it into the publisher, so no service-account key exists.
 That issuer is a property of the provider resource, not a workflow parameter — the same subtlety the [marketing
-sites](marketing-sites.md) document explains.
+sites](marketing-sites.md) document explains. Because the whole resource travels in the variable, the pool and provider
+id are the deployment's business and never a name a Project repository knows.
+
+**On `neon-law-prod` that resource is the `github` pool's `github-oidc` provider, which is not what
+`cli/src/devx/gcp/app_publisher.rs` provisions** — it creates an `app-publisher` pool with a `ghe-oidc` provider, a name
+left over from the GitHub Enterprise era, and no such pool exists in that project. lex-tecnica was onboarded onto the
+existing `github` provider by hand. Reconciling the two is ENG-255's work, and it is the reason a provider's
+`attributeCondition` must never be rewritten by hand: one CEL expression guards every identity in the pool, Navigator's
+own `navigator-ci-pusher` deploy identity included, so a clause appended carelessly breaks Navigator's deploys an hour
+later and somewhere else.
 
 The thin caller workflow lives in the Project repository, not here. It grants `id-token: write`, installs with a locked
 dependency graph, lints, typechecks, tests, and builds with the derived Vite base, runs the gate, then publishes:
