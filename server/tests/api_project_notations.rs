@@ -3,7 +3,7 @@
 //! that opens a notation on an existing matter.
 //!
 //! This door funnels through the same `crate::project_notation::create_project_notation`
-//! command the lawyer browser form drives (`POST /app/projects/:id/notations/new`,
+//! command the lawyer browser form drives (`POST /app/projects/:project_code/notations/new`,
 //! covered in `project_notation_create.rs`), so these tests focus on the two
 //! properties the REST adapter adds: the tier gate (LawyerSession → 401/403) and
 //! the matter-scope gate (a lawyer who does not participate in the matter gets a

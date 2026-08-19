@@ -1,6 +1,6 @@
 #![allow(clippy::doc_markdown, clippy::too_many_lines)]
 //! Integration tests for the matter conversation log
-//! (`/app/projects/:id/conversation`).
+//! (`/app/projects/:project_code/conversation`).
 //!
 //! The load-bearing guarantee is the privilege boundary: a client reads the
 //! conversation but **never** a firm-internal note. This drives the real
@@ -30,6 +30,7 @@ struct Fixture {
     app: axum::Router,
     surreal: store::surreal::SurrealDb,
     project_id: Uuid,
+    project_code: String,
     client_cookie: String,
     client_csrf: String,
 }
@@ -114,6 +115,7 @@ async fn build_fixture() -> Fixture {
         app,
         surreal,
         project_id: proj.id,
+        project_code: proj.code.clone(),
         client_cookie,
         client_csrf,
     }
@@ -132,7 +134,7 @@ async fn client_sees_the_conversation_but_never_an_internal_note() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/conversation", f.project_id))
+                .uri(format!("/app/projects/{}/conversation", f.project_code))
                 .header("cookie", &f.client_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -156,7 +158,7 @@ async fn the_composer_is_a_plain_textarea_and_the_page_loads_no_editor_script() 
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/conversation", f.project_id))
+                .uri(format!("/app/projects/{}/conversation", f.project_code))
                 .header("cookie", &f.client_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -189,7 +191,7 @@ async fn client_post_lands_as_an_inbound_message_that_lists_back() {
                 .method("POST")
                 .uri(format!(
                     "/app/projects/{}/conversation/messages",
-                    f.project_id
+                    f.project_code
                 ))
                 .header("cookie", &f.client_cookie)
                 .header("content-type", "application/x-www-form-urlencoded")
@@ -208,7 +210,7 @@ async fn client_post_lands_as_an_inbound_message_that_lists_back() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/conversation", f.project_id))
+                .uri(format!("/app/projects/{}/conversation", f.project_code))
                 .header("cookie", &f.client_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -258,7 +260,7 @@ async fn a_stale_rich_body_field_is_ignored_and_the_row_stays_plain_text() {
                 .method("POST")
                 .uri(format!(
                     "/app/projects/{}/conversation/messages",
-                    f.project_id
+                    f.project_code
                 ))
                 .header("cookie", &f.client_cookie)
                 .header("content-type", "application/x-www-form-urlencoded")
@@ -299,7 +301,7 @@ async fn client_internal_flag_is_ignored() {
                 .method("POST")
                 .uri(format!(
                     "/app/projects/{}/conversation/messages",
-                    f.project_id
+                    f.project_code
                 ))
                 .header("cookie", &f.client_cookie)
                 .header("content-type", "application/x-www-form-urlencoded")

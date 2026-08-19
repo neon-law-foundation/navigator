@@ -440,7 +440,7 @@ pub fn LawyerProjectDetail() -> Element {
                     " · Lawyer DRI: {lawyer_dri_disp}"
                     " · Client DRI: {client_dri_disp}"
                     " · "
-                    a { class: "nav-link", href: "/app/projects/{view.id}/edit", "Edit project" }
+                    a { class: "nav-link", href: "/app/projects/{view.code}/edit", "Edit project" }
                 }
             }
 
@@ -449,7 +449,7 @@ pub fn LawyerProjectDetail() -> Element {
             }
 
             if let Some(estate) = view.estate.as_ref() {
-                EstateSection { project_id: view.id.clone(), estate: estate.clone(), csrf_token: csrf.clone() }
+                EstateSection { project_code: view.code.clone(), estate: estate.clone(), csrf_token: csrf.clone() }
             }
 
             if view.internal_slack_channel_url.is_some()
@@ -518,7 +518,7 @@ pub fn LawyerProjectDetail() -> Element {
                 div { class: "lawyer-detail__section-head",
                     h2 { "Matter people" }
                     if is_admin {
-                        a { class: "nav-btn nav-btn--primary", href: "/app/projects/{view.id}/people/new", "Add person" }
+                        a { class: "nav-btn nav-btn--primary", href: "/app/projects/{view.code}/people/new", "Add person" }
                     }
                 }
                 p { class: "nav-muted", "Participation records who is assigned to this matter and follows each person's system tier. Adding or removing someone here does not change that tier." }
@@ -577,9 +577,9 @@ pub fn LawyerProjectDetail() -> Element {
                                                             class: "lawyer-detail__inline-form",
                                                             method: "post",
                                                             action: if holds {
-                                                                format!("/app/projects/{}/people/{}/dri/remove", view.id, row.id)
+                                                                format!("/app/projects/{}/people/{}/dri/remove", view.code, row.id)
                                                             } else {
-                                                                format!("/app/projects/{}/people/{}/dri", view.id, row.id)
+                                                                format!("/app/projects/{}/people/{}/dri", view.code, row.id)
                                                             },
                                                             input { r#type: "hidden", name: "_csrf", value: "{csrf}" }
                                                             button {
@@ -596,14 +596,14 @@ pub fn LawyerProjectDetail() -> Element {
                                             td { class: "nav-table__end",
                                                 a {
                                                     class: "nav-btn nav-btn--secondary",
-                                                    href: "/app/projects/{view.id}/people/{row.id}/edit",
+                                                    href: "/app/projects/{view.code}/people/{row.id}/edit",
                                                     "Edit"
                                                 }
                                                 " "
                                                 form {
                                                     class: "lawyer-detail__inline-form",
                                                     method: "post",
-                                                    action: "/app/projects/{view.id}/people/{row.id}/delete",
+                                                    action: "/app/projects/{view.code}/people/{row.id}/delete",
                                                     input { r#type: "hidden", name: "_csrf", value: "{csrf}" }
                                                     button { class: "nav-btn nav-btn--danger", r#type: "submit", "Remove" }
                                                 }
@@ -628,8 +628,8 @@ pub fn LawyerProjectDetail() -> Element {
                             tbody {
                                 for doc in view.documents.iter() {
                                     tr {
-                                        td { a { class: "nav-link", href: "/app/projects/{view.id}/documents/{doc.id}", "{doc.filename}" } }
-                                        td { a { class: "nav-link", href: "/app/projects/{view.id}/documents/{doc.id}/download", "Download" } }
+                                        td { a { class: "nav-link", href: "/app/projects/{view.code}/documents/{doc.id}", "{doc.filename}" } }
+                                        td { a { class: "nav-link", href: "/app/projects/{view.code}/documents/{doc.id}/download", "Download" } }
                                     }
                                 }
                             }
@@ -638,7 +638,7 @@ pub fn LawyerProjectDetail() -> Element {
                 }
                 FormCard {
                     title: "Upload documents".to_string(),
-                    action: "/app/projects/{view.id}/documents/upload",
+                    action: "/app/projects/{view.code}/documents/upload",
                     submit_label: "Upload".to_string(),
                     heading: Heading::H2,
                     multipart: true,
@@ -684,7 +684,7 @@ pub fn LawyerProjectDetail() -> Element {
                     if view.lawyer_dris.is_empty() && is_admin {
                         p { class: "nav-form-error", role: "alert",
                             "This matter has no lawyer DRI. "
-                            a { class: "nav-link", href: "/app/projects/{view.id}/people/new", "Designate the accountable lawyer" }
+                            a { class: "nav-link", href: "/app/projects/{view.code}/people/new", "Designate the accountable lawyer" }
                             "."
                         }
                     }
@@ -698,7 +698,7 @@ pub fn LawyerProjectDetail() -> Element {
 /// control — the transcript uploader at `BEGIN`, the generated drafts and a
 /// release control at `lawyer_review`, a waiting note at `client_review`.
 #[component]
-fn EstateSection(project_id: String, estate: EstateData, csrf_token: String) -> Element {
+fn EstateSection(project_code: String, estate: EstateData, csrf_token: String) -> Element {
     rsx! {
         section { class: "lawyer-detail__section project-estate",
             h2 { "Estate plan — Northstar" }
@@ -707,7 +707,7 @@ fn EstateSection(project_id: String, estate: EstateData, csrf_token: String) -> 
                 p { class: "nav-muted", "The sitting is recorded offline and transcribed. File it here in whichever form you have — you can do this from a phone. Paste the transcript text, upload a transcript file, or paste a link to the recording." }
                 FormCard {
                     title: "File the sitting transcript".to_string(),
-                    action: "/app/projects/{project_id}/notations/{estate.notation_id}/transcript",
+                    action: "/app/projects/{project_code}/notations/{estate.notation_id}/transcript",
                     submit_label: "File transcript".to_string(),
                     heading: Heading::H2,
                     multipart: true,

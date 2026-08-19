@@ -24,7 +24,6 @@ const KEY: &str = "test-session-key-not-for-production";
 
 struct Fixture {
     app: axum::Router,
-    project_id: Uuid,
     project_code: String,
     notation_id: Uuid,
     /// A lawyer disclosed to the matter (has a person_project_roles
@@ -126,7 +125,6 @@ async fn build_fixture() -> Fixture {
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     Fixture {
         app,
-        project_id: proj.id,
         project_code: proj.code,
         notation_id,
         disclosed_cookie,
@@ -160,7 +158,7 @@ async fn disclosed_lawyer_sees_the_transcript_upload_form_at_begin() {
     assert!(&html.contains("File the sitting transcript"));
     assert!(html.contains(&format!(
         "action=\"/app/projects/{}/notations/{}/transcript\"",
-        f.project_id, f.notation_id
+        f.project_code, f.notation_id
     )));
     assert!(html.contains("enctype=\"multipart/form-data\""));
     // The multipart transcript form carries the hidden CSRF token as a

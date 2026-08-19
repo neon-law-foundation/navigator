@@ -164,7 +164,7 @@ fn step_body(step: &IntakeStepData, view: &ClientIntakeView) -> Element {
     let prompt = step.question_prompt.as_str();
     let action = format!(
         "/app/projects/{}/intake/{}",
-        step.project_id, step.notation_id
+        step.project_code, step.notation_id
     );
     let cancel = format!("/app/projects/{}", step.project_code);
     let title = format!(
@@ -271,7 +271,7 @@ mod tests {
         let html = render(&step("string", "", &[]));
         assert!(
             html.contains(
-                "action=\"/app/projects/00000000-0000-0000-0000-000000000001\
+                "action=\"/app/projects/simpsons\
                  /intake/00000000-0000-0000-0000-000000000002\""
             ),
             "{html}"

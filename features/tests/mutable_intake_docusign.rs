@@ -22,7 +22,7 @@ const TEMPLATE_CODE: &str = "onboarding__retainer";
 struct MutableWorld {
     journey: Option<Journey>,
     notation_id: Option<Uuid>,
-    project_id: Option<Uuid>,
+    project_code: Option<String>,
     client: Option<store::persons::Person>,
     last_body: String,
 }
@@ -48,7 +48,7 @@ impl MutableWorld {
     fn intake_path(&self) -> String {
         format!(
             "/app/projects/{}/intake/{}",
-            self.project_id.expect("project"),
+            self.project_code.as_deref().expect("project"),
             self.notation_id(),
         )
     }
@@ -79,7 +79,11 @@ async fn open_matter(world: &mut MutableWorld, email: String) {
         .expect("query person")
         .expect("matter-open created the client person");
 
-    world.project_id = Some(notation.project_id);
+    let project = store::projects::find_by_id(&journey.surreal, notation.project_id)
+        .await
+        .expect("query project")
+        .expect("the matter the notation belongs to");
+    world.project_code = Some(project.code);
     world.notation_id = Some(notation_id);
     world.client = Some(person);
     world.journey = Some(journey);

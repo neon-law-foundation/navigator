@@ -1,6 +1,6 @@
 #![allow(clippy::doc_markdown, clippy::too_many_lines)]
 //! Integration tests for the Northstar comment-only review surface
-//! (`/app/projects/:id/review/:doc_id`).
+//! (`/app/projects/:project_code/review/:doc_id`).
 //!
 //! Covers the three things the surface promises:
 //!   1. A scoped client sees an attorney-advanced draft and its body.
@@ -29,7 +29,7 @@ const KEY: &str = "test-session-key-not-for-production";
 
 struct Fixture {
     app: axum::Router,
-    project_id: Uuid,
+    project_code: String,
     pending_doc: Uuid,
     draft_doc: Uuid,
     cookie: String,
@@ -130,7 +130,7 @@ async fn build_fixture() -> Fixture {
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     Fixture {
         app,
-        project_id: proj.id,
+        project_code: proj.code.clone(),
         pending_doc,
         draft_doc,
         cookie,
@@ -153,7 +153,7 @@ async fn scoped_client_sees_advanced_draft_and_its_body() {
             Request::builder()
                 .uri(format!(
                     "/app/projects/{}/review/{}",
-                    f.project_id, f.pending_doc
+                    f.project_code, f.pending_doc
                 ))
                 .header("cookie", &f.cookie)
                 .body(Body::empty())
@@ -178,7 +178,7 @@ async fn draft_status_document_is_hidden_from_the_client() {
             Request::builder()
                 .uri(format!(
                     "/app/projects/{}/review/{}",
-                    f.project_id, f.draft_doc
+                    f.project_code, f.draft_doc
                 ))
                 .header("cookie", &f.cookie)
                 .body(Body::empty())
@@ -204,7 +204,7 @@ async fn client_can_post_an_anchored_comment_that_lists_back() {
                 .method("POST")
                 .uri(format!(
                     "/app/projects/{}/review/{}/comments",
-                    f.project_id, f.pending_doc
+                    f.project_code, f.pending_doc
                 ))
                 .header("cookie", &f.cookie)
                 .header("content-type", "application/x-www-form-urlencoded")
@@ -226,7 +226,7 @@ async fn client_can_post_an_anchored_comment_that_lists_back() {
             Request::builder()
                 .uri(format!(
                     "/app/projects/{}/review/{}/comments",
-                    f.project_id, f.pending_doc
+                    f.project_code, f.pending_doc
                 ))
                 .header("cookie", &f.cookie)
                 .body(Body::empty())
@@ -251,7 +251,7 @@ async fn comment_post_without_csrf_is_rejected() {
                 .method("POST")
                 .uri(format!(
                     "/app/projects/{}/review/{}/comments",
-                    f.project_id, f.pending_doc
+                    f.project_code, f.pending_doc
                 ))
                 .header("cookie", &f.cookie)
                 .header("content-type", "application/x-www-form-urlencoded")

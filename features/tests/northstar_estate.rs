@@ -29,6 +29,7 @@ struct NorthstarWorld {
     journey: Option<Journey>,
     person_id: Option<Uuid>,
     project_id: Option<Uuid>,
+    project_code: Option<String>,
     doc_id: Option<Uuid>,
     comment_id: Option<Uuid>,
     cookie: Option<String>,
@@ -52,7 +53,7 @@ impl NorthstarWorld {
     fn review_path(&self) -> String {
         format!(
             "/app/projects/{}/review/{}",
-            self.project_id.unwrap(),
+            self.project_code.as_deref().unwrap(),
             self.doc_id.unwrap(),
         )
     }
@@ -77,6 +78,13 @@ async fn seed_client(world: &mut NorthstarWorld, name: String, email: String) {
 
     world.person_id = Some(person.id);
     world.project_id = Some(project_id);
+    world.project_code = Some(
+        store::projects::find_by_id(&journey.surreal, project_id)
+            .await
+            .expect("query project")
+            .expect("the matter just opened")
+            .code,
+    );
     world.journey = Some(journey);
 }
 
@@ -227,7 +235,10 @@ async fn close_matter(world: &mut NorthstarWorld) {
     let resp = world
         .journey()
         .lawyer_post(
-            &format!("/app/projects/{}/close", world.project_id.unwrap()),
+            &format!(
+                "/app/projects/{}/close",
+                world.project_code.as_deref().unwrap()
+            ),
             String::new(),
         )
         .await;

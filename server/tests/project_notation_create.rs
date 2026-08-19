@@ -1,5 +1,5 @@
 #![allow(clippy::doc_markdown)]
-//! Integration tests for `POST /app/projects/:id/notations/new` —
+//! Integration tests for `POST /app/projects/:project_code/notations/new` —
 //! the project-scoped `notation create` front door (issue #252, slice 2).
 //!
 //! It reads a template from the Project's git repo through the shared
@@ -95,7 +95,7 @@ async fn lawyer_bearer(
 async fn post_new(
     app: &axum::Router,
     bearer: &str,
-    project_id: uuid::Uuid,
+    project_code: &str,
     code: &str,
     email: &str,
 ) -> axum::http::Response<Body> {
@@ -103,7 +103,7 @@ async fn post_new(
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{project_id}/notations/new"))
+                .uri(format!("/app/projects/{project_code}/notations/new"))
                 .header("authorization", bearer)
                 .header("content-type", "application/x-www-form-urlencoded")
                 .body(Body::from(format!(
@@ -125,7 +125,14 @@ async fn creates_a_project_scoped_notation_from_the_repo_template() {
     // Acting lawyer participates in the matter.
     let bearer = lawyer_bearer(&surreal, "acting-lawyer@example.com", Some(project_id)).await;
 
-    let resp = post_new(&app, &bearer, project_id, "amendment", "libra@example.com").await;
+    let resp = post_new(
+        &app,
+        &bearer,
+        &project.code,
+        "amendment",
+        "libra@example.com",
+    )
+    .await;
     assert_eq!(
         resp.status(),
         StatusCode::SEE_OTHER,
@@ -177,7 +184,14 @@ async fn lawyer_outside_the_matter_scope_is_refused() {
     // Acting lawyer does NOT participate in this project.
     let bearer = lawyer_bearer(&surreal, "outsider@example.com", None).await;
 
-    let resp = post_new(&app, &bearer, project_id, "amendment", "libra@example.com").await;
+    let resp = post_new(
+        &app,
+        &bearer,
+        &project.code,
+        "amendment",
+        "libra@example.com",
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND, "out-of-scope lawyer");
 
     // Nothing was created.
@@ -195,7 +209,7 @@ async fn unknown_project_is_404() {
     let resp = post_new(
         &app,
         &bearer,
-        uuid::Uuid::now_v7(),
+        "no-such-matter",
         "amendment",
         "libra@example.com",
     )
@@ -214,7 +228,7 @@ async fn an_invalid_repo_template_is_refused_with_422() {
     commit_template(&project.code, "bad", invalid.as_bytes());
     let bearer = lawyer_bearer(&surreal, "acting-lawyer@example.com", Some(project_id)).await;
 
-    let resp = post_new(&app, &bearer, project_id, "bad", "libra@example.com").await;
+    let resp = post_new(&app, &bearer, &project.code, "bad", "libra@example.com").await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
     // Nothing was persisted for the bad code.
@@ -241,7 +255,7 @@ async fn an_onboarding_opens_a_matter_as_its_first_notation() {
     let resp = post_new(
         &app,
         &bearer,
-        project_id,
+        &project.code,
         "onboarding__estate",
         "libra@example.com",
     )
@@ -275,7 +289,7 @@ async fn first_notation_on_a_matter_must_be_the_engagement_that_opens_it() {
     let resp = post_new(
         &app,
         &bearer,
-        project_id,
+        &project.code,
         "nv__annual_report",
         "libra@example.com",
     )
@@ -308,7 +322,7 @@ async fn retainer_opens_as_the_first_notation_from_the_bundled_catalog() {
     let resp = post_new(
         &app,
         &bearer,
-        project_id,
+        &project.code,
         "onboarding__retainer",
         "libra@example.com",
     )

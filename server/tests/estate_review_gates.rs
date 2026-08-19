@@ -161,7 +161,7 @@ async fn attorney_releases_drafts_then_client_approves_the_plan() {
             Request::builder()
                 .method("POST")
                 .uri(format!(
-                    "/app/projects/{project_id}/notations/{}/transcript",
+                    "/app/projects/{project_code}/notations/{}/transcript",
                     notation.id
                 ))
                 .header("cookie", &admin_cookie)
@@ -188,7 +188,7 @@ async fn attorney_releases_drafts_then_client_approves_the_plan() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{project_id}/approve-plan"))
+                .uri(format!("/app/projects/{project_code}/approve-plan"))
                 .header("cookie", &client_cookie)
                 .header("content-type", "application/x-www-form-urlencoded")
                 .body(Body::from(format!("_csrf={client_csrf}")))
@@ -254,7 +254,7 @@ async fn attorney_releases_drafts_then_client_approves_the_plan() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{project_id}/approve-plan"))
+                .uri(format!("/app/projects/{project_code}/approve-plan"))
                 .header("cookie", &client_cookie)
                 .header("content-type", "application/x-www-form-urlencoded")
                 .body(Body::from(format!("_csrf={client_csrf}")))

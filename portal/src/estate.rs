@@ -356,7 +356,7 @@ pub async fn transcript_driven_notation(
     None
 }
 
-/// `POST /app/projects/:id/approve-plan` — the client approves the plan.
+/// `POST /app/projects/{project_code}/approve-plan` — the client approves the plan.
 ///
 /// The mirror of the lawyer release: at `client_review`, the client (or a
 /// lawyer/admin acting on the matter) fires `client_approved`, advancing
@@ -368,7 +368,7 @@ pub async fn transcript_driven_notation(
 /// `client_review`, and **every** draft must already be `pending_review`
 /// (released by an attorney, and not already approved — approve only once).
 /// Why a client's estate-plan approval failed. Shared by the client
-/// `/app/projects/{id}/approve-plan` form and the
+/// `/app/projects/{project_code}/approve-plan` form and the
 /// `/app/api/projects/{id}/approve-plan` door. Both callers collapse
 /// `NotAuthorized` and `NothingToApprove` to a non-disclosing 404.
 #[derive(Debug)]
@@ -455,12 +455,16 @@ pub async fn approve_estate_plan(
 
 pub async fn approve_plan_post(
     State(state): State<AdminState>,
-    AxumPath(project_id): AxumPath<Uuid>,
+    AxumPath(project_code): AxumPath<String>,
     session: Option<Extension<SessionData>>,
 ) -> Response {
     let Some(Extension(session)) = session else {
         return not_found();
     };
+    let Some(project_id) = store::projects::id_for_code(&state.surreal, &project_code).await else {
+        return not_found();
+    };
+
     let Some(person_id) = session.person_id else {
         return not_found();
     };

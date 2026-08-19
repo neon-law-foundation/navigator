@@ -1,7 +1,7 @@
 #![allow(clippy::doc_markdown)]
 //! Integration test for the Northstar transcript-upload surface.
 //!
-//! `POST /app/projects/:id/notations/:nid/transcript` files a
+//! `POST /app/projects/:project_code/notations/:nid/transcript` files a
 //! sitting transcript into an estate matter by threading a
 //! `workflows::IntakePayload` through the workflow's `transcript_uploaded`
 //! signal. The router is wired with a `DispatchingRuntime` (the same
@@ -43,11 +43,11 @@ fn admin_cookie_and_csrf(person_id: uuid::Uuid) -> (String, String) {
 
 /// Build the app with an estate notation whose workflow is started and
 /// parked at BEGIN, ready for the transcript upload. Returns the router,
-/// the db, the project id, and the notation id.
+/// the db, the project code the route is keyed by, and the notation id.
 async fn build_app() -> (
     axum::Router,
     store::surreal::SurrealDb,
-    uuid::Uuid,
+    String,
     uuid::Uuid,
     uuid::Uuid,
 ) {
@@ -58,6 +58,11 @@ async fn build_app() -> (
         .unwrap()
         .expect("seeded notation")
         .project_id;
+    let project_code = store::projects::find_by_id(&surreal, project_id)
+        .await
+        .unwrap()
+        .expect("the matter the notation belongs to")
+        .code;
 
     let admin = store::persons::create(
         &surreal,
@@ -112,7 +117,7 @@ async fn build_app() -> (
     (
         server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR)),
         surreal,
-        project_id,
+        project_code,
         notation_id,
         admin.id,
     )
@@ -140,12 +145,7 @@ fn multipart_body(csrf: &str, fields: &[(&str, &str)]) -> Vec<u8> {
 
 #[tokio::test]
 async fn transcript_text_upload_files_a_document_and_advances_state() {
-    let (app, surreal, project_id, notation_id, admin_id) = build_app().await;
-    let project_code = store::projects::find_by_id(&surreal, project_id)
-        .await
-        .unwrap()
-        .expect("seeded project")
-        .code;
+    let (app, surreal, project_code, notation_id, admin_id) = build_app().await;
 
     let transcript = "Consent recorded. Executor: Aries. Successor trustee: Capricorn.";
     let (cookie, csrf) = admin_cookie_and_csrf(admin_id);
@@ -154,7 +154,7 @@ async fn transcript_text_upload_files_a_document_and_advances_state() {
             Request::builder()
                 .method("POST")
                 .uri(format!(
-                    "/app/projects/{project_id}/notations/{notation_id}/transcript"
+                    "/app/projects/{project_code}/notations/{notation_id}/transcript"
                 ))
                 .header("cookie", cookie)
                 .header(
@@ -178,6 +178,11 @@ async fn transcript_text_upload_files_a_document_and_advances_state() {
     );
 
     // The transcript filed as a document `assets` row on the matter's project.
+    let project_id = store::projects::find_by_code(&surreal, &project_code)
+        .await
+        .unwrap()
+        .expect("the matter under test")
+        .id;
     let doc = store::assets::for_project(&surreal, project_id)
         .await
         .unwrap()
@@ -233,7 +238,7 @@ async fn transcript_upload_for_wrong_project_is_not_found() {
 
 #[tokio::test]
 async fn transcript_upload_without_csrf_is_forbidden() {
-    let (app, _surreal, project_id, notation_id, admin_id) = build_app().await;
+    let (app, _surreal, project_code, notation_id, admin_id) = build_app().await;
     let (cookie, _csrf) = admin_cookie_and_csrf(admin_id);
     // A cookie-authenticated multipart upload that omits `_csrf` is a
     // forged-request shape — the handler rejects it before touching the
@@ -247,7 +252,7 @@ async fn transcript_upload_without_csrf_is_forbidden() {
             Request::builder()
                 .method("POST")
                 .uri(format!(
-                    "/app/projects/{project_id}/notations/{notation_id}/transcript"
+                    "/app/projects/{project_code}/notations/{notation_id}/transcript"
                 ))
                 .header("cookie", cookie)
                 .header(
@@ -264,7 +269,7 @@ async fn transcript_upload_without_csrf_is_forbidden() {
 
 #[tokio::test]
 async fn transcript_upload_with_mismatched_csrf_is_forbidden() {
-    let (app, _surreal, project_id, notation_id, admin_id) = build_app().await;
+    let (app, _surreal, project_code, notation_id, admin_id) = build_app().await;
     let (cookie, _csrf) = admin_cookie_and_csrf(admin_id);
     // The `_csrf` field is present and first, but its value is not the
     // session token — a stale or forged token — so it is rejected.
@@ -273,7 +278,7 @@ async fn transcript_upload_with_mismatched_csrf_is_forbidden() {
             Request::builder()
                 .method("POST")
                 .uri(format!(
-                    "/app/projects/{project_id}/notations/{notation_id}/transcript"
+                    "/app/projects/{project_code}/notations/{notation_id}/transcript"
                 ))
                 .header("cookie", cookie)
                 .header(
@@ -293,7 +298,7 @@ async fn transcript_upload_with_mismatched_csrf_is_forbidden() {
 
 #[tokio::test]
 async fn transcript_upload_with_csrf_not_first_is_forbidden() {
-    let (app, _surreal, project_id, notation_id, admin_id) = build_app().await;
+    let (app, _surreal, project_code, notation_id, admin_id) = build_app().await;
     let (cookie, csrf) = admin_cookie_and_csrf(admin_id);
     // `_csrf` is present and carries the correct value, but it is the
     // second field, not the first. The handler reads only the first field
@@ -308,7 +313,7 @@ async fn transcript_upload_with_csrf_not_first_is_forbidden() {
             Request::builder()
                 .method("POST")
                 .uri(format!(
-                    "/app/projects/{project_id}/notations/{notation_id}/transcript"
+                    "/app/projects/{project_code}/notations/{notation_id}/transcript"
                 ))
                 .header("cookie", cookie)
                 .header(
@@ -325,7 +330,7 @@ async fn transcript_upload_with_csrf_not_first_is_forbidden() {
 
 #[tokio::test]
 async fn bearer_transcript_upload_without_csrf_is_exempt() {
-    let (app, surreal, project_id, notation_id, admin_id) = build_app().await;
+    let (app, surreal, project_code, notation_id, admin_id) = build_app().await;
     // A bearer caller (the `navigator` CLI / MCP / A2A) carries no session
     // cookie, so there is nothing a browser auto-attaches cross-site and
     // no CSRF to forge. `require_multipart_csrf` skips the check on that
@@ -351,7 +356,7 @@ async fn bearer_transcript_upload_without_csrf_is_exempt() {
             Request::builder()
                 .method("POST")
                 .uri(format!(
-                    "/app/projects/{project_id}/notations/{notation_id}/transcript"
+                    "/app/projects/{project_code}/notations/{notation_id}/transcript"
                 ))
                 .header("authorization", format!("Bearer {bearer}"))
                 .header(
@@ -365,6 +370,11 @@ async fn bearer_transcript_upload_without_csrf_is_exempt() {
         .unwrap();
     // Not 403: the check is skipped, and the transcript files for real.
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
+    let project_id = store::projects::find_by_code(&surreal, &project_code)
+        .await
+        .unwrap()
+        .expect("the matter under test")
+        .id;
     let filed = store::assets::for_project(&surreal, project_id)
         .await
         .unwrap()

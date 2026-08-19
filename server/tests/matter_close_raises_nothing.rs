@@ -64,8 +64,9 @@ const CLOSING_ANSWERS: [&str; 6] = [
 ];
 
 /// Seed one matter of the given shape with its client, returning
-/// `(project_id, client_id)`.
-async fn seed_matter(surreal: &SurrealDb, matter: &Matter) -> (Uuid, Uuid) {
+/// `(project_id, project_code, client_id)` — the id for the assertions and the
+/// code the `/app/projects/{project_code}/close` route is keyed by.
+async fn seed_matter(surreal: &SurrealDb, matter: &Matter) -> (Uuid, String, Uuid) {
     let client = store::persons::create(
         surreal,
         &store::persons::NewPerson::new(
@@ -108,20 +109,20 @@ async fn seed_matter(surreal: &SurrealDb, matter: &Matter) -> (Uuid, Uuid) {
         .await
         .unwrap();
     }
-    (project.id, client.id)
+    (project.id, project.code, client.id)
 }
 
 /// Drive the whole closing walk over real HTTP: open it, then answer every
 /// question. The final answer countersigns the letter, which closes the
 /// matter — and must still land on the firm dashboard rather than an error,
 /// since the closing flow's success path is unchanged by the fee's removal.
-async fn walk_the_close(app: &Router, project_id: Uuid, what: &str) {
+async fn walk_the_close(app: &Router, project_code: &str, what: &str) {
     let resp = app
         .clone()
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{project_id}/close"))
+                .uri(format!("/app/projects/{project_code}/close"))
                 .header(
                     "authorization",
                     portal::test_support::lawyer_bearer_header(),
@@ -230,8 +231,8 @@ async fn any_matter_closes_and_none_of_them_raises_money() {
     ];
 
     for matter in &matters {
-        let (project_id, client_id) = seed_matter(&surreal, matter).await;
-        walk_the_close(&app, project_id, matter.what).await;
+        let (project_id, project_code, client_id) = seed_matter(&surreal, matter).await;
+        walk_the_close(&app, &project_code, matter.what).await;
 
         // The matter is closed …
         let row = store::projects::find_by_id(&surreal, project_id)

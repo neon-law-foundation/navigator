@@ -838,7 +838,7 @@ async fn admin_edits_matter_participation_from_the_project_workbench() {
         .await
         .expect("disclose logged-in lawyer to project");
 
-    c.goto(&format!("{}/app/projects/{}", base_url(), project.id))
+    c.goto(&format!("{}/app/projects/{}", base_url(), project.code))
         .await
         .unwrap();
     store::projects::designate_dri_in_surreal(
@@ -859,8 +859,8 @@ async fn admin_edits_matter_participation_from_the_project_workbench() {
     // before we blame the form for a missing selector.
     click_and_reach(
         &c,
-        &format!("a[href='/app/projects/{}/people/new']", project.id),
-        &format!("/app/projects/{}/people/new", project.id),
+        &format!("a[href='/app/projects/{}/people/new']", project.code),
+        &format!("/app/projects/{}/people/new", project.code),
         Duration::from_secs(10),
     )
     .await;
@@ -922,11 +922,11 @@ async fn admin_edits_matter_participation_from_the_project_workbench() {
         &c,
         &format!(
             "a[href='/app/projects/{}/people/{}/edit']",
-            project.id, participation.id
+            project.code, participation.id
         ),
         &format!(
             "/app/projects/{}/people/{}/edit",
-            project.id, participation.id
+            project.code, participation.id
         ),
         Duration::from_secs(10),
     )
@@ -975,7 +975,7 @@ async fn admin_edits_matter_participation_from_the_project_workbench() {
 /// carrying a non-client participation row for them, so the fixture adds
 /// one for `lawyer@neonlaw.com` — the account `login_as_lawyer` drives and
 /// `navigator dev grant-lawyer` seeds.
-async fn seed_lawyer_upload_project(surreal: &store::surreal::SurrealDb) -> Uuid {
+async fn seed_lawyer_upload_project(surreal: &store::surreal::SurrealDb) -> String {
     let lawyer = store::persons::find_by_email_ci(surreal, "lawyer@neonlaw.com")
         .await
         .expect("look up the browser-harness lawyer person")
@@ -999,7 +999,7 @@ async fn seed_lawyer_upload_project(surreal: &store::surreal::SurrealDb) -> Uuid
         .await
         .expect("scope the harness lawyer person onto the project");
 
-    project.id
+    project.code
 }
 
 /// Seed a project the browser-harness lawyer can open, returning its id and its
@@ -1095,12 +1095,12 @@ async fn the_project_page_links_to_the_client_portal_and_it_streams() {
     let surreal = store::surreal::connect_from_env()
         .await
         .expect("connect to the port-forwarded SurrealDB");
-    let (project_id, code) = seed_portal_project(&surreal).await;
+    let (_project_id, code) = seed_portal_project(&surreal).await;
 
     publish_portal_harness(&code).await;
 
     login_as_lawyer(&c).await;
-    c.goto(&format!("{}/app/projects/{project_id}", base_url()))
+    c.goto(&format!("{}/app/projects/{code}", base_url()))
         .await
         .unwrap();
 
@@ -1267,7 +1267,7 @@ async fn lawyer_uploads_several_documents_at_once_from_the_project_page() {
     let surreal = store::surreal::connect_from_env()
         .await
         .expect("connect to the port-forwarded SurrealDB");
-    let project_id = seed_lawyer_upload_project(&surreal).await;
+    let project_code = seed_lawyer_upload_project(&surreal).await;
 
     // Real files on disk — chromedriver uploads from the filesystem, so
     // these can't be synthesized in the page.
@@ -1284,7 +1284,7 @@ async fn lawyer_uploads_several_documents_at_once_from_the_project_page() {
     }
 
     login_as_lawyer(&c).await;
-    c.goto(&format!("{}/app/projects/{project_id}", base_url()))
+    c.goto(&format!("{}/app/projects/{project_code}", base_url()))
         .await
         .unwrap();
 

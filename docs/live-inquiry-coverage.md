@@ -376,19 +376,19 @@ carries identifiers only (session id, notation id, DRI person id) — never tran
 ```rust
 Router::new()
     .route(
-        "/app/projects/:id/live-inquiry-sessions",
+        "/app/projects/:project_code/live-inquiry-sessions",
         post(live_inquiry::start_session),
     )
     .route(
-        "/app/projects/:id/live-inquiry-sessions/:session_id/stream",
+        "/app/projects/:project_code/live-inquiry-sessions/:session_id/stream",
         get(live_inquiry::stream_socket),
     )
     .route(
-        "/app/projects/:id/live-inquiry-sessions/:session_id/speakers",
+        "/app/projects/:project_code/live-inquiry-sessions/:session_id/speakers",
         post(live_inquiry::map_speaker),
     )
     .route(
-        "/app/projects/:id/live-inquiry-sessions/:session_id/confirm",
+        "/app/projects/:project_code/live-inquiry-sessions/:session_id/confirm",
         post(live_inquiry::confirm_findings),
     );
 ```

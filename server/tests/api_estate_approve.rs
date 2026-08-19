@@ -155,7 +155,7 @@ async fn build_at_client_review() -> Fixture {
             Request::builder()
                 .method("POST")
                 .uri(format!(
-                    "/app/projects/{project_id}/notations/{}/transcript",
+                    "/app/projects/{project_code}/notations/{}/transcript",
                     notation.id
                 ))
                 .header("cookie", &admin_cookie)

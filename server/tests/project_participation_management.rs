@@ -245,7 +245,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
     assert!(!html.contains("Add person"), "html: {html}");
     assert!(!html.contains(&format!(
         "/app/projects/{}/people/{}/edit",
-        fixture.project_id, fixture.assigned_role_id
+        fixture.project_code, fixture.assigned_role_id
     )));
 
     let response = fixture
@@ -253,7 +253,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/people/new", fixture.project_id))
+                .uri(format!("/app/projects/{}/people/new", fixture.project_code))
                 .header("cookie", &fixture.lawyer_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -267,7 +267,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/people/new", fixture.project_id))
+                .uri(format!("/app/projects/{}/people/new", fixture.project_code))
                 .header("cookie", &fixture.admin_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -300,7 +300,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
             Request::builder()
                 .uri(format!(
                     "/app/projects/{}/people/{}/edit",
-                    fixture.project_id, fixture.assigned_role_id
+                    fixture.project_code, fixture.assigned_role_id
                 ))
                 .header("cookie", &fixture.admin_cookie)
                 .body(Body::empty())
@@ -320,7 +320,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
             Request::builder()
                 .uri(format!(
                     "/app/projects/{}/people/{}/edit",
-                    fixture.project_id,
+                    fixture.project_code,
                     Uuid::now_v7()
                 ))
                 .header("cookie", &fixture.admin_cookie)
@@ -349,7 +349,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
             .app
             .clone()
             .oneshot(form_request(
-                format!("/app/projects/{}/people", fixture.project_id),
+                format!("/app/projects/{}/people", fixture.project_code),
                 &fixture.admin_cookie,
                 body,
             ))
@@ -365,7 +365,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/edit",
-                fixture.project_id, missing_role_id
+                fixture.project_code, missing_role_id
             ),
             &fixture.admin_cookie,
             format!(
@@ -381,7 +381,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
         .app
         .clone()
         .oneshot(form_request(
-            format!("/app/projects/{}/people", fixture.project_id),
+            format!("/app/projects/{}/people", fixture.project_code),
             &fixture.admin_cookie,
             format!(
                 "_csrf={}&person_id={}",
@@ -422,7 +422,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
             .oneshot(form_request(
                 format!(
                     "/app/projects/{}/people/{}/edit",
-                    fixture.project_id, role.id
+                    fixture.project_code, role.id
                 ),
                 &fixture.admin_cookie,
                 body,
@@ -436,7 +436,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
         .app
         .clone()
         .oneshot(form_request(
-            format!("/app/projects/{}/people", fixture.project_id),
+            format!("/app/projects/{}/people", fixture.project_code),
             &fixture.admin_cookie,
             format!(
                 "_csrf={}&person_id={}",
@@ -462,7 +462,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/edit",
-                fixture.project_id, role.id
+                fixture.project_code, role.id
             ),
             &fixture.admin_cookie,
             format!(
@@ -480,7 +480,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/edit",
-                fixture.project_id, role.id
+                fixture.project_code, role.id
             ),
             &fixture.admin_cookie,
             format!(
@@ -506,7 +506,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/delete",
-                fixture.project_id, role.id
+                fixture.project_code, role.id
             ),
             &fixture.admin_cookie,
             format!("_csrf={}", fixture.admin_csrf_token),
@@ -530,7 +530,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/delete",
-                fixture.project_id, replacement_role.id
+                fixture.project_code, replacement_role.id
             ),
             &fixture.admin_cookie,
             format!("_csrf={}", fixture.admin_csrf_token),
@@ -553,7 +553,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/delete",
-                fixture.project_id,
+                fixture.project_code,
                 Uuid::now_v7()
             ),
             &fixture.admin_cookie,
@@ -571,7 +571,7 @@ async fn undisclosed_lawyer_cannot_change_another_matters_people() {
         .app
         .clone()
         .oneshot(form_request(
-            format!("/app/projects/{}/people", fixture.project_id),
+            format!("/app/projects/{}/people", fixture.project_code),
             &fixture.outsider_cookie,
             format!(
                 "_csrf={}&person_id={}",
@@ -588,7 +588,7 @@ async fn undisclosed_lawyer_cannot_change_another_matters_people() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/delete",
-                fixture.project_id, fixture.assigned_role_id
+                fixture.project_code, fixture.assigned_role_id
             ),
             &fixture.lawyer_cookie,
             format!("_csrf={}", fixture.lawyer_csrf_token),
@@ -620,7 +620,7 @@ async fn removing_the_lawyer_dri_participation_is_refused() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/delete",
-                fixture.project_id, dri_role.id
+                fixture.project_code, dri_role.id
             ),
             &fixture.admin_cookie,
             format!("_csrf={}", fixture.admin_csrf_token),
@@ -716,7 +716,7 @@ async fn updating_the_lawyer_dri_participation_into_a_lockout_is_refused() {
             .oneshot(form_request(
                 format!(
                     "/app/projects/{}/people/{}/edit",
-                    fixture.project_id, dri_role.id
+                    fixture.project_code, dri_role.id
                 ),
                 &fixture.admin_cookie,
                 body.clone(),
@@ -756,7 +756,7 @@ async fn updating_a_non_dri_participation_still_succeeds() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/edit",
-                fixture.project_id, fixture.assigned_role_id
+                fixture.project_code, fixture.assigned_role_id
             ),
             &fixture.admin_cookie,
             format!(
@@ -822,7 +822,7 @@ async fn the_form_does_not_offer_a_participation_control() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/people/new", fixture.project_id))
+                .uri(format!("/app/projects/{}/people/new", fixture.project_code))
                 .header("cookie", &fixture.admin_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -863,7 +863,7 @@ async fn participation_is_derived_from_the_person_tier() {
             .app
             .clone()
             .oneshot(form_request(
-                format!("/app/projects/{}/people", fixture.project_id),
+                format!("/app/projects/{}/people", fixture.project_code),
                 &fixture.admin_cookie,
                 format!("_csrf={}&person_id={person_id}", fixture.admin_csrf_token),
             ))
@@ -905,7 +905,7 @@ async fn a_posted_participation_field_is_ignored() {
         .app
         .clone()
         .oneshot(form_request(
-            format!("/app/projects/{}/people", fixture.project_id),
+            format!("/app/projects/{}/people", fixture.project_code),
             &fixture.admin_cookie,
             format!(
                 "_csrf={}&person_id={}&participation=attorney",
@@ -960,7 +960,7 @@ async fn designating_a_second_lawyer_dri_adds_to_the_set() {
         .app
         .clone()
         .oneshot(form_request(
-            format!("/app/projects/{}/people", fixture.project_id),
+            format!("/app/projects/{}/people", fixture.project_code),
             &fixture.admin_cookie,
             format!(
                 "_csrf={}&person_id={}&dri=lawyer",
@@ -1004,7 +1004,7 @@ async fn the_first_lawyer_dri_keeps_the_marker_when_a_second_is_added() {
         .app
         .clone()
         .oneshot(form_request(
-            format!("/app/projects/{}/people", fixture.project_id),
+            format!("/app/projects/{}/people", fixture.project_code),
             &fixture.admin_cookie,
             format!(
                 "_csrf={}&person_id={}&dri=lawyer",
@@ -1035,7 +1035,7 @@ async fn a_client_cannot_be_made_the_lawyer_dri() {
         .app
         .clone()
         .oneshot(form_request(
-            format!("/app/projects/{}/people", fixture.project_id),
+            format!("/app/projects/{}/people", fixture.project_code),
             &fixture.admin_cookie,
             format!(
                 "_csrf={}&person_id={}&dri=lawyer",
@@ -1069,7 +1069,7 @@ async fn the_lawyer_dri_marker_cannot_be_cleared() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/edit",
-                fixture.project_id, row.id
+                fixture.project_code, row.id
             ),
             &fixture.admin_cookie,
             format!(
@@ -1095,7 +1095,7 @@ async fn the_add_form_names_the_current_holders_without_locking_the_side() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/people/new", fixture.project_id))
+                .uri(format!("/app/projects/{}/people/new", fixture.project_code))
                 .header("cookie", &fixture.admin_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -1163,7 +1163,7 @@ async fn a_lawyer_dri_designates_a_peer_from_the_workbench() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/dri",
-                fixture.project_id, fixture.assigned_role_id
+                fixture.project_code, fixture.assigned_role_id
             ),
             &fixture.dri_cookie,
             format!("_csrf={}", fixture.dri_csrf_token),
@@ -1192,7 +1192,7 @@ async fn a_lawyer_without_the_marker_cannot_designate_from_the_workbench() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/dri",
-                fixture.project_id, fixture.assigned_role_id
+                fixture.project_code, fixture.assigned_role_id
             ),
             &fixture.lawyer_cookie,
             format!("_csrf={}", fixture.lawyer_csrf_token),
@@ -1216,7 +1216,7 @@ async fn the_workbench_removes_a_peer_but_never_the_last_lawyer_dri() {
     let fixture = build_fixture().await;
     let designate = format!(
         "/app/projects/{}/people/{}/dri",
-        fixture.project_id, fixture.assigned_role_id
+        fixture.project_code, fixture.assigned_role_id
     );
     fixture
         .app
@@ -1236,7 +1236,7 @@ async fn the_workbench_removes_a_peer_but_never_the_last_lawyer_dri() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/dri/remove",
-                fixture.project_id, fixture.assigned_role_id
+                fixture.project_code, fixture.assigned_role_id
             ),
             &fixture.dri_cookie,
             format!("_csrf={}", fixture.dri_csrf_token),
@@ -1265,7 +1265,7 @@ async fn the_workbench_removes_a_peer_but_never_the_last_lawyer_dri() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/dri/remove",
-                fixture.project_id, dri_row.id
+                fixture.project_code, dri_row.id
             ),
             &fixture.dri_cookie,
             format!("_csrf={}", fixture.dri_csrf_token),
@@ -1286,7 +1286,7 @@ async fn the_workbench_dri_change_is_audited() {
         .oneshot(form_request(
             format!(
                 "/app/projects/{}/people/{}/dri",
-                fixture.project_id, fixture.assigned_role_id
+                fixture.project_code, fixture.assigned_role_id
             ),
             &fixture.dri_cookie,
             format!("_csrf={}", fixture.dri_csrf_token),

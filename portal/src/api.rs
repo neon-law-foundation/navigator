@@ -953,7 +953,7 @@ async fn open_project(
 /// status, entity, scope narrative). Lawyer-tier only. This is the descriptive
 /// update, deliberately not the matter-open path: it runs no conflict check
 /// and provisions no repo. The rules live in
-/// `store::projects::update_project`, which the `/app/projects/{id}` edit
+/// `store::projects::update_project`, which the `/app/projects/{project_code}` edit
 /// form calls too.
 async fn update_project(
     State(state): State<ApiState>,

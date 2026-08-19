@@ -1,9 +1,9 @@
 Feature: /app/projects writes — the firm tiers on their own matters, clients get 404
 
   One path serves both lenses. A client sees their matter's lightweight
-  detail at `/app/projects/:id` and never the write surfaces (create form,
+  detail at `/app/projects/:project_code` and never the write surfaces (create form,
   edit form, delete action). Owner, Admin, and Lawyer reach the firm
-  workbench at `/app/projects` and the form at `/app/projects/:id/edit` —
+  workbench at `/app/projects` and the form at `/app/projects/:project_code/edit` —
   but only on matters they are actually on. Since ENG-81 there is no
   privileged bypass on the matter surface: a firm-side
   `person_project_roles` row is required of every tier.

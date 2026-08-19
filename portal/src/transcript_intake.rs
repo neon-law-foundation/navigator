@@ -1,6 +1,6 @@
 //! Northstar transcript-upload surface.
 //!
-//! `POST /app/projects/:id/notations/:nid/transcript` — the
+//! `POST /app/projects/{project_code}/notations/:nid/transcript` — the
 //! lawyer/agent surface that files a sitting's transcript into an estate
 //! matter. The sitting is recorded offline and transcribed by AIDA on the
 //! already-paid Google Gemini Enterprise (no live speech-to-text); the
@@ -36,10 +36,10 @@ use workflows::{IntakeArtifact, IntakePayload, MachineKind, StateMachineRuntime}
 /// template by this edge out of `BEGIN`), and its test all agree.
 pub(crate) const TRANSCRIPT_UPLOADED: &str = "transcript_uploaded";
 
-/// `POST /app/projects/:id/notations/:nid/transcript`.
+/// `POST /app/projects/{project_code}/notations/{notation_id}/transcript`.
 pub async fn upload(
     State(state): State<crate::admin::AdminState>,
-    AxumPath((project_id, notation_id)): AxumPath<(Uuid, Uuid)>,
+    AxumPath((project_code, notation_id)): AxumPath<(String, Uuid)>,
     cookies: Cookies,
     session: Option<Extension<SessionData>>,
     mut multipart: Multipart,
@@ -47,6 +47,10 @@ pub async fn upload(
     let Some(Extension(session)) = session else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    let Some(project_id) = store::projects::id_for_code(&state.surreal, &project_code).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
     // A matter-surface write, so it carries the matter surface's gate — a
     // participation row of every tier — plus the lawyer-tier check that gate
     // does not make (a client on their own matter must not file a transcript).

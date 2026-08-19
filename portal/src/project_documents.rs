@@ -1,12 +1,12 @@
 //! Project-document HTTP surface:
 //!
-//! - `POST /app/projects/:id/documents/upload` — multipart upload
+//! - `POST /app/projects/{project_code}/documents/upload` — multipart upload
 //!   that pipes bytes through [`store::documents::ingest_bytes`]. The
 //!   picker is `multiple`, so one submission may carry a batch of
 //!   files; each becomes its own document.
-//! - `GET /app/projects/:id/documents/:doc_id` — per-document
+//! - `GET /app/projects/{project_code}/documents/:doc_id` — per-document
 //!   detail page showing full provenance.
-//! - `GET /app/projects/:id/documents/:doc_id/download` — issues
+//! - `GET /app/projects/{project_code}/documents/:doc_id/download` — issues
 //!   a 302 to a short-lived signed URL on the storage backend, or
 //!   streams bytes through the app on backends that can't sign
 //!   (`FsStorage` in local dev).
@@ -102,10 +102,10 @@ const MAX_BATCH_FILES: usize = 50;
 /// legitimate traffic this route sees.
 const MAX_BATCH_BYTES: usize = 500 * 1024 * 1024;
 
-/// `POST /app/projects/:id/documents/upload`.
+/// `POST /app/projects/{project_code}/documents/upload`.
 pub async fn upload(
     State(state): State<AdminState>,
-    AxumPath(project_id): AxumPath<Uuid>,
+    AxumPath(project_code): AxumPath<String>,
     cookies: Cookies,
     session: Option<Extension<SessionData>>,
     mut multipart: Multipart,
@@ -113,6 +113,10 @@ pub async fn upload(
     let Some(Extension(session_data)) = session else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    let Some(project_id) = store::projects::id_for_code(&state.surreal, &project_code).await else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
     // A matter-surface write: the matter's gate (a participation row of every
     // tier) plus the lawyer-tier check, which that gate does not make — a client
     // on their own matter reaches the page but must not file to it.
@@ -480,14 +484,25 @@ pub(crate) async fn uploader_identity(
     )
 }
 
-/// `GET /app/projects/:id/documents/:doc_id/download`. Resolves
+/// `GET /app/projects/{project_code}/documents/:doc_id/download`. Resolves
 /// the document, blocks cross-project leakage, then either 302s to
 /// a signed URL or streams bytes through the app.
 pub async fn download(
     State(state): State<AdminState>,
-    AxumPath((project_id, doc_id)): AxumPath<(Uuid, Uuid)>,
+    AxumPath((project_code, doc_id)): AxumPath<(String, Uuid)>,
     session: Option<Extension<SessionData>>,
 ) -> Response {
+    // A code naming no matter is the same 404 a caller off the matter gets. A
+    // store *failure* is not a miss, though: it stays a 500, so an outage does
+    // not read to every client as "your document is gone".
+    let project_id = match store::projects::find_by_code(&state.surreal, &project_code).await {
+        Ok(Some(project)) => project.id,
+        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
+        Err(error) => {
+            tracing::error!(error = %error, %project_code, "project document download: matter lookup failed");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
     match can_read_project_document(&state, session.as_deref(), project_id).await {
         Ok(true) => {}
         Ok(false) => {
