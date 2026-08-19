@@ -1033,6 +1033,52 @@ async fn seed_portal_project(surreal: &store::surreal::SurrealDb) -> (Uuid, Stri
     (project.id, code)
 }
 
+/// The marker the harness entrypoint carries, and the only thing the portal
+/// fixtures below assert on. Its `id` is what a `Locator::Css` selects; its
+/// text is what proves the bytes came from the bucket rather than from an
+/// error page that happens to render.
+///
+/// [`publish_portal_harness`] spells it out again rather than interpolating
+/// this constant, because the body it publishes is a byte-string literal.
+const PORTAL_HARNESS_MARKER: &str = "portal-harness-ok";
+
+/// Publish a minimal bundle for `code` into the same applications bucket `web`
+/// streams from, so a portal request renders a real entrypoint rather than the
+/// non-disclosing 404 an unpublished Project serves.
+///
+/// Only `index.html` is published, deliberately: the fallback rule is that any
+/// unmatched path below the mount resolves to the entrypoint, so publishing a
+/// single object is enough to exercise the bare mount, the slashed root, and a
+/// client-side deep link — and a second object would make it ambiguous which
+/// of those a passing assertion actually proved.
+async fn publish_portal_harness(code: &str) {
+    let applications = cloud::applications_from_env()
+        .await
+        .expect("resolve the applications bucket from the sourced .devx/env");
+    applications
+        .put(
+            &format!("{code}/portal/index.html"),
+            b"<!doctype html><html><head><title>Portal harness</title></head>\
+              <body><h1 id=\"portal-harness-ok\">Portal streams</h1></body></html>",
+            "text/html",
+        )
+        .await
+        .expect("publish the harness portal bundle");
+}
+
+/// Wait for the published entrypoint to be on screen, and return its heading
+/// text — the one assertion every portal fixture below ends on.
+async fn portal_bundle_heading(c: &fantoccini::Client) -> String {
+    c.wait()
+        .at_most(Duration::from_secs(10))
+        .for_element(Locator::Css(&format!("#{PORTAL_HARNESS_MARKER}")))
+        .await
+        .expect("the published portal bundle streams")
+        .text()
+        .await
+        .unwrap()
+}
+
 /// The matter page links to the Project's client portal, and clicking it streams
 /// the published bundle.
 ///
@@ -1051,21 +1097,7 @@ async fn the_project_page_links_to_the_client_portal_and_it_streams() {
         .expect("connect to the port-forwarded SurrealDB");
     let (project_id, code) = seed_portal_project(&surreal).await;
 
-    // Publish a minimal bundle to the same applications bucket `web` streams
-    // from, so following the link renders a real entrypoint rather than the
-    // non-disclosing 404 an unpublished Project serves.
-    let applications = cloud::applications_from_env()
-        .await
-        .expect("resolve the applications bucket from the sourced .devx/env");
-    applications
-        .put(
-            &format!("{code}/portal/index.html"),
-            b"<!doctype html><html><head><title>Portal harness</title></head>\
-              <body><h1 id=\"portal-harness-ok\">Portal streams</h1></body></html>",
-            "text/html",
-        )
-        .await
-        .expect("publish the harness portal bundle");
+    publish_portal_harness(&code).await;
 
     login_as_lawyer(&c).await;
     c.goto(&format!("{}/app/projects/{project_id}", base_url()))
@@ -1088,14 +1120,138 @@ async fn the_project_page_links_to_the_client_portal_and_it_streams() {
     // Following the link streams the published bundle from the applications
     // bucket — proof the link, the route, and the participation-gated serve all
     // line up end to end.
-    link.click().await.unwrap();
-    let heading = c
-        .wait()
-        .at_most(Duration::from_secs(10))
-        .for_element(Locator::Css("#portal-harness-ok"))
+    //
+    // `click_and_reach`, never a native `link.click()`. A WebDriver click
+    // dispatches one pointer event at the element's in-view center and returns
+    // on dispatch, so it can land on nothing and report success — issue #512.
+    // This fixture was the one click-through in the suite that still used the
+    // native call, and deploy run 32208649130 is what that costs: three
+    // retries timed out here while the web pod's complete log named no gate
+    // and Garage was never asked for the bundle, because the navigation was
+    // never made. Reaching the path first is also what keeps a lost navigation
+    // from being reported as a failure of the bundle below it.
+    click_and_reach(
+        &c,
+        &format!("a[href='{href}']"),
+        &href,
+        Duration::from_secs(10),
+    )
+    .await;
+    assert_eq!(portal_bundle_heading(&c).await, "Portal streams");
+}
+
+/// The bare mount lands a browser on the published entrypoint.
+///
+/// A reader who types or bookmarks `/app/projects/{code}/portal` — no trailing
+/// slash — must end up on the slashed root, because a Vite base joins every
+/// asset URL directly onto it and the unslashed form would resolve them one
+/// segment too high. `portal/tests/project_portal_route.rs` asserts the `301`
+/// and its `Location`; this asserts the browser actually follows it and the
+/// bundle renders, which is the part a status code cannot prove.
+#[tokio::test]
+async fn the_bare_portal_mount_lands_the_browser_on_the_published_entrypoint() {
+    let Some(c) = new_client_or_skip().await else {
+        return;
+    };
+    let surreal = store::surreal::connect_from_env()
         .await
-        .expect("the published portal bundle streams after the click");
-    assert_eq!(heading.text().await.unwrap(), "Portal streams");
+        .expect("connect to the port-forwarded SurrealDB");
+    let (_project_id, code) = seed_portal_project(&surreal).await;
+    publish_portal_harness(&code).await;
+
+    login_as_lawyer(&c).await;
+    c.goto(&format!("{}/app/projects/{code}/portal", base_url()))
+        .await
+        .unwrap();
+
+    assert_eq!(portal_bundle_heading(&c).await, "Portal streams");
+    assert_eq!(
+        c.current_url().await.unwrap().path(),
+        format!("/app/projects/{code}/portal/"),
+        "the bare mount must leave the browser on the slashed root the bundle's \
+         asset URLs are joined onto"
+    );
+}
+
+/// A client-side route survives a browser refresh.
+///
+/// The bundle is a single-page application, so `/…/portal/dashboard/matters`
+/// names a route inside it and no published object. Navigating straight there —
+/// which is what a refresh, a bookmark, or a shared link does — must serve the
+/// entrypoint rather than 404, or every deep link into a client's portal breaks
+/// the moment they reload. Only `index.html` is published here, so reaching the
+/// marker can only be the fallback resolving.
+#[tokio::test]
+async fn a_portal_deep_link_falls_back_to_the_published_entrypoint() {
+    let Some(c) = new_client_or_skip().await else {
+        return;
+    };
+    let surreal = store::surreal::connect_from_env()
+        .await
+        .expect("connect to the port-forwarded SurrealDB");
+    let (_project_id, code) = seed_portal_project(&surreal).await;
+    publish_portal_harness(&code).await;
+
+    login_as_lawyer(&c).await;
+    c.goto(&format!(
+        "{}/app/projects/{code}/portal/dashboard/matters",
+        base_url()
+    ))
+    .await
+    .unwrap();
+
+    assert_eq!(portal_bundle_heading(&c).await, "Portal streams");
+    assert_eq!(
+        c.current_url().await.unwrap().path(),
+        format!("/app/projects/{code}/portal/dashboard/matters"),
+        "the fallback serves the entrypoint in place, without redirecting the \
+         client-side route away"
+    );
+}
+
+/// A signed-in client who is not on the matter never reaches its portal.
+///
+/// The serve gate is `store::access::can_see_project`, which reads the
+/// participation ledger and carries no Owner/Admin bypass — and the bundle is
+/// streamed through the handler rather than redirected to, so participation is
+/// rechecked on every object. The fixture client is seeded onto `simpsons` and
+/// onto no matter this test creates, which is exactly the shape that must be
+/// refused: authenticated, same tier as a real portal reader, wrong matter.
+///
+/// The answer is the non-disclosing 404, never a 403 — a 403 would confirm to a
+/// stranger that a Project with this code exists.
+#[tokio::test]
+async fn a_client_on_another_matter_never_reaches_this_portal() {
+    let Some(c) = new_client_or_skip().await else {
+        return;
+    };
+    let surreal = store::surreal::connect_from_env()
+        .await
+        .expect("connect to the port-forwarded SurrealDB");
+    let (_project_id, code) = seed_portal_project(&surreal).await;
+    publish_portal_harness(&code).await;
+
+    login_as_client(&c).await;
+    c.goto(&format!("{}/app/projects/{code}/portal/", base_url()))
+        .await
+        .unwrap();
+
+    // `project_portal::not_found` answers with a bare `Not Found` body rather
+    // than the styled 404 page the router fallback renders. That is the shape
+    // to assert: the mount refuses before any Navigator chrome is composed, so
+    // the response carries nothing about the deployment, the viewer, or
+    // whether a Project with this code exists.
+    wait_for_text(&c, "Not Found", Duration::from_secs(10)).await;
+    let source = c.source().await.unwrap();
+    assert!(
+        !source.contains(PORTAL_HARNESS_MARKER),
+        "a nonparticipant must never receive the published bundle: {source}"
+    );
+    assert!(
+        !source.contains("Forbidden"),
+        "the refusal must be the non-disclosing 404, never a 403 confirming \
+         that a Project with this code exists: {source}"
+    );
 }
 
 #[tokio::test]
