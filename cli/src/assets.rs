@@ -819,6 +819,19 @@ fn storage_report_result(report: &VerifyReport, bucket: &str) -> anyhow::Result<
     )
 }
 
+/// The preflight decision, against any storage backend. Split from the GCS
+/// client construction below so the whole judgement — a pass, a named
+/// missing key, an unreadable bucket — is proven against a filesystem
+/// backend and a failing fake instead of a real deployment's bucket.
+async fn verify_bundled_slide_assets(
+    storage: &dyn StorageService,
+    bucket: &str,
+) -> anyhow::Result<()> {
+    let refs = bundled_slide_asset_keys();
+    let report = verify_storage_refs(storage, &refs).await;
+    storage_report_result(&report, bucket)
+}
+
 /// Refuse an image or full roll unless every presentation/workshop object
 /// bundled into this CLI exists in the selected deployment's GCS assets
 /// bucket. Restart-only ships do not call this because they change no content
@@ -833,9 +846,7 @@ pub(crate) fn verify_bundled_slide_assets_bucket(bucket: &str) -> anyhow::Result
         })
         .await
         .with_context(|| format!("open public assets bucket `gs://{bucket}`"))?;
-        let refs = bundled_slide_asset_keys();
-        let report = verify_storage_refs(&storage, &refs).await;
-        storage_report_result(&report, bucket)
+        verify_bundled_slide_assets(&storage, bucket).await
     })
 }
 
@@ -1603,10 +1614,11 @@ mod tests {
         content_type_for, destination_for_ref, download, fetch_asset, fetch_referenced_content,
         fetch_report_exit, gorp_font_refs, join_public_url, orphan_keys, orphan_report,
         parse_image_refs, placeholder_bytes_for, reachable_image_keys, report_exit,
-        resolve_public_origin, run_fetch_referenced, run_upload_desktop_fonts, run_upload_fonts,
-        select, upload, upload_gorp_fonts, upload_gorp_otf_zip, verify_content, verify_refs,
-        verify_storage_refs, AssetProbe, FetchReport, VerifyReport, ASSET_CACHE_CONTROL,
-        GORP_OTF_ZIP_KEY,
+        resolve_public_origin, run_fetch_referenced, run_orphans, run_pull, run_upload,
+        run_upload_desktop_fonts, run_upload_fonts, select, storage_report_result, upload,
+        upload_gorp_fonts, upload_gorp_otf_zip, verify_bundled_slide_assets,
+        verify_bundled_slide_assets_bucket, verify_content, verify_refs, verify_storage_refs,
+        AssetProbe, FetchReport, VerifyReport, ASSET_CACHE_CONTROL, GORP_OTF_ZIP_KEY,
     };
     use cloud::{FsStorage, ObjectListing, StorageError, StorageService, StoredObject};
     use std::collections::BTreeSet;
@@ -1806,6 +1818,102 @@ Inline raw-HTML tile: <div>![Team](img/thanks-apple/team-lunch.jpg)</div>\n";
         assert_eq!(report.checked, 2);
         assert_eq!(report.missing, vec!["img/missing.png".to_string()]);
         assert!(report.unknown.is_empty(), "got: {:?}", report.unknown);
+    }
+
+    #[tokio::test]
+    async fn slide_preflight_passes_when_the_bucket_holds_every_bundled_key() {
+        let bucket = TempDir::new().unwrap();
+        let storage = FsStorage::new(bucket.path().to_path_buf()).await.unwrap();
+        for key in bundled_slide_asset_keys() {
+            storage.put(&key, b"bytes", "image/png").await.unwrap();
+        }
+
+        verify_bundled_slide_assets(&storage, "example-prod-assets")
+            .await
+            .expect("a fully published bucket is a shippable bucket");
+    }
+
+    #[tokio::test]
+    async fn slide_preflight_names_the_key_the_selected_bucket_is_missing() {
+        let bucket = TempDir::new().unwrap();
+        let storage = FsStorage::new(bucket.path().to_path_buf()).await.unwrap();
+        let keys = bundled_slide_asset_keys();
+        let withheld = keys.iter().next().expect("bundled keys").clone();
+        for key in keys.iter().filter(|key| **key != withheld) {
+            storage.put(key, b"bytes", "image/png").await.unwrap();
+        }
+
+        let error = verify_bundled_slide_assets(&storage, "example-prod-assets")
+            .await
+            .expect_err("one unpublished slide asset blocks the roll")
+            .to_string();
+
+        assert!(
+            error.contains("1 missing, 0 could not be checked"),
+            "got: {error}"
+        );
+        assert!(
+            error.contains(&format!("missing: gs://example-prod-assets/{withheld}")),
+            "the operator needs the exact object to publish, got: {error}"
+        );
+        assert!(
+            error.contains("Publish every presentation/workshop asset"),
+            "got: {error}"
+        );
+    }
+
+    #[test]
+    fn slide_preflight_fails_closed_on_a_key_it_could_not_check() {
+        // A probe that errored is not a probe that passed: an unreadable
+        // bucket must block the roll exactly like a missing object, and name
+        // the key so the operator knows what to look at.
+        let report = VerifyReport {
+            checked: 2,
+            missing: Vec::new(),
+            unknown: vec!["img/lvrug/lvrug.png: gcs error: connection reset".to_string()],
+        };
+
+        let error = storage_report_result(&report, "example-prod-assets")
+            .expect_err("an unreadable bucket is not a published bucket")
+            .to_string();
+
+        assert!(
+            error.contains("0 missing, 1 could not be checked"),
+            "got: {error}"
+        );
+        assert!(
+            error.contains("unknown: gs://example-prod-assets/img/lvrug/lvrug.png"),
+            "got: {error}"
+        );
+    }
+
+    #[test]
+    fn slide_preflight_refuses_a_blank_bucket_before_opening_a_client() {
+        let error = verify_bundled_slide_assets_bucket("   ")
+            .expect_err("a blank coordinate cannot be verified")
+            .to_string();
+        assert!(error.contains("assets bucket is blank"), "got: {error}");
+    }
+
+    /// The bucket-lane commands that reach real GCS all refuse a blank
+    /// coordinate before a client is opened, the same guard the ship
+    /// preflight above applies. Exit 2 with a named coordinate beats an
+    /// opaque ADC failure.
+    #[test]
+    fn every_bucket_command_reports_a_missing_bucket_without_touching_the_network() {
+        let dir = TempDir::new().unwrap();
+        assert_eq!(
+            run_upload(dir.path(), Some("   ".to_string())),
+            ExitCode::from(2)
+        );
+        assert_eq!(
+            run_pull(dir.path(), Some("   ".to_string())),
+            ExitCode::from(2)
+        );
+        assert_eq!(
+            run_orphans(dir.path(), Some("   ".to_string()), false),
+            ExitCode::from(2)
+        );
     }
 
     #[test]

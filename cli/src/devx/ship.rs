@@ -3449,6 +3449,31 @@ mod tests {
         );
     }
 
+    /// The preflight reads the bucket from the selected deployment's own
+    /// coordinates, so a row that never declared one stops the ship before any
+    /// storage client is opened.
+    #[test]
+    fn asset_bucket_preflight_stops_a_deployment_with_no_bucket_coordinate() {
+        let deployment = super::super::deployments::Deployment {
+            name: "example-prod".to_string(),
+            kms_key: "projects/my-org-prod/locations/us-west4/keyRings/sops/cryptoKeys/navigator"
+                .to_string(),
+            provisioned: true,
+            coordinates: std::collections::BTreeMap::new(),
+            encrypted_keys: std::collections::BTreeSet::new(),
+        };
+
+        let error = verify_assets_bucket(&deployment)
+            .expect_err("a deployment with no assets bucket cannot be preflighted")
+            .to_string();
+
+        assert!(error.contains(ASSETS_BUCKET_KEY), "got: {error}");
+        assert!(
+            error.contains("deployments/example-prod/config.toml"),
+            "got: {error}"
+        );
+    }
+
     /// The keystone of the no-fallback design: every deployment in the tree
     /// resolves to a complete, self-consistent `ShipConfig` with no process
     /// environment at all. A deployment this test passes for is one
