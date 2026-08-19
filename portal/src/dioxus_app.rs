@@ -3506,6 +3506,65 @@ mod tests {
     use axum::routing::get;
     use tower::ServiceExt as _;
 
+    /// The matter show page is keyed by the Project **code**, always.
+    ///
+    /// The code is a matter's whole public identity: `/app/projects/{code}` is
+    /// its show page and `/app/projects/{code}/portal/` is its client portal,
+    /// and the same string names its shared-drive folder and its object-storage
+    /// prefix. So the internal row id must never surface in a URL — a link a
+    /// client is sent, bookmarks, and quotes back over email should name the
+    /// matter, not a row.
+    ///
+    /// What actually guarantees it is the *lookup*, not the shape of the
+    /// segment: a lowercase UUID is a perfectly well-formed code, so nothing
+    /// could refuse one on sight. Both directions go through the `code` column
+    /// and neither consults the id, which is the claim asserted below —
+    /// `project_show_path` writes a code into every link Navigator renders, and
+    /// `project_id_from_path` reads one back. A row id in that segment names no
+    /// Project.
+    #[tokio::test]
+    async fn the_matter_show_page_is_keyed_by_code_and_never_by_row_id() {
+        assert_eq!(PROJECT_DETAIL_PATH, "/app/projects/{code}");
+        let segments: Vec<&str> = PROJECT_DETAIL_PATH.split('/').skip(1).collect();
+        assert_eq!(
+            segments,
+            ["app", "projects", "{code}"],
+            "the show page is two literal segments and the code; a deeper path \
+             or a differently named parameter is a different page"
+        );
+
+        let surreal = store::test_support::mem_surreal().await;
+        let project = store::projects::create(
+            &surreal,
+            &store::projects::NewProject {
+                code: "libra-formation".into(),
+                name: "Libra formation".into(),
+                status: "open".into(),
+                entity_id: store::test_support::seed_entity(&surreal).await,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("a seeded Project");
+
+        // Out: every link Navigator renders spells the code.
+        assert_eq!(
+            project_show_path(&surreal, project.id).await,
+            "/app/projects/libra-formation",
+        );
+
+        // Back in: the code resolves and the row id does not.
+        assert_eq!(
+            project_id_from_path(&surreal, "/app/projects/libra-formation").await,
+            Some(project.id),
+        );
+        assert_eq!(
+            project_id_from_path(&surreal, &format!("/app/projects/{}", project.id)).await,
+            None,
+            "a row id in the show-page segment must name no Project"
+        );
+    }
+
     fn guarded_router() -> Router {
         Router::new()
             .route("/lawyer/people", get(|| async { "ok" }))

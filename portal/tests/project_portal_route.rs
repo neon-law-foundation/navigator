@@ -103,6 +103,17 @@ async fn fixture() -> Fixture {
         b"console.log('libra');",
     )
     .await;
+    // A directory index, the shape a multi-page build publishes. `rsync
+    // --recursive` lands it under exactly this key, so this is the object a
+    // trailing-slash path must find before the root entrypoint is reached for.
+    portal::test_support::publish_portal_object(
+        &applications,
+        &project.code,
+        "guide/index.html",
+        "text/html; charset=utf-8",
+        b"<!doctype html><title>Libra guide</title>",
+    )
+    .await;
 
     let sessions = portal::SessionStore::new(portal::test_support::TEST_SESSION_KEY);
     let cookie_for = |sub: &str, person_id: Uuid| {
@@ -314,4 +325,103 @@ async fn an_anonymous_caller_is_sent_through_the_login_door() {
     assert_eq!(response.status(), StatusCode::SEE_OTHER);
     let location = header_value(&response, header::LOCATION);
     assert!(location.starts_with("/auth/login"), "{location}");
+}
+
+/// A client-side route written with a trailing slash resolves.
+///
+/// This is the shape a portal's own navigation actually emits: a section link
+/// is `${base}${slug}/`, so every in-app link below the mount arrives with a
+/// trailing slash. It reached [`asset_path_is_safe`] as a path whose final
+/// segment is empty and was refused as a traversal, so every section of every
+/// published portal answered 404 while the bare mount served fine — the one
+/// failure a `dist/` with a single `index.html` cannot produce on its own.
+///
+/// A trailing slash cannot climb out of the `<code>/portal/` prefix, so it is
+/// safe; what it names is a client-side route, and the entrypoint is what
+/// serves it.
+#[tokio::test]
+async fn a_trailing_slash_client_route_falls_back_to_the_entrypoint() {
+    let f = fixture().await;
+    let root = format!("/app/projects/{}/portal/", f.project_code);
+
+    let section = send(&f.app, &format!("{root}engagement/"), &f.participant_cookie).await;
+    assert_eq!(
+        section.status(),
+        StatusCode::OK,
+        "a portal's own section link must not read as a traversal"
+    );
+    assert_eq!(
+        header_value(&section, header::CONTENT_TYPE),
+        "text/html; charset=utf-8"
+    );
+    assert_eq!(header_value(&section, header::CACHE_CONTROL), "no-store");
+    assert!(body_string(section).await.contains("Libra portal"));
+
+    // Nested just as deep as a client router goes, and still the entrypoint.
+    let nested = send(
+        &f.app,
+        &format!("{root}matters/open/filings/"),
+        &f.participant_cookie,
+    )
+    .await;
+    assert_eq!(nested.status(), StatusCode::OK);
+    assert!(body_string(nested).await.contains("Libra portal"));
+}
+
+/// A published directory index serves its own path, not the root entrypoint.
+///
+/// A portal built as multiple pages rather than one bundle publishes
+/// `<section>/index.html`, and `rsync --recursive` lands it under exactly that
+/// key. Reaching for it before the root entrypoint is what keeps the
+/// entrypoint fallback a *fallback*: without it, every page of a multi-page
+/// build would answer 200 with the wrong document, which is worse than the 404
+/// it replaced.
+///
+/// It is served `no-store` for the same reason the root entrypoint is: an
+/// `index.html` names the build's hashed assets and is never content-hashed
+/// itself, so caching one for a year pins a page at assets a later publish has
+/// aged out.
+#[tokio::test]
+async fn a_published_directory_index_is_served_for_its_own_path() {
+    let f = fixture().await;
+    let root = format!("/app/projects/{}/portal/", f.project_code);
+
+    let page = send(&f.app, &format!("{root}guide/"), &f.participant_cookie).await;
+    assert_eq!(page.status(), StatusCode::OK);
+    assert_eq!(
+        header_value(&page, header::CONTENT_TYPE),
+        "text/html; charset=utf-8"
+    );
+    assert_eq!(
+        header_value(&page, header::CACHE_CONTROL),
+        "no-store",
+        "an index.html is never content-hashed, so it must not cache for a year"
+    );
+    assert!(
+        body_string(page).await.contains("Libra guide"),
+        "the published page serves itself rather than the root entrypoint"
+    );
+
+    // The slashless form of the same path finds it too, so a hand-typed link
+    // and a copied one land on the same document.
+    let slashless = send(&f.app, &format!("{root}guide"), &f.participant_cookie).await;
+    assert_eq!(slashless.status(), StatusCode::OK);
+    assert!(body_string(slashless).await.contains("Libra guide"));
+}
+
+/// A traversal is still refused, trailing slash or not.
+#[tokio::test]
+async fn a_traversal_is_refused_even_with_a_trailing_slash() {
+    let f = fixture().await;
+    let root = format!("/app/projects/{}/portal/", f.project_code);
+
+    for path in ["..%2Fsecret/", "a//b/", "assets/../../etc/passwd"] {
+        assert_eq!(
+            send(&f.app, &format!("{root}{path}"), &f.participant_cookie)
+                .await
+                .status(),
+            StatusCode::NOT_FOUND,
+            "{path} must not resolve"
+        );
+    }
 }
