@@ -1,4 +1,4 @@
-//! `/app/projects/:id/conversation` — the matter's single privileged
+//! `/app/projects/{project_code}/conversation` — the matter's single privileged
 //! conversation log.
 //!
 //! One project-scoped thread interleaving every channel (document comments,
@@ -35,9 +35,9 @@ pub struct MessageForm {
     pub internal: Option<String>,
 }
 
-/// `POST /app/projects/:id/conversation/messages`.
+/// `POST /app/projects/{project_code}/conversation/messages`.
 /// Why posting a matter conversation message failed. Shared by the
-/// `/app/projects/{id}/conversation/messages` form and the
+/// `/app/projects/{project_code}/conversation/messages` form and the
 /// `/app/api/projects/{id}/conversation/messages` door.
 #[derive(Debug)]
 pub enum PostMessageError {
@@ -112,11 +112,14 @@ pub async fn post_conversation_message(
 
 pub async fn post_message(
     State(surreal): State<store::surreal::SurrealDb>,
-    Path(project_id): Path<Uuid>,
+    Path(project_code): Path<String>,
     session: Option<Extension<SessionData>>,
     axum::Form(form): axum::Form<MessageForm>,
 ) -> Response {
     let Some(Extension(session)) = session else {
+        return not_found();
+    };
+    let Some(project_id) = store::projects::id_for_code(&surreal, &project_code).await else {
         return not_found();
     };
     match post_conversation_message(
@@ -129,7 +132,9 @@ pub async fn post_message(
     )
     .await
     {
-        Ok(()) => Redirect::to(&format!("/app/projects/{project_id}/conversation")).into_response(),
+        Ok(()) => {
+            Redirect::to(&format!("/app/projects/{project_code}/conversation")).into_response()
+        }
         Err(PostMessageError::NotAuthorized) => not_found(),
         Err(PostMessageError::EmptyBody) => {
             (StatusCode::BAD_REQUEST, "empty message").into_response()

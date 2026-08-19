@@ -1,5 +1,5 @@
 //! The lawyer "edit project" form as a Dioxus component (#956 Phase 4) —
-//! `/app/projects/{id}/edit`.
+//! `/app/projects/{project_code}/edit`.
 //!
 //! The successor to the `views::pages::admin::projects::edit_form`. A
 //! descriptive edit only: name, the entity the matter is opened against, and the
@@ -9,7 +9,7 @@
 //! Neither does it re-choose the matter's parties: the client-side DRI and the
 //! service are set at open.
 //!
-//! It is a native `POST` to the unchanged `POST /app/projects/{id}` handler
+//! It is a native `POST` to the unchanged `POST /app/projects/{project_code}` handler
 //! through the shared [`FormCard`], carrying the session CSRF token — no
 //! JavaScript.
 //!
@@ -112,18 +112,23 @@ pub async fn get_project_edit_form() -> Result<ProjectEditView, ServerFnError> {
     .await
     .ok()
     .and_then(|axum::extract::Query(q)| q.error);
-    let Ok(axum::extract::Path(project_id)) =
-        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<uuid::Uuid>, _>()
-            .await
+    let Ok(axum::extract::Path(project_code)) =
+        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<String>, _>().await
     else {
         return Ok(hidden(role).await);
     };
 
     let surreal = consume_context::<store::surreal::SurrealDb>();
+    // The matter arrives as its code; the gate and the form below key on the
+    // row id. A code naming no matter is hidden, exactly as a matter the caller
+    // is not on is hidden.
+    let Some(project_id) = store::projects::id_for_code(&surreal, &project_code).await else {
+        return Ok(hidden(role).await);
+    };
 
     // The edit form is part of the matter surface, so it carries the matter's
     // gate: a firm-side participation row, of every tier. Without this an
-    // unassigned Owner is denied `/app/projects/{id}` and then reads the
+    // unassigned Owner is denied `/app/projects/{project_code}` and then reads the
     // matter's name, status, and entity straight off its edit form.
     let person_id = dioxus_fullstack_core::FullstackContext::extract::<
         axum::Extension<crate::portal_project_list::PersonId>,
@@ -292,7 +297,7 @@ fn edit_body(view: &ProjectEditView) -> Element {
     }
 }
 
-/// `/app/projects/{id}/edit` — the descriptive matter edit.
+/// `/app/projects/{project_code}/edit` — the descriptive matter edit.
 #[component]
 pub fn LawyerProjectEdit() -> Element {
     let resource = use_server_future(get_project_edit_form)?;

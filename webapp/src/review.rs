@@ -1,5 +1,5 @@
 //! The comment-only client document-review page
-//! (`/app/projects/{id}/review/{doc_id}`) as a Dioxus component (#641 Phase
+//! (`/app/projects/{project_code}/review/{doc_id}`) as a Dioxus component (#641 Phase
 //! 3) — Northstar Phase A.
 //!
 //! A client reads one attorney-reviewed draft (a will, a trust, a directive) and
@@ -42,9 +42,9 @@ pub struct ReviewView {
 /// failure is `500`.
 #[server]
 pub async fn get_review() -> Result<ReviewView, ServerFnError> {
-    let axum::extract::Path((project_id, doc_id)) =
+    let axum::extract::Path((project_code, doc_id)) =
         dioxus_fullstack_core::FullstackContext::extract::<
-            axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+            axum::extract::Path<(String, uuid::Uuid)>,
             _,
         >()
         .await?;
@@ -63,6 +63,18 @@ pub async fn get_review() -> Result<ReviewView, ServerFnError> {
     .and_then(|raw| raw.parse::<uuid::Uuid>().ok());
 
     let surreal = consume_context::<store::surreal::SurrealDb>();
+    // The draft's link names its matter by code. A code naming no matter is the
+    // same refusal a non-participant gets, so neither reveals the other's case.
+    let Some(project_id) = store::projects::id_for_code(&surreal, &project_code).await else {
+        dioxus_fullstack_core::FullstackContext::commit_http_status(
+            axum::http::StatusCode::NOT_FOUND,
+            None,
+        );
+        return Ok(ReviewView {
+            csrf_token: csrf_token.clone(),
+            ..ReviewView::default()
+        });
+    };
 
     // Visibility: the client lens gates the matter, and a draft is only reachable
     // once an attorney advanced it past `draft`. Any failure of these checks is
@@ -164,7 +176,7 @@ pub fn Review() -> Element {
 
     let comments_url = format!(
         "/app/projects/{}/review/{}/comments",
-        view.project_id, view.doc_id
+        view.project_code, view.doc_id
     );
 
     rsx! {

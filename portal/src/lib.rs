@@ -877,7 +877,7 @@ pub fn bootstrap(
         secure_cookies: secure_cookies(&state),
     };
     // #956 Phase 4: the client self-serve intake page renders through Dioxus at
-    // /app/projects/{id}/intake/{notation_id}. Its pre-layer resolves the
+    // /app/projects/{project_code}/intake/{notation_id}. Its pre-layer resolves the
     // current step (which needs `workflows`, so it cannot happen in `webapp`)
     // and owns the 404; the save `POST` on the same path stays on the handler
     // below, which now redirects back here with an `?error=` flash.
@@ -1387,7 +1387,7 @@ pub fn bootstrap(
     // #956 Phase 4 (projects cluster): the lawyer project forms render through
     // Dioxus — matter-open at `/app/projects/new` (with its two inline
     // "New entity" / "New client" creates, formerly HTMX-swapped Bootstrap
-    // modals), the descriptive edit at `/app/projects/{id}/edit`, and the
+    // modals), the descriptive edit at `/app/projects/{project_code}/edit`, and the
     // admin-only participation add/edit forms. Every write stays on its existing
     // native `POST` handler; axum merges the same-path methods.
     let dioxus_lawyer_project_forms = dioxus_app::lawyer_project_forms_router(
@@ -1407,7 +1407,7 @@ pub fn bootstrap(
         state.auth.clone(),
     );
     // #641 Phase 3 (projects cluster): the matter conversation page renders through
-    // Dioxus at GET /app/projects/{id}/conversation — one mount, the tier picks the
+    // Dioxus at GET /app/projects/{project_code}/conversation — one mount, the tier picks the
     // lens-scoped thread + a plain-textarea composer. The
     // `POST …/conversation/messages` stays on its existing Axum handler (it
     // already redirects a native form — PRG).
@@ -1418,7 +1418,7 @@ pub fn bootstrap(
         state.auth.clone(),
     );
     // #641 Phase 3: the comment-only client document-review page renders through
-    // Dioxus at /app/projects/{id}/review/{doc_id}; the comment data API
+    // Dioxus at /app/projects/{project_code}/review/{doc_id}; the comment data API
     // (`…/comments` GET/POST, driven by the northstar-review custom element)
     // stays on the Axum data API.
     let dioxus_review = dioxus_app::review_router(
@@ -1672,13 +1672,13 @@ pub fn bootstrap(
         // matter-open, the descriptive edit, and the participation add/edit.
         dioxus_lawyer_project_forms,
         // One filed document's provenance page renders through Dioxus at
-        // `/app/projects/{id}/documents/{doc_id}`; the tier picks the lens.
+        // `/app/projects/{project_code}/documents/{doc_id}`; the tier picks the lens.
         dioxus_project_documents,
         // The matter conversation page renders through Dioxus at
-        // `/app/projects/{id}/conversation`; the tier picks the lens.
+        // `/app/projects/{project_code}/conversation`; the tier picks the lens.
         dioxus_conversation,
         // The comment-only client document-review page (#641 Phase 3) renders
-        // through Dioxus at `/app/projects/{id}/review/{doc_id}`.
+        // through Dioxus at `/app/projects/{project_code}/review/{doc_id}`.
         dioxus_review,
         // One Project's client portal at `/app/projects/{code}/portal`. It
         // crosses the same login boundary as every other `/app` page, and then
@@ -1688,7 +1688,7 @@ pub fn bootstrap(
         // serve (see the module doc).
         project_portal,
         // The client self-serve intake page (#956 Phase 4) renders through
-        // Dioxus at `/app/projects/{id}/intake/{notation_id}`.
+        // Dioxus at `/app/projects/{project_code}/intake/{notation_id}`.
         dioxus_client_intake,
         // The lawyer walker step (#956 Phase 4) renders through Dioxus at
         // `/lawyer/notations/{id}/step`.

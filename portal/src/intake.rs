@@ -1,4 +1,4 @@
-//! `/app/projects/:id/intake/:notation_id` — the client self-serve
+//! `/app/projects/{project_code}/intake/:notation_id` — the client self-serve
 //! intake surface (the magic link).
 //!
 //! A client answers (or confirms) the client-facing questions on a
@@ -334,7 +334,7 @@ async fn flow_label(surreal: &store::surreal::SurrealDb, template_id: Uuid) -> S
 }
 
 /// Resolve the client's current intake state for `GET
-/// /app/projects/:id/intake/:notation_id`, in the wasm-safe shape the Dioxus
+/// /app/projects/{project_code}/intake/:notation_id`, in the wasm-safe shape the Dioxus
 /// page renders (#956 Phase 4).
 ///
 /// The Dioxus route's pre-layer calls this and injects the result, because
@@ -414,17 +414,20 @@ pub(crate) async fn resolve_intake_state(
     })
 }
 
-/// `POST /app/projects/:id/intake/:notation_id` — save one
+/// `POST /app/projects/{project_code}/intake/{notation_id}` — save one
 /// client-sourced answer and advance. The body is the whole form: one
 /// `value` field for scalar questions, or the `people_list` widget's
 /// `p{row}_{part}` inputs assembled into a JSON answer.
 pub async fn intake_save(
     State(state): State<AdminState>,
-    Path((project_id, notation_id)): Path<(Uuid, Uuid)>,
+    Path((project_code, notation_id)): Path<(String, Uuid)>,
     session: Option<Extension<SessionData>>,
     axum::Form(body): axum::Form<std::collections::BTreeMap<String, String>>,
 ) -> Response {
     let Some(Extension(session)) = session else {
+        return not_found();
+    };
+    let Some(project_id) = store::projects::id_for_code(&state.surreal, &project_code).await else {
         return not_found();
     };
     let notation = match visible_notation(&state.surreal, &session, project_id, notation_id).await {
@@ -436,7 +439,7 @@ pub async fn intake_save(
     let Some(person_id) = session.person_id else {
         return not_found();
     };
-    let back = format!("/app/projects/{project_id}/intake/{notation_id}");
+    let back = format!("/app/projects/{project_code}/intake/{notation_id}");
     // Frozen: bounce back to GET, which renders the completion landing.
     if is_past_intake(&notation.state) {
         return Redirect::to(&back).into_response();

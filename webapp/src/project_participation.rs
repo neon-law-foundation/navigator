@@ -1,11 +1,11 @@
 //! The matter participation add/edit form as a Dioxus component (#956 Phase 4)
-//! — `/app/projects/{id}/people/new` and
-//! `/app/projects/{id}/people/{role_id}/edit`.
+//! — `/app/projects/{project_code}/people/new` and
+//! `/app/projects/{project_code}/people/{role_id}/edit`.
 //!
 //! The successor to the `views::pages::admin::projects::participation_form`.
 //! One shared render, two mounts: the add form posts to
-//! `POST /app/projects/{id}/people`, the edit form to
-//! `POST /app/projects/{id}/people/{role_id}/edit`. Both are native `POST`s
+//! `POST /app/projects/{project_code}/people`, the edit form to
+//! `POST /app/projects/{project_code}/people/{role_id}/edit`. Both are native `POST`s
 //! through the shared [`FormCard`] carrying the session CSRF token — no
 //! JavaScript. A rejected submit redirects back here with `?error=`, surfaced
 //! above the form (post/redirect/get), the way every other migrated admin form
@@ -65,6 +65,9 @@ pub struct ParticipationView {
     /// under a committed `404`.
     pub found: bool,
     pub project_id: String,
+    /// The matter's code — what every link on this form is built from. The id
+    /// stays because the ledger rows key on it; only URLs changed.
+    pub project_code: String,
     pub project_name: String,
     /// `Some` on the edit mount, `None` on the add mount.
     pub role_id: Option<String>,
@@ -166,7 +169,7 @@ fn seeded_dri(
 /// both mounts. `role_id` is the edit mount's participation row; `None` adds.
 #[cfg(feature = "server")]
 async fn load(
-    project_id: uuid::Uuid,
+    project_code: &str,
     role_id: Option<uuid::Uuid>,
 ) -> Result<ParticipationView, ServerFnError> {
     let role = dioxus_fullstack_core::FullstackContext::extract::<axum::Extension<ViewerRole>, _>()
@@ -194,12 +197,13 @@ async fn load(
     .unwrap_or_default();
 
     let surreal = consume_context::<store::surreal::SurrealDb>();
-    let Some(project) = store::projects::find_by_id(&surreal, project_id)
+    let Some(project) = store::projects::find_by_code(&surreal, project_code)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
     else {
         return Ok(hidden(role).await);
     };
+    let project_id = project.id;
 
     // On the edit mount, the row must exist *and* belong to this matter — a
     // cross-matter role id is a not-found, never an edit of someone else's row.
@@ -243,6 +247,7 @@ async fn load(
         firm_name: crate::app_chrome::firm_name_from_context().await,
         found: true,
         project_id: project_id.to_string(),
+        project_code: project.code.clone(),
         project_name: project.name,
         role_id: role_id.map(|id| id.to_string()),
         people,
@@ -257,31 +262,31 @@ async fn load(
     })
 }
 
-/// Load the **add** form (`/app/projects/{id}/people/new`).
+/// Load the **add** form (`/app/projects/{project_code}/people/new`).
 #[server]
 pub async fn get_participation_new() -> Result<ParticipationView, ServerFnError> {
-    let Ok(axum::extract::Path(project_id)) =
-        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<uuid::Uuid>, _>()
-            .await
+    let Ok(axum::extract::Path(project_code)) =
+        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<String>, _>().await
     else {
         return Ok(hidden(ViewerRole::default()).await);
     };
-    load(project_id, None).await
+    load(&project_code, None).await
 }
 
-/// Load the **edit** form (`/app/projects/{id}/people/{role_id}/edit`).
+/// Load the **edit** form
+/// (`/app/projects/{project_code}/people/{role_id}/edit`).
 #[server]
 pub async fn get_participation_edit() -> Result<ParticipationView, ServerFnError> {
-    let Ok(axum::extract::Path((project_id, role_id))) =
+    let Ok(axum::extract::Path((project_code, role_id))) =
         dioxus_fullstack_core::FullstackContext::extract::<
-            axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+            axum::extract::Path<(String, uuid::Uuid)>,
             _,
         >()
         .await
     else {
         return Ok(hidden(ViewerRole::default()).await);
     };
-    load(project_id, Some(role_id)).await
+    load(&project_code, Some(role_id)).await
 }
 
 /// The `/app` navbar this form carries, from the viewer's tier and the deploy's
@@ -345,10 +350,10 @@ fn participation_body(view: &ParticipationView) -> Element {
         "Add matter person"
     };
     let submit = if editing { "Save" } else { "Add" };
-    let project_href = format!("/app/projects/{}", view.project_id);
+    let project_href = format!("/app/projects/{}", view.project_code);
     let action = match view.role_id.as_ref() {
-        Some(role_id) => format!("/app/projects/{}/people/{role_id}/edit", view.project_id),
-        None => format!("/app/projects/{}/people", view.project_id),
+        Some(role_id) => format!("/app/projects/{}/people/{role_id}/edit", view.project_code),
+        None => format!("/app/projects/{}/people", view.project_code),
     };
     let mut options = vec![Choice::new("", "Choose a person")];
     options.extend(view.people.iter().map(|p| {
@@ -425,14 +430,14 @@ fn render_participation(resource: &Resource<Result<ParticipationView, ServerFnEr
     }
 }
 
-/// `/app/projects/{id}/people/new` — add one participation row.
+/// `/app/projects/{project_code}/people/new` — add one participation row.
 #[component]
 pub fn LawyerParticipationNew() -> Element {
     let resource = use_server_future(get_participation_new)?;
     render_participation(&resource)
 }
 
-/// `/app/projects/{id}/people/{role_id}/edit` — edit one participation row.
+/// `/app/projects/{project_code}/people/{role_id}/edit` — edit one participation row.
 #[component]
 pub fn LawyerParticipationEdit() -> Element {
     let resource = use_server_future(get_participation_edit)?;
@@ -468,6 +473,7 @@ mod tests {
             firm_name: "Neon Law".to_string(),
             found: true,
             project_id: "00000000-0000-0000-0000-0000000000aa".to_string(),
+            project_code: "acme-formation".to_string(),
             project_name: "Acme Formation".to_string(),
             role_id: role_id.map(ToString::to_string),
             people: vec![person(), lawyer()],
@@ -490,7 +496,7 @@ mod tests {
     fn add_posts_to_the_collection_route_and_lists_people() {
         let html = render(&view(None, None));
         assert!(
-            html.contains(r#"action="/app/projects/00000000-0000-0000-0000-0000000000aa/people""#),
+            html.contains(r#"action="/app/projects/acme-formation/people""#),
             "{html}"
         );
         assert!(html.contains(r#"name="_csrf" value="TOK""#), "{html}");
@@ -540,7 +546,7 @@ mod tests {
         let html = render(&v);
         assert!(
             html.contains(
-                r#"action="/app/projects/00000000-0000-0000-0000-0000000000aa/people/00000000-0000-0000-0000-0000000000bb/edit""#
+                r#"action="/app/projects/acme-formation/people/00000000-0000-0000-0000-0000000000bb/edit""#
             ),
             "{html}"
         );

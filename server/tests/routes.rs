@@ -7702,7 +7702,7 @@ async fn client_portal_shows_the_matter_without_a_service_or_price() {
 #[tokio::test]
 async fn client_direct_projects_url_uses_portal_list_not_admin_table() {
     let (state, _surreal) = state_with_engines().await;
-    let (project_id, project_code, cookie) = client_project_fixture(&state.surreal).await;
+    let (_project_id, project_code, cookie) = client_project_fixture(&state.surreal).await;
 
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     let resp = app
@@ -7726,8 +7726,8 @@ async fn client_direct_projects_url_uses_portal_list_not_admin_table() {
     );
     for forbidden in [
         "/app/projects/new",
-        &format!("/app/projects/{project_id}/edit"),
-        &format!("/app/projects/{project_id}/delete"),
+        &format!("/app/projects/{project_code}/edit"),
+        &format!("/app/projects/{project_code}/delete"),
         "Lawyer | Projects",
     ] {
         assert!(
@@ -7925,13 +7925,13 @@ async fn client_project_detail_links_the_documents_zip() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains(&format!(
-        "href=\"/app/projects/{project_id}/documents.zip\""
+        "href=\"/app/projects/{project_code}/documents.zip\""
     )));
 }
 
 // QUARANTINED, not retired. This test failed once in CI's `cargo test
 // --workspace` run (336 passed, 1 failed) on the LAST assertion —
-// `/app/projects/{id}` returned 500 where 200 was expected. The three client
+// `/app/projects/{project_code}` returned 500 where 200 was expected. The three client
 // assertions above it, which are the ones carrying #782's confidentiality
 // promise, passed on that same run: the client did not see the memo. The
 // observed failure is lawyer losing their view, not privileged material
@@ -7962,7 +7962,7 @@ async fn client_project_detail_hides_internal_review_memo_but_lawyer_sees_it() {
     // #782: the client project-detail listing must gate on
     // `assets.visibility`, not list every filename unconditionally. A
     // `review_memo` (attorney work product) stays off the client's list
-    // while a lawyer/admin caller on `/app/projects/:id` still sees it.
+    // while a lawyer/admin caller on `/app/projects/:project_code` still sees it.
     let (state, _surreal) = state_with_engines().await;
     let (project_id, project_code, cookie) = client_project_fixture(&state.surreal).await;
 
@@ -9719,7 +9719,7 @@ async fn deleting_a_matter_with_linked_records_keeps_the_row() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{}/delete", project.id))
+                .uri(format!("/app/projects/{}/delete", project.code))
                 .header("cookie", admin_session_cookie())
                 .body(Body::empty())
                 .unwrap(),
@@ -12098,7 +12098,7 @@ async fn project_documents_upload_writes_blob_and_document_with_description() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{project_id}/documents/upload"))
+                .uri(format!("/app/projects/{project_code}/documents/upload"))
                 .header("cookie", cookie)
                 .header(
                     "content-type",
@@ -12189,7 +12189,7 @@ async fn project_documents_upload_files_one_document_per_file_in_a_batch() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{project_id}/documents/upload"))
+                .uri(format!("/app/projects/{project_code}/documents/upload"))
                 .header("cookie", cookie)
                 .header(
                     "content-type",
@@ -12245,12 +12245,13 @@ async fn project_documents_upload_files_one_document_per_file_in_a_batch() {
     );
 }
 
-/// Seed one project and return its id — the shared setup for the batch
-/// upload tests below.
-async fn batch_upload_project(state: &AppState) -> uuid::Uuid {
-    test_project(&state.surreal, "Batch Guard Test", "open")
-        .await
-        .id
+/// Seed one project and return `(id, code)` — the shared setup for the batch
+/// upload tests below. The id is what the participation fixtures and the asset
+/// assertions key on; the code is what the upload route is keyed by. One seed
+/// returns both, because two seeds would be two different matters.
+async fn batch_upload_project(state: &AppState) -> (uuid::Uuid, String) {
+    let project = test_project(&state.surreal, "Batch Guard Test", "open").await;
+    (project.id, project.code)
 }
 
 /// Build a document-upload multipart body: `_csrf` first, then one part
@@ -12275,7 +12276,7 @@ fn documents_multipart(boundary: &str, csrf: &str, files: &[(&str, &str, &[u8])]
 
 async fn post_documents_batch(
     app: axum::Router,
-    project_id: uuid::Uuid,
+    project_code: &str,
     cookie: &str,
     boundary: &str,
     body: Vec<u8>,
@@ -12283,7 +12284,7 @@ async fn post_documents_batch(
     app.oneshot(
         Request::builder()
             .method("POST")
-            .uri(format!("/app/projects/{project_id}/documents/upload"))
+            .uri(format!("/app/projects/{project_code}/documents/upload"))
             .header("cookie", cookie)
             .header(
                 "content-type",
@@ -12303,7 +12304,7 @@ async fn project_documents_upload_rejects_a_batch_over_the_file_ceiling() {
     // session. Past the ceiling the request is refused outright and
     // nothing is filed.
     let (state, surreal) = state_with_engines().await;
-    let project_id = batch_upload_project(&state).await;
+    let (project_id, project_code) = batch_upload_project(&state).await;
     let app = server::neon_router(
         state.clone(),
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
@@ -12318,7 +12319,7 @@ async fn project_documents_upload_rejects_a_batch_over_the_file_ceiling() {
         .collect();
     let body = documents_multipart(boundary, &csrf, &files);
 
-    let resp = post_documents_batch(app, project_id, &cookie, boundary, body).await;
+    let resp = post_documents_batch(app, &project_code, &cookie, boundary, body).await;
     assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
     assert!(
         store::assets::list_all(&state.surreal)
@@ -12335,7 +12336,7 @@ async fn project_documents_upload_keeps_a_named_empty_file() {
     // "nothing selected". A *named* zero-byte part is a real selection and
     // must not vanish from the batch without a word.
     let (state, surreal) = state_with_engines().await;
-    let project_id = batch_upload_project(&state).await;
+    let (project_id, project_code) = batch_upload_project(&state).await;
     let app = server::neon_router(
         state.clone(),
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
@@ -12352,7 +12353,7 @@ async fn project_documents_upload_keeps_a_named_empty_file() {
         ],
     );
 
-    let resp = post_documents_batch(app, project_id, &cookie, boundary, body).await;
+    let resp = post_documents_batch(app, &project_code, &cookie, boundary, body).await;
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
 
     let docs = store::assets::list_all(&state.surreal).await.unwrap();
@@ -12373,7 +12374,7 @@ async fn project_documents_upload_ignores_an_unnamed_empty_picker_part() {
     // The other half of the rule: a submission whose only file part is the
     // browser's empty-picker placeholder files nothing and redirects.
     let (state, surreal) = state_with_engines().await;
-    let project_id = batch_upload_project(&state).await;
+    let (project_id, project_code) = batch_upload_project(&state).await;
     let app = server::neon_router(
         state.clone(),
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
@@ -12383,7 +12384,7 @@ async fn project_documents_upload_ignores_an_unnamed_empty_picker_part() {
     let boundary = "----navigator-empty-picker";
     let body = documents_multipart(boundary, &csrf, &[("", "application/octet-stream", b"")]);
 
-    let resp = post_documents_batch(app, project_id, &cookie, boundary, body).await;
+    let resp = post_documents_batch(app, &project_code, &cookie, boundary, body).await;
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
     assert!(store::assets::list_all(&state.surreal)
         .await
@@ -12398,7 +12399,7 @@ async fn project_documents_upload_retry_tops_up_instead_of_duplicating() {
     // safe if re-sending is idempotent: the second submission must add the
     // missing file and leave the ones already filed alone.
     let (state, surreal) = state_with_engines().await;
-    let project_id = batch_upload_project(&state).await;
+    let (project_id, project_code) = batch_upload_project(&state).await;
     let app = server::neon_router(
         state.clone(),
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
@@ -12415,7 +12416,8 @@ async fn project_documents_upload_retry_tops_up_instead_of_duplicating() {
             ("b.txt", "text/plain", b"bravo"),
         ],
     );
-    let resp = post_documents_batch(app.clone(), project_id, &cookie, "----retry-one", body).await;
+    let resp =
+        post_documents_batch(app.clone(), &project_code, &cookie, "----retry-one", body).await;
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
     assert_eq!(
         store::assets::list_all(&state.surreal).await.unwrap().len(),
@@ -12432,7 +12434,7 @@ async fn project_documents_upload_retry_tops_up_instead_of_duplicating() {
             ("c.txt", "text/plain", b"charlie"),
         ],
     );
-    let resp = post_documents_batch(app, project_id, &cookie, "----retry-two", body).await;
+    let resp = post_documents_batch(app, &project_code, &cookie, "----retry-two", body).await;
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
 
     let docs = store::assets::list_all(&state.surreal).await.unwrap();
@@ -12451,7 +12453,7 @@ async fn project_documents_upload_files_the_same_bytes_under_a_different_name() 
     // Dedup is keyed on filename *and* content, so the same bytes filed
     // deliberately under a second name stay two documents.
     let (state, surreal) = state_with_engines().await;
-    let project_id = batch_upload_project(&state).await;
+    let (project_id, project_code) = batch_upload_project(&state).await;
     let app = server::neon_router(
         state.clone(),
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
@@ -12468,7 +12470,7 @@ async fn project_documents_upload_files_the_same_bytes_under_a_different_name() 
         ],
     );
 
-    let resp = post_documents_batch(app, project_id, &cookie, boundary, body).await;
+    let resp = post_documents_batch(app, &project_code, &cookie, boundary, body).await;
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
     assert_eq!(
         store::assets::list_all(&state.surreal).await.unwrap().len(),
@@ -12484,7 +12486,7 @@ async fn project_documents_upload_re_upload_with_a_new_visibility_syncs_the_exis
     // duplicating the row.
 
     let (state, surreal) = state_with_engines().await;
-    let project_id = batch_upload_project(&state).await;
+    let (project_id, project_code) = batch_upload_project(&state).await;
     let app = server::neon_router(
         state.clone(),
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
@@ -12497,7 +12499,7 @@ async fn project_documents_upload_re_upload_with_a_new_visibility_syncs_the_exis
         &csrf,
         &[("welcome-letter.pdf", "application/pdf", b"welcome")],
     );
-    let resp = post_documents_batch(app.clone(), project_id, &cookie, boundary, body).await;
+    let resp = post_documents_batch(app.clone(), &project_code, &cookie, boundary, body).await;
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
     let first = store::assets::for_project(&state.surreal, project_id)
         .await
@@ -12524,7 +12526,7 @@ async fn project_documents_upload_re_upload_with_a_new_visibility_syncs_the_exis
     body2.extend_from_slice(b"Content-Disposition: form-data; name=\"visibility\"\r\n\r\nclient");
     body2.extend_from_slice(format!("\r\n--{boundary2}--\r\n").as_bytes());
 
-    let resp2 = post_documents_batch(app, project_id, &cookie, boundary2, body2).await;
+    let resp2 = post_documents_batch(app, &project_code, &cookie, boundary2, body2).await;
     assert_eq!(resp2.status(), StatusCode::SEE_OTHER);
 
     let rows = store::assets::for_project(&state.surreal, project_id)
@@ -12557,7 +12559,7 @@ async fn project_documents_re_upload_as_internal_syncs_every_duplicate_row() {
     // must flip *every* matching row.
 
     let (state, surreal) = state_with_engines().await;
-    let project_id = batch_upload_project(&state).await;
+    let (project_id, project_code) = batch_upload_project(&state).await;
     let app = server::neon_router(
         state.clone(),
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
@@ -12595,7 +12597,7 @@ async fn project_documents_re_upload_as_internal_syncs_every_duplicate_row() {
     let (cookie, csrf) = admin_on_project(&surreal, project_id).await;
     let boundary = "----duplicate-resync";
     let body = documents_multipart(boundary, &csrf, &[("leak.pdf", "application/pdf", bytes)]);
-    let resp = post_documents_batch(app, project_id, &cookie, boundary, body).await;
+    let resp = post_documents_batch(app, &project_code, &cookie, boundary, body).await;
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
 
     let rows = store::assets::for_project(&state.surreal, project_id)
@@ -12629,6 +12631,11 @@ async fn contract_review_upload_without_csrf_is_forbidden() {
     // wrong denial.
     let (project_id, _lawyer, _lawyer_cookie, _lawyer_csrf) =
         lawyer_project_fixture(&surreal).await;
+    let project_code = store::projects::find_by_id(&surreal, project_id)
+        .await
+        .unwrap()
+        .expect("the fixture matter")
+        .code;
     let admin = store::persons::create(
         &surreal,
         &store::persons::NewPerson::with_role(
@@ -12652,7 +12659,7 @@ async fn contract_review_upload_without_csrf_is_forbidden() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{project_id}/contract-review"))
+                .uri(format!("/app/projects/{project_code}/contract-review"))
                 .header("cookie", cookie)
                 .header(
                     "content-type",
@@ -12715,12 +12722,12 @@ async fn project_detail_page_renders_documents_and_upload_form() {
     // signed-URL redirect endpoint. Provenance (source, content type)
     // is NOT spilled into the list; it lives on the detail page
     // (covered by its own test below).
-    assert!(body.contains(&format!("/app/projects/{project_id}/documents/")));
+    assert!(body.contains(&format!("/app/projects/{project_code}/documents/")));
     assert!(body.contains("/download"));
     assert!(!body.contains("application/pdf"));
     // Inline upload form posts to the same endpoint as before.
     assert!(body.contains(&format!(
-        "action=\"/app/projects/{project_id}/documents/upload\""
+        "action=\"/app/projects/{project_code}/documents/upload\""
     )));
     assert!(body.contains("enctype=\"multipart/form-data\""));
 }
@@ -12730,7 +12737,8 @@ async fn project_document_detail_page_shows_provenance_and_download_link() {
     let (state, surreal) = state_with_engines().await;
 
     let __dri = store::test_support::dri_person(&surreal).await;
-    let project_id = test_project(&surreal, "Acme Formation", "open").await.id;
+    let project = test_project(&surreal, "Acme Formation", "open").await;
+    let (project_id, project_code) = (project.id, project.code.clone());
 
     let args = store::documents::IngestArgs {
         project_id,
@@ -12752,7 +12760,7 @@ async fn project_document_detail_page_shows_provenance_and_download_link() {
         .oneshot(
             Request::builder()
                 .uri(format!(
-                    "/app/projects/{project_id}/documents/{}",
+                    "/app/projects/{project_code}/documents/{}",
                     ingested.asset_id
                 ))
                 .header(
@@ -12775,7 +12783,7 @@ async fn project_document_detail_page_shows_provenance_and_download_link() {
     assert!(body.contains("application/pdf"));
     assert!(body.contains(&ingested.sha256_hex));
     assert!(body.contains(&format!(
-        "/app/projects/{project_id}/documents/{}/download",
+        "/app/projects/{project_code}/documents/{}/download",
         ingested.asset_id
     )));
 }
@@ -12789,7 +12797,8 @@ async fn project_document_download_streams_bytes_on_fs_backend() {
     let (state, surreal) = state_with_engines().await;
 
     let __dri = store::test_support::dri_person(&surreal).await;
-    let project_id = test_project(&surreal, "Acme Formation", "open").await.id;
+    let project = test_project(&surreal, "Acme Formation", "open").await;
+    let (project_id, project_code) = (project.id, project.code.clone());
 
     let bytes_in = b"engagement letter bytes";
     let args = store::documents::IngestArgs {
@@ -12811,7 +12820,7 @@ async fn project_document_download_streams_bytes_on_fs_backend() {
         .oneshot(
             Request::builder()
                 .uri(format!(
-                    "/app/projects/{project_id}/documents/{}/download",
+                    "/app/projects/{project_code}/documents/{}/download",
                     ingested.asset_id
                 ))
                 .header(
@@ -12850,7 +12859,8 @@ async fn project_document_download_404s_when_doc_belongs_to_a_different_project(
     let (state, surreal) = state_with_engines().await;
 
     let project_a = test_project(&surreal, "A", "open").await.id;
-    let project_b = test_project(&surreal, "B", "open").await.id;
+    let project_b_row = test_project(&surreal, "B", "open").await;
+    let (_project_b, project_b_code) = (project_b_row.id, project_b_row.code.clone());
 
     let args = store::documents::IngestArgs {
         project_id: project_a,
@@ -12872,7 +12882,7 @@ async fn project_document_download_404s_when_doc_belongs_to_a_different_project(
         .oneshot(
             Request::builder()
                 .uri(format!(
-                    "/app/projects/{project_b}/documents/{}/download",
+                    "/app/projects/{project_b_code}/documents/{}/download",
                     ingested.asset_id
                 ))
                 .header("cookie", admin_session_cookie())
@@ -12894,14 +12904,15 @@ async fn project_document_download_404s_when_document_missing() {
     let (state, surreal) = state_with_engines().await;
 
     let __dri = store::test_support::dri_person(&surreal).await;
-    let project_id = test_project(&surreal, "Acme Formation", "open").await.id;
+    let project = test_project(&surreal, "Acme Formation", "open").await;
+    let (_project_id, project_code) = (project.id, project.code.clone());
 
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
             Request::builder()
                 .uri(format!(
-                    "/app/projects/{project_id}/documents/{}/download",
+                    "/app/projects/{project_code}/documents/{}/download",
                     Uuid::now_v7()
                 ))
                 .header("cookie", admin_session_cookie())
@@ -13018,14 +13029,15 @@ async fn project_document_detail_renders_not_found_for_unknown_document() {
     let (state, surreal) = state_with_engines().await;
 
     let __dri = store::test_support::dri_person(&surreal).await;
-    let project_id = test_project(&surreal, "Acme Formation", "open").await.id;
+    let project = test_project(&surreal, "Acme Formation", "open").await;
+    let (_project_id, project_code) = (project.id, project.code.clone());
 
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
             Request::builder()
                 .uri(format!(
-                    "/app/projects/{project_id}/documents/{}",
+                    "/app/projects/{project_code}/documents/{}",
                     Uuid::now_v7()
                 ))
                 .header("cookie", admin_session_cookie())
@@ -16151,7 +16163,7 @@ async fn the_workbench_points_every_firm_participant_at_email_to_close_a_matter(
         for gone in [
             "Close this matter".to_string(),
             "Close matter".to_string(),
-            format!("/app/projects/{project_id}/close"),
+            format!("/app/projects/{project_code}/close"),
         ] {
             assert!(
                 !body.contains(&gone),

@@ -889,7 +889,7 @@ async fn close_matter_post_starts_a_closing_walk_for_an_existing_matter() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{}/close", project.id))
+                .uri(format!("/app/projects/{}/close", project.code))
                 .header(
                     "authorization",
                     portal::test_support::lawyer_bearer_header(),
@@ -984,7 +984,7 @@ async fn close_walk_renders_firm_signed_letter_and_closes_the_matter() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{}/close", project.id))
+                .uri(format!("/app/projects/{}/close", project.code))
                 .header(
                     "authorization",
                     portal::test_support::lawyer_bearer_header(),

@@ -529,42 +529,42 @@ fn register_project_routes(r: Router<AdminState>) -> Router<AdminState> {
             post(projects_new_client_inline),
         )
         .route(
-            &format!("{prefix}/{{code}}"),
+            &format!("{prefix}/{{project_code}}"),
             post(projects_update_lawyer_only),
         )
         .route(
-            &format!("{prefix}/{{id}}/people"),
+            &format!("{prefix}/{{project_code}}/people"),
             post(project_participation_create),
         )
         .route(
-            &format!("{prefix}/{{id}}/people/{{role_id}}/edit"),
+            &format!("{prefix}/{{project_code}}/people/{{role_id}}/edit"),
             post(project_participation_update),
         )
         .route(
-            &format!("{prefix}/{{id}}/people/{{role_id}}/delete"),
+            &format!("{prefix}/{{project_code}}/people/{{role_id}}/delete"),
             post(project_participation_delete),
         )
         .route(
-            &format!("{prefix}/{{id}}/people/{{role_id}}/dri"),
+            &format!("{prefix}/{{project_code}}/people/{{role_id}}/dri"),
             post(matter_dri_designate),
         )
         .route(
-            &format!("{prefix}/{{id}}/people/{{role_id}}/dri/remove"),
+            &format!("{prefix}/{{project_code}}/people/{{role_id}}/dri/remove"),
             post(matter_dri_remove),
         )
         .route(
-            &format!("{prefix}/{{id}}/delete"),
+            &format!("{prefix}/{{project_code}}/delete"),
             post(projects_delete_lawyer_only),
         )
         .route(
-            &format!("{prefix}/{{id}}/documents/upload"),
+            &format!("{prefix}/{{project_code}}/documents/upload"),
             post(crate::project_documents::upload),
         )
         // Northstar: file a sitting's transcript into an estate matter
         // (text / file / link) — threads the reusable document-intake
         // step through the workflow's `transcript_uploaded` signal.
         .route(
-            &format!("{prefix}/{{id}}/notations/{{nid}}/transcript"),
+            &format!("{prefix}/{{project_code}}/notations/{{nid}}/transcript"),
             post(crate::transcript_intake::upload),
         )
         // Open a notation for an existing matter from a template authored in
@@ -572,12 +572,12 @@ fn register_project_routes(r: Router<AdminState>) -> Router<AdminState> {
         // door (auto-saves the template version, then opens the notation).
         // Matter-scoped, so it belongs here rather than on the firm prefix.
         .route(
-            &format!("{prefix}/{{project_id}}/notations/new"),
+            &format!("{prefix}/{{project_code}}/notations/new"),
             post(crate::project_notation::project_notation_new_post),
         )
         // Close the matter — opens the closing-letter walk.
         .route(
-            &format!("{prefix}/{{id}}/close"),
+            &format!("{prefix}/{{project_code}}/close"),
             post(crate::retainer_walk::close_matter_post),
         )
         // Inbound contract review: a third-party contract uploaded for
@@ -585,7 +585,7 @@ fn register_project_routes(r: Router<AdminState>) -> Router<AdminState> {
         // One of the four paths that already dispatched here from both
         // prefixes, so the merge is deletion.
         .route(
-            &format!("{prefix}/{{id}}/contract-review"),
+            &format!("{prefix}/{{project_code}}/contract-review"),
             post(crate::contract_review_walk::upload),
         )
         // `GET {prefix}/{id}/documents/{doc_id}` (the provenance page) renders
@@ -593,34 +593,34 @@ fn register_project_routes(r: Router<AdminState>) -> Router<AdminState> {
         // signed-URL download stays here. The client lens still never resolves
         // an `internal` asset — the tier selects that now, not the prefix.
         .route(
-            &format!("{prefix}/{{id}}/documents/{{doc_id}}/download"),
+            &format!("{prefix}/{{project_code}}/documents/{{doc_id}}/download"),
             get(crate::project_documents::download),
         )
         // "Download all matter documents" — a ZIP of the matter's current
         // files (repo HEAD). The firm gets every asset; a client gets the
         // `visibility`-filtered set.
         .route(
-            &format!("{prefix}/{{id}}/documents.zip"),
+            &format!("{prefix}/{{project_code}}/documents.zip"),
             get(crate::project_export::download_all),
         )
         // Client-initiated "Delete this document" — records a pending
         // request a lawyer/admin later authorizes. Request-only.
         .route(
-            &format!("{prefix}/{{id}}/documents/{{doc_id}}/request-deletion"),
+            &format!("{prefix}/{{project_code}}/documents/{{doc_id}}/request-deletion"),
             post(crate::expunge_request_route::client_request),
         )
         // Northstar: the client approves their estate plan, firing
         // `client_approved` (client_review -> sent_for_signature__pending)
         // and flipping every released draft to `approved`.
         .route(
-            &format!("{prefix}/{{id}}/approve-plan"),
+            &format!("{prefix}/{{project_code}}/approve-plan"),
             post(crate::estate::approve_plan_post),
         )
         // Comment-only client review surface (Northstar Phase A). The page
         // renders through Dioxus (`dioxus_app::review_router`); the comment
         // `GET`/`POST` (the custom element's data API) stay here.
         .route(
-            &format!("{prefix}/{{id}}/review/{{doc_id}}/comments"),
+            &format!("{prefix}/{{project_code}}/review/{{doc_id}}/comments"),
             get(crate::review::list_comments).post(crate::review::create_comment),
         )
         // The matter's single privileged conversation log — document
@@ -630,7 +630,7 @@ fn register_project_routes(r: Router<AdminState>) -> Router<AdminState> {
         // and redirects back to the page (PRG). Only the firm lens may post
         // an internal note, which the handler decides from the tier.
         .route(
-            &format!("{prefix}/{{id}}/conversation/messages"),
+            &format!("{prefix}/{{project_code}}/conversation/messages"),
             post(crate::conversation::post_message),
         )
         // Client self-serve intake (the magic link): the demand-side
@@ -639,7 +639,7 @@ fn register_project_routes(r: Router<AdminState>) -> Router<AdminState> {
         // The `GET` renders through Dioxus
         // (`dioxus_app::client_intake_router`); the save posts here.
         .route(
-            &format!("{prefix}/{{id}}/intake/{{notation_id}}"),
+            &format!("{prefix}/{{project_code}}/intake/{{notation_id}}"),
             post(crate::intake::intake_save),
         )
 }
@@ -1698,7 +1698,7 @@ impl ProjectParticipationInput {
 /// Designation is additive, so nothing here is a two-step: a submit either
 /// changes the matter's accountability or is refused with a reason.
 fn refuse_dri(
-    project_id: Uuid,
+    project_code: &str,
     role_id: Option<Uuid>,
     input: &ProjectParticipationInput,
     error: &store::participation::DriError,
@@ -1715,11 +1715,11 @@ fn refuse_dri(
             "This matter always has a lawyer DRI. Designate another lawyer before removing this one."
         }
         E::Db(err) => {
-            tracing::error!(error = %err, %project_id, "project participation: dri designation failed");
+            tracing::error!(error = %err, %project_code, "project participation: dri designation failed");
             return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
         }
     };
-    refuse_participation(project_id, role_id, input, message)
+    refuse_participation(project_code, role_id, input, message)
 }
 
 /// The DRI actor behind this request.
@@ -1788,17 +1788,17 @@ async fn participation_people(
 /// The participation form's path for one matter — the page a refused add or
 /// edit redirects back to (post/redirect/get), carrying its message and the
 /// submitted values so nothing is retyped.
-fn participation_form_path(project_id: Uuid, role_id: Option<Uuid>) -> String {
+fn participation_form_path(project_code: &str, role_id: Option<Uuid>) -> String {
     match role_id {
-        Some(role_id) => format!("/app/projects/{project_id}/people/{role_id}/edit"),
-        None => format!("/app/projects/{project_id}/people/new"),
+        Some(role_id) => format!("/app/projects/{project_code}/people/{role_id}/edit"),
+        None => format!("/app/projects/{project_code}/people/new"),
     }
 }
 
 /// Refuse a participation add/edit: redirect back to its form with the message
 /// and the submitted person echoed.
 fn refuse_participation(
-    project_id: Uuid,
+    project_code: &str,
     role_id: Option<Uuid>,
     input: &ProjectParticipationInput,
     error: &str,
@@ -1811,7 +1811,7 @@ fn refuse_participation(
     if let Some(dri) = input.dri.as_deref() {
         push_query(&mut query, "dri", dri);
     }
-    let path = participation_form_path(project_id, role_id);
+    let path = participation_form_path(project_code, role_id);
     if query.is_empty() {
         Redirect::to(&path).into_response()
     } else {
@@ -1821,11 +1821,14 @@ fn refuse_participation(
 
 async fn project_participation_create(
     State(surreal): State<store::surreal::SurrealDb>,
-    Path(id): Path<Uuid>,
+    Path(project_code): Path<String>,
     session: Option<Extension<SessionData>>,
     Form(input): Form<ProjectParticipationInput>,
 ) -> Response {
     let session = session.as_deref();
+    let Some(id) = store::projects::id_for_code(&surreal, &project_code).await else {
+        return not_found_response();
+    };
     if let Err(response) = project_participation_access(&surreal, session, id).await {
         return response;
     }
@@ -1835,14 +1838,14 @@ async fn project_participation_create(
     };
     let Some(person_id) = input.person_id else {
         return refuse_participation(
-            id,
+            &project_code,
             None,
             &input,
             "Choose a person to assign to this matter.",
         );
     };
     if !people.iter().any(|p| p.id == person_id) {
-        return refuse_participation(id, None, &input, "That person was not found.");
+        return refuse_participation(&project_code, None, &input, "That person was not found.");
     }
     // Route the write through the shared command — the same boundary
     // `POST /app/api/projects/{id}/participants` uses (#355). It owns the
@@ -1868,13 +1871,13 @@ async fn project_participation_create(
                 E::Duplicate => "That person is already assigned to this matter.",
                 E::PersonNotFound => "That person was not found.",
                 E::ProjectNotFound => "That matter was not found.",
-                E::Dri(error) => return refuse_dri(id, None, &input, &error),
+                E::Dri(error) => return refuse_dri(&project_code, None, &input, &error),
                 E::Db(err) => {
                     tracing::error!(error = %err, project_id = %id, "project participation: add failed");
                     return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
                 }
             };
-            refuse_participation(id, None, &input, message)
+            refuse_participation(&project_code, None, &input, message)
         }
     }
 }
@@ -1882,11 +1885,14 @@ async fn project_participation_create(
 #[allow(clippy::too_many_lines)]
 async fn project_participation_update(
     State(surreal): State<store::surreal::SurrealDb>,
-    Path((id, role_id)): Path<(Uuid, Uuid)>,
+    Path((project_code, role_id)): Path<(String, Uuid)>,
     session: Option<Extension<SessionData>>,
     Form(input): Form<ProjectParticipationInput>,
 ) -> Response {
     let session = session.as_deref();
+    let Some(id) = store::projects::id_for_code(&surreal, &project_code).await else {
+        return not_found_response();
+    };
     if let Err(response) = project_participation_access(&surreal, session, id).await {
         return response;
     }
@@ -1896,14 +1902,19 @@ async fn project_participation_update(
     };
     let Some(person_id) = input.person_id else {
         return refuse_participation(
-            id,
+            &project_code,
             Some(role_id),
             &input,
             "Choose a person to assign to this matter.",
         );
     };
     if !people.iter().any(|p| p.id == person_id) {
-        return refuse_participation(id, Some(role_id), &input, "That person was not found.");
+        return refuse_participation(
+            &project_code,
+            Some(role_id),
+            &input,
+            "That person was not found.",
+        );
     }
     // Route the write through the shared command (#355) — it owns the
     // participation validation, the duplicate rule, and the lawyer-DRI-lockout
@@ -1930,23 +1941,26 @@ async fn project_participation_update(
                 E::PersonNotFound => "That person was not found.",
                 E::Duplicate => "That person is already assigned to this matter.",
                 E::DriLockout => PROJECT_PARTICIPATION_DRI_LOCKOUT_ERROR,
-                E::Dri(error) => return refuse_dri(id, Some(role_id), &input, &error),
+                E::Dri(error) => return refuse_dri(&project_code, Some(role_id), &input, &error),
                 E::Db(err) => {
                     tracing::error!(error = %err, project_id = %id, role_id = %role_id, "project participation: update failed");
                     return (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response();
                 }
             };
-            refuse_participation(id, Some(role_id), &input, message)
+            refuse_participation(&project_code, Some(role_id), &input, message)
         }
     }
 }
 
 async fn project_participation_delete(
     State(surreal): State<store::surreal::SurrealDb>,
-    Path((id, role_id)): Path<(Uuid, Uuid)>,
+    Path((project_code, role_id)): Path<(String, Uuid)>,
     session: Option<Extension<SessionData>>,
 ) -> Response {
     let session = session.as_deref();
+    let Some(id) = store::projects::id_for_code(&surreal, &project_code).await else {
+        return not_found_response();
+    };
     if let Err(response) = project_participation_access(&surreal, session, id).await {
         return response;
     }
@@ -1989,12 +2003,15 @@ async fn project_participation_delete(
 async fn matter_dri_designate(
     State(surreal): State<store::surreal::SurrealDb>,
     session: Option<Extension<SessionData>>,
-    Path((id, role_id)): Path<(Uuid, Uuid)>,
+    Path((project_code, role_id)): Path<(String, Uuid)>,
 ) -> Response {
     let session = session.as_deref();
     if !is_lawyer_tier(session) {
         return not_found_response();
     }
+    let Some(id) = store::projects::id_for_code(&surreal, &project_code).await else {
+        return not_found_response();
+    };
     let Some(row) = participation_row(&surreal, id, role_id).await else {
         return not_found_response();
     };
@@ -2028,12 +2045,15 @@ async fn matter_dri_designate(
 async fn matter_dri_remove(
     State(surreal): State<store::surreal::SurrealDb>,
     session: Option<Extension<SessionData>>,
-    Path((id, role_id)): Path<(Uuid, Uuid)>,
+    Path((project_code, role_id)): Path<(String, Uuid)>,
 ) -> Response {
     let session = session.as_deref();
     if !is_lawyer_tier(session) {
         return not_found_response();
     }
+    let Some(id) = store::projects::id_for_code(&surreal, &project_code).await else {
+        return not_found_response();
+    };
     let Some(row) = participation_row(&surreal, id, role_id).await else {
         return not_found_response();
     };
@@ -2173,11 +2193,14 @@ async fn projects_update_lawyer_only(
 async fn projects_delete_lawyer_only(
     State(surreal): State<store::surreal::SurrealDb>,
     session: Option<Extension<SessionData>>,
-    Path(id): Path<Uuid>,
+    Path(project_code): Path<String>,
 ) -> Response {
     if !is_lawyer_tier(session.as_deref()) {
         return not_found_response();
     }
+    let Some(id) = store::projects::id_for_code(&surreal, &project_code).await else {
+        return not_found_response();
+    };
     match store::projects::delete_project_with_surreal(&surreal, id).await {
         // `NotFound` lands with `Ok` on purpose: already gone is what the
         // caller wanted, so a double-clicked delete or a second tab must not

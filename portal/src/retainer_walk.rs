@@ -534,7 +534,7 @@ pub(crate) async fn link_retainer_rows(
 const CLOSING_TEMPLATE_CODE: &str = "closing__letter";
 
 /// Why opening a matter's closing-letter notation failed. Shared by the lawyer
-/// `/app/projects/{id}/close` form and the `/app/api/projects/{id}/close` door
+/// `/app/projects/{project_code}/close` form and the `/app/api/projects/{id}/close` door
 /// so both adapters agree on the same refusals.
 #[derive(Debug)]
 pub enum CloseMatterError {
@@ -613,13 +613,16 @@ pub async fn open_closing_notation(
     Ok(notation.id)
 }
 
-/// POST `/app/projects/:id/close` — open the closing-letter walk for an existing
+/// POST `/app/projects/{project_code}/close` — open the closing-letter walk for an existing
 /// matter, then redirect into the generic walker. A thin adapter over
 /// [`open_closing_notation`], which the REST close door shares.
 pub async fn close_matter_post(
     State(state): State<AdminState>,
-    AxumPath(project_id): AxumPath<Uuid>,
+    AxumPath(project_code): AxumPath<String>,
 ) -> Response {
+    let Some(project_id) = store::projects::id_for_code(&state.surreal, &project_code).await else {
+        return (StatusCode::NOT_FOUND, "matter not found").into_response();
+    };
     match open_closing_notation(&state.surreal, &state.storage, project_id).await {
         Ok(notation_id) => {
             Redirect::to(&format!("/lawyer/notations/{notation_id}/step")).into_response()

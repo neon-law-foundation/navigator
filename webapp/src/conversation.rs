@@ -1,4 +1,4 @@
-//! The matter conversation page (`/app/projects/{id}/conversation`) as a
+//! The matter conversation page (`/app/projects/{project_code}/conversation`) as a
 //! Dioxus component (#641 Phase 3, projects cluster) — the
 //! privileged client↔firm thread on one matter.
 //!
@@ -38,7 +38,7 @@ pub struct ConversationView {
     pub messages: Vec<ConversationMessage>,
     pub is_lawyer: bool,
     pub csrf_token: String,
-    /// The matter base path (`/app/projects/{id}`) — the back link and the
+    /// The matter base path (`/app/projects/{project_code}`) — the back link and the
     /// composer action derive from it.
     pub base: String,
 }
@@ -72,8 +72,8 @@ fn direction_modifier(direction: &str) -> &'static str {
 pub async fn get_conversation() -> Result<ConversationView, ServerFnError> {
     use std::collections::HashMap;
 
-    let axum::extract::Path(project_id) =
-        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<uuid::Uuid>, _>()
+    let axum::extract::Path(project_code) =
+        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<String>, _>()
             .await?;
     let role = dioxus_fullstack_core::FullstackContext::extract::<axum::Extension<ViewerRole>, _>()
         .await
@@ -104,24 +104,32 @@ pub async fn get_conversation() -> Result<ConversationView, ServerFnError> {
     // One path serves both sides, so the tier is what says which thread this
     // is — not the prefix the caller typed.
     let is_lawyer = role.is_lawyer_tier();
-    let Some(project) = store::projects::find_by_id(&surreal, project_id)
+    // The matter arrives as its code; everything below keys on the row id, so
+    // this one lookup is both the resolution and the existence check.
+    let Some(project) = store::projects::find_by_code(&surreal, &project_code)
         .await
         .map_err(server_error)?
     else {
         return Ok(not_found(
-            project_id,
+            project_code,
             "/app/projects".to_string(),
             is_lawyer,
             csrf_token,
         ));
     };
+    let project_id = project.id;
     let base = format!("/app/projects/{}", project.code);
 
     let visible = store::access::can_see_project(&surreal, person_id, store_role, project_id)
         .await
         .map_err(server_error)?;
     if !visible {
-        return Ok(not_found(project_id, base, is_lawyer, csrf_token));
+        return Ok(not_found(
+            project_id.to_string(),
+            base,
+            is_lawyer,
+            csrf_token,
+        ));
     }
     // Lens-scoped rows: the firm sees every row, a client every row except
     // firm-internal notes.
@@ -188,7 +196,7 @@ fn server_error(e: impl std::fmt::Display) -> ServerFnError {
 /// through this lens, and return an empty (nameless) view.
 #[cfg(feature = "server")]
 fn not_found(
-    project_id: uuid::Uuid,
+    project_id: String,
     base: String,
     is_lawyer: bool,
     csrf_token: String,
@@ -198,10 +206,10 @@ fn not_found(
         None,
     );
     ConversationView {
-        project_id: project_id.to_string(),
-        base,
+        project_id,
         is_lawyer,
         csrf_token,
+        base,
         ..ConversationView::default()
     }
 }

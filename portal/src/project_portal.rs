@@ -72,16 +72,16 @@ use crate::session::SessionData;
 ///
 /// `{code}` is the Project code, and `portal` is a literal rather than a
 /// parameter. `/app/projects/{code}` stays Navigator's matter show page.
-pub const PROJECT_PORTAL_PATH: &str = "/app/projects/{code}/portal";
+pub const PROJECT_PORTAL_PATH: &str = "/app/projects/{project_code}/portal";
 
 /// The trailing-slash form the bare mount redirects to, and the root every
 /// asset URL is joined onto by the Vite base.
-const PROJECT_PORTAL_ROOT: &str = "/app/projects/{code}/portal/";
+const PROJECT_PORTAL_ROOT: &str = "/app/projects/{project_code}/portal/";
 
 /// One published object below the mount. `{asset}` is the path within the
 /// bundle; the wildcard is what makes a nested `assets/index-<hash>.js`
 /// resolve.
-const PROJECT_PORTAL_ASSET: &str = "/app/projects/{code}/portal/{*asset}";
+const PROJECT_PORTAL_ASSET: &str = "/app/projects/{project_code}/portal/{*asset}";
 
 /// The bundle entrypoint, served for the bare mount and for any unmatched
 /// path below it.
@@ -410,12 +410,10 @@ fn is_index(served: &str) -> bool {
 ///
 /// One or more trailing slashes are trimmed before those rules apply, because a
 /// trailing slash is what a portal's own navigation emits: a section link is
-/// `${base}${slug}/`, so every in-app link below the mount arrives with one.
-/// Reading it as an empty final segment refused every section of every
-/// published portal as a traversal while the bare mount served fine. A trailing
-/// slash climbs out of nothing; what it names is a directory index or a
-/// client-side route, and [`bundle_candidates`] resolves both. `a//b/` stays
-/// refused — trimming the tail never reaches an interior empty segment.
+/// `${base}${slug}/`, so every in-app link below the mount arrives with one. A
+/// trailing slash climbs out of nothing — what it names is a directory index or
+/// a client-side route, and [`bundle_candidates`] resolves both. `a//b/` stays
+/// refused: trimming the tail never reaches an interior empty segment.
 fn asset_path_is_safe(asset: &str) -> bool {
     let asset = asset.trim_end_matches('/');
     asset.is_empty()
@@ -511,10 +509,10 @@ mod tests {
     /// both actually resolve on the assembled router.
     #[test]
     fn the_portal_mount_cannot_shadow_the_matter_show_page() {
-        assert_eq!(PROJECT_PORTAL_PATH, "/app/projects/{code}/portal");
+        assert_eq!(PROJECT_PORTAL_PATH, "/app/projects/{project_code}/portal");
         assert_eq!(
             crate::dioxus_app::PROJECT_DETAIL_PATH,
-            "/app/projects/{code}",
+            "/app/projects/{project_code}",
             "the matter show page keeps its own mount"
         );
 

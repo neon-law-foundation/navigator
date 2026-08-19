@@ -1,4 +1,4 @@
-//! `POST /app/projects/{project_id}/notations/new` — open a
+//! `POST /app/projects/{project_code}/notations/new` — open a
 //! notation for an **existing** Project from a template authored in that
 //! Project's git repo.
 //!
@@ -220,10 +220,14 @@ impl CreateProjectNotationError {
 
 pub async fn project_notation_new_post(
     State(state): State<AdminState>,
-    AxumPath(project_id): AxumPath<Uuid>,
+    AxumPath(project_code): AxumPath<String>,
     session: Option<Extension<SessionData>>,
     Form(body): Form<NewProjectNotationBody>,
 ) -> Response {
+    let Some(project_id) = store::projects::id_for_code(&state.surreal, &project_code).await else {
+        return (StatusCode::NOT_FOUND, "matter not found").into_response();
+    };
+
     // The route lives under `/lawyer`, so the tier is already enforced; the
     // command re-checks matter scope from the session. No session → no scope.
     let (acting_person_id, acting_role) = match session.as_deref() {

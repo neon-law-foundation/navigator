@@ -161,7 +161,7 @@ async fn uploading_a_transcript_extracts_answers_and_renders_four_draft_instrume
             Request::builder()
                 .method("POST")
                 .uri(format!(
-                    "/app/projects/{project_id}/notations/{}/transcript",
+                    "/app/projects/{project_code}/notations/{}/transcript",
                     notation.id
                 ))
                 .header("cookie", cookie)

@@ -94,7 +94,7 @@ impl From<String> for ContractReviewError {
     }
 }
 
-/// `POST /app/projects/:id/contract-review` — upload an inbound contract
+/// `POST /app/projects/{project_code}/contract-review` — upload an inbound contract
 /// for playbook review.
 ///
 /// Opens a `services__contract_review` notation on the project, files the
@@ -103,7 +103,7 @@ impl From<String> for ContractReviewError {
 /// caller who can't see the project gets `404`.
 pub async fn upload(
     State(state): State<AdminState>,
-    AxumPath(project_id): AxumPath<Uuid>,
+    AxumPath(project_code): AxumPath<String>,
     cookies: Cookies,
     session: Option<Extension<SessionData>>,
     mut multipart: Multipart,
@@ -111,6 +111,10 @@ pub async fn upload(
     let Some(Extension(session)) = session else {
         return not_found();
     };
+    let Some(project_id) = store::projects::id_for_code(&state.surreal, &project_code).await else {
+        return not_found();
+    };
+
     let Some(person_id) = session.person_id else {
         return not_found();
     };

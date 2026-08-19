@@ -182,6 +182,9 @@ async fn ensure_project(world: &mut WritesWorld, project_name: &str) -> Uuid {
     }
     let surreal = features::shared_surreal().await;
     let code = format!("test-{}", Uuid::now_v7().simple());
+    world
+        .project_codes
+        .insert(project_name.to_string(), code.clone());
     let inserted = store::projects::create(
         &surreal,
         &store::projects::NewProject {
@@ -260,10 +263,11 @@ async fn submit_to_path(world: &mut WritesWorld, email: String, body: String, pa
 
 #[when(regex = r#"^"([^"]+)" submits "([^"]*)" to the delete action for "([^"]+)"$"#)]
 async fn submit_delete(world: &mut WritesWorld, email: String, body: String, project_name: String) {
-    let project_id = *world
-        .projects
+    let project_code = world
+        .project_codes
         .get(&project_name)
-        .expect("project was seeded earlier");
+        .expect("project was seeded earlier")
+        .clone();
     let cookie = session_cookie_for(world, &email).await;
     let body_with_csrf = if body.is_empty() {
         format!("_csrf={CSRF}")
@@ -275,7 +279,7 @@ async fn submit_delete(world: &mut WritesWorld, email: String, body: String, pro
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{project_id}/delete"))
+                .uri(format!("/app/projects/{project_code}/delete"))
                 .header("cookie", cookie)
                 .header("content-type", "application/x-www-form-urlencoded")
                 .body(Body::from(body_with_csrf))
@@ -288,13 +292,14 @@ async fn submit_delete(world: &mut WritesWorld, email: String, body: String, pro
 
 #[when(regex = r#"^"([^"]+)" opens the edit page for "([^"]+)"$"#)]
 async fn open_edit(world: &mut WritesWorld, email: String, project_name: String) {
-    let project_id = *world
-        .projects
+    let project_code = world
+        .project_codes
         .get(&project_name)
-        .expect("project was seeded earlier");
+        .expect("project was seeded earlier")
+        .clone();
     // One path for every tier — the edit form's own gate decides what comes
-    // back, so the step no longer picks a prefix from the actor's role.
-    get_path(world, &email, &format!("/app/projects/{project_id}/edit")).await;
+    // back, so the step reads the same for a lawyer and a client.
+    get_path(world, &email, &format!("/app/projects/{project_code}/edit")).await;
 }
 
 #[when(regex = r#"^"([^"]+)" opens the detail page for "([^"]+)"$"#)]

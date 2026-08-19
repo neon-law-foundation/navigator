@@ -1,6 +1,6 @@
 //! One filed matter document's provenance page as a Dioxus component (#956
-//! Phase 4) — `/app/projects/{id}/documents/{doc_id}` and its client twin
-//! `/app/projects/{id}/documents/{doc_id}`.
+//! Phase 4) — `/app/projects/{project_code}/documents/{doc_id}` and its client twin
+//! `/app/projects/{project_code}/documents/{doc_id}`.
 //!
 //! The successor to the `views::pages::admin::projects::document_detail`.
 //! A read-only page: where the document came from, when it arrived, and what is
@@ -110,9 +110,9 @@ async fn load() -> Result<DocumentDetailView, ServerFnError> {
         }
     };
 
-    let Ok(axum::extract::Path((project_id, doc_id))) =
+    let Ok(axum::extract::Path((project_code, doc_id))) =
         dioxus_fullstack_core::FullstackContext::extract::<
-            axum::extract::Path<(uuid::Uuid, uuid::Uuid)>,
+            axum::extract::Path<(String, uuid::Uuid)>,
             _,
         >()
         .await
@@ -137,6 +137,16 @@ async fn load() -> Result<DocumentDetailView, ServerFnError> {
     };
 
     let surreal = consume_context::<store::surreal::SurrealDb>();
+    // The matter arrives as its code; everything below keys on the row id. A
+    // code naming no matter is the same "not found" a caller off the matter
+    // gets, so neither can tell the other's case from the response — but a
+    // store *failure* is not a miss and must stay a 500, or an outage would
+    // read to every caller as "your matter is gone".
+    let project_id = match store::projects::find_by_code(&surreal, &project_code).await {
+        Ok(Some(project)) => project.id,
+        Ok(None) => return Ok(missing),
+        Err(_) => return Ok(failed()),
+    };
     // A refusal and a failed query are different answers: collapsing them
     // reports a store outage as a missing document. The gate reads the
     // participation ledger, so an outage breaks it before the asset lookup.
@@ -189,8 +199,8 @@ async fn load() -> Result<DocumentDetailView, ServerFnError> {
             content_type: doc.content_type,
             byte_size: doc.byte_size,
             sha256_hex: doc.sha256_hex,
-            download_href: format!("{base}/{project_id}/documents/{doc_id}/download"),
-            back_href: format!("{base}/{project_id}"),
+            download_href: format!("{base}/{project_code}/documents/{doc_id}/download"),
+            back_href: format!("{base}/{project_code}"),
         }),
         failed: false,
         role,
@@ -286,7 +296,7 @@ fn render_document(resource: &Resource<Result<DocumentDetailView, ServerFnError>
     }
 }
 
-/// `/app/projects/{id}/documents/{doc_id}` — one page, lensed by the tier.
+/// `/app/projects/{project_code}/documents/{doc_id}` — one page, lensed by the tier.
 #[component]
 pub fn ProjectDocument() -> Element {
     let resource = use_server_future(get_project_document)?;

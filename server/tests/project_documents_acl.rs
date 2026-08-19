@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_lines)]
 //! Visibility gate for the direct per-document routes
-//! (`GET /app/projects/:id/documents/:doc_id` and `.../download`).
+//! (`GET /app/projects/:project_code/documents/:doc_id` and `.../download`).
 //!
 //! #782: the client matter-detail listing and the "download all my
 //! documents" ZIP are gated on `assets.visibility`, but a client could
@@ -27,7 +27,7 @@ const KEY: &str = "test-session-key-not-for-production";
 
 struct Fixture {
     app: axum::Router,
-    project_id: Uuid,
+    project_code: String,
     client_cookie: String,
     admin_cookie: String,
     client_doc_id: Uuid,
@@ -144,7 +144,7 @@ async fn build_fixture() -> Fixture {
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     Fixture {
         app,
-        project_id: proj.id,
+        project_code: proj.code.clone(),
         client_cookie,
         admin_cookie,
         client_doc_id,
@@ -174,7 +174,7 @@ async fn client_download_of_an_internal_document_is_404() {
         &f.app,
         format!(
             "/app/projects/{}/documents/{}/download",
-            f.project_id, f.client_doc_id
+            f.project_code, f.client_doc_id
         ),
         &f.client_cookie,
     )
@@ -189,7 +189,7 @@ async fn client_download_of_an_internal_document_is_404() {
         &f.app,
         format!(
             "/app/projects/{}/documents/{}/download",
-            f.project_id, f.internal_doc_id
+            f.project_code, f.internal_doc_id
         ),
         &f.client_cookie,
     )
@@ -210,7 +210,7 @@ async fn lawyer_download_of_an_internal_document_succeeds() {
         &f.app,
         format!(
             "/app/projects/{}/documents/{}/download",
-            f.project_id, f.internal_doc_id
+            f.project_code, f.internal_doc_id
         ),
         &f.admin_cookie,
     )
@@ -228,7 +228,7 @@ async fn client_detail_of_an_internal_document_does_not_leak_it() {
         &f.app,
         format!(
             "/app/projects/{}/documents/{}",
-            f.project_id, f.internal_doc_id
+            f.project_code, f.internal_doc_id
         ),
         &f.client_cookie,
     )

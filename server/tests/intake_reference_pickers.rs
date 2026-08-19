@@ -1,7 +1,7 @@
 #![allow(clippy::doc_markdown, clippy::too_many_lines)]
 //! Integration tests for the DB-backed record/reference pickers on the
 //! **client** self-serve intake surface
-//! (`/app/projects/:id/intake/:notation_id`) — the demand-side mirror of
+//! (`/app/projects/:project_code/intake/:notation_id`) — the demand-side mirror of
 //! the lawyer walk covered by `step_candidates.rs`.
 //!
 //! The retainer cucumber (`features/client_intake.rs`) drives the happy path
@@ -65,7 +65,7 @@ questionnaire:
 struct Fixture {
     app: axum::Router,
     surreal: store::surreal::SurrealDb,
-    project_id: uuid::Uuid,
+    project_code: String,
     notation_id: uuid::Uuid,
     /// The signed client cookie for the matter's participant.
     client_cookie: String,
@@ -163,7 +163,7 @@ async fn build() -> Fixture {
     Fixture {
         app: server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR)),
         surreal,
-        project_id: project.id,
+        project_code: project.code.clone(),
         notation_id,
         client_cookie,
         client_csrf,
@@ -174,7 +174,7 @@ impl Fixture {
     fn path(&self) -> String {
         format!(
             "/app/projects/{}/intake/{}",
-            self.project_id, self.notation_id
+            self.project_code, self.notation_id
         )
     }
 

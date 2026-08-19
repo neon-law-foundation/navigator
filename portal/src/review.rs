@@ -1,4 +1,4 @@
-//! `/app/projects/:id/review/:doc_id` — the comment-only client
+//! `/app/projects/{project_code}/review/:doc_id` — the comment-only client
 //! review surface (Northstar Phase A).
 //!
 //! A client reads one attorney-reviewed draft (a will, a trust, a
@@ -114,14 +114,17 @@ async fn load_comments(surreal: &store::surreal::SurrealDb, doc_id: Uuid) -> Vec
         .collect()
 }
 
-/// `GET /app/projects/:id/review/:doc_id/comments` — the thread as
+/// `GET /app/projects/{project_code}/review/:doc_id/comments` — the thread as
 /// JSON.
 pub async fn list_comments(
     State(surreal): State<store::surreal::SurrealDb>,
-    Path((project_id, doc_id)): Path<(Uuid, Uuid)>,
+    Path((project_code, doc_id)): Path<(String, Uuid)>,
     session: Option<Extension<SessionData>>,
 ) -> Response {
     let Some(Extension(session)) = session else {
+        return not_found();
+    };
+    let Some(project_id) = store::projects::id_for_code(&surreal, &project_code).await else {
         return not_found();
     };
     let doc = match visible_review_document(&surreal, &session, project_id, doc_id).await {
@@ -239,17 +242,21 @@ pub async fn create_review_comment(
     .map_err(|e| ReviewCommentError::Db(e.to_string()))
 }
 
-/// `POST /app/projects/:id/review/:doc_id/comments` — create one
+/// `POST /app/projects/{project_code}/review/:doc_id/comments` — create one
 /// anchored comment and return the refreshed thread as JSON.
 pub async fn create_comment(
     State(surreal): State<store::surreal::SurrealDb>,
-    Path((project_id, doc_id)): Path<(Uuid, Uuid)>,
+    Path((project_code, doc_id)): Path<(String, Uuid)>,
     session: Option<Extension<SessionData>>,
     axum::Form(form): axum::Form<CommentForm>,
 ) -> Response {
     let Some(Extension(session)) = session else {
         return not_found();
     };
+    let Some(project_id) = store::projects::id_for_code(&surreal, &project_code).await else {
+        return not_found();
+    };
+
     match create_review_comment(
         &surreal,
         session.role,

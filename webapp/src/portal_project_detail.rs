@@ -385,14 +385,14 @@ pub fn ClientProjectDetail() -> Element {
                 if has_documents {
                     a {
                         class: "nav-btn nav-btn--secondary",
-                        href: "/app/projects/{view.id}/documents.zip",
+                        href: "/app/projects/{view.code}/documents.zip",
                         role: "button",
                         "Download all my documents"
                     }
                 }
                 a {
                     class: "nav-btn nav-btn--secondary",
-                    href: "/app/projects/{view.id}/conversation",
+                    href: "/app/projects/{view.code}/conversation",
                     "Conversation"
                 }
             }
@@ -497,7 +497,7 @@ pub fn ClientProjectDetail() -> Element {
                                         td { class: "nav-table__end",
                                             a {
                                                 class: "nav-btn nav-btn--secondary",
-                                                href: "/app/projects/{view.id}/review/{doc.id}",
+                                                href: "/app/projects/{view.code}/review/{doc.id}",
                                                 "Review"
                                             }
                                         }
@@ -513,7 +513,7 @@ pub fn ClientProjectDetail() -> Element {
                         form {
                             class: "portal-detail__approve",
                             method: "post",
-                            action: "/app/projects/{view.id}/approve-plan",
+                            action: "/app/projects/{view.code}/approve-plan",
                             input { r#type: "hidden", name: "_csrf", value: "{view.csrf_token}" }
                             p { class: "nav-muted",
                                 "When you have read each document and you are ready, approve your plan. It then goes to signing."

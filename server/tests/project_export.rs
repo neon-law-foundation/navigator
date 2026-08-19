@@ -1,6 +1,6 @@
 #![allow(clippy::too_many_lines)]
 //! Integration tests for the client "download all my documents" export
-//! (`GET /app/projects/:id/documents.zip`).
+//! (`GET /app/projects/:project_code/documents.zip`).
 //!
 //! Covers what Task 3 promises:
 //!   1. A scoped participant downloads a real ZIP whose entries are the
@@ -38,6 +38,7 @@ const KEY: &str = "test-session-key-not-for-production";
 struct Fixture {
     app: axum::Router,
     project_id: Uuid,
+    project_code: String,
     member_cookie: String,
     stranger_cookie: String,
     surreal: store::surreal::SurrealDb,
@@ -135,6 +136,7 @@ async fn build_fixture_with(docs: &[(&str, &[u8])]) -> Fixture {
     Fixture {
         app,
         project_id: proj.id,
+        project_code: proj.code.clone(),
         member_cookie,
         stranger_cookie,
         surreal,
@@ -150,7 +152,7 @@ async fn scoped_client_downloads_a_zip_of_their_current_documents() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/documents.zip", f.project_id))
+                .uri(format!("/app/projects/{}/documents.zip", f.project_code))
                 .header("cookie", &f.member_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -215,7 +217,7 @@ async fn duplicate_filenames_and_shared_storage_key_yield_distinct_entries() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/documents.zip", f.project_id))
+                .uri(format!("/app/projects/{}/documents.zip", f.project_code))
                 .header("cookie", &f.member_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -267,7 +269,7 @@ async fn an_expunged_document_is_skipped_not_a_500() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/documents.zip", f.project_id))
+                .uri(format!("/app/projects/{}/documents.zip", f.project_code))
                 .header("cookie", &f.member_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -326,7 +328,7 @@ async fn internal_document_is_excluded_from_the_client_zip_but_included_for_lawy
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/documents.zip", f.project_id))
+                .uri(format!("/app/projects/{}/documents.zip", f.project_code))
                 .header("cookie", &f.member_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -371,7 +373,7 @@ async fn internal_document_is_excluded_from_the_client_zip_but_included_for_lawy
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/documents.zip", f.project_id))
+                .uri(format!("/app/projects/{}/documents.zip", f.project_code))
                 .header("cookie", &admin_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -400,7 +402,7 @@ async fn non_participant_gets_404() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}/documents.zip", f.project_id))
+                .uri(format!("/app/projects/{}/documents.zip", f.project_code))
                 .header("cookie", &f.stranger_cookie)
                 .body(Body::empty())
                 .unwrap(),

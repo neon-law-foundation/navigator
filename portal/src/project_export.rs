@@ -1,7 +1,7 @@
 //! Client "download all my documents" — a ZIP of the matter's current
 //! files.
 //!
-//! `GET /app/projects/:id/documents.zip` streams a plain ZIP built
+//! `GET /app/projects/{project_code}/documents.zip` streams a plain ZIP built
 //! from the durable system of record: the matter's document `assets`
 //! rows and their bytes in [`cloud::StorageService`] — the same source
 //! the per-document download reads, GCS in prod and Garage locally. It
@@ -26,19 +26,21 @@ use axum::extract::{Extension, Path, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use store::persons::Role;
-use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 
 use crate::admin::AdminState;
 use crate::session::SessionData;
 use store::access::ProjectLens;
 
-/// `GET /app/projects/:id/documents.zip`.
+/// `GET /app/projects/{project_code}/documents.zip`.
 pub async fn download_all(
     State(state): State<AdminState>,
-    Path(project_id): Path<Uuid>,
+    Path(project_code): Path<String>,
     session: Option<Extension<SessionData>>,
 ) -> Response {
+    let Some(project_id) = store::projects::id_for_code(&state.surreal, &project_code).await else {
+        return not_found();
+    };
     let (person_id, role) = match session.as_deref() {
         Some(s) => (s.person_id, s.role),
         None => (None, Role::Client),

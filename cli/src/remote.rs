@@ -10,7 +10,7 @@
 //! | --- | --- |
 //! | `projects list` | `GET /app/projects.csv` |
 //! | `project open`   | `GET /app/projects/:code` |
-//! | `notation create`  | `POST /app/projects/:id/notations/new` |
+//! | `notation create`  | `POST /app/projects/{project_code}/notations/new` |
 //! | `retainer approve` | `POST /lawyer/notations/:id/approve-send` |
 //! | `retainer send`    | `POST /lawyer/notations/:id/send` |
 //! | `notation status`  | `GET /lawyer/notations/:id/review?format=json` |
@@ -82,8 +82,7 @@ pub async fn matter_open(host: Option<&str>, project_code: &str) -> ExitCode {
     run(async {
         let (base, token) = resolve(host)?;
         let client = reqwest::Client::new();
-        let project_id = resolve_project_id(&client, &base, &token, project_code).await?;
-        let path = format!("/app/projects/{project_id}");
+        let path = format!("/app/projects/{project_code}");
         let resp = client
             .get(format!("{base}{path}"))
             .bearer_auth(&token)
@@ -110,55 +109,13 @@ pub async fn matter_open(host: Option<&str>, project_code: &str) -> ExitCode {
     .await
 }
 
-/// Resolve a human-facing matter **code** to its Project **id** by reading
-/// `GET /app/projects.csv` (which lists only the projects the caller can
-/// see). Errors clearly when no visible project carries that code — the
-/// matter must be created first (`navigator db project create`).
-pub(crate) async fn resolve_project_id(
-    client: &reqwest::Client,
-    base: &str,
-    token: &str,
-    project_code: &str,
-) -> anyhow::Result<String> {
-    let resp = client
-        .get(format!("{base}/app/projects.csv"))
-        .bearer_auth(token)
-        .send()
-        .await
-        .context("GET /app/projects.csv")?;
-    if !resp.status().is_success() {
-        return Err(anyhow!("could not list projects: {}", resp.status()));
-    }
-    let body = resp.text().await.unwrap_or_default();
-    let rows = parse_csv(&body);
-    let Some((header, data)) = rows.split_first() else {
-        return Err(anyhow!(
-            "no project with code `{project_code}` — create it first"
-        ));
-    };
-    let id_col = header.iter().position(|h| h == "id");
-    let code_col = header.iter().position(|h| h == "code");
-    let (Some(id_col), Some(code_col)) = (id_col, code_col) else {
-        return Err(anyhow!("projects.csv is missing an `id`/`code` column"));
-    };
-    data.iter()
-        .find(|row| row.get(code_col).is_some_and(|c| c == project_code))
-        .and_then(|row| row.get(id_col).cloned())
-        .ok_or_else(|| {
-            anyhow!(
-                "no matter with code `{project_code}` you can see — open it first with \
-                 `navigator db project create` (or check the code)"
-            )
-        })
-}
-
 /// `navigator site notation create <template-code> --project <code> --client-email …`
 /// — open a notation on an **already-existing** matter and surface the
 /// notation id. Every notation hangs on a pre-existing Project (the matter
 /// is a deliberate prior step, `navigator db project create`), so `--project`
 /// is required: this resolves the human-facing matter **code** to the
 /// Project id, then posts to the project-scoped create route
-/// (`POST /app/projects/<id>/notations/new`). The template is read
+/// (`POST /app/projects/<project-code>/notations/new`). The template is read
 /// from the Project's git repo when authored there, else from the bundled
 /// firm catalog. Leaves the questionnaire ready to walk with `intake answer`.
 pub async fn notation_create(
@@ -175,12 +132,7 @@ pub async fn notation_create(
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .context("build http client")?;
-        // Humans author with the matter code; the route keys on the Project
-        // id. Resolve one to the other against the projects the caller can
-        // see — a code they can't see (or that doesn't exist) fails here,
-        // before any notation is attempted.
-        let project_id = resolve_project_id(&client, &base, &token, project_code).await?;
-        let url = format!("{base}/app/projects/{project_id}/notations/new");
+        let url = format!("{base}/app/projects/{project_code}/notations/new");
         let form: Vec<(&str, &str)> =
             vec![("template_code", template), ("client_email", client_email)];
         let resp = client
@@ -1454,7 +1406,7 @@ mod tests {
             .mount(server)
             .await;
         Mock::given(method("GET"))
-            .and(path(format!("/app/projects/{}", ids.project)))
+            .and(path("/app/projects/acme"))
             .respond_with(ResponseTemplate::new(200).set_body_string("matter workbench"))
             .expect(1)
             .mount(server)
@@ -1463,7 +1415,7 @@ mod tests {
 
     async fn mount_notation_routes(server: &MockServer, ids: LawyerRouteIds) {
         Mock::given(method("POST"))
-            .and(path(format!("/app/projects/{}/notations/new", ids.project)))
+            .and(path("/app/projects/acme/notations/new"))
             .respond_with(ResponseTemplate::new(303).append_header(
                 "location",
                 format!("/lawyer/notations/{}/step", ids.notation),
@@ -1917,7 +1869,7 @@ mod tests {
             .mount(&server)
             .await;
         Mock::given(method("GET"))
-            .and(path(format!("/app/projects/{visible_project}")))
+            .and(path("/app/projects/acme"))
             .respond_with(ResponseTemplate::new(200).set_body_string("matter workbench"))
             .expect(0)
             .mount(&server)
@@ -1947,7 +1899,7 @@ mod tests {
             .mount(&server)
             .await;
         Mock::given(method("GET"))
-            .and(path(format!("/app/projects/{visible_project}")))
+            .and(path("/app/projects/acme"))
             .respond_with(ResponseTemplate::new(403).set_body_string("not for you"))
             .expect(1)
             .mount(&server)

@@ -211,7 +211,7 @@ async fn client_requests_then_admin_authorizes_and_document_is_scrubbed() {
         &f,
         format!(
             "/app/projects/{}/documents/{}/request-deletion",
-            f.project_id, f.doc_id
+            f.project_code, f.doc_id
         ),
         &f.client_cookie,
         format!("_csrf={}", f.client_csrf),

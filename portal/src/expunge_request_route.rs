@@ -5,7 +5,7 @@
 //! *ask*. This module wires both halves:
 //!
 //! - **Client (request-only).** `POST
-//!   /app/projects/:id/documents/:doc_id/request-deletion` records a
+//!   /app/projects/{project_code}/documents/:doc_id/request-deletion` records a
 //!   `pending` [`store::expunge_requests`] row. Nothing is deleted. The
 //!   client UI honestly shows "deletion requested" until an attorney
 //!   acts — never "deleted" before the bytes are actually gone.
@@ -143,15 +143,18 @@ pub async fn request_document_deletion(
     })
 }
 
-/// `POST /app/projects/:id/documents/:doc_id/request-deletion` — a
+/// `POST /app/projects/{project_code}/documents/:doc_id/request-deletion` — a
 /// client (or any matter participant) asks for a document to be deleted.
 /// Row-scoped like the rest of `/app`; creates one `pending` request
 /// (idempotent — a second ask while one is pending is a no-op).
 pub async fn client_request(
     State(state): State<AdminState>,
-    Path((project_id, doc_id)): Path<(Uuid, Uuid)>,
+    Path((project_code, doc_id)): Path<(String, Uuid)>,
     session: Option<Extension<SessionData>>,
 ) -> Response {
+    let Some(project_id) = store::projects::id_for_code(&state.surreal, &project_code).await else {
+        return not_found();
+    };
     let person_id = session.as_deref().and_then(|s| s.person_id);
     match request_document_deletion(&state.surreal, person_id, doc_id, Some(project_id)).await {
         Ok(_) => {

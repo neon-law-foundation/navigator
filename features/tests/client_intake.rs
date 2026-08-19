@@ -1,7 +1,7 @@
 //! Cucumber runner for `features/client_intake.feature`.
 //!
 //! Drives the client self-serve intake surface
-//! (`/app/projects/:id/intake/:notation_id`) over real HTTP as the
+//! (`/app/projects/:project_code/intake/:notation_id`) over real HTTP as the
 //! client, against a retainer matter opened through the admin walker. The
 //! demand-side mirror of `retainer_intake.rs`.
 
@@ -22,7 +22,7 @@ const TEMPLATE_CODE: &str = "onboarding__retainer";
 struct IntakeWorld {
     journey: Option<Journey>,
     notation_id: Option<Uuid>,
-    project_id: Option<Uuid>,
+    project_code: Option<String>,
     client: Option<store::persons::Person>,
     last_status: Option<u16>,
     last_body: String,
@@ -32,7 +32,7 @@ impl std::fmt::Debug for IntakeWorld {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("IntakeWorld")
             .field("notation_id", &self.notation_id)
-            .field("project_id", &self.project_id)
+            .field("project_code", &self.project_code)
             .field("last_status", &self.last_status)
             .finish_non_exhaustive()
     }
@@ -50,7 +50,7 @@ impl IntakeWorld {
     fn intake_path(&self) -> String {
         format!(
             "/app/projects/{}/intake/{}",
-            self.project_id.expect("project not resolved"),
+            self.project_code.as_deref().expect("project not resolved"),
             self.notation_id.expect("notation not captured"),
         )
     }
@@ -83,7 +83,14 @@ async fn open_matter(world: &mut IntakeWorld, email: String) {
         .expect("query person")
         .expect("matter-open created the client person");
 
-    world.project_id = Some(notation.project_id);
+    // The intake link a client follows names the matter by its code, so the
+    // world carries the code the URL is built from rather than the row id.
+    let project = store::projects::find_by_id(&journey.surreal, notation.project_id)
+        .await
+        .expect("query project")
+        .expect("the matter the notation belongs to");
+
+    world.project_code = Some(project.code);
     world.notation_id = Some(notation_id);
     world.client = Some(person);
     world.journey = Some(journey);

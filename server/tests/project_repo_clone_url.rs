@@ -22,7 +22,6 @@ const KEY: &str = "test-session-key-not-for-production";
 
 struct Fixture {
     app: axum::Router,
-    project_id: Uuid,
     project_code: String,
     /// A lawyer disclosed to the matter — sees the admin page.
     lawyer_cookie: String,
@@ -133,7 +132,6 @@ async fn build_fixture() -> Fixture {
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     Fixture {
         app,
-        project_id: proj.id,
         project_code: proj.code,
         lawyer_cookie,
         client_cookie,
@@ -189,7 +187,7 @@ async fn git_token_route_is_not_registered() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/app/projects/{}/git-token", f.project_id))
+                .uri(format!("/app/projects/{}/git-token", f.project_code))
                 .header("cookie", &f.lawyer_cookie)
                 .body(Body::empty())
                 .unwrap(),

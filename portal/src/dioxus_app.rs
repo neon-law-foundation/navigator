@@ -688,7 +688,7 @@ pub fn app_forms_router(
 /// `/review/*`, `/conversation`, `/approve-plan`, …) and the edit-save `POST`
 /// on this path stay on the router; axum merges the same-path methods and
 /// routes the deeper paths.
-pub const PROJECT_DETAIL_PATH: &str = "/app/projects/{code}";
+pub const PROJECT_DETAIL_PATH: &str = "/app/projects/{project_code}";
 
 /// Compute the estate "Approve my plan" decision for the matter in the request
 /// path and inject it as [`webapp::portal_project_detail::ShowApprovePlan`]. The
@@ -901,22 +901,23 @@ async fn lawyer_estate(
 pub const LAWYER_PROJECT_NEW_PATH: &str = "/app/projects/new";
 
 /// The lawyer descriptive matter-edit form path (#956 Phase 4). `POST
-/// /app/projects/{id}` (the save) stays on the admin router.
-pub const LAWYER_PROJECT_EDIT_PATH: &str = "/app/projects/{id}/edit";
+/// /app/projects/{project_code}` (the save) stays on the admin router.
+pub const LAWYER_PROJECT_EDIT_PATH: &str = "/app/projects/{project_code}/edit";
 
 /// The add-participation form path (#956 Phase 4) — admin-only. `POST
-/// /app/projects/{id}/people` (the create) stays on the admin router.
-pub const LAWYER_PARTICIPATION_NEW_PATH: &str = "/app/projects/{id}/people/new";
+/// /app/projects/{project_code}/people` (the create) stays on the admin router.
+pub const LAWYER_PARTICIPATION_NEW_PATH: &str = "/app/projects/{project_code}/people/new";
 
 /// The edit-participation form path (#956 Phase 4) — admin-only. The `POST` on
 /// this same path (the update) stays on the admin router; axum merges the
 /// same-path methods.
-pub const LAWYER_PARTICIPATION_EDIT_PATH: &str = "/app/projects/{id}/people/{role_id}/edit";
+pub const LAWYER_PARTICIPATION_EDIT_PATH: &str =
+    "/app/projects/{project_code}/people/{role_id}/edit";
 
 /// One filed matter document. The `…/download` route under it stays on the
 /// router. The tier decides the lens, so an `internal` asset is still not found
 /// for a client — the guard moved from the mount into the loader.
-pub const PROJECT_DOCUMENT_PATH: &str = "/app/projects/{id}/documents/{doc_id}";
+pub const PROJECT_DOCUMENT_PATH: &str = "/app/projects/{project_code}/documents/{doc_id}";
 
 /// The gated Dioxus lawyer project forms (#956 Phase 4): matter-open, the
 /// descriptive edit, and the two participation forms. Each is a native `POST`
@@ -1025,7 +1026,7 @@ pub fn project_document_router(
 /// The matter conversation path — one mount for both sides of the thread. The
 /// loader scopes it by the caller's tier (firm-internal notes are firm-only),
 /// which is a fact about the person, not about the URL they typed.
-pub const CONVERSATION_PATH: &str = "/app/projects/{id}/conversation";
+pub const CONVERSATION_PATH: &str = "/app/projects/{project_code}/conversation";
 
 /// The gated Dioxus matter conversation page. The `POST
 /// …/conversation/messages` handler stays on Axum because it already redirects
@@ -1067,7 +1068,7 @@ pub fn conversation_router(
 /// where a client answers the client-facing questions on a notation. The save
 /// (`POST` on the same path) stays on the existing handler, which now redirects
 /// back here; axum merges the two same-path method routes.
-pub const PORTAL_INTAKE_PATH: &str = "/app/projects/{id}/intake/{notation_id}";
+pub const PORTAL_INTAKE_PATH: &str = "/app/projects/{project_code}/intake/{notation_id}";
 
 /// Resolve the client's current intake step and inject it as
 /// [`webapp::client_intake::InjectedIntake`].
@@ -1083,7 +1084,10 @@ async fn inject_client_intake(
     mut req: Request,
     next: Next,
 ) -> Response {
-    let Some((project_id, notation_id)) = intake_ids_from_path(&req) else {
+    let Some((project_code, notation_id)) = intake_ids_from_path(&req) else {
+        return crate::intake::client_intake_not_found();
+    };
+    let Some(project_id) = store::projects::id_for_code(&state.surreal, &project_code).await else {
         return crate::intake::client_intake_not_found();
     };
     let session = req
@@ -1102,15 +1106,20 @@ async fn inject_client_intake(
     }
 }
 
-/// Parse `(project_id, notation_id)` out of `/app/projects/{id}/intake/{nid}`.
-/// The layer runs before the route's own path extraction, so it reads the
-/// segments itself.
-fn intake_ids_from_path(req: &Request) -> Option<(uuid::Uuid, uuid::Uuid)> {
+/// Parse `(project_code, notation_id)` out of
+/// `/app/projects/{project_code}/intake/{notation_id}`. The layer runs before
+/// the route's own path extraction, so it reads the segments itself.
+///
+/// The matter arrives as its code, not its row id — the client follows this
+/// link from an email and may well read it aloud. Turning that code into an id
+/// is `project_code_path::resolve`'s job, and it happens in the caller, which
+/// has the store handle this parser does not.
+fn intake_ids_from_path(req: &Request) -> Option<(String, uuid::Uuid)> {
     let mut segments = req.uri().path().rsplit('/');
     let notation_id = segments.next()?.parse().ok()?;
     let _intake = segments.next()?;
-    let project_id = segments.next()?.parse().ok()?;
-    Some((project_id, notation_id))
+    let project_code = segments.next()?;
+    Some((project_code.to_string(), notation_id))
 }
 
 /// The gated Dioxus client self-serve intake page (#956 Phase 4). Client-lens
@@ -1511,7 +1520,7 @@ pub fn legal_dioxus_routers(brand_name: &str, privacy_body: &str, terms_body: &s
 /// The comment-only client document-review path (#641 Phase 3, Northstar Phase
 /// A). The comment `GET`/`POST` stays on the Axum data API used by the custom
 /// element.
-pub const REVIEW_PATH: &str = "/app/projects/{id}/review/{doc_id}";
+pub const REVIEW_PATH: &str = "/app/projects/{project_code}/review/{doc_id}";
 
 /// The gated Dioxus client document-review page (#641 Phase 3). Client-lens and
 /// read-only-ish (a comment is the only write, via the custom element's own data
@@ -2618,8 +2627,8 @@ async fn inject_show_tell_index(
 
 /// One show-and-tell (`/show-and-tell/{slug}`).
 ///
-/// Every catalog now owns a static root path, so this no longer has to win a
-/// match against a generic `{category}` route — it is simply its own mount.
+/// Each catalog owns a static root path, so this is simply its own mount
+/// rather than a match that has to beat a generic `{category}` route.
 /// An unknown slug never enters the render: the pre-layer short-circuits with
 /// the 404 page, so there is no `Ok`-fallback-at-200 to re-commit.
 pub fn show_tell_detail_router(path: &str, events: crate::EventIndex) -> Router {
@@ -3514,6 +3523,42 @@ mod tests {
     use axum::routing::get;
     use tower::ServiceExt as _;
 
+    /// Every matter route names its matter the same way: `{project_code}`.
+    ///
+    /// This is a router-construction invariant, not a style rule. `matchit`
+    /// refuses two routes whose parameter at the same position carries
+    /// different names, so one spelling that disagrees panics the whole router
+    /// at boot — every surface, not just the route that disagreed. Nothing
+    /// catches that at compile time and no constant-inspecting test sees it
+    /// either; only something that builds the assembled router does.
+    ///
+    /// Asserting the constants is cheap and names the rule; the assembled
+    /// routers in `portal/tests` are what prove they actually resolve.
+    #[test]
+    fn every_matter_route_names_its_matter_project_code() {
+        for path in [
+            PROJECT_DETAIL_PATH,
+            LAWYER_PROJECT_EDIT_PATH,
+            LAWYER_PARTICIPATION_NEW_PATH,
+            LAWYER_PARTICIPATION_EDIT_PATH,
+            PROJECT_DOCUMENT_PATH,
+            CONVERSATION_PATH,
+            PORTAL_INTAKE_PATH,
+            REVIEW_PATH,
+            crate::project_portal::PROJECT_PORTAL_PATH,
+        ] {
+            assert!(
+                path.starts_with("/app/projects/{project_code}"),
+                "`{path}` does not name its matter `{{project_code}}`, so registering it \
+                 alongside the others panics the router"
+            );
+            assert!(
+                !path.contains("{id}"),
+                "`{path}` still routes on a row id; the code is the matter's public name"
+            );
+        }
+    }
+
     /// The matter show page is keyed by the Project **code**, always.
     ///
     /// The code is a matter's whole public identity: `/app/projects/{code}` is
@@ -3532,11 +3577,11 @@ mod tests {
     /// Project.
     #[tokio::test]
     async fn the_matter_show_page_is_keyed_by_code_and_never_by_row_id() {
-        assert_eq!(PROJECT_DETAIL_PATH, "/app/projects/{code}");
+        assert_eq!(PROJECT_DETAIL_PATH, "/app/projects/{project_code}");
         let segments: Vec<&str> = PROJECT_DETAIL_PATH.split('/').skip(1).collect();
         assert_eq!(
             segments,
-            ["app", "projects", "{code}"],
+            ["app", "projects", "{project_code}"],
             "the show page is two literal segments and the code; a deeper path \
              or a differently named parameter is a different page"
         );
