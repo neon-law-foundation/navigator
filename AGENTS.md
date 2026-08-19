@@ -170,28 +170,18 @@ prompts for credentials instead of silently re-authenticating. No manual step is
 provider end-session endpoint at `http://localhost:30080/auth/v1/oidc/logout` (substitute the worktree's Rauthy port)
 before starting login again.
 
-### The sample project
+### The Simpsons sample project
 
-The `simpsons` demo matter carries a client portal at `/app/projects/simpsons/portal/`. Boot publishes a stub compiled
-into the binary, so the link streams with no network, no Node, and no checkout — that is what every tier serves by
-default. To serve the real bundle instead, clone and build
-[navigator-sample-project](https://github.com/neon-law-foundation/navigator-sample-project):
+The one local sample project is the `simpsons` matter. Its client portal is `/app/projects/simpsons/portal/`, and every
+`dev up` / `dev worktree-env up` refreshes it before writing `.devx/env`. The clone and `pnpm` build happen in a
+temporary directory; the built `dist/` and its `navigator.yml` survive in `.devx/sample-project/`, and the generated
+environment points `web` at that staged bundle. `index.html` publishes last, so a reader mid-refresh keeps a complete
+prior document until the new assets are ready.
 
-```bash
-cargo run -p cli -- dev sample-project
-```
-
-The clone and the `pnpm` build happen in a temporary directory that is removed when the command returns. Two things
-survive into `.devx/sample-project/`: the built `dist/`, and the `navigator.yml` that declares which Project the bundle
-mounts on. Export the printed `NAVIGATOR_SAMPLE_PROJECT_DIR` and restart `web` — the next boot publishes the bundle,
-`index.html` last so a reader mid-publish never sees a document pointing at assets that have not landed. Unset the
-variable to go back to the stub. Only this command sets it, so production never leaves the compiled stub.
-
-A project application declares its Project in `navigator.yml` (`name: simpsons`) rather than by convention over the
-repository name — `navigator-sample-project` is not a name any rule could turn into `simpsons`. Boot re-reads that
-manifest and refuses a bundle naming a different Project, because publishing one would put one matter's application on
-another matter's portal. The code is validated with the same `projects::is_valid_code` the store uses, so a manifest
-cannot smuggle path segments into a bucket key.
+The explicit `cargo run -p cli -- dev sample-project` command refreshes the same Simpsons bundle when a developer wants
+to run that step by itself. The application declares `name: simpsons` in `navigator.yml`, and boot validates that code
+before publishing it under the matching matter portal. The code uses the same `projects::is_valid_code` rule as every
+Project, so the URL segment is always lowercase letters or numbers separated by single hyphens.
 
 ### Verification
 

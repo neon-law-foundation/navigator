@@ -100,12 +100,22 @@ pub async fn get_conversation() -> Result<ConversationView, ServerFnError> {
         ViewerRole::Clerk => store::persons::Role::Clerk,
         ViewerRole::Client => store::persons::Role::Client,
     };
+    let surreal = consume_context::<store::surreal::SurrealDb>();
     // One path serves both sides, so the tier is what says which thread this
     // is — not the prefix the caller typed.
     let is_lawyer = role.is_lawyer_tier();
-    let base = format!("/app/projects/{project_id}");
-
-    let surreal = consume_context::<store::surreal::SurrealDb>();
+    let Some(project) = store::projects::find_by_id(&surreal, project_id)
+        .await
+        .map_err(server_error)?
+    else {
+        return Ok(not_found(
+            project_id,
+            "/app/projects".to_string(),
+            is_lawyer,
+            csrf_token,
+        ));
+    };
+    let base = format!("/app/projects/{}", project.code);
 
     let visible = store::access::can_see_project(&surreal, person_id, store_role, project_id)
         .await
@@ -113,13 +123,6 @@ pub async fn get_conversation() -> Result<ConversationView, ServerFnError> {
     if !visible {
         return Ok(not_found(project_id, base, is_lawyer, csrf_token));
     }
-    let Some(project) = store::projects::find_by_id(&surreal, project_id)
-        .await
-        .map_err(server_error)?
-    else {
-        return Ok(not_found(project_id, base, is_lawyer, csrf_token));
-    };
-
     // Lens-scoped rows: the firm sees every row, a client every row except
     // firm-internal notes.
     let rows = if is_lawyer {

@@ -168,15 +168,17 @@ async fn matter_open_starts_its_workflow_through_the_restate_worker() {
     );
     assert!(
         loc.starts_with("/app/projects/"),
-        "expected a redirect to /app/projects/:id, got {loc:?}"
+        "expected a redirect to /app/projects/:code, got {loc:?}"
     );
 
     // The workflow really started: the Notation exists on the new matter,
     // journaled through the worker rather than merely inserted by web.
-    let project_id: uuid::Uuid = loc
-        .trim_start_matches("/app/projects/")
-        .parse()
-        .expect("redirect carries the project id");
+    let project_code = loc.trim_start_matches("/app/projects/").to_string();
+    let project_id = store::projects::find_by_code(&surreal, &project_code)
+        .await
+        .unwrap()
+        .expect("redirect carries a project code")
+        .id;
     let notation = store::notations::list_by_project(&surreal, project_id)
         .await
         .unwrap()

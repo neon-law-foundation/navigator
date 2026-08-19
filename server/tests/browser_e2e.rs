@@ -159,10 +159,10 @@ async fn lawyer_logs_in_and_reaches_the_signed_in_chrome() {
 }
 
 /// Fresh `dev` boot smoke: unlike the upload scenario below this test
-/// creates no data. It proves the Rauthy Lawyer harness can actually work
-/// the disposable portfolio that startup seeded.
+/// creates no data. It proves the Rauthy Lawyer harness can work
+/// the Simpsons fixture that startup seeded.
 #[tokio::test]
-async fn stock_local_personas_reach_henderson_through_their_own_lenses() {
+async fn stock_local_personas_reach_simpsons_through_their_own_lenses() {
     // This is the presenter dry run: the Rauthy fixture, development seed,
     // and browser-visible authorization all agree without a manual SQL grant.
     let Some(lawyer_browser) = new_client_or_skip().await else {
@@ -170,14 +170,14 @@ async fn stock_local_personas_reach_henderson_through_their_own_lenses() {
     };
     login_as_lawyer(&lawyer_browser).await;
     // The stock `lawyer` login is a paralegal participant on every seeded
-    // dev-portfolio matter, so it reaches Henderson through the *lawyer* lens at
+    // Simpsons matter, so it reaches the project through the *lawyer* lens at
     // `/app/projects` — the workbench backed by `visible_projects_as_lawyer`. The
     // reload-aware wait rides out a workbench that is still settling immediately
     // after the deploy's rollout.
     wait_for_text_reloading(
         &lawyer_browser,
         &format!("{}/app/projects", base_url()),
-        "Henderson Bungalow Purchase",
+        "Simpson v. Flanders",
         Duration::from_secs(30),
     )
     .await;
@@ -193,7 +193,7 @@ async fn stock_local_personas_reach_henderson_through_their_own_lenses() {
     wait_for_text_reloading(
         &client_browser,
         &format!("{}/app/projects", base_url()),
-        "Henderson Bungalow Purchase",
+        "Simpson v. Flanders",
         Duration::from_secs(30),
     )
     .await;
@@ -694,7 +694,7 @@ async fn lawyer_creates_a_client_inline_on_the_project_form() {
 async fn lawyer_opens_an_estate_matter_and_sees_the_transcript_form() {
     // Drives the Northstar estate front edge in a real browser:
     //   1. POST /lawyer/retainers/new with onboarding__estate
-    //   2. land on the matter page (/app/projects/:id), not the walker
+    //   2. land on the matter page (/app/projects/:code), not the walker
     //   3. the phone-friendly transcript-upload form is present
     //
     // Preconditions (beyond chromedriver + KIND): the canonical seed has
@@ -969,7 +969,7 @@ async fn admin_edits_matter_participation_from_the_project_workbench() {
 }
 
 /// Seed a project the browser-harness lawyer account can open through
-/// `/app/projects/:id`, and return its id.
+/// `/app/projects/:code`, and return its id.
 ///
 /// `can_access_as_lawyer` scopes a non-admin lawyer to projects
 /// carrying a non-client participation row for them, so the fixture adds

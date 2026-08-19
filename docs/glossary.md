@@ -149,8 +149,8 @@ reach production:
 
 1. **Canonical** — the shared identities, reference data, and catalog. Every brand, every environment.
 2. **Brand** — this layer. The booting brand only, every environment.
-3. **Development portfolio** — the disposable simulated matters, clients, invoices, and mail. `dev` only, so a
-   synthetic row can never reach production.
+3. **Simpsons development fixture** — the one synthetic matter, its local participants, and its supporting rows. `dev`
+   only, so the shared Simpsons example is ready whenever local development starts.
 
 A brand declares its `BrandSeed` in the `Brand` value it hands to the shared run loop, so the seed set is chosen by
 which binary is running rather than by configuration. The Firm's mailboxes and the Foundation's share a street, a suite,
@@ -334,7 +334,7 @@ malpractice-relevant records.
 ## Deployment Environment
 
 The infrastructure profile selected by `NAVIGATOR_ENVIRONMENT`. Exact `dev` serves local KIND, applying the canonical
-seed, the [Brand Seed](#brand-seed), and the disposable development portfolio. Exact `production`, empty, or unset
+seed, the [Brand Seed](#brand-seed), and the Simpsons development fixture. Exact `production`, empty, or unset serves
 serves production and applies the canonical seed and the Brand Seed. The parser reports every other value as an error.
 `NAVIGATOR_CI_HARNESS` adds fake providers to the `dev` profile for automated tests.
 
@@ -1126,18 +1126,16 @@ real [Person](#person) (the respondent, or the attorney of record) when the [Not
 ([`rules::f107`](../rules/src/f107.rs)): the signer and field must be known, and a Template that draws any signature
 block must declare a `sent_for_signature` (or `sent_for_signature__*`) [State](#state) to collect the signature.
 
-## Simulated Portfolio
+## Simpsons Development Fixture
 
-The disposable synthetic matters a non-production boot applies on top of the canonical seed — the *Using the Navigator*
-[Projects](#project), their clients, participation rows, mailroom, letters, invoices, and answers — so a fresh
-environment is useful immediately. Written by [`store::seed::seed_dev_portfolio`](../store/src/seed.rs) and idempotent,
-so a reset restores the same baseline.
+The Simpsons development fixture is the one synthetic matter a local `dev` boot applies on top of the canonical seed. It
+is written by [`store::seed::seed_dev_portfolio`](../store/src/seed.rs), is idempotent, and keeps local accounts and the
+*Simpson v. Flanders* matter ready for the firm, clerk, and client surfaces.
 
-Everything in it is synthetic by construction: reserved example domains, no phone numbers, no client data. The canonical
-seed is environment-blind and carries none of it, which is what keeps a production boot from inserting a disposable
-Project, invoice, letter, answer, or notation row at all.
-
-This is the portfolio's name. [Workshop](#workshop) names a teaching matter and is not a synonym for it.
+The companion sample application is refreshed from
+[`navigator-sample-project`](https://github.com/neon-law-foundation/navigator-sample-project) during local boot and
+served at `/app/projects/simpsons/portal/`. The project code is the URL slug: lowercase letters and numbers joined by
+single hyphens, with no UUID in the project show URL.
 
 ## Standing Data Store
 
@@ -1313,4 +1311,4 @@ honest against the repository.
 Workshops belong to the staging deployment, which carries simulated matters by design; the two environments holding real
 people's matters never seed them.
 
-- See also: [Simulated Portfolio](#simulated-portfolio) and [`environments.md`](environments.md)
+- See also: [Simpsons Development Fixture](#simpsons-development-fixture) and [`environments.md`](environments.md)

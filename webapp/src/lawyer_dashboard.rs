@@ -68,10 +68,11 @@ const API_ENDPOINTS: &[(&str, &str)] = &[
     ("/app/api/entity-types", "JSON: /app/api/entity-types"),
 ];
 
-/// One matter in the KPI list — the id (for the link) and its name.
+/// One matter in the KPI list — the stable public code and its name.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct ProjectLink {
     pub id: String,
+    pub code: String,
     pub name: String,
 }
 
@@ -190,6 +191,7 @@ pub async fn get_lawyer_dashboard() -> Result<DashboardView, ServerFnError> {
         .iter()
         .map(|p| ProjectLink {
             id: p.id.to_string(),
+            code: p.code.clone(),
             name: p.name.clone(),
         })
         .collect();
@@ -389,7 +391,7 @@ fn ProjectKpiList(view: DashboardView) -> Element {
                 } else {
                     ul { class: "project-kpi-rows",
                         for row in rows.iter() {
-                            li { a { href: "/app/projects/{row.id}", "{row.name}" } }
+                            li { a { href: "/app/projects/{row.code}", "{row.name}" } }
                         }
                     }
                 }
@@ -498,6 +500,7 @@ mod tests {
             closed_projects: 1,
             rows: vec![ProjectLink {
                 id: "00000000-0000-0000-0000-000000000001".to_string(),
+                code: "acme-contract-review".to_string(),
                 name: "Acme contract review".to_string(),
             }],
             status: "open".to_string(),

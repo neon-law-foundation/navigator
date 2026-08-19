@@ -3,7 +3,7 @@
 //! Grounds the read side of the per-project invoice card: a row in the
 //! `xero_invoice` mirror (raised at matter close, reconciled by the
 //! nightly `ReconcileInvoices` workflow) drives what the client sees at
-//! `GET /app/projects/:id`. The runner shape mirrors
+//! `GET /app/projects/:code`. The runner shape mirrors
 //! `portal_projects_detail.rs` — forge a session cookie, send the
 //! request, assert on the rendered card — adding mirror-row setup via
 //! `store::xero_invoices`.
@@ -32,6 +32,7 @@ struct CardWorld {
     sessions: Option<SessionStore>,
     persons: HashMap<String, Uuid>,
     projects: HashMap<String, Uuid>,
+    project_codes: HashMap<String, String>,
     last_status: Option<StatusCode>,
     last_body: String,
 }
@@ -55,6 +56,12 @@ impl CardWorld {
 
     fn project_id(&self, name: &str) -> Uuid {
         *self.projects.get(name).expect("project was seeded earlier")
+    }
+
+    fn project_code(&self, name: &str) -> &str {
+        self.project_codes
+            .get(name)
+            .expect("project was seeded earlier")
     }
 }
 
@@ -108,10 +115,11 @@ async fn seed_project_with_participant(
         .get(&participant_email)
         .expect("participant person was seeded earlier");
     let surreal = features::shared_surreal().await;
+    let code = format!("test-{}", Uuid::now_v7().simple());
     let inserted = store::projects::create(
         &surreal,
         &store::projects::NewProject {
-            code: format!("test-{}", Uuid::now_v7().simple()),
+            code: code.clone(),
             name: project_name.clone(),
             status: "open".into(),
             entity_id: store::test_support::seed_entity(&features::shared_surreal().await).await,
@@ -120,7 +128,8 @@ async fn seed_project_with_participant(
     )
     .await
     .expect("insert project");
-    world.projects.insert(project_name, inserted.id);
+    world.projects.insert(project_name.clone(), inserted.id);
+    world.project_codes.insert(project_name, code);
     store::projects::add_participation(
         &features::shared_surreal().await,
         inserted.id,
@@ -174,7 +183,7 @@ async fn reconcile_paid(world: &mut CardWorld, project_name: String) {
 #[when(regex = r#"^"([^"]+)" opens the detail page for "([^"]+)"$"#)]
 async fn open_detail(world: &mut CardWorld, email: String, project_name: String) {
     let person_id = *world.persons.get(&email).expect("actor was seeded earlier");
-    let project_id = world.project_id(&project_name);
+    let project_code = world.project_code(&project_name);
     let role = role_for(&features::shared_surreal().await, person_id).await;
     let session = SessionData {
         sub: format!("rauthy-{email}-subject"),
@@ -194,7 +203,7 @@ async fn open_detail(world: &mut CardWorld, email: String, project_name: String)
         .app()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{project_id}"))
+                .uri(format!("/app/projects/{project_code}"))
                 .header("cookie", cookie)
                 .body(Body::empty())
                 .unwrap(),

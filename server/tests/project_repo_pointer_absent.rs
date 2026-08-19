@@ -1,5 +1,5 @@
 //! Integration test: a Project that records no repository URL shows no
-//! repository pointer on `GET /app/projects/:id`.
+//! repository pointer on `GET /app/projects/:code`.
 //!
 //! A Project's repository is a whole URL **stored on the row**, and a matter is
 //! free not to have one — a matter opens before anyone creates its repository.
@@ -88,7 +88,7 @@ async fn a_project_with_no_recorded_repository_has_no_repository_section() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}", project.id))
+                .uri(format!("/app/projects/{}", project.code))
                 .header("cookie", &lawyer_cookie)
                 .body(Body::empty())
                 .unwrap(),

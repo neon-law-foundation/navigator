@@ -1,4 +1,4 @@
-//! The one matter surface: `/app/projects` and `/app/projects/{id}`.
+//! The one matter surface: `/app/projects` and `/app/projects/{code}`.
 //!
 //! These two components are *dispatchers*, not pages. Each resolves who the
 //! caller is to this matter and then renders the page for that relationship.
@@ -77,9 +77,8 @@ pub async fn matter_viewer_kind() -> Result<MatterViewerKind, ServerFnError> {
     .ok()
     .and_then(|axum::Extension(pid)| pid.0)
     .and_then(|raw| raw.parse::<uuid::Uuid>().ok());
-    let Ok(axum::extract::Path(project_id)) =
-        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<uuid::Uuid>, _>()
-            .await
+    let Ok(axum::extract::Path(code)) =
+        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<String>, _>().await
     else {
         commit_not_found();
         return Ok(MatterViewerKind::None);
@@ -93,7 +92,14 @@ pub async fn matter_viewer_kind() -> Result<MatterViewerKind, ServerFnError> {
         ViewerRole::Client => store::persons::Role::Client,
     };
     let surreal = consume_context::<store::surreal::SurrealDb>();
-    let viewer = store::access::matter_viewer(&surreal, person_id, store_role, project_id)
+    let Some(project) = store::projects::find_by_code(&surreal, &code)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+    else {
+        commit_not_found();
+        return Ok(MatterViewerKind::None);
+    };
+    let viewer = store::access::matter_viewer(&surreal, person_id, store_role, project.id)
         .await
         .map_err(|e| ServerFnError::new(e.clone()))?;
     Ok(match viewer {
@@ -154,7 +160,7 @@ pub fn Projects() -> Element {
     }
 }
 
-/// `/app/projects/{id}` — the matter, through the caller\'s own relationship
+/// `/app/projects/{code}` — the matter, through the caller\'s own relationship
 /// to it.
 #[component]
 pub fn ProjectDetail() -> Element {

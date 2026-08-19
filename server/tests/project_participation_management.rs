@@ -20,6 +20,7 @@ struct Fixture {
     app: axum::Router,
     surreal: store::surreal::SurrealDb,
     project_id: Uuid,
+    project_code: String,
     assigned_role_id: Uuid,
     /// The matter's seeded lawyer DRI, and a session for them: the workbench
     /// controls are theirs to fire, so the tests need to act as that person.
@@ -164,6 +165,7 @@ async fn build_fixture() -> Fixture {
         app,
         surreal,
         project_id: project.id,
+        project_code: project.code,
         assigned_role_id: assigned_role.id,
         dri_id: dri,
         dri_cookie,
@@ -227,7 +229,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}", fixture.project_id))
+                .uri(format!("/app/projects/{}", fixture.project_code))
                 .header("cookie", &fixture.lawyer_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -541,7 +543,7 @@ async fn admin_manages_project_participation_from_the_matter_workbench() {
             .headers()
             .get(axum::http::header::LOCATION)
             .and_then(|v| v.to_str().ok()),
-        Some(format!("/app/projects/{}", fixture.project_id).as_str()),
+        Some(format!("/app/projects/{}", fixture.project_code).as_str()),
         "a removal must land back on the matter it changed",
     );
 
@@ -1132,7 +1134,7 @@ async fn the_matter_people_ledger_labels_the_accountability_marker() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}", fixture.project_id))
+                .uri(format!("/app/projects/{}", fixture.project_code))
                 .header("cookie", &fixture.lawyer_cookie)
                 .body(Body::empty())
                 .unwrap(),

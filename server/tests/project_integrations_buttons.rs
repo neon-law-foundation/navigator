@@ -1,4 +1,4 @@
-//! Integration test: the "Integrations" section on `GET /app/projects/:id`
+//! Integration test: the "Integrations" section on `GET /app/projects/:code`
 //! — the internal/external Slack channel buttons and the Xero button for a
 //! matter's raised invoice.
 //!
@@ -24,6 +24,7 @@ struct Fixture {
     app: axum::Router,
     surreal: store::surreal::SurrealDb,
     project_id: Uuid,
+    project_code: String,
     lawyer_cookie: String,
     client_cookie: String,
 }
@@ -91,6 +92,7 @@ async fn build_fixture() -> Fixture {
         app,
         surreal,
         project_id: proj.id,
+        project_code: proj.code,
         lawyer_cookie,
         client_cookie,
     }
@@ -101,12 +103,12 @@ async fn body_string(resp: axum::http::Response<Body>) -> String {
     String::from_utf8(bytes.to_vec()).unwrap()
 }
 
-async fn get_as(app: &axum::Router, project_id: Uuid, cookie: &str) -> String {
+async fn get_as(app: &axum::Router, project_code: &str, cookie: &str) -> String {
     let resp = app
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{project_id}"))
+                .uri(format!("/app/projects/{project_code}"))
                 .header("cookie", cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -122,7 +124,7 @@ async fn get_as(app: &axum::Router, project_id: Uuid, cookie: &str) -> String {
 #[tokio::test]
 async fn a_matter_with_no_integrations_set_has_no_integrations_section() {
     let f = build_fixture().await;
-    let html = get_as(&f.app, f.project_id, &f.lawyer_cookie).await;
+    let html = get_as(&f.app, &f.project_code, &f.lawyer_cookie).await;
     assert!(!html.contains("Integrations"));
 }
 
@@ -147,7 +149,7 @@ async fn lawyer_sees_the_internal_slack_button_and_the_optional_external_one() {
     .await
     .unwrap();
 
-    let html = get_as(&f.app, f.project_id, &f.lawyer_cookie).await;
+    let html = get_as(&f.app, &f.project_code, &f.lawyer_cookie).await;
     assert!(html.contains("Integrations"));
     assert!(html.contains(INTERNAL));
     assert!(html.contains("Internal Slack channel"));
@@ -176,7 +178,7 @@ async fn lawyer_sees_the_external_slack_button_when_the_matter_has_one() {
     .await
     .unwrap();
 
-    let html = get_as(&f.app, f.project_id, &f.lawyer_cookie).await;
+    let html = get_as(&f.app, &f.project_code, &f.lawyer_cookie).await;
     assert!(html.contains(EXTERNAL));
     assert!(html.contains("External Slack channel"));
 }
@@ -202,7 +204,7 @@ async fn lawyer_sees_the_xero_button_pointing_at_the_raised_invoice() {
     .await
     .unwrap();
 
-    let html = get_as(&f.app, f.project_id, &f.lawyer_cookie).await;
+    let html = get_as(&f.app, &f.project_code, &f.lawyer_cookie).await;
     assert!(html.contains(&format!(
         "https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID={XERO_ID}"
     )));
@@ -246,7 +248,7 @@ async fn client_never_sees_any_integration_button() {
     .await
     .unwrap();
 
-    let html = get_as(&f.app, f.project_id, &f.client_cookie).await;
+    let html = get_as(&f.app, &f.project_code, &f.client_cookie).await;
     assert!(
         html.contains("Libra integrations"),
         "renders the client view"

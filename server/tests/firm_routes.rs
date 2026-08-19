@@ -1475,10 +1475,10 @@ async fn the_three_classes_render_and_land_beside_each_other() {
     );
 }
 
-/// The Using-the-Navigator class still teaches the attributed email approval
-/// exercise, read from the real content directory.
+/// The Using-the-Navigator class teaches the single Simpsons development flow,
+/// read from the real content directory.
 #[tokio::test]
-async fn the_navigator_class_renders_the_attributed_email_approval_exercise() {
+async fn the_navigator_class_renders_the_simpsons_sample_project_exercise() {
     let materials = portal::workshops::loader::load_navigator(std::path::Path::new(
         portal::DEFAULT_WORKSHOPS_DIR,
     ))
@@ -1489,8 +1489,8 @@ async fn the_navigator_class_renders_the_attributed_email_approval_exercise() {
         .expect("navigator workshop")
         .sections
         .iter()
-        .position(|section| section.title == "Notarize and demo")
-        .expect("Notarize and demo section")
+        .position(|section| section.title == "Make a sample-project change")
+        .expect("sample-project section")
         + 1;
 
     let app = site_app_with_talks().await;
@@ -1503,12 +1503,9 @@ async fn the_navigator_class_renders_the_attributed_email_approval_exercise() {
         .await,
     )
     .await;
-    assert!(body.contains("@link &lt;notation-id&gt;"), "{body}");
-    assert!(body.contains("@approve"), "{body}");
-    assert!(
-        body.contains("records the sending lawyer Person as the actor"),
-        "{body}"
-    );
+    assert!(body.contains("simpsons"), "{body}");
+    assert!(body.contains("stages the output"), "{body}");
+    assert!(body.contains("manifest name remains"), "{body}");
 }
 
 /// The one write on the class surface takes the same gate as the pages, so an

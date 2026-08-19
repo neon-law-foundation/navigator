@@ -154,7 +154,10 @@ pub async fn client_request(
 ) -> Response {
     let person_id = session.as_deref().and_then(|s| s.person_id);
     match request_document_deletion(&state.surreal, person_id, doc_id, Some(project_id)).await {
-        Ok(_) => Redirect::to(&format!("/app/projects/{project_id}")).into_response(),
+        Ok(_) => {
+            Redirect::to(&crate::dioxus_app::project_show_path(&state.surreal, project_id).await)
+                .into_response()
+        }
         Err(RequestDeletionError::NotFound) => not_found(),
         Err(RequestDeletionError::NoRequester) => {
             (StatusCode::FORBIDDEN, "No linked person on the session.").into_response()

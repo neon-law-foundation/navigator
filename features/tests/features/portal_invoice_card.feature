@@ -1,4 +1,4 @@
-Feature: /app/projects/:id — the client's invoice card reads the Xero mirror
+Feature: /app/projects/:code — the client's invoice card reads the Xero mirror
 
   The per-project invoice card the client sees is rendered from the
   local `xero_invoices` mirror, never from Xero live: the Dioxus

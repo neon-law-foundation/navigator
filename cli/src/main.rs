@@ -540,14 +540,11 @@ enum DevCmd {
     /// `lawyer` role so the browser e2e's admin-gated walk can run.
     /// Native Rust.
     GrantLawyer,
-    /// Clone, build, and stage the reference project application
-    /// (`navigator-sample-project`) so the `simpsons` demo matter serves
-    /// a real Vite bundle at `/app/projects/simpsons/portal/` instead of
-    /// the stub compiled into `web`. The checkout and the build happen in
-    /// a temporary directory; only `dist/` is kept, staged under
-    /// `.devx/sample-project/dist`. Needs `git` and `pnpm`. Prints the
-    /// environment key to export before restarting `web`; unset it to go
-    /// back to the stub. Native Rust.
+    /// Refresh and stage the Simpsons reference application
+    /// (`navigator-sample-project`) for the next local web boot. The checkout
+    /// and build happen in a temporary directory; the built `dist/` and
+    /// `navigator.yml` survive under `.devx/sample-project`, and the generated
+    /// `.devx/env` points `web` at them. Needs `git` and `pnpm`. Native Rust.
     SampleProject {
         /// Repository to clone. Defaults to the URL recorded on the Project;
         /// override to build a fork or a local mirror.

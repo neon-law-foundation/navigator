@@ -15,9 +15,8 @@
 //! `<your-host>`) are normalized to a nil UUID so a typed positional (the
 //! `NOTATION_ID` UUID) parses as a value rather than failing validation.
 //!
-//! The complementary `workshop_llc_grounding.rs` pins the *semantics* of the
-//! LLC section (template code, lawyer-gated filing step); this test pins the
-//! *syntax* of every published command across both workshop pages.
+//! This test pins the syntax of every published command across the workshop
+//! pages.
 
 use std::path::Path;
 use std::process::Command;

@@ -1,6 +1,6 @@
 //! The project calendar — the dated view of matter events, shared by the lawyer
 //! workbench (`/app/lawyer`, across every matter the caller can see) and the
-//! matter workbench (`/app/projects/{id}`, scoped to one).
+//! matter workbench (`/app/projects/{code}`, scoped to one).
 //!
 //! **Both render empty.** A calendar must not synthesize events out of the rows
 //! its page already holds: a document, a participation, and a notation are not

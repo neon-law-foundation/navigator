@@ -424,7 +424,8 @@ async fn login_as_bundled_fixture(c: &Client, email: &str, return_to: &str) {
 
 /// Drive the bundled `lawyer@neonlaw.com` Rauthy account to the firm team home, its
 /// post-login landing. The same person is the lawyer DRI on the seeded
-/// `simpsons` matter and a firm-side participant across the dev portfolio, so
+/// `simpsons` matter and a firm-side participant on the shared development
+/// fixture, so
 /// callers can then exercise the lawyer workbench.
 pub async fn login_as_lawyer(c: &Client) {
     login_as_bundled_fixture(c, "lawyer@neonlaw.com", "/app/team").await;
@@ -439,7 +440,7 @@ pub async fn login_as_lawyer_at(c: &Client, base_url: &str) {
 
 /// Drive the bundled `client@neonlaw.com` Rauthy account to their matters, a
 /// client's post-login landing. This person is the client participant on the
-/// seeded Henderson and `simpsons` matters.
+/// seeded `simpsons` matter.
 pub async fn login_as_client(c: &Client) {
     login_as_bundled_fixture(c, "client@neonlaw.com", "/app/projects").await;
 }

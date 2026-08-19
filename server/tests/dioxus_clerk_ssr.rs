@@ -53,7 +53,7 @@ async fn seed_supervised_project(
     name: &str,
     clerk_id: Uuid,
     lawyer_id: Uuid,
-) -> Uuid {
+) -> store::projects::Project {
     let project = store::projects::create(
         surreal,
         &store::projects::NewProject {
@@ -77,7 +77,7 @@ async fn seed_supervised_project(
     store::projects::add_participation(surreal, project.id, clerk_id, "clerk")
         .await
         .expect("assign Clerk to project");
-    project.id
+    project
 }
 
 /// Stage a CDN-free bundle `index.html` and point the process-global
@@ -164,21 +164,21 @@ async fn render_clerk_list(
 
 async fn render_clerk_detail(
     surreal: &store::surreal::SurrealDb,
-    project_id: Uuid,
+    project_code: &str,
     role: webapp::people::ViewerRole,
     person_id: Option<Uuid>,
 ) -> (StatusCode, String) {
     let _bundle = staged_bundle();
     let (viewer, person) = injections(role, person_id);
     let router: Router = Router::<FullstackState>::new()
-        .route("/app/projects/{id}", get(render_handler))
+        .route("/app/projects/{code}", get(render_handler))
         .with_state(FullstackState::new(
             clerk_config(surreal),
             webapp::clerk::ClerkProjectDetail,
         ))
         .layer(person)
         .layer(viewer);
-    fetch(router, &format!("/app/projects/{project_id}")).await
+    fetch(router, &format!("/app/projects/{project_code}")).await
 }
 
 #[tokio::test]
@@ -213,12 +213,12 @@ async fn clerk_list_ssrs_supervised_matters_and_names_the_supervisor() {
         "the supervising lawyer must be named on every card: {html}",
     );
     assert!(
-        html.contains(&format!("href=\"/app/projects/{project}\"")),
+        html.contains(&format!("href=\"/app/projects/{}\"", project.code)),
         "each card links to the matter detail: {html}",
     );
     // The lawyer workbench never leaks onto the Clerk lens. The *path* can no
     // longer carry that guarantee — the card above links to the same
-    // `/app/projects/{id}` a lawyer uses — so assert on what the workbench
+    // `/app/projects/{code}` a lawyer uses — so assert on what the workbench
     // renders instead. The brand-font download is the one `/lawyer` link a
     // Clerk sees, a firm brand asset.
     for workbench in [
@@ -318,7 +318,7 @@ async fn clerk_detail_shows_the_matter_facts_and_the_limited_access_notice() {
 
     let (status, html) = render_clerk_detail(
         &surreal,
-        project,
+        &project.code,
         webapp::people::ViewerRole::Clerk,
         Some(clerk),
     )
@@ -378,7 +378,7 @@ async fn clerk_detail_is_not_found_for_an_unsupervised_matter() {
     // Another Clerk's matter is not merely refused — it does not exist here.
     let (status, html) = render_clerk_detail(
         &surreal,
-        project,
+        &project.code,
         webapp::people::ViewerRole::Clerk,
         Some(clerk),
     )
@@ -389,7 +389,7 @@ async fn clerk_detail_is_not_found_for_an_unsupervised_matter() {
     // So is an id that resolves to no matter at all.
     let (status, _) = render_clerk_detail(
         &surreal,
-        Uuid::now_v7(),
+        "missing-project",
         webapp::people::ViewerRole::Clerk,
         Some(clerk),
     )

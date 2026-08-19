@@ -109,7 +109,7 @@ async fn build_at_client_review() -> Fixture {
         )
         .await
         .unwrap();
-    let project_id = resp
+    let project_code = resp
         .headers()
         .get("location")
         .unwrap()
@@ -118,8 +118,12 @@ async fn build_at_client_review() -> Fixture {
         .rsplit('/')
         .next()
         .unwrap()
-        .parse::<Uuid>()
-        .unwrap();
+        .to_string();
+    let project_id = store::projects::find_by_code(&surreal, &project_code)
+        .await
+        .unwrap()
+        .expect("redirected project exists")
+        .id;
     let notation = store::notations::list_by_project(&surreal, project_id)
         .await
         .unwrap()

@@ -39,6 +39,7 @@ struct Fixture {
     surreal: store::surreal::SurrealDb,
     storage: Arc<dyn cloud::StorageService>,
     project_id: Uuid,
+    project_code: String,
     doc_id: Uuid,
     storage_key: String,
     client_cookie: String,
@@ -144,6 +145,7 @@ async fn build_fixture() -> Fixture {
         surreal,
         storage,
         project_id: proj.id,
+        project_code: proj.code,
         doc_id,
         storage_key,
         client_cookie,
@@ -195,7 +197,7 @@ async fn client_requests_then_admin_authorizes_and_document_is_scrubbed() {
     // Client can reach their matter page (documents render read-only).
     let page = get(
         &f,
-        format!("/app/projects/{}", f.project_id),
+        format!("/app/projects/{}", f.project_code),
         &f.client_cookie,
     )
     .await;

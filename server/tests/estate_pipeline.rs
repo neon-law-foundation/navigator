@@ -127,7 +127,7 @@ async fn uploading_a_transcript_extracts_answers_and_renders_four_draft_instrume
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::SEE_OTHER);
-    let project_id = resp
+    let project_code = resp
         .headers()
         .get("location")
         .unwrap()
@@ -136,8 +136,12 @@ async fn uploading_a_transcript_extracts_answers_and_renders_four_draft_instrume
         .rsplit('/')
         .next()
         .unwrap()
-        .parse::<uuid::Uuid>()
-        .unwrap();
+        .to_string();
+    let project_id = store::projects::find_by_code(&surreal, &project_code)
+        .await
+        .unwrap()
+        .expect("redirected project exists")
+        .id;
     let notation = store::notations::list_by_project(&surreal, project_id)
         .await
         .unwrap()

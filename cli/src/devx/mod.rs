@@ -1949,6 +1949,16 @@ fn render_env_for(cfg: &KindConfig, db_name: &str, web_port: u16, root: &Path) -
                     .to_string(),
             ),
         ),
+        (
+            "NAVIGATOR_SAMPLE_PROJECT_DIR",
+            shell_single_quote(
+                &root
+                    .join(".devx")
+                    .join("sample-project")
+                    .display()
+                    .to_string(),
+            ),
+        ),
         // The store. The in-cluster `workflows-service` worker reaches
         // the same engine at `surreal.navigator.svc.cluster.local:8000`,
         // so host `web` and the worker share one database.

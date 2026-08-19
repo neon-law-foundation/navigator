@@ -1,7 +1,7 @@
 //! `GET /app/projects/{code}/portal` on the assembled router.
 //!
 //! Three claims. The first is the reason the mount has a `portal` segment at
-//! all: `/app/projects/{id}` must keep resolving to Navigator's own matter show
+//! all: `/app/projects/{code}` must keep resolving to Navigator's own matter show
 //! page. Asserting both in one test is deliberate — reasoning about which of two
 //! overlapping routes Axum would pick is exactly the mistake this replaces.
 //!
@@ -25,7 +25,6 @@ use uuid::Uuid;
 /// with no bundle, and one person on no matter at all.
 struct Fixture {
     app: axum::Router,
-    project_id: Uuid,
     project_code: String,
     unpublished_code: String,
     participant_cookie: String,
@@ -120,7 +119,6 @@ async fn fixture() -> Fixture {
         portal::test_support::app_state_with_applications(surreal.clone(), applications).await;
     Fixture {
         app: portal::router(state),
-        project_id: project.id,
         project_code: project.code,
         unpublished_code: unpublished.code,
         participant_cookie: cookie_for("libra-sub", participant),
@@ -160,7 +158,7 @@ async fn body_string(response: axum::response::Response) -> String {
 
 /// The collision the `portal` segment exists to prevent.
 ///
-/// `/app/projects/{id}` still renders the matter show page while
+/// `/app/projects/{code}` still renders the matter show page while
 /// `/app/projects/{code}/portal` reaches the portal route. Neither shadows the
 /// other, and no registration order decides it: the two differ in path shape.
 #[tokio::test]
@@ -169,7 +167,7 @@ async fn the_portal_mount_and_the_matter_show_page_both_resolve() {
 
     let matter = send(
         &f.app,
-        &format!("/app/projects/{}", f.project_id),
+        &format!("/app/projects/{}", f.project_code),
         &f.participant_cookie,
     )
     .await;

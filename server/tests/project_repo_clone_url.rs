@@ -1,5 +1,5 @@
 #![allow(clippy::too_many_lines)]
-//! Integration test: the external repository page on `GET /app/projects/:id`.
+//! Integration test: the external repository page on `GET /app/projects/:code`.
 //!
 //! The per-Project source repository is a lawyer-only pointer, stored on the
 //! Project as a whole URL on whatever forge hosts it. Lawyer and admin reach the
@@ -23,6 +23,7 @@ const KEY: &str = "test-session-key-not-for-production";
 struct Fixture {
     app: axum::Router,
     project_id: Uuid,
+    project_code: String,
     /// A lawyer disclosed to the matter — sees the admin page.
     lawyer_cookie: String,
     /// The matter's client — reaches the portal view, never the git URL.
@@ -133,6 +134,7 @@ async fn build_fixture() -> Fixture {
     Fixture {
         app,
         project_id: proj.id,
+        project_code: proj.code,
         lawyer_cookie,
         client_cookie,
     }
@@ -151,7 +153,7 @@ async fn lawyer_sees_the_external_repository_page() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}", f.project_id))
+                .uri(format!("/app/projects/{}", f.project_code))
                 .header("cookie", &f.lawyer_cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -205,7 +207,7 @@ async fn client_never_sees_the_repository_page() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri(format!("/app/projects/{}", f.project_id))
+                .uri(format!("/app/projects/{}", f.project_code))
                 .header("cookie", &f.client_cookie)
                 .body(Body::empty())
                 .unwrap(),

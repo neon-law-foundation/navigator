@@ -1,4 +1,4 @@
-//! The lawyer matter-detail workbench (`/app/projects/{id}`) as a Dioxus
+//! The lawyer matter-detail workbench (`/app/projects/{code}`) as a Dioxus
 //! component (#641 Phase 3, projects cluster) — the firm-side single-matter view.
 //!
 //! The successor to the `admin::projects_detail_lawyer` render. Lawyer reach
@@ -10,7 +10,7 @@
 //! forge repository link, the calendar, the participation ledger (with admin
 //! add/edit/remove), the documents table + uploader, and the close-matter
 //! control. The write forms render markup that posts to the existing native
-//! `/app/projects/{id}/...` handlers; only the rendering moves.
+//! `/app/projects/{code}/...` handlers; only the rendering moves.
 //!
 //! The calendar is [`crate::project_calendar`] scoped to this matter — the same
 //! surface the lawyer workbench carries across every matter, and empty for the
@@ -151,8 +151,8 @@ async fn dri_names(
 #[server]
 #[cfg_attr(feature = "server", allow(clippy::too_many_lines))]
 pub async fn get_lawyer_project_detail() -> Result<LawyerDetailView, ServerFnError> {
-    let axum::extract::Path(id) =
-        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<uuid::Uuid>, _>()
+    let axum::extract::Path(code) =
+        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<String>, _>()
             .await?;
     // The calendar's sort. Lenient like the workbench's — an unrecognised
     // column falls back to the leftmost rather than refusing the matter, which
@@ -181,7 +181,7 @@ pub async fn get_lawyer_project_detail() -> Result<LawyerDetailView, ServerFnErr
     // A non-lawyer caller gets the handler's 404 — the workbench is hidden,
     // not merely refused.
     if !role.is_lawyer_tier() {
-        return Ok(not_found(id, role, logo, String::new()));
+        return Ok(not_found(uuid::Uuid::nil(), role, logo, String::new()));
     }
     let csrf_token =
         dioxus_fullstack_core::FullstackContext::extract::<axum::Extension<CsrfToken>, _>()
@@ -219,6 +219,13 @@ pub async fn get_lawyer_project_detail() -> Result<LawyerDetailView, ServerFnErr
     };
 
     let surreal = consume_context::<store::surreal::SurrealDb>();
+    let Some(project) = store::projects::find_by_code(&surreal, &code)
+        .await
+        .map_err(server_error)?
+    else {
+        return Ok(not_found(uuid::Uuid::nil(), role, logo, String::new()));
+    };
+    let id = project.id;
 
     // Anyone not on the matter gets a 404, not a peek — Owner and Admin
     // included. This goes through `store::access`, which is the layer that
@@ -233,13 +240,6 @@ pub async fn get_lawyer_project_detail() -> Result<LawyerDetailView, ServerFnErr
     if !visible {
         return Ok(not_found(id, role, logo, csrf_token));
     }
-    let Some(project) = store::projects::find_by_id(&surreal, id)
-        .await
-        .map_err(server_error)?
-    else {
-        return Ok(not_found(id, role, logo, csrf_token));
-    };
-
     let entity_name = store::entities::find_by_id(&surreal, project.entity_id)
         .await
         .map_err(server_error)?
@@ -508,7 +508,7 @@ pub fn LawyerProjectDetail() -> Element {
                 heading: "Calendar".to_string(),
                 empty_message: "No calendar events scheduled for this matter.".to_string(),
                 columns: crate::project_calendar::MATTER_COLUMNS.to_vec(),
-                path: format!("/app/projects/{}", view.id),
+                path: format!("/app/projects/{}", view.code),
                 query_prefix: String::new(),
                 sort: view.calendar_sort.clone(),
                 dir: view.calendar_dir.clone(),

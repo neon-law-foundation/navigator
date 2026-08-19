@@ -121,7 +121,7 @@ pub async fn upload(
         return not_found();
     }
 
-    let redirect_back = format!("/app/projects/{project_id}");
+    let redirect_back = crate::dioxus_app::project_show_path(&state.surreal, project_id).await;
 
     // Verify the `_csrf` first field before reading the contract bytes —
     // the multipart equivalent of the middleware's form-field check.

@@ -319,7 +319,7 @@ async fn matter_open_creates_the_matter_and_no_notation() {
         .to_str()
         .unwrap()
         .to_string();
-    assert_eq!(location, format!("/app/projects/{}", project.id));
+    assert_eq!(location, format!("/app/projects/{}", project.code));
 
     // The load-bearing assertion: no notation was conjured.
     let notations = store::notations::list_by_project(&surreal, project.id)

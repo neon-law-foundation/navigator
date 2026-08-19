@@ -9,7 +9,7 @@
 //! | command | route |
 //! | --- | --- |
 //! | `projects list` | `GET /app/projects.csv` |
-//! | `project open`   | `GET /app/projects/:id` |
+//! | `project open`   | `GET /app/projects/:code` |
 //! | `notation create`  | `POST /app/projects/:id/notations/new` |
 //! | `retainer approve` | `POST /lawyer/notations/:id/approve-send` |
 //! | `retainer send`    | `POST /lawyer/notations/:id/send` |

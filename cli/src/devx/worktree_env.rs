@@ -389,6 +389,7 @@ fn up_dev(root: &Path, no_deps: bool, runtime: Runtime, base_cfg: &KindConfig) -
         &port_listening,
     )?;
     let cfg = worktree_kind_config(base_cfg, root, slot);
+    let mut sample_project_refreshed = false;
     match runtime {
         Runtime::Kind => eprintln!(
             "==> worktree-env up (dev, kind): slug={slug} cluster={} database={db_name}",
@@ -434,6 +435,7 @@ fn up_dev(root: &Path, no_deps: bool, runtime: Runtime, base_cfg: &KindConfig) -
                     cfg.cluster
                 );
                 super::up_in(root, &cfg)?;
+                sample_project_refreshed = true;
             }
             ensure_worktree_deps_ready(&cfg)?;
             // Pin this worktree's isolated KIND context before touching the cluster.
@@ -470,6 +472,15 @@ fn up_dev(root: &Path, no_deps: bool, runtime: Runtime, base_cfg: &KindConfig) -
     // without creating a private topology Restate cannot observe.
     super::surreal::apply_schema(&cfg, &db_name)?;
     eprintln!("==> applied the SurrealDB schema to {db_name}");
+
+    if !sample_project_refreshed {
+        super::sample_project::run_for_root(
+            store::seed::SIMPSONS_REPOSITORY_URL,
+            None,
+            false,
+            root,
+        )?;
+    }
 
     let env_body = super::render_env_for(&cfg, &db_name, cfg.web_port, root);
     write_worktree_env(root, &env_body)?;

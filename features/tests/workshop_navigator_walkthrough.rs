@@ -24,10 +24,10 @@ use tower::ServiceExt;
 use uuid::Uuid;
 use workflows::InMemoryRuntime;
 
-/// Stable code for the workshop's deed-of-sale template. Used by the
+/// Stable code for the workshop's retainer template. Used by the
 /// `aida_create_notation` tool to look up the template row inserted
 /// in the Background.
-const DEED_TEMPLATE_CODE: &str = "real_estate__deed_of_sale";
+const RETAINER_TEMPLATE_CODE: &str = "onboarding__retainer";
 
 #[derive(Default, World)]
 #[world(init = Self::default)]
@@ -35,7 +35,7 @@ struct WorkshopWorld {
     app: Option<axum::Router>,
     storage: Option<Arc<dyn cloud::StorageService>>,
     /// The stock local attorney persona whose firm-side participation scopes
-    /// the seeded Henderson matter.
+    /// the seeded Simpsons matter.
     attorney_email: Option<String>,
     project_id: Option<Uuid>,
     notation_id: Option<Uuid>,
@@ -99,8 +99,8 @@ impl WorkshopWorld {
     }
 }
 
-#[given("a fresh dev Navigator app with the Henderson workshop seed")]
-async fn build_app_with_henderson_seed(world: &mut WorkshopWorld) {
+#[given("a fresh dev Navigator app with the Simpsons workshop seed")]
+async fn build_app_with_simpsons_seed(world: &mut WorkshopWorld) {
     let surreal = features::shared_surreal().await;
     let storage = fs_storage("workshop-navigator-walkthrough").await;
     store::seed::seed_environment(
@@ -110,11 +110,11 @@ async fn build_app_with_henderson_seed(world: &mut WorkshopWorld) {
         store::seed::BrandSeed::Neon,
     )
     .await
-    .expect("seed the disposable Henderson workshop portfolio");
-    let henderson = store::projects::find_by_name(&surreal, "Henderson Bungalow Purchase")
+    .expect("seed the Simpsons development fixture");
+    let simpsons = store::projects::find_by_code(&surreal, "simpsons")
         .await
-        .expect("query Henderson matter")
-        .expect("dev seed opens the Henderson matter");
+        .expect("query Simpsons matter")
+        .expect("dev seed opens the Simpsons matter");
     let lawyer = store::persons::find_by_email_ci(&surreal, "lawyer@neonlaw.com")
         .await
         .expect("query local lawyer persona")
@@ -132,7 +132,7 @@ async fn build_app_with_henderson_seed(world: &mut WorkshopWorld) {
     let router = features::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     world.app = Some(router);
     world.storage = Some(storage);
-    world.project_id = Some(henderson.id);
+    world.project_id = Some(simpsons.id);
     world.attorney_email = Some(lawyer.email);
 }
 
@@ -169,7 +169,7 @@ async fn project_status_is(world: &mut WorkshopWorld, expected: String) {
     assert_eq!(row.status, expected, "project status");
 }
 
-#[when("the attorney binds the deed template as a notation")]
+#[when("the attorney binds the retainer template as a notation")]
 async fn attorney_binds_notation(world: &mut WorkshopWorld) {
     // The notation hangs on the seeded matter; its respondent is the
     // matter's client DRI (the seeded client account), not the lawyer presenter.
@@ -180,7 +180,7 @@ async fn attorney_binds_notation(world: &mut WorkshopWorld) {
         .call_tool(
             "aida_create_notation",
             json!({
-                "template_code": DEED_TEMPLATE_CODE,
+                "template_code": RETAINER_TEMPLATE_CODE,
                 "project_id": project_id,
             }),
         )
@@ -196,7 +196,7 @@ async fn attorney_binds_notation(world: &mut WorkshopWorld) {
     world.notation_id = Some(Uuid::parse_str(id_str).expect("notation id is a UUID"));
 }
 
-#[then("a notation row exists linking the deed template to the client")]
+#[then("a notation row exists linking the retainer template to the client")]
 async fn notation_links_template_to_attorney(world: &mut WorkshopWorld) {
     let id = world.notation_id.expect("no notation id captured");
     let row = store::notations::find_by_id(&features::shared_surreal().await, id)
@@ -217,18 +217,17 @@ async fn notation_links_template_to_attorney(world: &mut WorkshopWorld) {
             .expect("template lookup")
             .expect("template row");
     assert_eq!(
-        template_row.code, DEED_TEMPLATE_CODE,
+        template_row.code, RETAINER_TEMPLATE_CODE,
         "notation template code",
     );
 }
 
-#[then(regex = r#"^the deed template body carries the "([^"]+)" placeholder$"#)]
-async fn deed_template_body_carries_placeholder(world: &mut WorkshopWorld, needle: String) {
+#[then(regex = r#"^the retainer template body carries the "([^"]+)" placeholder$"#)]
+async fn retainer_template_body_carries_placeholder(world: &mut WorkshopWorld, needle: String) {
     let surreal = features::shared_surreal().await;
     // Through the notation's pinned `template_id`, the way the sibling step
-    // does. The Henderson deed is a *project-scoped* version, so resolving
-    // the bare code against the shared catalog finds nothing — and the body
-    // under test is the one this notation actually bound.
+    // The notation pins the exact catalog version, so the body under test is
+    // the one this notation actually bound.
     let id = world.notation_id.expect("no notation id captured");
     let notation_row = store::notations::find_by_id(&surreal, id)
         .await
@@ -237,14 +236,17 @@ async fn deed_template_body_carries_placeholder(world: &mut WorkshopWorld, needl
     let row = store::templates::find_by_id(&surreal, notation_row.template_id)
         .await
         .expect("template lookup")
-        .expect("deed template row");
-    assert_eq!(row.code, DEED_TEMPLATE_CODE, "the bound deed template");
+        .expect("retainer template row");
+    assert_eq!(
+        row.code, RETAINER_TEMPLATE_CODE,
+        "the bound retainer template"
+    );
     let body = store::templates::body(&surreal, world.storage(), &row)
         .await
-        .expect("deed body in storage");
+        .expect("retainer body in storage");
     assert!(
         body.contains(&needle),
-        "deed template body must contain {needle:?}; got body: {body:?}",
+        "retainer template body must contain {needle:?}; got body: {body:?}",
     );
 }
 
@@ -267,7 +269,7 @@ async fn notation_state_is_not(world: &mut WorkshopWorld, forbidden: String) {
         .expect("notation row");
     assert_ne!(
         row.state, forbidden,
-        "Scorpio's load-bearing trust claim: the deed must not be {forbidden:?} until the attorney advances the workflow"
+        "Scorpio's load-bearing trust claim: the retainer must not be {forbidden:?} until the attorney advances the workflow"
     );
 }
 

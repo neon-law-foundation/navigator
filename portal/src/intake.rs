@@ -352,6 +352,15 @@ pub(crate) async fn resolve_intake_state(
         return Err(not_found());
     };
     let notation = visible_notation(&state.surreal, session, project_id, notation_id).await?;
+    let Some(project) = store::projects::find_by_id(&state.surreal, project_id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, %project_id, "intake: project lookup failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, "internal").into_response()
+        })?
+    else {
+        return Err(not_found());
+    };
     let flow_label = flow_label(&state.surreal, notation.template_id).await;
 
     let step =
@@ -366,7 +375,7 @@ pub(crate) async fn resolve_intake_state(
     // landing, not an editable form.
     if is_past_intake(&notation.state) {
         return Ok(webapp::client_intake::IntakeState::Complete {
-            project_id: project_id.to_string(),
+            project_code: project.code,
             flow_label,
             total: total_of(&step),
         });
@@ -384,6 +393,7 @@ pub(crate) async fn resolve_intake_state(
             webapp::client_intake::IntakeState::NeedsAnswer(Box::new(
                 webapp::client_intake::IntakeStepData {
                     project_id: project_id.to_string(),
+                    project_code: project.code,
                     notation_id: notation_id.to_string(),
                     flow_label,
                     question_code: question.code,
@@ -397,7 +407,7 @@ pub(crate) async fn resolve_intake_state(
             ))
         }
         ClientIntakeStep::Complete { total } => webapp::client_intake::IntakeState::Complete {
-            project_id: project_id.to_string(),
+            project_code: project.code,
             flow_label,
             total,
         },

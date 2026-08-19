@@ -25,6 +25,7 @@ use crate::csrf::CsrfToken;
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
 pub struct ReviewView {
     pub project_id: String,
+    pub project_code: String,
     pub doc_id: String,
     pub title: String,
     pub kind: String,
@@ -104,9 +105,16 @@ pub async fn get_review() -> Result<ReviewView, ServerFnError> {
         .await
         .map_err(server_error)?;
     let comments_json = serde_json::to_string(&comments).unwrap_or_else(|_| "[]".to_string());
+    let Some(project) = store::projects::find_by_id(&surreal, project_id)
+        .await
+        .map_err(server_error)?
+    else {
+        return not_found(project_id, doc_id);
+    };
 
     Ok(ReviewView {
         project_id: project_id.to_string(),
+        project_code: project.code,
         doc_id: doc.id.to_string(),
         title: doc.title,
         kind: doc.kind,
@@ -169,7 +177,7 @@ pub fn Review() -> Element {
 
         main { id: "review", class: "nav-theme northstar-review-page",
             nav { class: "portal-detail__back",
-                a { class: "nav-link", href: "/app/projects/{view.project_id}", "← Back to your matter" }
+                a { class: "nav-link", href: "/app/projects/{view.project_code}", "← Back to your matter" }
             }
             header {
                 h1 { "{view.title}" }

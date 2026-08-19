@@ -37,11 +37,10 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
         slug: "use-the-navigator",
         title: "Using Neon Law Navigator",
         description: "A single hands-on workshop for Lawyer users of the application. \
-                      Build a deed-of-sale notation \
-                      with a notarization step using Gemini's Add AIDA connector, while keeping \
-                      the client portal lens distinct from the lawyer workbench.",
+                      Open the Simpsons matter, bind the shared retainer template, and inspect \
+                      the client portal through the configured AIDA connector.",
         audience: "For lawyer users",
-        benefit: "You walk out with a deed-of-sale notation you built yourself and a \
+        benefit: "You walk out with a Simpsons matter walkthrough and a \
                   three-minute demo you can run at your firm. You also see the five stored \
                   authorization roles in context: Owner governs the system, Admin manages the \
                   installation, Lawyers run the legal workflow, Clerks are supervised \

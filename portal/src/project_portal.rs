@@ -9,7 +9,7 @@
 //! # Why the extra segment exists
 //!
 //! Mounting the portal at `/app/projects/{code}` directly would shadow
-//! Navigator's own matter show page, which is served at `/app/projects/{id}`.
+//! Navigator's own matter show page, which is served at `/app/projects/{code}`.
 //! The `portal` segment is what keeps that page, and it is the first thing
 //! [`tests`] asserts.
 //!
@@ -68,7 +68,7 @@ use crate::session::SessionData;
 /// The one path a Project's client portal is served at.
 ///
 /// `{code}` is the Project code, and `portal` is a literal rather than a
-/// parameter. `/app/projects/{id}` stays Navigator's matter show page.
+/// parameter. `/app/projects/{code}` stays Navigator's matter show page.
 pub const PROJECT_PORTAL_PATH: &str = "/app/projects/{code}/portal";
 
 /// The trailing-slash form the bare mount redirects to, and the root every
@@ -456,7 +456,7 @@ mod tests {
 
     /// The collision this segment exists to prevent.
     ///
-    /// `/app/projects/{id}` is Navigator's matter show page and
+    /// `/app/projects/{code}` is Navigator's matter show page and
     /// `/app/projects/{code}/portal` is a Project's own surface. They differ in
     /// path *shape* — two segments after `/app/projects` versus three — so
     /// neither can match the other's request and no Axum registration order
@@ -468,7 +468,7 @@ mod tests {
         assert_eq!(PROJECT_PORTAL_PATH, "/app/projects/{code}/portal");
         assert_eq!(
             crate::dioxus_app::PROJECT_DETAIL_PATH,
-            "/app/projects/{id}",
+            "/app/projects/{code}",
             "the matter show page keeps its own mount"
         );
 

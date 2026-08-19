@@ -1,8 +1,7 @@
 //! Integration coverage for environment-aware seed orchestration.
 //!
-//! The disposable development portfolio is a `SurrealDB` projects-cluster
-//! concern. These tests therefore assert the public project and participation
-//! read seams rather than the retired projections.
+//! The Simpsons development fixture is a `SurrealDB` projects-cluster
+//! concern. These tests assert the public project and participation read seams.
 
 use std::sync::Arc;
 
@@ -37,13 +36,7 @@ async fn production_seed_has_no_disposable_projects_or_people() {
     .unwrap();
 
     assert!(projects::all(&surreal).await.unwrap().is_empty());
-    for email in [
-        store::seed::DEV_PORTFOLIO_LAWYER_EMAIL,
-        "client@neonlaw.com",
-        "leo.litigation@example.com",
-        store::seed::TRAINING_PORTFOLIO_TRAINER_EMAIL,
-        "nova.trainee@example.com",
-    ] {
+    for email in ["lawyer@neonlaw.com", "client@neonlaw.com"] {
         assert!(
             persons::find_by_email_ci(&surreal, email)
                 .await
@@ -56,7 +49,7 @@ async fn production_seed_has_no_disposable_projects_or_people() {
 }
 
 #[tokio::test]
-async fn development_seed_opens_the_litigation_and_training_matters_with_dris() {
+async fn development_seed_opens_only_simpsons_with_dris() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
@@ -69,14 +62,14 @@ async fn development_seed_opens_the_litigation_and_training_matters_with_dris() 
     .await
     .unwrap();
 
-    let litigation = projects::find_by_code(&surreal, "dev-litigation-demo")
+    let simpsons = projects::find_by_code(&surreal, "simpsons")
         .await
         .unwrap()
         .into_iter()
         .next()
-        .expect("litigation matter");
-    assert_eq!(litigation.status, "open");
-    let client = persons::find_by_email_ci(&surreal, "leo.litigation@example.com")
+        .expect("Simpsons matter");
+    assert_eq!(simpsons.status, "open");
+    let client = persons::find_by_email_ci(&surreal, "client@neonlaw.com")
         .await
         .unwrap()
         .expect("litigation client");
@@ -84,7 +77,7 @@ async fn development_seed_opens_the_litigation_and_training_matters_with_dris() 
         .await
         .unwrap()
         .expect("lawyer fixture");
-    let participations = projects::participations_for_project(&surreal, litigation.id)
+    let participations = projects::participations_for_project(&surreal, simpsons.id)
         .await
         .unwrap();
     assert!(participations.iter().any(|row| {
@@ -94,30 +87,7 @@ async fn development_seed_opens_the_litigation_and_training_matters_with_dris() 
         row.person_id == lawyer.id && row.participation == "attorney" && row.is_lawyer_dri
     }));
 
-    let training = projects::find_by_name(&surreal, "Training — LLC Formation Walkthrough")
-        .await
-        .unwrap()
-        .expect("training matter");
-    let trainer =
-        persons::find_by_email_ci(&surreal, store::seed::TRAINING_PORTFOLIO_TRAINER_EMAIL)
-            .await
-            .unwrap()
-            .expect("training lawyer");
-    let training_client = persons::find_by_email_ci(&surreal, "nova.trainee@example.com")
-        .await
-        .unwrap()
-        .expect("training client");
-    assert_eq!(trainer.role, Role::Lawyer);
-    assert_eq!(training_client.role, Role::Client);
-    let participations = projects::participations_for_project(&surreal, training.id)
-        .await
-        .unwrap();
-    assert!(participations
-        .iter()
-        .any(|row| row.person_id == trainer.id && row.is_lawyer_dri));
-    assert!(participations
-        .iter()
-        .any(|row| row.person_id == training_client.id && row.is_client_dri));
+    assert_eq!(projects::all(&surreal).await.unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -133,17 +103,17 @@ async fn development_seed_is_idempotent_and_repairs_participation_drift() {
     )
     .await
     .unwrap();
-    let litigation = projects::find_by_code(&surreal, "dev-litigation-demo")
+    let simpsons = projects::find_by_code(&surreal, "simpsons")
         .await
         .unwrap()
         .into_iter()
         .next()
-        .expect("litigation matter");
-    let client = persons::find_by_email_ci(&surreal, "leo.litigation@example.com")
+        .expect("Simpsons matter");
+    let client = persons::find_by_email_ci(&surreal, "client@neonlaw.com")
         .await
         .unwrap()
         .expect("litigation client");
-    let role = projects::participations_for_project(&surreal, litigation.id)
+    let role = projects::participations_for_project(&surreal, simpsons.id)
         .await
         .unwrap()
         .into_iter()
@@ -164,7 +134,7 @@ async fn development_seed_is_idempotent_and_repairs_participation_drift() {
     .unwrap();
 
     assert_eq!(projects::all(&surreal).await.unwrap().len(), before);
-    let repaired = projects::participations_for_project(&surreal, litigation.id)
+    let repaired = projects::participations_for_project(&surreal, simpsons.id)
         .await
         .unwrap()
         .into_iter()
@@ -226,12 +196,10 @@ async fn development_seed_does_not_claim_a_same_named_project() {
         "closed"
     );
     assert_ne!(
-        projects::find_by_code(&surreal, "dev-litigation-demo")
+        projects::find_by_code(&surreal, "simpsons")
             .await
             .unwrap()
-            .into_iter()
-            .next()
-            .expect("seeded matter")
+            .expect("seeded Simpsons matter")
             .id,
         squatter.id
     );
@@ -242,7 +210,7 @@ async fn development_seed_does_not_claim_a_same_named_project() {
 /// boot must carry every box we actually answer mail at.
 ///
 /// Their being real is the point. `Address.yaml` used to sit in the disposable
-/// development portfolio, which meant the addresses we actually receive mail at
+/// Simpsons development fixture, which supplies the local matter rows
 /// existed only on a developer's laptop.
 ///
 /// One boot carries them all now. The firm and the Foundation seeded from
@@ -460,7 +428,7 @@ async fn the_brand_layer_is_idempotent_across_boots() {
 /// moved layers.
 ///
 /// `seed_letters` resolves its mailroom by name and *skips* a record it cannot
-/// find, so moving `seed_mailrooms` from the development portfolio into the
+/// find, so moving `seed_mailrooms` from the Simpsons development fixture into the
 /// brand layer put a cross-layer ordering dependency between them. It holds
 /// only because `seed_environment` applies the brand layer before the
 /// portfolio; reverse those two calls and this suite still passes everywhere
