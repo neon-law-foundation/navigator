@@ -19,41 +19,49 @@ this file is the order of operations and the checks that must happen *before* th
 deletion, update, and non-fast-forward with no bypass actor. Every check below exists because discovering the problem
 after the push costs the day.
 
+## 0. Ask what the name is — never choose it
+
+**The version is a lookup, not a judgement call.** `scripts/next-release-tag.sh` prints the one name that is cuttable
+right now and exits; it reads the remote and the UTC clock and writes nothing, so run it as often as you like.
+
+```bash
+.claude/skills/cut-release/scripts/next-release-tag.sh
+```
+
+It transcribes `deploy.yml`'s rule rather than remembering it:
+
+| Is today's UTC `YY.M.D` already a tag? | The cuttable name |
+| --- | --- |
+| No | `YY.M.D` — today's UTC date, plain |
+| Yes | `<tomorrow's UTC date>-hotfix.<UTC hour>`, walking to the first free `N` |
+
+Two things that rule encodes, both of which cost a day when guessed instead:
+
+- **A plain tag must equal TODAY's UTC date; a prerelease base must equal TOMORROW's.** The workflow checks exactly
+  that, so at 23:30 UTC there is no way to cut a plain tag for tomorrow — wait thirty minutes and today's name becomes
+  it. The date that matters is UTC's, never your wall clock.
+- **A hotfix hangs off the NEXT day.** Semver ranks a prerelease below its own base (spec §11.3), so
+  `26.8.19-hotfix.23` would sort as *older* than the `26.8.19` it follows.
+
+Unpadded, always: August is `8`, not `08`, and semver forbids a leading zero in a numeric prerelease identifier, so
+`hotfix.08` is not a version at all.
+
 ## 1. Preflight — everything that can fail locally
 
-Run these first. Each one maps to a way the pipeline refuses a tag, and each is free here.
-
 ```bash
-git fetch origin && git status --short
+.claude/skills/cut-release/scripts/preflight.sh
 ```
 
-- **On `main`, current, clean.** The tag must target a commit reachable from `origin/main`, and `main` takes no direct
-  commits. A PR branch is never a release source; wait for the PR to merge.
-- **The four tag checks `release-version` will run** — shape, UTC date, manifest equality, and reachability from the
-  freshly fetched `origin/main`. Compute the tag the same way the workflow does, in UTC:
+Read-only and safely repeatable. It fetches, then refuses the cut unless every one of these holds, because each is a way
+the pipeline rejects a tag and each is free here:
 
-```bash
-TZ=UTC date +'%y.%-m.%-d'
-```
-
-- **Unpadded, always.** August is `8`, not `08`. Cargo parses the manifest as strict semver, so a fourth component is
-  impossible and a leading zero is invalid.
-- **The midnight edge is real.** The date that matters is UTC's, not yours. From 20:00 local on `-04:00`, UTC has
-  already rolled over and the only releasable tag is *tomorrow's* local date. Check the UTC date rather than your wall
-  clock; re-tagging costs a minute now and a whole day after the push.
-- **The name must be free.** `git tag -l` and the remote both — a spent name cannot be reused.
-- **Notices must be current.** Every permissive licence in the tree requires its notice to travel with the distributed
-  binary, and the CLI archives carry it:
-
-```bash
-cargo run -p cli --quiet -- ops notices --check
-```
-
-- **The workspace gate.** CI runs the coverage floor inside this same pass:
-
-```bash
-cargo nextest run --workspace && cargo test -p features
-```
+- **The target is reachable from `origin/main`.** A PR branch is never a release source; wait for the PR to merge.
+- **The working tree is clean.** A release names a commit, not a desk.
+- **`[workspace.package].version` equals the name from step 0.** `cli/build.rs` bakes that value into
+  `navigator --version`, so a mismatch ships a binary naming a release its source never heard of.
+- **Notices are current** (`ops notices --check`) — every permissive licence in the tree requires its notice to travel
+  with the distributed binary, and the CLI archives carry it.
+- **The workspace gate passes.** CI runs the coverage floor inside this same pass.
 
 ## 2. Write the version
 
@@ -61,10 +69,11 @@ The tag must equal `[workspace.package].version` — the value every crate inher
 `navigator --version`. Without it a plain build of the tagged source names a release the source never heard of.
 
 ```bash
-cargo run -p cli -- ops release-version
+cargo run -p cli -- ops release-version --tag "$(.claude/skills/cut-release/scripts/next-release-tag.sh)"
 ```
 
-`--tag <value>` writes an explicit version; `--no-commit` writes the manifest and leaves the commit to you.
+Passing the name from step 0 explicitly is what keeps the manifest and the tag one decision rather than two that have to
+agree. `--no-commit` writes the manifest and leaves the commit to you.
 
 ## 3. Land it through a PR
 
@@ -78,14 +87,14 @@ identity.
 
 ```bash
 git fetch origin && git checkout main && git pull --ff-only
-git tag -s "$TAG" -m "$TAG" && git push origin "$TAG"
+.claude/skills/cut-release/scripts/tag-and-push.sh
 ```
 
-Pushing the tag is the publish. Watch it:
+It re-derives the name, signs the tag, pushes it, and watches the run. Idempotent where a rerun can mean the same thing
+and a hard stop where it cannot: an already-pushed tag on this commit just watches the existing run, and a tag that
+exists on a *different* commit is refused rather than forced, because a tag cannot be moved.
 
-```bash
-gh run watch "$(gh run list --workflow=deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
-```
+Pushing the tag is the publish.
 
 ## Releasing twice in one day
 
@@ -97,16 +106,11 @@ sort as **older** than the `26.8.17` it fixes. Hanging it off the next day keeps
 26.8.17  <  26.8.18-hotfix.17  <  26.8.18-hotfix.21  <  26.8.18
 ```
 
-```bash
-cargo run -p cli -- ops release-version --hotfix
-```
-
-`N` is an unpadded nonnegative integer — semver forbids a leading zero in a numeric prerelease identifier, so
-`hotfix.08` is not a version at all. The command uses the current UTC hour as its default `N`; `--tag` selects another
-available numeric value. A hotfix publishes every image and archive and **bumps the Homebrew tap** like any other
-release — the tap holds one version and every `brew install` resolves to it, so that version has to be the newest build
-that exists. The one surface that treats it differently is the GitHub Release, flagged as a prerelease so it is not
-reported as "Latest".
+`scripts/next-release-tag.sh` already returns this shape once today's name is spent, so a second release needs no
+different command — step 0 answers it. A hotfix publishes every image and archive and **bumps the Homebrew tap** like
+any other release — the tap holds one version and every `brew install` resolves to it, so that version has to be the
+newest build that exists. The one surface that treats it differently is the GitHub Release, flagged as a prerelease so
+it is not reported as "Latest".
 
 ## What the push actually does
 
