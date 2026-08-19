@@ -928,6 +928,32 @@ pub fn is_valid_code(code: &str) -> bool {
         && !cloud::workspace::RESERVED_PROJECT_CODES.contains(&code)
 }
 
+/// Resolve a `{project_code}` segment to its Project's internal id.
+///
+/// `None` covers every miss the same way — a malformed code, a code no Project
+/// carries, or a store error — because a caller must not be able to tell them
+/// apart. Each handler turns that into its own non-disclosing refusal, which is
+/// 404 everywhere below `/app`: a 403 would confirm to a stranger that a matter
+/// with this code exists.
+///
+/// The code is validated before the store is asked. That refuses `new` — the
+/// matter-open form rather than a matter — and keeps a malformed segment from
+/// reaching a query at all.
+///
+/// A caller that owes its reader a distinct answer for a store failure calls
+/// [`find_by_code`] directly and maps the error itself: an outage must read as
+/// `500`, not as "your matter is gone".
+pub async fn id_for_code(surreal: &SurrealDb, project_code: &str) -> Option<Uuid> {
+    if !is_valid_code(project_code) {
+        return None;
+    }
+    find_by_code(surreal, project_code)
+        .await
+        .ok()
+        .flatten()
+        .map(|project| project.id)
+}
+
 /// Human-readable reason [`is_valid_repository_url`] refuses a value, used as
 /// the caller-correctable message on the command boundary.
 pub const REPOSITORY_URL_INVALID: &str =
@@ -2376,6 +2402,58 @@ mod surreal_read_tests {
                 .await
                 .unwrap(),
             vec![created]
+        );
+    }
+}
+
+#[cfg(test)]
+mod project_code_resolution_tests {
+    use super::id_for_code;
+
+    /// A code resolves; everything else is the same `None`.
+    #[tokio::test]
+    async fn a_code_resolves_and_every_miss_is_indistinguishable() {
+        let surreal = crate::test_support::mem_surreal().await;
+        let project = crate::projects::create(
+            &surreal,
+            &crate::projects::NewProject {
+                code: "libra-formation".into(),
+                name: "Libra formation".into(),
+                status: "open".into(),
+                entity_id: crate::test_support::seed_entity(&surreal).await,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("a seeded Project");
+
+        assert_eq!(
+            id_for_code(&surreal, "libra-formation").await,
+            Some(project.id)
+        );
+
+        for miss in [
+            // A well-formed code no Project carries.
+            "aries-eviction",
+            // `new` is the matter-open form, not a matter.
+            "new",
+            // Malformed, so the store is never asked.
+            "Not_A_Code",
+            "",
+        ] {
+            assert_eq!(
+                id_for_code(&surreal, miss).await,
+                None,
+                "`{miss}` must not resolve a matter"
+            );
+        }
+
+        // The row id is not a way to name the matter, which is the whole point
+        // of keying these routes on the code.
+        assert_eq!(
+            id_for_code(&surreal, &project.id.to_string()).await,
+            None,
+            "a row id must not resolve the matter it belongs to"
         );
     }
 }
