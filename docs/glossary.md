@@ -926,8 +926,16 @@ material, answers, and produced documents remain in Google Drive and Navigator [
 
 `projects.code` is **lowercase letters, digits, and single hyphens**, alphanumeric at both ends, at most 80 characters —
 enforced by [`store::projects::is_valid_code`](../store/src/projects.rs) and the SurrealDB `project_code` unique index.
-It is **required at matter-open and never derived**: `code` names the matter's folder in the firm's shared drive and its
-object-storage prefix, and that mapping is an equality check, so a code Navigator invented would name no folder.
+No uppercase, no underscores, no other punctuation, and no spaces.
+
+**The code is the matter's URL.** Its show page is `/app/projects/{code}` and its client portal is
+`/app/projects/{code}/portal/`; the internal UUID appears in neither. That holds because both directions read the `code`
+column and neither consults the id — `portal::dioxus_app::project_show_path` writes a code into every link Navigator
+renders, and `project_id_from_path` reads one back. A lowercase UUID is itself a well-formed code, so nothing could
+refuse one on sight; what keeps ids out of URLs is the lookup, not the shape of the segment.
+
+The code is **required at matter-open and never derived**: `code` names the matter's folder in the firm's shared drive
+and its object-storage prefix, and that mapping is an equality check, so a code Navigator invented would name no folder.
 (`code_from_name` remains available to fixture and internal callers that are not matter-opens.) Uppercase and
 underscores stay out deliberately: Drive and macOS are case-insensitive, so uppercase would let one folder answer to two
 codes, and a second separator would turn the mapping into a normalization instead of an equality.

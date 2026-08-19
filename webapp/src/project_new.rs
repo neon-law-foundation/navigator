@@ -240,9 +240,13 @@ fn open_matter_form(view: &ProjectNewView) -> Element {
             .placeholder("fractional-gc")
             .help(
                 "Lowercase letters, digits, and single hyphens, starting and ending with a letter \
-                 or digit. This becomes the lawyer-only repository name and the name of the \
-                 matter's folder in the firm's shared drive — the two must match exactly, so it \
-                 is never generated for you.",
+                 or digit — no uppercase, no underscores, no spaces. This is the matter's public \
+                 name everywhere: `fractional-gc` makes the matter's page \
+                 /app/projects/fractional-gc and the client's portal \
+                 /app/projects/fractional-gc/portal/, and the same word is the lawyer-only \
+                 repository name and the matter's folder in the firm's shared drive. Those must \
+                 match exactly, so it is never generated for you — and no edit form changes it \
+                 later.",
             ),
         Field::select(
             "Entity",
@@ -485,6 +489,37 @@ mod tests {
         // always opens `open`; navigator#770).
         assert!(html.contains(r#"name="attestation""#), "{html}");
         assert!(!html.contains(r#"name="status""#), "{html}");
+    }
+
+    /// The one field a lawyer cannot take back tells them what it is for.
+    ///
+    /// The code is required at matter-open, never derived, and no edit form
+    /// changes it later — and it is simultaneously the matter's URL, its
+    /// repository name, and its shared-drive folder name, which have to match
+    /// exactly. So the rule and the consequence both belong on the field
+    /// itself: a lawyer who learns the shape from a rejected submission has
+    /// already had to guess, and one who learns the URL later has already given
+    /// a client a link.
+    #[test]
+    fn the_code_field_states_its_shape_and_what_the_code_becomes() {
+        let html = render(&view(ProjectNewQuery::default()));
+
+        for shape in ["Lowercase letters", "single hyphens", "no underscores"] {
+            assert!(html.contains(shape), "the code's shape is unstated: {html}");
+        }
+        for url in [
+            "/app/projects/fractional-gc",
+            "/app/projects/fractional-gc/portal/",
+        ] {
+            assert!(
+                html.contains(url),
+                "the field does not say the code is the matter's URL: {html}"
+            );
+        }
+        assert!(
+            html.contains("shared drive"),
+            "the field does not say the code names the Drive folder: {html}"
+        );
     }
 
     #[test]

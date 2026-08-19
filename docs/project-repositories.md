@@ -52,10 +52,15 @@ refused rather than the precedence reasoned about — in `store::projects::is_va
 
 ## The repository name is the Project code
 
-Navigator serves a Project's portal at its **code** plus one literal segment:
+A Project code is **lowercase letters, digits, and single hyphens**, alphanumeric at both ends, at most 80 characters —
+no uppercase, no underscores, no other punctuation, no spaces. `store::projects::is_valid_code` is the one definition
+and [the glossary](glossary.md#project) carries the rationale for each restriction. The code is the matter's whole
+public identity: its show page, its client portal, its repository name, and its folder in the firm's shared drive are
+all that one word, and Navigator never invents it.
 
 ```text
-/app/projects/<project-code>/portal/
+/app/projects/<project-code>            the matter's show page — never its internal UUID
+/app/projects/<project-code>/portal/    the client portal this repository publishes
 ```
 
 **Nothing in a Project repository declares that code, so nothing can disagree with it.** The repository name *is* the
