@@ -40,9 +40,12 @@
 //! * The bare mount `301`s to the trailing-slash form, because a Vite base
 //!   joins asset URLs directly onto it.
 //! * A published object is streamed with its extension's content type. A
-//!   content-hashed asset is immutable for a year; `index.html` is `no-store`.
-//! * Any path with no published object falls back to that portal's
-//!   `index.html`, so a client-side route and a browser refresh both survive.
+//!   content-hashed asset is immutable for a year; an `index.html` is
+//!   `no-store`.
+//! * A path with no published object of its own resolves to its directory
+//!   index, then to that portal's `index.html` — so a multi-page build serves
+//!   its own pages, and a single-bundle build's client-side route and a
+//!   browser refresh both survive.
 //! * A third-party bundle cannot ride Navigator's nonce CSP, so the response
 //!   carries its own [`PORTAL_CSP`] instead.
 //!
@@ -288,28 +291,57 @@ async fn serve_bundle(
         return refuse(code, &asset, Refused::UnsafeAssetPath);
     }
 
-    // 4. Stream the object. The bare mount and any unmatched path resolve to
-    //    the entrypoint, so a client-side route and a refresh both survive.
+    // 4. Stream the object, walking the resolution order in
+    //    `bundle_candidates`: the path itself, its directory index, then the
+    //    entrypoint. A published page therefore serves itself, and a path
+    //    nothing was published for still renders — so a client-side route and
+    //    a refresh both survive.
     let prefix = format!("{code}/{PORTAL_MOUNT_SEGMENT}");
-    let requested = if asset.is_empty() {
-        INDEX.to_string()
-    } else {
-        asset
-    };
-    match fetch(&state.applications, &format!("{prefix}/{requested}")).await {
-        Fetched::Found(object) => bundle_response(&requested, object),
-        Fetched::Failed => StatusCode::BAD_GATEWAY.into_response(),
-        Fetched::Missing => {
-            // SPA fallback to the published entrypoint. If even that is
-            // absent, nothing is published for this Project — the same
-            // non-disclosing 404 a nonparticipant receives.
-            match fetch(&state.applications, &format!("{prefix}/{INDEX}")).await {
-                Fetched::Found(index) => bundle_response(INDEX, index),
-                Fetched::Failed => StatusCode::BAD_GATEWAY.into_response(),
-                Fetched::Missing => refuse(code, &requested, Refused::NothingPublished),
-            }
+    for candidate in bundle_candidates(&asset) {
+        match fetch(&state.applications, &format!("{prefix}/{candidate}")).await {
+            Fetched::Found(object) => return bundle_response(&candidate, object),
+            Fetched::Failed => return StatusCode::BAD_GATEWAY.into_response(),
+            // Not this one; the next candidate is the point of the list.
+            Fetched::Missing => {}
         }
     }
+
+    // Not even the entrypoint is there, so nothing is published for this
+    // Project — the same non-disclosing 404 a nonparticipant receives.
+    refuse(code, &asset, Refused::NothingPublished)
+}
+
+/// The bundle-relative paths one request resolves against, in order.
+///
+/// Written as a list rather than nested in the fetch so the order is stated
+/// once and can be asserted without a storage backend:
+///
+/// 1. **The path itself**, when it can name an object. A path ending in `/`
+///    names none — no publish writes a key with a trailing slash — so it is
+///    skipped rather than read.
+/// 2. **Its directory index.** A portal built as many pages rather than one
+///    bundle publishes `<section>/index.html`, and `rsync --recursive` lands it
+///    under exactly that key. Reaching for it *before* the entrypoint is what
+///    keeps such a build from answering every page with the wrong document,
+///    which is worse than the 404 it would replace.
+/// 3. **The entrypoint.** A single-bundle portal routes on the client, so a
+///    path it published nothing for is a route rather than a miss, and the
+///    entrypoint is what renders it.
+///
+/// The empty path is the bare mount and resolves to the entrypoint alone.
+fn bundle_candidates(asset: &str) -> Vec<String> {
+    let trimmed = asset.trim_end_matches('/');
+    if trimmed.is_empty() {
+        return vec![INDEX.to_string()];
+    }
+
+    let mut candidates = Vec::with_capacity(3);
+    if !asset.ends_with('/') {
+        candidates.push(asset.to_string());
+    }
+    candidates.push(format!("{trimmed}/{INDEX}"));
+    candidates.push(INDEX.to_string());
+    candidates
 }
 
 /// The three outcomes of a bundle read, kept distinct so a missing object can
@@ -360,18 +392,32 @@ fn bundle_response(served: &str, object: cloud::StoredObject) -> Response {
     response
 }
 
-/// Whether the served path is the bundle entrypoint, which alone is
-/// `no-store`. The name is compared, not the whole path, so a Project that
-/// ships a nested `index.html` is treated as an ordinary asset.
+/// Whether the served path is an entrypoint, which is what makes it
+/// `no-store`.
+///
+/// The final segment is compared, so a multi-page build's `guide/index.html`
+/// counts alongside the root one. Both name the build's content-hashed assets
+/// and neither is content-hashed itself, so caching either for a year would pin
+/// a page at assets a later publish has aged out.
 fn is_index(served: &str) -> bool {
-    served == INDEX
+    served.rsplit('/').next() == Some(INDEX)
 }
 
 /// A bundle-relative path is safe when it names something inside the mount:
 /// no leading slash, no backslash, no control characters, and no `.`/`..`/empty
 /// segment that could climb out of the `<code>/portal/` prefix. The empty path
 /// (the bare mount) is safe — it resolves to the entrypoint.
+///
+/// One or more trailing slashes are trimmed before those rules apply, because a
+/// trailing slash is what a portal's own navigation emits: a section link is
+/// `${base}${slug}/`, so every in-app link below the mount arrives with one.
+/// Reading it as an empty final segment refused every section of every
+/// published portal as a traversal while the bare mount served fine. A trailing
+/// slash climbs out of nothing; what it names is a directory index or a
+/// client-side route, and [`bundle_candidates`] resolves both. `a//b/` stays
+/// refused — trimming the tail never reaches an interior empty segment.
 fn asset_path_is_safe(asset: &str) -> bool {
+    let asset = asset.trim_end_matches('/');
     asset.is_empty()
         || (!asset.starts_with('/')
             && !asset.contains('\\')
@@ -410,8 +456,8 @@ fn content_type_for(path: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        asset_path_is_safe, content_type_for, is_index, Refused, PROJECT_PORTAL_ASSET,
-        PROJECT_PORTAL_PATH, PROJECT_PORTAL_ROOT,
+        asset_path_is_safe, bundle_candidates, content_type_for, is_index, Refused, INDEX,
+        PROJECT_PORTAL_ASSET, PROJECT_PORTAL_PATH, PROJECT_PORTAL_ROOT,
     };
     use cloud::workspace::PORTAL_MOUNT_SEGMENT;
 
@@ -518,13 +564,65 @@ mod tests {
         assert!(!asset_path_is_safe("a\\b"));
     }
 
-    /// Only the entrypoint is `no-store`; a nested `index.html` is an ordinary
-    /// hashed asset.
+    /// A trailing slash is a link a portal writes, not a traversal.
+    ///
+    /// Every section link a portal renders is `${base}${slug}/`, so this is the
+    /// ordinary shape rather than an edge case — and reading it as an empty
+    /// final segment is what made every section answer 404. Trimming the tail
+    /// must not reach an interior empty segment, which is the `a//b/` case.
     #[test]
-    fn only_the_top_level_index_is_the_entrypoint() {
+    fn a_trailing_slash_is_safe_but_an_interior_empty_segment_is_not() {
+        assert!(asset_path_is_safe("/"));
+        assert!(asset_path_is_safe("engagement/"));
+        assert!(asset_path_is_safe("a/b/"));
+        assert!(asset_path_is_safe("matters/open/filings/"));
+        assert!(!asset_path_is_safe("a//b/"));
+        assert!(!asset_path_is_safe("../secret/"));
+        assert!(!asset_path_is_safe("assets/./app.js/"));
+    }
+
+    /// Every `index.html` is `no-store`, wherever it sits.
+    ///
+    /// A multi-page build's `guide/index.html` is as much an entrypoint as the
+    /// root one: it names hashed assets and is not itself hashed, so a year of
+    /// immutable caching would pin it at assets a later publish aged out.
+    #[test]
+    fn any_index_html_is_an_entrypoint() {
         assert!(is_index("index.html"));
-        assert!(!is_index("assets/index.html"));
+        assert!(is_index("guide/index.html"));
         assert!(!is_index("assets/index-abc.js"));
+        assert!(!is_index("indexes.html"));
+    }
+
+    /// The resolution order a request walks.
+    ///
+    /// The directory index sits *before* the entrypoint, which is the whole
+    /// claim: without it a multi-page build answers every page with the root
+    /// document — a 200 carrying the wrong content, which is worse than the 404
+    /// it replaced. The entrypoint stays last so a single-bundle portal's
+    /// client-side route still renders.
+    #[test]
+    fn a_path_resolves_to_itself_then_its_directory_index_then_the_entrypoint() {
+        assert_eq!(bundle_candidates(""), [INDEX]);
+        assert_eq!(bundle_candidates("/"), [INDEX]);
+
+        assert_eq!(
+            bundle_candidates("engagement/"),
+            ["engagement/index.html", INDEX],
+            "a trailing slash names no object, so only the index is read for"
+        );
+        assert_eq!(
+            bundle_candidates("assets/app-abc.js"),
+            ["assets/app-abc.js", "assets/app-abc.js/index.html", INDEX],
+        );
+
+        let candidates = bundle_candidates("matters/open");
+        assert_eq!(candidates.first().map(String::as_str), Some("matters/open"));
+        assert_eq!(candidates.last().map(String::as_str), Some(INDEX));
+        assert!(
+            candidates.contains(&"matters/open/index.html".to_string()),
+            "the slashless form must find the directory index too"
+        );
     }
 
     /// An ES module must arrive as `text/javascript` or the browser refuses to
