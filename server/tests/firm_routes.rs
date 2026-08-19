@@ -903,7 +903,7 @@ async fn home_points_at_the_three_practices_from_its_foot() {
     let app = site_app().await;
     let body = body_string(anon_get(&app, "/").await).await;
     assert!(
-        body.contains("We also practice law"),
+        body.contains("Our legal practice"),
         "the section heading: {body}"
     );
     for (heading, href) in [
