@@ -1,3 +1,7 @@
+---
+publish: true
+---
+
 # Neon Law Navigator documentation index
 
 Top-level `docs/*.md` with `publish: true` frontmatter appear at `/docs/<slug>`; other docs remain repo-local unless

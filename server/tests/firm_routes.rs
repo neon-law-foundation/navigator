@@ -46,6 +46,17 @@ async fn site_app() -> Router {
     site_router(site_state().await)
 }
 
+/// The firm host with the bundled workspace documentation loaded.
+///
+/// The shared builder ships `DocsIndex::empty()`, so `/docs` would 404 on it for
+/// want of content rather than for want of a route — which would let an
+/// anonymous-access assertion pass against a page that renders nothing.
+async fn site_app_with_docs() -> Router {
+    let mut state = site_state().await;
+    state.docs = portal::docs::loader::bundled();
+    site_router(state)
+}
+
 /// The firm host with the bundled Nebula materials loaded.
 ///
 /// The shared builder ships an empty `WorkshopIndex`, so a talk's own page
@@ -534,13 +545,20 @@ async fn the_firm_nav_leads_with_the_lead_offering_then_the_practices() {
 
 #[tokio::test]
 async fn the_footer_carries_the_pages_the_header_does_not() {
-    // Blog, Contact, Navigator, Neon Law, Presentations, and Workshops are one
-    // click away from every public page. Checked on `/litigation` rather than
+    // Blog, Contact, Docs, Navigator, Neon Law, Presentations, and Workshops are
+    // one click away from every public page. Checked on `/litigation` rather than
     // `/`, because the footer is shared chrome and a page that is not the home
     // page proves it renders everywhere.
-    const ROW: [&str; 6] = [
+    //
+    // Workshops joined the row when the classes became public, and Docs when the
+    // workspace documentation did. While either was gated neither row carried
+    // it, so that the site never sent a signed-out reader at a login door; now
+    // that anyone may read them, these links are what stop each being reachable
+    // only by typing the URL.
+    const ROW: [&str; 7] = [
         "/blog",
         "/contact",
+        "/docs",
         "/navigator",
         "/",
         "/presentations",
@@ -832,6 +850,149 @@ async fn the_navigator_page_invites_foundation_co_counsel_and_publishes_no_rate(
     assert!(
         !priced,
         "the firm publishes no price on the website: {body}"
+    );
+}
+
+/// `/navigator` publishes the CLI as three download boxes and the Homebrew
+/// route, anonymously, at the release this deployment runs.
+///
+/// **This is the covering assertion for the whole downloads band**, and it has
+/// to be a route test rather than a unit test for two reasons the unit tests
+/// name: `document::Stylesheet` is collected by the fullstack head collector and
+/// never appears in `dioxus_ssr::render` output, so only the real route can
+/// prove `home.css` reaches the document; and the version is resolved from the
+/// process environment at router-build time, so only the real composition proves
+/// the page names a release at all.
+///
+/// The version is checked for CONSISTENCY rather than against a literal. Pinning
+/// `26.8.20-hotfix.4` here would make every release bump a failing test, and it
+/// would assert the manifest against itself. What must hold is that the string
+/// the page prints is the string all three archives are fetched at — a page
+/// naming one release and linking another is worse than one naming none.
+#[tokio::test]
+async fn the_navigator_page_publishes_the_cli_at_the_release_it_runs() {
+    const DOWNLOAD_BASE: &str =
+        "https://github.com/neon-law-foundation/navigator/releases/download/";
+
+    let app = site_app().await;
+    let body = body_string(anon_get(&app, "/navigator").await).await;
+
+    // The version, read out of the first download href.
+    //
+    // Out of an ATTRIBUTE rather than the printed element's text, and that is
+    // not fussiness: the fullstack SSR path writes hydration comment markers
+    // between an element and its text, so splitting on the first `<` after
+    // `<code class="fm-downloads__tag">` yields the marker and an empty string.
+    // Attribute values carry no markers. The printed version is checked against
+    // this one below, which is the assertion that actually matters.
+    let version = body
+        .split_once(DOWNLOAD_BASE)
+        .and_then(|(_, rest)| rest.split_once('/'))
+        .map(|(version, _)| version.to_string())
+        .expect("the band links a release archive");
+    assert!(
+        !version.is_empty() && version != "unknown",
+        "a deployment that cannot name its release must not publish a download \
+         link built from the word `unknown`: {version}"
+    );
+
+    // The version the band PRINTS is the version it LINKS. A page naming one
+    // release and fetching another is worse than one naming none.
+    let printed = body
+        .split_once(r#"class="fm-downloads__tag""#)
+        .and_then(|(_, rest)| rest.split_once("</code>"))
+        .map(|(region, _)| region)
+        .expect("the band prints the release it runs");
+    assert!(
+        printed.contains(&version),
+        "the printed release must be the one every href carries ({version}): {printed}"
+    );
+
+    // Linux, macOS in the middle, Windows on the right — each an absolute URL
+    // at the public Release, and each saved rather than navigated to.
+    let mut previous = 0usize;
+    for (slug, extension) in [("linux", "tar.gz"), ("macos", "tar.gz"), ("windows", "zip")] {
+        let filename = format!("navigator-{version}-{slug}.{extension}");
+        let href = format!(
+            "https://github.com/neon-law-foundation/navigator/releases/download/\
+             {version}/{filename}"
+        )
+        .replace(char::is_whitespace, "");
+        let at = body
+            .find(&href)
+            .unwrap_or_else(|| panic!("the {slug} box links {href}: {body}"));
+        assert!(at > previous, "the boxes run Linux, macOS, Windows: {body}");
+        previous = at;
+        assert!(
+            body.contains(&format!(r#"download="{filename}""#)),
+            "the {slug} box saves its archive rather than navigating: {body}"
+        );
+    }
+
+    // The boxes are the home page's illuminated card, which only holds while
+    // the page hoists the sheet that defines it. A Dioxus page loads exactly
+    // the stylesheets it names, so this is the assertion that stops the band
+    // rendering as three unstyled anchors.
+    assert!(
+        body.contains("/public/css/home.css"),
+        "the page hoists the sheet its boxes are styled by: {body}"
+    );
+    assert!(
+        body.contains(r#"class="home-practices__grid fm-downloads__grid""#),
+        "the boxes sit in the home page's grid, which arms the hover wash: {body}"
+    );
+
+    // The Homebrew route, and the reason it is the recommended one on a Mac.
+    assert!(
+        body.contains("brew install neon-law-foundation/navigator/navigator"),
+        "the tap-qualified install command renders: {body}"
+    );
+    assert!(
+        body.contains("brew upgrade neon-law-foundation/navigator/navigator"),
+        "the upgrade command renders: {body}"
+    );
+    assert!(
+        body.contains("not yet signed or notarized"),
+        "the page says why brew is the macOS route rather than implying the \
+         browser download just works: {body}"
+    );
+}
+
+/// The workspace documentation reads for a visitor with no account.
+///
+/// It sat behind the session boundary while the source was closed. The
+/// repository is AGPL-3.0-only now, so a login door stood in front of the one
+/// document that explains how to run software anyone can clone. This asserts the
+/// hub, one document beneath it, and the `/docs/{slug}` redirect all answer a
+/// browser that has never signed in — a `303` to `/auth/login` is the failure.
+#[tokio::test]
+async fn the_workspace_documentation_reads_anonymously() {
+    let app = site_app_with_docs().await;
+
+    for path in ["/docs", "/docs/glossary"] {
+        let response = anon_get(&app, path).await;
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "{path} renders for a reader with no account"
+        );
+    }
+
+    // The canonicalizing redirect is the pre-layer's, not the login door's.
+    let response = anon_get(&app, "/docs/index").await;
+    assert_eq!(response.status(), StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(
+        response.headers().get("location").unwrap(),
+        "/docs",
+        "an anonymous reader gets the canonical URL, not a login redirect"
+    );
+
+    // `/app/docs` is untouched. It is a second door to the same index wearing
+    // the application chrome, and what it gates is that surface.
+    assert_eq!(
+        anon_get(&app, "/app/docs").await.status(),
+        StatusCode::SEE_OTHER,
+        "the in-application documentation surface stays behind the boundary"
     );
 }
 

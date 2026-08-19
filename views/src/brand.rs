@@ -184,9 +184,15 @@ const FIRM_NAV: &[NavLink] = &[
 /// given at meetups and conferences and published here; a reader deciding
 /// whether to work with the firm is not looking for them first, and a reader
 /// who saw one at a conference knows to look at the bottom of the page.
+///
+/// Docs joined the row when the workspace documentation became anonymous. It is
+/// a shared portal route rather than a firm page, so it resolves on both faces —
+/// and it belongs at the bottom for the plainest reason on this list: a reader
+/// who wants the manual for the software has already decided to run it.
 const FIRM_FOOTER_NAV: &[NavLink] = &[
     NavLink::leaf("Blog", "/blog"),
     NavLink::leaf("Contact", "/contact"),
+    NavLink::leaf("Docs", "/docs"),
     NavLink::leaf("Navigator", "/navigator"),
     NavLink::leaf("Neon Law", "/"),
     NavLink::leaf("Presentations", "/presentations"),
@@ -802,11 +808,11 @@ pub fn firm_attorneys() -> &'static [FirmAttorney] {
 }
 
 /// The public pages the footer links rather than the header — Navigator, Blog,
-/// and Contact. See [`FIRM_FOOTER_NAV`].
+/// Contact, and the rest. See [`FIRM_FOOTER_NAV`].
 ///
 /// Not brand-scoped: a white-label deploy renames the wordmark and re-points the
-/// addresses, but these three routes are Navigator's own public surface and are
-/// the same wherever the firm's footer renders.
+/// addresses, but these routes are Navigator's own public surface and are the
+/// same wherever the firm's footer renders.
 #[must_use]
 pub fn firm_footer_nav() -> &'static [NavLink] {
     FIRM_FOOTER_NAV
@@ -1272,15 +1278,16 @@ mod tests {
         );
     }
 
-    /// Blog, Contact, Foundation, Navigator, Presentations, and Workshops are
-    /// the routes the header does not carry, ordered alphabetically by label.
+    /// Blog, Contact, Docs, Foundation, Navigator, Presentations, and Workshops
+    /// are the routes the header does not carry, ordered alphabetically by label.
     /// They are still linked from every public page — a route in neither row is
     /// stranded, which is the failure this pairs with the test above to catch.
     ///
-    /// Workshops joined the row when the classes became public. While they were
-    /// gated the header deliberately omitted them rather than send a signed-out
-    /// reader at a login door; now that anyone may read them, a footer link is
-    /// what stops the catalog being reachable only by typing the URL.
+    /// Workshops joined the row when the classes became public, and Docs when
+    /// the workspace documentation did. While either was gated the chrome
+    /// deliberately omitted it rather than send a signed-out reader at a login
+    /// door; now that anyone may read them, a footer link is what stops each
+    /// being reachable only by typing the URL.
     #[test]
     fn the_footer_nav_carries_what_the_header_does_not() {
         let footer: Vec<&str> = super::firm_footer_nav().iter().map(|n| n.label).collect();
@@ -1289,6 +1296,7 @@ mod tests {
             [
                 "Blog",
                 "Contact",
+                "Docs",
                 "Navigator",
                 "Neon Law",
                 "Presentations",

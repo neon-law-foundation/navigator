@@ -15,7 +15,7 @@
 /// deciding whether they can afford a lawyer gets an answer from the page
 /// rather than from a consultation, and a firm that publishes its fees cannot
 /// quietly charge one client more than another for the same work.
-use webapp::foundation_marketing::{Band, Card, PageContent, Run, Step};
+use webapp::foundation_marketing::{Band, Card, Download, PackageInstall, PageContent, Run, Step};
 
 /// One published flat fee: what the matter is, what it costs, and what that
 /// figure does and does not cover.
@@ -313,6 +313,7 @@ pub fn navigator() -> PageContent {
         bands: vec![
             navigator_purpose_band(),
             navigator_vibe_band(),
+            navigator_downloads_band(),
             navigator_working_surface_band(),
             Band::Cta {
                 heading: "Co-Counsel a Pro Bono Case with us and the Neon Law Foundation"
@@ -390,6 +391,83 @@ fn navigator_vibe_band() -> Band {
                 Run::plain(" to learn more."),
             ],
         ],
+    }
+}
+
+/// The CLI download boxes: Linux, macOS, Windows, and the Homebrew route.
+///
+/// **The page can publish these because the repository is open source.** Under
+/// AGPL-3.0-only every release attaches its archives to a public GitHub Release,
+/// so this band links those bytes rather than proxying them — no login, no
+/// signed URL, no bucket. The role-gated `/app/team` page is unaffected and
+/// still serves the deployment's own private copies to firm tiers; this is a
+/// second, public door to the same software.
+///
+/// The version is the deployment's own release, and every href carries it, so
+/// what this page offers is exactly the release the reader is looking at rather
+/// than whatever GitHub currently calls latest. `deploy.yml` refuses any tag
+/// that does not equal `[workspace.package].version`, which is what makes the
+/// environment variable and the manifest the same string.
+///
+/// **The macOS box names Homebrew for a reason that is not convenience.** The
+/// released Mach-O is unsigned and unnotarized. A browser download carries
+/// `com.apple.quarantine` and Gatekeeper refuses it outright, while `brew`
+/// fetches with `curl`, which sets no such attribute — the same bytes run. So
+/// the band recommends the tap rather than leaving a reader to discover this
+/// from a binary macOS will not open. Signing is the real fix and is not shipped;
+/// nothing here claims otherwise.
+fn navigator_downloads_band() -> Band {
+    let version = webapp::cli_release::release_version();
+    Band::Downloads {
+        anchor: "download".to_string(),
+        overline: "Download".to_string(),
+        heading: "Run Navigator yourself".to_string(),
+        description: Some(
+            "Navigator is free software under the GNU Affero General Public License, version 3. \
+             The command-line tool is how you drive it: pick your platform, or install it with \
+             Homebrew."
+                .to_string(),
+        ),
+        version: version.clone(),
+        archive_href: webapp::cli_release::RELEASES_HREF.to_string(),
+        archive_label: "every release".to_string(),
+        items: webapp::cli_release::PLATFORMS
+            .iter()
+            .map(|platform| Download {
+                platform: platform.slug.to_string(),
+                label: platform.label.to_string(),
+                detail: platform.detail.to_string(),
+                filename: webapp::cli_release::asset_filename(&version, platform),
+                href: webapp::cli_release::asset_href(&version, platform),
+                mark: platform.mark,
+            })
+            .collect(),
+        package: Some(PackageInstall {
+            heading: "Install with Homebrew".to_string(),
+            body: vec![
+                vec![
+                    Run::plain("On a Mac this is the route we recommend. The released binary is "),
+                    Run::strong("not yet signed or notarized"),
+                    Run::plain(
+                        ", and macOS refuses a binary downloaded through a browser; Homebrew \
+                         fetches the same bytes without that mark, so they run. Homebrew also \
+                         works on Linux.",
+                    ),
+                ],
+                vec![
+                    Run::plain("The formula lives in our own tap, "),
+                    Run::link(
+                        "neon-law-foundation/homebrew-navigator",
+                        "https://github.com/neon-law-foundation/homebrew-navigator",
+                    ),
+                    Run::plain(", which is updated by every release."),
+                ],
+            ],
+            commands: vec![
+                webapp::cli_release::HOMEBREW_INSTALL_COMMAND.to_string(),
+                webapp::cli_release::HOMEBREW_UPGRADE_COMMAND.to_string(),
+            ],
+        }),
     }
 }
 
@@ -656,6 +734,40 @@ mod firm_copy_tests {
                     .join(" ");
                 let description = description.clone().unwrap_or_default();
                 format!("{overline} {heading} {description} {steps}")
+            }
+            // Every string the band puts on the page: the headings, the
+            // version, each box's label, architecture, and filename, and the
+            // package-manager prose and commands. The copy guards below read
+            // this text, and a download box is as much published copy as a
+            // paragraph is — a claim smuggled into a box's `detail` would
+            // otherwise never be read by them.
+            Band::Downloads {
+                overline,
+                heading,
+                description,
+                version,
+                archive_label,
+                items,
+                package,
+                ..
+            } => {
+                let boxes = items
+                    .iter()
+                    .map(|d| format!("{} {} {}", d.label, d.detail, d.filename))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let package = package.as_ref().map_or_else(String::new, |p| {
+                    format!(
+                        "{} {} {}",
+                        p.heading,
+                        paragraphs(&p.body),
+                        p.commands.join(" ")
+                    )
+                });
+                let description = description.clone().unwrap_or_default();
+                format!(
+                    "{overline} {heading} {description} {version} {archive_label} {boxes} {package}"
+                )
             }
             Band::Cta { heading, body, .. } => {
                 format!("{heading} {}", body.clone().unwrap_or_default())

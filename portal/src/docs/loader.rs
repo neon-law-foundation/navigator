@@ -326,6 +326,10 @@ mod tests {
             "frontmatter",
             "glossary",
             "gov-forms",
+            // The hub `/docs` itself resolves. It is the documentation front
+            // door and the footer links it, so leaving it opt-out made the one
+            // page every reader lands on first a 404.
+            "index",
             "notation",
             "notation-authoring",
             "oss-install",

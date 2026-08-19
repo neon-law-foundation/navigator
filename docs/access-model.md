@@ -86,12 +86,12 @@ On the firm host nearly every page is anonymous, including the [Nebula](glossary
 `/presentations` and every talk beneath it. The exception is `/workshops`: the Navigator classes are firm-internal
 training, so the catalog page and the material below it read for Clerk, Lawyer, Admin, and Owner alone.
 
-Every shared Navigator surface — `/app`, `/lawyer`, `/admin`, `/clerk`, the JSON API, `/docs/*`, `/design`,
-`/templates/*`, `/app/api`, `/app/api/openapi.json`, and the Foundation's gated pages — composes behind one router-level
-boundary, `portal::auth::require_session`. An anonymous browser is sent to `/auth/login?return_to=…`; an anonymous
-machine caller gets a `401` with a structured `{"error":"unauthenticated"}` document. Default-deny is therefore a
-property of router composition, not of a Rego rule that would have to redeploy in lockstep with the binary. Embedded
-Rego still runs behind boundary and decides *which* authenticated caller may proceed.
+Every shared Navigator surface — `/app`, `/lawyer`, `/admin`, `/clerk`, the JSON API, `/templates/*`, `/app/api`,
+`/app/api/openapi.json`, and the Foundation's gated pages — composes behind one router-level boundary,
+`portal::auth::require_session`. An anonymous browser is sent to `/auth/login?return_to=…`; an anonymous machine caller
+gets a `401` with a structured `{"error":"unauthenticated"}` document. Default-deny is therefore a property of router
+composition, not of a Rego rule that would have to redeploy in lockstep with the binary. Embedded Rego still runs behind
+boundary and decides *which* authenticated caller may proceed.
 
 The anonymous allowlist is explicit, small, and pinned by `portal/tests/router_contract.rs`:
 
@@ -102,7 +102,13 @@ The anonymous allowlist is explicit, small, and pinned by `portal/tests/router_c
 - the `/health` and `/readyz` probes and the `/version` deploy-identity probe;
 - webhook ingress whose sender authenticates by signature or path secret — SendGrid inbound mail and delivery events,
   the e-signature completion callback, and the configured GitHub receiver;
-- the DocuSign consent callback, the provider's return leg of an admin-initiated consent grant.
+- the DocuSign consent callback, the provider's return leg of an admin-initiated consent grant;
+- the two contributor reference surfaces, `/design` and the workspace documentation at `/docs` and `/docs/{slug}`. Both
+  render their own `200` for a reader with no account rather than answering the login door, and both carry
+  `inject_optional_session` so a signed-in reader still gets the authenticated nav. The documentation is anonymous
+  because the repository is `AGPL-3.0-only`: those documents are the manual for software anyone can clone, so a login
+  door in front of them guarded nothing. `/app/docs` is a second door to the same index wearing the application chrome,
+  and it stays gated — what it restricts is that surface, not the documents.
 
 The A2A agent card is *not* on that list. The whole API surface, its documentation, and the card itself live under the
 private `/app/api` prefix and require a session, so A2A discovery is not self-service: a client cannot read the card to
