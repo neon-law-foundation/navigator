@@ -910,6 +910,7 @@ a.nav-pagination__link:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
+  align-self: center;
   justify-self: end;
   justify-content: flex-end;
   gap: 0.5rem;
@@ -1150,15 +1151,15 @@ a.nav-pagination__link:hover {
    one — it is a fact about the two entities, not part of the practice
    column's disclosures or the platform column's attribution. Overrides the
    `div + div` divider above at matching specificity (see the 90rem platform
-   override for why a bare class selector would lose that fight) and draws
-   its own top rule instead, the same closing-line treatment the platform
-   column gets on a narrow viewport. */
+   override for why a bare class selector would lose that fight): spacing
+   only, no rule line — the strip is quiet fine print throughout, not a
+   stack of separately-boxed sections. */
 .site-footer__legal:has(> .site-footer__legal-practice) > .site-footer__legal-addresses {
   grid-column: 1 / -1;
   padding-inline-start: 0;
   border-inline-start: 0;
   padding-block-start: 1rem;
-  border-block-start: 1px solid var(--nav-color-border);
+  border-block-start: 0;
 }
 
 .site-footer__legal-address {
@@ -1225,7 +1226,7 @@ a.nav-pagination__link:hover {
   .site-footer__legal:has(> .site-footer__legal-practice) > div + div {
     padding-block-start: 1.25rem;
     padding-inline-start: 0;
-    border-block-start: 1px solid var(--nav-color-border);
+    border-block-start: 0;
     border-inline-start: 0;
   }
 }
@@ -1242,7 +1243,7 @@ a.nav-pagination__link:hover {
    above (an empty second cell beside it is fine — no content is missing, the
    row is just narrower than the one below it). The `div + div` rule above
    still matches it as a later sibling, so its inherited left border/padding
-   are flipped to a top one, matching the narrow-viewport treatment above. */
+   are cleared in favor of matching top spacing, no rule line. */
 @media (min-width: 90rem) {
   /* Matches the `div + div` rule's own selector shape so this reliably wins
      on specificity rather than losing to it as a bare `.site-footer__legal-
@@ -1254,7 +1255,7 @@ a.nav-pagination__link:hover {
     padding-inline-start: 0;
     border-inline-start: 0;
     padding-block-start: 1.5rem;
-    border-block-start: 1px solid var(--nav-color-border);
+    border-block-start: 0;
   }
 }
 
