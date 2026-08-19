@@ -567,6 +567,28 @@ fn reachable_image_keys(content_root: &Path) -> anyhow::Result<BTreeSet<String>>
     Ok(keys)
 }
 
+/// Every public asset key the site loads and therefore every key `verify`
+/// must find published: the reachable `img/` set plus the licensed faces.
+///
+/// Built on [`reachable_image_keys`] rather than on [`content_image_refs`]
+/// directly, so `verify` and `orphan` cannot disagree about what the site
+/// reaches. They are the two halves of one reconciliation — `orphan` names
+/// keys the site does not use, `verify` names keys the site uses and the
+/// origin does not serve — and a photo that enters one definition without
+/// the other goes unwatched by exactly one of them.
+///
+/// # Errors
+///
+/// Propagates a missing or unwalkable `content_root` from
+/// [`content_image_refs`].
+fn published_asset_refs(content_root: &Path) -> anyhow::Result<BTreeSet<String>> {
+    let mut refs = reachable_image_keys(content_root)?;
+    // The licensed faces are published by `assets fonts upload`, never by a
+    // build step, so they are exactly as droppable as an unuploaded hero.
+    refs.extend(gorp_font_refs());
+    Ok(refs)
+}
+
 /// Every key `assets build` emits for the manifest: one per photo, per
 /// width, per format. Mirrors `upload`'s keying so the strings compare
 /// equal to what the bucket actually holds.
@@ -910,16 +932,13 @@ async fn verify_content(content_dir: &Path, base_url: Option<String>) -> u8 {
         Ok(b) => b,
         Err(code) => return code,
     };
-    let mut refs = match content_image_refs(content_dir) {
+    let refs = match published_asset_refs(content_dir) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("navigator: assets verify: {e:#}");
             return 2;
         }
     };
-    // The licensed faces are published by `assets fonts upload`, never by a
-    // build step, so they are exactly as droppable as an unuploaded hero.
-    refs.extend(gorp_font_refs());
     let client = match reqwest::Client::builder().build() {
         Ok(c) => c,
         Err(e) => {
@@ -934,7 +953,8 @@ async fn verify_content(content_dir: &Path, base_url: Option<String>) -> u8 {
 
 /// Entry point for `cli assets verify` — reconcile everything the site
 /// loads from the public origin against what is actually published there.
-/// That is every `![](img/…)` reference under `content_dir` plus the
+/// That is every `![](img/…)` reference under `content_dir`, every
+/// `views::assets::GALLERY` variant the Rust views render, and the
 /// licensed GORP faces, each of which must resolve to a live object at
 /// `base_url` (default `NAVIGATOR_ASSET_BASE_URL`). Neither is built or
 /// uploaded by CI — `server/public/img/` is gitignored and the WOFF2 bytes are
@@ -1421,6 +1441,15 @@ async fn upload(storage: &dyn StorageService, dir: &Path) -> anyhow::Result<usiz
         println!("  → {key} ({content_type}, {} bytes)", bytes.len());
         uploaded += 1;
     }
+    // A publish that published nothing is a failure, not a success. The tree
+    // is gitignored, so a fresh checkout has an empty (or image-free) one, and
+    // reporting `uploaded 0 variant(s)` with exit 0 reads to an operator as
+    // "the photos are live" while the bucket stays empty.
+    anyhow::ensure!(
+        uploaded > 0,
+        "no image variants under `{}` — run `cli assets build` first",
+        dir.display()
+    );
     Ok(uploaded)
 }
 
@@ -1612,13 +1641,14 @@ mod tests {
     use super::{
         asset_exists, build_gorp_otf_zip, bundled_slide_asset_keys, content_image_refs,
         content_type_for, destination_for_ref, download, fetch_asset, fetch_referenced_content,
-        fetch_report_exit, gorp_font_refs, join_public_url, orphan_keys, orphan_report,
-        parse_image_refs, placeholder_bytes_for, reachable_image_keys, report_exit,
-        resolve_public_origin, run_fetch_referenced, run_orphans, run_pull, run_upload,
-        run_upload_desktop_fonts, run_upload_fonts, select, storage_report_result, upload,
-        upload_gorp_fonts, upload_gorp_otf_zip, verify_bundled_slide_assets,
-        verify_bundled_slide_assets_bucket, verify_content, verify_refs, verify_storage_refs,
-        AssetProbe, FetchReport, VerifyReport, ASSET_CACHE_CONTROL, GORP_OTF_ZIP_KEY,
+        fetch_report_exit, gallery_variant_keys, gorp_font_refs, join_public_url, orphan_keys,
+        orphan_report, parse_image_refs, placeholder_bytes_for, published_asset_refs,
+        reachable_image_keys, report_exit, resolve_public_origin, run_fetch_referenced,
+        run_orphans, run_pull, run_upload, run_upload_desktop_fonts, run_upload_fonts, select,
+        storage_report_result, upload, upload_gorp_fonts, upload_gorp_otf_zip,
+        verify_bundled_slide_assets, verify_bundled_slide_assets_bucket, verify_content,
+        verify_refs, verify_storage_refs, AssetProbe, FetchReport, VerifyReport,
+        ASSET_CACHE_CONTROL, GORP_OTF_ZIP_KEY,
     };
     use cloud::{FsStorage, ObjectListing, StorageError, StorageService, StoredObject};
     use std::collections::BTreeSet;
@@ -2222,13 +2252,82 @@ Inline raw-HTML tile: <div>![Team](img/thanks-apple/team-lunch.jpg)</div>\n";
         }
     }
 
+    /// Publish every `GALLERY` variant on `server`. Those keys are referenced
+    /// from Rust views, so `verify_content` probes them on every run and any
+    /// case expecting success must serve them too.
+    async fn mount_published_gallery(server: &MockServer) {
+        for rel in gallery_variant_keys() {
+            Mock::given(method("HEAD"))
+                .and(path(format!("/{rel}")))
+                .respond_with(ResponseTemplate::new(200))
+                .mount(server)
+                .await;
+        }
+    }
+
     #[tokio::test]
     async fn verify_content_probes_the_fonts_even_when_the_tree_has_no_images() {
         let server = MockServer::start().await;
         mount_published_fonts(&server).await;
+        mount_published_gallery(&server).await;
         let dir = TempDir::new().unwrap();
         fs::create_dir_all(dir.path().join("blog")).unwrap();
         assert_eq!(verify_content(dir.path(), Some(server.uri())).await, 0);
+    }
+
+    #[tokio::test]
+    async fn verify_content_fails_when_a_gallery_photo_is_not_published() {
+        // The other half of the production bug: the origin serves the licensed
+        // faces and every markdown hero, but the manifest photos were never
+        // uploaded. They are referenced from Rust `<picture>` elements, never
+        // from markdown, so a content-tree sweep alone reports success while
+        // every gallery tile on the site is a broken image.
+        let server = MockServer::start().await;
+        mount_published_fonts(&server).await;
+        Mock::given(method("HEAD"))
+            .and(path("/img/demo/hero.png"))
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&server)
+            .await;
+        let mut keys = gallery_variant_keys().into_iter();
+        let withheld = keys.next().expect("the manifest publishes variants");
+        for rel in keys {
+            Mock::given(method("HEAD"))
+                .and(path(format!("/{rel}")))
+                .respond_with(ResponseTemplate::new(200))
+                .mount(&server)
+                .await;
+        }
+        Mock::given(method("HEAD"))
+            .and(path(format!("/{withheld}")))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        let dir = content_dir_referencing("img/demo/hero.png");
+        assert_eq!(verify_content(dir.path(), Some(server.uri())).await, 2);
+    }
+
+    #[test]
+    fn verify_and_orphan_agree_on_the_reachable_image_keys() {
+        // THE guard against the two halves drifting apart again. `orphan` asks
+        // which published keys nothing reaches; `verify` asks which reached
+        // keys are unpublished. Both must mean the same thing by "reached", so
+        // a photo added to the manifest cannot enter one definition alone.
+        let dir = content_dir_referencing("img/demo/hero.png");
+        let refs = published_asset_refs(dir.path()).unwrap();
+        let reachable = reachable_image_keys(dir.path()).unwrap();
+        let image_refs: BTreeSet<String> = refs
+            .iter()
+            .filter(|key| key.starts_with("img/"))
+            .cloned()
+            .collect();
+        assert_eq!(image_refs, reachable);
+        for key in gallery_variant_keys() {
+            assert!(refs.contains(&key), "verify must probe `{key}`");
+        }
+        for key in gorp_font_refs() {
+            assert!(refs.contains(&key), "verify must probe `{key}`");
+        }
     }
 
     #[tokio::test]
@@ -2260,6 +2359,7 @@ Inline raw-HTML tile: <div>![Team](img/thanks-apple/team-lunch.jpg)</div>\n";
     async fn verify_content_passes_when_the_referenced_image_is_published() {
         let server = MockServer::start().await;
         mount_published_fonts(&server).await;
+        mount_published_gallery(&server).await;
         Mock::given(method("HEAD"))
             .and(path("/img/demo/hero.png"))
             .respond_with(ResponseTemplate::new(200))
@@ -2716,6 +2816,24 @@ Inline raw-HTML tile: <div>![Team](img/thanks-apple/team-lunch.jpg)</div>\n";
         assert_eq!(got.content_type, "image/avif");
         // The non-image stray was never stored under any key.
         assert!(storage.get("img/lake-tahoe/.DS_Store").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn upload_errors_when_the_tree_holds_no_images() {
+        // `server/public/img/` is gitignored, so this is what a fresh checkout
+        // looks like. Reporting success here tells an operator the photos are
+        // published when nothing was written.
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("notes.txt"), b"not an image").unwrap();
+        let store_dir = TempDir::new().unwrap();
+        let storage = FsStorage::new(store_dir.path().to_path_buf())
+            .await
+            .unwrap();
+        let err = upload(&storage, dir.path()).await.unwrap_err();
+        assert!(
+            format!("{err:#}").contains("assets build"),
+            "must name the build step: {err:#}"
+        );
     }
 
     #[tokio::test]
