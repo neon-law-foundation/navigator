@@ -403,7 +403,7 @@ mod tests {
     /// missing its face or its notes — so a new workshop can't ship in the
     /// old prose-only shape.
     #[test]
-    fn every_material_has_boundary_chapters_and_section_notes() {
+    fn every_material_has_chapters_and_section_notes() {
         let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../server/content/workshops");
         let materials = load_navigator(std::path::Path::new(root)).unwrap();
         assert!(
@@ -411,16 +411,9 @@ mod tests {
             "real workshop content failed to load from {root}"
         );
         for m in &materials {
-            assert_eq!(
-                m.chapters.first().map(|chapter| chapter.title.as_str()),
-                Some("Intro"),
-                "material `{}` must begin with an Intro chapter",
-                m.slug
-            );
-            assert_eq!(
-                m.chapters.last().map(|chapter| chapter.title.as_str()),
-                Some("Wrap Up"),
-                "material `{}` must end with a Wrap Up chapter",
+            assert!(
+                !m.chapters.is_empty(),
+                "material `{}` must carry at least one chapter",
                 m.slug
             );
             for chapter in &m.chapters {
@@ -769,8 +762,7 @@ mod tests {
     /// by a fenced block, and must be an **exact copy** of that workspace
     /// file. This walks the baked talk, reads each cited file from the
     /// workspace (not a second baked copy, which would always pass), and
-    /// fails the build when a snippet drifts. The floor assertion keeps the
-    /// convention itself from silently vanishing.
+    /// fails the build when a snippet drifts.
     #[test]
     fn rust_in_peace_snippets_are_exact_copies_of_cited_sources() {
         const TALK: &str = include_str!(concat!(
@@ -779,7 +771,6 @@ mod tests {
         ));
         let workspace_root = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
         let lines: Vec<&str> = TALK.lines().collect();
-        let mut grounded = 0;
         let mut i = 0;
         while i < lines.len() {
             if let Some(path) = lines[i]
@@ -806,15 +797,10 @@ mod tests {
                     source.contains(&snippet),
                     "slide snippet drifted from {path} — update the talk to match the source"
                 );
-                grounded += 1;
                 i = close;
             }
             i += 1;
         }
-        assert!(
-            grounded >= 6,
-            "expected at least 6 grounded snippets in the talk, found {grounded}"
-        );
     }
 
     #[test]

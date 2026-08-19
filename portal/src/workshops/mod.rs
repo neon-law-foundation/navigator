@@ -18,7 +18,7 @@ use std::sync::Arc;
 /// thematic-break divider (`---`): everything above is the **slide
 /// face** ([`Self::body_html`]); everything below is the **presenter
 /// notes** ([`Self::notes_html`]). The workshop-format invariant test
-/// (`every_material_has_boundary_chapters_and_section_notes`) requires every slide
+/// (`every_material_has_chapters_and_section_notes`) requires every slide
 /// to carry notes, so the divider is mandatory in shipped content.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkshopSection {
