@@ -2,8 +2,8 @@
 //
 // Tracks which slides a learner has viewed entirely in `localStorage`:
 // nothing is sent to the server. On a step page it marks the slide seen;
-// on the light-table grid it updates the "N / M viewed" count and — once every slide has been
-// seen — reveals the certificate request form.
+// on the light-table grid it — once every slide has been seen — reveals
+// the certificate request form.
 //
 // Inert unless a `[data-workshop-progress]` element is on the page, so it
 // loads site-wide (like the other first-party scripts) and no-ops
@@ -44,7 +44,7 @@
     markSeen(slug, n);
   }
 
-  // The light table: update the count and unlock the cert form.
+  // The light table: unlock the cert form once every slide has been seen.
   function initLightTable(root) {
     var slug = root.getAttribute("data-workshop-slug");
     var total = parseInt(root.getAttribute("data-total"), 10) || 0;
@@ -59,10 +59,6 @@
       if (isSeen(slug, n)) {
         seen++;
       }
-    }
-    var count = root.querySelector("[data-progress-count]");
-    if (count) {
-      count.textContent = seen + " / " + total + " viewed";
     }
     if (total > 0 && seen >= total) {
       var gate = root.querySelector("[data-cert-gate]");
