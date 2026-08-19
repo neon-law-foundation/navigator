@@ -45,6 +45,7 @@ pub mod navigator_chrome;
 pub mod nebula_hero;
 pub mod pagination;
 pub mod people_list;
+pub mod platform_mark;
 pub mod practice_card;
 pub mod pricing;
 pub mod public_shell;
@@ -80,6 +81,8 @@ pub use navigator_chrome::{
 pub use nebula_hero::{NebulaHero, NEBULA_STYLESHEET_HREF};
 pub use pagination::Pagination;
 pub use people_list::PeopleListInputs;
+pub use platform_mark::PlatformMark;
+pub(crate) use platform_mark::PlatformMarkGlyph;
 pub use practice_card::PracticeMark;
 pub(crate) use practice_card::{PracticeCard, PracticeMarkGlyph};
 pub use pricing::{PricingCard, PricingSection};

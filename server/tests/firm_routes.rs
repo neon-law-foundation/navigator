@@ -835,6 +835,111 @@ async fn the_navigator_page_invites_foundation_co_counsel_and_publishes_no_rate(
     );
 }
 
+/// `/navigator` publishes the CLI as three download boxes and the Homebrew
+/// route, anonymously, at the release this deployment runs.
+///
+/// **This is the covering assertion for the whole downloads band**, and it has
+/// to be a route test rather than a unit test for two reasons the unit tests
+/// name: `document::Stylesheet` is collected by the fullstack head collector and
+/// never appears in `dioxus_ssr::render` output, so only the real route can
+/// prove `home.css` reaches the document; and the version is resolved from the
+/// process environment at router-build time, so only the real composition proves
+/// the page names a release at all.
+///
+/// The version is checked for CONSISTENCY rather than against a literal. Pinning
+/// `26.8.20-hotfix.4` here would make every release bump a failing test, and it
+/// would assert the manifest against itself. What must hold is that the string
+/// the page prints is the string all three archives are fetched at — a page
+/// naming one release and linking another is worse than one naming none.
+#[tokio::test]
+async fn the_navigator_page_publishes_the_cli_at_the_release_it_runs() {
+    const DOWNLOAD_BASE: &str =
+        "https://github.com/neon-law-foundation/navigator/releases/download/";
+
+    let app = site_app().await;
+    let body = body_string(anon_get(&app, "/navigator").await).await;
+
+    // The version, read out of the first download href.
+    //
+    // Out of an ATTRIBUTE rather than the printed element's text, and that is
+    // not fussiness: the fullstack SSR path writes hydration comment markers
+    // between an element and its text, so splitting on the first `<` after
+    // `<code class="fm-downloads__tag">` yields the marker and an empty string.
+    // Attribute values carry no markers. The printed version is checked against
+    // this one below, which is the assertion that actually matters.
+    let version = body
+        .split_once(DOWNLOAD_BASE)
+        .and_then(|(_, rest)| rest.split_once('/'))
+        .map(|(version, _)| version.to_string())
+        .expect("the band links a release archive");
+    assert!(
+        !version.is_empty() && version != "unknown",
+        "a deployment that cannot name its release must not publish a download \
+         link built from the word `unknown`: {version}"
+    );
+
+    // The version the band PRINTS is the version it LINKS. A page naming one
+    // release and fetching another is worse than one naming none.
+    let printed = body
+        .split_once(r#"class="fm-downloads__tag""#)
+        .and_then(|(_, rest)| rest.split_once("</code>"))
+        .map(|(region, _)| region)
+        .expect("the band prints the release it runs");
+    assert!(
+        printed.contains(&version),
+        "the printed release must be the one every href carries ({version}): {printed}"
+    );
+
+    // Linux, macOS in the middle, Windows on the right — each an absolute URL
+    // at the public Release, and each saved rather than navigated to.
+    let mut previous = 0usize;
+    for (slug, extension) in [("linux", "tar.gz"), ("macos", "tar.gz"), ("windows", "zip")] {
+        let filename = format!("navigator-{version}-{slug}.{extension}");
+        let href = format!(
+            "https://github.com/neon-law-foundation/navigator/releases/download/\
+             {version}/{filename}"
+        )
+        .replace(char::is_whitespace, "");
+        let at = body
+            .find(&href)
+            .unwrap_or_else(|| panic!("the {slug} box links {href}: {body}"));
+        assert!(at > previous, "the boxes run Linux, macOS, Windows: {body}");
+        previous = at;
+        assert!(
+            body.contains(&format!(r#"download="{filename}""#)),
+            "the {slug} box saves its archive rather than navigating: {body}"
+        );
+    }
+
+    // The boxes are the home page's illuminated card, which only holds while
+    // the page hoists the sheet that defines it. A Dioxus page loads exactly
+    // the stylesheets it names, so this is the assertion that stops the band
+    // rendering as three unstyled anchors.
+    assert!(
+        body.contains("/public/css/home.css"),
+        "the page hoists the sheet its boxes are styled by: {body}"
+    );
+    assert!(
+        body.contains(r#"class="home-practices__grid fm-downloads__grid""#),
+        "the boxes sit in the home page's grid, which arms the hover wash: {body}"
+    );
+
+    // The Homebrew route, and the reason it is the recommended one on a Mac.
+    assert!(
+        body.contains("brew install neon-law-foundation/navigator/navigator"),
+        "the tap-qualified install command renders: {body}"
+    );
+    assert!(
+        body.contains("brew upgrade neon-law-foundation/navigator/navigator"),
+        "the upgrade command renders: {body}"
+    );
+    assert!(
+        body.contains("not yet signed or notarized"),
+        "the page says why brew is the macOS route rather than implying the \
+         browser download just works: {body}"
+    );
+}
+
 #[tokio::test]
 async fn home_publishes_no_amount_in_controversy_and_no_co_counsel_claim() {
     // Three claims came off the home page deliberately, and each is the kind a

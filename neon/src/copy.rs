@@ -736,6 +736,40 @@ mod foundation_copy_tests {
                     .join(" ");
                 format!("{heading} {steps}")
             }
+            // Every string the band puts on the page: the headings, the
+            // version, each box's label, architecture, and filename, and the
+            // package-manager prose and commands. The copy guards below read
+            // this text, and a download box is as much published copy as a
+            // paragraph is — a claim smuggled into a box's `detail` would
+            // otherwise never be read by them.
+            Band::Downloads {
+                overline,
+                heading,
+                description,
+                version,
+                archive_label,
+                items,
+                package,
+                ..
+            } => {
+                let boxes = items
+                    .iter()
+                    .map(|d| format!("{} {} {}", d.label, d.detail, d.filename))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let package = package.as_ref().map_or_else(String::new, |p| {
+                    format!(
+                        "{} {} {}",
+                        p.heading,
+                        paragraphs(&p.body),
+                        p.commands.join(" ")
+                    )
+                });
+                let description = description.clone().unwrap_or_default();
+                format!(
+                    "{overline} {heading} {description} {version} {archive_label} {boxes} {package}"
+                )
+            }
             Band::Cta { heading, body, .. } => {
                 format!("{heading} {}", body.clone().unwrap_or_default())
             }

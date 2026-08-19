@@ -27,6 +27,7 @@ pub mod brand_style;
 pub mod clause_editor;
 pub mod clerk;
 pub mod cli_downloads;
+pub mod cli_release;
 pub mod client_intake;
 pub mod components;
 pub mod contact_page;

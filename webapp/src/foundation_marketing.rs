@@ -23,7 +23,8 @@ use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::components::{
-    PracticeMark, PracticeMarkGlyph, PublicShell, SiteHeader, SiteNavLink, SocialMeta,
+    PlatformMark, PlatformMarkGlyph, PracticeMark, PracticeMarkGlyph, PublicShell, SiteHeader,
+    SiteNavLink, SocialMeta,
 };
 use crate::public_chrome::{PublicChrome, PublicFooter};
 
@@ -100,6 +101,41 @@ pub struct Step {
     pub body: Vec<Paragraph>,
 }
 
+/// One platform's download box.
+///
+/// Resolved server-side by the page that mounts the band — the href carries a
+/// version, and only the server knows which release it is running — so this
+/// struct holds finished strings rather than the coordinates to build them.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+pub struct Download {
+    /// The platform's own word, for the box's `data-download-platform` hook.
+    pub platform: String,
+    /// The box's heading: `Linux`, `macOS`, `Windows`.
+    pub label: String,
+    /// Which machine the archive runs on, under the heading.
+    pub detail: String,
+    /// The archive's filename, shown so a reader can match what lands in their
+    /// downloads folder to the box they clicked.
+    pub filename: String,
+    /// The absolute URL of the archive on the public GitHub Release.
+    pub href: String,
+    /// The line mark the box opens on.
+    pub mark: PlatformMark,
+}
+
+/// The package-manager route, published beside the boxes.
+///
+/// Not a fourth box: it installs on one platform, it upgrades in place, and a
+/// box that ran a shell command rather than downloading a file would lie about
+/// what clicking it does.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+pub struct PackageInstall {
+    pub heading: String,
+    pub body: Vec<Paragraph>,
+    /// The commands a reader copies, in the order they would run them.
+    pub commands: Vec<String>,
+}
+
 /// One horizontal band of a marketing page.
 ///
 /// A page is an ordered list of these. Adding a band shape here is the only
@@ -133,6 +169,27 @@ pub enum Band {
         description: Option<String>,
         items: Vec<Step>,
     },
+    /// The three CLI download boxes, and the package-manager route beside
+    /// them.
+    ///
+    /// Its boxes wear `home.css`'s `.home-practice` treatment — the same object
+    /// the firm's home page ends on, hover wash and all — so a reader who has
+    /// been to the front page meets something they already know how to use.
+    /// [`MarketingShell`] hoists that sheet for any page carrying this band.
+    Downloads {
+        anchor: String,
+        overline: String,
+        heading: String,
+        description: Option<String>,
+        /// The release every href in `items` names. Printed once, above the
+        /// boxes, rather than three times inside them.
+        version: String,
+        /// Where a reader goes for an older release or the notes.
+        archive_href: String,
+        archive_label: String,
+        items: Vec<Download>,
+        package: Option<PackageInstall>,
+    },
     /// The closing call to action. The Foundation publishes one route in —
     /// its inbox — so this carries an address rather than a form.
     Cta {
@@ -142,6 +199,19 @@ pub enum Band {
         /// Optional subject line prefilled in the recipient's email client.
         email_subject: Option<String>,
     },
+}
+
+impl Band {
+    /// Whether this band renders the CLI download boxes.
+    ///
+    /// A page asks so it can hoist `home.css`, whose `.home-practice` rules the
+    /// boxes are written against. A Dioxus page loads only the sheets it names,
+    /// so a band whose stylesheet nobody hoists renders as unstyled anchors —
+    /// visible, clickable, and wrong.
+    #[must_use]
+    pub const fn is_downloads(&self) -> bool {
+        matches!(self, Self::Downloads { .. })
+    }
 }
 
 /// The home page's hero: the name, the tagline, the standfirst, and the line
@@ -327,6 +397,13 @@ fn MarketingShell(
     /// hoisting it there would put the firm's component rules on the
     /// Foundation's pages.
     firm_components: bool,
+    /// Hoist the home page's sheet (`home.css`). A page carrying a downloads
+    /// band reuses that sheet's `.home-practice` box wholesale, and this is the
+    /// only place in the render tree that can put it in the document head:
+    /// `document::Stylesheet` is collected by the head collector rather than
+    /// emitted as body markup, so it has to be named by the component that owns
+    /// the page and not by the band deep inside it.
+    home_components: bool,
     children: Element,
 ) -> Element {
     let header = rsx! {
@@ -366,6 +443,12 @@ fn MarketingShell(
             document::Stylesheet { href: crate::brand_style::BRAND_STYLESHEET_HREF }
         }
         document::Stylesheet { href: FOUNDATION_MARKETING_STYLESHEET_HREF }
+        // After the marketing layer, because the download boxes take their
+        // whole treatment from `home.css` and this page's own rules only
+        // position them.
+        if home_components {
+            document::Stylesheet { href: crate::home::HOME_STYLESHEET_HREF }
+        }
         PublicShell { header, footer, {children} }
     }
 }
@@ -380,6 +463,7 @@ pub fn FoundationHome(chrome: PublicChrome, content: HomeContent) -> Element {
             title: content.head_title.clone(),
             description: content.meta_description.clone(),
             firm_components: false,
+            home_components: content.bands.iter().any(Band::is_downloads),
             section { class: "fm-hero",
                 div { class: "fm-hero__inner",
                     if !content.hero.badge.is_empty() {
@@ -415,6 +499,7 @@ pub fn FoundationPage(chrome: PublicChrome, content: PageContent) -> Element {
             title: content.head_title.clone(),
             description: content.meta_description.clone(),
             firm_components: content.skin == PageSkin::Practice || content.hero_mark.is_some(),
+            home_components: content.bands.iter().any(Band::is_downloads),
             div { class: "fm-page{content.skin.modifier()}",
                 section { class: "fm-hero fm-hero--page",
                     // The practice skin leads with the eyebrow and sets the
@@ -532,6 +617,103 @@ fn Bands(items: Vec<Band>) -> Element {
                         }
                     }
                 },
+                Band::Downloads {
+                    anchor,
+                    overline,
+                    heading,
+                    description,
+                    version,
+                    archive_href,
+                    archive_label,
+                    items,
+                    package,
+                } => rsx! {
+                    section { class: "fm-band fm-band--downloads", id: "{anchor}",
+                        div { class: "fm-band__inner",
+                            BandHeading {
+                                overline: overline.clone(),
+                                heading: heading.clone(),
+                                description: description.clone(),
+                            }
+                            p { class: "fm-downloads__version",
+                                "Version "
+                                // The version is the one string on this band a
+                                // reader might retype into an issue or a shell,
+                                // so it is set as code rather than as prose.
+                                code { class: "fm-downloads__tag", "{version}" }
+                                " · "
+                                a { href: "{archive_href}", "{archive_label}" }
+                            }
+                            // `home-practices__grid` is the home page's own
+                            // grid, reused rather than reproduced: it carries
+                            // the three explicit columns AND the clipping
+                            // context the hover wash needs, and its child
+                            // selector is what arms `.home-practice`. A private
+                            // copy under a download-flavoured name would be the
+                            // same rules with a second place to forget.
+                            div { class: "home-practices__grid fm-downloads__grid",
+                                for item in items.iter() {
+                                    a {
+                                        key: "{item.platform}",
+                                        class: "neon-card home-practice fm-download",
+                                        href: "{item.href}",
+                                        "data-download-platform": "{item.platform}",
+                                        // The accessible name, written out.
+                                        //
+                                        // The home page labels its boxes by
+                                        // their heading alone, because each one
+                                        // carries a full sentence a reader does
+                                        // not need read out to know where the
+                                        // link goes. A download is the opposite
+                                        // case: "Linux" does not say what
+                                        // arrives, and the visible detail is
+                                        // punctuation-separated fragments that
+                                        // announce badly. So the name is a
+                                        // sentence, and it names the release —
+                                        // which the boxes themselves never
+                                        // repeat, and which is the one fact a
+                                        // reader wants confirmed before they
+                                        // download anything.
+                                        "aria-label": "Download Neon Law Navigator {version} for {item.label} — {item.detail}",
+                                        // The archive is a file, not a page.
+                                        // Without this a browser that can
+                                        // preview the type navigates instead of
+                                        // saving, and the reader loses the page.
+                                        download: "{item.filename}",
+                                        PlatformMarkGlyph {
+                                            mark: item.mark,
+                                            class: "home-practice__mark".to_string(),
+                                        }
+                                        h3 { class: "home-practice__heading", "{item.label}" }
+                                        p { class: "home-practice__body", "{item.detail}" }
+                                        // The filename, so what lands in the
+                                        // downloads folder matches the box that
+                                        // was clicked.
+                                        p { class: "fm-download__file", "{item.filename}" }
+                                    }
+                                }
+                            }
+                            if let Some(package) = package.as_ref() {
+                                div { class: "fm-package",
+                                    h3 { class: "fm-package__heading", "{package.heading}" }
+                                    div { class: "fm-package__body",
+                                        for paragraph in package.body.iter() {
+                                            Prose { runs: paragraph.clone() }
+                                        }
+                                    }
+                                    // One `<pre>` per command. A reader
+                                    // triple-clicks a line to select it, and two
+                                    // commands in one block select together.
+                                    for command in package.commands.iter() {
+                                        pre { class: "fm-package__command",
+                                            code { "{command}" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 Band::Cta { heading, body, email, email_subject } => rsx! {
                     section { class: "fm-band fm-band--cta",
                         div { class: "fm-band__inner",
@@ -633,6 +815,199 @@ mod tests {
         let mut dom = VirtualDom::new(app);
         dom.rebuild_in_place();
         dioxus_ssr::render(&dom)
+    }
+
+    /// A downloads band with all three boxes and the package route.
+    fn sample_downloads() -> Band {
+        Band::Downloads {
+            anchor: "download".to_string(),
+            overline: "Download".to_string(),
+            heading: "Run Navigator yourself".to_string(),
+            description: Some("Pick your platform.".to_string()),
+            version: "26.8.20".to_string(),
+            archive_href: "https://github.com/neon-law-foundation/navigator/releases".to_string(),
+            archive_label: "every release".to_string(),
+            items: crate::cli_release::PLATFORMS
+                .iter()
+                .map(|platform| Download {
+                    platform: platform.slug.to_string(),
+                    label: platform.label.to_string(),
+                    detail: platform.detail.to_string(),
+                    filename: crate::cli_release::asset_filename("26.8.20", platform),
+                    href: crate::cli_release::asset_href("26.8.20", platform),
+                    mark: platform.mark,
+                })
+                .collect(),
+            package: Some(PackageInstall {
+                heading: "Install with Homebrew".to_string(),
+                body: vec![vec![Run::plain("On a Mac this is the route we recommend.")]],
+                commands: vec![
+                    crate::cli_release::HOMEBREW_INSTALL_COMMAND.to_string(),
+                    crate::cli_release::HOMEBREW_UPGRADE_COMMAND.to_string(),
+                ],
+            }),
+        }
+    }
+
+    fn downloads_html() -> String {
+        fn app() -> Element {
+            rsx! {
+                Bands { items: vec![sample_downloads()] }
+            }
+        }
+        render(app)
+    }
+
+    /// Each box is one anchor at the version's real GitHub Release asset, in
+    /// the order the page lays them out: Linux, macOS, Windows.
+    ///
+    /// The whole box being the anchor is what makes the hover wash mean
+    /// something — `home.css` arms `.home-practice` on `a:hover`, so a box with
+    /// a link *inside* it would light up nowhere.
+    #[test]
+    fn each_box_is_one_anchor_at_the_release_asset_for_its_platform() {
+        let out = downloads_html();
+        let positions: Vec<usize> = ["linux", "macos", "windows"]
+            .iter()
+            .map(|slug| {
+                let href = format!(
+                    "https://github.com/neon-law-foundation/navigator/releases/download/26.8.20/\
+                     navigator-26.8.20-{slug}."
+                )
+                .replace(char::is_whitespace, "");
+                out.find(&href)
+                    .unwrap_or_else(|| panic!("the {slug} box links its archive: {out}"))
+            })
+            .collect();
+        assert!(
+            positions.windows(2).all(|pair| pair[0] < pair[1]),
+            "Linux, then macOS in the middle, then Windows: {out}"
+        );
+        assert_eq!(
+            out.matches(r#"class="neon-card home-practice fm-download""#)
+                .count(),
+            3,
+            "three boxes, each one anchor: {out}"
+        );
+    }
+
+    /// The boxes wear the home page's own classes.
+    ///
+    /// `home.css` puts the border, the lift, and the radial wash that swells
+    /// across the whole box on `.home-practice`, and arms them through
+    /// `.home-practices__grid > .home-practice` — the grid class is what
+    /// establishes the clipping context, so a box outside that grid keeps the
+    /// colours and loses the illumination. Both class names are therefore
+    /// load-bearing rather than cosmetic, and a well-meaning rename to
+    /// `fm-download__grid` alone would silently flatten the hover.
+    #[test]
+    fn the_boxes_wear_the_home_pages_illuminated_card() {
+        let out = downloads_html();
+        assert!(
+            out.contains(r#"class="home-practices__grid fm-downloads__grid""#),
+            "the grid is the home page's, which arms the hover wash: {out}"
+        );
+        for class in [
+            "home-practice__mark",
+            "home-practice__heading",
+            "home-practice__body",
+        ] {
+            assert!(out.contains(class), "{class} renders: {out}");
+        }
+    }
+
+    /// Each box's accessible name is a sentence that names the release and the
+    /// platform, so a screen-reader user hears what arrives before they choose.
+    ///
+    /// The visible detail is punctuation-separated fragments (`x86_64 · glibc ·
+    /// tar.gz`), which is right for the eye and wrong for the ear — an explicit
+    /// label is what keeps the two audiences from having to share one string.
+    #[test]
+    fn each_box_announces_the_release_and_the_platform_it_is_for() {
+        let out = downloads_html();
+        for label in ["Linux", "macOS", "Windows"] {
+            assert!(
+                out.contains(&format!(
+                    r#"aria-label="Download Neon Law Navigator 26.8.20 for {label} — "#
+                )),
+                "the {label} box names the release it hands over: {out}"
+            );
+        }
+    }
+
+    /// Every box carries `download` with the archive's filename, so the browser
+    /// saves the file instead of navigating away from the page — and the
+    /// filename is shown, so what lands in the downloads folder matches the box
+    /// that was clicked.
+    #[test]
+    fn a_box_saves_the_archive_rather_than_navigating_to_it() {
+        let out = downloads_html();
+        for filename in [
+            "navigator-26.8.20-linux.tar.gz",
+            "navigator-26.8.20-macos.tar.gz",
+            "navigator-26.8.20-windows.zip",
+        ] {
+            assert!(
+                out.contains(&format!(r#"download="{filename}""#)),
+                "{filename} is saved, not opened: {out}"
+            );
+            assert!(
+                out.contains(&format!(r#"class="fm-download__file">{filename}<"#)),
+                "{filename} is shown on its box: {out}"
+            );
+        }
+    }
+
+    /// The version is printed once, above the boxes, and every href carries it.
+    /// A page that named one release and linked another would be worse than one
+    /// that named none.
+    #[test]
+    fn the_version_the_band_prints_is_the_version_every_href_carries() {
+        let out = downloads_html();
+        assert!(
+            out.contains(r#"class="fm-downloads__tag">26.8.20<"#),
+            "the version is set as the string it is: {out}"
+        );
+        assert_eq!(
+            out.matches("/releases/download/26.8.20/").count(),
+            3,
+            "all three hrefs name that release: {out}"
+        );
+    }
+
+    /// The Homebrew route renders as commands a reader copies, one per block.
+    #[test]
+    fn the_homebrew_commands_render_one_per_block() {
+        let out = downloads_html();
+        assert_eq!(
+            out.matches(r#"class="fm-package__command""#).count(),
+            2,
+            "install and upgrade select separately: {out}"
+        );
+        assert!(
+            out.contains("brew install neon-law-foundation/navigator/navigator"),
+            "the install command names the tap: {out}"
+        );
+    }
+
+    /// A page with no downloads band asks for no `home.css`, and one with a
+    /// band asks for it.
+    ///
+    /// Asserted on the band data rather than on the rendered head: a
+    /// `document::Stylesheet` is collected by the fullstack head collector and
+    /// never appears in `dioxus_ssr::render` output. The covering assertion
+    /// that the sheet actually reaches the document lives in
+    /// `server/tests/firm_routes.rs`, against the real `/navigator` route.
+    #[test]
+    fn only_a_page_with_downloads_asks_for_the_home_stylesheet() {
+        assert!(sample_downloads().is_downloads());
+        assert!(!Band::Statement {
+            heading: "Our mission".to_string(),
+            lead: "A shortage of hours.".to_string(),
+            body: vec![],
+        }
+        .is_downloads());
+        assert!(sample_home().bands.iter().all(|band| !band.is_downloads()));
     }
 
     fn sample_home() -> HomeContent {
