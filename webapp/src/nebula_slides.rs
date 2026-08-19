@@ -368,5 +368,4 @@ mod tests {
         let out = html();
         assert!(out.contains("admin-form"), "e2e form hook: {out}");
     }
-
 }
