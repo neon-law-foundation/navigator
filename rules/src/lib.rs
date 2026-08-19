@@ -218,9 +218,17 @@ pub struct Violation {
 }
 
 /// The byte-offset range of a 1-based line within `contents`,
-/// excluding the trailing newline (if any). Out-of-range lines map
-/// to the end-of-file empty range, so callers can use this as a
+/// excluding the trailing line terminator (if any). Out-of-range lines
+/// map to the end-of-file empty range, so callers can use this as a
 /// safe default when the precise span isn't known.
+///
+/// The terminator is `\r\n` as readily as `\n`: a Windows checkout
+/// materialises these files with CRLF, and a range that stopped only
+/// before the `\n` would cover a trailing `\r` that is not part of the
+/// line. That byte is load-bearing downstream — `M009` anchors its edit
+/// to `range.end` and would delete the `\r` instead of the whitespace it
+/// is fixing, and the LSP renders the range one column past the visible
+/// end of line.
 #[must_use]
 pub fn line_byte_range(contents: &str, line: usize) -> Range<usize> {
     if line == 0 {
@@ -229,8 +237,9 @@ pub fn line_byte_range(contents: &str, line: usize) -> Range<usize> {
     let mut offset = 0;
     for (idx, segment) in contents.split_inclusive('\n').enumerate() {
         if idx + 1 == line {
-            let len = segment.len() - usize::from(segment.ends_with('\n'));
-            return offset..offset + len;
+            let text = segment.strip_suffix('\n').unwrap_or(segment);
+            let text = text.strip_suffix('\r').unwrap_or(text);
+            return offset..offset + text.len();
         }
         offset += segment.len();
     }
@@ -723,6 +732,37 @@ mod tests {
         let eof = contents.len()..contents.len();
         assert_eq!(line_byte_range(contents, 99), eof);
         assert_eq!(line_byte_range(contents, 0), 0..0);
+    }
+
+    /// The range must cover the line, not the line plus its `\r`. A
+    /// Windows checkout materialises these files with CRLF, and the
+    /// surplus byte is not cosmetic: `M009` anchors its edit to
+    /// `range.end`, so a range holding the `\r` made its fix delete the
+    /// carriage return instead of the trailing whitespace.
+    #[test]
+    fn line_byte_range_excludes_a_crlf_carriage_return() {
+        use super::line_byte_range;
+        let contents = "hello\r\nworld\r\n";
+        assert_eq!(line_byte_range(contents, 1), 0..5);
+        assert_eq!(&contents[line_byte_range(contents, 1)], "hello");
+        assert_eq!(line_byte_range(contents, 2), 7..12);
+        assert_eq!(&contents[line_byte_range(contents, 2)], "world");
+    }
+
+    /// Every line of a CRLF document spans the same text as the
+    /// matching line of its LF twin.
+    #[test]
+    fn line_byte_range_matches_across_lf_and_crlf_twins() {
+        use super::line_byte_range;
+        let lf = "first\nsecond\nthird\n";
+        let crlf = lf.replace('\n', "\r\n");
+        for line in 1..=3 {
+            assert_eq!(
+                &lf[line_byte_range(lf, line)],
+                &crlf[line_byte_range(&crlf, line)],
+                "line {line} differs between the twins"
+            );
+        }
     }
 
     #[test]
