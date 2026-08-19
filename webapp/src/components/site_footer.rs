@@ -19,7 +19,7 @@
 
 use dioxus::prelude::*;
 
-use crate::components::{ExternalLink, GitHubStars};
+use crate::components::{ExternalLink, GitHubStars, Icon, IconName};
 
 /// One published office — the state it sits in and its street address.
 /// Mirrors `views::brand::FirmOffice`.
@@ -208,52 +208,25 @@ pub fn SiteFooterLegal(
     #[props(default)] attorneys: Vec<FooterAttorney>,
     #[props(default)] brand_name: String,
     #[props(default)] nav: Vec<FooterNavLink>,
-    /// The nonprofit the firm supports, and its site. The Foundation's footer
-    /// names the firm; this is the other half of that attribution, so a
-    /// visitor arriving at either can reach the other. Empty renders no line.
+    /// The nonprofit named in the copyright line beside `copyright_holder`
+    /// (`"© {year} {copyright_holder} and {foundation}"`). Empty renders just
+    /// the holder.
     #[props(default)]
     foundation: String,
-    #[props(default)] foundation_href: String,
-    /// The nonprofit's own identity block, rendered inside this footer rather
-    /// than as a second one.
-    ///
-    /// One site holds both organizations, so every page carries both
-    /// disclosures. A reader cannot be assumed to know which door they arrived
-    /// through: one who landed on `/foundation` used to meet no
-    /// attorney-advertising disclosure at all, and one on a firm page never met
-    /// the nonprofit's "cannot represent you".
-    ///
-    /// The wording is [`crate::components::SiteFooterFoundation`]'s, verbatim,
-    /// and is legal-council reviewed — see that module's four rules. It renders
-    /// BELOW the firm's bar disclosures and its disclaimer so the nonprofit's
-    /// name can never be read as one of the firm's credentials, which is rule 3
-    /// of that review. Empty `nonprofit_entity` renders nothing.
+    /// The firm's own registered address — distinct from `offices`, which are
+    /// the walk-in locations in the contact band above. Renders at the very
+    /// bottom of the strip, below both columns, beside the Foundation's own
+    /// registered address. Empty renders no line.
     #[props(default)]
-    nonprofit_entity: String,
-    #[props(default)] nonprofit_jurisdiction_note: String,
-    #[props(default)] nonprofit_disclaimer: String,
-    /// The nonprofit's OWN inbox and registered office, never the firm's. They
-    /// sit in this block rather than in the contact band above, which is
-    /// firm-anchored, so a reader can tell which organization each address
-    /// reaches. Each renders only when non-empty.
+    firm_postal_address: String,
+    /// The Foundation's own registered address, the other half of the closing
+    /// address line. Empty renders no line.
     #[props(default)]
-    nonprofit_contact_email: String,
-    #[props(default)] nonprofit_office: String,
-    #[props(default)] nonprofit_transparency_href: String,
-    /// The platform attribution: the published release of Neon Law Navigator
-    /// this deployment runs, and the page describing it. Both empty renders no
-    /// line — a deployment that cannot name its release must not print `#`
-    /// followed by nothing.
-    #[props(default)]
-    navigator_version: String,
-    #[props(default)] navigator_href: String,
+    foundation_postal_address: String,
     /// The public repository the platform is developed in — how it is named
     /// (`owner/name`), where it lives, and how many people have starred it.
-    ///
-    /// The pair below the platform attribution and above nothing: it says the
-    /// software the line above names is open source, and gives the address to
-    /// go read it. Both strings empty renders no line, the way an unstamped
-    /// release renders no attribution.
+    /// Closes the strip: no box, no attribution prose, just the repository
+    /// and its star count. Both strings empty renders no line.
     ///
     /// `source_stars` is independently optional, and `None` is the ordinary
     /// case rather than a failure — see
@@ -264,8 +237,6 @@ pub fn SiteFooterLegal(
     #[props(default)] source_stars: Option<u64>,
 ) -> Element {
     let has_contact = !contact_email.is_empty() || !phone.is_empty() || !offices.is_empty();
-    let supports_foundation = !foundation.is_empty() && !foundation_href.is_empty();
-    let states_nonprofit = !nonprofit_entity.is_empty() && !nonprofit_jurisdiction_note.is_empty();
     rsx! {
         footer { class: "site-footer", role: "contentinfo",
             div { class: "site-footer__inner",
@@ -306,26 +277,34 @@ pub fn SiteFooterLegal(
                 }
                 if has_contact {
                     div { class: "site-footer__contact",
-                        div { class: "site-footer__reach",
+                        // The email and phone channels are tiles in the same
+                        // grid as the offices — same size, filled with the
+                        // brand color rather than bordered, so the two
+                        // actionable contact links read as a distinct kind of
+                        // tile from the plain address cards beside them.
+                        ul { class: "site-footer__offices",
                             if !contact_email.is_empty() {
-                                a {
-                                    class: "nav-btn nav-btn--primary site-footer__cta",
-                                    href: "mailto:{contact_email}",
-                                    "Contact us — {contact_email}"
+                                li { class: "site-footer__office site-footer__office--channel",
+                                    a {
+                                        class: "site-footer__channel-link",
+                                        href: "mailto:{contact_email}",
+                                        Icon { name: IconName::EnvelopeFill }
+                                        span { "{contact_email}" }
+                                    }
                                 }
                             }
                             if !phone.is_empty() {
-                                a {
-                                    class: "site-footer__phone",
-                                    href: tel_href(&phone),
-                                    "{phone}"
+                                li { class: "site-footer__office site-footer__office--channel",
+                                    a {
+                                        class: "site-footer__channel-link",
+                                        href: tel_href(&phone),
+                                        Icon { name: IconName::TelephoneFill }
+                                        span { "{phone}" }
+                                    }
                                 }
                             }
-                        }
-                        if !offices.is_empty() {
-                            ul { class: "site-footer__offices",
-                                for office in offices.iter() {
-                                    li { class: "site-footer__office", key: "{office.state}",
+                            for office in offices.iter() {
+                                li { class: "site-footer__office", key: "{office.state}",
                                         // The state behind its own address, as
                                         // a watermark. Decorative and
                                         // `aria-hidden`: the label above it
@@ -370,7 +349,6 @@ pub fn SiteFooterLegal(
                             }
                         }
                     }
-                }
                 div { class: "site-footer__legal",
                     div { class: "site-footer__legal-practice",
                         p { class: "site-footer__copyright",
@@ -409,111 +387,41 @@ pub fn SiteFooterLegal(
                         }
                         p { class: "site-footer__disclaimer", "{disclaimer}" }
                     }
-                    div { class: "site-footer__legal-foundation",
-                    // The other half of the attribution the Foundation's footer
-                    // carries, and the last line on the page. It sits after the
-                    // bar disclosures and after the disclaimer, so a reader has
-                    // been told who is licensed and where before meeting a
-                    // second organization's name — the nonprofit holds no
-                    // licence and this must not read as one of the firm's
-                    // credentials. "supporter of" rather than anything implying
-                    // the two are one organization — they are separate entities,
-                    // which the sentence conveys by naming the nonprofit's own
-                    // status rather than by calling it "separate". The trailing
-                    // clause sits outside the anchor so the hover underline stops
-                    // at the Foundation's name.
-                    if supports_foundation {
-                        p { class: "site-footer__foundation",
-                            "{copyright_holder} is a proud supporter of the "
-                            ExternalLink {
-                                href: foundation_href.clone(),
-                                class: "link-secondary".to_string(),
-                                "{foundation}"
+                    // The two organizations' own registered addresses —
+                    // separate from the walk-in offices in the contact band
+                    // above, and from either disclaimer, since a registered
+                    // address is a fact about the entity rather than part of
+                    // a disclaimer. Sits above the platform line: a reader
+                    // meets both entities' addresses before a line about what
+                    // the site is built on.
+                    if !firm_postal_address.is_empty() || !foundation_postal_address.is_empty() {
+                        div { class: "site-footer__legal-addresses",
+                            if !firm_postal_address.is_empty() {
+                                address { class: "site-footer__legal-address",
+                                    "{copyright_holder} — {firm_postal_address}"
+                                }
                             }
-                            ", a 501(c)(3) nonprofit."
-                        }
-                    }
-                    // The nonprofit's own identity, on every page of the shared
-                    // site. Two sentences, both load-bearing: what the
-                    // corporation is, and — affirmatively — that it does not
-                    // practise law and cannot act for the reader. The second is
-                    // what stops a visitor believing a 501(c)(3) that publishes
-                    // legal templates and an AI assistant can represent them.
-                    //
-                    // Below the bar disclosures and the firm's disclaimer on
-                    // purpose: the reader has met who is licensed and where
-                    // before a second organization is named, so the nonprofit
-                    // cannot be read as one of the firm's credentials.
-                    if states_nonprofit {
-                        p { class: "site-footer__attribution",
-                            "{nonprofit_entity} is {nonprofit_jurisdiction_note}. It does not practice law and cannot represent you."
-                        }
-                        if !nonprofit_disclaimer.is_empty() {
-                            p { class: "site-footer__nonprofit-disclaimer", "{nonprofit_disclaimer}" }
-                        }
-                        // The nonprofit's own registered office and inbox, so a
-                        // reader who wants the Foundation rather than the firm
-                        // has an address that reaches it. Kept out of the
-                        // contact band above, which is the firm's.
-                        if !nonprofit_office.is_empty() {
-                            address { class: "site-footer__nonprofit-office", "{nonprofit_office}" }
-                        }
-                        if !nonprofit_contact_email.is_empty() {
-                            a {
-                                class: "site-footer__nonprofit-email",
-                                href: "mailto:{nonprofit_contact_email}",
-                                "{nonprofit_contact_email}"
-                            }
-                        }
-                        // The public-disclosure page a 501(c)(3) owes under
-                        // IRC §6104(d). Guarded: an unguarded anchor would emit
-                        // an empty link with no accessible name.
-                        if !nonprofit_transparency_href.is_empty() {
-                            a {
-                                class: "site-footer__transparency",
-                                href: "{nonprofit_transparency_href}",
-                                "Transparency & public disclosures"
+                            if !foundation_postal_address.is_empty() {
+                                address { class: "site-footer__legal-address",
+                                    "{foundation} — {foundation_postal_address}"
+                                }
                             }
                         }
                     }
-                    }
-                    div { class: "site-footer__legal-platform",
-                    // The platform attribution, last in the strip. It names
-                    // software, not a legal service, so it sits below the
-                    // regulated disclosures rather than among them — a reader
-                    // meets the bar records and the advertising disclaimer
-                    // before a line about what the site is built on.
-                    if !navigator_version.is_empty() && !navigator_href.is_empty() {
-                        p { class: "site-footer__platform",
-                            "Powered by "
-                            ExternalLink {
-                                href: navigator_href.clone(),
-                                class: "link-secondary".to_string(),
-                                "Neon Law Navigator #{navigator_version}"
-                            }
-                        }
-                    }
-                    // Where to go read the software the line above names. It
-                    // closes the strip for the same reason the platform line
-                    // sits above it: a source repository is a developer
-                    // surface, and a visitor meets every regulated disclosure
-                    // before the page mentions one.
-                    //
-                    // It is deliberately a separate line from the attribution
-                    // rather than a link appended to it. The attribution names
-                    // the *release this deployment runs*; this names the
-                    // *project*, which is a standing fact about the software
-                    // and is published whether or not the build was stamped.
+                    // The repository the platform is developed in, closing
+                    // the strip. No box, no attribution prose — just the
+                    // repository's name and its star count, the way the
+                    // rest of the site links off to GitHub.
                     if !source_repo.is_empty() && !source_href.is_empty() {
-                        p { class: "site-footer__source",
-                            "Open source — "
-                            GitHubStars {
-                                href: source_href.clone(),
-                                repo: source_repo.clone(),
-                                stars: source_stars,
+                        div { class: "site-footer__legal-platform",
+                            p { class: "site-footer__source",
+                                GitHubStars {
+                                    href: source_href.clone(),
+                                    repo: source_repo.clone(),
+                                    stars: source_stars,
+                                }
                             }
                         }
-                    }
                     }
                 }
             }
@@ -542,9 +450,6 @@ mod tests {
                     disclaimer: "This is an attorney advertisement.".to_string(),
                     copyright_year: 2026,
                     foundation: "Neon Law Foundation".to_string(),
-                    foundation_href: "/foundation".to_string(),
-                    navigator_version: "26.8.10".to_string(),
-                    navigator_href: "https://www.neonlaw.com/navigator".to_string(),
                     source_repo: "neon-law-foundation/navigator".to_string(),
                     source_href: "https://github.com/neon-law-foundation/navigator".to_string(),
                     source_stars: 1234u64,
@@ -555,12 +460,12 @@ mod tests {
     }
 
     /// The open-source line names the repository, links it, and prints the
-    /// star count — and it closes the strip, below the platform attribution.
+    /// star count — and it closes the strip, below the disclaimer.
     ///
     /// Order is the substance here, as it is for every other line in this
     /// strip: the repository is a developer surface, so a reader meets the bar
-    /// records, the advertising disclaimer, and the nonprofit's statement
-    /// before the page mentions where the code lives.
+    /// records and the advertising disclaimer before the page mentions where
+    /// the code lives.
     #[test]
     fn closes_the_strip_with_the_source_repository_and_its_stars() {
         let out = legal_html();
@@ -569,7 +474,7 @@ mod tests {
             "the repository is linked: {out}"
         );
         assert!(
-            out.contains("Open source") && out.contains("neon-law-foundation/navigator"),
+            out.contains("github-stars__repo") && out.contains("neon-law-foundation/navigator"),
             "and named as the project's source: {out}"
         );
         assert!(
@@ -577,11 +482,10 @@ mod tests {
             "the star count renders under its own accessible name: {out}"
         );
         let disclaimer = out.find("attorney advertisement").expect("the disclaimer");
-        let platform = out.find("Powered by").expect("the platform line");
         let source = out.find("site-footer__source").expect("the source line");
         assert!(
-            disclaimer < platform && platform < source,
-            "the source line closes the strip, under the platform attribution: {out}"
+            disclaimer < source,
+            "the source line closes the strip, under the disclaimer: {out}"
         );
     }
 
@@ -617,7 +521,7 @@ mod tests {
 
         let out = ssr(app);
         assert!(
-            !out.contains("site-footer__source") && !out.contains("Open source"),
+            !out.contains("site-footer__source"),
             "no repository, no line: {out}"
         );
         assert!(!out.contains(r#"href="""#), "no empty anchor: {out}");
@@ -633,31 +537,51 @@ mod tests {
         );
     }
 
-    /// The platform attribution closes the strip.
-    ///
-    /// It names software rather than a legal service, so it must sit below the
-    /// bar records and the advertising disclaimer — a visitor meets who is
-    /// licensed, and the advertising notice, before a line about what the site
-    /// runs on.
+    /// Both organizations' registered addresses close the strip, below both
+    /// columns — distinct from the walk-in offices in the contact band, and
+    /// from either disclaimer.
     #[test]
-    fn attributes_the_platform_below_the_regulated_disclosures() {
-        let out = legal_html();
+    fn closes_the_strip_with_both_registered_addresses() {
+        fn app() -> Element {
+            rsx! {
+                SiteFooterLegal {
+                    copyright_holder: "Neon Law".to_string(),
+                    disclaimer: "This is an attorney advertisement.".to_string(),
+                    copyright_year: 2026,
+                    foundation: "Neon Law Foundation".to_string(),
+                    firm_postal_address: "5150 Mae Anne Ave Ste 405-9002, Reno, NV 89523".to_string(),
+                    foundation_postal_address: "5150 Mae Anne Ave Ste 405-9999, Reno, NV 89523"
+                        .to_string(),
+                }
+            }
+        }
+        let out = ssr(app);
         assert!(
-            out.contains("Powered by") && out.contains("Neon Law Navigator #26.8.10"),
-            "the platform line names the running release: {out}"
+            out.contains("Neon Law — 5150 Mae Anne Ave Ste 405-9002, Reno, NV 89523"),
+            "the firm's own registered address renders: {out}"
         );
-        let disclaimer = out.find("attorney advertisement").expect("the disclaimer");
-        let platform = out.find("Powered by").expect("the platform line");
         assert!(
-            disclaimer < platform,
-            "the regulated disclaimer precedes the platform attribution: {out}"
+            out.contains("Neon Law Foundation — 5150 Mae Anne Ave Ste 405-9999, Reno, NV 89523"),
+            "the Foundation's own registered address renders: {out}"
+        );
+        assert_eq!(
+            out.matches("site-footer__legal-address\"").count(),
+            2,
+            "exactly the two addresses, no more: {out}"
+        );
+        let disclaimer = out.find("site-footer__disclaimer").expect("the disclaimer");
+        let addresses = out
+            .find("site-footer__legal-addresses")
+            .expect("the addresses row");
+        assert!(
+            disclaimer < addresses,
+            "the addresses close the strip, under the disclaimer: {out}"
         );
     }
 
-    /// An unstamped build prints no platform line rather than a bare `#`, and
-    /// leaves no empty anchor behind.
+    /// Neither address is published unless at least one is set — no empty row.
     #[test]
-    fn omits_the_platform_line_when_the_release_is_unknown() {
+    fn omits_the_addresses_row_when_unset() {
         fn app() -> Element {
             rsx! {
                 SiteFooterLegal {
@@ -668,40 +592,16 @@ mod tests {
             }
         }
         let out = ssr(app);
-        assert!(!out.contains("Powered by"), "no release, no line: {out}");
-        assert!(!out.contains(r#"href="""#), "no empty anchor: {out}");
-    }
-
-    /// The two footers link to each other. The Foundation's names the firm that
-    /// supports it and built the platform; this is the other half, so a visitor
-    /// who lands on either site can reach the other.
-    #[test]
-    fn links_the_nonprofit_the_firm_supports() {
-        let out = contactable_html();
         assert!(
-            out.contains("is a proud supporter of the") && out.contains("Neon Law Foundation"),
-            "the firm names the nonprofit it supports: {out}"
-        );
-        assert!(
-            out.contains(r#"href="/foundation""#),
-            "and links it, so the claim can be followed: {out}"
-        );
-        // The nonprofit's own status, said plainly: the two are different kinds
-        // of organization and a reader on a law firm's site should not have to
-        // infer that from the name.
-        assert!(
-            out.contains("a 501(c)(3) nonprofit"),
-            "the relationship is stated, not implied: {out}"
+            !out.contains("site-footer__legal-addresses"),
+            "no addresses set, no row: {out}"
         );
     }
 
     /// The copyright names the entity that holds it — the firm's legal person,
     /// not the wordmark it trades under.
     ///
-    /// The Foundation may now appear elsewhere in this footer, as the
-    /// attribution pairing with the one its own footer carries. What must not
-    /// drift is the copyright line itself: the nonprofit is a separate
-    /// corporation and holds nothing here.
+    /// The nonprofit is a separate corporation and holds nothing here.
     #[test]
     fn names_both_organizations_in_the_copyright() {
         let out = legal_html();
@@ -824,7 +724,8 @@ mod tests {
                         })
                         .collect(),
                     foundation: "Neon Law Foundation".to_string(),
-                    foundation_href: "/foundation".to_string(),
+                    source_repo: "neon-law-foundation/navigator".to_string(),
+                    source_href: "https://github.com/neon-law-foundation/navigator".to_string(),
                 }
             }
         }
@@ -848,11 +749,7 @@ mod tests {
             inner < legal,
             "the legal strip sits inside the column: {out}"
         );
-        for region in [
-            "site-footer__legal-practice",
-            "site-footer__legal-foundation",
-            "site-footer__legal-platform",
-        ] {
+        for region in ["site-footer__legal-practice", "site-footer__legal-platform"] {
             assert!(
                 out.contains(region),
                 "the legal copy has a {region} region: {out}"
@@ -1096,48 +993,9 @@ mod tests {
         );
     }
 
-    /// The supporter line names the firm, says what it is, and leaves the site
-    /// for the Foundation's own domain — as the last line on the page, under the
-    /// disclaimer, ending in a full stop that is not part of the link.
+    /// A deploy that publishes no footer routes renders no empty row.
     #[test]
-    fn names_the_foundation_it_supports() {
-        let out = contactable_html();
-        assert!(
-            out.contains("Neon Law is a proud supporter of the"),
-            "the supporter line renders: {out}"
-        );
-        let disclaimer = out
-            .find("site-footer__disclaimer")
-            .expect("the disclaimer renders");
-        let supporter = out
-            .find("site-footer__foundation")
-            .expect("the supporter line renders");
-        assert!(
-            disclaimer < supporter,
-            "it is the last line, under the disclaimer: {out}"
-        );
-        assert!(
-            out.contains("</a>, a 501(c)(3) nonprofit.</p>"),
-            "the clause and its period sit outside the link: {out}"
-        );
-        assert!(
-            out.contains(r#"href="/foundation""#),
-            "and links the Foundation's own site: {out}"
-        );
-        // Two separate organizations, so the link leaves the site the way every
-        // other outbound link here does.
-        assert!(
-            out.contains(r#"rel="noopener noreferrer""#),
-            "the outbound link is hardened: {out}"
-        );
-    }
-
-    /// A deploy that publishes neither — no footer routes and no Foundation —
-    /// renders neither, rather than an empty row or a dangling sentence.
-    #[test]
-    fn omits_the_nav_row_and_supporter_line_when_unset() {
-        // Its own fixture: the shared `legal_html` names a Foundation, which is
-        // the state this test is the counterpart to.
+    fn omits_the_nav_row_when_unset() {
         fn app() -> Element {
             rsx! {
                 SiteFooterLegal {
@@ -1149,10 +1007,6 @@ mod tests {
         }
         let out = ssr(app);
         assert!(!out.contains("site-footer__nav"), "no empty row: {out}");
-        assert!(
-            !out.contains("proud supporter"),
-            "no dangling sentence: {out}"
-        );
     }
 
     /// A deploy that publishes an office in a state this component carries no

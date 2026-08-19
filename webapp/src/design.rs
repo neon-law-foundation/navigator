@@ -926,7 +926,6 @@ fn SiteFooterShowcase() -> Element {
                     })
                     .collect(),
                 foundation: "Acme Foundation".to_string(),
-                foundation_href: "https://example.org".to_string(),
                 // The open-source line, driven with a count so the gallery
                 // shows the shape the deployed footer renders. The
                 // count-less variant is shown beside the standalone

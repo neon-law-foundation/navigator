@@ -622,10 +622,21 @@ async fn the_firm_footer_publishes_no_bar_number_and_no_qualified_office() {
 /// drift from them. The exact markup is pinned on the pure SSR path in
 /// `webapp::components::site_footer`; hydration comments split each span's text
 /// node here, so this asserts the breaks rather than the tags around them.
+///
+/// Scoped to the `site-footer__offices` grid rather than the whole page body:
+/// the closing `site-footer__legal-addresses` line cites the same street/suite
+/// as one continuous run on purpose (a registered address is a citation, not a
+/// wrapped column), so a whole-document substring check would false-positive
+/// against that legitimate, unrelated line.
 #[tokio::test]
 async fn the_firm_footer_sets_each_office_over_three_lines() {
     let app = site_app().await;
-    let body = body_string(anon_get(&app, "/litigation").await).await;
+    let full_body = body_string(anon_get(&app, "/litigation").await).await;
+    let body = full_body
+        .split(r#"<ul class="site-footer__offices""#)
+        .nth(1)
+        .and_then(|rest| rest.split("</ul>").next())
+        .expect("the offices grid renders");
     for (street, unit, city) in [
         ("5150 Mae Anne Ave", "Ste 405-9002", "Reno, NV 89523"),
         ("12 E 49th St", "18th Floor", "New York, NY 10017"),
@@ -649,25 +660,6 @@ async fn the_firm_footer_sets_each_office_over_three_lines() {
         body.matches(r#"class="site-footer__office-line""#).count(),
         9,
         "three lines for each of the firm's three offices: {body}"
-    );
-}
-
-#[tokio::test]
-async fn the_footer_names_the_foundation_the_firm_supports() {
-    // Two separate organizations sharing one site: the firm says it supports
-    // the Foundation and links its pages. The sentence names the legal entity
-    // on the copyright line above it — `Shook Law PLLC` — not the `Neon Law`
-    // mark, because a statement about who supports whom is a statement about
-    // two legal persons.
-    let app = site_app().await;
-    let body = body_string(anon_get(&app, "/").await).await;
-    assert!(
-        body.contains("Shook Law PLLC is a proud supporter of the"),
-        "the supporter line renders: {body}"
-    );
-    assert!(
-        body.contains(r#"href="/foundation""#),
-        "linked to the Foundation's own pages: {body}"
     );
 }
 
@@ -1292,39 +1284,20 @@ async fn a_talk_hub_renders_under_the_firm_brand() {
     assert!(step9.contains("<h3>Agenda</h3>"));
 }
 
-/// A talk wears the firm's chrome, and the nonprofit's block beside it stays
-/// the nonprofit's.
+/// A talk wears the firm's chrome, including its footer disclaimer.
 ///
 /// The two categories share five router constructors, and before the move they
-/// hardcoded the Foundation's chrome pre-layer. One footer now serves both
-/// faces, so "does not practice law and cannot represent you" appears on a law
-/// firm's host by design — what must never happen is that sentence reading as
-/// the *firm's*. It is therefore asserted to arrive attached to the
-/// Foundation's name, alongside the attorney-advertising disclosure the firm's
-/// own footer is required to carry.
+/// hardcoded the Foundation's chrome pre-layer. This pins that a talk page
+/// still carries the firm's own footer.
 #[tokio::test]
-async fn a_talk_wears_the_firm_footer_beside_the_foundations() {
+async fn a_talk_wears_the_firm_footer() {
     let app = site_app_with_talks().await;
 
     for path in ["/presentations", "/presentations/rust-in-peace"] {
         let body = body_string(anon_get(&app, path).await).await;
         assert!(
-            body.contains("is a proud supporter of the"),
-            "{path} carries the firm's footer: {body}"
-        );
-        assert!(
-            body.contains("This is attorney advertisement."),
+            body.contains("Nothing here is legal advice without a signed retainer"),
             "{path} carries the firm's own required disclosure: {body}"
-        );
-        // The nonprofit's statement is published, but never detached from the
-        // nonprofit: unattributed, the same sentence would read as the law firm
-        // announcing it cannot represent anyone.
-        assert!(
-            body.contains(
-                "Neon Law Foundation is a Nevada nonprofit corporation and a 501(c)(3) \
-                 tax-exempt organization. It does not practice law and cannot represent you."
-            ),
-            "{path} attributes the non-practice statement to the Foundation: {body}"
         );
     }
 }
@@ -1936,9 +1909,8 @@ async fn contact_returns_contact_page_html() {
     );
     // The source repository is not a contact channel. Asserted on the page's
     // own article rather than on the whole document, because the shared footer
-    // below it now links the repository on every page — as an "Open source"
-    // attribution in the legal strip, beside "Powered by Neon Law Navigator",
-    // not as a way to reach the firm.
+    // below it now links the repository on every page — the repo name and its
+    // star count in the legal strip, not a way to reach the firm.
     //
     // The narrowing preserves exactly what this assertion was protecting: a
     // reader looking for how to contact the firm must find the inbox and the
@@ -1986,7 +1958,7 @@ async fn every_public_page_links_the_source_repository() {
             "{uri} links the repository: {body}"
         );
         assert!(
-            body.contains("Open source") && body.contains("neon-law-foundation/navigator"),
+            body.contains("github-stars__repo") && body.contains("neon-law-foundation/navigator"),
             "{uri} names it as the project's source: {body}"
         );
         // No number, because nothing spawned the refresh — the link stands on

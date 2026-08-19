@@ -44,6 +44,10 @@ pub enum IconName {
     ArrowLeft,
     /// The scales of justice used for litigation.
     LibraScales,
+    /// A closed envelope, for an email contact channel.
+    EnvelopeFill,
+    /// A handset, for a phone contact channel.
+    TelephoneFill,
 }
 
 /// The catalog spelling for the inline scales icon.
@@ -79,6 +83,8 @@ impl IconName {
             Self::BoxArrowUpRight => "box-arrow-up-right",
             Self::ArrowLeft => "arrow-left",
             Self::LibraScales => LIBRA_SCALES,
+            Self::EnvelopeFill => "envelope-fill",
+            Self::TelephoneFill => "telephone-fill",
         }
     }
 
@@ -108,6 +114,8 @@ impl IconName {
             "cloud-fill" => Some(Self::CloudFill),
             "incognito" => Some(Self::Incognito),
             LIBRA_SCALES => Some(Self::LibraScales),
+            "envelope-fill" => Some(Self::EnvelopeFill),
+            "telephone-fill" => Some(Self::TelephoneFill),
             _ => None,
         }
     }
@@ -231,6 +239,12 @@ fn icon_body(name: IconName) -> Element {
             }
             path { d: "M0.6 7.3a1.9 1.9 0 0 0 3.8 0z" }
             path { d: "M11.6 7.3a1.9 1.9 0 0 0 3.8 0z" }
+        },
+        IconName::EnvelopeFill => rsx! {
+            path { d: "M.05 3.555A2 2 0 0 1 2 2h12a2 2 0 0 1 1.95 1.555L8 8.414zm.05 1.143v7.104l5.803-3.558zM6.761 8.83l-6.57 4.027A2 2 0 0 0 2 14h12a2 2 0 0 0 1.808-1.144l-6.57-4.027L8 9.586zm3.436-.586L16 11.801V4.697z" }
+        },
+        IconName::TelephoneFill => rsx! {
+            path { d: "M1.885.511a1.745 1.745 0 0 1 2.61.163L6.29 2.98c.329.423.445.974.315 1.494l-.547 2.19a.68.68 0 0 0 .178.643l2.457 2.457a.68.68 0 0 0 .644.178l2.189-.547a1.75 1.75 0 0 1 1.494.315l2.306 1.795c.834.65.905 1.87.163 2.611l-1.034 1.034c-.74.74-1.846 1.065-2.877.702a18.6 18.6 0 0 1-7.01-4.42 18.6 18.6 0 0 1-4.42-7.009c-.362-1.03-.037-2.137.703-2.877z" }
         },
     }
 }

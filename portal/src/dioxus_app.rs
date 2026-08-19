@@ -3583,27 +3583,19 @@ mod tests {
         assert!(!fragment.contains("<script>"), "{fragment}");
     }
 
-    /// The Foundation chrome swaps the header, and both brands carry the
-    /// nonprofit's footer block.
+    /// The Foundation chrome swaps the header; the footer stays the one
+    /// shared component on both faces.
     ///
     /// The header is still an either/or: a Foundation page renders the
     /// nonprofit's wordmark, its logo, and its own hub as home, never the
     /// firm's.
-    ///
-    /// The footer is not, and that is what this now pins. One site holds both
-    /// organizations, so every page carries both disclosures — the firm's
-    /// attorney-advertising strip and the nonprofit's own block — because a
-    /// visitor cannot be assumed to know which door they arrived through. A
-    /// reader who landed on `/foundation` used to see neither half of the
-    /// firm's regulated copy, and a reader on a firm page never saw the
-    /// nonprofit state that it does not practise law.
     ///
     /// What stays asymmetric is the firm's *regulated* data. It is cleared on
     /// Foundation chrome rather than merely left unrendered, so a Foundation
     /// page that reached for the firm's footer would still emit no bar number,
     /// no registered mark, and no firm inbox.
     #[test]
-    fn the_foundation_chrome_swaps_the_header_and_both_carry_the_nonprofit_block() {
+    fn the_foundation_chrome_swaps_the_header_but_shares_the_footer_component() {
         let foundation = webapp::public_chrome::foundation_public_chrome(Vec::new());
         let firm = webapp::public_chrome::firm_public_chrome(Vec::new());
 
@@ -3625,40 +3617,6 @@ mod tests {
             foundation.brand_name, firm.brand_name,
             "the two brands must not render the same wordmark"
         );
-
-        // Both brands bring the nonprofit's block. The firm's copy is what
-        // puts the "does not practise law" statement on a firm page; the
-        // Foundation's is the same block with its own supporter handling.
-        let own = foundation
-            .foundation_footer
-            .as_ref()
-            .expect("Foundation chrome carries its own footer");
-        let on_firm = firm
-            .foundation_footer
-            .as_ref()
-            .expect("a firm page carries the nonprofit's block too");
-        assert_eq!(
-            on_firm.entity, own.entity,
-            "both brands name the same nonprofit"
-        );
-        assert_eq!(
-            on_firm.disclaimer, own.disclaimer,
-            "one disclaimer, published on both faces"
-        );
-        // It identifies the corporation. For the Foundation the corporate name
-        // and the wordmark now coincide — it trades as "Neon Law Foundation",
-        // which is also what it is incorporated as — so this asserts the source
-        // rather than a difference. The firm is where the two genuinely diverge
-        // ("Neon Law" over Shook Law PLLC), and `views::brand` guards that pair.
-        assert_eq!(own.entity, views::brand::foundation_entity());
-        assert_ne!(
-            own.entity, firm.brand_name,
-            "the Foundation's footer must never name the firm"
-        );
-        // Its own inbox and its own registered office — never the firm's.
-        assert_eq!(own.contact_email, views::brand::foundation_email());
-        assert_eq!(own.office, views::brand::FOUNDATION_BRAND.postal_address);
-        assert_ne!(own.office, views::brand::FIRM_BRAND.postal_address);
 
         // None of the firm's REGULATED footer data survives onto Foundation
         // chrome — the entity of record, the bar licences, and the firm's
