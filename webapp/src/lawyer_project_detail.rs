@@ -105,8 +105,12 @@ pub struct LawyerDetailView {
     /// entitles them to govern the lawyer side from this page. The server
     /// resolves it; the render never infers accountability from the tier.
     pub viewer_is_lawyer_dri: bool,
-    pub internal_slack_channel_url: Option<String>,
-    pub external_slack_channel_url: Option<String>,
+    /// The matter's six collaboration resources, already filtered to what this
+    /// reader may see. The two Slack columns and the Notion pages are no longer
+    /// carried loose on this view: a firm-only URL must not be serialised into
+    /// a page whose reader may not see it, and one filtered list is the only
+    /// place that decision is made.
+    pub resources: crate::project_resources::ProjectResourcesView,
     pub xero_invoice_url: Option<String>,
     pub repository_url: Option<String>,
     pub estate: Option<EstateData>,
@@ -320,6 +324,7 @@ pub async fn get_lawyer_project_detail() -> Result<LawyerDetailView, ServerFnErr
         })
         .collect();
 
+    let code_for_resources = project.code.clone();
     Ok(LawyerDetailView {
         id: project.id.to_string(),
         code: project.code,
@@ -329,8 +334,21 @@ pub async fn get_lawyer_project_detail() -> Result<LawyerDetailView, ServerFnErr
         lawyer_dris,
         client_dris,
         viewer_is_lawyer_dri,
-        internal_slack_channel_url: project.internal_slack_channel_url,
-        external_slack_channel_url: project.external_slack_channel_url,
+        resources: crate::project_resources::ProjectResourcesView {
+            resources: crate::project_resources::visible_resources(
+                &crate::project_resources::ProjectResourceLinks {
+                    private_slack_channel_url: project.internal_slack_channel_url,
+                    private_notion_page_url: project.private_notion_page_url,
+                    drive_folder_id: project.drive_folder_id,
+                    shared_slack_channel_url: project.external_slack_channel_url,
+                    shared_notion_page_url: project.shared_notion_page_url,
+                },
+                &code_for_resources,
+                role,
+            ),
+            can_configure: role.is_lawyer_tier(),
+            project_code: code_for_resources.clone(),
+        },
         xero_invoice_url,
         repository_url,
         estate,
@@ -444,40 +462,16 @@ pub fn LawyerProjectDetail() -> Element {
                 }
             }
 
-            p { class: "lawyer-detail__actions",
-                {crate::app_chrome::portal_link(&view.code)}
-            }
-
             if let Some(estate) = view.estate.as_ref() {
                 EstateSection { project_code: view.code.clone(), estate: estate.clone(), csrf_token: csrf.clone() }
             }
 
-            if view.internal_slack_channel_url.is_some()
-                || view.external_slack_channel_url.is_some()
-                || view.xero_invoice_url.is_some()
-                || view.repository_url.is_some()
-            {
+            crate::project_resources::ProjectResourcesPanel { view: view.resources.clone() }
+
+            if view.xero_invoice_url.is_some() || view.repository_url.is_some() {
                 section { class: "lawyer-detail__section project-integrations",
                     h2 { "Integrations" }
                     p { class: "lawyer-detail__integration-links",
-                        if let Some(url) = view.internal_slack_channel_url.as_ref() {
-                            a {
-                                class: "nav-btn nav-btn--secondary",
-                                href: "{url}",
-                                target: "_blank",
-                                rel: "noopener noreferrer",
-                                "Internal Slack channel"
-                            }
-                        }
-                        if let Some(url) = view.external_slack_channel_url.as_ref() {
-                            a {
-                                class: "nav-btn nav-btn--secondary",
-                                href: "{url}",
-                                target: "_blank",
-                                rel: "noopener noreferrer",
-                                "External Slack channel"
-                            }
-                        }
                         if let Some(url) = view.xero_invoice_url.as_ref() {
                             a {
                                 class: "nav-btn nav-btn--secondary",

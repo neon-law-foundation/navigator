@@ -1421,6 +1421,14 @@ struct ProjectInput {
     /// it, so a matter opens without one and records it later.
     #[serde(default)]
     repository_url: String,
+    /// The firm-only Notion page for this matter. Only read by the
+    /// descriptive-update handler; the open-matter form has no field for it.
+    #[serde(default)]
+    private_notion_page_url: String,
+    /// The Notion page shared with the client, if any. Only read by the
+    /// descriptive-update handler; the open-matter form has no field for it.
+    #[serde(default)]
+    shared_notion_page_url: String,
     /// Set (to `"1"`) when the opening attorney ticks the required conflict
     /// attestation checkbox. The shared `open_matter` command refuses the open
     /// without it (`AttestationRequired`) — every open is attested, never
@@ -2159,6 +2167,8 @@ async fn projects_update_lawyer_only(
         internal_slack_channel_url: Some(input.internal_slack_channel_url),
         external_slack_channel_url: Some(input.external_slack_channel_url),
         repository_url: Some(input.repository_url),
+        private_notion_page_url: Some(input.private_notion_page_url),
+        shared_notion_page_url: Some(input.shared_notion_page_url),
     };
     match store::projects::update_project(&surreal, project_id, &command).await {
         Ok(_) => Redirect::to("/app/projects").into_response(),

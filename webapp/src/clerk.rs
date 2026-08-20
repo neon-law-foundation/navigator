@@ -62,6 +62,12 @@ pub struct ClerkProjectDetailView {
     /// id, another Clerk's matter, or a non-Clerk caller) — rendered as
     /// not-found under a committed `404`.
     pub project: Option<ClerkProjectRow>,
+    /// The matter's six collaboration resources, read-only. A Clerk is a firm
+    /// tier, so all six are visible; `can_configure` is `false`, because a
+    /// supervised non-lawyer reads the matter's working surfaces without
+    /// holding authority to change them.
+    #[serde(default)]
+    pub resources: crate::project_resources::ProjectResourcesView,
     pub role: ViewerRole,
     /// The deploy's firm name, for the document title. Resolved from the
     /// request-scoped branding rather than written into the copy, so a
@@ -176,6 +182,7 @@ pub async fn get_clerk_project() -> Result<ClerkProjectDetailView, ServerFnError
         Ok(ClerkProjectDetailView {
             firm_name: firm_name.clone(),
             project: None,
+            resources: crate::project_resources::ProjectResourcesView::default(),
             role,
         })
     };
@@ -197,6 +204,22 @@ pub async fn get_clerk_project() -> Result<ClerkProjectDetailView, ServerFnError
         return not_found(role);
     };
 
+    let resources = crate::project_resources::ProjectResourcesView {
+        resources: crate::project_resources::visible_resources(
+            &crate::project_resources::ProjectResourceLinks {
+                private_slack_channel_url: project.internal_slack_channel_url.clone(),
+                private_notion_page_url: project.private_notion_page_url.clone(),
+                drive_folder_id: project.drive_folder_id.clone(),
+                shared_slack_channel_url: project.external_slack_channel_url.clone(),
+                shared_notion_page_url: project.shared_notion_page_url.clone(),
+            },
+            &project.code,
+            role,
+        ),
+        // Read-only: a Clerk holds no authority to change a matter.
+        can_configure: false,
+        project_code: project.code.clone(),
+    };
     Ok(ClerkProjectDetailView {
         firm_name,
         project: Some(ClerkProjectRow {
@@ -206,6 +229,7 @@ pub async fn get_clerk_project() -> Result<ClerkProjectDetailView, ServerFnError
             status: project.status,
             lawyer_dri: supervisor.name,
         }),
+        resources,
         role,
     })
 }
@@ -348,9 +372,7 @@ pub fn ClerkProjectDetail() -> Element {
                         dt { "Supervising lawyer" }
                         dd { "{project.lawyer_dri}" }
                     }
-                    p { class: "portal-detail__actions",
-                        {crate::app_chrome::portal_link(&project.code)}
-                    }
+                    crate::project_resources::ProjectResourcesPanel { view: view.resources.clone() }
                     div { class: "nav-form-notice", role: "note",
                         strong { "Limited access. " }
                         "The Project's client portal is available above. Legal advice, drafting, approval, filing, Git, MCP, A2A, and conversations are not available on this surface."

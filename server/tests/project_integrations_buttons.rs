@@ -1,10 +1,13 @@
-//! Integration test: the "Integrations" section on `GET /app/projects/:code`
-//! — the internal/external Slack channel buttons and the Xero button for a
-//! matter's raised invoice.
+//! Integration test: the two resource-bearing sections on
+//! `GET /app/projects/:code` — the "Resources" panel (the matter's Slack
+//! channels, Notion pages, Drive folder, and portal) and the "Integrations"
+//! section that still carries Xero and the source repository.
 //!
-//! These are lawyer-only, same lens as the application repository links in
-//! `project_repo_clone_url.rs`: a client reaches the portal view and must
-//! never see them.
+//! The audience split is what these assert. Xero and the repository stay
+//! lawyer-only. A resource is firm-only or shared by *name*: a client sees the
+//! shared Slack channel and shared Notion page and never the private ones,
+//! because the private Notion page holds firm work product and the private
+//! channel holds lawyer-only chatter.
 
 use std::sync::Arc;
 
@@ -125,11 +128,28 @@ async fn get_as(app: &axum::Router, project_code: &str, cookie: &str) -> String 
 async fn a_matter_with_no_integrations_set_has_no_integrations_section() {
     let f = build_fixture().await;
     let html = get_as(&f.app, &f.project_code, &f.lawyer_cookie).await;
-    assert!(!html.contains("Integrations"));
+    assert!(!html.contains("Integrations"), "no Xero and no repository");
+    // The Resources panel is still here: the client portal is configured by the
+    // matter existing rather than by a column, so it is the one row a matter
+    // with nothing else set still carries.
+    assert!(html.contains("Resources"));
+    assert!(html.contains(r#"data-resource="client-portal""#));
+    for unset in [
+        "private-slack-channel",
+        "private-notion-page",
+        "private-drive-folder",
+        "shared-slack-channel",
+        "shared-notion-page",
+    ] {
+        assert!(
+            !html.contains(&format!(r#"data-resource="{unset}""#)),
+            "an unset resource must not render a slot: {unset}"
+        );
+    }
 }
 
-/// The internal Slack channel always renders when set; the external one is
-/// genuinely optional and only appears when the matter has one.
+/// The private Slack channel renders when set; the shared one is genuinely
+/// optional and only appears when the matter has one.
 #[tokio::test]
 async fn lawyer_sees_the_internal_slack_button_and_the_optional_external_one() {
     const INTERNAL: &str = "https://neonlaw.slack.com/archives/C0INTERNAL";
@@ -139,23 +159,21 @@ async fn lawyer_sees_the_internal_slack_button_and_the_optional_external_one() {
         f.project_id,
         &store::projects::UpdateProjectCommand {
             name: "Libra integrations".into(),
-            entity_id: None,
-            description: None,
             internal_slack_channel_url: Some(INTERNAL.into()),
-            external_slack_channel_url: None,
-            repository_url: None,
+            ..Default::default()
         },
     )
     .await
     .unwrap();
 
     let html = get_as(&f.app, &f.project_code, &f.lawyer_cookie).await;
-    assert!(html.contains("Integrations"));
+    assert!(html.contains("Resources"));
     assert!(html.contains(INTERNAL));
-    assert!(html.contains("Internal Slack channel"));
+    assert!(html.contains(r#"data-resource="private-slack-channel""#));
+    assert!(html.contains("Private Slack channel"));
     assert!(
-        !html.contains("External Slack channel"),
-        "no external channel was set"
+        !html.contains(r#"data-resource="shared-slack-channel""#),
+        "no shared channel was set"
     );
 }
 
@@ -168,11 +186,8 @@ async fn lawyer_sees_the_external_slack_button_when_the_matter_has_one() {
         f.project_id,
         &store::projects::UpdateProjectCommand {
             name: "Libra integrations".into(),
-            entity_id: None,
-            description: None,
-            internal_slack_channel_url: None,
             external_slack_channel_url: Some(EXTERNAL.into()),
-            repository_url: None,
+            ..Default::default()
         },
     )
     .await
@@ -180,7 +195,8 @@ async fn lawyer_sees_the_external_slack_button_when_the_matter_has_one() {
 
     let html = get_as(&f.app, &f.project_code, &f.lawyer_cookie).await;
     assert!(html.contains(EXTERNAL));
-    assert!(html.contains("External Slack channel"));
+    assert!(html.contains(r#"data-resource="shared-slack-channel""#));
+    assert!(html.contains("Shared Slack channel"));
 }
 
 /// The Xero button links straight to the matter's raised invoice, mirrored
@@ -211,29 +227,38 @@ async fn lawyer_sees_the_xero_button_pointing_at_the_raised_invoice() {
     assert!(html.contains(">Xero<"));
 }
 
-/// A client never sees any of the three lawyer-only integration buttons, even
-/// when every one of them is present on the matter.
+/// **The confidentiality boundary.** A client sees the resources shared with
+/// them and none of the firm's, even with every one of them set — and never
+/// Xero or the source repository, which stay wholly lawyer-only.
+///
+/// The private Notion page is firm work product and the private channel is
+/// lawyer-only chatter, so this asserts on the URLs themselves: a filter that
+/// dropped a row's label while leaving its `href` in the markup would still
+/// have leaked the address.
 #[tokio::test]
-async fn client_never_sees_any_integration_button() {
+async fn a_client_sees_the_shared_resources_and_none_of_the_firms() {
+    const PRIVATE_SLACK: &str = "https://neonlaw.slack.com/archives/C0PRIVATE";
+    const SHARED_SLACK: &str = "https://neonlaw.slack.com/archives/C0SHARED";
+    const PRIVATE_NOTION: &str = "https://www.notion.so/neonlaw/Private-abc123";
+    const SHARED_NOTION: &str = "https://www.notion.so/neonlaw/Shared-def456";
     let f = build_fixture().await;
     store::projects::update_project(
         &f.surreal,
         f.project_id,
         &store::projects::UpdateProjectCommand {
             name: "Libra integrations".into(),
-            entity_id: None,
-            description: None,
-            internal_slack_channel_url: Some(
-                "https://neonlaw.slack.com/archives/C0INTERNAL".into(),
-            ),
-            external_slack_channel_url: Some(
-                "https://neonlaw.slack.com/archives/C0EXTERNAL".into(),
-            ),
-            repository_url: None,
+            internal_slack_channel_url: Some(PRIVATE_SLACK.into()),
+            external_slack_channel_url: Some(SHARED_SLACK.into()),
+            private_notion_page_url: Some(PRIVATE_NOTION.into()),
+            shared_notion_page_url: Some(SHARED_NOTION.into()),
+            ..Default::default()
         },
     )
     .await
     .unwrap();
+    store::projects::set_drive_folder_id(&f.surreal, f.project_id, Some("1QaBcDPRIVATE"))
+        .await
+        .unwrap();
     store::xero_invoices::upsert(
         &f.surreal,
         &store::xero_invoices::UpsertXeroInvoice {
@@ -253,7 +278,37 @@ async fn client_never_sees_any_integration_button() {
         html.contains("Libra integrations"),
         "renders the client view"
     );
-    assert!(!html.contains("slack.com"));
-    assert!(!html.contains("go.xero.com"));
-    assert!(!html.contains("Integrations"));
+
+    // Shared with the client, so shown.
+    assert!(html.contains(SHARED_SLACK), "the shared channel is theirs");
+    assert!(html.contains(SHARED_NOTION), "the shared page is theirs");
+    assert!(html.contains(r#"data-resource="client-portal""#));
+
+    // The firm's side, and the lawyer-only integrations: none of it reaches the
+    // page, by URL or by row.
+    for firm_only in [
+        PRIVATE_SLACK,
+        PRIVATE_NOTION,
+        "1QaBcDPRIVATE",
+        "drive.google.com",
+        "go.xero.com",
+    ] {
+        assert!(
+            !html.contains(firm_only),
+            "a client's page leaked `{firm_only}`"
+        );
+    }
+    for firm_row in [
+        "private-slack-channel",
+        "private-notion-page",
+        "private-drive-folder",
+    ] {
+        assert!(
+            !html.contains(&format!(r#"data-resource="{firm_row}""#)),
+            "a client's page rendered the firm-only row `{firm_row}`"
+        );
+    }
+    assert!(!html.contains("Integrations"), "Xero stays lawyer-only");
+    // A client configures nothing.
+    assert!(!html.contains("Configure resources"));
 }

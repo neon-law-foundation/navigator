@@ -2135,6 +2135,57 @@ a.nav-link:hover {
   gap: 0.5rem;
 }
 
+/* The matter's collaboration-resource panel — the six places work on a
+ * Project happens (Slack, Notion, Drive, portal). One row per resource, each
+ * opening on its vendor mark so a reader tells them apart by shape before
+ * reading a word. A plain list rather than a button row: the labels are long
+ * enough ("Private Slack channel") that buttons would wrap mid-phrase. */
+.project-resources__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* Two columns where there is room, one on a narrow viewport. The firm's
+   * three resources fill the first column and the shared three the second,
+   * which is the reading order the panel renders in. */
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.5rem;
+}
+
+.project-resources__link {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--nav-color-border);
+  border-radius: var(--nav-radius-sm);
+  background: var(--nav-color-surface);
+  color: var(--nav-color-text);
+  text-decoration: none;
+}
+
+.project-resources__link:hover,
+.project-resources__link:focus-visible {
+  background: var(--nav-color-surface-subtle);
+  color: var(--nav-color-link-hover);
+}
+
+/* A fixed box so the four marks — drawn on three different viewBoxes — line
+ * up down the column instead of each sizing to its own artwork. */
+.project-resources__mark {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.project-resources__label {
+  min-width: 0;
+}
+
+.project-resources__configure {
+  margin: 0.75rem 0 0;
+}
+
 /* The estate workflow-state token, shown next to "Workflow state:". */
 .estate-state {
   font-variant: small-caps;
