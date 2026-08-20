@@ -1,10 +1,10 @@
 //! Integration coverage for environment-aware seed orchestration.
 //!
-//! The simulated-matter fixture is a `SurrealDB` projects-cluster concern.
+//! The sample-matter fixture is a `SurrealDB` projects-cluster concern.
 //! These tests assert the public project and participation read seams.
 //!
 //! Every test drives [`store::seed::seed_environment_with`] rather than
-//! `seed_environment`, so the simulated-matter decision is an argument instead
+//! `seed_environment`, so the sample-matter decision is an argument instead
 //! of a read of process environment. A sourced `.devx/env` would otherwise
 //! decide what these tests assert.
 
@@ -30,7 +30,7 @@ async fn storage() -> Arc<dyn cloud::StorageService> {
 /// fixture people either. This is the assertion the whole
 /// `NAVIGATOR_SIMULATED_MATTERS` default exists to keep true.
 #[tokio::test]
-async fn a_seed_without_simulated_matters_has_no_disposable_projects_or_people() {
+async fn a_seed_without_sample_matters_has_no_disposable_projects_or_people() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
@@ -62,15 +62,15 @@ async fn a_seed_without_simulated_matters_has_no_disposable_projects_or_people()
 #[tokio::test]
 async fn the_profile_decides_when_nothing_says_otherwise() {
     assert!(
-        store::simulated_matters_from(DeploymentEnvironment::Dev, |_| None).unwrap(),
+        store::sample_matters_from(DeploymentEnvironment::Dev, |_| None).unwrap(),
         "a dev boot has nothing but fixtures"
     );
     assert!(
-        !store::simulated_matters_from(DeploymentEnvironment::Production, |_| None).unwrap(),
+        !store::sample_matters_from(DeploymentEnvironment::Production, |_| None).unwrap(),
         "an unconfigured production deployment seeds no invented matters"
     );
     assert!(
-        store::simulated_matters_from(DeploymentEnvironment::Production, |_| Some(
+        store::sample_matters_from(DeploymentEnvironment::Production, |_| Some(
             "true".to_string()
         ))
         .unwrap(),
@@ -78,7 +78,7 @@ async fn the_profile_decides_when_nothing_says_otherwise() {
     );
 }
 
-/// The fixture opens all three simulated matters, each with both DRIs, and
+/// The fixture opens all three sample matters, each with both DRIs, and
 /// nothing else.
 ///
 /// Three rather than one on purpose: one matter can only ever demonstrate one
@@ -86,7 +86,7 @@ async fn the_profile_decides_when_nothing_says_otherwise() {
 /// looking at with a single row in it. The count is asserted exactly, so a
 /// fourth matter added to the table has to come here and say so.
 #[tokio::test]
-async fn the_fixture_opens_the_three_simulated_matters_with_dris() {
+async fn the_fixture_opens_the_three_sample_matters_with_dris() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
@@ -103,11 +103,16 @@ async fn the_fixture_opens_the_three_simulated_matters_with_dris() {
         .unwrap()
         .expect("lawyer fixture");
 
-    let codes = store::seed::simulated_matter_codes();
+    let codes = store::seed::sample_matter_codes();
     assert_eq!(
         codes,
-        ["donut-litigation", "widget-works", "montgomery-estate"]
+        ["sample-litigation", "sample-transactional", "sample-estate"]
     );
+
+    let dri = persons::find_by_email_ci(&surreal, store::seed::bootstrap_owner_email().as_str())
+        .await
+        .unwrap()
+        .expect("bootstrap owner");
 
     for code in &codes {
         let matter = projects::find_by_code(&surreal, code)
@@ -119,7 +124,7 @@ async fn the_fixture_opens_the_three_simulated_matters_with_dris() {
         assert_eq!(matter.status, "open", "{code}");
         assert_eq!(
             matter.repository_url.as_deref(),
-            store::seed::simulated_matter_repository(code),
+            store::seed::sample_matter_repository(code),
             "{code} records the repository its portal bundle is built from"
         );
 
@@ -132,11 +137,20 @@ async fn the_fixture_opens_the_three_simulated_matters_with_dris() {
             }),
             "{code} has a client DRI"
         );
+        // The disclosed lawyer participates; the *accountable* lawyer is the
+        // deployment's bootstrap owner, which is what a Clerk resolves and what
+        // a matter is answered for.
         assert!(
-            participations.iter().any(|row| {
-                row.person_id == lawyer.id && row.participation == "attorney" && row.is_lawyer_dri
-            }),
-            "{code} has a lawyer DRI"
+            participations
+                .iter()
+                .any(|row| { row.person_id == lawyer.id && row.participation == "attorney" }),
+            "{code} discloses a licensed lawyer"
+        );
+        assert!(
+            participations
+                .iter()
+                .any(|row| { row.person_id == dri.id && row.is_lawyer_dri }),
+            "{code} names the bootstrap owner as lawyer DRI"
         );
     }
 
@@ -168,7 +182,7 @@ async fn the_fixture_admin_participates_in_nothing() {
         .unwrap()
         .expect("the fixture admin can sign in");
 
-    for code in store::seed::simulated_matter_codes() {
+    for code in store::seed::sample_matter_codes() {
         let matter = projects::find_by_code(&surreal, code)
             .await
             .unwrap()
@@ -193,7 +207,7 @@ async fn the_fixture_admin_participates_in_nothing() {
 /// the widget company indistinguishable on any surface that reads the Entity
 /// rather than the Project.
 #[tokio::test]
-async fn each_simulated_matter_has_its_own_client_entity() {
+async fn each_sample_matter_has_its_own_client_entity() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
@@ -202,7 +216,7 @@ async fn each_simulated_matter_has_its_own_client_entity() {
         .unwrap();
 
     let mut entities = Vec::new();
-    for code in store::seed::simulated_matter_codes() {
+    for code in store::seed::sample_matter_codes() {
         entities.push(
             projects::find_by_code(&surreal, code)
                 .await
@@ -217,7 +231,7 @@ async fn each_simulated_matter_has_its_own_client_entity() {
     assert_eq!(
         distinct.len(),
         entities.len(),
-        "each simulated matter is opened for its own client"
+        "each sample matter is opened for its own client"
     );
 }
 
@@ -229,7 +243,7 @@ async fn the_fixture_is_idempotent_and_repairs_participation_drift() {
     store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
         .await
         .unwrap();
-    let litigation = projects::find_by_code(&surreal, "donut-litigation")
+    let litigation = projects::find_by_code(&surreal, "sample-litigation")
         .await
         .unwrap()
         .into_iter()
@@ -312,7 +326,7 @@ async fn the_fixture_does_not_claim_a_same_named_project() {
         "closed"
     );
     assert_ne!(
-        projects::find_by_code(&surreal, "donut-litigation")
+        projects::find_by_code(&surreal, "sample-litigation")
             .await
             .unwrap()
             .expect("the seeded litigation matter")
@@ -326,7 +340,7 @@ async fn the_fixture_does_not_claim_a_same_named_project() {
 /// boot must carry every box we actually answer mail at.
 ///
 /// Their being real is the point. `Address.yaml` used to sit in the disposable
-/// simulated-matter fixture, which supplies the local matter rows
+/// sample-matter fixture, which supplies the local matter rows
 /// existed only on a developer's laptop.
 ///
 /// One boot carries them all now. The firm and the Foundation seeded from
@@ -515,11 +529,11 @@ async fn the_brand_layer_is_idempotent_across_boots() {
     assert_eq!(store::addresses::list_all(&surreal).await.unwrap().len(), 5);
 }
 
-/// The `dev` portfolio's simulated mail still arrives after the mail centre
+/// The `dev` portfolio's sample mail still arrives after the mail centre
 /// moved layers.
 ///
 /// `seed_letters` resolves its mailroom by name and *skips* a record it cannot
-/// find, so moving `seed_mailrooms` from the simulated-matter fixture into the
+/// find, so moving `seed_mailrooms` from the sample-matter fixture into the
 /// brand layer put a cross-layer ordering dependency between them. It holds
 /// only because `seed_environment` applies the brand layer before the
 /// portfolio; reverse those two calls and this suite still passes everywhere
@@ -536,7 +550,7 @@ async fn the_dev_portfolios_mail_survives_the_mailroom_moving_layers() {
     let letters = store::letters::list_all(&surreal).await.unwrap();
     assert!(
         !letters.is_empty(),
-        "a dev boot seeds the simulated mail; an empty set means the mailroom \
+        "a dev boot seeds the sample mail; an empty set means the mailroom \
          lookup silently skipped every record"
     );
     assert!(letters

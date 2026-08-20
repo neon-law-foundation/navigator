@@ -1,11 +1,11 @@
 # Using the Navigator Workshop
 
-This workshop uses one local matter from start to finish: **Cruller v. Prine**. The matter code is `donut-litigation`,
+This workshop uses one local matter from start to finish: **Cruller v. Prine**. The matter code is `sample-litigation`,
 its portal application is the [litigation sample
 project](https://github.com/neon-law-foundation/navigator-sample-project-litigation), and its local data is synthetic.
 Every attendee sees the same matter through the role assigned to their local account.
 
-The fixture seeds two more matters beside it — `widget-works` and `montgomery-estate` — so the participation-scoped
+The fixture seeds two more matters beside it — `sample-transactional` and `sample-estate` — so the participation-scoped
 project list has something in it. The exercises stay on one matter on purpose; the other two are there to be seen from
 `/app/projects`, not worked.
 
@@ -30,13 +30,13 @@ reference.
 The local development fixture seeds three open Projects. This is the one the workshop works:
 
 - **Name** — Cruller v. Prine
-- **Code** — `donut-litigation`
+- **Code** — `sample-litigation`
 - **Matter** — premises liability
 - **Repository** —
   [navigator-sample-project-litigation](https://github.com/neon-law-foundation/navigator-sample-project-litigation)
-- **Portal** — `/app/projects/donut-litigation/portal/`
+- **Portal** — `/app/projects/sample-litigation/portal/`
 
-The other two seeded matters are `widget-works` (a company on a monthly retainer) and `montgomery-estate` (an estate
+The other two seeded matters are `sample-transactional` (a company on a monthly retainer) and `sample-estate` (an estate
 plan). Each carries its own repository and its own portal bundle, mounted the same way.
 
 The Project code is the public URL key. Codes use lowercase letters and numbers separated by single hyphens, so a
@@ -58,7 +58,7 @@ set -a; source .devx/env; set +a
 cargo run -p neon
 ```
 
-The boot command provisions the KIND dependency tier, applies the schema, seeds the simulated matters, clones and builds
+The boot command provisions the KIND dependency tier, applies the schema, seeds the sample matters, clones and builds
 each sample project, stages every `dist/` output, and writes the generated environment. The host web process reads that
 environment on startup, so the real sample applications are ready at their portal links after each boot.
 
@@ -66,7 +66,7 @@ The explicit refresh command uses the same build and staging path when a sample 
 refreshes only that bundle, which is the fast loop while iterating on a single app:
 
 ```bash
-cargo run -p cli -- dev sample-project --project donut-litigation
+cargo run -p cli -- dev sample-project --project sample-litigation
 ```
 
 Restart `web` after refreshing so it reads the new staged bundle. The generated `.devx/env` contains
@@ -90,10 +90,10 @@ The local Rauthy fixture supplies five role-named accounts, all using the passwo
 | `client@neonlaw.com` | client | client matter view and portal |
 
 Open `$NAV_BASE_URL/auth/login`. Firm accounts land on `/app/team`; the client account lands on `/app/projects`. The
-project list and detail page use `donut-litigation` in the URL. The client portal is available at:
+project list and detail page use `sample-litigation` in the URL. The client portal is available at:
 
 ```text
-$NAV_BASE_URL/app/projects/donut-litigation/portal/
+$NAV_BASE_URL/app/projects/sample-litigation/portal/
 ```
 
 The portal is participation-scoped. The client, lawyer, clerk, and owner rows are part of the fixture, and the admin
@@ -115,7 +115,7 @@ Have each attendee sign in with the role relevant to their work. Keep the browse
 The shared retainer template is available in the canonical catalog. A lawyer can bind it through the AIDA catalog:
 
 ```text
-aida_create_notation(template_code="onboarding__retainer", project_id=<donut-litigation project id>)
+aida_create_notation(template_code="onboarding__retainer", project_id=<sample-litigation project id>)
 ```
 
 The notation begins in its seeded workflow state. The lawyer reviews the generated work, advances the workflow through
@@ -132,7 +132,7 @@ that list, because the fixture client participates in each one. The detail page 
 address bar:
 
 ```text
-/app/projects/donut-litigation
+/app/projects/sample-litigation
 ```
 
 Select the portal link to open the sample application's bundled client experience. The application is built from the
@@ -148,7 +148,7 @@ Ask the room to identify what the client can see from this page and what the fir
 The sample repository declares its Navigator Project in `navigator.yml`:
 
 ```yaml
-name: donut-litigation
+name: sample-litigation
 ```
 
 Edit the sample project, run the refresh command, restart `web`, and reload the portal URL. Boot validates the manifest,
@@ -162,7 +162,7 @@ publishing one would put one client's application on another client's portal.
 ---
 
 Make one small visual change, refresh the bundle, and show the reloaded portal. The manifest name remains
-`donut-litigation`.
+`sample-litigation`.
 
 ## Wrap Up
 
@@ -181,8 +181,8 @@ suite and feature walkthrough cover the same fixture and its seeded participatio
 cargo nextest run --workspace && cargo test -p features
 ```
 
-The workshop is ready when the litigation matter appears in the intended role view, `/app/projects/donut-litigation` is
-the detail URL, and `/app/projects/donut-litigation/portal/` renders the sample application.
+The workshop is ready when the litigation matter appears in the intended role view, `/app/projects/sample-litigation` is
+the detail URL, and `/app/projects/sample-litigation/portal/` renders the sample application.
 
 ---
 

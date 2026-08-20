@@ -539,7 +539,7 @@ enum DevCmd {
     /// `lawyer` role so the browser e2e's admin-gated walk can run.
     /// Native Rust.
     GrantLawyer,
-    /// Refresh and stage each simulated matter's reference application for the
+    /// Refresh and stage each sample matter's reference application for the
     /// next local web boot. The checkouts and builds happen in temporary
     /// directories; each built `dist/` and `navigator.yml` survives under
     /// `.devx/sample-projects/<code>`, and the generated `.devx/env` points

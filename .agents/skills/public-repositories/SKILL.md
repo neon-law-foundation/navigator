@@ -17,9 +17,9 @@ The Neon Law Foundation publishes six repositories on github.com, all in the `ne
 | --- | --- |
 | `navigator` | The Rust workspace: the delivery stack and the firm's website |
 | `navigator-ux` | The shared React component library Project portals build against |
-| `navigator-sample-project-litigation` | The disputes Project application, mounted by `donut-litigation` |
-| `navigator-sample-project-transactional` | The company-counsel Project application, mounted by `widget-works` |
-| `navigator-sample-project-estate` | The estate Project application, mounted by `montgomery-estate` |
+| `navigator-sample-project-litigation` | The disputes Project application, mounted by `sample-litigation` |
+| `navigator-sample-project-transactional` | The company-counsel application, mounted by `sample-transactional` |
+| `navigator-sample-project-estate` | The estate Project application, mounted by `sample-estate` |
 | `homebrew-navigator` | The Homebrew tap for the `navigator` CLI |
 
 `navigator` is the reference. A new repository copies its shape; a repository that has drifted is brought back to it.

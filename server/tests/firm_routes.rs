@@ -1707,7 +1707,7 @@ async fn the_navigator_class_renders_the_sample_project_exercise() {
         .await,
     )
     .await;
-    assert!(body.contains("donut-litigation"), "{body}");
+    assert!(body.contains("sample-litigation"), "{body}");
     assert!(body.contains("stages the output"), "{body}");
     assert!(body.contains("manifest name remains"), "{body}");
 }

@@ -27,39 +27,37 @@ pub enum DeploymentEnvironment {
     Production,
 }
 
-/// Whether this deployment's matters are simulated rather than real.
+/// Whether this deployment's matters are sample rather than real.
 ///
-/// A deployment carrying simulated matters says so out loud: it seeds the
+/// A deployment carrying sample matters says so out loud: it seeds the
 /// fixture matters and publishes a site-wide banner telling every visitor that
 /// nothing they are looking at is a real client's file.
 pub const NAVIGATOR_SIMULATED_MATTERS: &str = "NAVIGATOR_SIMULATED_MATTERS";
 
 /// Why a `NAVIGATOR_SIMULATED_MATTERS` value could not be read.
 #[derive(Debug, Error, PartialEq, Eq)]
-pub enum SimulatedMattersError {
+pub enum SampleMattersError {
     #[error(
         "NAVIGATOR_SIMULATED_MATTERS must be unset, empty, or exactly `true` or `false`; got `{0}`"
     )]
     Invalid(String),
 }
 
-/// Whether this deployment carries simulated matters, from the environment.
+/// Whether this deployment carries sample matters, from the environment.
 ///
 /// # Errors
 ///
-/// Returns [`SimulatedMattersError::Invalid`] for any value that is not
+/// Returns [`SampleMattersError::Invalid`] for any value that is not
 /// exactly `true` or `false`.
-pub fn simulated_matters(
-    environment: DeploymentEnvironment,
-) -> Result<bool, SimulatedMattersError> {
-    simulated_matters_from(environment, |key| std::env::var(key).ok())
+pub fn sample_matters(environment: DeploymentEnvironment) -> Result<bool, SampleMattersError> {
+    sample_matters_from(environment, |key| std::env::var(key).ok())
 }
 
-/// [`simulated_matters`] with the environment read through `get`, so the
+/// [`sample_matters`] with the environment read through `get`, so the
 /// decision is testable without mutating process state.
 ///
 /// Unset or empty follows the deployment profile: a `dev` boot carries
-/// simulated matters because that is the only thing a `dev` boot has, and a
+/// sample matters because that is the only thing a `dev` boot has, and a
 /// `production` boot does not because production is where the real files are.
 ///
 /// An explicit value overrides that in **both** directions, and the direction
@@ -74,15 +72,15 @@ pub fn simulated_matters(
 /// The parser is exact for the same reason [`DeploymentEnvironment::from_lookup`]
 /// is: a typo that silently resolved to the permissive answer would seed
 /// invented clients into a database of real ones.
-pub fn simulated_matters_from<F: Fn(&str) -> Option<String>>(
+pub fn sample_matters_from<F: Fn(&str) -> Option<String>>(
     environment: DeploymentEnvironment,
     get: F,
-) -> Result<bool, SimulatedMattersError> {
+) -> Result<bool, SampleMattersError> {
     match get(NAVIGATOR_SIMULATED_MATTERS).as_deref() {
         None | Some("") => Ok(environment != DeploymentEnvironment::Production),
         Some("true") => Ok(true),
         Some("false") => Ok(false),
-        Some(other) => Err(SimulatedMattersError::Invalid(other.to_owned())),
+        Some(other) => Err(SampleMattersError::Invalid(other.to_owned())),
     }
 }
 
@@ -121,8 +119,8 @@ impl DeploymentEnvironment {
 #[cfg(test)]
 mod tests {
     use super::{
-        simulated_matters_from, DeploymentEnvironment, DeploymentEnvironmentError,
-        SimulatedMattersError, NAVIGATOR_ENVIRONMENT, NAVIGATOR_SIMULATED_MATTERS,
+        sample_matters_from, DeploymentEnvironment, DeploymentEnvironmentError, SampleMattersError,
+        NAVIGATOR_ENVIRONMENT, NAVIGATOR_SIMULATED_MATTERS,
     };
 
     /// Unset follows the profile, an explicit value overrides it in both
@@ -134,7 +132,7 @@ mod tests {
     /// the persistent staging deployment, which runs the production profile
     /// over a synthetic data plane and has to say so.
     #[test]
-    fn simulated_matters_defaults_to_the_profile_and_is_overridable() {
+    fn sample_matters_defaults_to_the_profile_and_is_overridable() {
         use DeploymentEnvironment::{Dev, Production};
 
         let cases = [
@@ -152,7 +150,7 @@ mod tests {
         ];
         for ((environment, value), expected) in cases {
             assert_eq!(
-                simulated_matters_from(environment, |key| {
+                sample_matters_from(environment, |key| {
                     assert_eq!(key, NAVIGATOR_SIMULATED_MATTERS);
                     value.map(str::to_owned)
                 }),
@@ -163,18 +161,18 @@ mod tests {
     }
 
     /// Every near-miss is refused rather than resolved to the permissive
-    /// answer. A `TRUE` that quietly read as "no simulated matters" would be
+    /// answer. A `TRUE` that quietly read as "no sample matters" would be
     /// a staging deployment serving an empty portfolio with no banner; a
-    /// `yes` that quietly read as "simulated" would be production seeding
+    /// `yes` that quietly read as "sample" would be production seeding
     /// invented clients beside real ones.
     #[test]
-    fn simulated_matters_parser_is_exact() {
+    fn sample_matters_parser_is_exact() {
         for value in ["True", "TRUE", "1", "yes", "on", " true", "true ", "False"] {
             assert_eq!(
-                simulated_matters_from(DeploymentEnvironment::Production, |_| Some(
+                sample_matters_from(DeploymentEnvironment::Production, |_| Some(
                     value.to_owned()
                 )),
-                Err(SimulatedMattersError::Invalid(value.to_owned())),
+                Err(SampleMattersError::Invalid(value.to_owned())),
                 "`{value}` must not parse"
             );
         }

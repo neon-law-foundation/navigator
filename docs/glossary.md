@@ -149,8 +149,8 @@ reach production:
 
 1. **Canonical** — the shared identities, reference data, and catalog. Every brand, every environment.
 2. **Brand** — this layer. The booting brand only, every environment.
-3. **[Simulated matter fixture](#simulated-matter-fixture)** — three synthetic matters, their local participants, and
-   their supporting rows. Applied only where the matters are simulated, so the shared examples are ready whenever local
+3. **[Sample matter fixture](#sample-matter-fixture)** — three synthetic matters, their local participants, and
+   their supporting rows. Applied only where the matters are sample, so the shared examples are ready whenever local
    development starts and never reach a deployment holding real files.
 
 A brand declares its `BrandSeed` in the `Brand` value it hands to the shared run loop, so the seed set is chosen by
@@ -338,8 +338,8 @@ The infrastructure profile selected by `NAVIGATOR_ENVIRONMENT`. Exact `dev` serv
 empty, or unset serves production. The parser reports every other value as an error. `NAVIGATOR_CI_HARNESS` adds fake
 providers to the `dev` profile for automated tests.
 
-Every profile applies the canonical seed and the [Brand Seed](#brand-seed). Whether the [Simulated Matter
-Fixture](#simulated-matter-fixture) is applied on top is a *separate* selector, `NAVIGATOR_SIMULATED_MATTERS`, which
+Every profile applies the canonical seed and the [Brand Seed](#brand-seed). Whether the [Sample Matter
+Fixture](#sample-matter-fixture) is applied on top is a *separate* selector, `NAVIGATOR_SIMULATED_MATTERS`, which
 defaults to following this one and can be set explicitly either way. The combination that needs the second selector is
 the persistent staging deployment: it runs the `production` profile deliberately, so nothing in the process could
 otherwise tell it apart from the deployment holding real matters.
@@ -1043,6 +1043,37 @@ repository, and it is unrelated to Projects (see [Project](#project)), which hav
 - Schema and queries: [`store::git_repositories`](../store/src/git_repositories.rs) (SurrealDB; #1093, ENG-20) —
   [`store/src/schema/navigator.surql`](../store/src/schema/navigator.surql)
 
+## Resource
+
+One of the six places work on a [Project](#project) happens: a private Slack channel, a private Notion page, a private
+Google Drive folder, and — optionally — a Slack channel shared with the client, a Notion page shared with the client,
+and the matter's client portal. Rendered as the matter page's *Resources* panel, each row opening on the service's own
+mark.
+
+A resource is **firm-only or shared, and its name says which.** That split is the point rather than a label: the private
+Notion page holds firm work product and the private channel holds lawyer-only chatter, so a client who could see either
+would be reading the other side of their own matter. `webapp::project_resources::visible_resources` is the single place
+the split is applied, and it filters by *audience* — a firm-only resource is never built for a client, so its URL
+reaches neither the markup nor the hydration payload.
+
+**An unset resource is absent, never an empty slot.** A matter with no shared Notion page and a matter whose firm keeps
+one privately look identical to the client, which is the same toggle-blindness a [Module](#module) gets from having no
+row. Reading the private half is every firm tier ([Clerk](#role) included); *configuring* any of them is the lawyer
+tiers, through the matter edit form — the panel renders no inputs of its own, so there is one write path.
+
+Four of the six are stored URLs on the `project` row (`internal_slack_channel_url`, `external_slack_channel_url`,
+`private_notion_page_url`, `shared_notion_page_url`), each validated by
+[`store::projects::is_valid_resource_url`](../store/src/projects.rs) because each is rendered as an `href`. The Drive
+row is derived from `drive_folder_id`, and the portal row is configured by the matter existing rather than by a column.
+
+Navigator stores addresses, not permissions. Who may open a Notion page or a Drive folder is governed by that service's
+own sharing, which Navigator neither reads nor enforces — so a page named "private" here is only private if it was
+shared that way in Notion.
+
+- Rendering and the audience filter: [`webapp::project_resources`](../webapp/src/project_resources.rs) · marks:
+  [`webapp::components::resource_mark`](../webapp/src/components/resource_mark.rs) · columns:
+  [`store/src/schema/navigator.surql`](../store/src/schema/navigator.surql)
+
 ## Restate
 
 The **durable execution layer** in production — [restate.dev](https://restate.dev). An open-source workflow orchestrator
@@ -1115,6 +1146,28 @@ login as `owner`.
   [`navigator.surql`](../store/src/schema/navigator.surql); Anonymous is the absence of a row.
 - See [`docs/access-model.md`](access-model.md) for the full role + [Participation](#participation) model.
 
+## Sample Matter Fixture
+
+The three synthetic matters a boot applies on top of the canonical seed wherever `NAVIGATOR_SIMULATED_MATTERS` resolves
+true. Written by [`store::seed::seed_sample_portfolio`](../store/src/seed.rs), idempotent, and it keeps the local
+accounts and all three matters ready for the firm, clerk, and client surfaces.
+
+The three are deliberately different shapes of legal work, because one matter can only demonstrate one:
+
+| Code | Matter | Practice | Client |
+| --- | --- | --- | --- |
+| `sample-litigation` | *Cruller v. Prine* | trespass and rescission | an individual plaintiff |
+| `sample-transactional` | *Widget Works — Outside Counsel* | employment and contract review | a Nevada C-Corp |
+| `sample-estate` | *Estate of Cornelius Montgomery* | an estate plan | an individual testator |
+
+Each carries its own companion application, refreshed from its own public repository during local boot and served at
+`/app/projects/{code}/portal/`. The project code is the URL slug: lowercase letters and numbers joined by single
+hyphens, with no UUID in the project show URL.
+
+The fixture Client participates in all three, so a signed-in client sees a project list worth looking at. The fixture
+Admin participates in none of them — see [Deployment Environment](#deployment-environment) for which deployments apply
+this layer at all.
+
 ## Sent for Signature
 
 The workflow prefix `sent_for_signature` is a system wait state for an outbound e-signature request; a provider webhook
@@ -1139,28 +1192,6 @@ real [Person](#person) (the respondent, or the attorney of record) when the [Not
 `field` is the field type: `signature`, `initials`, or `date`. Validity is enforced by rule **N107**
 ([`rules::f107`](../rules/src/f107.rs)): the signer and field must be known, and a Template that draws any signature
 block must declare a `sent_for_signature` (or `sent_for_signature__*`) [State](#state) to collect the signature.
-
-## Simulated Matter Fixture
-
-The three synthetic matters a boot applies on top of the canonical seed wherever `NAVIGATOR_SIMULATED_MATTERS` resolves
-true. Written by [`store::seed::seed_simulated_portfolio`](../store/src/seed.rs), idempotent, and it keeps the local
-accounts and all three matters ready for the firm, clerk, and client surfaces.
-
-The three are deliberately different shapes of legal work, because one matter can only demonstrate one:
-
-| Code | Matter | Practice | Client |
-| --- | --- | --- | --- |
-| `donut-litigation` | *Cruller v. Prine* | trespass and rescission of a doughnut instrument | an individual plaintiff |
-| `widget-works` | *Widget Works — Outside Counsel* | employment agreements and contract review | a Nevada C-Corp |
-| `montgomery-estate` | *Estate of Cornelius Montgomery* | an estate plan | an individual testator |
-
-Each carries its own companion application, refreshed from its own public repository during local boot and served at
-`/app/projects/{code}/portal/`. The project code is the URL slug: lowercase letters and numbers joined by single
-hyphens, with no UUID in the project show URL.
-
-The fixture Client participates in all three, so a signed-in client sees a project list worth looking at. The fixture
-Admin participates in none of them — see [Deployment Environment](#deployment-environment) for which deployments apply
-this layer at all.
 
 ## Standing Data Store
 
@@ -1333,7 +1364,7 @@ roster, and a durable record of who completed what; the material supplies the te
 the two apart is what lets a workshop carry a real roster without the content losing the build-time guards that hold it
 honest against the repository.
 
-Workshops belong to the staging deployment, which carries simulated matters by design; the two environments holding real
+Workshops belong to the staging deployment, which carries sample matters by design; the two environments holding real
 people's matters never seed them.
 
-- See also: [Simulated Matter Fixture](#simulated-matter-fixture) and [`environments.md`](environments.md)
+- See also: [Sample Matter Fixture](#sample-matter-fixture) and [`environments.md`](environments.md)

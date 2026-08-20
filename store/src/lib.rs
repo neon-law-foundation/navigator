@@ -93,6 +93,6 @@ pub mod test_support;
 pub mod verifications;
 
 pub use config::{
-    simulated_matters, simulated_matters_from, DeploymentEnvironment, DeploymentEnvironmentError,
-    SimulatedMattersError, NAVIGATOR_ENVIRONMENT, NAVIGATOR_SIMULATED_MATTERS,
+    sample_matters, sample_matters_from, DeploymentEnvironment, DeploymentEnvironmentError,
+    SampleMattersError, NAVIGATOR_ENVIRONMENT, NAVIGATOR_SIMULATED_MATTERS,
 };

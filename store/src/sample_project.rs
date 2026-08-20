@@ -1,6 +1,6 @@
 //! Publishing a built **sample project** bundle into the applications bucket.
 //!
-//! Each simulated matter carries a client portal at
+//! Each sample matter carries a client portal at
 //! `/app/projects/{code}/portal/`. Local development refreshes the real Vite
 //! build of that matter's own repository — `navigator-sample-project-litigation`,
 //! `-transactional`, and `-estate` — stages each `dist/` beside the
@@ -57,7 +57,7 @@ pub const ASSET_CACHE_CONTROL: &str = "private, max-age=31536000, immutable";
 /// One field today. It is a manifest rather than a convention over the
 /// repository name because the repository name is the application's to choose
 /// — the disputes application lives in `navigator-sample-project-litigation`,
-/// which no rule could turn into the Project code `donut-litigation`.
+/// which no rule could turn into the Project code `sample-litigation`.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct Manifest {
     /// The Project code this bundle belongs to.
@@ -306,12 +306,12 @@ mod tests {
         write(root, "assets/app-abc123.js", b"console.log(1)");
         write(root, "assets/app-abc123.css", b"body{}");
 
-        let plan = publish_plan(root, "donut-litigation").expect("plan");
+        let plan = publish_plan(root, "sample-litigation").expect("plan");
 
         assert_eq!(plan.len(), 3);
         assert_eq!(
             plan.last().expect("a last object").key,
-            "donut-litigation/portal/index.html",
+            "sample-litigation/portal/index.html",
             "index.html must land after the assets it references"
         );
     }
@@ -323,7 +323,7 @@ mod tests {
         write(root, "assets/app-abc123.js", b"console.log(1)");
 
         assert!(
-            publish_plan(root, "donut-litigation")
+            publish_plan(root, "sample-litigation")
                 .expect("plan")
                 .is_empty(),
             "a dist with no index.html is a failed build, not a partial publish"
@@ -337,16 +337,16 @@ mod tests {
         write(root, "index.html", b"x");
         write(root, "assets/fonts/gorp.woff2", b"x");
 
-        let keys: Vec<String> = publish_plan(root, "donut-litigation")
+        let keys: Vec<String> = publish_plan(root, "sample-litigation")
             .expect("plan")
             .into_iter()
             .map(|o| o.key)
             .collect();
 
-        assert!(keys.contains(&"donut-litigation/portal/assets/fonts/gorp.woff2".to_string()));
+        assert!(keys.contains(&"sample-litigation/portal/assets/fonts/gorp.woff2".to_string()));
         assert!(keys
             .iter()
-            .all(|k| k.starts_with("donut-litigation/portal/")));
+            .all(|k| k.starts_with("sample-litigation/portal/")));
     }
 
     #[test]
@@ -356,14 +356,14 @@ mod tests {
         write(root, "index.html", b"x");
         write(root, "assets/app-abc123.js", b"x");
 
-        let plan = publish_plan(root, "donut-litigation").expect("plan");
+        let plan = publish_plan(root, "sample-litigation").expect("plan");
         let find = |key: &str| {
             plan.iter()
                 .find(|o| o.key == key)
                 .unwrap_or_else(|| panic!("{key} in the plan"))
         };
-        let entry = find("donut-litigation/portal/index.html");
-        let asset = find("donut-litigation/portal/assets/app-abc123.js");
+        let entry = find("sample-litigation/portal/index.html");
+        let asset = find("sample-litigation/portal/assets/app-abc123.js");
 
         assert_eq!(entry.cache_control, "no-store");
         assert_eq!(asset.cache_control, "private, max-age=31536000, immutable");
@@ -376,10 +376,10 @@ mod tests {
         write(root, "index.html", b"x");
         write(root, "docs/index.html", b"x");
 
-        let plan = publish_plan(root, "donut-litigation").expect("plan");
+        let plan = publish_plan(root, "sample-litigation").expect("plan");
         let nested = plan
             .iter()
-            .find(|o| o.key == "donut-litigation/portal/docs/index.html")
+            .find(|o| o.key == "sample-litigation/portal/docs/index.html")
             .expect("the nested document");
 
         assert_eq!(
@@ -388,7 +388,7 @@ mod tests {
         );
         assert_eq!(
             plan.last().expect("a last object").key,
-            "donut-litigation/portal/index.html"
+            "sample-litigation/portal/index.html"
         );
     }
 
@@ -417,13 +417,13 @@ mod tests {
         let root = dir.path();
         let configured = root.to_string_lossy().into_owned();
 
-        assert_eq!(staged_from("donut-litigation", |_| None), None);
+        assert_eq!(staged_from("sample-litigation", |_| None), None);
         assert_eq!(
-            staged_from("donut-litigation", |_| Some("   ".to_string())),
+            staged_from("sample-litigation", |_| Some("   ".to_string())),
             None
         );
         assert_eq!(
-            staged_from("donut-litigation", |_| Some(
+            staged_from("sample-litigation", |_| Some(
                 "/nonexistent/navigator/sample".to_string()
             )),
             None,
@@ -433,15 +433,15 @@ mod tests {
         // Present, but nobody built it.
         let unbuilt = configured.clone();
         assert_eq!(
-            staged_from("donut-litigation", move |_| Some(unbuilt.clone())),
+            staged_from("sample-litigation", move |_| Some(unbuilt.clone())),
             None,
             "a checkout with no dist/ is not something to publish"
         );
 
-        let staged_root = root.join("donut-litigation");
+        let staged_root = root.join("sample-litigation");
         std::fs::create_dir_all(staged_root.join(DIST_DIR)).expect("mkdir");
         let built = configured.clone();
-        let staged = staged_from("donut-litigation", move |_| Some(built.clone()))
+        let staged = staged_from("sample-litigation", move |_| Some(built.clone()))
             .expect("a staged project");
         assert_eq!(staged.dist, staged_root.join("dist"));
         assert_eq!(staged.manifest(), staged_root.join("navigator.yml"));
@@ -456,13 +456,13 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let root = dir.path();
         let configured = root.to_string_lossy().into_owned();
-        std::fs::create_dir_all(root.join("widget-works").join(DIST_DIR)).expect("mkdir");
+        std::fs::create_dir_all(root.join("sample-transactional").join(DIST_DIR)).expect("mkdir");
 
         let get = |_: &str| Some(configured.clone());
-        let staged = staged_from("widget-works", get).expect("the staged matter");
-        assert_eq!(staged.root, root.join("widget-works"));
+        let staged = staged_from("sample-transactional", get).expect("the staged matter");
+        assert_eq!(staged.root, root.join("sample-transactional"));
         assert_eq!(
-            staged_from("montgomery-estate", get),
+            staged_from("sample-estate", get),
             None,
             "an unstaged matter resolves to nothing, never to a sibling's bundle"
         );
@@ -486,8 +486,8 @@ mod tests {
     #[test]
     fn the_manifest_names_the_project_the_bundle_mounts_on() {
         assert_eq!(
-            project_code_from_manifest("name: donut-litigation\n").expect("a code"),
-            "donut-litigation"
+            project_code_from_manifest("name: sample-litigation\n").expect("a code"),
+            "sample-litigation"
         );
     }
 
@@ -500,7 +500,7 @@ mod tests {
         for bad in [
             "../etc",
             "Donut-Litigation",
-            "donut-litigation/portal",
+            "sample-litigation/portal",
             "",
             "new",
             "-x",
@@ -527,22 +527,25 @@ mod tests {
     #[test]
     fn a_bundle_declaring_another_project_is_refused() {
         assert_eq!(
-            project_code_for("name: henderson\n", "donut-litigation"),
+            project_code_for("name: henderson\n", "sample-litigation"),
             Err(ManifestError::WrongProject {
-                expected: "donut-litigation".to_string(),
+                expected: "sample-litigation".to_string(),
                 found: "henderson".to_string(),
             }),
             "one matter's application must not land on another matter's portal"
         );
         assert_eq!(
-            project_code_for("name: donut-litigation\n", "donut-litigation").expect("a code"),
-            "donut-litigation"
+            project_code_for("name: sample-litigation\n", "sample-litigation").expect("a code"),
+            "sample-litigation"
         );
     }
 
     #[test]
     fn the_prefix_is_derived_from_the_declared_project() {
-        assert_eq!(portal_prefix("donut-litigation"), "donut-litigation/portal");
+        assert_eq!(
+            portal_prefix("sample-litigation"),
+            "sample-litigation/portal"
+        );
         assert_eq!(portal_prefix("henderson"), "henderson/portal");
     }
 }

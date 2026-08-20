@@ -1,4 +1,4 @@
-//! The site-wide banner a deployment holding simulated matters publishes.
+//! The site-wide banner a deployment holding sample matters publishes.
 //!
 //! One deployment carries invented clients: the persistent staging row at
 //! `staging.neonlaw.com`, whose whole purpose is to be a link somebody can be
@@ -33,7 +33,7 @@
 use dioxus::prelude::*;
 
 /// The banner's DOM id, and the hook the browser walkthrough asserts on.
-pub const SIMULATED_MATTERS_BANNER_ID: &str = "simulated-matters-banner";
+pub const SAMPLE_MATTERS_BANNER_ID: &str = "sample-matters-banner";
 
 /// The site-wide notice that this deployment's matters are invented.
 ///
@@ -43,16 +43,16 @@ pub const SIMULATED_MATTERS_BANNER_ID: &str = "simulated-matters-banner";
 /// landmark to every page and compete with the real ones. It is the first
 /// content in the document instead, so it is the first thing read, once.
 ///
-/// The copy names no hostname. A deployment that carries simulated matters is
+/// The copy names no hostname. A deployment that carries sample matters is
 /// identified by its configuration, not by its address, and hardcoding
 /// `staging.neonlaw.com` here would make the sentence false the moment a
 /// second such deployment existed.
 #[component]
-pub fn SimulatedMattersBanner() -> Element {
+pub fn SampleMattersBanner() -> Element {
     rsx! {
-        div { id: SIMULATED_MATTERS_BANNER_ID, class: "simulated-matters-banner",
-            strong { class: "simulated-matters-banner__label", "Simulated matters" }
-            span { class: "simulated-matters-banner__body",
+        div { id: SAMPLE_MATTERS_BANNER_ID, class: "sample-matters-banner",
+            strong { class: "sample-matters-banner__label", "Sample matters" }
+            span { class: "sample-matters-banner__body",
                 "Every client, case, and document on this deployment is invented for
                  demonstration. Nothing here is a real client's file."
             }
@@ -71,10 +71,10 @@ pub fn SimulatedMattersBanner() -> Element {
 /// brand-dependent copy, so it is the same on every page of both faces.
 #[cfg(feature = "server")]
 #[must_use]
-pub fn render_simulated_matters_banner() -> String {
+pub fn render_sample_matters_banner() -> String {
     fn banner() -> Element {
         rsx! {
-            SimulatedMattersBanner {}
+            SampleMattersBanner {}
         }
     }
     let mut dom = VirtualDom::new(banner);
@@ -89,7 +89,7 @@ mod tests {
     fn html() -> String {
         fn app() -> Element {
             rsx! {
-                SimulatedMattersBanner {}
+                SampleMattersBanner {}
             }
         }
         let mut dom = VirtualDom::new(app);
@@ -98,13 +98,13 @@ mod tests {
     }
 
     /// The banner says the two things a reader needs: that the matters are
-    /// simulated, and that none of them belongs to a real client. The second
-    /// sentence is the one that matters — "simulated" alone is jargon a
+    /// sample, and that none of them belongs to a real client. The second
+    /// sentence is the one that matters — "sample" alone is jargon a
     /// visitor can read past.
     #[test]
     fn the_banner_says_the_matters_are_invented_and_not_a_real_clients() {
         let out = html();
-        assert!(out.contains("Simulated matters"), "{out}");
+        assert!(out.contains("Sample matters"), "{out}");
         assert!(
             out.contains("invented for") && out.contains("real client&#39;s file"),
             "the banner must say outright that nothing here is a real client's file: {out}"
@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn the_banner_carries_the_id_the_walkthrough_asserts_on() {
         assert!(
-            html().contains(&format!("id=\"{SIMULATED_MATTERS_BANNER_ID}\"")),
+            html().contains(&format!("id=\"{SAMPLE_MATTERS_BANNER_ID}\"")),
             "{}",
             html()
         );
@@ -138,7 +138,7 @@ mod tests {
     }
 
     /// A deployment is identified by its configuration, not its address. A
-    /// hostname in this copy would be false the moment a second simulated
+    /// hostname in this copy would be false the moment a second sample
     /// deployment existed.
     #[test]
     fn the_banner_names_no_hostname() {

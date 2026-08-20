@@ -170,15 +170,15 @@ prompts for credentials instead of silently re-authenticating. No manual step is
 provider end-session endpoint at `http://localhost:30080/auth/v1/oidc/logout` (substitute the worktree's Rauthy port)
 before starting login again.
 
-### The three simulated matters
+### The three sample matters
 
 The fixture seeds three matters, each with its own client, its own practice, and its own sample application:
 
 | Code | Matter | Repository |
 | --- | --- | --- |
-| `donut-litigation` | *Cruller v. Prine* | `navigator-sample-project-litigation` |
-| `widget-works` | *Widget Works — Outside Counsel* | `navigator-sample-project-transactional` |
-| `montgomery-estate` | *Estate of Cornelius Montgomery* | `navigator-sample-project-estate` |
+| `sample-litigation` | *Cruller v. Prine* | `navigator-sample-project-litigation` |
+| `sample-transactional` | *Widget Works — Outside Counsel* | `navigator-sample-project-transactional` |
+| `sample-estate` | *Estate of Cornelius Montgomery* | `navigator-sample-project-estate` |
 
 Each client portal is `/app/projects/<code>/portal/`, and every `dev up` / `dev worktree-env up` refreshes all three
 before writing `.devx/env`. The clones and `pnpm` builds happen in temporary directories; each built `dist/` and its
@@ -190,7 +190,7 @@ The explicit command refreshes the same bundles. Name one matter to rebuild only
 `pnpm install` and build per matter, so the narrow form is the loop worth using while iterating:
 
 ```bash
-cargo run -p cli -- dev sample-project --project donut-litigation
+cargo run -p cli -- dev sample-project --project sample-litigation
 ```
 
 Each application declares its own `name:` in `navigator.yml`, and boot validates that code before publishing it under

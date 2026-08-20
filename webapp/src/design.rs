@@ -35,7 +35,7 @@ use crate::components::{
     FormCard, Freshness, GitHubStars, Icon, IconName, ImpersonationBanner, ImpersonationView,
     LawyerPortalBreadcrumb, LegalBlueprintDisclaimer, NavigatorDestination, NavigatorFooter,
     NavigatorFooterLink, NavigatorNavbar, NavigatorShell, NebulaHero, Pagination, PeopleListInputs,
-    PricingCard, PricingSection, PublicShell, RowActions, RunParagraph, SimulatedMattersBanner,
+    PricingCard, PricingSection, PublicShell, RowActions, RunParagraph, SampleMattersBanner,
     SiteFooterFoundation, SiteFooterLegal, SiteHeader, SiteNavLink, SocialMeta, SortState,
     TestimonialCard, TestimonialSection, Toast, ToastTone, THEME_STYLESHEET_HREF,
 };
@@ -389,7 +389,7 @@ pub fn DesignGallery() -> Element {
             TestimonialShowcase {}
             DisclaimerShowcase {}
             ImpersonationShowcase {}
-            SimulatedMattersShowcase {}
+            SampleMattersShowcase {}
             CopyRunsShowcase {}
             ResourceMarkShowcase {}
             NebulaHeroShowcase {}
@@ -828,17 +828,17 @@ fn ImpersonationShowcase() -> Element {
 /// themes, because a reader must not be able to miss this because their OS is
 /// in dark mode.
 #[component]
-fn SimulatedMattersShowcase() -> Element {
+fn SampleMattersShowcase() -> Element {
     rsx! {
         section {
-            h2 { "Simulated-matter banner" }
+            h2 { "Sample-matter banner" }
             p {
                 "A deployment whose matters are invented says so on every page. It is \
                  injected into every HTML response rather than rendered per page, because \
                  the pages that carried it would teach a reader to trust its absence on \
                  the ones that did not — the error pages above all."
             }
-            SimulatedMattersBanner {}
+            SampleMattersBanner {}
         }
     }
 }
@@ -1387,7 +1387,7 @@ mod tests {
             "PricingSection",
             "PublicShell",
             "RowActions",
-            "SimulatedMattersBanner",
+            "SampleMattersBanner",
             "SiteFooterFoundation",
             "SiteFooterLegal",
             "SiteHeader",
