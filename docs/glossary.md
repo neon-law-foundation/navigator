@@ -115,8 +115,8 @@ Two shapes ship:
 
 - **`neon`** — [the whole site](../neon/src/lib.rs), served at `www.neonlaw.com`: the law firm at the root and the
   [Neon Law Foundation](#neon-law-foundation-nlf) beneath `/foundation`, one binary serving both faces. It is also the
-  only binary that mounts [Nebula](#nebula). Single-word crate name, matching its siblings; the public domain and
-  display brand live in the site configuration, not in the crate name.
+  only binary that mounts the [Presentation](#presentation) and workshop catalogs. Single-word crate name, matching its
+  siblings; the public domain and display brand live in the site configuration, not in the crate name.
 - **`tenant`** — [the white-label shape](../portal/src/tenant.rs), which publishes no public face at all and redirects
   its bare host into the portal. It lives inside `portal` rather than in a crate of its own because a tenant has no
   brand to compose — that is the entire point.
@@ -756,44 +756,6 @@ relationship-log entry naming the module and the actor.
 - Commands and schema: [`store::project_modules`](../store/src/project_modules.rs) ·
   [`store/src/schema/navigator.surql`](../store/src/schema/navigator.surql)
 
-## Nebula
-
-The sharing surface — the catalog of teaching and speaking material, in three categories: presentations, workshops, and
-show-and-tells. Nebula names the program, not a URL, and one host now serves all three. Both **material** catalogs are
-the firm's and mount at the site root from [`neon::firm_public_dioxus_routers`](../neon/src/firm_pages.rs); the
-show-and-tell archive keeps the Foundation's `/foundation` prefix, which is what names whose surface it is now that the
-domain no longer does. Every retired `/foundation/nebula/…` URL is answered as a `301` by
-[`neon::foundation_public_routes`](../neon/src/redirects.rs), across to the site root for the two catalogs that moved
-there.
-
-**Presentations are anonymous.** The talks catalog renders at `/presentations` and each talk reads beneath it, under the
-firm's chrome, with no rule in `navigator.rego` at all.
-
-**Workshops are anonymous too.** The `/workshops` catalog page and the class material beneath `/workshops/{slug}` both
-mount under the firm's chrome with no session boundary, alongside the talks. The repository is open source and the
-classes teach the software it publishes, so gating them would put a login door in front of the one document explaining
-how to run what anyone can already clone. The certificate `POST` keeps its own gate — who may *claim* a completion
-certificate stays an authorization question even when the material is free to read.
-
-What the Foundation still publishes sits behind its own session boundary in
-[`neon::foundation_gated_dioxus_routers`](../neon/src/pages.rs): the mission letter at `/foundation/mission`, Notations,
-the transparency disclosures, and the show-and-tell archive. The `foundation_reading_surface` rule opens those to any
-authenticated person. The site nav still names every gated page, which is what keeps one discoverable rather than
-invisible.
-
-Nebula material is **repo-authored, and stays that way**. The markdown under
-[`server/content/workshops/`](../server/content/workshops/) is indexed by a hard-coded manifest in
-[`portal::workshops::loader`](../portal/src/workshops/loader.rs): a file the manifest does not name is not a Nebula
-material, and frontmatter is stripped rather than read. That is deliberate rather than incidental, because two guards
-assert the published material agrees with the repository and neither one survives a move into the database — one holds
-every code slide byte-identical to the workspace file it cites, and one asserts the Operating workshop's Environment
-Matrix names every key in `.env.example`
-([`server/tests/deploy_workshop_environment.rs`](../server/tests/deploy_workshop_environment.rs)). A Nebula slide is a
-claim *about this repository*, so the repository is what checks it.
-
-Nebula is the catalog of material. A [Workshop](#workshop) is the matter someone enrols in, which may teach from it —
-two nouns, deliberately.
-
 ## Neon Law Foundation (NLF)
 
 The 501(c)(3) nonprofit half of the operating structure — **Neon Law Foundation** runs access-to-justice cases and
@@ -911,6 +873,39 @@ Values are stored folded — trimmed, lowercased, separators as single underscor
 
 - Schema: [`store::projects`](../store/src/projects.rs) ·
   [`store/src/schema/navigator.surql`](../store/src/schema/navigator.surql)
+
+## Presentation
+
+A repo-authored deck of teaching or speaking material. Presentations live only at the top-level `/presentations`
+catalog; workshops live only at the top-level `/workshops` catalog. There is no Foundation-prefixed aggregate or
+umbrella program.
+
+**Presentations are anonymous.** The talks catalog renders at `/presentations` and each talk reads beneath it, under the
+firm's chrome, with no rule in `navigator.rego` at all.
+
+**Workshops are anonymous too.** The `/workshops` catalog page and the class material beneath `/workshops/{slug}` both
+mount under the firm's chrome with no session boundary, alongside the talks. The repository is open source and the
+classes teach the software it publishes, so gating them would put a login door in front of the one document explaining
+how to run what anyone can already clone. The certificate `POST` keeps its own gate — who may *claim* a completion
+certificate stays an authorization question even when the material is free to read.
+
+What the Foundation still publishes sits behind its own session boundary in
+[`neon::foundation_gated_dioxus_routers`](../neon/src/pages.rs): the mission letter at `/foundation/mission`, Notations,
+and the transparency disclosures. The `foundation_reading_surface` rule opens those to any authenticated person. The
+site nav still names every gated page, which is what keeps one discoverable rather than invisible.
+
+Presentation and workshop material is **repo-authored, and stays that way**. The markdown under
+[`server/content/workshops/`](../server/content/workshops/) is indexed by a hard-coded manifest in
+[`portal::workshops::loader`](../portal/src/workshops/loader.rs): a file the manifest does not name is not published
+material, and frontmatter is stripped rather than read. That is deliberate rather than incidental, because two guards
+assert the published material agrees with the repository and neither one survives a move into the database — one holds
+every code slide byte-identical to the workspace file it cites, and one asserts the Operating workshop's Environment
+Matrix names every key in `.env.example`
+([`server/tests/deploy_workshop_environment.rs`](../server/tests/deploy_workshop_environment.rs)). A slide is a claim
+*about this repository*, so the repository is what checks it.
+
+A [Workshop](#workshop) is the matter someone enrols in, which may teach from the repo-authored material — two nouns,
+deliberately.
 
 ## Project
 
@@ -1359,10 +1354,10 @@ something a person says out loud rather than a table: there is no `workshops` ta
 `projects` row as any other matter. Enrolment is a [Participation](#participation) row, and the lens an enrolee sees
 derives from it, exactly as it does on a legal matter.
 
-The teaching *material* is a different noun and a different lane: see [Nebula](#nebula). A Workshop supplies identity,
-roster, and a durable record of who completed what; the material supplies the text, and it stays repo-authored. Keeping
-the two apart is what lets a workshop carry a real roster without the content losing the build-time guards that hold it
-honest against the repository.
+The teaching *material* is a different noun and a different lane: see [Presentation](#presentation). A Workshop supplies
+identity, roster, and a durable record of who completed what; the material supplies the text, and it stays
+repo-authored. Keeping the two apart is what lets a workshop carry a real roster without the content losing the
+build-time guards that hold it honest against the repository.
 
 Workshops belong to the staging deployment, which carries sample matters by design; the two environments holding real
 people's matters never seed them.

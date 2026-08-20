@@ -27,9 +27,7 @@ const DESCRIPTION: &str = "Your Neon Law Navigator team home.";
 /// this page.
 const APP_DOCS_HREF: &str = "/app/docs";
 
-/// The firm-internal training catalog (the Navigator workshops). Firm-internal,
-/// behind the session boundary: its Rego rule admits Owner, Admin, Lawyer, and
-/// Clerk and denies a client — again the same audience as this page.
+/// The public Navigator workshops, linked here as a team learning resource.
 const WORKSHOPS_HREF: &str = "/workshops";
 
 /// Everything the team home renders: the viewer's tier and the mounted brand's

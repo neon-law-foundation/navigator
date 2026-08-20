@@ -288,7 +288,6 @@ fn every_classified_corpus_file_declares_a_kind() {
     let roots: &[(&str, DocumentKind)] = &[
         ("templates", DocumentKind::NotationTemplate),
         ("templates/github", DocumentKind::Github),
-        ("server/content/events", DocumentKind::Event),
         ("server/content/blog", DocumentKind::BlogPost),
         (
             "server/content/foundation/minutes",
@@ -350,48 +349,6 @@ fn every_classified_corpus_file_declares_a_kind() {
         checked >= 35,
         "expected to check the whole corpus, only saw {checked} files",
     );
-}
-
-/// The bundled events pass the folded-in typed event pass: `validate` runs
-/// `portal::events::load_file` over every `Event`-classified file and reports no
-/// blocking errors.
-#[test]
-fn validate_accepts_bundled_event_markdown() {
-    let events = workspace_root().join("server/content/events");
-    navigator()
-        .arg("validate")
-        .arg(&events)
-        .assert()
-        .success()
-        .stdout(str::contains("found 0 error(s)"));
-}
-
-/// A file that declares `kind: event` classifies as an event and is put
-/// through the typed loader; a deep semantic error only the loader catches
-/// (here `ends_at` before `starts_at`) fails `validate`.
-#[test]
-fn validate_rejects_event_with_typed_loader_error() {
-    let dir = TempDir::new().unwrap();
-    write(
-        dir.path(),
-        "20260702_bad.md",
-        "---\n\
-kind: event\n\
-title: Bad Event\n\
-description: A bad event.\n\
-starts_at: \"2026-07-02T15:00:00\"\n\
-ends_at: \"2026-07-02T11:00:00\"\n\
-timezone: America/Los_Angeles\n\
-location_address: Seattle\n\
----\n\nBody.\n",
-    );
-    navigator()
-        .args(["validate"])
-        .arg(dir.path())
-        .assert()
-        .failure()
-        .code(1)
-        .stdout(str::contains("ends_at must be after starts_at"));
 }
 
 /// `validate` parses standalone `.yaml`/`.yml` in the same walk and reports

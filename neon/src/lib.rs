@@ -63,10 +63,7 @@ pub const PUBLIC_PATHS: &[&str] = &[
     "/presentations/{slug}/display/{step}",
     "/presentations/{slug}/certificate",
     "/presentations/{slug}/certificate/sent",
-    // The Navigator classes. Declared here exactly like the anonymous pages
-    // above — this table is a declaration, not an access rule — but every one
-    // of them is firm-internal training behind the session boundary and the
-    // embedded policy, readable by Clerk, Lawyer, Admin, and Owner alone.
+    // The public Navigator workshops.
     "/workshops",
     "/workshops/{slug}",
     "/workshops/{slug}/slides",
@@ -84,8 +81,6 @@ pub const PUBLIC_PATHS: &[&str] = &[
     "/foundation/transparency",
     "/foundation/transparency/{slug}",
     "/foundation/transparency/minutes/{slug}",
-    "/foundation/show-and-tell",
-    "/foundation/show-and-tell/{slug}",
     // --- Retired URLs, answered as permanent redirects ---------------------
     // The Foundation's pages served at the site root while it had a host of
     // its own; each is kept alive so an existing backlink never dead-ends.
@@ -97,10 +92,6 @@ pub const PUBLIC_PATHS: &[&str] = &[
     "/transparency",
     "/transparency/{slug}",
     "/transparency/minutes/{slug}",
-    "/show-and-tell",
-    "/show-and-tell/{slug}",
-    "/events",
-    "/events/{slug}",
     // --- Shared -----------------------------------------------------------
     "/privacy",
     "/terms",
@@ -119,10 +110,9 @@ pub const PUBLIC_PATHS: &[&str] = &[
 /// this is the subset a stranger can actually read, at concrete URLs.
 ///
 /// The Foundation's gated pages are deliberately absent — Notations, the
-/// mission letter, the transparency surface, the show-and-tell archive, and the
-/// whole `workshops` catalog read only for a signed-in visitor, and a sitemap
-/// entry pointing at a login redirect is worse than no entry at all. So is a
-/// retired URL: a `301` is a hop, not a document.
+/// mission letter, and the transparency surface. A sitemap entry pointing at a
+/// login redirect is worse than no entry at all. So is a retired URL: a `301`
+/// is a hop, not a document.
 ///
 /// A talk's projector face (`/display/{step}`) and its certificate confirmation
 /// are left out for the same reason a crawler is not sent to a print dialog:
@@ -138,6 +128,7 @@ pub fn sitemap_paths(state: &AppState) -> std::collections::BTreeSet<String> {
         "/navigator",
         "/contact",
         "/blog",
+        "/workshops",
         "/presentations",
         "/foundation",
         "/foundation/education",
@@ -154,7 +145,7 @@ pub fn sitemap_paths(state: &AppState) -> std::collections::BTreeSet<String> {
         .workshops
         .materials()
         .iter()
-        .filter(|material| material.category == "presentations")
+        .filter(|material| matches!(material.category.as_str(), "presentations" | "workshops"))
     {
         let path = format!("/{}/{}", material.category, material.slug);
         // The hub, its raw-Markdown twin, the light table, and the classroom
@@ -193,20 +184,26 @@ pub fn llms_txt(state: &AppState) -> portal::LlmsTxt {
              engagement. The Neon Law Foundation, a 501(c)(3), publishes at /foundation."
         ),
         pages: indexed_pages(mark),
-        sections: vec![portal::LlmsTxtSection {
-            heading: "Presentation Corpus".to_string(),
+        sections: [
+            ("Workshop Corpus", "workshops"),
+            ("Presentation Corpus", "presentations"),
+        ]
+        .into_iter()
+        .map(|(heading, category)| portal::LlmsTxtSection {
+            heading: heading.to_string(),
             links: state
                 .workshops
                 .materials()
                 .iter()
-                .filter(|material| material.category == "presentations")
+                .filter(|material| material.category == category)
                 .map(|material| portal::LlmsTxtLink {
                     title: material.title.clone(),
                     path: format!("/{}/{}.md", material.category, material.slug),
                     description: material.description.clone(),
                 })
                 .collect(),
-        }],
+        })
+        .collect(),
     }
 }
 
@@ -299,13 +296,13 @@ fn indexed_pages(mark: &str) -> Vec<portal::LlmsTxtLink> {
 }
 
 /// The site's public Axum table: the retired URLs from both former hosts, the
-/// crawler documents, and the one write on each Nebula material surface.
+/// crawler documents, and the one write on each workshop or presentation surface.
 ///
 /// Every *page* renders through the Dioxus SSR port, so it arrives via
 /// [`public_dioxus_routers`] rather than this table; a `301` and a certificate
 /// `POST` are not pages, which is why they mount here.
 pub fn public_routes() -> PublicRouter<AppState> {
-    portal::nebula_presentation_command_routes()
+    portal::catalog_presentation_command_routes()
         .merge(retired_path_routes())
         .merge(portal::host_crawler_and_legal_routes(
             sitemap_paths,

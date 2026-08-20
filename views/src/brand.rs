@@ -230,9 +230,8 @@ const FIRM_FOOTER_NAV: &[NavLink] = &[
 /// `/foundation`": [`crate::NavLink`]'s own `/workshops` route is the public,
 /// ungated index (the individual classes gate on sign-in, the catalog does
 /// not) — the same reasoning that put it in [`FIRM_FOOTER_NAV`] once the
-/// classes became public. Notations and Show-and-tell stay off this row:
-/// unlike the workshop catalog, their own index pages are gated too, so a
-/// header entry would still send a signed-out reader at a login door.
+/// classes became public. Notations stays off this row because its index is
+/// gated, so a header entry would send a signed-out reader to a login door.
 ///
 /// These are leaves rather than a dropdown because the public header
 /// (`webapp::components::SiteHeader`) renders a flat link row with no
@@ -1419,17 +1418,11 @@ mod tests {
     }
 
     #[test]
-    fn the_foundation_nav_advertises_no_gated_catalog_but_the_public_one() {
-        // Notations and Show-and-tell sit behind the session boundary even at
-        // their own index, so a nav entry pointing at either sends a
-        // signed-out reader to a login door. They keep serving at their own
-        // paths and stay listed for crawlers; the header does not advertise
-        // them. Workshops is different — its index is public — which is why
-        // it alone is in this row (see `FOUNDATION_NAV`'s doc comment).
+    fn the_foundation_nav_advertises_the_public_workshop_catalog() {
+        // Notations sits behind the session boundary, so the header does not
+        // advertise it. Workshops is public, which is why it is in this row.
         let hrefs: Vec<_> = FOUNDATION_BRAND.nav.iter().map(|n| n.href).collect();
-        for gated in ["/foundation/notations", "/foundation/show-and-tell"] {
-            assert!(!hrefs.contains(&gated), "{gated} must not be in the nav");
-        }
+        assert!(!hrefs.contains(&"/foundation/notations"));
         assert!(
             hrefs.contains(&"/workshops"),
             "the public workshop catalog is linked"

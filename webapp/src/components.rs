@@ -29,6 +29,7 @@
 pub mod app_navbar;
 pub mod breadcrumb;
 pub mod card;
+pub mod catalog_hero;
 pub mod code;
 pub mod confirm_delete;
 pub mod copy_runs;
@@ -42,7 +43,6 @@ pub mod icon;
 pub mod impersonation;
 pub mod links;
 pub mod navigator_chrome;
-pub mod nebula_hero;
 pub mod pagination;
 pub mod people_list;
 pub mod platform_mark;
@@ -61,6 +61,7 @@ pub mod toast;
 pub use app_navbar::{AppLogo, AppNavLink, AppNavbar};
 pub use breadcrumb::{BackBreadcrumb, LawyerPortalBreadcrumb};
 pub use card::Card;
+pub use catalog_hero::{CatalogHero, CATALOG_STYLESHEET_HREF};
 pub use code::CodeBlock;
 pub use confirm_delete::ConfirmDelete;
 pub use copy_runs::{wire_runs, CopyRun, RunParagraph};
@@ -80,7 +81,6 @@ pub use links::ExternalLink;
 pub use navigator_chrome::{
     NavigatorDestination, NavigatorFooter, NavigatorFooterLink, NavigatorNavbar, NavigatorShell,
 };
-pub use nebula_hero::{NebulaHero, NEBULA_STYLESHEET_HREF};
 pub use pagination::Pagination;
 pub use people_list::PeopleListInputs;
 pub use platform_mark::PlatformMark;

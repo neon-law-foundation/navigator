@@ -1,8 +1,8 @@
-// Nebula slide navigation for the two per-browser deck faces.
+// Catalog slide navigation for the two per-browser deck faces.
 //
-// The display face (`…/display/{n}`, `[data-nebula-display]`) is a
+// The display face (`…/display/{n}`, `[data-catalog-display]`) is a
 // full-screen projector page: click and keyboard both advance. The
-// classroom step page (`…/step/{n}`, `[data-nebula-step]`) is a reading
+// classroom step page (`…/step/{n}`, `[data-catalog-step]`) is a reading
 // page: only ArrowLeft/ArrowRight navigate, so Space, PageUp/PageDown,
 // and clicks keep their normal scrolling and selection meaning. There is
 // no websocket and no cross-window state — each browser navigates on its
@@ -12,15 +12,15 @@
 // The prev/next controls are the single source of truth: the handlers
 // click those `<a>` elements rather than navigating to a URL read from the
 // DOM, so there is no untrusted-string-to-location sink. At the first/last
-// slide the corresponding control carries no `data-nebula-nav` marker, so
+// slide the corresponding control carries no `data-catalog-nav` marker, so
 // the lookup finds nothing and the keystroke falls through untouched.
 //
 // Inert on every page without one of the two roots.
 (function () {
   "use strict";
 
-  var display = document.querySelector("[data-nebula-display]");
-  var root = display || document.querySelector("[data-nebula-step]");
+  var display = document.querySelector("[data-catalog-display]");
+  var root = display || document.querySelector("[data-catalog-step]");
   if (!root) {
     return;
   }
@@ -29,7 +29,7 @@
   // caller only suppresses the key's default action when navigation
   // actually happens (nothing is swallowed at the deck's ends).
   function activate(direction) {
-    var link = root.querySelector('a[data-nebula-nav="' + direction + '"]');
+    var link = root.querySelector('a[data-catalog-nav="' + direction + '"]');
     if (link) {
       link.click();
       return true;
@@ -93,7 +93,7 @@
   // A click on the slide surface advances, like clicking through a deck —
   // display face only. Clicks on a real control (the chevrons, the exit
   // link) are left to their own href so previous/exit still work.
-  var surface = display && display.querySelector("[data-nebula-advance]");
+  var surface = display && display.querySelector("[data-catalog-advance]");
   if (surface) {
     surface.addEventListener("click", function (event) {
       if (event.target.closest("a")) {

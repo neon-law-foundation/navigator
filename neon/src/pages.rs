@@ -86,13 +86,12 @@ pub fn foundation_public_dioxus_routers(_state: &AppState) -> Vec<Router> {
 
 /// The Foundation pages that read only for a signed-in visitor.
 ///
-/// The Foundation publishes its talks and gates the rest: the mission letter,
-/// Notations, the transparency disclosures, and the show-and-tell archive.
+/// The Foundation gates the mission letter, Notations, and transparency disclosures.
 /// [`bootstrap`] merges each through [`session_boundary`], so an anonymous
 /// reader gets the login door rather than a `404`, and the embedded policy each
 /// router carries decides the rest — `foundation_reading_surface` in
-/// `navigator.rego` opens these to any authenticated person. The Nebula
-/// catalogs are not here: talks and classes alike mount anonymously from
+/// `navigator.rego` opens these to any authenticated person. The workshop and
+/// presentation catalogs are not here: both mount anonymously from
 /// [`crate::firm_public_dioxus_routers`].
 ///
 /// The nav still names them ([`views::brand`]), which is what keeps a gated
@@ -120,16 +119,6 @@ pub fn foundation_gated_dioxus_routers(state: &AppState) -> Vec<Router> {
             dioxus_app::TRANSPARENCY_MINUTES_PATH,
             DocCategory::Minutes,
             state.transparency.clone(),
-        ),
-        // The show-and-tell archive. Per request: the upcoming/past split is
-        // relative to today.
-        dioxus_app::show_tell_index_router(
-            webapp::show_tell_index::SHOW_TELL_INDEX_PATH,
-            state.events.clone(),
-        ),
-        dioxus_app::show_tell_detail_router(
-            webapp::show_tell_index::SHOW_TELL_DETAIL_PATH,
-            state.events.clone(),
         ),
     ]
     .into_iter()

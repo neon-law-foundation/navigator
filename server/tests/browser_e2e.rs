@@ -1334,12 +1334,12 @@ async fn lawyer_uploads_several_documents_at_once_from_the_project_page() {
 }
 
 /// Send a chord of keys to the focused element as one real keyboard action:
-/// press each in order, then release in reverse. Proves the Nebula step
+/// press each in order, then release in reverse. Proves the Catalog step
 /// page's arrow-key navigation and its guards against a real browser, not a
 /// synthesized DOM event.
 async fn press_chord(c: &fantoccini::Client, keys: &[char]) {
     use fantoccini::actions::{InputSource, KeyAction, KeyActions};
-    let mut act = KeyActions::new("nebula-kbd".to_string());
+    let mut act = KeyActions::new("catalog-kbd".to_string());
     for &k in keys {
         act = act.then(KeyAction::Down { value: k });
     }
@@ -1379,27 +1379,27 @@ fn site_base_url_or_skip() -> Option<String> {
         Ok(url) if !url.trim().is_empty() => Some(url),
         _ if require_harness() => panic!(
             "NAV_REQUIRE_HARNESS=1 but {SITE_BASE_URL_ENV} is unset: \
-             refusing to pass the Nebula deck test without its live host"
+             refusing to pass the Catalog deck test without its live host"
         ),
         _ => {
             eprintln!(
-                "skipping the Nebula deck test: set {SITE_BASE_URL_ENV} to the live host origin"
+                "skipping the Catalog deck test: set {SITE_BASE_URL_ENV} to the live host origin"
             );
             None
         }
     }
 }
 
-/// The Nebula classroom step page navigates on a bare ArrowLeft/ArrowRight,
+/// The Catalog classroom step page navigates on a bare ArrowLeft/ArrowRight,
 /// but Shift+Arrow (a text selection) and an arrow aimed at the Sections
 /// disclosure must be left alone — regressions Greptile flagged on the
 /// per-browser navigation change.
 ///
-/// This is also the only check anywhere that `nebula-display.js` actually
+/// This is also the only check anywhere that `catalog-display.js` actually
 /// reaches the page: the step markup renders identically with or without it,
 /// so a missing hoist fails here as a navigation timeout and nowhere else.
 #[tokio::test]
-async fn nebula_step_arrow_keys_navigate_but_shift_and_focused_controls_do_not() {
+async fn catalog_step_arrow_keys_navigate_but_shift_and_focused_controls_do_not() {
     let Some(site_base_url) = site_base_url_or_skip() else {
         return;
     };

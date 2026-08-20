@@ -33,7 +33,7 @@ pub enum DocumentKind {
     /// A Neon Law Navigator notation Template: the static blueprint that declares
     /// a questionnaire/workflow and becomes a running Notation later.
     NotationTemplate,
-    /// A public event (show-and-tell): dated markdown under
+    /// A dated public event: markdown under
     /// `web/content/events/` whose frontmatter declares a `starts_at`
     /// timestamp. An event never declares a questionnaire/workflow, and a
     /// notation template never declares a timestamp — see [`E002`].
@@ -549,7 +549,7 @@ pub fn navigator_markdown_only_rules() -> Vec<Box<dyn Rule>> {
     rules
 }
 
-/// The rule set for a public event (show-and-tell) markdown file.
+/// The rule set for a dated public event markdown file.
 ///
 /// Events get the prose Markdown rules (so headings, links, and the
 /// 120-character budget are still enforced on the body), the shared

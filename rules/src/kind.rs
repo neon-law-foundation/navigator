@@ -50,7 +50,7 @@ pub enum Kind {
     /// An analytical work product the firm delivers — a review memo or
     /// opinion (`services__contract_review`), not an executed instrument.
     Memo,
-    /// A public event page (show-and-tell) under `web/content/events/`.
+    /// A dated public event page under `server/content/events/`.
     Event,
     /// A published blog post under `web/content/blog/`.
     Post,

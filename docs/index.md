@@ -68,8 +68,8 @@ The full alphabetical reference is [`glossary`](glossary.md); notation vocabular
   coordinates, SOPS-encrypted key material, and how a rotation actually revokes something.
   [`editing-workflows`](editing-workflows.md) — editing notation templates.
   [`notation-authoring`](notation-authoring.md) — authoring notation templates. [`frontmatter`](frontmatter.md) — the
-  attorney-facing guide to every frontmatter key, per document kind (notation template, event, blog post, board minutes,
-  GitHub notation). [`lsp/README`](lsp/README.md) — editor integrations for notation diagnostics.
+  attorney-facing guide to every frontmatter key, per document kind (notation template, blog post, board minutes,
+  workshop, GitHub notation). [`lsp/README`](lsp/README.md) — editor integrations for notation diagnostics.
   [`templates/README`](../templates/README.md) — how the notation tree is shelved, including the `github/` engineering
   intake notations that gather what an issue or pull request needs. [`pdf/README`](../pdf/README.md) — rendering a
   template to a PDF with `navigator template render`, the output formats, the letterhead, and the font stack.

@@ -1,17 +1,17 @@
 ---
 name: authoring-slides
 description: >
-  Author a Nebula slide deck — a workshop or a conference talk — in the stepped-markdown format the workshop loader
-  parses, and put media on a slide so it survives the projector and every deployment. Trigger when adding, reordering,
-  or rewriting slides in `server/content/workshops/`, when a deck needs a picture, when a slide image 404s in staging or
-  production, or when someone asks for "a new slide" or "add this to slide N". Encodes the anatomy (chapter, slide,
-  divider, presenter notes), the two media lanes and which to pick, the 120-character alt budget the `S101` linter
-  enforces, the CSS that makes a picture fit a fixed 16:9 canvas, and the grounding test that fails the build when a
-  code slide drifts from the file it cites. Video is written with the image syntax and is bucket-lane only — see §6.
-  Publishing photographs on ordinary marketing pages is [[public-images]]; looking at the result is [[web-preview]].
+  Author a workshop or presentation slide deck in the stepped-markdown format the workshop loader parses, and put media
+  on a slide so it survives the projector and every deployment. Trigger when adding, reordering, or rewriting slides in
+  `server/content/workshops/`, when a deck needs a picture, when a slide image 404s in staging or production, or when
+  someone asks for "a new slide" or "add this to slide N". Encodes the anatomy (chapter, slide, divider, presenter
+  notes), the two media lanes and which to pick, the 120-character alt budget the `S101` linter enforces, the CSS that
+  makes a picture fit a fixed 16:9 canvas, and the grounding test that fails the build when a code slide drifts from the
+  file it cites. Video is written with the image syntax and is bucket-lane only — see §6. Publishing photographs on
+  ordinary marketing pages is [[public-images]]; looking at the result is [[web-preview]].
 ---
 
-# Authoring a Nebula slide deck
+# Authoring a workshop or presentation slide deck
 
 A deck is one markdown file under `server/content/workshops/navigator/`, listed in `NAVIGATOR_MANIFEST` in
 [portal/src/workshops/loader.rs](../../../portal/src/workshops/loader.rs). The same file renders four ways — a long-form
@@ -78,8 +78,8 @@ wrong shape:
 
 The chapter names are yours: the suite prescribes neither a first chapter nor a last one. The first two rules live in
 `every_material_has_chapters_and_section_notes`, the third in `no_slide_bullet_crams_multiple_terms_into_one_item`. The
-title, description, audience, and benefit shown on the `/foundation/nebula` overview come from the **manifest**, not
-from the markdown.
+title, description, audience, and benefit shown on the `/workshops` or `/presentations` index come from the
+**manifest**, not from the markdown.
 
 ## 2. Line length is a hard 120
 
@@ -202,7 +202,7 @@ as unreferenced — around 126 objects, the entire photo library. The guard test
 ## 4. How a picture fits the slide
 
 The slide face is a fixed 16:9 canvas with clipped overflow, styled in
-[server/public/css/nebula.css](../../../server/public/css/nebula.css). Three consequences follow, and all three are
+[server/public/css/catalog.css](../../../server/public/css/catalog.css). Three consequences follow, and all three are
 already handled — do not re-solve them per deck:
 
 - A face containing an image lays out as a **flex column**, and the image's paragraph flexes into whatever height the
@@ -291,9 +291,8 @@ set -a; source .devx/env; set +a
 cargo run -p neon
 ```
 
-Presentations are a firm surface, so `neon` serves them and `neon` has no presentations routes at all. Workshops are the
-Foundation's and stay on `neon`. On the firm host the talk paths are unprefixed, and any retired
-`/foundation/nebula/presentations/…` equivalent answers as a permanent redirect across to this host:
+Presentations and workshops are top-level firm surfaces served by `neon`. Neither catalog has a Foundation-prefixed
+alias:
 
 | View | Path |
 | --- | --- |

@@ -253,32 +253,33 @@ test_client_reads_the_foundation_pages if {
 	authz.allow with input as {"path": ["notations"], "method": "GET", "session": client_session}
 	authz.allow with input as {"path": ["transparency"], "method": "GET", "session": client_session}
 	authz.allow with input as {"path": ["transparency", "bylaws"], "method": "GET", "session": client_session}
-	authz.allow with input as {"path": ["show-and-tell"], "method": "GET", "session": client_session}
 }
 
 test_anonymous_denied_on_the_foundation_pages if {
 	not authz.allow with input as {"path": ["mission"], "method": "GET", "session": null}
 	not authz.allow with input as {"path": ["notations"], "method": "GET", "session": null}
 	not authz.allow with input as {"path": ["transparency"], "method": "GET", "session": null}
-	not authz.allow with input as {"path": ["show-and-tell"], "method": "GET", "session": null}
 }
 
-# The catalog page is held to the same roles as the material it lists. A
-# client reaches neither: a table of contents for classes they cannot open is
-# not a page they gain anything from, and it names the firm's internal tiers.
+# Workshop reads are public and bypass this policy. Keep the client case here
+# as a guard against accidentally reintroducing a policy grant for the public
+# catalog or its class material.
 test_client_denied_on_the_workshops_catalog_and_its_classes if {
 	not authz.allow with input as {"path": ["workshops"], "method": "GET", "session": client_session}
 	not authz.allow with input as {"path": ["workshops", "use-the-navigator"], "method": "GET", "session": client_session}
 }
 
-# Every firm-side role reads the catalog, including the supervised Clerk.
-test_firm_side_roles_read_the_workshops_catalog if {
-	authz.allow with input as {"path": ["workshops"], "method": "GET", "session": owner_session}
-	authz.allow with input as {"path": ["workshops"], "method": "GET", "session": admin_session}
-	authz.allow with input as {"path": ["workshops"], "method": "GET", "session": lawyer_session}
-	authz.allow with input as {"path": ["workshops"], "method": "GET", "session": clerk_session}
+# Lawyer and Clerk likewise do not need a policy grant for public material;
+# Owner and Admin remain covered by their general bypass, which is unrelated
+# to the public route's authorization.
+test_firm_side_roles_do_not_need_a_workshop_policy_grant if {
+	not authz.allow with input as {"path": ["workshops"], "method": "GET", "session": lawyer_session}
+	not authz.allow with input as {"path": ["workshops"], "method": "GET", "session": clerk_session}
+	not authz.allow with input as {"path": ["workshops", "use-the-navigator"], "method": "GET", "session": lawyer_session}
+	not authz.allow with input as {"path": ["workshops", "use-the-navigator"], "method": "GET", "session": clerk_session}
 }
 
+# Anonymous access is also handled by the public route rather than this policy.
 test_anonymous_denied_on_the_workshops_catalog if {
 	not authz.allow with input as {"path": ["workshops"], "method": "GET", "session": null}
 }
@@ -291,71 +292,29 @@ test_the_reading_grant_does_not_reach_the_application if {
 	not authz.allow with input as {"path": ["mcp"], "method": "POST", "session": client_session}
 }
 
-# ---------- /workshops/* (firm-internal training) ----------
-# Every firm-side role reads the Navigator classes; a client and an
-# anonymous reader do not. The sibling `presentations` catalog is pinned
-# here too — a rule that widened to the bare category would gate the
-# conference talks, which are anonymous and need no rule at all.
+# ---------- /workshops/* certificate claim ----------
+# Workshop reads are public and bypass the policy. Only the completion
+# certificate POST enters this rule family.
 
-workshop_use := ["workshops", "use-the-navigator"]
+workshop_certificate := ["workshops", "use-the-navigator", "certificate"]
 
-test_owner_reaches_workshop if {
-	authz.allow with input as {"path": workshop_use, "method": "GET", "session": owner_session}
+test_firm_roles_may_claim_a_workshop_certificate if {
+	authz.allow with input as {"path": workshop_certificate, "method": "POST", "session": owner_session}
+	authz.allow with input as {"path": workshop_certificate, "method": "POST", "session": admin_session}
+	authz.allow with input as {"path": workshop_certificate, "method": "POST", "session": lawyer_session}
+	authz.allow with input as {"path": workshop_certificate, "method": "POST", "session": clerk_session}
 }
 
-test_admin_reaches_workshop if {
-	authz.allow with input as {"path": workshop_use, "method": "GET", "session": admin_session}
+test_client_and_anonymous_may_not_claim_a_workshop_certificate if {
+	not authz.allow with input as {"path": workshop_certificate, "method": "POST", "session": client_session}
+	not authz.allow with input as {"path": workshop_certificate, "method": "POST", "session": null}
 }
 
-test_lawyer_reaches_workshop if {
-	authz.allow with input as {"path": workshop_use, "method": "GET", "session": lawyer_session}
-}
-
-test_clerk_reaches_workshop if {
-	authz.allow with input as {"path": workshop_use, "method": "GET", "session": clerk_session}
-}
-
-test_client_denied_on_workshop if {
-	not authz.allow with input as {"path": workshop_use, "method": "GET", "session": client_session}
-}
-
-test_anonymous_denied_on_workshop if {
-	not authz.allow with input as {"path": workshop_use, "method": "GET", "session": null}
-}
-
-# The whole material surface is gated, not just the hub: the markdown
-# twin, the light table, a classroom step, the projector face, and the
-# certificate POST each carry the same grant.
-test_clerk_reaches_every_workshop_face if {
-	authz.allow with input as {"path": ["workshops", "use-the-navigator.md"], "method": "GET", "session": clerk_session}
-	authz.allow with input as {"path": ["workshops", "use-the-navigator", "slides"], "method": "GET", "session": clerk_session}
-	authz.allow with input as {"path": ["workshops", "use-the-navigator", "step", "1"], "method": "GET", "session": clerk_session}
-	authz.allow with input as {"path": ["workshops", "use-the-navigator", "display", "1"], "method": "GET", "session": clerk_session}
-	authz.allow with input as {"path": ["workshops", "use-the-navigator", "certificate"], "method": "POST", "session": clerk_session}
-}
-
-test_anonymous_denied_on_every_workshop_face if {
-	not authz.allow with input as {"path": ["workshops", "use-the-navigator.md"], "method": "GET", "session": null}
-	not authz.allow with input as {"path": ["workshops", "use-the-navigator", "slides"], "method": "GET", "session": null}
-	not authz.allow with input as {"path": ["workshops", "use-the-navigator", "step", "1"], "method": "GET", "session": null}
-	not authz.allow with input as {"path": ["workshops", "use-the-navigator", "display", "1"], "method": "GET", "session": null}
-	not authz.allow with input as {"path": ["workshops", "use-the-navigator", "certificate"], "method": "POST", "session": null}
-}
-
-# The public half of Nebula. These paths never reach the policy at all
-# (they mount outside the session boundary), so what is asserted here is
-# narrower and exact: the workshop rules must not spill onto them.
-test_workshop_grant_does_not_cover_presentations if {
-	not authz.allow with input as {"path": ["presentations", "rust-in-peace"], "method": "GET", "session": lawyer_session}
-	not authz.allow with input as {"path": ["presentations", "rust-in-peace"], "method": "GET", "session": clerk_session}
-}
-
-# A clerk reaches the class material, so the `count` guard is the only thing
-# separating catalog from class for them; the client case above is what proves
-# the guard still holds.
-test_clerk_reaches_both_the_catalog_and_the_class if {
-	authz.allow with input as {"path": ["workshops"], "method": "GET", "session": clerk_session}
-	authz.allow with input as {"path": ["workshops", "use-the-navigator"], "method": "GET", "session": clerk_session}
+test_workshop_certificate_grant_is_exact if {
+	not authz.allow with input as {"path": ["workshops"], "method": "GET", "session": lawyer_session}
+	not authz.allow with input as {"path": ["workshops", "use-the-navigator"], "method": "GET", "session": lawyer_session}
+	not authz.allow with input as {"path": workshop_certificate, "method": "GET", "session": lawyer_session}
+	not authz.allow with input as {"path": ["presentations", "rust-in-peace", "certificate"], "method": "POST", "session": lawyer_session}
 }
 
 # The firm surface lives at /lawyer; the old /portal/admin prefix carries

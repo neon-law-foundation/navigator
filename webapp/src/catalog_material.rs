@@ -9,7 +9,7 @@
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{PublicShell, SiteHeader, SiteNavLink, NEBULA_STYLESHEET_HREF};
+use crate::components::{PublicShell, SiteHeader, SiteNavLink, CATALOG_STYLESHEET_HREF};
 use crate::public_chrome::{PublicChrome, PublicFooter};
 
 /// One entry in the outline.
@@ -57,20 +57,20 @@ pub struct InjectedMaterial(pub MaterialContent);
 
 /// Everything the page renders.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
-pub struct NebulaMaterialView {
+pub struct CatalogMaterialView {
     pub chrome: PublicChrome,
     pub content: MaterialContent,
 }
 
 /// Resolve the Foundation chrome and this material's content.
 #[server]
-pub async fn nebula_material_view() -> Result<NebulaMaterialView, ServerFnError> {
+pub async fn catalog_material_view() -> Result<CatalogMaterialView, ServerFnError> {
     let content =
         dioxus_fullstack_core::FullstackContext::extract::<axum::Extension<InjectedMaterial>, _>()
             .await
             .map(|axum::Extension(c)| c.0)
             .unwrap_or_default();
-    Ok(NebulaMaterialView {
+    Ok(CatalogMaterialView {
         chrome: crate::public_chrome::foundation_public_chrome_from_context().await,
         content,
     })
@@ -78,20 +78,20 @@ pub async fn nebula_material_view() -> Result<NebulaMaterialView, ServerFnError>
 
 /// The page's route entry.
 #[component]
-pub fn NebulaMaterialEntry() -> Element {
-    let resource = use_server_future(nebula_material_view)?;
+pub fn CatalogMaterialEntry() -> Element {
+    let resource = use_server_future(catalog_material_view)?;
     let view = match &*resource.read() {
         Some(Ok(view)) => view.clone(),
         _ => return rsx! {},
     };
     rsx! {
-        NebulaMaterialPage { chrome: view.chrome, content: view.content }
+        CatalogMaterialPage { chrome: view.chrome, content: view.content }
     }
 }
 
 /// The pure material hub.
 #[component]
-pub fn NebulaMaterialPage(chrome: PublicChrome, content: MaterialContent) -> Element {
+pub fn CatalogMaterialPage(chrome: PublicChrome, content: MaterialContent) -> Element {
     let header = rsx! {
         SiteHeader {
             brand_name: chrome.brand_name.clone(),
@@ -122,7 +122,7 @@ pub fn NebulaMaterialPage(chrome: PublicChrome, content: MaterialContent) -> Ele
             r#type: "text/markdown",
             href: "{content.md_href}",
         }
-        document::Stylesheet { href: NEBULA_STYLESHEET_HREF }
+        document::Stylesheet { href: CATALOG_STYLESHEET_HREF }
         PublicShell { header, footer,
             article { class: "material-page",
                 // The description stays metadata — the `<meta>` tag above and
@@ -171,9 +171,9 @@ fn OutlineChapter(chapter: MaterialChapter) -> Element {
             class: "workshop-chapter",
             "data-workshop-chapter": "{chapter.title}",
             header { class: "workshop-chapter__header",
-                span { class: "nebula-badge", "{chapter.number}" }
+                span { class: "catalog-badge", "{chapter.number}" }
                 div {
-                    p { class: "nebula-eyebrow", "Chapter {chapter.number}" }
+                    p { class: "catalog-eyebrow", "Chapter {chapter.number}" }
                     h2 { class: "workshop-chapter__title", "{chapter.title}" }
                     if !chapter.preamble_html.is_empty() {
                         div {
@@ -249,7 +249,7 @@ mod tests {
     fn html() -> String {
         fn app() -> Element {
             rsx! {
-                NebulaMaterialPage { chrome: PublicChrome::default(), content: stepped() }
+                CatalogMaterialPage { chrome: PublicChrome::default(), content: stepped() }
             }
         }
         ssr(app)
@@ -351,7 +351,7 @@ mod tests {
                 md_href: "/x.md".to_string(),
                 ..MaterialContent::default()
             };
-            rsx! { NebulaMaterialPage { chrome: PublicChrome::default(), content } }
+            rsx! { CatalogMaterialPage { chrome: PublicChrome::default(), content } }
         }
         let out = ssr(app);
         assert!(out.contains("The whole thing."), "full body: {out}");

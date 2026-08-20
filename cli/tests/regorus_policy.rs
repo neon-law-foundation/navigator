@@ -89,9 +89,9 @@ fn regorus_matches_every_checked_in_policy_decision() {
     // asserted a client and a clerk reaching the people directory, which is
     // exactly the behaviour removed.
     //
-    // + 1 for the firm-side workshop catalog: the client denial and every
-    // admitted firm role are independent decisions, so the catalog cannot
-    // silently widen from the class gate it must match.
+    // − 7 for making workshop reads public while keeping the certificate POST
+    // policy-gated: the ten old workshop/presentation spillover cases became
+    // three certificate-claim matrix cases.
     //
     // − 5 for retiring the `/portal` landing: the client, clerk, owner, admin,
     // and anonymous decisions on the exact `["portal"]` path went with the
@@ -117,10 +117,10 @@ fn regorus_matches_every_checked_in_policy_decision() {
     //   + 20  the remaining #866 GET reads: matter documents + conversation
     //         (authenticated, client-visible-filtered in the handler) and the
     //         expunge queue + a notation's review documents (lawyer-tier)
-    // 233 + 141 = 374.
+    // 233 + 134 = 367.
     assert_eq!(
         test_names.len(),
-        374,
+        367,
         "the policy decision inventory changed; review every new or removed rule"
     );
 

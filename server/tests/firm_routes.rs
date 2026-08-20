@@ -57,7 +57,7 @@ async fn site_app_with_docs() -> Router {
     site_router(state)
 }
 
-/// The firm host with the bundled Nebula materials loaded.
+/// The firm host with the bundled Catalog materials loaded.
 ///
 /// The shared builder ships an empty `WorkshopIndex`, so a talk's own page
 /// would 404 on it for want of content rather than for want of a route — which
@@ -1557,17 +1557,10 @@ async fn the_firm_footer_links_privacy_and_terms() {
 /// The Navigator classes moved here with the talks, and read anonymously
 /// exactly as the talks do — the catalog page included.
 ///
-/// They were firm-internal training behind the session boundary and the
-/// embedded policy, readable by Clerk, Lawyer, Admin, and Owner alone. The
-/// repository is open source now and the classes teach the software it
-/// publishes, so gating them would put a login door in front of the one
-/// document that explains how to run what anyone can already clone.
-///
 /// Every read face is checked, not just the hub: the catalog, the hub, the
 /// light table, a classroom step, and the certificate confirmation. The gate
-/// came off `nebula_material_routers` as a set, and a single face left behind
-/// it would be a login door reachable only by following a link from a page
-/// that opened fine.
+/// is absent from `catalog_material_routers` as a set, so every linked face
+/// opens consistently.
 #[tokio::test]
 async fn the_workshops_surface_reads_anonymously() {
     let app = site_app_with_talks().await;
@@ -1586,11 +1579,7 @@ async fn the_workshops_surface_reads_anonymously() {
         );
     }
 
-    // An unknown slug is a `404` now rather than a redirect. While the surface
-    // was gated the boundary answered first and every slug looked alike, which
-    // was the point — it stopped an anonymous reader enumerating the catalog.
-    // The catalog is public, so there is nothing left to conceal and a missing
-    // class should say so.
+    // The catalog is public, so a missing class returns a direct `404`.
     assert_eq!(
         anon_get(&app, "/workshops/genai-training").await.status(),
         StatusCode::NOT_FOUND,
@@ -1601,9 +1590,8 @@ async fn the_workshops_surface_reads_anonymously() {
 /// The certificate `POST` keeps its gate, and it is the only thing that does.
 ///
 /// Who may CLAIM a completion certificate is an authorization question and
-/// stays one even when the material is free to read. This is the half of the
-/// surface that did NOT open up, so it is asserted separately from the read
-/// faces above — the two moved in opposite directions in the same change.
+/// stays one even when the material is free to read, so it is asserted
+/// separately from the read faces above.
 #[tokio::test]
 async fn the_certificate_claim_still_meets_the_session_boundary() {
     let app = site_app_with_talks().await;
@@ -1676,12 +1664,12 @@ async fn the_three_classes_render_and_land_beside_each_other() {
         "raw markdown title"
     );
 
-    // The class twins sit behind the session boundary, so llms.txt withholds
-    // them from the anonymous crawler even on the host that serves them.
+    // Workshops are public teaching material, so llms.txt advertises their
+    // raw Markdown twins to the anonymous crawler.
     let llms = body_string(anon_get(&app, "/llms.txt").await).await;
     assert!(
-        !llms.contains("/workshops/"),
-        "llms.txt must not advertise the gated class twins: {llms}"
+        llms.contains("/workshops/"),
+        "llms.txt must advertise the public workshop corpus: {llms}"
     );
 }
 

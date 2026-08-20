@@ -242,6 +242,10 @@ async fn the_sitemap_expands_over_loaded_content() {
         // The raw-Markdown twin, which is what an LLM crawler fetches.
         "/presentations/rust-in-peace.md",
         "/presentations/rust-in-peace/step/1",
+        "/workshops",
+        "/workshops/use-the-navigator",
+        "/workshops/use-the-navigator.md",
+        "/workshops/use-the-navigator/step/1",
         "/privacy",
         "/llms.txt",
     ] {
@@ -250,12 +254,4 @@ async fn the_sitemap_expands_over_loaded_content() {
             "the sitemap is missing {expected}: {advertised:?}"
         );
     }
-
-    // The gated half of Nebula stays out: the class material reads only for a
-    // firm-side session, and a sitemap entry pointing at a login redirect is
-    // worse than no entry at all.
-    assert!(
-        !advertised.iter().any(|path| path.starts_with("/workshops")),
-        "the workshops catalog is gated: {advertised:?}"
-    );
 }

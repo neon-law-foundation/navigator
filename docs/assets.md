@@ -12,8 +12,8 @@ without making the local test harness depend on a runtime GCP mount.
 The `navigator ops assets` subcommands form a build → publish → restore → verify loop. For responsive photos, the
 `views::assets::GALLERY` manifest and the width set (`WIDTHS = [400, 800, 1200]`) are the single source of truth shared
 with the view layer, so adding a photo is a manifest edit plus a JPEG — never a code change. Standalone blog,
-illustration, or Nebula slide assets do not go through `assets build`; put the finished PNG or JPEG at its final
-`server/public/img/<slug>/<name>` path, then use `assets upload` to publish it.
+illustration, presentation, or workshop slide assets do not go through `assets build`; put the finished PNG or JPEG at
+its final `server/public/img/<slug>/<name>` path, then use `assets upload` to publish it.
 
 | Command | Direction | What it does |
 | --- | --- | --- |

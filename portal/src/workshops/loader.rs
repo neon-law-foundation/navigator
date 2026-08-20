@@ -1,8 +1,6 @@
 //! Load the baked-in workshop manifest.
 //!
-//! Nebula groups public sharing materials — workshops, presentations,
-//! and show-and-tells — while this loader keeps the authored markdown
-//! manifest stable.
+//! Workshops and presentations share one authored markdown manifest.
 
 use std::fs;
 use std::io;
@@ -19,7 +17,7 @@ struct ManifestEntry {
     title: &'static str,
     description: &'static str,
     /// Who the material is for, shown as the audience tag on the
-    /// `/foundation/nebula` overview so a reader self-selects fast.
+    /// category overview so a reader self-selects fast.
     audience: &'static str,
     /// The you-voiced takeaway shown as the overview card body —
     /// what the reader walks out with, never a guaranteed outcome.
@@ -70,7 +68,7 @@ const NAVIGATOR_MANIFEST: &[ManifestEntry] = &[
         description: "Neon Law Navigator is copyright the Neon Law Foundation, which \
                       produces it; Neon Law operates it. Five ways authorized lawyers \
                       improve the \
-                      product — open an issue, share what you learned, join a show-and-tell or a \
+                      product — open an issue, share what you learned, join a workshop or a \
                       presentation, or simply use it. No code required for most of them.",
         audience: "For the community",
         benefit: "You walk out knowing how authorized lawyers improve the product: open an issue, \
@@ -954,7 +952,7 @@ mod tests {
     fn navigator_workshop_card_metadata_pins_role_audiences() {
         // The overview cards are fed from the real manifest, not the
         // workshop markdown. Pin all role-facing cards so the public
-        // `/foundation/nebula` audience labels cannot drift silently.
+        // Workshop and presentation audience labels cannot drift silently.
         for (slug, audience, required_benefit_terms) in [
             (
                 "use-the-navigator",

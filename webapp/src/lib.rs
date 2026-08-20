@@ -48,6 +48,13 @@ pub mod entity_types;
 // the SSR renderer, `axum`'s response type, and the `views` brand seam — none of
 // which the wasm client build links. Gated like `public_chrome`'s constructors,
 // which they call.
+pub mod catalog_certificate_sent;
+pub mod catalog_display;
+pub mod catalog_index;
+pub mod catalog_material;
+pub mod catalog_slide_body;
+pub mod catalog_slides;
+pub mod catalog_step;
 #[cfg(feature = "server")]
 pub mod error_pages;
 pub mod expunge_document;
@@ -65,13 +72,6 @@ pub mod litigation_page;
 pub mod matter_directory;
 pub mod matter_surface;
 pub mod mission;
-pub mod nebula_certificate_sent;
-pub mod nebula_display;
-pub mod nebula_index;
-pub mod nebula_material;
-pub mod nebula_slide_body;
-pub mod nebula_slides;
-pub mod nebula_step;
 pub mod notations;
 pub mod people;
 pub mod person_show;
@@ -90,8 +90,6 @@ pub mod reask;
 pub mod retainer_start;
 pub mod review;
 pub mod schedules;
-pub mod show_tell_detail;
-pub mod show_tell_index;
 pub mod source_repository;
 pub mod team_home;
 pub mod template_gallery;

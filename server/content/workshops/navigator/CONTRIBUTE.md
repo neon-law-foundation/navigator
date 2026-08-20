@@ -15,7 +15,7 @@ Pick the path that fits the time and craft you have:
 1. Improve the product repository (authorized lawyer).
 2. Add a fillable government PDF.
 3. Tell the team what you learned.
-4. Join a show-and-tell or presentation.
+4. Join a workshop or presentation.
 5. Use Neon Law Navigator and report what breaks.
 
 ---
@@ -175,19 +175,6 @@ competence for the next lawyer who joins. Send the craft, never a client's file:
 grants the Foundation a license to use it, and anything that lands in the repository is the source intellectual property
 of Shook Law PLLC.
 
-### Join a show-and-tell
-
-The Foundation runs public Nebula show-and-tells around the country — come watch a real matter built end to end, ask
-questions, and meet others doing this work. See the [schedule](/show-and-tell).
-
----
-
-A show-and-tell is the live version of the [Using the Navigator Workshop](/workshops/use-the-navigator) workshop: an
-hour where we build a notation in front of you and answer whatever you bring. They are free, and you register from the
-event page. Showing up — asking a hard question, telling us what your practice needs — is a contribution, because it
-points the next release at the work that matters. Find the city and date nearest you on the [show-and-tell
-schedule](/show-and-tell).
-
 ### Join a presentation
 
 We give talks on how and why we build this. [Rust in Peace](/presentations/rust-in-peace), our Rust NYC talk, dissects
@@ -195,11 +182,10 @@ deterministic legal workflows — and every code slide is an exact copy of the s
 
 ---
 
-Presentations go a layer deeper than a show-and-tell: the engineering and the argument behind it. [Rust in
-Peace](/presentations/rust-in-peace) walks the path from statute to Cucumber feature to template to notation, one
-attorney-gated step at a time, with a build test that fails if any slide drifts from the real source. More talks are on
-the way. Come to one, push back on the design, and tell us where it breaks — that pressure is how the architecture earns
-its keep.
+Presentations go deeper into the engineering and the argument behind it. [Rust in Peace](/presentations/rust-in-peace)
+walks the path from statute to Cucumber feature to template to notation, one attorney-gated step at a time, with a build
+test that fails if any slide drifts from the real source. More talks are on the way. Come to one, push back on the
+design, and tell us where it breaks — that pressure is how the architecture earns its keep.
 
 ## Put It to Work
 

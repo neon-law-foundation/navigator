@@ -180,66 +180,34 @@ allow if {
 # The Foundation's reading surfaces behind the session boundary. The talks
 # are the Foundation's public face and render at `/`; everything else it
 # publishes — the mission letter, Notations, the transparency disclosures,
-# the show-and-tell archive, and the workshops catalog page — is readable by
-# any authenticated person.
+# is readable by any authenticated person.
 #
 # This is a *reading* grant and nothing more: no role is implied by it, and a
 # `client` reaches exactly these pages and no others. The stricter workshop
 # rules below still govern the class material itself.
-foundation_reading_surface := {"mission", "notations", "transparency", "show-and-tell"}
+foundation_reading_surface := {"mission", "notations", "transparency"}
 
 allow if {
     foundation_reading_surface[input.path[0]]
     is_authenticated(input.session)
 }
 
-# The workshops *catalog* page, distinct from the material beneath it. It
-# names the three classes so a firm-side reader can see what exists before
-# opening one.
-#
-# Held to the same roles as the material rather than to any authenticated
-# reader. The classes are firm-internal training and the catalog page is a
-# table of contents for them; a `client` who cannot open a single class gains
-# nothing from a list of the ones they cannot open, and the page names the
-# lawyer workbench, the admin deployment tier, and the contribution loop.
+# Workshop reads are public and never reach this policy. Claiming a completion
+# certificate remains a firm-side action for Lawyer and Clerk; Owner and Admin
+# reach it through the bypass above.
 allow if {
-    input.path == ["workshops"]
+    input.path[0] == "workshops"
+    count(input.path) == 3
+    input.path[2] == "certificate"
+    input.method == "POST"
     is_lawyer(input.session)
 }
 
 allow if {
-    input.path == ["workshops"]
-    is_clerk(input.session)
-}
-
-# The `workshops` catalog is firm-internal training: the three Navigator
-# classes teach the lawyer workbench, the admin deployment tier, and the
-# contribution loop, so the material sits behind the session boundary
-# rather than on the Foundation's anonymous surface. Every firm-side role
-# reaches them — Owner and Admin through the bypass above, Lawyer
-# here, and a supervised Clerk through the rule below. A `client` and an
-# anonymous reader do not.
-#
-# This names the `workshops` category exactly, so it never widens onto the
-# `presentations` catalog, which is anonymous and needs no rule at all.
-#
-# The `count` guard keeps the grant on the material rather than the catalog.
-# `/workshops` alone is the catalog page, which the rule above opens to any
-# authenticated reader; only the class itself is firm-side.
-allow if {
     input.path[0] == "workshops"
-    count(input.path) > 1
-    is_lawyer(input.session)
-}
-
-# The Clerk half of the workshop grant. Split from the Lawyer rule rather
-# than folded into one role set because `is_clerk` is deliberately not a
-# member of `lawyer_tier` — a non-lawyer must never inherit legal authority
-# by being added to that set. Reading the training material is the
-# narrow thing being granted here.
-allow if {
-    input.path[0] == "workshops"
-    count(input.path) > 1
+    count(input.path) == 3
+    input.path[2] == "certificate"
+    input.method == "POST"
     is_clerk(input.session)
 }
 

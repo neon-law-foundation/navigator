@@ -1,31 +1,34 @@
-//! The Nebula hero — the animated deep-space banner the firm's sharing
+//! The catalog hero — the animated deep-space banner the firm's sharing
 //! surface leads with (#956 Phase 4).
 //!
 //! One component for the scene and the header markup its callers would
 //! otherwise repeat. Every layer is decorative and
-//! `aria-hidden`; the CSS lives in [`NEBULA_STYLESHEET_HREF`] and freezes
+//! `aria-hidden`; the CSS lives in [`CATALOG_STYLESHEET_HREF`] and freezes
 //! wholesale under `prefers-reduced-motion`.
 
 use dioxus::prelude::*;
 
-/// The stylesheet that draws the hero scene and the show-and-tell cards.
-/// Hoisted by every page that renders a [`NebulaHero`]; without it the scene is
+/// The stylesheet that draws the hero scene and material cards.
+/// Hoisted by every page that renders a [`CatalogHero`]; without it the scene is
 /// markup with no styling at all. The package version keeps a browser from
 /// reusing an older presentation layout after a deployment.
-pub const NEBULA_STYLESHEET_HREF: &str =
-    concat!("/public/css/nebula.css?v=", env!("CARGO_PKG_VERSION"), "-4");
+pub const CATALOG_STYLESHEET_HREF: &str = concat!(
+    "/public/css/catalog.css?v=",
+    env!("CARGO_PKG_VERSION"),
+    "-4"
+);
 
-/// The animated scene: two drifting starfields, a cloud of nebula gas, and a
+/// The animated scene: two drifting starfields, a cloud of color, and a
 /// star being born (a pulsing core inside an expanding shockwave).
 #[component]
-fn NebulaHeroScene() -> Element {
+fn CatalogHeroScene() -> Element {
     rsx! {
-        div { class: "nebula-hero-media", "aria-hidden": "true",
-            div { class: "nebula-hero__stars" }
-            div { class: "nebula-hero__stars nebula-hero__stars--far" }
-            div { class: "nebula-hero__cloud" }
-            div { class: "nebula-hero__burst" }
-            div { class: "nebula-hero__core" }
+        div { class: "catalog-hero-media", "aria-hidden": "true",
+            div { class: "catalog-hero__stars" }
+            div { class: "catalog-hero__stars catalog-hero__stars--far" }
+            div { class: "catalog-hero__cloud" }
+            div { class: "catalog-hero__burst" }
+            div { class: "catalog-hero__core" }
         }
     }
 }
@@ -34,12 +37,12 @@ fn NebulaHeroScene() -> Element {
 /// a lede. The heading is the page's single `<h1>`, so a page renders exactly
 /// one of these.
 #[component]
-pub fn NebulaHero(eyebrow: String, title: String, lede: String) -> Element {
+pub fn CatalogHero(eyebrow: String, title: String, lede: String) -> Element {
     rsx! {
-        header { class: "nebula-hero",
-            NebulaHeroScene {}
-            div { class: "nebula-hero-copy",
-                p { class: "nebula-hero__eyebrow", "{eyebrow}" }
+        header { class: "catalog-hero",
+            CatalogHeroScene {}
+            div { class: "catalog-hero-copy",
+                p { class: "catalog-hero__eyebrow", "{eyebrow}" }
                 h1 { "{title}" }
                 p { class: "lede", "{lede}" }
             }
@@ -60,10 +63,10 @@ mod tests {
     fn html() -> String {
         fn app() -> Element {
             rsx! {
-                NebulaHero {
+                CatalogHero {
                     eyebrow: "Neon Law".to_string(),
-                    title: "Nebula".to_string(),
-                    lede: "Where new stars are made.".to_string(),
+                    title: "Presentations".to_string(),
+                    lede: "Talks and teaching material.".to_string(),
                 }
             }
         }
@@ -77,11 +80,11 @@ mod tests {
         // assertion elsewhere would catch.
         let out = html();
         for layer in [
-            "nebula-hero__stars",
-            "nebula-hero__stars nebula-hero__stars--far",
-            "nebula-hero__cloud",
-            "nebula-hero__burst",
-            "nebula-hero__core",
+            "catalog-hero__stars",
+            "catalog-hero__stars catalog-hero__stars--far",
+            "catalog-hero__cloud",
+            "catalog-hero__burst",
+            "catalog-hero__core",
         ] {
             assert!(out.contains(layer), "scene should render {layer}: {out}");
         }
@@ -93,7 +96,7 @@ mod tests {
         // copy, never the starfield.
         let out = html();
         assert!(
-            out.contains(r#"class="nebula-hero-media" aria-hidden="true""#),
+            out.contains(r#"class="catalog-hero-media" aria-hidden="true""#),
             "the scene container is aria-hidden: {out}"
         );
     }
@@ -102,8 +105,8 @@ mod tests {
     fn the_copy_is_the_eyebrow_the_h1_and_the_lede() {
         let out = html();
         assert!(out.contains("Neon Law"), "eyebrow: {out}");
-        assert!(out.contains(">Nebula<"), "title text: {out}");
-        assert!(out.contains("Where new stars are made."), "lede: {out}");
+        assert!(out.contains(">Presentations<"), "title text: {out}");
+        assert!(out.contains("Talks and teaching material."), "lede: {out}");
         assert_eq!(out.matches("<h1").count(), 1, "exactly one h1: {out}");
     }
 }

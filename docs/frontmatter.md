@@ -4,8 +4,8 @@ publish: true
 
 # Frontmatter: the cover sheet on every file
 
-This page is for the attorney who is about to write or edit a file in Neon Law Navigator — a notation template, an event
-page, a blog post, or board minutes — and wants to know what the little block at the top is for. You do not need to be a
+This page is for the attorney who is about to write or edit a file in Neon Law Navigator — a notation template, a blog
+post, a workshop, or board minutes — and wants to know what the little block at the top is for. You do not need to be a
 programmer to read it. You need to know which label goes on which document, and what each line means.
 
 ## You cannot quietly ship a broken document
@@ -40,21 +40,19 @@ wrong, the editor underlines it — the same way a word processor underlines a m
 You say what a file is by **declaring it**: a `kind:` key names the file's kind outright, and that declaration is the
 *only* classifier — the system never guesses the kind from a file's structure or its path. Its value is one of a small,
 fixed vocabulary. Most values name notation-template kinds — `retainer`, `letter`, `filing`, `will`, `trust`,
-`directive`, `agreement`, `onboarding`, `memo` — some name content pages — `event`, `post`, `minutes`, `workshop` — and
-one, `github`, names the engineering intake notations. A further ten name **matter dashboards**, the page types an
-attorney composes. Anything else is a blocking error (`S103`). The vocabulary grows as the firm's practice areas do.
+`directive`, `agreement`, `onboarding`, `memo` — some name content pages — `post`, `minutes`, `workshop` — and one,
+`github`, names the engineering intake notations. A further ten name **matter dashboards**, the page types an attorney
+composes. Anything else is a blocking error (`S103`). The vocabulary grows as the firm's practice areas do.
 
 A file that declares no `kind:` is ordinary prose, held only to general writing rules. Because classification is
-declaration-only, a file that carries notation or event *structure* — a `questionnaire:`/`workflow:` block, or a
-`starts_at:` time — but forgets its `kind:` is a blocking error (`S104`): it would otherwise lint silently as prose and
-skip its whole rule family. Each kind and the keys it must carry:
+declaration-only, a file that carries notation *structure* — a `questionnaire:`/`workflow:` block — but forgets its
+`kind:` is a blocking error (`S104`): it would otherwise lint silently as prose and skip its whole rule family. Each
+kind and the keys it must carry:
 
 - **Notation template** — one of the notation kinds (`retainer`, `letter`, `filing`, `will`, `trust`, `directive`,
   `agreement`, `onboarding`, `memo`). A complete one carries **both** the `questionnaire:` and `workflow:` machines plus
   `title`, `code`, `respondent_type`, `jurisdiction`, and `confidential`, and the missing ones are flagged. Lives under
   `templates/forms/` or `templates/neon_law/`; a `templates/` file with no `kind:` is just prose until it declares one.
-- **Event page** — `kind: event`. Lives under `server/content/events/`. Needs `title`, `description`, `starts_at`,
-  `timezone`, and a `location_address` or `meeting_url`.
 - **Blog post** — `kind: post`. Lives under `server/content/blog/`. Needs `title` and `description`, in a file named
   `YYYYMMDD_slug.md`.
 - **Board minutes** — `kind: minutes`. Live under `server/content/foundation/minutes/`. Need `title` and `description`,
@@ -213,30 +211,6 @@ form: nv__llc_formation
 The three travel together: N109 requires `form:` and `origin_url:` whenever `output: form` is declared, and rejects a
 `form:` key on any other profile. So `form:` present and `output: form` always imply each other.
 
-## Event pages
-
-An event page (a public show-and-tell) is dated, so it carries a start time on top of a title and description. From
-`server/content/events/`:
-
-```yaml
-title: "Salt Lake City Nebula Show and Tell"
-description: >
-  A Salt Lake City session for practical legal AI workflows, demos, peer review, and responsible adoption habits.
-draft: true
-starts_at: "2026-07-20T11:00:00"
-ends_at: "2026-07-20T15:00:00"
-timezone: America/Denver
-location_address: Salt Lake City, Utah
-```
-
-- **`title`** and **`description`** — the name and the one-line summary (the summary becomes the page's search and
-  social preview, so it cannot be blank).
-- **`starts_at`** and **`timezone`** — when it begins, and in which timezone. Both are required.
-- **`location_address`** or **`meeting_url`** — where to show up, in person or online (a hybrid event may give both).
-
-The `description: >` you see is just a way to wrap one long sentence across several lines; it still reads as a single
-sentence.
-
 ## Blog posts and board minutes
 
 These two are the simplest: a `title` and a `description`, and a filename that follows a fixed shape.
@@ -345,11 +319,9 @@ question, and at least one free-text question whose answer becomes the body.
 
 Three footnotes. `form` rides along on government-form templates and is bound to `output: form` — N109 requires the two
 together and rejects a `form:` key on any other profile, so a stray or orphaned `form:` is now a loud error rather than
-a silent one. The event keys marked "web build" are read when the page is rendered rather than by the command-line
-checker, so they will not underline in your editor. Finally, on how the required `kind:` is enforced: a template or
-event that carries structure but omits `kind:` trips `S104` right in your editor; a content page (blog, minutes,
-workshop) has no such structural tell, so a repo-wide corpus test — not a per-file squiggle — fails CI if one ships
-without its `kind:`.
+a silent one. Finally, on how the required `kind:` is enforced: a template that carries structure but omits `kind:`
+trips `S104` right in your editor; a content page (blog, minutes, workshop) has no such structural tell, so a repo-wide
+corpus test — not a per-file squiggle — fails CI if one ships without its `kind:`.
 
 ## The squiggly underline: red versus yellow
 

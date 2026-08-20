@@ -52,14 +52,14 @@ pub struct WorkshopChapter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkshopMaterial {
-    /// Public Nebula category path segment, e.g. `workshops` or
+    /// Public Catalog category path segment, e.g. `workshops` or
     /// `presentations`.
     pub category: String,
     pub slug: String,
     pub title: String,
     pub description: String,
     /// Who this material is for, shown as the audience tag on the
-    /// top-level `/foundation/nebula` overview, e.g. "For lawyers".
+    /// top-level workshop or presentation index, e.g. "For lawyers".
     /// The reader self-selects in two seconds (Client Council, Pisces).
     pub audience: String,
     /// The you-voiced takeaway — what the reader walks out with —

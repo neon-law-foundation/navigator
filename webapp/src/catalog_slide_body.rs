@@ -1,4 +1,4 @@
-//! Shared rendering for a Nebula slide face.
+//! Shared rendering for a Catalog slide face.
 //!
 //! Most slides are authored Markdown and arrive as rendered HTML. A deliberately
 //! small marker lets a slide opt into a first-party Dioxus component without
@@ -50,7 +50,7 @@ const FIRM_PRODUCTS: &[FirmProduct] = &[
 /// Render one slide body, selecting a first-party component only when its
 /// explicit marker is present.
 #[component]
-pub fn NebulaSlideBody(title: String, body_html: String) -> Element {
+pub fn CatalogSlideBody(title: String, body_html: String) -> Element {
     if body_html.contains(NAVIGATOR_PRODUCT_MARKER) {
         return rsx! {
             document::Stylesheet { href: BRAND_TOKENS_HREF }
@@ -111,7 +111,7 @@ mod tests {
     fn render(title: &str, body_html: &str) -> String {
         fn app() -> Element {
             let (title, body_html) = consume_context::<(String, String)>();
-            rsx! { NebulaSlideBody { title, body_html } }
+            rsx! { CatalogSlideBody { title, body_html } }
         }
 
         let title = title.to_string();

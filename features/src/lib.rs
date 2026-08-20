@@ -33,7 +33,7 @@ pub mod webdriver;
 /// One router, not two. The firm's pages and the Foundation's used to be
 /// separate crates behind separate host routers, and a scenario had to pick
 /// the right one or walk a `404`; they are one binary now, so every scenario
-/// composes this. Both Nebula catalogs — the anonymous talks and the gated
+/// composes this. Both Catalog catalogs — the anonymous talks and the gated
 /// Navigator classes — mount here along with everything else.
 ///
 /// # Panics
@@ -146,7 +146,6 @@ pub async fn app_state_with_email(
         marketing: MarketingIndex::empty(),
         blog: portal::BlogIndex::empty(),
         transparency: portal::TransparencyIndex::empty(),
-        events: portal::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: portal::google_oauth::GoogleOauthConfig::passthrough(),
         rate_limit: portal::rate_limit::RateLimit::disabled(),
