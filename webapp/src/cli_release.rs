@@ -1,11 +1,7 @@
 //! Where the public reads the `navigator` CLI from, and at which version.
 //!
 //! The repository is AGPL-3.0-only and every release attaches its archives to a
-//! **public GitHub Release**, so `/navigator` links those bytes directly. That
-//! is the whole difference between this module and [`crate::cli_downloads`],
-//! which serves the same CLI out of a deployment's *private* bucket behind the
-//! `/app/team` role gate: this one composes public URLs and reads no storage, so
-//! it needs neither a bucket coordinate nor a signed link.
+//! **public GitHub Release**, so `/navigator` links those bytes directly.
 //!
 //! # The version is the deployment's own release tag
 //!
@@ -127,8 +123,7 @@ pub fn release_version() -> String {
 /// The archive filename one platform publishes for `version`.
 ///
 /// Must match what `deploy.yml` packages and `gh release upload` attaches. The
-/// two files never reference each other, so the shape is pinned by the tests
-/// below on this side, exactly as `portal::cli_downloads` pins the bucket half.
+/// release workflow attaches. The tests below pin that contract.
 #[must_use]
 pub fn asset_filename(version: &str, platform: &PublicPlatform) -> String {
     format!(

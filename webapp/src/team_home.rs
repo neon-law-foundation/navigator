@@ -4,7 +4,7 @@
 //! a `client` is answered 403 at the route, so this page never renders for one.
 //! The home is a hub, not a dashboard: it greets the person and offers a
 //! role-filtered set of destination cards into the surfaces their tier may
-//! reach, then composes the `navigator` CLI download section beneath them.
+//! reach.
 //!
 //! The lens is the caller's tier, resolved once by [`crate::app_chrome`] and read
 //! back here. The cards are gated exactly like the navbar's
@@ -12,13 +12,10 @@
 //! viewer's tier is answered 403 at, so the home advertises only what it can
 //! actually open.
 //!
-//! The download section is [`crate::cli_downloads`]; this module owns the page
-//! chrome (title, stylesheet, navbar) and the destination cards around it.
-
 use dioxus::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::app_chrome::{APP_ADMIN_HREF, APP_LAWYER_HREF, APP_PROJECTS_HREF};
-use crate::cli_downloads::{cli_download_section, cli_downloads_view, CliDownloadsView};
 use crate::people::ViewerRole;
 
 /// The `<meta description>` for the team home.
@@ -35,10 +32,31 @@ const APP_DOCS_HREF: &str = "/app/docs";
 /// Clerk and denies a client — again the same audience as this page.
 const WORKSHOPS_HREF: &str = "/workshops";
 
+/// Everything the team home renders: the viewer's tier and the mounted brand's
+/// mark for the app chrome.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+pub struct TeamHomeView {
+    pub role: ViewerRole,
+    #[serde(default)]
+    pub logo: Option<crate::components::AppLogo>,
+    #[serde(default)]
+    pub firm_name: String,
+}
+
+/// Resolve the authenticated viewer and the request-scoped brand for the home.
+#[server]
+pub async fn team_home_view() -> Result<TeamHomeView, ServerFnError> {
+    Ok(TeamHomeView {
+        role: crate::admin_listing::require_firm_person().await?,
+        logo: crate::app_chrome::app_logo_from_context().await,
+        firm_name: crate::app_chrome::firm_name_from_context().await,
+    })
+}
+
 /// The route entry for `/app/team`.
 #[component]
 pub fn TeamHome() -> Element {
-    let resource = use_server_future(cli_downloads_view)?;
+    let resource = use_server_future(team_home_view)?;
 
     let view = match &*resource.read() {
         Some(Ok(view)) => view.clone(),
@@ -118,8 +136,7 @@ fn destinations_for(role: ViewerRole) -> Vec<Destination> {
 
 /// The loaded page. Split from the component so tests render a fixed view
 /// without standing up the server function.
-pub fn team_home_body(view: &CliDownloadsView) -> Element {
-    let view = view.clone();
+pub fn team_home_body(view: &TeamHomeView) -> Element {
     let role = view.role;
     let firm_name = view.firm_name.clone();
 
@@ -148,36 +165,27 @@ pub fn team_home_body(view: &CliDownloadsView) -> Element {
             header { class: "page-header",
                 h1 { "Team home" }
                 p { class: "page-subtitle",
-                    "Everything you need to operate {firm_name} on Navigator."
+                    "Your team together with Neon Law Navigator."
                 }
             }
             nav { class: "team-home__cards", "aria-label": "Team destinations",
                 {cards}
             }
-            {cli_download_section(&view)}
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::TeamHomeView;
     use super::{destinations_for, team_home_body};
-    use crate::cli_downloads::{CliArchive, CliDownloadsView};
     use crate::people::ViewerRole;
 
-    fn view_for(role: ViewerRole) -> CliDownloadsView {
-        CliDownloadsView {
+    fn view_for(role: ViewerRole) -> TeamHomeView {
+        TeamHomeView {
             firm_name: "Neon Law".to_string(),
             role,
             logo: None,
-            version: "26.7.27".to_string(),
-            archives: vec![CliArchive {
-                platform: "linux".to_string(),
-                label: "Linux".to_string(),
-                filename: "navigator-26.7.27-linux.tar.gz".to_string(),
-                href: "/app/team/download/linux".to_string(),
-                size: "18.4 MB".to_string(),
-            }],
         }
     }
 
@@ -236,13 +244,16 @@ mod tests {
         }
     }
 
-    /// The rendered page carries the greeting, the role-filtered cards, and the
-    /// composed CLI download section — the download list is part of the home, not
-    /// a separate page.
+    /// The rendered page carries the greeting and the role-filtered cards, with
+    /// no CLI distribution surface.
     #[test]
-    fn the_home_composes_greeting_cards_and_downloads() {
+    fn the_home_composes_greeting_cards_without_downloads() {
         let lawyer = render(ViewerRole::Lawyer);
         assert!(lawyer.contains("Team home"), "the greeting: {lawyer}");
+        assert!(
+            lawyer.contains("Your team together with Neon Law Navigator."),
+            "the requested subtitle: {lawyer}"
+        );
         assert!(
             lawyer.contains("team-card-lawyer"),
             "workbench card: {lawyer}"
@@ -261,14 +272,13 @@ mod tests {
             lawyer.contains(r#"href="/workshops""#),
             "the Workshops card links to the training catalog: {lawyer}"
         );
-        // The composed download section and its release.
         assert!(
-            lawyer.contains(r#"id="cli-downloads""#),
-            "the CLI section is composed into the home: {lawyer}"
+            !lawyer.contains("Navigator CLI"),
+            "the CLI download section must be absent: {lawyer}"
         );
         assert!(
-            lawyer.contains("/app/team/download/linux"),
-            "the download link renders inside the home: {lawyer}"
+            !lawyer.contains("/app/team/download/"),
+            "the team home must not publish a CLI download link: {lawyer}"
         );
     }
 

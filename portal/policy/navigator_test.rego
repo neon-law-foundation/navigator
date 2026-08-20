@@ -1777,10 +1777,8 @@ test_anonymous_denied_app_docs if {
 }
 
 # ---------- /app/team ----------
-# The CLI download page. The Firm publishes no external `navigator` binary, so
-# this page and the archives behind it are the entire distribution channel.
-# Same audience as `/app/docs`: every tier that operates Navigator, with
-# `client` the one authenticated tier denied.
+# The firm team home. Same audience as `/app/docs`: every firm tier is
+# admitted, with `client` the one authenticated tier denied.
 
 test_lawyer_reaches_app_portal if {
 	authz.allow with input as {"path": ["app", "team"], "method": "GET", "session": lawyer_session}
@@ -1798,47 +1796,12 @@ test_admin_reaches_app_portal if {
 	authz.allow with input as {"path": ["app", "team"], "method": "GET", "session": admin_session}
 }
 
-# The download route beneath the page carries the same audience as the page:
-# whoever may read the list may fetch what it offers.
-test_lawyer_downloads_an_archive if {
-	authz.allow with input as {
-		"path": ["app", "team", "download", "linux"],
-		"method": "GET",
-		"session": lawyer_session,
-	}
-}
-
-test_clerk_downloads_an_archive if {
-	authz.allow with input as {
-		"path": ["app", "team", "download", "windows"],
-		"method": "GET",
-		"session": clerk_session,
-	}
-}
-
-# The denials. A client is authenticated and still refused: the CLI is the
-# firm's operating tool, and a matter entitles nobody to it. The software is
-# open source; this gate is about who the page serves.
+# The denials. A client is authenticated and still refused: the firm team home
+# is not part of the client-facing matter surface.
 test_client_denied_app_portal if {
 	not authz.allow with input as {"path": ["app", "team"], "method": "GET", "session": client_session}
 }
 
-test_client_denied_an_archive_download if {
-	not authz.allow with input as {
-		"path": ["app", "team", "download", "linux"],
-		"method": "GET",
-		"session": client_session,
-	}
-}
-
 test_anonymous_denied_app_portal if {
 	not authz.allow with input as {"path": ["app", "team"], "method": "GET", "session": null}
-}
-
-test_anonymous_denied_an_archive_download if {
-	not authz.allow with input as {
-		"path": ["app", "team", "download", "linux"],
-		"method": "GET",
-		"session": null,
-	}
 }

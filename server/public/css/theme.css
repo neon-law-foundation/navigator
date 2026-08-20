@@ -2894,97 +2894,8 @@ a.nav-link:hover {
   padding: 0;
 }
 
-/* ---------------------------------------------------------------------------
-   /app/team — the Navigator CLI download cards.
-
-   One card per platform a reader might be standing at, sized to be the obvious
-   thing to click. The grid is `auto-fit` rather than a fixed three columns so
-   the cards reflow to two-up and one-up without a media query; `minmax` keeps
-   a card from collapsing narrower than its filename.
-   --------------------------------------------------------------------------- */
-
-.cli-download-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: 1.25rem;
-  margin: 2rem 0;
-}
-
-.cli-download-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 0.75rem;
-  padding: 1.75rem 1.25rem;
-  border: 1px solid var(--nav-color-border);
-  border-radius: 0.75rem;
-  background: var(--nav-color-surface-raised);
-}
-
-.cli-download-card__mark {
-  color: var(--nav-color-text);
-  line-height: 0;
-}
-
-.cli-download-card__name {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.cli-download-card__meta {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--nav-color-text-muted);
-  /* A filename is one long unbroken token; let it wrap rather than widen the
-     card past its grid track. */
-  overflow-wrap: anywhere;
-}
-
-.cli-download-card__size {
-  display: block;
-  margin-top: 0.25rem;
-}
-
-/* The button is the point of the card, so it sits last and fills the width. */
-.cli-download-card__button {
-  margin-top: auto;
-  display: block;
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  background: var(--nav-color-primary);
-  color: var(--nav-color-on-primary) !important;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.cli-download-card__button:hover,
-.cli-download-card__button:focus-visible {
-  background: var(--nav-color-primary-hover);
-  text-decoration: none;
-}
-
-/* The source-install fallback for a platform with no archive. The command
-   wraps inside the card rather than scrolling: a reader copies the whole thing,
-   and a horizontal scrollbar in a card hides the tail of the line it needs.
-   `pre-wrap` keeps the authored line breaks and indentation while letting long
-   lines fold. */
-.cli-download-card__install {
-  width: 100%;
-  margin: 0;
-  padding: 0.75rem;
-  border-radius: 0.5rem;
-  background: var(--nav-color-surface-subtle);
-  font-size: 0.75rem;
-  text-align: left;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-/* The `/app/team` team home: a grid of destination cards above the CLI download
-   section. The cards are `<a>` elements, so the whole card is the click target
-   rather than a nested link. */
+/* The `/app/team` team home is a grid of destination cards. The cards are `<a>`
+   elements, so the whole card is the click target rather than a nested link. */
 .team-home__cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
@@ -3023,22 +2934,4 @@ a.nav-link:hover {
   margin: 0;
   font-size: 0.875rem;
   color: var(--nav-color-text-muted);
-}
-
-/* The CLI download section sits below the cards, set off by a rule so the home
-   reads as "your surfaces, then the tool you install." */
-.team-home__section {
-  margin-top: 2.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--nav-color-border);
-}
-
-.team-home__section-header {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-}
-
-.team-home__section-header h2 {
-  margin: 0;
 }

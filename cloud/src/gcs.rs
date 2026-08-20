@@ -273,8 +273,8 @@ fn authenticated_config(
             // A token-only identity: `default_sign_by` and
             // `default_google_access_id` stay unset, so this client can call
             // the JSON API but cannot locally sign a V4 URL. Every caller on
-            // this path — `ops cli-release upload`, `assets upload` — is an
-            // upload, and the alternative here is no client at all.
+            // this path is an upload, and the alternative here is no client at
+            // all.
             token_source_provider: Some(Box::new(crate::gcloud::GcloudTokenSourceProvider)),
             ..ClientConfig::default()
         },

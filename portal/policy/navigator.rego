@@ -106,26 +106,18 @@ allow if {
     is_clerk(input.session)
 }
 
-# /app/team is where a firm person downloads the `navigator` CLI. The Firm
-# publishes no external binary, so this page and the release assets behind it
-# are the whole distribution channel — which is why it admits every tier that
-# operates Navigator and denies the one that does not.
+# /app/team is the firm team's home. It admits every firm tier and denies the
+# client tier, which uses the Project home instead.
 #
-# Same audience as `/app/docs`, and admitted the same way: Lawyer and
-# Clerk by the two rules below, Owner and Admin through the route bypass at the
-# top of this policy. `client` is the one authenticated tier denied. A client
-# has no use for the operator's command-line tool, and a matter entitles nobody
-# to the Firm's operating tooling. The software is open source, so this gate is
-# about who the page serves, not about keeping the binary secret.
+# Same audience as `/app/docs`, and admitted the same way: Lawyer and Clerk by
+# the two rules below, Owner and Admin through the route bypass at the top of
+# this policy. `client` is the one authenticated tier denied.
 #
 # Clerk gets an explicit rule rather than being folded into `lawyer_tier`, for
 # the reason stated at the top of this file: a non-lawyer role must never
 # inherit legal authority as a side effect of being admitted somewhere.
 # Downloading the CLI is not legal authority.
 #
-# The prefix match covers the page and the download route beneath it, because
-# both carry the same audience — a reader admitted to the page may fetch any
-# archive it offers.
 allow if {
     input.path[0] == "app"
     input.path[1] == "team"
