@@ -18,6 +18,21 @@ A deck is one markdown file under `server/content/workshops/navigator/`, listed 
 page, a contact sheet of thumbnails, one slide per step, and a bare full-screen projector view — so anything you write
 has to survive all four. That is the constraint the rest of this skill exists to serve.
 
+## 0. A slide's words belong to its author
+
+A deck is a script for a person standing in front of a room, so the text on a slide face and in its presenter notes is
+that person's voice. Carry it verbatim. Reflow it, lint it, and fix its shape, and leave every word as written.
+
+That splits any edit to an existing deck into two kinds of change:
+
+- **Shape** — the `---` divider, heading level, line wrapping, trailing whitespace, one crammed bullet split into two.
+  Make these freely: the linter and the guards in §1 require them.
+- **Substance** — a word, a claim, a name, a joke, the argument a note makes, the title of a slide. These are the
+  author's. Raise the question and let the author answer it.
+
+`M024` is the case worth naming, because its fix looks mechanical and is not. A duplicate heading is resolved by
+retitling a slide, which is substance, so report the collision and the candidates instead of choosing one.
+
 ## 1. Anatomy
 
 A leading YAML frontmatter block, fenced by a `---` line above and below, declares the page kind so the linter
@@ -52,19 +67,19 @@ The presenter notes: what you say. Shown under the slide, hidden in projector mo
 ## Wrap Up
 ```
 
-Four rules the suite enforces against the real baked content rather than a fixture, so a new deck cannot ship in the
+Three rules the suite enforces against the real baked content rather than a fixture, so a new deck cannot ship in the
 wrong shape:
 
-1. The first chapter is `Intro` and the last is `Wrap Up`.
-2. Every chapter holds at least one slide.
-3. Every slide has a non-empty face **and** non-empty notes. A slide with no `---` divider fails the build.
-4. No slide bullet crams two `**Term** — definition` pairs into one list item. Markdown folds an indented continuation
+1. Every chapter holds at least one slide, and the chapter ranges cover every slide exactly once.
+2. Every slide has a non-empty face **and** non-empty notes. A slide with no `---` divider fails the build.
+3. No slide bullet crams two `**Term** — definition` pairs into one list item. Markdown folds an indented continuation
    line into the preceding item, so a wrapped bullet silently collapses into a wall of text. Give each term its own
    bullet.
 
-The first three live in `every_material_has_boundary_chapters_and_section_notes`, the fourth in
-`no_slide_bullet_crams_multiple_terms_into_one_item`. The title, description, audience, and benefit shown on the
-`/foundation/nebula` overview come from the **manifest**, not from the markdown.
+The chapter names are yours: the suite prescribes neither a first chapter nor a last one. The first two rules live in
+`every_material_has_chapters_and_section_notes`, the third in `no_slide_bullet_crams_multiple_terms_into_one_item`. The
+title, description, audience, and benefit shown on the `/foundation/nebula` overview come from the **manifest**, not
+from the markdown.
 
 ## 2. Line length is a hard 120
 
@@ -292,11 +307,12 @@ Browsers cache the stylesheet aggressively across reloads, so bust it before tru
 
 ## Checklist
 
-1. A `###` slide with a `---` divider and real presenter notes (§1).
-2. Every line at most 120 characters; refill the paragraph rather than orphaning a word (§2).
-3. A picture: pick a lane, write real alt text, and use PNG for flat art (§3). A clip: MP4, bucket lane (§6).
-4. A code slide: an exact copy of the cited workspace file (§5).
-5. `validate` the file, one path per invocation (§2).
-6. Restart the server, then look at the result in projector view (§7).
-7. Bucket lane: upload and inspect the exact key in staging **and** production; matching size and hashes are required.
-8. After deployment, verify the real origin and confirm the slide image has non-zero natural dimensions (§3, §7).
+1. Every word of an existing slide is the author's, carried verbatim (§0).
+2. A `###` slide with a `---` divider and real presenter notes (§1).
+3. Every line at most 120 characters; refill the paragraph rather than orphaning a word (§2).
+4. A picture: pick a lane, write real alt text, and use PNG for flat art (§3). A clip: MP4, bucket lane (§6).
+5. A code slide: an exact copy of the cited workspace file (§5).
+6. `validate` the file, one path per invocation (§2).
+7. Restart the server, then look at the result in projector view (§7).
+8. Bucket lane: upload and inspect the exact key in staging **and** production; matching size and hashes are required.
+9. After deployment, verify the real origin and confirm the slide image has non-zero natural dimensions (§3, §7).

@@ -337,6 +337,10 @@ release tags, and production handoff live in [`docs/gitops.md`](docs/gitops.md).
 - **Document the present.** Remove superseded code and vestigial history instead of adding compatibility shims or "used
   to" narration. Git history records the past. See [`docs/rust-programming.md`](docs/rust-programming.md).
 - **Validate Markdown with the CLI.** Run `cargo run -p cli --quiet -- validate <path>` for every changed Markdown file.
+- **Leave a slide's words alone.** A deck under `server/content/workshops/` is a script someone reads aloud, so carry
+  its faces and presenter notes verbatim: reflow, lint, and fix shape, and raise any wording, title, or claim with the
+  author rather than editing it. See
+  [`.claude/skills/authoring-slides/SKILL.md`](.claude/skills/authoring-slides/SKILL.md).
 - **Use councils only when earned.** Engineering Council reviews architecture and doc clarity; Legal Council reviews
   legal copy; Client Council reviews client-facing product decisions. Read the source first and use the smallest useful
   bench. See [`docs/agent-decision-councils.md`](docs/agent-decision-councils.md).
