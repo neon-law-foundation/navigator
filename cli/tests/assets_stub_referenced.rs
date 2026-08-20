@@ -5,12 +5,17 @@
 use assert_cmd::Command;
 use std::fs;
 use tempfile::TempDir;
+use views::assets::{GALLERY, WIDTHS};
+
+fn expected_gallery_placeholders() -> usize {
+    GALLERY.len() * WIDTHS.len() * 3
+}
 
 #[test]
-fn stub_referenced_writes_the_licensed_fonts_for_a_tree_with_no_image_references() {
-    // The faces are stubbed on every run, not only when content happens to
-    // reference an image: `assets verify` probes them against the KIND origin
-    // unconditionally, so the bake needs them unconditionally too.
+fn stub_referenced_writes_the_gallery_and_licensed_fonts_without_content_images() {
+    // The gallery and faces are stubbed on every run, not only when content
+    // happens to reference an image: `assets verify` probes them against the
+    // KIND origin unconditionally, so the bake needs them unconditionally too.
     let content = TempDir::new().unwrap();
     fs::create_dir_all(content.path().join("blog")).unwrap();
     let out = TempDir::new().unwrap();
@@ -24,12 +29,25 @@ fn stub_referenced_writes_the_licensed_fonts_for_a_tree_with_no_image_references
         .arg(out.path())
         .assert()
         .success()
-        .stdout(predicates::str::contains("wrote 2 placeholder asset"));
+        .stdout(predicates::str::contains(format!(
+            "wrote {} placeholder asset",
+            expected_gallery_placeholders() + 2
+        )));
 
     for face in ["GORPSerif-Regular.woff2", "GORPSerif-Bold.woff2"] {
         let woff2 = fs::read(out.path().join("fonts/gorp-serif").join(face)).unwrap();
         assert_eq!(&woff2[..4], b"wOF2", "{face} must be a real WOFF2");
     }
+
+    let gallery = GALLERY.first().expect("the public gallery is non-empty");
+    let width = WIDTHS[0];
+    assert!(out
+        .path()
+        .join(format!(
+            "img/{slug}/{slug}-{width}w.avif",
+            slug = gallery.slug
+        ))
+        .is_file());
 }
 
 #[test]
@@ -57,8 +75,11 @@ fn stub_referenced_writes_valid_placeholder_files_at_content_paths() {
         .arg(out.path())
         .assert()
         .success()
-        // Four images plus the two licensed faces.
-        .stdout(predicates::str::contains("wrote 6 placeholder asset"));
+        // Four content images, every gallery variant, plus two licensed faces.
+        .stdout(predicates::str::contains(format!(
+            "wrote {} placeholder asset",
+            expected_gallery_placeholders() + 6
+        )));
 
     let png = fs::read(out.path().join("img/demo/hero.png")).unwrap();
     assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
