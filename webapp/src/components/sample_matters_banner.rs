@@ -54,7 +54,7 @@ pub fn SampleMattersBanner() -> Element {
             strong { class: "sample-matters-banner__label", "Sample matters" }
             span { class: "sample-matters-banner__body",
                 "Every client, case, and document on this deployment is invented for
-                 demonstration. Nothing here is a real client's file."
+                 demonstration. This is purposefully a demo environment."
             }
         }
     }
@@ -97,17 +97,17 @@ mod tests {
         dioxus_ssr::render(&dom)
     }
 
-    /// The banner says the two things a reader needs: that the matters are
-    /// sample, and that none of them belongs to a real client. The second
-    /// sentence is the one that matters — "sample" alone is jargon a
-    /// visitor can read past.
+    /// The banner says the two things a reader needs: that every record on the
+    /// page was invented, and that the deployment carrying them is a demo on
+    /// purpose. The second sentence is the one that matters — "sample" alone is
+    /// jargon a visitor can read past.
     #[test]
-    fn the_banner_says_the_matters_are_invented_and_not_a_real_clients() {
+    fn the_banner_says_the_matters_are_invented_and_the_deployment_is_a_demo() {
         let out = html();
         assert!(out.contains("Sample matters"), "{out}");
         assert!(
-            out.contains("invented for") && out.contains("real client&#39;s file"),
-            "the banner must say outright that nothing here is a real client's file: {out}"
+            out.contains("invented for") && out.contains("purposefully a demo environment"),
+            "the banner must say outright that this deployment is a demo: {out}"
         );
     }
 
@@ -144,5 +144,51 @@ mod tests {
     fn the_banner_names_no_hostname() {
         let out = html();
         assert!(!out.contains("neonlaw.com"), "{out}");
+    }
+
+    /// Every class the banner emits is styled by the stylesheet that styles it.
+    ///
+    /// This is the one component whose entire job is to be *seen*: it is what
+    /// stands between a demonstration and somebody believing they were shown a
+    /// client's file. Renaming it without renaming its rules left it rendering
+    /// as unstyled text — no amber band, no separation between the label and
+    /// the sentence it qualifies — so the notice was on the page and invisible
+    /// as a notice. Nothing caught that, because nothing tied the class the
+    /// component emits to the rule that paints it.
+    ///
+    /// A markup-only assertion cannot cover this and neither can a rendering
+    /// one: the class is in the HTML either way, and no test in this crate
+    /// loads a stylesheet. So this reads the file across the seam by path,
+    /// which is the seam that broke.
+    #[test]
+    fn every_class_the_banner_emits_is_styled_by_the_theme() {
+        let theme =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../server/public/css/theme.css");
+        let css = std::fs::read_to_string(&theme)
+            .unwrap_or_else(|e| panic!("the theme stylesheet must be readable: {e}"));
+
+        let out = html();
+        let mut classes = Vec::new();
+        let mut rest = out.as_str();
+        while let Some(at) = rest.find("class=\"") {
+            rest = &rest[at + 7..];
+            let Some(end) = rest.find('"') else { break };
+            classes.extend(rest[..end].split_whitespace().map(str::to_string));
+            rest = &rest[end..];
+        }
+        assert!(
+            !classes.is_empty(),
+            "the banner emits classes, so this test must find some: {out}"
+        );
+
+        for class in classes {
+            assert!(
+                css.contains(&format!(".{class}")),
+                "`{class}` is emitted by the banner but has no rule in \
+                 server/public/css/theme.css — renaming the component without \
+                 renaming its rules publishes an unstyled notice, which is the \
+                 one thing this banner may not be"
+            );
+        }
     }
 }
