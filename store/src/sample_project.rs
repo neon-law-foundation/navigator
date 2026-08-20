@@ -1,11 +1,11 @@
 //! Publishing a built **sample project** bundle into the applications bucket.
 //!
-//! The `simpsons` demo matter carries a client portal at
-//! `/app/projects/simpsons/portal/`. Local development refreshes the real Vite
-//! build of
-//! [navigator-sample-project](https://github.com/neon-law-foundation/navigator-sample-project),
-//! stages its `dist/` beside the `navigator.yml` that names its Project, and
-//! points [`STAGE_ENV`] at the pair through generated `.devx/env`.
+//! Each simulated matter carries a client portal at
+//! `/app/projects/{code}/portal/`. Local development refreshes the real Vite
+//! build of that matter's own repository — `navigator-sample-project-litigation`,
+//! `-transactional`, and `-estate` — stages each `dist/` beside the
+//! `navigator.yml` that names its Project, and points [`STAGE_ENV`] at the
+//! directory holding all three through generated `.devx/env`.
 //!
 //! Boot re-reads the manifest rather than trusting the staging path, and
 //! refuses a bundle naming a different Project — publishing one would put a
@@ -22,10 +22,10 @@
 
 use std::path::{Path, PathBuf};
 
-/// Names the staged project directory — a `navigator.yml` beside a built
-/// `dist/`. Generated local development environments set it before `web`
-/// starts.
-pub const STAGE_ENV: &str = "NAVIGATOR_SAMPLE_PROJECT_DIR";
+/// Names the directory the staged projects sit under — one subdirectory per
+/// Project code, each a `navigator.yml` beside a built `dist/`. Generated
+/// local development environments set it before `web` starts.
+pub const STAGE_ENV: &str = "NAVIGATOR_SAMPLE_PROJECTS_DIR";
 
 /// The manifest a project application carries at its root. It names the
 /// Project the bundle belongs to, so the publish prefix is declared by the
@@ -56,8 +56,8 @@ pub const ASSET_CACHE_CONTROL: &str = "private, max-age=31536000, immutable";
 ///
 /// One field today. It is a manifest rather than a convention over the
 /// repository name because the repository name is the application's to choose
-/// — this repository is `navigator-sample-project`, which no rule could turn
-/// into the Project code `simpsons`.
+/// — the disputes application lives in `navigator-sample-project-litigation`,
+/// which no rule could turn into the Project code `donut-litigation`.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct Manifest {
     /// The Project code this bundle belongs to.
@@ -246,24 +246,40 @@ impl StagedProject {
     }
 }
 
-/// Resolve the staged project from the environment, if one is both configured
-/// and present. A configured-but-missing directory is *not* an error: a
-/// worktree whose `.devx` was torn down should keep the deterministic portal
-/// document rather than fail boot.
+/// Resolve one matter's staged project from the environment, if it is both
+/// configured and present. A configured-but-missing directory is *not* an
+/// error: a worktree whose `.devx` was torn down should keep the deterministic
+/// portal document rather than fail boot.
+///
+/// [`STAGE_ENV`] names the directory the staged projects sit *under*, one
+/// per Project code, because the fixture carries several matters and each has
+/// its own repository and its own build. The code selects the subdirectory;
+/// the manifest inside it still decides which Project the bundle publishes
+/// under, so a directory named after one matter cannot publish another's
+/// application by sitting in the wrong folder.
 #[must_use]
-pub fn staged_from_env() -> Option<StagedProject> {
-    staged_from(|key| std::env::var(key).ok())
+pub fn staged_for(project_code: &str) -> Option<StagedProject> {
+    staged_from(project_code, |key| std::env::var(key).ok())
 }
 
-/// [`staged_from_env`] with the environment read through `get`, so the
+/// [`staged_for`] with the environment read through `get`, so the
 /// decision is testable without mutating process state.
-pub fn staged_from(get: impl Fn(&str) -> Option<String>) -> Option<StagedProject> {
+pub fn staged_from(
+    project_code: &str,
+    get: impl Fn(&str) -> Option<String>,
+) -> Option<StagedProject> {
     let configured = get(STAGE_ENV)?;
     let trimmed = configured.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let root = PathBuf::from(trimmed);
+    // A code that is not a valid Project code could otherwise walk out of the
+    // staging root with `..`; every caller passes a compiled-in constant, and
+    // this keeps that true of any future one.
+    if !crate::projects::is_valid_code(project_code) {
+        return None;
+    }
+    let root = PathBuf::from(trimmed).join(project_code);
     let dist = root.join(DIST_DIR);
     // Both halves must be there: a root without `dist/` is a checkout nobody
     // built, and publishing from it would strand the live bundle.
@@ -290,12 +306,12 @@ mod tests {
         write(root, "assets/app-abc123.js", b"console.log(1)");
         write(root, "assets/app-abc123.css", b"body{}");
 
-        let plan = publish_plan(root, "simpsons").expect("plan");
+        let plan = publish_plan(root, "donut-litigation").expect("plan");
 
         assert_eq!(plan.len(), 3);
         assert_eq!(
             plan.last().expect("a last object").key,
-            "simpsons/portal/index.html",
+            "donut-litigation/portal/index.html",
             "index.html must land after the assets it references"
         );
     }
@@ -307,7 +323,9 @@ mod tests {
         write(root, "assets/app-abc123.js", b"console.log(1)");
 
         assert!(
-            publish_plan(root, "simpsons").expect("plan").is_empty(),
+            publish_plan(root, "donut-litigation")
+                .expect("plan")
+                .is_empty(),
             "a dist with no index.html is a failed build, not a partial publish"
         );
     }
@@ -319,14 +337,16 @@ mod tests {
         write(root, "index.html", b"x");
         write(root, "assets/fonts/gorp.woff2", b"x");
 
-        let keys: Vec<String> = publish_plan(root, "simpsons")
+        let keys: Vec<String> = publish_plan(root, "donut-litigation")
             .expect("plan")
             .into_iter()
             .map(|o| o.key)
             .collect();
 
-        assert!(keys.contains(&"simpsons/portal/assets/fonts/gorp.woff2".to_string()));
-        assert!(keys.iter().all(|k| k.starts_with("simpsons/portal/")));
+        assert!(keys.contains(&"donut-litigation/portal/assets/fonts/gorp.woff2".to_string()));
+        assert!(keys
+            .iter()
+            .all(|k| k.starts_with("donut-litigation/portal/")));
     }
 
     #[test]
@@ -336,14 +356,14 @@ mod tests {
         write(root, "index.html", b"x");
         write(root, "assets/app-abc123.js", b"x");
 
-        let plan = publish_plan(root, "simpsons").expect("plan");
+        let plan = publish_plan(root, "donut-litigation").expect("plan");
         let find = |key: &str| {
             plan.iter()
                 .find(|o| o.key == key)
                 .unwrap_or_else(|| panic!("{key} in the plan"))
         };
-        let entry = find("simpsons/portal/index.html");
-        let asset = find("simpsons/portal/assets/app-abc123.js");
+        let entry = find("donut-litigation/portal/index.html");
+        let asset = find("donut-litigation/portal/assets/app-abc123.js");
 
         assert_eq!(entry.cache_control, "no-store");
         assert_eq!(asset.cache_control, "private, max-age=31536000, immutable");
@@ -356,10 +376,10 @@ mod tests {
         write(root, "index.html", b"x");
         write(root, "docs/index.html", b"x");
 
-        let plan = publish_plan(root, "simpsons").expect("plan");
+        let plan = publish_plan(root, "donut-litigation").expect("plan");
         let nested = plan
             .iter()
-            .find(|o| o.key == "simpsons/portal/docs/index.html")
+            .find(|o| o.key == "donut-litigation/portal/docs/index.html")
             .expect("the nested document");
 
         assert_eq!(
@@ -368,7 +388,7 @@ mod tests {
         );
         assert_eq!(
             plan.last().expect("a last object").key,
-            "simpsons/portal/index.html"
+            "donut-litigation/portal/index.html"
         );
     }
 
@@ -397,10 +417,15 @@ mod tests {
         let root = dir.path();
         let configured = root.to_string_lossy().into_owned();
 
-        assert_eq!(staged_from(|_| None), None);
-        assert_eq!(staged_from(|_| Some("   ".to_string())), None);
+        assert_eq!(staged_from("donut-litigation", |_| None), None);
         assert_eq!(
-            staged_from(|_| Some("/nonexistent/navigator/sample".to_string())),
+            staged_from("donut-litigation", |_| Some("   ".to_string())),
+            None
+        );
+        assert_eq!(
+            staged_from("donut-litigation", |_| Some(
+                "/nonexistent/navigator/sample".to_string()
+            )),
             None,
             "a missing staged bundle is not treated as a built application"
         );
@@ -408,23 +433,61 @@ mod tests {
         // Present, but nobody built it.
         let unbuilt = configured.clone();
         assert_eq!(
-            staged_from(move |_| Some(unbuilt.clone())),
+            staged_from("donut-litigation", move |_| Some(unbuilt.clone())),
             None,
             "a checkout with no dist/ is not something to publish"
         );
 
-        std::fs::create_dir_all(root.join(DIST_DIR)).expect("mkdir");
+        let staged_root = root.join("donut-litigation");
+        std::fs::create_dir_all(staged_root.join(DIST_DIR)).expect("mkdir");
         let built = configured.clone();
-        let staged = staged_from(move |_| Some(built.clone())).expect("a staged project");
-        assert_eq!(staged.dist, root.join("dist"));
-        assert_eq!(staged.manifest(), root.join("navigator.yml"));
+        let staged = staged_from("donut-litigation", move |_| Some(built.clone()))
+            .expect("a staged project");
+        assert_eq!(staged.dist, staged_root.join("dist"));
+        assert_eq!(staged.manifest(), staged_root.join("navigator.yml"));
+    }
+
+    /// Each matter resolves its own subdirectory under the one staging root,
+    /// and a matter nobody staged resolves to nothing rather than to a
+    /// sibling's bundle. Publishing one client's application on another
+    /// client's portal is the failure this shape exists to prevent.
+    #[test]
+    fn each_matter_stages_under_its_own_code() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        let configured = root.to_string_lossy().into_owned();
+        std::fs::create_dir_all(root.join("widget-works").join(DIST_DIR)).expect("mkdir");
+
+        let get = |_: &str| Some(configured.clone());
+        let staged = staged_from("widget-works", get).expect("the staged matter");
+        assert_eq!(staged.root, root.join("widget-works"));
+        assert_eq!(
+            staged_from("montgomery-estate", get),
+            None,
+            "an unstaged matter resolves to nothing, never to a sibling's bundle"
+        );
+    }
+
+    /// A code that is not a valid Project code never reaches the filesystem,
+    /// so no caller can walk out of the staging root through the segment.
+    #[test]
+    fn an_invalid_project_code_stages_nothing() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let configured = dir.path().to_string_lossy().into_owned();
+        std::fs::create_dir_all(dir.path().join(DIST_DIR)).expect("mkdir");
+
+        assert_eq!(
+            staged_from("../..", |_| Some(configured.clone())),
+            None,
+            "a traversal segment is refused before it is joined"
+        );
     }
 
     #[test]
     fn the_manifest_names_the_project_the_bundle_mounts_on() {
         assert_eq!(
-            project_code_from_manifest("name: simpsons\n").expect("a code"),
-            "simpsons"
+            project_code_from_manifest("name: donut-litigation\n").expect("a code"),
+            "donut-litigation"
         );
     }
 
@@ -436,8 +499,8 @@ mod tests {
         // case-insensitive drive folder name.
         for bad in [
             "../etc",
-            "Simpsons",
-            "simpsons/portal",
+            "Donut-Litigation",
+            "donut-litigation/portal",
             "",
             "new",
             "-x",
@@ -464,22 +527,22 @@ mod tests {
     #[test]
     fn a_bundle_declaring_another_project_is_refused() {
         assert_eq!(
-            project_code_for("name: henderson\n", "simpsons"),
+            project_code_for("name: henderson\n", "donut-litigation"),
             Err(ManifestError::WrongProject {
-                expected: "simpsons".to_string(),
+                expected: "donut-litigation".to_string(),
                 found: "henderson".to_string(),
             }),
             "one matter's application must not land on another matter's portal"
         );
         assert_eq!(
-            project_code_for("name: simpsons\n", "simpsons").expect("a code"),
-            "simpsons"
+            project_code_for("name: donut-litigation\n", "donut-litigation").expect("a code"),
+            "donut-litigation"
         );
     }
 
     #[test]
     fn the_prefix_is_derived_from_the_declared_project() {
-        assert_eq!(portal_prefix("simpsons"), "simpsons/portal");
+        assert_eq!(portal_prefix("donut-litigation"), "donut-litigation/portal");
         assert_eq!(portal_prefix("henderson"), "henderson/portal");
     }
 }

@@ -65,6 +65,13 @@
   --nav-color-success: #198754;
   --nav-color-danger: #dc3545;
   --nav-color-warning: #ffc107;
+  /* The simulated-matter banner's ground and ink. A deployment-wide advisory
+     must read identically in both themes — a reader must never be able to miss
+     it because their OS is in dark mode — so unlike every other pair here,
+     these two do not flip. Amber at #ffc107 against #241a00 is 12.8:1, so the
+     one pair clears the 4.5:1 floor under either ground. */
+  --nav-color-warning-surface: #ffc107;
+  --nav-color-on-warning: #241a00;
 
   --nav-radius: 0.5rem;
   --nav-radius-sm: 0.375rem;

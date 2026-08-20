@@ -474,12 +474,7 @@ fn up_dev(root: &Path, no_deps: bool, runtime: Runtime, base_cfg: &KindConfig) -
     eprintln!("==> applied the SurrealDB schema to {db_name}");
 
     if !sample_project_refreshed {
-        super::sample_project::run_for_root(
-            store::seed::SIMPSONS_REPOSITORY_URL,
-            None,
-            false,
-            root,
-        )?;
+        super::sample_project::run_for_root(false, root)?;
     }
 
     let env_body = super::render_env_for(&cfg, &db_name, cfg.web_port, root);

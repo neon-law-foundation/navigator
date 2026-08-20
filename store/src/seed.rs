@@ -12,9 +12,9 @@
 //! - a brand binary calls [`seed_environment`] after migrations on startup,
 //!   naming the brand it serves so that brand's own seeds apply too.
 //!
-//! Seeds come in three layers — canonical, brand, and the `dev`-only
-//! development Simpsons fixture. [`seed_environment`] documents which reaches
-//! production and why.
+//! Seeds come in three layers — canonical, brand, and the simulated-matter
+//! fixture. [`seed_environment`] documents which reaches a deployment holding
+//! real client files and why.
 
 use anyhow::Context as _;
 
@@ -121,7 +121,7 @@ pub const FIRM_ENTITY_NAME: &str = "Shook Law PLLC";
 ///
 /// This is the third seed layer, and the only one besides the canonical set
 /// that reaches production. The canonical layer is what every deployment
-/// shares; the Simpsons fixture is disposable and `dev`-only; this layer
+/// shares; the simulated-matter fixture is disposable; this layer
 /// is the data one brand owns and the other must not carry. The Firm's postal
 /// identities and the Foundation's are the founding case: both are real, both
 /// belong in production, and neither belongs in the other's database.
@@ -420,7 +420,8 @@ where
 /// templates, products, testimonials). It is **environment-blind** — it
 /// runs identically in production, so it must never insert a disposable
 /// Project, mailroom, letter, or answer row. Those live in
-/// [`seed_dev_portfolio`] and are applied only in `dev`.
+/// [`seed_simulated_portfolio`] and are applied only where matters are
+/// simulated.
 pub async fn seed_canonical(
     surreal: &SurrealDb,
     storage: &std::sync::Arc<dyn cloud::StorageService>,
@@ -430,17 +431,17 @@ pub async fn seed_canonical(
     Ok(r)
 }
 
-/// Apply the compiled Simpsons development fixture on top of the canonical
-/// seed. It gives a fresh `dev` environment one synthetic matter, its local
-/// participants, and the reference rows needed by the portal walkthrough.
-/// It is never applied in production. Idempotent: a second run inserts zero
-/// duplicates.
-pub async fn seed_dev_portfolio(
+/// Apply the compiled simulated-matter fixture on top of the canonical seed.
+/// It gives an environment the three synthetic matters, their participants, and
+/// the reference rows the portal walkthrough needs. Applied only where
+/// [`crate::config::simulated_matters`] says the data plane is synthetic.
+/// Idempotent: a second run inserts zero duplicates.
+pub async fn seed_simulated_portfolio(
     surreal: &SurrealDb,
     storage: &std::sync::Arc<dyn cloud::StorageService>,
 ) -> anyhow::Result<SeedReport> {
     let mut r = SeedReport::default();
-    seed_dev_portfolio_into(surreal, storage, &mut r).await?;
+    seed_simulated_portfolio_into(surreal, storage, &mut r).await?;
     Ok(r)
 }
 
@@ -467,9 +468,12 @@ pub async fn seed_brand(surreal: &SurrealDb, brand: BrandSeed) -> anyhow::Result
 ///    including production. This is the layer that carries data one brand
 ///    owns and the other must not: the brand layer seeds the Firm's mailboxes,
 ///    `neon` the Foundation's, and neither sees the other's.
-/// 3. The disposable **Simpsons development fixture**, only when `environment`
-///    is `Dev`, so synthetic Project, mail, or answer rows never reach
-///    production.
+/// 3. The disposable **simulated-matter fixture**, only where
+///    [`crate::config::simulated_matters`] resolves true, so synthetic
+///    Project, mail, or answer rows never reach a deployment holding real
+///    files. That is every `dev` boot, plus any deployment that says so
+///    explicitly — which is how the persistent staging deployment carries
+///    them while running the production runtime profile.
 ///
 /// Every layer is idempotent, so a reset/recreate that runs this again
 /// restores the exact same baseline.
@@ -483,11 +487,27 @@ pub async fn seed_environment(
     environment: crate::DeploymentEnvironment,
     brand: BrandSeed,
 ) -> anyhow::Result<SeedReport> {
+    let simulated = crate::config::simulated_matters(environment)?;
+    seed_environment_with(surreal, storage, brand, simulated).await
+}
+
+/// [`seed_environment`] with the simulated-matter decision already made, so a
+/// test can drive both answers without mutating process environment.
+///
+/// # Errors
+///
+/// Propagates any store error from the underlying writes.
+pub async fn seed_environment_with(
+    surreal: &SurrealDb,
+    storage: &std::sync::Arc<dyn cloud::StorageService>,
+    brand: BrandSeed,
+    simulated_matters: bool,
+) -> anyhow::Result<SeedReport> {
     let mut r = SeedReport::default();
     seed_canonical_into(surreal, storage, &mut r).await?;
     seed_brand_into(surreal, brand, &mut r).await?;
-    if environment == crate::DeploymentEnvironment::Dev {
-        seed_dev_portfolio_into(surreal, storage, &mut r).await?;
+    if simulated_matters {
+        seed_simulated_portfolio_into(surreal, storage, &mut r).await?;
     }
     Ok(r)
 }
@@ -530,12 +550,12 @@ async fn seed_canonical_into(
     Ok(())
 }
 
-async fn seed_dev_portfolio_into(
+async fn seed_simulated_portfolio_into(
     surreal: &SurrealDb,
     _storage: &std::sync::Arc<dyn cloud::StorageService>,
     r: &mut SeedReport,
 ) -> anyhow::Result<()> {
-    seed_role_matrix_simpsons(surreal, r).await?;
+    seed_role_matrix_simulated(surreal, r).await?;
     seed_git_repositories(surreal, r).await?;
     seed_letters(surreal, r).await?;
     seed_answers(surreal, r).await?;
@@ -543,16 +563,154 @@ async fn seed_dev_portfolio_into(
     Ok(())
 }
 
-/// The self-contained "little app" published to the applications bucket for the
-/// `simpsons` demo matter. A static page — no inline `<script>`, because the
-/// portal serve CSP is `script-src 'self'` — so it renders under the same
-/// participation-gated stream a real Vite bundle would. `id="simpsons-portal-ready"`
-/// is the hook the browser walkthrough looks for.
-const SIMPSONS_PORTAL_INDEX: &str = r#"<!doctype html>
+/// One simulated matter the development and staging fixture carries.
+///
+/// Three of these ship. Each is a whole matter — a client Entity, a Project
+/// code that is also its portal's URL segment, the practice it demonstrates,
+/// and the public repository whose Vite bundle mounts on it — so adding a
+/// fourth is a row here rather than a fourth branch through the seed.
+///
+/// **Everything in this table is invented.** No client, matter, dispute, or
+/// estate named here corresponds to a real one, which is the whole reason the
+/// fixture may be published to a deployment anyone can reach.
+struct SimulatedMatter {
+    /// The Project code, which is also the URL segment its portal mounts under
+    /// at `/app/projects/{code}/portal/`.
+    code: &'static str,
+    /// The matter as a reader sees it named.
+    name: &'static str,
+    /// The client Entity this matter is opened for.
+    client_entity: &'static str,
+    /// Whether that client is a person or a company. The two `Entity` shapes
+    /// the fixture needs, resolved against the seeded entity types.
+    client_kind: SimulatedClientKind,
+    /// The practice the matter demonstrates, rendered as the Project's
+    /// description.
+    description: &'static str,
+    /// The public repository whose built bundle mounts on this matter.
+    ///
+    /// Recorded on the Project rather than compiled into the command that
+    /// clones it, so each simulated matter demonstrates the real mechanism: a
+    /// Project names its own repository, on whatever forge hosts it.
+    repository_url: &'static str,
+    /// The deterministic document published when no built bundle is staged.
+    portal_index: &'static str,
+}
+
+/// Which seeded entity type a simulated matter's client resolves to.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SimulatedClientKind {
+    /// A natural person — the individual plaintiff and the individual testator.
+    Human,
+    /// A Nevada C-Corp — the company that engages the firm as outside counsel.
+    Company,
+}
+
+impl SimulatedClientKind {
+    /// The seeded `entity_types.name` this kind resolves to.
+    const fn entity_type(self) -> &'static str {
+        match self {
+            Self::Human => "Human",
+            Self::Company => "C-Corp",
+        }
+    }
+}
+
+/// The three simulated matters, in the order a reader meets them.
+///
+/// They are three deliberately different shapes of legal work, because one
+/// matter could only ever demonstrate one: a dispute in front of a court, a
+/// company on a monthly retainer, and an estate plan. A person signing in as
+/// the fixture Client sees all three at once, which is what makes the
+/// participation-scoped list worth looking at.
+const SIMULATED_MATTERS: &[SimulatedMatter] = &[
+    SimulatedMatter {
+        code: DONUT_LITIGATION_CODE,
+        name: "Cruller v. Prine",
+        client_entity: "Dermot Cruller",
+        client_kind: SimulatedClientKind::Human,
+        description: "trespass to land, and rescission of the doughnut instrument",
+        repository_url:
+            "https://github.com/neon-law-foundation/navigator-sample-project-litigation",
+        portal_index: DONUT_LITIGATION_PORTAL_INDEX,
+    },
+    SimulatedMatter {
+        code: WIDGET_WORKS_CODE,
+        name: "Widget Works — Outside Counsel",
+        client_entity: "Widget Works, Inc.",
+        client_kind: SimulatedClientKind::Company,
+        description: "employment agreements and contract review on a monthly retainer",
+        repository_url:
+            "https://github.com/neon-law-foundation/navigator-sample-project-transactional",
+        portal_index: WIDGET_WORKS_PORTAL_INDEX,
+    },
+    SimulatedMatter {
+        code: MONTGOMERY_ESTATE_CODE,
+        name: "Estate of Cornelius Montgomery",
+        client_entity: "Cornelius Montgomery",
+        client_kind: SimulatedClientKind::Human,
+        description: "estate plan dividing the residue among nieces and nephews",
+        repository_url: "https://github.com/neon-law-foundation/navigator-sample-project-estate",
+        portal_index: MONTGOMERY_ESTATE_PORTAL_INDEX,
+    },
+];
+
+/// The disputes matter's Project code, and therefore its portal's URL segment.
+///
+/// Exposed because the browser walkthrough and the `dev sample-project` command
+/// both name the matter they drive, and a code that drifted between the seed
+/// and either of them would 404 at the mount rather than fail a test.
+pub const DONUT_LITIGATION_CODE: &str = "donut-litigation";
+
+/// The transactional matter's Project code.
+pub const WIDGET_WORKS_CODE: &str = "widget-works";
+
+/// The estate matter's Project code.
+pub const MONTGOMERY_ESTATE_CODE: &str = "montgomery-estate";
+
+/// Look up one simulated matter by its Project code.
+#[must_use]
+pub fn simulated_matter_codes() -> Vec<&'static str> {
+    SIMULATED_MATTERS.iter().map(|matter| matter.code).collect()
+}
+
+/// Every simulated matter's caption, in table order.
+///
+/// Exposed so a test asserting what a participant sees can derive the list
+/// rather than restate it: a fourth matter would otherwise silently narrow
+/// what those tests check to the three they were written against.
+#[must_use]
+pub fn simulated_matter_names() -> Vec<&'static str> {
+    SIMULATED_MATTERS.iter().map(|matter| matter.name).collect()
+}
+
+/// The public repository whose bundle mounts on one simulated matter, or
+/// `None` for a code that names no simulated matter.
+#[must_use]
+pub fn simulated_matter_repository(code: &str) -> Option<&'static str> {
+    SIMULATED_MATTERS
+        .iter()
+        .find(|matter| matter.code == code)
+        .map(|matter| matter.repository_url)
+}
+
+/// Build one simulated matter's deterministic portal document.
+///
+/// A self-contained static page — no inline `<script>`, because the portal
+/// serve CSP is `script-src 'self'` — so it renders under the same
+/// participation-gated stream a real Vite bundle would. `id="{code}-portal-ready"`
+/// is the hook the browser walkthrough looks for, which is why the code is
+/// interpolated rather than written out per matter.
+macro_rules! portal_index {
+    ($code:expr, $title:expr, $subtitle:expr, $steps:expr) => {
+        concat!(
+            r#"<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Simpson v. Flanders — Client Portal</title>
+<title>"#,
+            $title,
+            r#" — Client Portal</title>
 <style>
   :root { color-scheme: light dark; }
   body { margin: 0; font-family: -apple-system, system-ui, sans-serif; background: #0f1216; color: #e8eef5; }
@@ -569,9 +727,15 @@ const SIMPSONS_PORTAL_INDEX: &str = r#"<!doctype html>
 </head>
 <body>
 <header>
-  <div class="pill" id="simpsons-portal-ready">Client portal · live</div>
-  <h1>Simpson v. Flanders</h1>
-  <div class="sub">Trespass to land — your matter workspace</div>
+  <div class="pill" id=""#,
+            $code,
+            r#"-portal-ready">Client portal · live</div>
+  <h1>"#,
+            $title,
+            r#"</h1>
+  <div class="sub">"#,
+            $subtitle,
+            r#"</div>
 </header>
 <main>
   <div class="card">
@@ -581,33 +745,63 @@ const SIMPSONS_PORTAL_INDEX: &str = r#"<!doctype html>
   <div class="card">
     <h2>Next steps</h2>
     <ul>
-      <li>Review the complaint draft</li>
-      <li>Confirm the discovery timeline</li>
-      <li>Message your legal team with questions</li>
+"#,
+            $steps,
+            r#"
     </ul>
   </div>
 </main>
-<footer>Fixture data only — Simpson v. Flanders is a simulated matter.</footer>
+<footer>Fixture data only — "#,
+            $title,
+            r#" is a simulated matter.</footer>
 </body>
 </html>
-"#;
+"#
+        )
+    };
+}
 
-/// Seed the one shared demo matter every local login lands on: `simpsons`
-/// (*Simpson v. Flanders*), with a participant for each firm and client tier so
-/// the same project can be opened through every lens the KIND Rauthy fixture
-/// signs in as — including Owner and Admin, who carry a firm-side row so the
-/// matter appears in their participation-scoped `/app/projects` list.
-/// Dev-only and idempotent, and it publishes the static portal "little app" to
-/// the applications bucket so `/app/projects/simpsons/portal/` streams rather
-/// than 404s. The publish is best-effort: a tier without an applications bucket
+const DONUT_LITIGATION_PORTAL_INDEX: &str = portal_index!(
+    "donut-litigation",
+    "Cruller v. Prine",
+    "Trespass and rescission — your matter workspace",
+    "      <li>Review the complaint draft</li>
+      <li>Confirm the discovery timeline</li>
+      <li>Message your legal team with questions</li>"
+);
+
+const WIDGET_WORKS_PORTAL_INDEX: &str = portal_index!(
+    "widget-works",
+    "Widget Works — Outside Counsel",
+    "Employment agreements and contract review — your matter workspace",
+    "      <li>Review this month's employment agreement queue</li>
+      <li>Send a Redline contract for one-business-day turnaround</li>
+      <li>Message your legal team with questions</li>"
+);
+
+const MONTGOMERY_ESTATE_PORTAL_INDEX: &str = portal_index!(
+    "montgomery-estate",
+    "Estate of Cornelius Montgomery",
+    "Estate plan — your matter workspace",
+    "      <li>Confirm the list of nieces and nephews</li>
+      <li>Review the draft will and trust</li>
+      <li>Message your legal team with questions</li>"
+);
+
+/// Seed the simulated matters every fixture login lands on, with a participant
+/// for each firm and client tier so the same projects can be opened through
+/// every lens the KIND Rauthy fixture signs in as — including Owner, who
+/// carries a firm-side row so they appear in an Owner's participation-scoped
+/// `/app/projects` list.
+///
+/// Idempotent, and it publishes each matter's portal "little app" to the
+/// applications bucket so `/app/projects/{code}/portal/` streams rather than
+/// 404s. The publish is best-effort: a tier without an applications bucket
 /// configured logs and skips rather than failing the whole seed.
-async fn seed_role_matrix_simpsons(
+async fn seed_role_matrix_simulated(
     surreal: &SurrealDb,
     report: &mut SeedReport,
 ) -> anyhow::Result<()> {
-    let human = crate::entity_types::find_by_name(surreal, "Human")
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("seed: entity_type `Human` must be seeded first"))?;
     let nevada = jurisdictions::find_by_name(surreal, "Nevada")
         .await?
         .ok_or_else(|| anyhow::anyhow!("seed: jurisdiction `Nevada` must be seeded first"))?;
@@ -622,8 +816,8 @@ async fn seed_role_matrix_simpsons(
     )
     .await?;
     // The Admin Person exists so the fixture account can sign in; it is
-    // deliberately given no participation on this matter (see below), so its id
-    // is not bound.
+    // deliberately given no participation on any of these matters (see below),
+    // so its id is not bound.
     ensure_dev_person(
         surreal,
         report,
@@ -657,102 +851,160 @@ async fn seed_role_matrix_simpsons(
     )
     .await?;
 
-    let entity_id =
-        ensure_dev_human_entity(surreal, report, "Simpson Plaintiff", human.id, nevada.id).await?;
-    let project_id = ensure_dev_project(
-        surreal,
-        report,
-        "simpsons",
-        "Simpson v. Flanders",
-        entity_id,
-        "trespass to land",
-    )
-    .await?;
-
-    // Where this matter's templates and client portal are sourced from. A whole
-    // URL on the Project, not a name composed from a forge host, so the demo
-    // matter records the same shape a real one would — and
-    // `navigator dev sample-project` reads it rather than carrying its own
-    // default.
-    crate::projects::set_repository_url(surreal, project_id, Some(SIMPSONS_REPOSITORY_URL)).await?;
-
-    // Client side and firm side. The lawyer is the licensed lawyer DRI, which is
-    // also what lets the supervised Clerk resolve the matter.
-    ensure_participation(surreal, report, project_id, client_id, "client").await?;
-    ensure_participation(surreal, report, project_id, lawyer_id, "attorney").await?;
-    ensure_participation(surreal, report, project_id, clerk_id, "clerk").await?;
-    // Owner gets a firm-side row so the demo matter appears in the Owner's own
-    // list: since ENG-81 the whole matter surface — `/app/projects` and
-    // `/app/projects/{id}` alike — is participation-scoped for every tier, with
-    // no privileged bypass.
-    ensure_participation(surreal, report, project_id, owner_id, "owner").await?;
-    // Admin deliberately gets **no** row. The demo matter is what an
-    // administrator who was never assigned to a matter looks like, which is the
-    // ENG-81 decision made visible: privileged reach is a place you navigate to
-    // (`/app/admin`, which reads and writes the participation ledger), not a
-    // silent widening of a shared route. Because one row gates both the list and
-    // the detail view, this is also why `simpsons` does not appear in an admin's
-    // `/app/projects` list — the absence is the point, not an oversight.
-    crate::projects::designate_dri_in_surreal(
-        surreal,
-        project_id,
-        lawyer_id,
-        crate::projects::DriSide::Lawyer,
-    )
-    .await?;
-    crate::projects::designate_dri_in_surreal(
-        surreal,
-        project_id,
-        client_id,
-        crate::projects::DriSide::Client,
-    )
-    .await?;
-
-    // Publish the portal "little app" so the link streams. Best-effort: a local
-    // tier without an applications bucket configured skips rather than failing.
-    match cloud::applications_from_env().await {
-        Ok(applications) => {
-            publish_simpsons_portal(&applications).await?;
-        }
+    let cast = FixtureCast {
+        owner: owner_id,
+        lawyer: lawyer_id,
+        clerk: clerk_id,
+        client: client_id,
+    };
+    let applications = match cloud::applications_from_env().await {
+        Ok(applications) => Some(applications),
         Err(error) => {
-            tracing::warn!(%error, "seed: no applications bucket; skipping simpsons portal publish");
+            tracing::warn!(%error, "seed: no applications bucket; skipping the simulated portals");
+            None
+        }
+    };
+
+    for matter in SIMULATED_MATTERS {
+        open_simulated_matter(
+            surreal,
+            report,
+            matter,
+            &cast,
+            nevada.id,
+            applications.as_ref(),
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+/// The four fixture accounts that get a participation row on every simulated
+/// matter, resolved once.
+///
+/// Admin is deliberately absent, and its absence is the point — see
+/// [`open_simulated_matter`]. Grouping the four into one value is what keeps the
+/// per-matter half a readable argument list rather than seven positional ids.
+struct FixtureCast {
+    owner: Uuid,
+    lawyer: Uuid,
+    clerk: Uuid,
+    client: Uuid,
+}
+
+/// Open one simulated matter: its client Entity, its Project, its repository
+/// pointer, its participation rows, its two DRIs, and its portal bundle.
+///
+/// Split from [`seed_role_matrix_simulated`] because the two halves answer
+/// different questions — who the fixture accounts are, and what one matter is —
+/// and only the second one repeats.
+async fn open_simulated_matter(
+    surreal: &SurrealDb,
+    report: &mut SeedReport,
+    matter: &SimulatedMatter,
+    cast: &FixtureCast,
+    jurisdiction_id: Uuid,
+    applications: Option<&std::sync::Arc<dyn cloud::StorageService>>,
+) -> anyhow::Result<()> {
+    let FixtureCast {
+        owner: owner_id,
+        lawyer: lawyer_id,
+        clerk: clerk_id,
+        client: client_id,
+    } = *cast;
+    {
+        let entity_type =
+            crate::entity_types::find_by_name(surreal, matter.client_kind.entity_type())
+                .await?
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "seed: entity_type `{}` must be seeded first",
+                        matter.client_kind.entity_type()
+                    )
+                })?;
+        let entity_id = ensure_dev_entity(
+            surreal,
+            report,
+            matter.client_entity,
+            entity_type.id,
+            jurisdiction_id,
+        )
+        .await?;
+        let project_id = ensure_dev_project(
+            surreal,
+            report,
+            matter.code,
+            matter.name,
+            entity_id,
+            matter.description,
+        )
+        .await?;
+
+        crate::projects::set_repository_url(surreal, project_id, Some(matter.repository_url))
+            .await?;
+
+        // Client side and firm side. The lawyer is the licensed lawyer DRI,
+        // which is also what lets the supervised Clerk resolve the matter.
+        ensure_participation(surreal, report, project_id, client_id, "client").await?;
+        ensure_participation(surreal, report, project_id, lawyer_id, "attorney").await?;
+        ensure_participation(surreal, report, project_id, clerk_id, "clerk").await?;
+        // Owner gets a firm-side row so the demo matters appear in the Owner's
+        // own list: since ENG-81 the whole matter surface — `/app/projects` and
+        // `/app/projects/{code}` alike — is participation-scoped for every tier,
+        // with no privileged bypass.
+        ensure_participation(surreal, report, project_id, owner_id, "owner").await?;
+        // Admin deliberately gets **no** row. These matters are what an
+        // administrator who was never assigned to a matter looks like, which is
+        // the ENG-81 decision made visible: privileged reach is a place you
+        // navigate to (`/app/admin`, which reads and writes the participation
+        // ledger), not a silent widening of a shared route. Because one row
+        // gates both the list and the detail view, this is also why none of
+        // these appear in an admin's `/app/projects` list — the absence is the
+        // point, not an oversight.
+        crate::projects::designate_dri_in_surreal(
+            surreal,
+            project_id,
+            lawyer_id,
+            crate::projects::DriSide::Lawyer,
+        )
+        .await?;
+        crate::projects::designate_dri_in_surreal(
+            surreal,
+            project_id,
+            client_id,
+            crate::projects::DriSide::Client,
+        )
+        .await?;
+
+        if let Some(applications) = applications {
+            publish_simulated_portal(applications, matter).await?;
         }
     }
     Ok(())
 }
 
-/// The Project code the demo matter — and therefore its portal — lives under.
-const SIMPSONS_PROJECT_CODE: &str = "simpsons";
-
-/// Where the `simpsons` demo matter's templates and client portal are sourced
-/// from — the public reference project application.
+/// Publish one simulated matter's client portal, preferring a locally built
+/// bundle.
 ///
-/// Recorded on the Project rather than compiled into the command that clones
-/// it, so the demo matter demonstrates the real mechanism: a Project names its
-/// own repository, on whatever forge hosts it.
-pub const SIMPSONS_REPOSITORY_URL: &str =
-    "https://github.com/neon-law-foundation/navigator-sample-project";
-
-/// Publish the `simpsons` client portal, preferring a locally built bundle.
+/// Local `dev` boot clones and builds each matter's repository and stages it,
+/// naming the staged directories in [`crate::sample_project::STAGE_ENV`]. Boot
+/// publishes the bundle whose manifest names this matter; the generated
+/// environment points the web process at the staged directories.
 ///
-/// Local `dev` boot clones and builds
-/// `neon-law-foundation/navigator-sample-project` and stages it, naming the
-/// staged directory in [`crate::sample_project::STAGE_ENV`]. Boot publishes
-/// that bundle for the Simpsons matter; the generated environment points the
-/// web process at the staged directory.
-///
-/// The staged bundle must declare its Project in `navigator.yml`, and it must
-/// be this one. Publishing a bundle that names another matter would put one
-/// client's application on another client's portal, so a mismatch — like an
-/// unbuilt or unparsable staging directory — is reported as a failed local
-/// application build.
-async fn publish_simpsons_portal(
+/// A staged bundle must declare its Project in `navigator.yml`. Publishing a
+/// bundle that names another matter would put one client's application on
+/// another client's portal, so a mismatch — like an unbuilt or unparsable
+/// staging directory — leaves the deterministic document in place and is
+/// reported as a failed local application build.
+async fn publish_simulated_portal(
     applications: &std::sync::Arc<dyn cloud::StorageService>,
+    matter: &SimulatedMatter,
 ) -> anyhow::Result<()> {
-    if let Some(staged) = crate::sample_project::staged_from_env() {
-        match publish_staged_portal(applications, &staged).await {
+    if let Some(staged) = crate::sample_project::staged_for(matter.code) {
+        match publish_staged_portal(applications, &staged, matter.code).await {
             Ok(count) => {
                 tracing::info!(
+                    code = matter.code,
                     root = %staged.root.display(),
                     objects = count,
                     "seed: published the built sample project portal"
@@ -763,6 +1015,7 @@ async fn publish_simpsons_portal(
                 // Keep the deterministic portal document available while the
                 // local application build is repaired.
                 tracing::warn!(
+                    code = matter.code,
                     root = %staged.root.display(),
                     %error,
                     "seed: staged sample project unusable; keeping the portal document"
@@ -775,10 +1028,10 @@ async fn publish_simpsons_portal(
         .put_cached(
             &format!(
                 "{}/{}",
-                crate::sample_project::portal_prefix(SIMPSONS_PROJECT_CODE),
+                crate::sample_project::portal_prefix(matter.code),
                 crate::sample_project::ENTRY_DOCUMENT
             ),
-            SIMPSONS_PORTAL_INDEX.as_bytes(),
+            matter.portal_index.as_bytes(),
             "text/html; charset=utf-8",
             crate::sample_project::ENTRY_CACHE_CONTROL,
         )
@@ -792,6 +1045,7 @@ async fn publish_simpsons_portal(
 async fn publish_staged_portal(
     applications: &std::sync::Arc<dyn cloud::StorageService>,
     staged: &crate::sample_project::StagedProject,
+    expected_code: &str,
 ) -> anyhow::Result<usize> {
     let manifest = std::fs::read_to_string(staged.manifest()).with_context(|| {
         format!(
@@ -799,7 +1053,7 @@ async fn publish_staged_portal(
             staged.manifest().display()
         )
     })?;
-    let code = crate::sample_project::project_code_for(&manifest, SIMPSONS_PROJECT_CODE)?;
+    let code = crate::sample_project::project_code_for(&manifest, expected_code)?;
 
     let plan = crate::sample_project::publish_plan(&staged.dist, &code)?;
     anyhow::ensure!(
@@ -857,7 +1111,12 @@ async fn ensure_dev_person(
     Ok(row.id)
 }
 
-async fn ensure_dev_human_entity(
+/// Idempotently ensure one simulated matter's client Entity, of whatever type
+/// that matter's client is. The type is a parameter rather than fixed to
+/// `Human` because the fixture carries a company client as well as two people,
+/// and a company engaging outside counsel is a different Entity shape from an
+/// individual plaintiff.
+async fn ensure_dev_entity(
     surreal: &SurrealDb,
     report: &mut SeedReport,
     name: &str,

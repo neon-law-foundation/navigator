@@ -149,8 +149,9 @@ reach production:
 
 1. **Canonical** — the shared identities, reference data, and catalog. Every brand, every environment.
 2. **Brand** — this layer. The booting brand only, every environment.
-3. **Simpsons development fixture** — the one synthetic matter, its local participants, and its supporting rows. `dev`
-   only, so the shared Simpsons example is ready whenever local development starts.
+3. **[Simulated matter fixture](#simulated-matter-fixture)** — three synthetic matters, their local participants, and
+   their supporting rows. Applied only where the matters are simulated, so the shared examples are ready whenever local
+   development starts and never reach a deployment holding real files.
 
 A brand declares its `BrandSeed` in the `Brand` value it hands to the shared run loop, so the seed set is chosen by
 which binary is running rather than by configuration. The Firm's mailboxes and the Foundation's share a street, a suite,
@@ -333,10 +334,15 @@ malpractice-relevant records.
 
 ## Deployment Environment
 
-The infrastructure profile selected by `NAVIGATOR_ENVIRONMENT`. Exact `dev` serves local KIND, applying the canonical
-seed, the [Brand Seed](#brand-seed), and the Simpsons development fixture. Exact `production`, empty, or unset serves
-serves production and applies the canonical seed and the Brand Seed. The parser reports every other value as an error.
-`NAVIGATOR_CI_HARNESS` adds fake providers to the `dev` profile for automated tests.
+The infrastructure profile selected by `NAVIGATOR_ENVIRONMENT`. Exact `dev` serves local KIND; exact `production`,
+empty, or unset serves production. The parser reports every other value as an error. `NAVIGATOR_CI_HARNESS` adds fake
+providers to the `dev` profile for automated tests.
+
+Every profile applies the canonical seed and the [Brand Seed](#brand-seed). Whether the [Simulated Matter
+Fixture](#simulated-matter-fixture) is applied on top is a *separate* selector, `NAVIGATOR_SIMULATED_MATTERS`, which
+defaults to following this one and can be set explicitly either way. The combination that needs the second selector is
+the persistent staging deployment: it runs the `production` profile deliberately, so nothing in the process could
+otherwise tell it apart from the deployment holding real matters.
 
 ## Deployment Operator
 
@@ -1134,16 +1140,27 @@ real [Person](#person) (the respondent, or the attorney of record) when the [Not
 ([`rules::f107`](../rules/src/f107.rs)): the signer and field must be known, and a Template that draws any signature
 block must declare a `sent_for_signature` (or `sent_for_signature__*`) [State](#state) to collect the signature.
 
-## Simpsons Development Fixture
+## Simulated Matter Fixture
 
-The Simpsons development fixture is the one synthetic matter a local `dev` boot applies on top of the canonical seed. It
-is written by [`store::seed::seed_dev_portfolio`](../store/src/seed.rs), is idempotent, and keeps local accounts and the
-*Simpson v. Flanders* matter ready for the firm, clerk, and client surfaces.
+The three synthetic matters a boot applies on top of the canonical seed wherever `NAVIGATOR_SIMULATED_MATTERS` resolves
+true. Written by [`store::seed::seed_simulated_portfolio`](../store/src/seed.rs), idempotent, and it keeps the local
+accounts and all three matters ready for the firm, clerk, and client surfaces.
 
-The companion sample application is refreshed from
-[`navigator-sample-project`](https://github.com/neon-law-foundation/navigator-sample-project) during local boot and
-served at `/app/projects/simpsons/portal/`. The project code is the URL slug: lowercase letters and numbers joined by
-single hyphens, with no UUID in the project show URL.
+The three are deliberately different shapes of legal work, because one matter can only demonstrate one:
+
+| Code | Matter | Practice | Client |
+| --- | --- | --- | --- |
+| `donut-litigation` | *Cruller v. Prine* | trespass and rescission of a doughnut instrument | an individual plaintiff |
+| `widget-works` | *Widget Works — Outside Counsel* | employment agreements and contract review | a Nevada C-Corp |
+| `montgomery-estate` | *Estate of Cornelius Montgomery* | an estate plan | an individual testator |
+
+Each carries its own companion application, refreshed from its own public repository during local boot and served at
+`/app/projects/{code}/portal/`. The project code is the URL slug: lowercase letters and numbers joined by single
+hyphens, with no UUID in the project show URL.
+
+The fixture Client participates in all three, so a signed-in client sees a project list worth looking at. The fixture
+Admin participates in none of them — see [Deployment Environment](#deployment-environment) for which deployments apply
+this layer at all.
 
 ## Standing Data Store
 
@@ -1319,4 +1336,4 @@ honest against the repository.
 Workshops belong to the staging deployment, which carries simulated matters by design; the two environments holding real
 people's matters never seed them.
 
-- See also: [Simpsons Development Fixture](#simpsons-development-fixture) and [`environments.md`](environments.md)
+- See also: [Simulated Matter Fixture](#simulated-matter-fixture) and [`environments.md`](environments.md)

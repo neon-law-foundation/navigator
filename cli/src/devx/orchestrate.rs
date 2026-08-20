@@ -141,10 +141,10 @@ pub(super) fn up_in(root: &Path, cfg: &KindConfig) -> Result<()> {
     // cluster converges on the current definitions.
     super::surreal::apply_schema(cfg, "navigator")?;
 
-    // Development always refreshes the one Simpsons application before the
-    // environment is written. The generated variable below then points the
-    // host-side web process at this exact staged bundle.
-    super::sample_project::run_for_root(store::seed::SIMPSONS_REPOSITORY_URL, None, false, root)?;
+    // Development always refreshes every simulated matter's application before
+    // the environment is written. The generated variable below then points the
+    // host-side web process at this exact set of staged bundles.
+    super::sample_project::run_for_root(false, root)?;
 
     state.write_env(&render_env(cfg, root))?;
 

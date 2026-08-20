@@ -50,6 +50,7 @@ pub mod practice_card;
 pub mod pricing;
 pub mod public_shell;
 pub mod row_actions;
+pub mod simulated_matters_banner;
 pub mod site_footer;
 pub mod site_header;
 pub mod social;
@@ -88,6 +89,9 @@ pub(crate) use practice_card::{PracticeCard, PracticeMarkGlyph};
 pub use pricing::{PricingCard, PricingSection};
 pub use public_shell::PublicShell;
 pub use row_actions::RowActions;
+#[cfg(feature = "server")]
+pub use simulated_matters_banner::render_simulated_matters_banner;
+pub use simulated_matters_banner::{SimulatedMattersBanner, SIMULATED_MATTERS_BANNER_ID};
 pub use site_footer::{
     FooterAttorney, FooterBarLicense, FooterNavLink, FooterOffice, SiteFooterLegal,
 };

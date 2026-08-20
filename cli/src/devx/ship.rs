@@ -73,6 +73,8 @@ use anyhow::{bail, ensure, Context, Result};
 use include_dir::{include_dir, Dir};
 use tempfile::TempDir;
 
+use store::NAVIGATOR_SIMULATED_MATTERS;
+
 use super::registry;
 use super::{require_auth, require_tools, run};
 
@@ -296,6 +298,21 @@ where
         token: "YOUR_OAUTH_CLIENT_ID_GEMINI",
         env: "NAVIGATOR_OAUTH_CLIENT_ID_GEMINI",
         value: gemini_client_id,
+    });
+    // Optional, and absence means `false`. A deployment carrying simulated
+    // matters has to say so; every other deployment says nothing and gets the
+    // production answer. Deliberately not in TABLE, whose entries all bail
+    // when missing: making this required would let a line deleted from a
+    // production `config.toml` block a production roll, and the safe reading
+    // of a missing value here is simply "these matters are real". The value is
+    // passed through verbatim so `store::config::simulated_matters` does the
+    // parsing in one place; a typo reaches the pod and fails the boot loudly
+    // rather than being silently coerced here.
+    substitutions.push(Substitution {
+        token: "YOUR_SIMULATED_MATTERS",
+        env: NAVIGATOR_SIMULATED_MATTERS,
+        value: non_empty_env(NAVIGATOR_SIMULATED_MATTERS, &get)
+            .unwrap_or_else(|| "false".to_string()),
     });
     Ok(substitutions)
 }

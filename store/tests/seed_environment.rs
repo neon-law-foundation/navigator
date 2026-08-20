@@ -1,7 +1,12 @@
 //! Integration coverage for environment-aware seed orchestration.
 //!
-//! The Simpsons development fixture is a `SurrealDB` projects-cluster
-//! concern. These tests assert the public project and participation read seams.
+//! The simulated-matter fixture is a `SurrealDB` projects-cluster concern.
+//! These tests assert the public project and participation read seams.
+//!
+//! Every test drives [`store::seed::seed_environment_with`] rather than
+//! `seed_environment`, so the simulated-matter decision is an argument instead
+//! of a read of process environment. A sourced `.devx/env` would otherwise
+//! decide what these tests assert.
 
 use std::sync::Arc;
 
@@ -21,19 +26,18 @@ async fn storage() -> Arc<dyn cloud::StorageService> {
     Arc::new(cloud::FsStorage::new(dir).await.unwrap())
 }
 
+/// A deployment holding real client files carries no invented ones, and no
+/// fixture people either. This is the assertion the whole
+/// `NAVIGATOR_SIMULATED_MATTERS` default exists to keep true.
 #[tokio::test]
-async fn production_seed_has_no_disposable_projects_or_people() {
+async fn a_seed_without_simulated_matters_has_no_disposable_projects_or_people() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    let report = store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Production,
-        store::seed::BrandSeed::Neon,
-    )
-    .await
-    .unwrap();
+    let report =
+        store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, false)
+            .await
+            .unwrap();
 
     assert!(projects::all(&surreal).await.unwrap().is_empty());
     for email in ["lawyer@neonlaw.com", "client@neonlaw.com"] {
@@ -42,78 +46,200 @@ async fn production_seed_has_no_disposable_projects_or_people() {
                 .await
                 .unwrap()
                 .is_none(),
-            "production must not contain {email}"
+            "a real-matter deployment must not contain {email}"
         );
     }
     assert_eq!(report.projects_inserted, 0);
 }
 
+/// The default follows the deployment profile, which is what makes an
+/// unconfigured production deployment safe and a local boot useful.
+///
+/// This is the pairing the `store::config` unit tests cover in isolation,
+/// asserted here against the seed it actually governs — because the failure
+/// being guarded against is not a wrong boolean, it is invented clients in a
+/// database of real ones.
 #[tokio::test]
-async fn development_seed_opens_only_simpsons_with_dris() {
+async fn the_profile_decides_when_nothing_says_otherwise() {
+    assert!(
+        store::simulated_matters_from(DeploymentEnvironment::Dev, |_| None).unwrap(),
+        "a dev boot has nothing but fixtures"
+    );
+    assert!(
+        !store::simulated_matters_from(DeploymentEnvironment::Production, |_| None).unwrap(),
+        "an unconfigured production deployment seeds no invented matters"
+    );
+    assert!(
+        store::simulated_matters_from(DeploymentEnvironment::Production, |_| Some(
+            "true".to_string()
+        ))
+        .unwrap(),
+        "the persistent staging deployment runs the production profile and says so"
+    );
+}
+
+/// The fixture opens all three simulated matters, each with both DRIs, and
+/// nothing else.
+///
+/// Three rather than one on purpose: one matter can only ever demonstrate one
+/// shape of legal work, and the participation-scoped project list is not worth
+/// looking at with a single row in it. The count is asserted exactly, so a
+/// fourth matter added to the table has to come here and say so.
+#[tokio::test]
+async fn the_fixture_opens_the_three_simulated_matters_with_dris() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Dev,
-        store::seed::BrandSeed::Neon,
-    )
-    .await
-    .unwrap();
-
-    let simpsons = projects::find_by_code(&surreal, "simpsons")
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
         .await
-        .unwrap()
-        .into_iter()
-        .next()
-        .expect("Simpsons matter");
-    assert_eq!(simpsons.status, "open");
+        .unwrap();
+
     let client = persons::find_by_email_ci(&surreal, "client@neonlaw.com")
         .await
         .unwrap()
-        .expect("litigation client");
+        .expect("the fixture client");
     let lawyer = persons::find_by_email_ci(&surreal, "lawyer@neonlaw.com")
         .await
         .unwrap()
         .expect("lawyer fixture");
-    let participations = projects::participations_for_project(&surreal, simpsons.id)
-        .await
-        .unwrap();
-    assert!(participations.iter().any(|row| {
-        row.person_id == client.id && row.participation == "client" && row.is_client_dri
-    }));
-    assert!(participations.iter().any(|row| {
-        row.person_id == lawyer.id && row.participation == "attorney" && row.is_lawyer_dri
-    }));
 
-    assert_eq!(projects::all(&surreal).await.unwrap().len(), 1);
+    let codes = store::seed::simulated_matter_codes();
+    assert_eq!(
+        codes,
+        ["donut-litigation", "widget-works", "montgomery-estate"]
+    );
+
+    for code in &codes {
+        let matter = projects::find_by_code(&surreal, code)
+            .await
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| panic!("the `{code}` matter"));
+        assert_eq!(matter.status, "open", "{code}");
+        assert_eq!(
+            matter.repository_url.as_deref(),
+            store::seed::simulated_matter_repository(code),
+            "{code} records the repository its portal bundle is built from"
+        );
+
+        let participations = projects::participations_for_project(&surreal, matter.id)
+            .await
+            .unwrap();
+        assert!(
+            participations.iter().any(|row| {
+                row.person_id == client.id && row.participation == "client" && row.is_client_dri
+            }),
+            "{code} has a client DRI"
+        );
+        assert!(
+            participations.iter().any(|row| {
+                row.person_id == lawyer.id && row.participation == "attorney" && row.is_lawyer_dri
+            }),
+            "{code} has a lawyer DRI"
+        );
+    }
+
+    assert_eq!(
+        projects::all(&surreal).await.unwrap().len(),
+        codes.len(),
+        "the fixture opens exactly the matters it declares"
+    );
 }
 
+/// The fixture Admin is deliberately given no participation on any of them.
+///
+/// That absence is the ENG-81 decision made visible: privileged reach is a
+/// place an administrator navigates to, not a silent widening of a shared
+/// route. Adding a row for Admin "so the demo looks complete" would delete the
+/// one thing this fixture demonstrates about the authorization model, so the
+/// absence is asserted rather than left as a gap somebody helpfully fills.
 #[tokio::test]
-async fn development_seed_is_idempotent_and_repairs_participation_drift() {
+async fn the_fixture_admin_participates_in_nothing() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Dev,
-        store::seed::BrandSeed::Neon,
-    )
-    .await
-    .unwrap();
-    let simpsons = projects::find_by_code(&surreal, "simpsons")
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
+        .await
+        .unwrap();
+
+    let admin = persons::find_by_email_ci(&surreal, "admin@neonlaw.com")
+        .await
+        .unwrap()
+        .expect("the fixture admin can sign in");
+
+    for code in store::seed::simulated_matter_codes() {
+        let matter = projects::find_by_code(&surreal, code)
+            .await
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| panic!("the `{code}` matter"));
+        assert!(
+            projects::participations_for_project(&surreal, matter.id)
+                .await
+                .unwrap()
+                .iter()
+                .all(|row| row.person_id != admin.id),
+            "{code} must not carry a row for the unassigned administrator"
+        );
+    }
+}
+
+/// Every matter gets its own client Entity, so no two share one.
+///
+/// A shared Entity would be a quiet lie about the data model — three unrelated
+/// clients cannot be one legal person — and it would make the estate matter and
+/// the widget company indistinguishable on any surface that reads the Entity
+/// rather than the Project.
+#[tokio::test]
+async fn each_simulated_matter_has_its_own_client_entity() {
+    let surreal = mem_surreal().await;
+    let storage = storage().await;
+
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
+        .await
+        .unwrap();
+
+    let mut entities = Vec::new();
+    for code in store::seed::simulated_matter_codes() {
+        entities.push(
+            projects::find_by_code(&surreal, code)
+                .await
+                .unwrap()
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| panic!("the `{code}` matter"))
+                .entity_id,
+        );
+    }
+    let distinct: std::collections::BTreeSet<_> = entities.iter().collect();
+    assert_eq!(
+        distinct.len(),
+        entities.len(),
+        "each simulated matter is opened for its own client"
+    );
+}
+
+#[tokio::test]
+async fn the_fixture_is_idempotent_and_repairs_participation_drift() {
+    let surreal = mem_surreal().await;
+    let storage = storage().await;
+
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
+        .await
+        .unwrap();
+    let litigation = projects::find_by_code(&surreal, "donut-litigation")
         .await
         .unwrap()
         .into_iter()
         .next()
-        .expect("Simpsons matter");
+        .expect("the litigation matter");
     let client = persons::find_by_email_ci(&surreal, "client@neonlaw.com")
         .await
         .unwrap()
         .expect("litigation client");
-    let role = projects::participations_for_project(&surreal, simpsons.id)
+    let role = projects::participations_for_project(&surreal, litigation.id)
         .await
         .unwrap()
         .into_iter()
@@ -124,17 +250,12 @@ async fn development_seed_is_idempotent_and_repairs_participation_drift() {
         .unwrap();
     let before = projects::all(&surreal).await.unwrap().len();
 
-    store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Dev,
-        store::seed::BrandSeed::Neon,
-    )
-    .await
-    .unwrap();
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
+        .await
+        .unwrap();
 
     assert_eq!(projects::all(&surreal).await.unwrap().len(), before);
-    let repaired = projects::participations_for_project(&surreal, simpsons.id)
+    let repaired = projects::participations_for_project(&surreal, litigation.id)
         .await
         .unwrap()
         .into_iter()
@@ -145,7 +266,7 @@ async fn development_seed_is_idempotent_and_repairs_participation_drift() {
 }
 
 #[tokio::test]
-async fn development_seed_does_not_claim_a_same_named_project() {
+async fn the_fixture_does_not_claim_a_same_named_project() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
@@ -178,14 +299,9 @@ async fn development_seed_does_not_claim_a_same_named_project() {
         .await
         .unwrap();
 
-    store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Dev,
-        store::seed::BrandSeed::Neon,
-    )
-    .await
-    .unwrap();
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
+        .await
+        .unwrap();
 
     assert_eq!(
         projects::find_by_id(&surreal, squatter.id)
@@ -196,10 +312,10 @@ async fn development_seed_does_not_claim_a_same_named_project() {
         "closed"
     );
     assert_ne!(
-        projects::find_by_code(&surreal, "simpsons")
+        projects::find_by_code(&surreal, "donut-litigation")
             .await
             .unwrap()
-            .expect("seeded Simpsons matter")
+            .expect("the seeded litigation matter")
             .id,
         squatter.id
     );
@@ -210,7 +326,7 @@ async fn development_seed_does_not_claim_a_same_named_project() {
 /// boot must carry every box we actually answer mail at.
 ///
 /// Their being real is the point. `Address.yaml` used to sit in the disposable
-/// Simpsons development fixture, which supplies the local matter rows
+/// simulated-matter fixture, which supplies the local matter rows
 /// existed only on a developer's laptop.
 ///
 /// One boot carries them all now. The firm and the Foundation seeded from
@@ -223,14 +339,9 @@ async fn a_production_boot_carries_every_box_we_answer_mail_at() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Production,
-        store::seed::BrandSeed::Neon,
-    )
-    .await
-    .unwrap();
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, false)
+        .await
+        .unwrap();
 
     // The mail centre itself is a row too, and `seed_mailrooms` synthesizes a
     // placeholder address for it because `mailrooms.address_id` is NOT NULL.
@@ -285,14 +396,9 @@ async fn the_retired_partnerships_boxes_do_not_seed() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Production,
-        store::seed::BrandSeed::Neon,
-    )
-    .await
-    .unwrap();
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, false)
+        .await
+        .unwrap();
 
     assert!(
         store::entities::find_by_name(&surreal, "Neon Law")
@@ -334,14 +440,9 @@ async fn each_entity_holds_only_its_own_box() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Production,
-        store::seed::BrandSeed::Neon,
-    )
-    .await
-    .unwrap();
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, false)
+        .await
+        .unwrap();
 
     for (name, expected) in [
         (
@@ -376,14 +477,9 @@ async fn a_tenant_boot_carries_none_of_our_addresses() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Production,
-        store::seed::BrandSeed::Tenant,
-    )
-    .await
-    .unwrap();
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Tenant, false)
+        .await
+        .unwrap();
 
     assert!(store::addresses::list_all(&surreal)
         .await
@@ -399,14 +495,9 @@ async fn the_brand_layer_is_idempotent_across_boots() {
     let storage = storage().await;
 
     for _ in 0..2 {
-        store::seed::seed_environment(
-            &surreal,
-            &storage,
-            DeploymentEnvironment::Production,
-            store::seed::BrandSeed::Neon,
-        )
-        .await
-        .unwrap();
+        store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, false)
+            .await
+            .unwrap();
     }
 
     let second = store::seed::seed_brand(&surreal, store::seed::BrandSeed::Neon)
@@ -428,7 +519,7 @@ async fn the_brand_layer_is_idempotent_across_boots() {
 /// moved layers.
 ///
 /// `seed_letters` resolves its mailroom by name and *skips* a record it cannot
-/// find, so moving `seed_mailrooms` from the Simpsons development fixture into the
+/// find, so moving `seed_mailrooms` from the simulated-matter fixture into the
 /// brand layer put a cross-layer ordering dependency between them. It holds
 /// only because `seed_environment` applies the brand layer before the
 /// portfolio; reverse those two calls and this suite still passes everywhere
@@ -438,14 +529,9 @@ async fn the_dev_portfolios_mail_survives_the_mailroom_moving_layers() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Dev,
-        store::seed::BrandSeed::Neon,
-    )
-    .await
-    .unwrap();
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
+        .await
+        .unwrap();
 
     let letters = store::letters::list_all(&surreal).await.unwrap();
     assert!(

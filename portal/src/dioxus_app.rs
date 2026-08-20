@@ -209,6 +209,11 @@ async fn dioxus_document_head(req: Request, next: Next) -> Response {
     let html = stamp_html_lang(&rendered, lang)
         .replace("<script>", &format!("<script nonce=\"{nonce}\">"))
         .replacen("</head>", &format!("{}</head>", *GORP_HEAD), 1);
+    let html = if *SIMULATED_MATTERS {
+        open_with_banner(&html, &SIMULATED_MATTERS_BANNER)
+    } else {
+        html
+    };
 
     if let Ok(csp) = HeaderValue::from_str(&csp_with_nonce(&nonce, crate::asset_csp_origin())) {
         parts.headers.insert(header::CONTENT_SECURITY_POLICY, csp);
@@ -216,6 +221,53 @@ async fn dioxus_document_head(req: Request, next: Next) -> Response {
     // The body length changed; drop any stale content-length so axum recomputes.
     parts.headers.remove(header::CONTENT_LENGTH);
     Response::from_parts(parts, Body::from(html))
+}
+
+/// Whether this deployment's matters are simulated, read once at startup.
+///
+/// Read once rather than per request because it cannot change while the
+/// process runs, and because a per-request `std::env::var` on the one
+/// middleware that touches every HTML response is a cost paid on every page.
+/// An unparsable value resolves to `false`: `web` boot already validates the
+/// pair through `store::config::simulated_matters` and fails loudly, so by the
+/// time a request is served this can only be the value boot accepted.
+static SIMULATED_MATTERS: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+    store::DeploymentEnvironment::from_env()
+        .and_then(|environment| {
+            store::simulated_matters(environment).map_err(|_| {
+                store::DeploymentEnvironmentError::Invalid(String::from("simulated-matters"))
+            })
+        })
+        .unwrap_or(false)
+});
+
+/// The rendered simulated-matter banner, built once.
+///
+/// The component carries no props and no brand-dependent copy, so its markup
+/// is the same on every page of both faces and there is nothing to re-render
+/// per request.
+static SIMULATED_MATTERS_BANNER: std::sync::LazyLock<String> =
+    std::sync::LazyLock::new(webapp::components::render_simulated_matters_banner);
+
+/// Insert `banner` as the first child of the document body.
+///
+/// First child, not last: it is an advisory about everything below it, and a
+/// reader who meets it after the page has nothing left to warn them about.
+/// That position is safe for hydration because `dioxus-web` resolves its mount
+/// by `document.getElementById("main")` rather than by walking the body's
+/// children, so a preceding sibling shifts nothing it looks at.
+///
+/// A document with no `<body>` is returned untouched. That is not a case worth
+/// failing on: an HTML response that is a fragment rather than a document has
+/// no body to open, and dropping the banner from it is better than a 500.
+fn open_with_banner(html: &str, banner: &str) -> String {
+    let Some(start) = html.find("<body") else {
+        return html.to_string();
+    };
+    let Some(end) = html[start..].find('>').map(|offset| start + offset + 1) else {
+        return html.to_string();
+    };
+    format!("{}{banner}{}", &html[..end], &html[end..])
 }
 
 /// The GORP Serif head fragment, built once from the process asset origin: a
@@ -3790,6 +3842,53 @@ mod tests {
             "<html lang=\"en\"><head></head></html>"
         );
     }
+    /// The banner lands as the body's first child, whatever attributes the
+    /// opening tag carries, and a document with no body is returned untouched.
+    ///
+    /// First child is the load-bearing part twice over. It is an advisory about
+    /// everything below it, so a reader must meet it before the page; and it
+    /// must land *outside* `<div id="main">`, because that node is what
+    /// `dioxus-web` hydrates. Injecting inside it would put markup in the DOM
+    /// that the client's virtual tree does not know about.
+    #[test]
+    fn the_banner_opens_the_body_and_leaves_a_bodyless_document_alone() {
+        let banner = "<div id=\"b\">B</div>";
+
+        assert_eq!(
+            open_with_banner(
+                "<html><head></head><body><div id=\"main\">P</div></body></html>",
+                banner
+            ),
+            "<html><head></head><body><div id=\"b\">B</div><div id=\"main\">P</div></body></html>"
+        );
+        // The bundled template's body may carry attributes; the whole opening
+        // tag is skipped rather than a literal `<body>` matched.
+        assert_eq!(
+            open_with_banner("<body class=\"x\" data-y><p>P</p></body>", banner),
+            "<body class=\"x\" data-y><div id=\"b\">B</div><p>P</p></body>"
+        );
+        // A fragment response has no body to open. Dropping the banner beats
+        // failing the response.
+        assert_eq!(
+            open_with_banner("<p>fragment</p>", banner),
+            "<p>fragment</p>"
+        );
+        assert_eq!(open_with_banner("<body", banner), "<body");
+    }
+
+    /// The rendered banner says the matters are invented, and carries the id
+    /// the browser walkthrough looks for. Asserted here as well as in `webapp`
+    /// because this is the string that actually reaches a response.
+    #[test]
+    fn the_rendered_banner_is_the_one_the_walkthrough_finds() {
+        let banner = &*SIMULATED_MATTERS_BANNER;
+        assert!(
+            banner.contains(webapp::components::SIMULATED_MATTERS_BANNER_ID),
+            "{banner}"
+        );
+        assert!(banner.contains("Simulated matters"), "{banner}");
+    }
+
     /// The route-scoped policy widens `img-src`/`font-src` to the deployment
     /// asset origin — the licensed faces live there, and a `font-src 'self'`
     /// would block them and drop the page back to a fallback serif — while

@@ -189,6 +189,14 @@ const FIRM_NAV: &[NavLink] = &[
 /// a shared portal route rather than a firm page, so it resolves on both faces —
 /// and it belongs at the bottom for the plainest reason on this list: a reader
 /// who wants the manual for the software has already decided to run it.
+///
+/// Privacy and Terms sit in this row on the same footing as the Blog and
+/// Contact, not in a smaller strip beneath it. They are the two documents a
+/// reader is entitled to find without hunting, and the legal strip below
+/// already carries the copyright, the bar disclosure, and the advertising
+/// disclaimer — a second, quieter row of legal links there would read as fine
+/// print about fine print. Their bodies already serve at `/privacy` and
+/// `/terms`; this is the link that reaches them.
 const FIRM_FOOTER_NAV: &[NavLink] = &[
     NavLink::leaf("Blog", "/blog"),
     NavLink::leaf("Contact", "/contact"),
@@ -196,6 +204,8 @@ const FIRM_FOOTER_NAV: &[NavLink] = &[
     NavLink::leaf("Navigator", "/navigator"),
     NavLink::leaf("Neon Law", "/"),
     NavLink::leaf("Presentations", "/presentations"),
+    NavLink::leaf("Privacy", "/privacy"),
+    NavLink::leaf("Terms", "/terms"),
     NavLink::leaf("Workshops", "/workshops"),
 ];
 
@@ -1278,16 +1288,22 @@ mod tests {
         );
     }
 
-    /// Blog, Contact, Docs, Foundation, Navigator, Presentations, and Workshops
-    /// are the routes the header does not carry, ordered alphabetically by label.
-    /// They are still linked from every public page — a route in neither row is
-    /// stranded, which is the failure this pairs with the test above to catch.
+    /// Blog, Contact, Docs, Navigator, Neon Law, Presentations, Privacy, Terms,
+    /// and Workshops are the routes the header does not carry, ordered
+    /// alphabetically by label. They are still linked from every public page — a
+    /// route in neither row is stranded, which is the failure this pairs with
+    /// the test above to catch.
     ///
     /// Workshops joined the row when the classes became public, and Docs when
     /// the workspace documentation did. While either was gated the chrome
     /// deliberately omitted it rather than send a signed-out reader at a login
     /// door; now that anyone may read them, a footer link is what stops each
     /// being reachable only by typing the URL.
+    ///
+    /// Privacy and Terms are here for the plainer reason that the header links
+    /// neither and the legal strip below links only the bar records: without
+    /// this row, the two documents the site publishes about itself would be
+    /// reachable only by typing the URL.
     #[test]
     fn the_footer_nav_carries_what_the_header_does_not() {
         let footer: Vec<&str> = super::firm_footer_nav().iter().map(|n| n.label).collect();
@@ -1300,6 +1316,8 @@ mod tests {
                 "Navigator",
                 "Neon Law",
                 "Presentations",
+                "Privacy",
+                "Terms",
                 "Workshops"
             ]
         );

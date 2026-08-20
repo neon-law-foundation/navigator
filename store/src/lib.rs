@@ -92,4 +92,7 @@ pub mod xero_invoices;
 pub mod test_support;
 pub mod verifications;
 
-pub use config::{DeploymentEnvironment, DeploymentEnvironmentError, NAVIGATOR_ENVIRONMENT};
+pub use config::{
+    simulated_matters, simulated_matters_from, DeploymentEnvironment, DeploymentEnvironmentError,
+    SimulatedMattersError, NAVIGATOR_ENVIRONMENT, NAVIGATOR_SIMULATED_MATTERS,
+};

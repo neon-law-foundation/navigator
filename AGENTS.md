@@ -142,16 +142,16 @@ resets with the pod.
 
 The local Rauthy fixture provides five role-named accounts, each with password `password`: `owner@neonlaw.com` (owner),
 `admin@neonlaw.com` (admin), `lawyer@neonlaw.com` (lawyer), `clerk@neonlaw.com` (clerk), and `client@neonlaw.com`
-(client). Four of the five are seeded onto one demo matter, *Simpson v. Flanders* (project code `simpsons`), so each can
-be exercised on the same project. `admin@neonlaw.com` deliberately is **not**: since ENG-81 the matter surface is
-participation-scoped for every tier, so the fixture Admin is what an unassigned administrator looks like — `simpsons`
-appears in neither their project list nor their detail view until they grant themselves a row at `/app/admin`. Its
-administration surface is `http://localhost:30080/auth/v1/admin`, using `nick@neonlaw.com` / `admin` on the shared local
-tier or the Rauthy port printed for a worktree. Rauthy has one full administrator rather than a realm-scoped
-`manage-users` administrator; these known credentials are confined to the loopback-only KIND fixture, while the reusable
-staging layer contains none. Authentication comes from OIDC, while authorization comes from `persons.role`. Sign-in does
-not create a Person: an IdP-authenticated email with no pre-seeded row receives 403, except
-`NAVIGATOR_BOOTSTRAP_OWNER_EMAIL`, which is created as `owner`. Seed Lawyer in the database used by the running `web`:
+(client). Four of the five are seeded onto all three demo matters, so each can be exercised on the same projects.
+`admin@neonlaw.com` deliberately is **not**: since ENG-81 the matter surface is participation-scoped for every tier, so
+the fixture Admin is what an unassigned administrator looks like — the matters appear in neither their project list nor
+their detail view until they grant themselves a row at `/app/admin`. Its administration surface is
+`http://localhost:30080/auth/v1/admin`, using `nick@neonlaw.com` / `admin` on the shared local tier or the Rauthy port
+printed for a worktree. Rauthy has one full administrator rather than a realm-scoped `manage-users` administrator; these
+known credentials are confined to the loopback-only KIND fixture, while the reusable staging layer contains none.
+Authentication comes from OIDC, while authorization comes from `persons.role`. Sign-in does not create a Person: an
+IdP-authenticated email with no pre-seeded row receives 403, except `NAVIGATOR_BOOTSTRAP_OWNER_EMAIL`, which is created
+as `owner`. Seed Lawyer in the database used by the running `web`:
 
 ```bash
 cargo run -p cli -- dev grant-lawyer
@@ -170,18 +170,38 @@ prompts for credentials instead of silently re-authenticating. No manual step is
 provider end-session endpoint at `http://localhost:30080/auth/v1/oidc/logout` (substitute the worktree's Rauthy port)
 before starting login again.
 
-### The Simpsons sample project
+### The three simulated matters
 
-The one local sample project is the `simpsons` matter. Its client portal is `/app/projects/simpsons/portal/`, and every
-`dev up` / `dev worktree-env up` refreshes it before writing `.devx/env`. The clone and `pnpm` build happen in a
-temporary directory; the built `dist/` and its `navigator.yml` survive in `.devx/sample-project/`, and the generated
-environment points `web` at that staged bundle. `index.html` publishes last, so a reader mid-refresh keeps a complete
-prior document until the new assets are ready.
+The fixture seeds three matters, each with its own client, its own practice, and its own sample application:
 
-The explicit `cargo run -p cli -- dev sample-project` command refreshes the same Simpsons bundle when a developer wants
-to run that step by itself. The application declares `name: simpsons` in `navigator.yml`, and boot validates that code
-before publishing it under the matching matter portal. The code uses the same `projects::is_valid_code` rule as every
-Project, so the URL segment is always lowercase letters or numbers separated by single hyphens.
+| Code | Matter | Repository |
+| --- | --- | --- |
+| `donut-litigation` | *Cruller v. Prine* | `navigator-sample-project-litigation` |
+| `widget-works` | *Widget Works — Outside Counsel* | `navigator-sample-project-transactional` |
+| `montgomery-estate` | *Estate of Cornelius Montgomery* | `navigator-sample-project-estate` |
+
+Each client portal is `/app/projects/<code>/portal/`, and every `dev up` / `dev worktree-env up` refreshes all three
+before writing `.devx/env`. The clones and `pnpm` builds happen in temporary directories; each built `dist/` and its
+`navigator.yml` survive in `.devx/sample-projects/<code>/`, and `NAVIGATOR_SAMPLE_PROJECTS_DIR` points `web` at the
+parent. `index.html` publishes last, so a reader mid-refresh keeps a complete prior document until the new assets are
+ready.
+
+The explicit command refreshes the same bundles. Name one matter to rebuild only its application — a full refresh is one
+`pnpm install` and build per matter, so the narrow form is the loop worth using while iterating:
+
+```bash
+cargo run -p cli -- dev sample-project --project donut-litigation
+```
+
+Each application declares its own `name:` in `navigator.yml`, and boot validates that code before publishing it under
+the matching matter portal — so a bundle staged under the wrong directory is refused rather than published on another
+matter's portal. The code uses the same `projects::is_valid_code` rule as every Project, so the URL segment is always
+lowercase letters or numbers separated by single hyphens.
+
+Whether these matters are seeded at all is `NAVIGATOR_SIMULATED_MATTERS`, which defaults to following
+`NAVIGATOR_ENVIRONMENT`: a `dev` boot carries them, a `production` boot does not. The persistent staging deployment sets
+it to `true` explicitly, because its runtime profile is `production` by design. A deployment carrying them publishes a
+site-wide banner saying so on every page.
 
 ### Verification
 

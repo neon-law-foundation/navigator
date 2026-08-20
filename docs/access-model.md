@@ -153,7 +153,8 @@ Foundation training host turns this on when trainings open; production keeps it 
 - **The KIND-only Rauthy fixture** seeds one account per role, each with password `password`: `owner@neonlaw.com`,
   `admin@neonlaw.com`, `lawyer@neonlaw.com`, `clerk@neonlaw.com`, and `client@neonlaw.com` (per
   [`AGENTS.md`](../AGENTS.md#authentication-and-lawyer-access)). Four of the five are seeded onto one demo matter,
-  *Simpson v. Flanders* (project code `simpsons`), so each can be exercised on the same project. `admin@neonlaw.com`
+  *Cruller v. Prine* (project code `donut-litigation`), so each can be exercised on the same project.
+  `admin@neonlaw.com`
 deliberately holds **no** participation on it: one row gates both `/app/projects` and `/app/projects/{code}`, so the
   fixture Admin demonstrates the ENG-81 decision — an unassigned administrator sees the matter in neither place, and
   reach is granted at `/app/admin` where it is auditable. `lawyer@neonlaw.com` carries exactly one role, lawyer, not
