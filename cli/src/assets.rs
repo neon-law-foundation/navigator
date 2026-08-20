@@ -1314,22 +1314,21 @@ fn write_stub(dest: &Path, bytes: &[u8]) -> anyhow::Result<()> {
     std::fs::write(dest, bytes).with_context(|| format!("write `{}`", dest.display()))
 }
 
-/// Write placeholder bytes for every content `img/…` reference into
-/// `out`, plus the licensed GORP faces. The public-origin verifier owns
-/// publication correctness; this only materializes local bytes for an
-/// ephemeral KIND image. Neither the photos nor the WOFF2 bytes are in the
-/// tree — both are gitignored and excluded from a normal image build — so
-/// both are stubbed here and un-ignored by the deploy workflow before the
-/// bake, which is what lets the KIND origin serve every verified key.
+/// Write placeholder bytes for every asset [`published_asset_refs`] verifies
+/// into `out`. The public-origin verifier owns publication correctness; this
+/// only materializes local bytes for an ephemeral KIND image. Neither the
+/// photos nor the WOFF2 bytes are in the tree — both are gitignored and
+/// excluded from a normal image build — so both are stubbed here and
+/// un-ignored by the deploy workflow before the bake, which is what lets the
+/// KIND origin serve every verified key.
 fn stub_referenced_content(content_dir: &Path, out: &Path) -> u8 {
-    let mut refs = match content_image_refs(content_dir) {
+    let refs = match published_asset_refs(content_dir) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("navigator: assets stub-referenced: {e:#}");
             return 2;
         }
     };
-    refs.extend(gorp_font_refs());
 
     let mut written = 0usize;
     let mut errored = Vec::new();
@@ -1645,9 +1644,9 @@ mod tests {
         orphan_report, parse_image_refs, placeholder_bytes_for, published_asset_refs,
         reachable_image_keys, report_exit, resolve_public_origin, run_fetch_referenced,
         run_orphans, run_pull, run_upload, run_upload_desktop_fonts, run_upload_fonts, select,
-        storage_report_result, upload, upload_gorp_fonts, upload_gorp_otf_zip,
-        verify_bundled_slide_assets, verify_bundled_slide_assets_bucket, verify_content,
-        verify_refs, verify_storage_refs, AssetProbe, FetchReport, VerifyReport,
+        storage_report_result, stub_referenced_content, upload, upload_gorp_fonts,
+        upload_gorp_otf_zip, verify_bundled_slide_assets, verify_bundled_slide_assets_bucket,
+        verify_content, verify_refs, verify_storage_refs, AssetProbe, FetchReport, VerifyReport,
         ASSET_CACHE_CONTROL, GORP_OTF_ZIP_KEY,
     };
     use cloud::{FsStorage, ObjectListing, StorageError, StorageService, StoredObject};
@@ -2327,6 +2326,23 @@ Inline raw-HTML tile: <div>![Team](img/thanks-apple/team-lunch.jpg)</div>\n";
         }
         for key in gorp_font_refs() {
             assert!(refs.contains(&key), "verify must probe `{key}`");
+        }
+    }
+
+    #[test]
+    fn stub_referenced_content_materializes_every_asset_the_verifier_checks() {
+        let content = content_dir_referencing("img/demo/hero.png");
+        let out = TempDir::new().unwrap();
+        let expected = published_asset_refs(content.path()).unwrap();
+
+        assert_eq!(stub_referenced_content(content.path(), out.path()), 0);
+        for rel in expected {
+            let destination = destination_for_ref(out.path(), &rel).unwrap();
+            assert!(
+                destination.is_file(),
+                "stub-referenced must materialize verifier key `{rel}` at {}",
+                destination.display()
+            );
         }
     }
 
