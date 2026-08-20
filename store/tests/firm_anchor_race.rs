@@ -41,7 +41,10 @@ async fn unguarded_create(db: &SurrealDb, key: &str) -> Result<(), surrealdb::Er
     ))
     .bind((
         "j",
-        record_id("jurisdiction", store::test_support::SEED_ENTITY_JURISDICTION_ID),
+        record_id(
+            "jurisdiction",
+            store::test_support::SEED_ENTITY_JURISDICTION_ID,
+        ),
     ))
     .await
     .and_then(surrealdb::IndexedResults::check)
@@ -68,7 +71,69 @@ async fn anchor_rows(db: &SurrealDb) -> usize {
         .count()
 }
 
-/// The guarded write, raced: exactly one racer creates the anchor, every
+/// The whole create door, raced — `entity_commands::create_entity`, which
+/// is what the `/lawyer/entities` form and `POST /app/api/entities` both
+/// call.
+///
+/// This one is not redundant with the store-level race below it. The fork
+/// survived a first fix that claimed the anchor *inside* the transaction
+/// carrying the entity write: the extra reads this door performs widen the
+/// transaction, and a claim read from the snapshot taken at `BEGIN` sees
+/// the anchor free for every racer. Racing the narrow write alone did not
+/// reproduce that; racing this door did.
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+async fn concurrent_creates_through_the_command_door_land_exactly_one_anchor() {
+    for round in 0..12 {
+        let db = Arc::new(store::test_support::mem_surreal().await);
+        let jurisdiction = store::jurisdictions::create(
+            &db,
+            &store::jurisdictions::NewJurisdiction::new("Nevada", "NV", "state"),
+        )
+        .await
+        .expect("seed the jurisdiction the command reads back");
+        let entity_type = store::entity_types::create(&db, "PLLC")
+            .await
+            .expect("seed the entity type the command reads back");
+
+        let mut tasks = tokio::task::JoinSet::new();
+        for _ in 0..RACERS {
+            let db = Arc::clone(&db);
+            let (entity_type_id, jurisdiction_id) = (entity_type.id, jurisdiction.id);
+            tasks.spawn(async move {
+                store::entity_commands::create_entity(
+                    &db,
+                    "Shook Law PLLC",
+                    &store::entity_commands::CreateEntityCommand {
+                        name: "Shook Law PLLC".to_string(),
+                        entity_type_id,
+                        jurisdiction_id,
+                    },
+                )
+                .await
+                .map(|_| ())
+            });
+        }
+
+        let (mut created, mut refused) = (0, 0);
+        while let Some(outcome) = tasks.join_next().await {
+            match outcome.expect("a racer must not panic") {
+                Ok(()) => created += 1,
+                Err(store::entity_commands::EntityCommandError::FirmAnchorExists) => refused += 1,
+                Err(other) => panic!("round {round}: a racer failed unrecognisably: {other:?}"),
+            }
+        }
+
+        assert_eq!(created, 1, "round {round}: exactly one racer may mint");
+        assert_eq!(refused, RACERS - 1, "round {round}: the rest are refused");
+        assert_eq!(
+            anchor_rows(&db).await,
+            1,
+            "round {round}: the anchor must not fork",
+        );
+    }
+}
+
+/// The narrow write, raced: exactly one racer creates the anchor, every
 /// other is refused as [`EntityError::FirmAnchorTaken`], and exactly one
 /// row carries the key when the dust settles.
 ///
@@ -143,7 +208,9 @@ async fn the_unique_index_alone_does_not_serialize_racers() {
 async fn a_second_entity_is_refused_the_held_anchor() {
     let db = store::test_support::mem_surreal().await;
     let key = "shook law pllc";
-    let first = entities::create(&db, &anchor_input(key)).await.expect("mint");
+    let first = entities::create(&db, &anchor_input(key))
+        .await
+        .expect("mint");
 
     let second = entities::create(&db, &anchor_input(key)).await;
     assert!(
@@ -165,7 +232,9 @@ async fn a_second_entity_is_refused_the_held_anchor() {
 async fn the_holder_may_rewrite_its_own_anchor() {
     let db = store::test_support::mem_surreal().await;
     let key = "shook law pllc";
-    let anchor = entities::create(&db, &anchor_input(key)).await.expect("mint");
+    let anchor = entities::create(&db, &anchor_input(key))
+        .await
+        .expect("mint");
 
     entities::upsert_with_id(&db, anchor.id, &anchor_input(key))
         .await
@@ -190,7 +259,9 @@ async fn the_holder_may_rewrite_its_own_anchor() {
 async fn releasing_the_key_frees_the_claim_for_the_next_holder() {
     let db = store::test_support::mem_surreal().await;
     let key = "shook law pllc";
-    let outgoing = entities::create(&db, &anchor_input(key)).await.expect("mint");
+    let outgoing = entities::create(&db, &anchor_input(key))
+        .await
+        .expect("mint");
 
     entities::set_firm_anchor_key(&db, outgoing.id, None)
         .await

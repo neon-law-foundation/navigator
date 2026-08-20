@@ -156,16 +156,20 @@ const CLAIM_TABLE: &str = "firm_anchor";
 
 /// Claim the anchor for `$id`, refusing when any row already holds it.
 ///
-/// `CREATE` rather than `UPSERT` on purpose: `UPSERT` would take the
-/// claim from its current holder, which is the fork this exists to
-/// refuse. Prefixed to the write it guards inside one transaction, so a
-/// lost claim rolls the entity write back with it — and so the claim
-/// failure is the *first* failing statement, which is the one
-/// [`surrealdb::IndexedResults::check`] reports.
+/// `CREATE` rather than `UPSERT` on purpose: `UPSERT` would take the claim
+/// from its current holder, which is the fork this exists to refuse.
+///
+/// **It runs as its own statement, never inside a wider transaction.**
+/// That is the whole mechanism, and it is easy to "tidy" away. An
+/// explicit `BEGIN … COMMIT` reads the snapshot taken at `BEGIN`, so two
+/// racers each see the claim free and each `CREATE` succeeds against its
+/// own snapshot — the fork comes straight back, and the wider the
+/// transaction the likelier it is. Committing the claim on its own is
+/// what makes the second racer read the first one's row.
 const CLAIM: &str = "CREATE type::record('firm_anchor', $firm_anchor_key) SET entity_id = $id;";
 
 /// Release whatever claim `$id` holds. A no-op when it holds none, so it
-/// costs nothing to run on the release path unconditionally.
+/// costs nothing to run on a path that may not have claimed.
 const RELEASE: &str = "DELETE firm_anchor WHERE entity_id = $id;";
 
 /// Turn a write failure into the conflict it names, or leave it a
@@ -200,33 +204,44 @@ fn claims_the_firm_anchor(error: &surrealdb::Error) -> bool {
     )
 }
 
-/// Whether `id` still has to claim `key`, which is false only when it
-/// already holds it. That is what makes a re-run seed and an in-place
-/// edit of the anchor row idempotent instead of self-refusing.
+/// Take the anchor claim for `id` when it does not already hold it,
+/// reporting whether this call is the one now holding it.
 ///
-/// A holder that is a *different* entity returns `true` on purpose: the
-/// claim then fails, and a refusal is the right answer.
-async fn must_claim(db: &SurrealDb, id: Uuid, key: &str) -> Result<bool, EntityError> {
-    Ok(firm_anchor_holder(db, key).await? != Some(id))
+/// A write that mints nothing claims nothing, and a holder re-writing its
+/// own row claims nothing either — which is what makes a re-run seed and
+/// an in-place edit of the anchor idempotent rather than self-refusing.
+/// A holder that is a *different* entity does try, and is refused, which
+/// is the right answer.
+async fn take_claim(db: &SurrealDb, id: Uuid, key: Option<&str>) -> Result<bool, EntityError> {
+    let Some(key) = key else { return Ok(false) };
+    if firm_anchor_holder(db, key).await? == Some(id) {
+        return Ok(false);
+    }
+    writing(|| {
+        db.query(CLAIM)
+            .bind(("id", record_id(TABLE, id)))
+            .bind(("firm_anchor_key", key.to_string()))
+    })
+    .await?;
+    Ok(true)
 }
 
-/// [`must_claim`] for a write whose key may be absent: a write that
-/// mints nothing claims nothing.
-async fn must_claim_for(
-    db: &SurrealDb,
-    id: Uuid,
-    key: Option<&str>,
-) -> Result<bool, EntityError> {
-    match key {
-        Some(key) => must_claim(db, id, key).await,
-        None => Ok(false),
-    }
+/// Give back a claim taken for a write that then did not land, so a
+/// failure does not leave the anchor claimed by a row that never became
+/// it — which nothing could mint afterwards.
+///
+/// Best effort on purpose: it runs on a path that is already reporting
+/// something else, and the caller's own outcome is the one worth
+/// surfacing. A claim stranded here is visible as a `firm_anchor` row
+/// whose `entity_id` names a row that does not carry the key.
+async fn surrender_claim(db: &SurrealDb, id: Uuid) {
+    let _ = writing(|| db.query(RELEASE).bind(("id", record_id(TABLE, id)))).await;
 }
 
 /// The entity currently holding `key`, or `None` when the anchor is free.
 ///
 /// This reads the claim rather than `entity.firm_anchor_key`, so it
-/// answers "who owns the lock" rather than "which row looks like the
+/// answers "who owns the claim" rather than "which row looks like the
 /// anchor" — and it is a direct record read, not the scan
 /// [`firm_anchor_exists`] performs.
 ///
@@ -243,28 +258,6 @@ pub async fn firm_anchor_holder(db: &SurrealDb, key: &str) -> Result<Option<Uuid
         .and_then(surrealdb::IndexedResults::check)?;
     let holder: Option<surrealdb::types::RecordId> = response.take(0)?;
     Ok(holder.as_ref().and_then(record_uuid))
-}
-
-/// Where a guarded write's own result sits in the response.
-///
-/// A response carries one slot per statement and `BEGIN TRANSACTION` is a
-/// statement, so wrapping a write costs two slots ahead of it: the `BEGIN`
-/// at 0 and the claim at 1. Reading slot 1 deserializes the claim row and
-/// fails on the entity fields it does not have, which is the shape this
-/// constant exists to stop anyone rediscovering.
-const GUARDED_SLOT: usize = 2;
-
-/// Wrap `statement` in the transaction that claims the anchor first,
-/// returning the statement to run and the slot its own result lands at.
-fn claiming(statement: &str, claim: bool) -> (String, usize) {
-    if claim {
-        (
-            format!("BEGIN TRANSACTION; {CLAIM} {statement}; COMMIT TRANSACTION;"),
-            GUARDED_SLOT,
-        )
-    } else {
-        (statement.to_string(), 0)
-    }
 }
 
 /// Run a write under the shared retry policy
@@ -476,21 +469,32 @@ pub async fn set_firm_anchor_key(
     // Surrendering the key must surrender the claim with it, or the
     // anchor could never be minted again — the claim, not the column, is
     // what a later mint collides with.
-    let (statement, slot) = match key.as_deref() {
-        None => (
-            format!("BEGIN TRANSACTION; {RELEASE} {write}; COMMIT TRANSACTION;"),
-            GUARDED_SLOT,
-        ),
-        Some(key) => claiming(&write, must_claim(db, id, key).await?),
+    let claimed = take_claim(db, id, key.as_deref()).await?;
+    // Surrendering the key surrenders the claim with it, or the anchor
+    // could never be minted again — the claim, not the column, is what a
+    // later mint collides with. The column is cleared first, so a failure
+    // between the two leaves the anchor claimed rather than free while a
+    // row still reads as the anchor.
+    let statement = if key.is_none() {
+        format!("{write}; {RELEASE}")
+    } else {
+        write
     };
-    let mut response = writing(|| {
-        db.query(&statement)
-            .bind(("id", record_id(TABLE, id)))
-            .bind(("firm_anchor_key", key.clone()))
-    })
-    .await?;
-    let row: Option<EntityRow> = response.take(slot)?;
-    Ok(row.and_then(EntityRow::into_entity))
+    let written = async {
+        let mut response = writing(|| {
+            db.query(&statement)
+                .bind(("id", record_id(TABLE, id)))
+                .bind(("firm_anchor_key", key.clone()))
+        })
+        .await?;
+        let row: Option<EntityRow> = response.take(0)?;
+        Ok::<_, EntityError>(row.and_then(EntityRow::into_entity))
+    }
+    .await;
+    if claimed && !matches!(written, Ok(Some(_))) {
+        surrender_claim(db, id).await;
+    }
+    written
 }
 
 /// Whether any row already carries `key` as its firm-anchor key.
@@ -561,16 +565,22 @@ pub async fn upsert_with_id(
     id: Uuid,
     input: &NewEntity,
 ) -> Result<Entity, EntityError> {
-    let (statement, slot) = claiming(
-        &format!(
+    let claimed = take_claim(db, id, input.firm_anchor_key.as_deref()).await?;
+    let written = upsert_row(db, id, input).await;
+    if claimed && written.is_err() {
+        surrender_claim(db, id).await;
+    }
+    written
+}
+
+/// The `UPSERT` half of [`upsert_with_id`], after the claim is settled.
+async fn upsert_row(db: &SurrealDb, id: Uuid, input: &NewEntity) -> Result<Entity, EntityError> {
+    let mut response = writing(|| {
+        db.query(format!(
             "UPSERT $id SET {WRITE_FIELDS}, \
              inserted_at = IF inserted_at THEN inserted_at ELSE time::now() END \
              RETURN {SELECT}"
-        ),
-        must_claim_for(db, id, input.firm_anchor_key.as_deref()).await?,
-    );
-    let mut response = writing(|| {
-        db.query(&statement)
+        ))
         .bind(("id", record_id(TABLE, id)))
         .bind(("name", input.name.trim().to_string()))
         .bind((
@@ -586,7 +596,7 @@ pub async fn upsert_with_id(
         .bind(("firm_anchor_key", input.firm_anchor_key.clone()))
     })
     .await?;
-    let row: Option<EntityRow> = response.take(slot)?;
+    let row: Option<EntityRow> = response.take(0)?;
     row.and_then(EntityRow::into_entity)
         .ok_or(EntityError::WriteReturnedNothing)
 }
@@ -617,16 +627,28 @@ pub async fn update(
     id: Uuid,
     input: &NewEntity,
 ) -> Result<Option<Entity>, EntityError> {
-    let (statement, slot) = claiming(
-        &format!(
+    let claimed = take_claim(db, id, input.firm_anchor_key.as_deref()).await?;
+    let written = update_row(db, id, input).await;
+    // `Ok(None)` is the refused rename, not a write — a claim taken for it
+    // has to go back, or one refused edit would strand the anchor.
+    if claimed && !matches!(written, Ok(Some(_))) {
+        surrender_claim(db, id).await;
+    }
+    written
+}
+
+/// The `UPDATE` half of [`update`], after the claim is settled.
+async fn update_row(
+    db: &SurrealDb,
+    id: Uuid,
+    input: &NewEntity,
+) -> Result<Option<Entity>, EntityError> {
+    let mut response = writing(|| {
+        db.query(format!(
             "UPDATE $id SET {WRITE_FIELDS} \
              WHERE name = $name OR firm_anchor_key IS NONE \
              RETURN {SELECT}"
-        ),
-        must_claim_for(db, id, input.firm_anchor_key.as_deref()).await?,
-    );
-    let mut response = writing(|| {
-        db.query(&statement)
+        ))
         .bind(("id", record_id(TABLE, id)))
         .bind(("name", input.name.trim().to_string()))
         .bind((
@@ -642,7 +664,7 @@ pub async fn update(
         .bind(("firm_anchor_key", input.firm_anchor_key.clone()))
     })
     .await?;
-    let rows: Vec<EntityRow> = response.take(slot)?;
+    let rows: Vec<EntityRow> = response.take(0)?;
     Ok(rows.into_iter().next().and_then(EntityRow::into_entity))
 }
 
@@ -760,8 +782,8 @@ const DEPENDENT_TABLES: [(&str, &str); 4] = [
 mod tests {
     use super::{
         all, classify_write, create, delete_unless_firm_anchor, dependents, find_by_id,
-        find_by_ids, find_by_name, firm_anchor_exists, update, AlreadyExistsError, ErrorDetails,
-        EntityError, NewEntity, CLAIM_TABLE, TABLE, WRITE_FIELDS,
+        find_by_ids, find_by_name, firm_anchor_exists, update, AlreadyExistsError, EntityError,
+        ErrorDetails, NewEntity, CLAIM_TABLE, TABLE, WRITE_FIELDS,
     };
     use crate::surreal::test_support::mem;
     use crate::surreal::{record_id, retry, SurrealDb};
@@ -1073,10 +1095,7 @@ mod tests {
             !retry::is_retryable(&raw),
             "a refused claim is not a lost race and must not be re-run",
         );
-        assert!(matches!(
-            classify_write(raw),
-            EntityError::FirmAnchorTaken
-        ));
+        assert!(matches!(classify_write(raw), EntityError::FirmAnchorTaken));
     }
 
     /// The backstop arm, held against the engine the way
@@ -1100,8 +1119,14 @@ mod tests {
             ))
             .bind(("id", record_id(TABLE, Uuid::now_v7())))
             .bind(("name", "Neon Law".to_string()))
-            .bind(("entity_type_id", record_id("entity_type", holder.entity_type_id)))
-            .bind(("jurisdiction_id", record_id("jurisdiction", holder.jurisdiction_id)))
+            .bind((
+                "entity_type_id",
+                record_id("entity_type", holder.entity_type_id),
+            ))
+            .bind((
+                "jurisdiction_id",
+                record_id("jurisdiction", holder.jurisdiction_id),
+            ))
             .bind(("phone", None::<String>))
             .bind(("url", None::<String>))
             .bind(("firm_anchor_key", Some("neon law".to_string())))
@@ -1119,10 +1144,7 @@ mod tests {
             raw.to_string().contains("entity_firm_anchor"),
             "the index name is the only discriminator, and it is gone: {raw}",
         );
-        assert!(matches!(
-            classify_write(raw),
-            EntityError::FirmAnchorTaken
-        ));
+        assert!(matches!(classify_write(raw), EntityError::FirmAnchorTaken));
     }
 
     /// An error that is neither refusal stays a `Db` fault. Widening
