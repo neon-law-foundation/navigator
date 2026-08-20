@@ -1664,12 +1664,12 @@ async fn the_three_classes_render_and_land_beside_each_other() {
         "raw markdown title"
     );
 
-    // The class twins sit behind the session boundary, so llms.txt withholds
-    // them from the anonymous crawler even on the host that serves them.
+    // Workshops are public teaching material, so llms.txt advertises their
+    // raw Markdown twins to the anonymous crawler.
     let llms = body_string(anon_get(&app, "/llms.txt").await).await;
     assert!(
-        !llms.contains("/workshops/"),
-        "llms.txt must not advertise the gated class twins: {llms}"
+        llms.contains("/workshops/"),
+        "llms.txt must advertise the public workshop corpus: {llms}"
     );
 }
 
