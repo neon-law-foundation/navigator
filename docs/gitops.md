@@ -49,8 +49,8 @@ That check mattered more when the host itself was the boundary; on a public host
 reconcile and a repository nobody meant to govern, so it stays.
 
 Policy stays explicit; it is simply no longer an allowlist. Every repository gets `COMMON_POLICY`: the `production`
-branch protections, the `production-review` gate, the CODEOWNERS assertion, and the merge policy — pull requests only,
-squash only, auto-merge, automatic head-branch deletion, and squash commits titled and described from the pull request.
+branch protections, the CODEOWNERS assertion, and the merge policy — pull requests only, squash only, auto-merge,
+automatic head-branch deletion, and squash commits titled and described from the pull request.
 `neon-law-foundation/navigator` alone adds `NAVIGATOR_POLICY`'s three extras — the release-tag ruleset, the DevX labels,
 and the App-installation assertion — because it is the only repository that cuts a release or runs that automation.
 
@@ -110,61 +110,45 @@ pull request merges on `verify`, and the reconcile afterwards moves the required
 repository holding template content with no workflow at all has nothing for a required status check to bind to, so it
 takes the CODEOWNERS half and waits for a real `ci.yml` before it can take the rest.
 
-#### Review gate: two rulesets, not one
+#### Review gate: one ruleset, by decision
 
-Contributors cannot land code without a code owner's approval; the code owner can still merge their own work. That
-asymmetry is not a preference — GitHub forbids approving your own pull request, so a code-owner requirement applied
-uniformly would mean the sole owner could never merge again. What the owner keeps is the ability to merge, not
-auto-merge; the note below has the distinction and why it cannot be closed.
+`production` is the whole gate. There is no `production-review` on `main`, and its absence is deliberate — a merge needs
+a green `ci`, not a second pair of eyes.
 
-Bypass is how GitHub expresses the exemption, and it is scoped to a **whole ruleset, never to a single rule**. So the
-policy is split in two:
+The Firm ran a two-ruleset shape while it expected outside contributors: `production` for what binds everyone, and a
+separate `production-review` — bypassed by `OrganizationAdmin` — layering one code-owner approval on top. The split
+existed because bypass in GitHub is granted per **ruleset, never per rule**, so it was the only way to exempt the owner
+from approval without also exempting them from signing, linear history, and the test gate.
 
-- **`production`** — no bypass actor, so every rule in it binds the administrator too: the required `ci` check, signed
-  commits, linear history, no deletion and no force-push, and a squash-only pull request with every review thread
-  resolved.
-- **`production-review`** — bypassed by `OrganizationAdmin`: one approving review, `require_code_owner_review`, stale
-  reviews dismissed on push, and the last push itself required to carry an approval.
+That asymmetry bought something the current team does not need, and it was retired on 2026-08-19:
 
-Rules of the same type in two rulesets do not replace one another — GitHub applies the union and the most restrictive
-value wins. A contributor is therefore held to one code-owner approval, while the organization owner falls back to
-`production`'s zero. Both are still held to signing, linear history, squash, resolved threads, and a green `ci`, because
-those rules live in the ruleset nobody bypasses. That is the whole point of the split: the owner's exemption buys
-exactly one thing, and it is not the test gate.
+> I have auto-merge enabled for everything, when it's a small team like Just Us, I think it's fine as long as the PRs
+> are small and you run through all the tests.
 
-The bypass names the `OrganizationAdmin` **role**, not a person, so the policy survives the administrator changing
-without a code edit and cannot silently widen the way a hardcoded username or a `write`-role bypass would.
+What survives in `production` still binds everyone including the administrator, because it carries no bypass actor: the
+required `ci` check, signed commits, linear history, no deletion and no force-push, and a squash-only pull request with
+every review thread resolved. Nothing merges red, unsigned, or out of order. What changed is that nothing waits on a
+reviewer either — which is why "as long as the PRs are small and you run through all the tests" is the load-bearing half
+of that decision rather than a pleasantry.
 
-> **Auto-merge on the owner's own pull requests.** A bypass belongs to the actor who performs the merge, and auto-merge
-> merges as whoever *armed* it. `ci.yml`'s `enable-automerge` job arms it as the App (or as `GITHUB_TOKEN`), and that
-> identity is not an `OrganizationAdmin` — so on the owner's own pull requests auto-merge can sit waiting for an
-> approval that, by GitHub's own rule against self-approval, can never arrive. `.github/CODEOWNERS` names one owner and
-> no one else, so there is no second code owner who could supply that approval either. Do not "fix" this by adding the
-> App as a bypass actor: the App arms auto-merge on *everyone's* pull requests, so that would hand every contributor
-> the exemption and delete the gate.
+Retiring the review ruleset also removed a deadlock it created. Auto-merge merges as whoever *armed* it, and `ci.yml`'s
+`enable-automerge` job arms it as the App rather than as an `OrganizationAdmin`. Under `production-review` the owner's
+own pull requests could sit waiting for an approval that, by GitHub's own rule against self-approval, could never arrive
+— `.github/CODEOWNERS` names one owner and no one else. Auto-merge on green now lands them unattended, and `gh pr merge
+--squash --admin` is no longer the owner's route around it.
 
-The owner therefore merges their own work by hand, once `ci` is green. The bypass permits it from the CLI:
+Restoring the gate is a policy decision rather than a settings click, and it costs a real reviewer: add a second code
+owner who resolves and actually reviews, *then* re-enable the ruleset. `require_code_owner_review` against a single
+owner is the deadlock above, not a gate.
 
-```bash
-gh pr merge --squash --admin
-```
-
-`--admin` waives the approval requirement in `production-review` and nothing else. `production` carries no bypass actor,
-so signed commits, linear history, squash-only, resolved review threads, and a green `ci` all still hold — the same gate
-a contributor faces, minus the approval that cannot exist.
-
-Making the owner's merges genuinely unattended costs one of exactly two things, because a ruleset cannot condition on
-pull-request author and so cannot exempt one person's pull requests:
-
-- **Drop `production-review`.** Every contributor loses the code-owner gate too, and `production`'s zero-approval
-  pull-request rule becomes the whole policy. That is an edit to `desired_review_ruleset` in `cli::devx::github_setup`,
-  reconciled by rerunning the setup command — not a click in the settings UI, which would drift back on the next run.
-- **Add a second code owner who resolves and actually reviews.** That is an edit to `.github/CODEOWNERS`, and the policy
-  stays exactly as it is. It costs a real reviewer, which is the point of the gate.
+> **The code has not caught up.** `cli::devx::github_setup` still sets `review_gate: true` in both `COMMON_POLICY`
+> (`:165`) and `NAVIGATOR_POLICY` (`:176`), still builds `desired_review_ruleset`, and its test still asserts that
+> `navigator` carries `production-review`. A run of `ops github setup` would therefore recreate the ruleset this
+> section says is intentionally absent. Reconciling the command with this decision is a separate change.
 
 Repository permissions are the outer boundary and are not managed by this command: a collaborator with `read` cannot
-push a branch at all, and with forking disabled has no fork path either. The review gate governs everyone who *can* push
-— today the `write` collaborators.
+push a branch at all, and with forking disabled has no fork path either. `production` governs everyone who *can* push —
+today the `write` collaborators.
 
 #### CODEOWNERS owners must resolve
 
@@ -251,19 +235,18 @@ starts failing for a real finding, that same rollup rule applies.
 
 ### One protection system, not two
 
-`main` is governed by **rulesets** alone — `production` and `production-review`. A legacy classic branch-protection rule
-was configured as well, and the pair did not compose: the classic rule carried `requiresApprovingReviews: true` with a
-required count of `0`, which leaves `reviewDecision` at `null` forever and holds every pull request at `BLOCKED` no
-matter how green its checks are. It was deleted.
+`main` is governed by **rulesets** alone — `production`, plus `release-tags` on the tag target. A legacy classic
+branch-protection rule was configured as well, and the pair did not compose: the classic rule carried
+`requiresApprovingReviews: true` with a required count of `0`, which leaves `reviewDecision` at `null` forever and holds
+every pull request at `BLOCKED` no matter how green its checks are. It was deleted.
 
 Nothing was given up in the trade. The rulesets are the stricter of the two — they require signed commits and a passing
 `ci`, neither of which the classic rule asked for. Keep protections in rulesets, where `ops github setup` can reconcile
 them; a classic rule added by hand is invisible to that command and will drift.
 
-Two rulesets, not one, because bypass is granted per ruleset — see [Review gate: two rulesets, not
-one](#review-gate-two-rulesets-not-one). `production` keeps its empty `bypass_actors`, so the classic rule's admin
-enforcement is preserved for everything that must hold universally; only the approval requirement in `production-review`
-is exempt, and only for the organization owner.
+`production` keeps its empty `bypass_actors`, so the classic rule's admin enforcement is preserved for everything that
+must hold universally. Nothing is exempt for anyone — see [Review gate: one ruleset, by
+decision](#review-gate-one-ruleset-by-decision).
 
 One caveat learned the hard way: GitHub caches a pull request's merge state. Changing branch protection does **not**
 recompute it for pull requests whose checks have already finished — they stay `BLOCKED` until some later event on the
