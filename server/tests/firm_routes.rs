@@ -115,6 +115,26 @@ async fn body_string(resp: axum::http::Response<Body>) -> String {
     String::from_utf8(bytes.to_vec()).unwrap()
 }
 
+/// Every heading level in a rendered page, in document order.
+///
+/// Deliberately a scan for `<hN` rather than a parse: the pages under test are
+/// SSR output with hydration comments inside the heading text, and the contract
+/// being checked is only the sequence of levels.
+fn heading_levels(html: &str) -> Vec<u32> {
+    let bytes = html.as_bytes();
+    let mut levels = Vec::new();
+    for i in 0..bytes.len().saturating_sub(2) {
+        if bytes[i] == b'<' && bytes[i + 1].eq_ignore_ascii_case(&b'h') {
+            if let Some(level) = (bytes[i + 2] as char).to_digit(10) {
+                if (1..=6).contains(&level) {
+                    levels.push(level);
+                }
+            }
+        }
+    }
+    levels
+}
+
 #[tokio::test]
 async fn site_host_serves_the_firm_surface_and_host_documents() {
     let app = site_app().await;
@@ -1398,8 +1418,10 @@ async fn a_talk_hub_renders_under_the_firm_brand() {
         "the markdown twin must be advertised in the head: {body}"
     );
 
-    // Section 1 is the cover slide — its heading and the Megadeth/Ferris cover
-    // image — with the rail showing chapter and section progress.
+    // Step 1 is the cover slide — its heading and the Megadeth/Ferris cover
+    // image — with the rail showing chapter and section progress. Step 1 is
+    // pinned because it is the entry point the overview links, not because of
+    // where it sits in a running count.
     let step = body_string(anon_get(&app, "/presentations/rust-in-peace/step/1").await).await;
     assert!(step.contains("<h3>May my soul rust in peace</h3>"));
     assert!(
@@ -1408,16 +1430,51 @@ async fn a_talk_hub_renders_under_the_firm_brand() {
     );
     assert!(step.contains("Chapter 1 of"));
     assert!(step.contains("Section 1 of"));
-    // The new career-history sequence follows the cover, and the agenda stays
-    // at the end of the expanded intro rather than interrupting that story.
-    let step2 = body_string(anon_get(&app, "/presentations/rust-in-peace/step/2").await).await;
-    assert!(step2.contains("<h3>5 Years at the Fruit</h3>"));
-    assert!(step2.contains("img/rust-in-peace/kiwi-rainbow.jpg"));
 
-    let step7 = body_string(anon_get(&app, "/presentations/rust-in-peace/step/7").await).await;
+    // Every step page nests its headings h1 → h2 → h3: the deck title, the
+    // chapter, then the slide. Deliberately not asserted per index — a deck is
+    // authored prose and reordering it is not a regression, so this walks
+    // whatever the deck currently holds. Before the rail carried the first two
+    // levels, a slide's own `h3` was the page's first heading, skipping two
+    // levels for anyone navigating by heading.
+    let total = step
+        .split("Section 1 of ")
+        .nth(1)
+        .and_then(|rest| rest.split('<').next())
+        .and_then(|n| n.trim().parse::<usize>().ok())
+        .unwrap_or_else(|| panic!("the rail must state the deck length: {step}"));
+    assert!(total > 1, "a deck of {total} slides is not a deck");
+    for n in 1..=total {
+        let page =
+            body_string(anon_get(&app, &format!("/presentations/rust-in-peace/step/{n}")).await)
+                .await;
+        let levels = heading_levels(&page);
+        assert_eq!(
+            levels.first(),
+            Some(&1),
+            "step {n} must open on an h1, got {levels:?}: {page}"
+        );
+        assert!(
+            levels.contains(&2) && levels.contains(&3),
+            "step {n} must carry its chapter as h2 and its slide as h3, got {levels:?}"
+        );
+        for pair in levels.windows(2) {
+            assert!(
+                pair[1] <= pair[0] + 1,
+                "step {n} skips from h{} to h{} — headings must not skip a level, got {levels:?}",
+                pair[0],
+                pair[1]
+            );
+        }
+    }
+
+    // The two custom slide components replace their Markdown markers wherever
+    // the deck author placed them, so they are found across the light table
+    // rather than at a fixed step.
+    let slides = body_string(anon_get(&app, "/presentations/rust-in-peace/slides").await).await;
     assert!(
-        step7.contains("workshop-product-slide") && step7.contains("What our firm does"),
-        "the custom firm-services slide must replace its Markdown marker: {step7}"
+        slides.contains("workshop-product-slide") && slides.contains("What our firm does"),
+        "the custom firm-services slide must replace its Markdown marker: {slides}"
     );
     for heading in [
         "Fractional CTO",
@@ -1425,19 +1482,14 @@ async fn a_talk_hub_renders_under_the_firm_brand() {
         "Fractional GC",
         "One-time services",
     ] {
-        assert!(step7.contains(heading), "missing {heading}: {step7}");
+        assert!(slides.contains(heading), "missing {heading}: {slides}");
     }
-
-    let step8 = body_string(anon_get(&app, "/presentations/rust-in-peace/step/8").await).await;
     assert!(
-        step8.contains("NeonLawNavigator")
-            && step8.contains(r#"data-practice-mark="helm""#)
-            && step8.contains("github.com/neon-law-foundation/navigator"),
-        "the Navigator identity slide follows the four practice boxes: {step8}"
+        slides.contains("workshop-navigator-slide")
+            && slides.contains(r#"data-practice-mark="helm""#)
+            && slides.contains("github.com/neon-law-foundation/navigator"),
+        "the Navigator identity slide must replace its Markdown marker: {slides}"
     );
-
-    let step9 = body_string(anon_get(&app, "/presentations/rust-in-peace/step/9").await).await;
-    assert!(step9.contains("<h3>Agenda</h3>"));
 }
 
 /// A talk wears the firm's chrome, including its footer disclaimer.
