@@ -339,13 +339,13 @@ DEFINE INDEX OVERWRITE entity_type_name ON entity_type FIELDS name UNIQUE;
 -- `pg_advisory_xact_lock` made the pair atomic. SurrealDB has no advisory
 -- lock and a multi-statement query is not one transaction, so the
 -- invariant moves into the schema: `store::entity_commands` stores the
--- lowercased name here when (and only when) the row is an anchor, and the
--- UNIQUE index refuses the second one at write time. Multiple NONEs do not
--- collide on a Surreal unique index, so ordinary namesakes — deliberately
--- non-unique, because namesakes are real — never take part.
+-- lowercased name here when (and only when) the row is an anchor. Multiple
+-- NONEs do not collide on a Surreal unique index, so ordinary namesakes —
+-- deliberately non-unique, because namesakes are real — never take part.
 --
--- This is a stronger guarantee than the lock it replaces: the lock
--- serialized the racers, while the index refuses the fork outright.
+-- The UNIQUE index below refuses a second anchor, but **only when the two
+-- writes are not concurrent**; the `firm_anchor` table after it is what
+-- serializes racers. Read both before changing either.
 DEFINE TABLE IF NOT EXISTS entity SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD OVERWRITE name ON entity TYPE string;
 DEFINE FIELD OVERWRITE entity_type_id ON entity TYPE record<entity_type>;
@@ -356,6 +356,28 @@ DEFINE FIELD OVERWRITE firm_anchor_key ON entity TYPE option<string>;
 DEFINE FIELD OVERWRITE inserted_at ON entity TYPE datetime DEFAULT time::now();
 DEFINE FIELD OVERWRITE updated_at ON entity TYPE datetime DEFAULT time::now();
 DEFINE INDEX OVERWRITE entity_firm_anchor ON entity FIELDS firm_anchor_key UNIQUE;
+
+-- `firm_anchor`: the row that serializes minting the anchor, and the
+-- reason the UNIQUE index above is no longer the whole guard.
+--
+-- The index does not enforce across concurrent transactions on the
+-- embedded engine. Eight racers minting the anchor into a free slot land
+-- *two* rows: each transaction writes its own `entity` record key and its
+-- own index entry, and the optimistic layer conflicts on record keys, not
+-- on index entries — so nothing makes the racers collide.
+-- `store/tests/firm_anchor_race.rs` reproduces it against the unguarded
+-- write and pins the guarded one.
+--
+-- This table makes them collide. Its **record id is the anchor key**, so
+-- every racer minting the same anchor writes one identical record key and
+-- the engine refuses all but one. `CREATE` rather than `UPSERT` is what
+-- turns that into a refusal instead of a silent overwrite, and it reports
+-- `ErrorDetails::AlreadyExists` — a typed detail, which is what
+-- `store::entities::classify_write` matches on rather than prose.
+--
+-- The index stays as the backstop for a fork that is not a race.
+DEFINE TABLE IF NOT EXISTS firm_anchor SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD OVERWRITE entity_id ON firm_anchor TYPE record<entity>;
 
 -- `person_entity_roles`: the structural ties the conflict check walks at
 -- full confidence — a person manages / owns / is a member of an entity.

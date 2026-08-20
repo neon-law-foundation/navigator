@@ -6533,12 +6533,53 @@ fn redirect_location(response: &axum::response::Response) -> String {
         .to_string()
 }
 
-/// Whether an entity write door reported success. Both outcomes are now a `303`
+/// What an entity write door reported. Both outcomes are a `303`
 /// (post/redirect/get), so the `Location` is what separates them: a success
 /// lands on the list, a refusal bounces back to the form it came from carrying
 /// its `?error=` flash.
+///
+/// The flash is part of the outcome rather than a detail, because "did not
+/// land on the list" is not the same claim as "was refused for the anchor".
+/// A create that failed for a server-side reason redirects to the same form,
+/// and a test that only counted list-vs-form would score it as a refusal —
+/// which is how eight racers all failing on a fault reads as a guard that
+/// held (ENG-272).
+#[derive(Debug, PartialEq, Eq)]
+enum EntityWriteOutcome {
+    Created,
+    Refused(String),
+    /// Anything that is not a redirect at all — a lost delete/rename race
+    /// answers `404`, and that is a third outcome, not a refusal.
+    NotRedirected(StatusCode),
+}
+
+fn entity_write_outcome(response: &axum::response::Response) -> EntityWriteOutcome {
+    if response.status() != StatusCode::SEE_OTHER {
+        return EntityWriteOutcome::NotRedirected(response.status());
+    }
+    let location = redirect_location(response);
+    if location == "/lawyer/entities" {
+        return EntityWriteOutcome::Created;
+    }
+    let flash = location
+        .split_once("?error=")
+        .map_or_else(String::new, |(_, query)| {
+            query.split('&').next().unwrap_or_default().to_string()
+        });
+    EntityWriteOutcome::Refused(flash)
+}
+
+/// A refusal message as it rides the `Location`, so a test can name the
+/// refusal it expects. Only the spaces need encoding for these messages;
+/// one that grew a `&` or a `?` would fail the comparison rather than
+/// quietly match a different refusal, which is the safe direction.
+fn flash_of(message: &str) -> String {
+    message.replace(' ', "%20")
+}
+
+/// Whether an entity write door reported success.
 fn entity_write_succeeded(response: &axum::response::Response) -> bool {
-    response.status() == StatusCode::SEE_OTHER && redirect_location(response) == "/lawyer/entities"
+    entity_write_outcome(response) == EntityWriteOutcome::Created
 }
 
 /// Rename the seeded firm out of the way *and* surrender its
@@ -14864,16 +14905,22 @@ async fn concurrent_creates_cannot_fork_the_firm_anchor() {
             )
             .await
             .unwrap();
-            // Both outcomes are a `303` under post/redirect/get, so the target
-            // is the discriminator: the list on success, the form on a refusal.
-            assert_eq!(response.status(), StatusCode::SEE_OTHER);
-            entity_write_succeeded(&response)
+            entity_write_outcome(&response)
         });
     }
     let mut created = 0;
-    while let Some(succeeded) = tasks.join_next().await {
-        if succeeded.unwrap() {
-            created += 1;
+    while let Some(outcome) = tasks.join_next().await {
+        match outcome.unwrap() {
+            EntityWriteOutcome::Created => created += 1,
+            // Not merely "did not create" — refused *for the anchor*. A
+            // racer that failed for any other reason is a broken guard
+            // wearing a refusal, and must not be counted as one.
+            EntityWriteOutcome::Refused(flash) => assert_eq!(
+                flash,
+                flash_of(store::entity_commands::FIRM_ANCHOR_EXISTS_MESSAGE),
+                "a losing racer must be refused for the anchor, not for a fault",
+            ),
+            other => panic!("a racer must redirect, got {other:?}"),
         }
     }
     assert_eq!(created, 1, "exactly one racer may create the anchor");
