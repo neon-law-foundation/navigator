@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Sign the release tag, push it, and watch the run. Idempotent by design.
+# Sign the release tag the operator named, push it, and watch the run.
+#
+#   tag-and-push.sh <version> [remote]
+#
+# The version is an argument and never a derivation: this script signs the name
+# it was handed, so the name that passed preflight is the name that publishes.
+# Pass the same one.
 #
 # Pushing the tag IS the publish, and the `release-tags` ruleset restricts
 # deletion, update, and non-fast-forward with no bypass actor — so this script
@@ -8,10 +14,23 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-remote="${1:-origin}"
+tag="${1:-}"
+remote="${2:-origin}"
+
+if [ -z "${tag}" ]; then
+    echo "usage: tag-and-push.sh <version> [remote]" >&2
+    echo "       Pass the same version preflight.sh accepted." >&2
+    exit 2
+fi
+
+# Shape and base date, the same two rules deploy.yml applies. Checking them here
+# too costs nothing and is the last place a typo is still free: one keystroke
+# past preflight would otherwise spend a name on a tag the workflow refuses.
+# Whether the name is unspent is NOT asked here — the remote logic below draws
+# that distinction properly, because a rerun on an already-pushed tag is fine.
+"${here}/validate-release-tag.sh" "${tag}"
 
 git fetch "${remote}" --tags --prune
-tag="$("${here}/next-release-tag.sh" "${remote}")"
 head="$(git rev-parse HEAD)"
 
 if ! git merge-base --is-ancestor "${head}" "${remote}/main"; then

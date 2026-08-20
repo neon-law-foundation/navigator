@@ -1,19 +1,48 @@
 #!/usr/bin/env bash
 # Every release check that can fail on this machine, run before a ref exists.
 #
+# Takes the version the operator chose; it derives nothing and has no default.
+#
+#   preflight.sh <version> [remote]
+#
 # Read-only and safely repeatable: it fetches, inspects, and runs the gate. It
 # writes nothing, so a failed run costs a rerun rather than a spent name.
 #
 # Each check maps to a way the pipeline refuses a tag, and each is free here.
-# The tag is immutable and the day's name is spent the moment it is pushed, so
+# The tag is immutable and the name is spent the moment it is pushed, so
 # discovering any of these afterwards costs the day.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-remote="${1:-origin}"
+tag="${1:-}"
+remote="${2:-origin}"
+
+if [ -z "${tag}" ]; then
+    echo "usage: preflight.sh <version> [remote]" >&2
+    echo "       The version is yours to choose — e.g. 26.8.20 or 26.8.21-hotfix.3." >&2
+    exit 2
+fi
+
+echo "==> the version must be one deploy.yml will accept"
+"${here}/validate-release-tag.sh" "${tag}"
 
 echo "==> fetching ${remote}"
 git fetch "${remote}" --tags --prune
+
+echo "==> ${tag} must not already be taken"
+# The remote is the only authoritative place a spent name lives; a local tag can
+# be stale in either direction. `^{}` peel lines are dereferenced annotated
+# tags, so both spellings of an existing tag are caught.
+if git ls-remote --tags "${remote}" \
+        | sed -e 's|.*refs/tags/||' -e 's|\^{}$||' \
+        | grep -qxF "${tag}"; then
+    echo "FAIL: ${tag} already exists on ${remote}." >&2
+    echo "      The release-tags ruleset admits no bypass actor, so that name is" >&2
+    echo "      spent for good. Choose the next one — a same-day second release is" >&2
+    echo "      a <tomorrow's UTC date>-hotfix.N prerelease." >&2
+    exit 1
+fi
+echo "    ok"
 
 echo "==> the release target must be reachable from ${remote}/main"
 head="$(git rev-parse HEAD)"
@@ -32,10 +61,7 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 echo "    ok"
 
-tag="$("${here}/next-release-tag.sh" "${remote}")"
-echo "==> the name this cut may use: ${tag}"
-
-echo "==> the manifest must equal that name"
+echo "==> the manifest must equal ${tag}"
 version="$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
 if [ "${version}" != "${tag}" ]; then
     echo "FAIL: [workspace.package].version is ${version}, the tag would be ${tag}." >&2
