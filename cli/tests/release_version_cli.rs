@@ -5,7 +5,6 @@
 //! command wrote.
 
 use assert_cmd::Command;
-use chrono::Datelike;
 use std::fs;
 
 /// A minimal workspace manifest with a dependency `version =` that MUST survive,
@@ -81,13 +80,15 @@ fn an_empty_tag_is_rejected() {
     );
 }
 
-/// `--hotfix` writes the same-day release spelling: a `-hotfix.N` prerelease on
-/// TOMORROW's date. It uses the UTC hour as a convenient default N; explicit
-/// `--tag` remains the way to choose another number. This is the version a
-/// `deploy.yml` hotfix tag must equal, so
-/// the shape is asserted against the workflow's own regex rather than eyeballed.
+/// A hotfix version is written exactly as the operator named it. The command
+/// composes nothing: `N` is the operator's discriminator, so a value past 23 is
+/// as valid as any other and is written verbatim.
+///
+/// The base being TOMORROW's date is the operator's call too, and the reason is
+/// semver's: a prerelease ranks BELOW its own base, so today's base would sort
+/// the fix as older than the release it fixes.
 #[test]
-fn hotfix_writes_a_prerelease_on_tomorrows_date() {
+fn a_hotfix_version_is_written_verbatim() {
     let dir = tempfile::tempdir().expect("tempdir");
     let manifest = dir.path().join("Cargo.toml");
     fs::write(&manifest, MANIFEST).expect("write manifest");
@@ -95,7 +96,8 @@ fn hotfix_writes_a_prerelease_on_tomorrows_date() {
     run(&[
         "ops",
         "release-version",
-        "--hotfix",
+        "--tag",
+        "26.8.18-hotfix.37",
         "--no-commit",
         "--manifest-path",
         manifest.to_str().unwrap(),
@@ -103,46 +105,9 @@ fn hotfix_writes_a_prerelease_on_tomorrows_date() {
     .success();
 
     let written = fs::read_to_string(&manifest).expect("read manifest");
-    let version = written
-        .lines()
-        .find_map(|line| {
-            line.strip_prefix("version = \"")
-                .and_then(|rest| rest.strip_suffix('"'))
-        })
-        .expect("the workspace version line must still be present");
-
-    let (base, number) = version
-        .split_once("-hotfix.")
-        .expect("`--hotfix` must write a `-hotfix.N` prerelease");
-
-    // Tomorrow's base, derived independently of the command under test. Semver
-    // ranks a prerelease BELOW its own base, so today's base would sort the fix
-    // as older than the release it fixes — the next day is what makes it correct.
-    let tomorrow = chrono::Utc::now()
-        .date_naive()
-        .checked_add_days(chrono::Days::new(1))
-        .expect("valid date");
-    assert_eq!(
-        base,
-        format!(
-            "{}.{}.{}",
-            tomorrow.year() % 100,
-            tomorrow.month(),
-            tomorrow.day()
-        ),
-        "a hotfix hangs off TOMORROW's base"
-    );
-
-    // The convenience command selects the UTC hour as its default N. It is
-    // unpadded, which is the semver rule for a numeric prerelease identifier.
     assert!(
-        !number.starts_with('0') || number == "0",
-        "the number must be unpadded — `hotfix.08` is invalid semver, got {number:?}"
-    );
-    let number: u32 = number.parse().expect("the hotfix number must be numeric");
-    assert!(
-        number <= 23,
-        "the convenience command's default N is a UTC hour, got {number}"
+        written.contains("version = \"26.8.18-hotfix.37\""),
+        "the named hotfix version must be written verbatim, got: {written}"
     );
     assert!(
         written.contains("serde = { version = \"1\" }"),
@@ -150,11 +115,11 @@ fn hotfix_writes_a_prerelease_on_tomorrows_date() {
     );
 }
 
-/// `--hotfix` and `--tag` are mutually exclusive: one derives the version and the
-/// other dictates it, so accepting both would silently honour one and ignore the
-/// other.
+/// THE VERSION IS REQUIRED. Nothing derives it, so omitting `--tag` is a usage
+/// error rather than an invitation to guess today's date — a derived name is only
+/// ever a fact about when the command ran.
 #[test]
-fn hotfix_and_tag_cannot_be_combined() {
+fn omitting_the_tag_is_a_usage_error() {
     let dir = tempfile::tempdir().expect("tempdir");
     let manifest = dir.path().join("Cargo.toml");
     fs::write(&manifest, MANIFEST).expect("write manifest");
@@ -162,9 +127,6 @@ fn hotfix_and_tag_cannot_be_combined() {
     run(&[
         "ops",
         "release-version",
-        "--hotfix",
-        "--tag",
-        "26.8.14",
         "--no-commit",
         "--manifest-path",
         manifest.to_str().unwrap(),
@@ -177,6 +139,42 @@ fn hotfix_and_tag_cannot_be_combined() {
             .contains("0.1.0"),
         "a rejected run must not touch the manifest"
     );
+}
+
+/// A malformed version is refused before anything is written, because the shape
+/// this command accepts is the shape `deploy.yml` accepts — and discovering the
+/// mismatch there costs an immutable tag.
+#[test]
+fn a_malformed_version_is_refused_before_the_manifest_is_touched() {
+    for bad in [
+        "26.08.20",
+        "26.8.20.13",
+        "26.8.18-hotfix.08",
+        "26.8.18-rc.1",
+        "v26.8.20",
+    ] {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let manifest = dir.path().join("Cargo.toml");
+        fs::write(&manifest, MANIFEST).expect("write manifest");
+
+        run(&[
+            "ops",
+            "release-version",
+            "--tag",
+            bad,
+            "--no-commit",
+            "--manifest-path",
+            manifest.to_str().unwrap(),
+        ])
+        .failure();
+
+        assert!(
+            fs::read_to_string(&manifest)
+                .expect("read manifest")
+                .contains("0.1.0"),
+            "{bad} must leave the manifest untouched"
+        );
+    }
 }
 
 #[test]

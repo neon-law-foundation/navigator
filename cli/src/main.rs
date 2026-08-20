@@ -783,29 +783,24 @@ enum OpsCmd {
         #[command(subcommand)]
         action: AssetsAction,
     },
-    /// Bump `[workspace.package].version` to today's `YY.M.D` release date so
-    /// the commit a release tags carries the version its Git tag names. Every
-    /// crate inherits it (`version.workspace = true`) and `navigator --version`
-    /// reports it. Run this on a release branch, land it on `main` through a PR,
-    /// then tag the merged commit; `deploy.yml`'s `release-version` job fails a
-    /// tag whose source version does not match, so tag and source cannot drift.
-    /// Pass `--tag` to write an explicit version instead of today's UTC date, or
-    /// `--hotfix` to cut a same-day hotfix when today's release already
-    /// happened: a `-hotfix.N` prerelease hung off TOMORROW's date. The
-    /// convenience command uses the current UTC hour as `N`; pass an explicit
-    /// `--tag` when another numeric discriminator is required. The next day is
-    /// the base because semver ranks a
-    /// prerelease below its own base, so `26.8.17-hotfix.17` would sort as older
-    /// than the `26.8.17` it fixes.
+    /// Write `--tag` into `[workspace.package].version` so the commit a release
+    /// tags carries the version its Git tag names. Every crate inherits it
+    /// (`version.workspace = true`) and `navigator --version` reports it. Run
+    /// this on a release branch, land it on `main` through a PR, then tag the
+    /// merged commit; `deploy.yml`'s `release-version` job fails a tag whose
+    /// source version does not match, so tag and source cannot drift. The
+    /// version is REQUIRED and nothing derives it: naming a release is an
+    /// operator decision, and a derived name is only ever a fact about when the
+    /// command ran. The shape is validated the way `deploy.yml` validates it —
+    /// `YY.M.D` with unpadded components, optionally suffixed `-hotfix.N` — so a
+    /// name the release would refuse fails here, before a tag exists. A hotfix
+    /// hangs off TOMORROW's date because semver ranks a prerelease below its own
+    /// base, so `26.8.17-hotfix.17` would sort as older than the `26.8.17` it
+    /// fixes.
     ReleaseVersion {
-        /// Version to write. Defaults to today's UTC `YY.M.D`.
+        /// Release version to write, e.g. `26.8.20` or `26.8.21-hotfix.3`.
         #[arg(long)]
-        tag: Option<String>,
-        /// Write a same-day `YY.M.D-hotfix.N` version on tomorrow's date, using
-        /// the current UTC hour as the default numeric N. Use `--tag` to choose
-        /// another N when needed.
-        #[arg(long, conflicts_with = "tag")]
-        hotfix: bool,
+        tag: String,
         /// The workspace manifest to rewrite.
         #[arg(long, default_value = "Cargo.toml")]
         manifest_path: PathBuf,
@@ -1676,10 +1671,9 @@ fn main() -> ExitCode {
             OpsCmd::Notices { out, check } => notices::run(&out, check),
             OpsCmd::ReleaseVersion {
                 tag,
-                hotfix,
                 manifest_path,
                 no_commit,
-            } => release_version::run(&manifest_path, tag, hotfix, no_commit),
+            } => release_version::run(&manifest_path, &tag, no_commit),
             OpsCmd::ReleaseProvenance { tag, repo } => release_provenance::run(&repo, &tag),
             OpsCmd::Lsp { action } => match action {
                 LspAction::Publish { dir, bucket } => lsp_publish::run_publish(&dir, bucket),

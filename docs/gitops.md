@@ -366,14 +366,15 @@ monotonic and true:
 Read plainly, a hotfix *is* the next day's release cut early: it carries fixes that would otherwise wait for the next
 UTC day. Several hotfixes may run in one day, ordered by their numeric discriminator.
 
-`N` is an unpadded nonnegative integer. The padding is not cosmetic — semver forbids a leading zero in a numeric
-prerelease identifier, so `hotfix.08` is not a valid version at all. `release-version --hotfix` uses the current UTC
-hour as a convenient default, while `--tag` accepts any available numeric `N`; the workflow does not clock-check it.
+`N` is an unpadded nonnegative integer, and it is the operator's to choose. The padding is not cosmetic — semver forbids
+a leading zero in a numeric prerelease identifier, so `hotfix.08` is not a valid version at all. Nothing derives `N`:
+`ops release-version` requires `--tag` and writes the name it is given, and the workflow does not clock-check `N`
+either, so it is a uniqueness-and-ordering discriminator rather than an hour.
 
 Write the version the same way as any other release, then land it and tag the merged commit:
 
 ```bash
-cargo run -p cli -- ops release-version --hotfix
+cargo run -p cli -- ops release-version --tag 26.8.18-hotfix.17
 ```
 
 **A hotfix does not become the default download.** Exactly one thing behaves differently from an ordinary release,
@@ -405,12 +406,13 @@ image, and hands the operator the same `ops ship` command.
 **The tag must carry its own version and main provenance.** The same first job also fails a tag that does not equal
 `Cargo.toml`'s `[workspace.package].version` — the value every crate inherits through `version.workspace = true` and
 `cli/build.rs` bakes into `navigator --version`. Without this the manifest sat at `0.1.0` while tags marched on, so the
-tagged source misreported its release. The one-line bump is `navigator ops release-version`; it writes today's UTC
-`YY.M.D` (or `--tag` for an explicit value) and commits it. It refreshes `Cargo.lock` in the same commit: every
-workspace crate is pinned there too, and the archive jobs build with `--locked`, which refuses a lock the manifest has
-moved past — a failure that would land after the tag is already pushed. That commit lands through an ordinary PR —
-`main` takes no direct commits — and release creation waits for the merge. The provenance guard then refreshes
-`origin/main` and rejects any tag whose peeled commit is not reachable from it.
+tagged source misreported its release. The one-line bump is `navigator ops release-version --tag <version>`; `--tag` is
+required, because naming a release is the operator's decision and a derived name is only ever a fact about when the
+command ran. It validates the shape the workflow validates, then commits it. It refreshes `Cargo.lock` in the same
+commit: every workspace crate is pinned there too, and the archive jobs build with `--locked`, which refuses a lock the
+manifest has moved past — a failure that would land after the tag is already pushed. That commit lands through an
+ordinary PR — `main` takes no direct commits — and release creation waits for the merge. The provenance guard then
+refreshes `origin/main` and rejects any tag whose peeled commit is not reachable from it.
 
 **The midnight edge is real.** The date that matters is UTC's, not yours. On `-04:00`, from 20:00 local onward UTC has
 already rolled over, so the only releasable tag is *tomorrow's* local date and pushing the one that matches your wall
@@ -541,9 +543,10 @@ Three lanes, cheapest first.
 
    This is [The manual deploy](#the-manual-deploy). `ship` builds nothing, refuses a tag absent from the registry, and
    `--dry-run` rehearses it first.
-3. **Fix forward the same day with a `-hotfix.N` tag.** If the source is wrong, land the fix on `main`, bump with
-   `ops release-version --hotfix`, and tag the merged commit. See [Releasing twice in one
-   day](#releasing-twice-in-one-day) for the shape and for the two surfaces a hotfix deliberately does not touch.
+3. **Fix forward the same day with a `-hotfix.N` tag.** If the source is wrong, land the fix on `main`, bump it with
+   `ops release-version`, passing the `-hotfix.N` name you chose as `--tag`, and tag the merged commit. See [Releasing
+   twice in one day](#releasing-twice-in-one-day) for the shape and for the two surfaces a hotfix deliberately does not
+   touch.
 
 **The day's `YY.M.D` name is still spent, and the tag still cannot move.** The `release-tags` ruleset restricts
 deletion, update, and non-fast-forward with no bypass actor, and no second `YY.M.D` exists for that day — so a same-day
