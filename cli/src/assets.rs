@@ -1817,8 +1817,10 @@ Inline raw-HTML tile: <div>![Team](img/thanks-apple/team-lunch.jpg)</div>\n";
             "img/rust-in-peace/apple-teaching.jpg",
             "img/rust-in-peace/apple-team.jpg",
             "img/rust-in-peace/everyone-loves-vibing.png",
+            "img/rust-in-peace/ferris-races-the-hare.png",
             "img/rust-in-peace/kiwi-rainbow.jpg",
             "img/rust-in-peace/new-york-lawyer-decision.jpg",
+            "img/rust-in-peace/rust-community-meetup.png",
         ]
         .into_iter()
         .map(String::from)
