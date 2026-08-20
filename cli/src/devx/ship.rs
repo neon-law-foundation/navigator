@@ -2851,6 +2851,10 @@ mod tests {
     }
 
     /// The placeholder tokens that must be gone from every rendered file.
+    ///
+    /// Enumerating them catches a substitution that stopped firing, but it
+    /// cannot catch a placeholder nobody added here —
+    /// [`surviving_your_tokens`] covers that half.
     const PLACEHOLDER_TOKENS: &[&str] = &[
         "YOUR_PROJECT_ID",
         IMAGE_REGISTRY_TOKEN,
@@ -2872,6 +2876,26 @@ mod tests {
         "YOUR_OAUTH_CLIENT_ID_GEMINI",
         RELEASE_TAG_TOKEN,
     ];
+
+    /// Every `YOUR_*` placeholder still present in `text`.
+    ///
+    /// Read out of the rendered text rather than compared against
+    /// [`PLACEHOLDER_TOKENS`], because that list is hand-maintained and so can
+    /// only report a token somebody remembered to add to it.
+    /// `YOUR_RESTATE_CLOUD_INGRESS` sat in six shipped trigger `CronJob`s and
+    /// on no substitution table at all: the enumerated check passed while every
+    /// `ops ship` rendered a literal `https://YOUR_RESTATE_CLOUD_INGRESS` into
+    /// the cluster. This finds the next one without being told its name.
+    fn surviving_your_tokens(text: &str) -> Vec<String> {
+        text.match_indices("YOUR_")
+            .map(|(at, _)| {
+                text[at..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || *c == '_')
+                    .collect()
+            })
+            .collect()
+    }
 
     #[test]
     #[allow(clippy::too_many_lines)]
@@ -2923,6 +2947,15 @@ mod tests {
                     entry.path().display()
                 );
             }
+            let surviving = surviving_your_tokens(&text);
+            assert!(
+                surviving.is_empty(),
+                "{} still contains placeholder(s) {surviving:?} after render. A `YOUR_*` token \
+                 that no substitution resolves reaches the cluster verbatim: either give it an \
+                 entry in `resolve_substitutions_for_deployment`, or source the value from the \
+                 deployment Secret instead of writing it inline",
+                entry.path().display()
+            );
             files_seen += 1;
         }
         assert!(files_seen > 0, "the render wrote at least one file");
@@ -3035,6 +3068,159 @@ mod tests {
             "the Namespace object itself uses the deployment namespace"
         );
         assert!(!namespace_manifest.contains("name: navigator"));
+    }
+
+    /// Collect every `env:` entry declared anywhere under `node`, as
+    /// `(name, entry)`. Recursive rather than pointer-indexed because the
+    /// scheduled jobs nest their pod spec differently from a Deployment
+    /// (`spec.jobTemplate.spec.template.spec.containers`), and a check that
+    /// hard-codes one shape silently stops looking when the other appears.
+    fn env_entries(node: &serde_json::Value, found: &mut Vec<(String, serde_json::Value)>) {
+        match node {
+            serde_json::Value::Object(map) => {
+                if let Some(serde_json::Value::Array(env)) = map.get("env") {
+                    for entry in env {
+                        if let Some(name) = entry.get("name").and_then(serde_json::Value::as_str) {
+                            found.push((name.to_string(), entry.clone()));
+                        }
+                    }
+                }
+                for value in map.values() {
+                    env_entries(value, found);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    env_entries(item, found);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// A key the `SecretProviderClass` projects must reach a scheduled trigger
+    /// FROM that Secret, never as an inline literal.
+    ///
+    /// `ops ship` applies these `CronJob`s over the live objects, and a
+    /// container's `env` list merges by entry name. An inline `value` here
+    /// therefore merges with the cluster's `valueFrom` into a single entry
+    /// carrying both, which the API server rejects outright — "may not be
+    /// specified when `value` is not empty". That aborted `kubectl diff -k`
+    /// before it compared anything, so for two releases no manifest change of
+    /// any kind could reach either cluster and version rolls were stuck on
+    /// `--image-only`. The projected set is read from the class itself, so the
+    /// next trigger that inlines a projected key fails here without this test
+    /// being updated.
+    ///
+    /// Deliberately scoped to the exports tree. `k8s/base/web/web.yaml` sets
+    /// several projected keys inline as KIND development values, and the GKE
+    /// overlay's `patches/web-env.yaml` `$patch: replace`s that whole list
+    /// away. No patch rewrites these `CronJob`s, so what the file says is what
+    /// ships.
+    #[test]
+    fn triggers_source_every_projected_key_from_the_deployment_secret() {
+        let subs = resolve_substitutions_for_deployment(
+            "neon-production",
+            "26.7.15",
+            env_getter(FULL_ENV),
+        )
+        .expect("full env resolves");
+        let rendered = render_manifests_with(&subs, false).expect("render succeeds");
+        let projected = secret_provider_class_keys();
+        // The render substitutes the Secret's name per deployment, so the
+        // reference has to follow it — a trigger pinned to the literal
+        // `navigator-web-secrets` would read another deployment's Secret, or
+        // more likely none at all.
+        let secret_name = FULL_ENV
+            .iter()
+            .find(|(key, _)| *key == "NAVIGATOR_WEB_SECRET_NAME")
+            .map(|(_, value)| *value)
+            .expect("the render env names the projected Secret");
+
+        let mut sourced_from_secret = 0;
+        for entry in walkdir::WalkDir::new(rendered.path().join(EXPORTS_KUSTOMIZE_SUBPATH)) {
+            let entry = entry.expect("walk the rendered exports tree");
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let text = fs::read_to_string(entry.path()).expect("read rendered manifest");
+            let manifest: serde_json::Value =
+                serde_yaml::from_str(&text).expect("rendered scheduled-job manifest parses");
+            let mut env = Vec::new();
+            env_entries(&manifest, &mut env);
+            let file = entry.path().display();
+            for (name, declared) in env {
+                if !projected.contains(&name) {
+                    continue;
+                }
+                assert!(
+                    declared.get("value").is_none(),
+                    "{file} sets `{name}` — a key the SecretProviderClass projects — as an inline \
+                     literal. Applying that over the live CronJob merges `value` and `valueFrom` \
+                     into one env entry and the API server rejects the whole object, taking every \
+                     manifest change down with it. Use \
+                     `valueFrom.secretKeyRef` into the projected Secret."
+                );
+                let secret_ref = declared
+                    .pointer("/valueFrom/secretKeyRef")
+                    .unwrap_or_else(|| panic!("{file} sources `{name}` from a Secret"));
+                assert_eq!(
+                    secret_ref.get("name").and_then(serde_json::Value::as_str),
+                    Some(secret_name),
+                    "{file} must read `{name}` from this deployment's own projected Secret"
+                );
+                assert_eq!(
+                    secret_ref.get("key").and_then(serde_json::Value::as_str),
+                    Some(name.as_str()),
+                    "{file} must read `{name}` from the Secret key of the same name"
+                );
+                // `optional: true` is load-bearing, not decoration.
+                // `omit_unwritten_objects` drops an object the shipping
+                // deployment does not write from the rendered class, so the
+                // projected Secret of an ordinary row carries no
+                // RESTATE_INGRESS_URL at all — the assertion below proves that
+                // from the fixture tree. A required reference would then leave
+                // every trigger pod in CreateContainerConfigError, never
+                // started and never logging why.
+                assert_eq!(
+                    secret_ref
+                        .get("optional")
+                        .and_then(serde_json::Value::as_bool),
+                    Some(true),
+                    "{file} must mark its `{name}` reference optional, or a deployment that does \
+                     not project the key gets pods that never start instead of a trigger that \
+                     exits naming the missing value"
+                );
+                sourced_from_secret += 1;
+            }
+        }
+
+        // The six trigger CronJobs each carry RESTATE_INGRESS_URL and
+        // RESTATE_AUTH_TOKEN. A floor rather than an equality so a new trigger
+        // does not fail this, while a file that quietly drops the reference —
+        // the state that would make the loop above vacuous — does.
+        assert!(
+            sourced_from_secret >= 12,
+            "expected at least the six triggers' two Restate keys to be sourced from the Secret, \
+             saw {sourced_from_secret}"
+        );
+
+        // The premise behind `optional: true`, proven rather than asserted:
+        // an ordinary deployment legitimately does not project this key.
+        let ordinary = super::super::deployments::Deployment::load(&fixture_tree(), ORDINARY_ROW)
+            .expect("the ordinary row loads");
+        assert!(
+            ordinary.provisioned,
+            "{ORDINARY_ROW} must be provisioned or the omission below is computed from no \
+             secrets file at all and this assertion proves nothing"
+        );
+        assert!(
+            super::super::deployments::skipped_projected_objects(&ordinary)
+                .expect("the tree is complete")
+                .contains("RESTATE_INGRESS_URL"),
+            "RESTATE_INGRESS_URL is scoped to the automation home, so an ordinary deployment's \
+             Secret does not carry it — which is why the triggers' reference must be optional"
+        );
     }
 
     #[test]

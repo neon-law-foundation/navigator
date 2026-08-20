@@ -238,6 +238,17 @@ data store exists. Firm-specific values that are *secrets or operator toggles* (
 host, DKIM enforcement) stay in the `navigator-web-secrets` K8s Secret and arrive via `envFrom`. The base's inline-env
 `$patch: replace` does not touch that Secret reference, so a full apply preserves them.
 
+A key that Secret projects must reach a pod **from the Secret**, never as an inline `value`. The scheduled triggers
+under `examples/deploy/k8s/exports/` mount no CSI volume, so each reads `RESTATE_INGRESS_URL` and `RESTATE_AUTH_TOKEN`
+through an explicit `valueFrom.secretKeyRef`, marked `optional` because a deployment that does not project the key must
+get a trigger that exits naming it rather than pods stuck in `CreateContainerConfigError`. Writing either inline breaks
+far more than the trigger: a container's `env` list merges by entry name, so a literal in the rendered tree merges with
+the cluster's `valueFrom` into one entry carrying both, the API server rejects the whole object, and `kubectl diff -k`
+aborts before comparing anything — blocking **every** manifest change to that deployment, not just the trigger's. That
+is what made version rolls image-only for two releases. `triggers_source_every_projected_key_from_the_deployment_secret`
+in `cli/src/devx/ship.rs` fails the build on the next one, and the render's own `YOUR_*` sweep fails on a placeholder no
+substitution resolves.
+
 A healthy cluster's `kubectl diff -k` against the freshly rendered tree is a **near no-op** — that is the acceptance bar
 for source == cluster. `--dry-run` renders and diffs but never applies, so "see what will change" needs no folder:
 

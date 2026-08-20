@@ -45,13 +45,17 @@ spec:
               image: YOUR_IMAGE_REGISTRY/navigator-archives-trigger:YY.M.D
               imagePullPolicy: Always
               env:
-                # Restate Cloud ingress endpoint for the navigator-prod
-                # environment. Find it under the env's "Ingress" in the
-                # Restate Cloud console; set it as a literal here or
-                # source it from the Secret. The trigger POSTs
+                # Restate Cloud ingress endpoint. Sourced from the Secret rather
+                # than written inline — see the `RESTATE_INGRESS_URL` note in
+                # kustomization.yaml for why a literal here blocks every manifest
+                # change. The trigger POSTs
                 # `${RESTATE_INGRESS_URL}/Archives/<run-date>/run`.
                 - name: RESTATE_INGRESS_URL
-                  value: https://YOUR_RESTATE_CLOUD_INGRESS
+                  valueFrom:
+                    secretKeyRef:
+                      name: navigator-web-secrets
+                      key: RESTATE_INGRESS_URL
+                      optional: true
                 # Restate Cloud authenticates every ingress call with the
                 # tenant bearer. Without this the trigger POST 401s and the
                 # nightly email silently never sends. Sourced from the same
