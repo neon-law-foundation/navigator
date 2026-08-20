@@ -1387,9 +1387,6 @@ jobs:
           # cannot be pointed at another legal entity's face by configuration.
           # Each isolated deployment selects its matching brand image;
           # every deployment pulls its own.
-          - image: neon-server
-            dockerfile: images/Containerfile.neon
-            runner: ubuntu-latest
           # `navigator-web` is an alias tag for this same Foundation brand
           # image: the deployed GKE manifests still pull `navigator-web` (see
           # `k8s/base/web/web.yaml`), and they flip to `neon-server` with #796's
