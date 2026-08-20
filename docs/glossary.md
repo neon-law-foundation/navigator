@@ -1150,7 +1150,7 @@ The three are deliberately different shapes of legal work, because one matter ca
 
 | Code | Matter | Practice | Client |
 | --- | --- | --- | --- |
-| `donut-litigation` | *Cruller v. Prine* | trespass, and rescission of a doughnut instrument | an individual plaintiff |
+| `donut-litigation` | *Cruller v. Prine* | trespass and rescission of a doughnut instrument | an individual plaintiff |
 | `widget-works` | *Widget Works — Outside Counsel* | employment agreements and contract review | a Nevada C-Corp |
 | `montgomery-estate` | *Estate of Cornelius Montgomery* | an estate plan | an individual testator |
 

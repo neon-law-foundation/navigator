@@ -1,7 +1,7 @@
 # Using the Navigator Workshop
 
-This workshop uses one local matter from start to finish: **Cruller v. Prine**. The matter code is
-`donut-litigation`, its portal application is the [litigation sample
+This workshop uses one local matter from start to finish: **Cruller v. Prine**. The matter code is `donut-litigation`,
+its portal application is the [litigation sample
 project](https://github.com/neon-law-foundation/navigator-sample-project-litigation), and its local data is synthetic.
 Every attendee sees the same matter through the role assigned to their local account.
 
@@ -127,9 +127,9 @@ Trace one notation from its template through its workflow state. Relate each ste
 
 ### Inspect the client portal
 
-Sign in as `client@neonlaw.com`, open `/app/projects`, and select **Cruller v. Prine**. All three seeded
-matters are in that list, because the fixture client participates in each one. The detail page keeps the human-readable
-code in the address bar:
+Sign in as `client@neonlaw.com`, open `/app/projects`, and select **Cruller v. Prine**. All three seeded matters are in
+that list, because the fixture client participates in each one. The detail page keeps the human-readable code in the
+address bar:
 
 ```text
 /app/projects/donut-litigation
