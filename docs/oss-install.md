@@ -29,16 +29,56 @@ here, and that seam exists so a fork does not have to patch views to drop them.
 
 ## 0. Prerequisites
 
-- Rust 1.97 (`rustup toolchain install 1.97.0`) Docker (for image builds; the test suite needs none)
-  `kubectl`, `kustomize`, `gcloud` (only if you're following the GCP example) A domain you control, with the ability to
-  set A records
+Grouped by what you are actually doing. Only the first two groups are needed to build and test; nothing here requires a
+cloud account.
+
+**To build and test:**
+
+- **Rust** — pinned to 1.97.0 by the workspace's `rust-toolchain.toml`, so installing [`rustup`](https://rustup.rs) is
+  enough: it reads that pin and fetches the right toolchain on your first `cargo` invocation.
+- **A C/C++ toolchain and linker for your host** — Microsoft C++ Build Tools on Windows, the Xcode command line tools
+  on macOS, `build-essential` or equivalent on Linux. Several dependencies compile native code.
+- **`cmake`** — `libz-ng-sys` shells out to it from its build script, and it sits on the default workspace surface via
+  `archives` → `iceberg` → `parquet` → `flate2`. It is not optional or feature-gated: without it, step 1 below fails on
+  a clean machine.
+- **`git`**.
+
+**Test tooling, at the pinned versions:**
+
+```bash
+cargo install cargo-nextest --locked --version 0.9.140   # pinned by .github/workflows/deploy.yml
+cargo install cargo-llvm-cov --locked --version 0.8.7    # pinned by .github/workflows/ci.yml
+```
+
+The versions matter rather than being tidiness: the 90.6% workspace line floor is a merge gate, so a drifting version
+measures against a different denominator than CI does. `--locked` is required, not advisable — `cargo-nextest` fails to
+compile without it.
+
+**To build images and deploy:**
+
+- **Docker**, for image builds. The test suite needs none.
+- **`kubectl`**, **`kustomize`** and **`gcloud`** — only if you are following the GCP example below.
+- **A domain you control**, with the ability to set A records.
+
+**Optional, for the browser suites:** a matching Chrome/ChromeDriver pair. The browser and e2e tests self-skip without
+one, so this can wait until you need it.
+
+> **Known issues on Windows.** Two of step 1's commands do not currently succeed on a Windows checkout. Both are
+> tracked and neither affects Linux or macOS.
+>
+> `cargo build --workspace` fails at the final link step, because two workspace crates ship a binary named `trigger`
+> and race for the same output path. Serialising with `cargo build --workspace -j 1`, or building one crate at a time
+> with `cargo build -p <crate>`, both work in the meantime. Tracked as ENG-263.
+>
+> `cargo test -p features` fails in every suite that seeds a matter. Git for Windows checks the bundled notation
+> templates out with CRLF line endings, and the seeder's frontmatter parser matches only LF, so seeding hard-errors
+> with `missing YAML frontmatter`. Tracked as ENG-265.
 
 ## 1. Clone and build
 
 ```bash
 git clone <your-fork-url> navigator
 cd navigator
-cargo install cargo-nextest      # the workspace test runner (.config/nextest.toml)
 cargo build --workspace          # pulls dependencies + compiles every crate
 cargo nextest run --workspace    # each test opens its own embedded store
 cargo test -p features           # the cucumber BDD suites (custom harness)
