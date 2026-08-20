@@ -1482,7 +1482,9 @@ fn audit_authorization(
         decision = decision,
         principal_kind = %principal_kind(principal_email),
         approver_role = approver_role.map_or("none", |r| r.as_str()),
-        proposer = %pending.principal_email,
+        // The proposer is a second principal, so it gets the same treatment as
+        // the approver above: whether it authenticated, never its address.
+        proposer_kind = %principal_kind(&pending.principal_email),
         tool = %pending.pending_call.tool_name,
         arguments = %pending.pending_call.arguments,
         task_id = %task_id,

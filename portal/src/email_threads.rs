@@ -989,9 +989,12 @@ async fn hold_relay_for_conflict_check(
     conversation: &conv::EmailConversation,
     token: &str,
 ) -> Result<(), ThreadError> {
+    // `conversation_id` already identifies which relay was held; the external
+    // address adds nothing to the signal and is client-identifying content in a
+    // record that leaves the firm's trust boundary. The prospective client's
+    // address is on the conversation row for anyone who needs it.
     tracing::warn!(
         conversation_id = %conversation.id,
-        external = %conversation.external_email,
         "relay held: firm-wide conflict check not cleared for this prospective client"
     );
     let note = format!(
