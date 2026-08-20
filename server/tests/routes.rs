@@ -16261,3 +16261,97 @@ async fn the_retired_project_prefixes_are_not_served() {
         );
     }
 }
+
+/// A code that names no matter is refused everywhere below `/app/projects/`.
+///
+/// Every route in this namespace resolves its `{project_code}` segment at the
+/// door, and each one owes the same answer when that lookup finds nothing: the
+/// non-disclosing 404 a caller off the matter receives. A 403 — or a 400 from
+/// an extractor, or a 500 from a handler that carried on with no matter — would
+/// each tell a stranger something about which codes exist.
+///
+/// One test walks the whole namespace because the refusal is a property of the
+/// namespace rather than of any one handler: a route added later that forgets
+/// to resolve, or resolves and then ignores the miss, is exactly what this
+/// catches. The caller here is an Admin with a real session, so nothing is
+/// being refused for want of authentication — only for want of a matter.
+#[tokio::test]
+async fn a_code_naming_no_matter_is_refused_on_every_matter_route() {
+    let (state, surreal) = state_with_engines().await;
+    let cookie = admin_session_cookie_with_person();
+    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
+
+    // Well-formed (lowercase, single hyphens, alphanumeric at both ends) and
+    // carried by no Project, so every refusal below is the lookup's and not the
+    // shape check's.
+    let ghost = "no-such-matter";
+    assert!(
+        store::projects::is_valid_code(ghost),
+        "the probe must be a valid code, or this asserts the wrong gate"
+    );
+    assert!(
+        store::projects::find_by_code(&surreal, ghost)
+            .await
+            .unwrap()
+            .is_none(),
+        "the probe must name no matter"
+    );
+
+    let doc = uuid::Uuid::now_v7();
+    let notation = uuid::Uuid::now_v7();
+    let role = uuid::Uuid::now_v7();
+    for path in [
+        format!("/app/projects/{ghost}"),
+        format!("/app/projects/{ghost}/edit"),
+        format!("/app/projects/{ghost}/conversation"),
+        format!("/app/projects/{ghost}/documents.zip"),
+        format!("/app/projects/{ghost}/documents/{doc}/download"),
+        format!("/app/projects/{ghost}/review/{doc}"),
+        format!("/app/projects/{ghost}/review/{doc}/comments"),
+        format!("/app/projects/{ghost}/intake/{notation}"),
+        format!("/app/projects/{ghost}/people/new"),
+        format!("/app/projects/{ghost}/people/{role}/edit"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(&path)
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_FOUND,
+            "{path} must answer the same 404 as a matter the caller is not on"
+        );
+    }
+
+    // The per-document page is the one surface that answers with a rendered
+    // not-found *body* rather than a 404 status — its own contract, and the
+    // same body a document that exists on another matter produces. What matters
+    // here is the disclosure, not the code: it must name no document.
+    let detail = app
+        .oneshot(
+            Request::builder()
+                .uri(format!("/app/projects/{ghost}/documents/{doc}"))
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = String::from_utf8_lossy(
+        &axum::body::to_bytes(detail.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .into_owned();
+    assert!(
+        !body.contains(ghost),
+        "the per-document page must not echo a code it could not resolve: {body}"
+    );
+}
