@@ -2739,7 +2739,8 @@ async fn llms_txt_indexes_the_markdown_corpus_with_absolute_urls() {
     assert!(body.contains("ground questionnaire states and placeholders"));
     assert!(body.contains("## Pages"));
     // The Foundation's whole public surface: its home and the three audience
-    // pages. The talks catalog is the firm's, so it is not advertised here.
+    // pages. The workshops and presentations catalogs are public root-level
+    // material and are advertised in their own sections below.
     for page in [
         "https://www.example.com/)",
         "https://www.example.com/foundation/education)",
@@ -2756,14 +2757,13 @@ async fn llms_txt_indexes_the_markdown_corpus_with_absolute_urls() {
         "the firm's talks must not be filed under the nonprofit: {body}"
     );
 
-    // Everything llms.txt used to advertise was either gated or private. A
-    // crawler that follows one of these gets a login redirect or a 404, so
-    // each is asserted absent by the URL it would have carried.
+    // Private or authenticated surfaces remain absent. A crawler that follows
+    // one of these gets a login redirect or a 404, so each is asserted absent
+    // by the URL it would have carried.
     for gated in [
         "https://www.example.com/docs/",
         "https://www.example.com/templates",
         "https://www.example.com/foundation/navigator/cli",
-        "https://www.example.com/workshops",
     ] {
         assert!(
             !body.contains(gated),
@@ -2794,11 +2794,11 @@ async fn llms_txt_indexes_the_markdown_corpus_with_absolute_urls() {
             "llms.txt must not carry {heading}: {body}"
         );
     }
-    // This index holds one workshop and no talks, so the corpus is empty and
-    // the heading is absent entirely.
-    assert!(!body.contains("## Workshop Corpus"));
+    // This fixture holds one public workshop and no presentations, so the
+    // workshop corpus is present while the presentation corpus is empty.
+    assert!(body.contains("## Workshop Corpus"));
+    assert!(body.contains("/workshops/use-the-navigator.md"));
     assert!(!body.contains("## Presentation Corpus"));
-    assert!(!body.contains("Rust in Peace"));
 }
 
 #[tokio::test]
