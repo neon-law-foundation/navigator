@@ -866,13 +866,39 @@ a.nav-pagination__link:hover {
 }
 
 .site-footer__inner {
+  /* The contact band's geometry, declared once because two rows are laid out
+     on it: the band's own tile grid, and the masthead above it whose link
+     columns line up with those tiles. */
+  --footer-band-inset: clamp(1.25rem, 3vw, 2rem);
+  --footer-band-gap: 0.75rem;
+  /* One spacing value for every line of the legal strip, and for the gap
+     under the last of them. The strip is one block of fine print, so nothing
+     in it is spaced differently from anything else in it. */
+  --footer-strip-gap: 0.75rem;
   width: min(100%, 72rem);
   box-sizing: border-box;
   margin: 0 auto;
-  padding: clamp(2rem, 5vw, 4rem) 1rem clamp(2.25rem, 5vw, 3.5rem);
+  /* No deep trailing gap: the strip's last line is the release stamp, and a
+     footer is the end of the page rather than a section that needs air under
+     it. Enough to keep the text off the edge, and no more. */
+  padding: clamp(2rem, 5vw, 4rem) 1rem var(--footer-strip-gap);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 1.5rem 2rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+/* The masthead sits on the contact band's three tracks, so the first link
+   column starts at the first address tile and the second at the tile beside
+   it — the row and the band read as one grid rather than two that happen to
+   be stacked. The band insets its tiles by its padding AND its 1px border, so
+   this clears both or every column lands a pixel to the left. */
+.site-footer__masthead {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: var(--footer-band-gap);
+  row-gap: 1.25rem;
+  align-items: center;
+  padding-inline: calc(var(--footer-band-inset) + 1px);
 }
 
 /* The footer reuses the header's self-contained brand mark. Its SVG stays
@@ -882,7 +908,6 @@ a.nav-pagination__link:hover {
 .site-footer__brand {
   display: flex;
   align-items: center;
-  align-self: start;
   gap: 0.8rem;
   margin: 0;
 }
@@ -903,60 +928,56 @@ a.nav-pagination__link:hover {
   white-space: nowrap;
 }
 
-/* The pages the header no longer carries — Team, Blog, Contact. A flat row at
-   the top of the footer, because a reader who scrolled to the bottom looking
-   for one of them should meet it before the contact detail. */
+/* The pages the header does not carry. A list at the top of the footer,
+   because a reader who scrolled to the bottom looking for one of them should
+   meet it before the contact detail. */
 .site-footer__nav {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  align-self: center;
-  justify-self: end;
-  justify-content: flex-end;
-  gap: 0.5rem;
+  grid-column: 2 / -1;
   margin: 0;
   padding: 0;
 }
 
+/* Two columns of five on a wide viewport. The rows are fixed at five and the
+   flow runs down them before moving across, so the list reads top-to-bottom
+   inside each column rather than snaking across the pair. One `<ul>` does
+   this at every width — the narrow layout below simply stops columnizing it,
+   which is why the markup needs no second list. */
+.site-footer__nav-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(5, auto);
+  column-gap: var(--footer-band-gap);
+  row-gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-footer__nav-item {
+  margin: 0;
+}
+
+/* Plain text links: no pill, no border, no fill, and nothing that moves on
+   hover. The row is a directory of the site's remaining pages, so it reads as
+   a list of names in the footer's own muted type. Underlining on hover is the
+   whole affordance, and `:focus-visible` keeps the browser's own ring for a
+   keyboard reader. */
 .site-footer__nav-link {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid transparent;
-  border-radius: 999px;
   color: var(--nav-color-text-muted);
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 0.9375rem;
   text-decoration: none;
-  transition: border-color 160ms ease-out, background-color 160ms ease-out,
-    color 160ms ease-out;
 }
 
-.site-footer__nav-link:hover,
-.site-footer__nav-link:focus-visible {
-  border-color: var(--nav-color-border);
-  color: var(--nav-color-text);
-  background: color-mix(in oklab, var(--nav-color-surface-raised) 76%, transparent);
-}
-
-/* A middot between the links, drawn by the row rather than written into the
-   markup: a separator is punctuation between items, not an item, so a screen
-   reader should not read it as one. `::before` on every link but the first
-   keeps it out of the accessibility tree and out of the copy buffer's way.
-
-   `inline-block` is load-bearing, not styling. The dot lives inside the anchor
-   that follows it, and `text-decoration` propagates from an inline box into its
-   inline children — so hovering "Blog" underlined the dot before it as though
-   the separator were part of the link. Decoration does not propagate into an
-   atomic inline box, so this stops at the dot and the underline starts at the
-   word. */
-.site-footer__nav-link + .site-footer__nav-link::before {
-  content: none;
+.site-footer__nav-link:hover {
+  text-decoration: underline;
 }
 
 /* The contact band: one bordered surface wrapping the tile grid (the email
    and phone channels, then every office) at a consistent tile size. */
 .site-footer__contact {
   grid-column: 1 / -1;
-  padding: clamp(1.25rem, 3vw, 2rem);
+  padding: var(--footer-band-inset);
   border: 1px solid var(--nav-color-border);
   border-radius: 1.25rem;
   background: color-mix(in oklab, var(--nav-color-surface-raised) 84%, transparent);
@@ -986,7 +1007,7 @@ a.nav-pagination__link:hover {
 .site-footer__offices {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: var(--footer-band-gap);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1125,50 +1146,36 @@ a.nav-pagination__link:hover {
    ruled off from the contact band above it. */
 .site-footer__legal {
   grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--footer-strip-gap);
   border-top: 1px solid var(--nav-color-border);
-  padding-top: 1.5rem;
+  padding-top: var(--footer-strip-gap);
   color: var(--nav-color-text-muted);
   font-size: 0.78rem;
   line-height: 1.55;
 }
 
-.site-footer__legal:has(> .site-footer__legal-practice) {
+/* Every group in the strip is the strip's own grid again, so a line inside a
+   group sits exactly as far from its neighbour as the groups do from each
+   other. The groups exist to say what belongs together, not to be spaced
+   apart: the whole strip reads as one block of fine print. */
+.site-footer__legal > div {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(13rem, 1fr);
-  gap: clamp(1.25rem, 3vw, 2.5rem);
+  gap: var(--footer-strip-gap);
 }
 
-.site-footer__legal:has(> .site-footer__legal-practice) > div + div {
-  padding-inline-start: clamp(1.25rem, 3vw, 2.5rem);
-  border-inline-start: 1px solid var(--nav-color-border);
-}
-
-.site-footer__legal-platform {
-  align-self: start;
-}
-
-/* The closing address row spans both columns rather than sitting in either
-   one — it is a fact about the two entities, not part of the practice
-   column's disclosures or the platform column's attribution. Overrides the
-   `div + div` divider above at matching specificity (see the 90rem platform
-   override for why a bare class selector would lose that fight): spacing
-   only, no rule line — the strip is quiet fine print throughout, not a
-   stack of separately-boxed sections. */
-.site-footer__legal:has(> .site-footer__legal-practice) > .site-footer__legal-addresses {
-  grid-column: 1 / -1;
-  padding-inline-start: 0;
-  border-inline-start: 0;
-  padding-block-start: 1rem;
-  border-block-start: 0;
+/* The grid's gap is the only thing that spaces this strip, so nothing in it
+   carries a margin of its own to add to it. */
+.site-footer__legal p,
+.site-footer__legal ul,
+.site-footer__legal address {
+  margin: 0;
 }
 
 .site-footer__legal-address {
   display: block;
   font-style: normal;
-}
-
-.site-footer__legal-address + .site-footer__legal-address {
-  margin-top: 0.3rem;
 }
 
 /* With no contact band above it the legal strip is the footer's first child,
@@ -1179,13 +1186,6 @@ a.nav-pagination__link:hover {
   padding-top: 0;
 }
 
-.site-footer__legal p {
-  margin: 0 0 0.5rem;
-}
-
-.site-footer__legal p:last-child {
-  margin-bottom: 0;
-}
 
 .site-footer__legal a {
   color: inherit;
@@ -1202,33 +1202,34 @@ a.nav-pagination__link:hover {
 }
 
 @media (max-width: 54rem) {
-  .site-footer__inner {
-    grid-template-columns: 1fr;
+  /* The band collapses to one tile per row here, so there are no tracks left
+     to line up with: the masthead stacks and drops the band's inset. */
+  .site-footer__masthead {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 0;
   }
 
   .site-footer__nav {
+    grid-column: 1;
+  }
+
+  /* One list of ten. The same `<ul>` stops columnizing and runs straight down
+     the page, so a narrow viewport shows the row as the single list it is in
+     the markup. */
+  .site-footer__nav-list {
+    grid-auto-flow: row;
+    grid-template-rows: none;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .site-footer__brand {
     justify-self: start;
-    justify-content: flex-start;
   }
 
   .site-footer__contact {
     grid-column: 1;
   }
 
-  .site-footer__legal {
-    grid-column: 1;
-  }
-
-  .site-footer__legal:has(> .site-footer__legal-practice) {
-    grid-template-columns: 1fr;
-  }
-
-  .site-footer__legal:has(> .site-footer__legal-practice) > div + div {
-    padding-block-start: 1.25rem;
-    padding-inline-start: 0;
-    border-block-start: 0;
-    border-inline-start: 0;
-  }
 }
 
 @media (max-width: 34rem) {
@@ -1237,39 +1238,6 @@ a.nav-pagination__link:hover {
   }
 }
 
-/* On a very wide viewport the platform attribution reads as a full-width band
-   under the practice column rather than half of it — so it drops out of the
-   2-column grid onto a row of its own, leaving practice alone in the row
-   above (an empty second cell beside it is fine — no content is missing, the
-   row is just narrower than the one below it). The `div + div` rule above
-   still matches it as a later sibling, so its inherited left border/padding
-   are cleared in favor of matching top spacing, no rule line. */
-@media (min-width: 90rem) {
-  /* Matches the `div + div` rule's own selector shape so this reliably wins
-     on specificity rather than losing to it as a bare `.site-footer__legal-
-     platform` rule would (that rule is two classes deep; a plain class
-     selector here is one, and a weaker selector cannot override a stronger
-     one regardless of source order or media-query nesting). */
-  .site-footer__legal:has(> .site-footer__legal-practice) > .site-footer__legal-platform {
-    grid-column: 1 / -1;
-    padding-inline-start: 0;
-    border-inline-start: 0;
-    padding-block-start: 1.5rem;
-    border-block-start: 0;
-  }
-}
-
-/* The repository link and its star count travel together and must not be
-   separated by a line break — the count is meaningless beside a different
-   line. Each half is its own inline row so the glyphs sit on the text
-   baseline rather than riding above it. */
-.github-stars,
-.github-stars__count {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  white-space: nowrap;
-}
 
 /* A little air between the link and the number it belongs to, so "1,234" reads
    as a count of the repository beside it rather than as part of its name. */
@@ -1286,7 +1254,6 @@ a.nav-pagination__link:hover {
 /* The per-attorney bar licenses: one line per attorney, each jurisdiction
    linked to that bar's own public record. */
 .site-footer__licenses {
-  margin: 0 0 0.5rem;
   padding: 0;
   list-style: none;
 }

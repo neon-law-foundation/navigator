@@ -565,23 +565,29 @@ async fn the_firm_nav_leads_with_the_lead_offering_then_the_practices() {
 
 #[tokio::test]
 async fn the_footer_carries_the_pages_the_header_does_not() {
-    // Blog, Contact, Docs, Navigator, Neon Law, Presentations, and Workshops are
-    // one click away from every public page. Checked on `/litigation` rather than
-    // `/`, because the footer is shared chrome and a page that is not the home
-    // page proves it renders everywhere.
+    // All ten routes are one click away from every public page. Checked on
+    // `/litigation` rather than `/`, because the footer is shared chrome and a
+    // page that is not the home page proves it renders everywhere.
     //
     // Workshops joined the row when the classes became public, and Docs when the
     // workspace documentation did. While either was gated neither row carried
     // it, so that the site never sent a signed-out reader at a login door; now
     // that anyone may read them, these links are what stop each being reachable
     // only by typing the URL.
-    const ROW: [&str; 7] = [
+    //
+    // Firm (`/`) and Foundation (`/foundation`) are the pair that reaches each
+    // organization's home from anywhere on the site. `/privacy` and `/terms`
+    // ride the row on the same footing as the rest.
+    const ROW: [&str; 10] = [
         "/blog",
         "/contact",
         "/docs",
-        "/navigator",
         "/",
+        "/foundation",
+        "/navigator",
         "/presentations",
+        "/privacy",
+        "/terms",
         "/workshops",
     ];
     let app = site_app().await;

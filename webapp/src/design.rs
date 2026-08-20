@@ -986,16 +986,29 @@ fn SiteFooterShowcase() -> Element {
                 phone: "+1 555 010 0100".to_string(),
                 offices: demo_offices(),
                 attorneys: demo_attorneys(),
-                // The routes the header no longer carries, and the firm's
-                // supporter line. Shown here because a gallery that omitted
-                // them would document a footer the site does not render.
-                nav: [("Navigator", "/navigator"), ("Blog", "/blog"), ("Contact", "/contact")]
-                    .into_iter()
-                    .map(|(label, href)| FooterNavLink {
-                        label: label.to_string(),
-                        href: href.to_string(),
-                    })
-                    .collect(),
+                // The routes the header no longer carries, at the full length
+                // the site publishes them: ten links, which the stylesheet
+                // lays out as two columns of five. A gallery driving three
+                // would document a row that never renders and would not show
+                // the two-column layout at all.
+                nav: [
+                    ("Blog", "/blog"),
+                    ("Contact", "/contact"),
+                    ("Docs", "/docs"),
+                    ("Firm", "/"),
+                    ("Foundation", "/foundation"),
+                    ("Navigator", "/navigator"),
+                    ("Presentations", "/presentations"),
+                    ("Privacy", "/privacy"),
+                    ("Terms", "/terms"),
+                    ("Workshops", "/workshops"),
+                ]
+                .into_iter()
+                .map(|(label, href)| FooterNavLink {
+                    label: label.to_string(),
+                    href: href.to_string(),
+                })
+                .collect(),
                 foundation: "Acme Foundation".to_string(),
                 // The open-source line, driven with a count so the gallery
                 // shows the shape the deployed footer renders. The
@@ -1004,6 +1017,11 @@ fn SiteFooterShowcase() -> Element {
                 source_repo: "neon-law-foundation/navigator".to_string(),
                 source_href: "https://github.com/neon-law-foundation/navigator".to_string(),
                 source_stars: 1234u64,
+                // The release stamp, driven with a literal so the gallery shows
+                // the line a deployed page renders. A local `cargo run` leaves
+                // it unset and the site publishes no version.
+                navigator_version: "26.8.20".to_string(),
+                navigator_href: "/navigator".to_string(),
             }
         }
     }

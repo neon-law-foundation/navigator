@@ -191,6 +191,13 @@ fn tel_href(phone: &str) -> String {
 /// - `attorneys`: the licensed attorneys and the bar licences each holds, one
 ///   line per attorney, every number linked to that bar's own record. Empty
 ///   renders no licence list.
+/// - `logo_href` / `brand_name`: the mark the footer opens on and the wordmark
+///   beside it. `crate::public_chrome::PublicFooter` feeds both from the firm
+///   brand on every page of the site, so the bottom of a page names one
+///   organization whichever header it wears.
+/// - `nav`: the public routes the header does not carry, rendered as one list
+///   the stylesheet lays out in two columns of five on a wide viewport and one
+///   column of ten on a narrow one. Empty renders no row.
 ///
 /// The whole footer is width-constrained to the same 72rem column the
 /// [`crate::components::SiteHeader`] nav uses, so its content lines up with
@@ -235,42 +242,77 @@ pub fn SiteFooterLegal(
     source_repo: String,
     #[props(default)] source_href: String,
     #[props(default)] source_stars: Option<u64>,
+    /// The published release this deployment is running, and the page that
+    /// describes the platform. Beside the repository link, so the two halves of
+    /// the same fact read together: this is the software, and this is the build
+    /// of it serving the page.
+    ///
+    /// A push is visible end to end — the moment a new image is live, the
+    /// footer's number changes. Both strings empty renders no line, which is
+    /// the ordinary local case: `NAVIGATOR_RELEASE_TAG` is unset under
+    /// `cargo run`, and a footer reading "#" is worse than no version at all.
+    #[props(default)]
+    navigator_version: String,
+    #[props(default)] navigator_href: String,
 ) -> Element {
     let has_contact = !contact_email.is_empty() || !phone.is_empty() || !offices.is_empty();
+    let has_masthead = !logo_href.is_empty() || !brand_name.is_empty() || !nav.is_empty();
     rsx! {
         footer { class: "site-footer", role: "contentinfo",
             div { class: "site-footer__inner",
-                // The mark and the name it belongs to. The logo alone left the
-                // footer opening on an unlabelled glyph; the wordmark is the
-                // same one the header carries, so the bottom of the page says
-                // whose page it is. The image stays decorative (`alt=""`)
-                // because the text beside it is the label.
-                if !logo_href.is_empty() || !brand_name.is_empty() {
-                    div { class: "site-footer__brand",
-                        if !logo_href.is_empty() {
-                            img {
-                                class: "site-footer__logo",
-                                src: "{logo_href}",
-                                alt: ""
+                // The mark, the name it belongs to, and the link row, in one
+                // element so they share one grid — and so that grid can be the
+                // contact band's own, which is what lines the first link column
+                // up with the first address tile below it. Two separate
+                // children of `__inner` could not: the band insets its tiles by
+                // its own padding, so a track measured outside the band never
+                // lands where a track measured inside it does.
+                if has_masthead {
+                    div { class: "site-footer__masthead",
+                        // The logo alone left the footer opening on an
+                        // unlabelled glyph; the wordmark is the same one the
+                        // header carries, so the bottom of the page says whose
+                        // page it is. The image stays decorative (`alt=""`)
+                        // because the text beside it is the label.
+                        if !logo_href.is_empty() || !brand_name.is_empty() {
+                            div { class: "site-footer__brand",
+                                if !logo_href.is_empty() {
+                                    img {
+                                        class: "site-footer__logo",
+                                        src: "{logo_href}",
+                                        alt: ""
+                                    }
+                                }
+                                if !brand_name.is_empty() {
+                                    strong { class: "site-footer__wordmark", "{brand_name}" }
+                                }
                             }
                         }
-                        if !brand_name.is_empty() {
-                            strong { class: "site-footer__wordmark", "{brand_name}" }
-                        }
-                    }
-                }
-                // The pages the header does not carry. A flat row of the firm's
-                // own routes, first thing in the footer, so a reader who
-                // scrolled to the bottom looking for the Blog, Contact, or the
-                // platform page finds them before the contact band's detail.
-                if !nav.is_empty() {
-                    nav { class: "site-footer__nav", "aria-label": "More pages",
-                        for link in nav.iter() {
-                            a {
-                                class: "site-footer__nav-link",
-                                key: "{link.href}",
-                                href: "{link.href}",
-                                "{link.label}"
+                        // The pages the header does not carry, as one list of
+                        // the firm's own routes, so a reader who scrolled to the
+                        // bottom looking for the Blog, Contact, or the platform
+                        // page finds them before the contact band's detail.
+                        //
+                        // A list, because that is what it is: a set of sibling
+                        // destinations a screen reader should announce with a
+                        // count. One `<ul>` in the markup at every width — the
+                        // two columns a wide viewport shows are the stylesheet
+                        // flowing this single list down five rows and across, so
+                        // the reading order and the announced count are the same
+                        // everywhere.
+                        if !nav.is_empty() {
+                            nav { class: "site-footer__nav", "aria-label": "More pages",
+                                ul { class: "site-footer__nav-list",
+                                    for link in nav.iter() {
+                                        li { class: "site-footer__nav-item", key: "{link.href}",
+                                            a {
+                                                class: "site-footer__nav-link",
+                                                href: "{link.href}",
+                                                "{link.label}"
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -408,17 +450,33 @@ pub fn SiteFooterLegal(
                             }
                         }
                     }
-                    // The repository the platform is developed in, closing
-                    // the strip. No box, no attribution prose — just the
-                    // repository's name and its star count, the way the
-                    // rest of the site links off to GitHub.
-                    if !source_repo.is_empty() && !source_href.is_empty() {
+                    // The repository the platform is developed in and the
+                    // release running here, closing the strip. No box, no
+                    // attribution prose — just the repository's name and its
+                    // star count, the way the rest of the site links off to
+                    // GitHub, and the version beside it.
+                    //
+                    // Each half stands alone: a deploy publishes the repository
+                    // without a release stamp under `cargo run`, and the region
+                    // itself renders only when there is something to put in it.
+                    if (!source_repo.is_empty() && !source_href.is_empty())
+                        || (!navigator_version.is_empty() && !navigator_href.is_empty())
+                    {
                         div { class: "site-footer__legal-platform",
-                            p { class: "site-footer__source",
-                                GitHubStars {
-                                    href: source_href.clone(),
-                                    repo: source_repo.clone(),
-                                    stars: source_stars,
+                            if !source_repo.is_empty() && !source_href.is_empty() {
+                                p { class: "site-footer__source",
+                                    GitHubStars {
+                                        href: source_href.clone(),
+                                        repo: source_repo.clone(),
+                                        stars: source_stars,
+                                    }
+                                }
+                            }
+                            if !navigator_version.is_empty() && !navigator_href.is_empty() {
+                                p { class: "site-footer__release",
+                                    a { href: "{navigator_href}",
+                                        "Neon Law Navigator #{navigator_version}"
+                                    }
                                 }
                             }
                         }
@@ -438,6 +496,22 @@ mod tests {
         dom.rebuild_in_place();
         dioxus_ssr::render(&dom)
     }
+
+    /// The link row a deploy hands this component, mirroring what
+    /// `views::brand::firm_footer_nav` publishes: the ten public routes the
+    /// header does not carry, alphabetized by label.
+    const FOOTER_ROW: [(&str, &str); 10] = [
+        ("Blog", "/blog"),
+        ("Contact", "/contact"),
+        ("Docs", "/docs"),
+        ("Firm", "/"),
+        ("Foundation", "/foundation"),
+        ("Navigator", "/navigator"),
+        ("Presentations", "/presentations"),
+        ("Privacy", "/privacy"),
+        ("Terms", "/terms"),
+        ("Workshops", "/workshops"),
+    ];
 
     /// The firm's legal strip: the copyright line that names the entity, the
     /// attorney-advertising disclaimer, and nothing else the deploy did not
@@ -716,7 +790,7 @@ mod tests {
                             }],
                         },
                     ],
-                    nav: [("Team", "/team"), ("Blog", "/blog"), ("Contact", "/contact")]
+                    nav: FOOTER_ROW
                         .into_iter()
                         .map(|(label, href)| FooterNavLink {
                             label: label.to_string(),
@@ -726,6 +800,8 @@ mod tests {
                     foundation: "Neon Law Foundation".to_string(),
                     source_repo: "neon-law-foundation/navigator".to_string(),
                     source_href: "https://github.com/neon-law-foundation/navigator".to_string(),
+                    navigator_version: "26.8.20".to_string(),
+                    navigator_href: "/navigator".to_string(),
                 }
             }
         }
@@ -971,17 +1047,13 @@ mod tests {
         }
     }
 
-    /// Team, Blog, and Contact left the header for the footer, so the footer has
-    /// to actually link them. A route dropped from the nav and not picked up
-    /// here is a page reachable only by typing its URL.
+    /// The routes the header does not carry live in the footer, so the footer
+    /// has to actually link them. A route dropped from the nav and not picked
+    /// up here is a page reachable only by typing its URL.
     #[test]
     fn links_the_pages_the_header_no_longer_carries() {
         let out = contactable_html();
-        for (label, href) in [
-            ("Team", "/team"),
-            ("Blog", "/blog"),
-            ("Contact", "/contact"),
-        ] {
+        for (label, href) in FOOTER_ROW {
             assert!(
                 out.contains(&format!(r#"href="{href}""#)),
                 "the footer links {label}: {out}"
@@ -990,6 +1062,61 @@ mod tests {
         assert!(
             out.contains(r#"aria-label="More pages""#),
             "the row is a labelled landmark: {out}"
+        );
+    }
+
+    /// The row is one list, at every width.
+    ///
+    /// Two columns of five on a wide viewport and one column of ten on a narrow
+    /// one is a stylesheet job — `.site-footer__nav-list` flows down five rows
+    /// and across, and the narrow layout stops columnizing it. Rendering two
+    /// `<ul>`s to get the wide layout would give a screen reader two lists of
+    /// five on every viewport and split the reading order down the middle, so
+    /// this asserts the single list the CSS is written against.
+    #[test]
+    fn renders_the_row_as_one_list_of_sibling_destinations() {
+        let out = contactable_html();
+        let row = out
+            .split_once(r#"aria-label="More pages""#)
+            .and_then(|(_, rest)| rest.split_once("</nav>"))
+            .map(|(row, _)| row)
+            .expect("the row renders as a labelled landmark");
+        assert_eq!(
+            row.matches(r#"<ul class="site-footer__nav-list""#).count(),
+            1,
+            "one list, whatever the stylesheet does with it: {row}"
+        );
+        assert_eq!(
+            row.matches(r#"<li class="site-footer__nav-item""#).count(),
+            FOOTER_ROW.len(),
+            "every destination is an item of it: {row}"
+        );
+    }
+
+    /// The links are plain text, not pills.
+    ///
+    /// The row carries the site's remaining pages, so it reads as a directory
+    /// in the footer's own muted type. The pill treatment it used to wear —
+    /// a border, a radius, a hover fill — made ten quiet links look like ten
+    /// buttons competing with the contact band's actual calls to action. The
+    /// styling lives in `.site-footer__nav-link`, so this asserts the markup
+    /// hands the stylesheet nothing else to hook.
+    #[test]
+    fn the_row_carries_no_styling_of_its_own() {
+        let out = contactable_html();
+        let row = out
+            .split_once(r#"aria-label="More pages""#)
+            .and_then(|(_, rest)| rest.split_once("</nav>"))
+            .map(|(row, _)| row)
+            .expect("the row renders as a labelled landmark");
+        assert!(
+            !row.contains("style="),
+            "no inline styling on the row: {row}"
+        );
+        assert_eq!(
+            row.matches(r#"class="site-footer__nav-link""#).count(),
+            FOOTER_ROW.len(),
+            "every link wears the one class and no variant: {row}"
         );
     }
 
@@ -1007,6 +1134,81 @@ mod tests {
         }
         let out = ssr(app);
         assert!(!out.contains("site-footer__nav"), "no empty row: {out}");
+    }
+
+    /// The footer names the release serving the page, beside the repository it
+    /// is built from.
+    ///
+    /// This is what makes a push visible end to end: the moment a new image is
+    /// live, the number at the bottom of every public page changes. It links
+    /// `/navigator`, the page describing the platform, so a reader who wants to
+    /// know what the number refers to has somewhere to go.
+    #[test]
+    fn publishes_the_release_it_is_running() {
+        let out = contactable_html();
+        assert!(
+            out.contains("Neon Law Navigator #26.8.20"),
+            "the footer names the running release: {out}"
+        );
+        assert!(
+            out.contains(r#"<p class="site-footer__release"#),
+            "as its own line in the platform region: {out}"
+        );
+        let platform = out
+            .find("site-footer__legal-platform")
+            .expect("the platform region renders");
+        let release = out
+            .find("site-footer__release")
+            .expect("the release line renders");
+        let source = out.find("site-footer__source").expect("the source line");
+        assert!(
+            platform < source && source < release,
+            "the release sits under the repository it is built from: {out}"
+        );
+    }
+
+    /// An unstamped build publishes no version.
+    ///
+    /// `NAVIGATOR_RELEASE_TAG` is unset under a local `cargo run`, and a footer
+    /// reading "Neon Law Navigator #" is worse than no attribution. The
+    /// repository line is independent and still renders, and with both halves
+    /// absent the region itself disappears rather than leaving an empty box.
+    #[test]
+    fn omits_the_release_line_when_unpublished() {
+        fn repository_only() -> Element {
+            rsx! {
+                SiteFooterLegal {
+                    copyright_holder: "Neon Law".to_string(),
+                    disclaimer: "This is an attorney advertisement.".to_string(),
+                    copyright_year: 2026,
+                    source_repo: "neon-law-foundation/navigator".to_string(),
+                    source_href: "https://github.com/neon-law-foundation/navigator".to_string(),
+                }
+            }
+        }
+        fn neither() -> Element {
+            rsx! {
+                SiteFooterLegal {
+                    copyright_holder: "Neon Law".to_string(),
+                    disclaimer: "This is an attorney advertisement.".to_string(),
+                    copyright_year: 2026,
+                }
+            }
+        }
+        let out = ssr(repository_only);
+        assert!(
+            !out.contains("site-footer__release") && !out.contains("Neon Law Navigator #"),
+            "no release, no version line: {out}"
+        );
+        assert!(
+            out.contains("site-footer__source"),
+            "the repository line is independent of it: {out}"
+        );
+        let bare = ssr(neither);
+        assert!(
+            !bare.contains("site-footer__legal-platform"),
+            "with neither half, the region itself does not render: {bare}"
+        );
     }
 
     /// A deploy that publishes an office in a state this component carries no

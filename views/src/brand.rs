@@ -173,12 +173,12 @@ const FIRM_NAV: &[NavLink] = &[
 /// the footer names the running release and links the same page; this is the
 /// reader-facing route to it, not a version stamp.
 ///
-/// The "Neon Law" entry is this row's cross-link to the firm's own home,
-/// which the shared footer carries on both faces — so on the Foundation's own
-/// pages it is the way back to the firm, and on the firm's own pages it names
-/// the site the reader is already on. Fixed to the wordmark and `/` rather
-/// than resolved per face, so the label and the destination never drift
-/// apart from each other.
+/// "Firm" and "Foundation" are the row's two cross-links, and they sit here as
+/// a pair because one binary serves both faces: from anywhere on the site, each
+/// organization's home is one click away. They are labelled by what the reader
+/// is choosing between — the law firm at `/` and the nonprofit at `/foundation`
+/// — rather than by either wordmark, so the two entries read as the two halves
+/// of one site and neither label drifts when a wordmark changes.
 ///
 /// Presentations sits here rather than the header. The talks are the firm's,
 /// given at meetups and conferences and published here; a reader deciding
@@ -197,12 +197,17 @@ const FIRM_NAV: &[NavLink] = &[
 /// disclaimer — a second, quieter row of legal links there would read as fine
 /// print about fine print. Their bodies already serve at `/privacy` and
 /// `/terms`; this is the link that reaches them.
+///
+/// Ten entries, and the count is part of the design: the footer lays them out
+/// as two columns of five on a wide viewport and one list of ten on a narrow
+/// one, so an eleventh would leave a column uneven.
 const FIRM_FOOTER_NAV: &[NavLink] = &[
     NavLink::leaf("Blog", "/blog"),
     NavLink::leaf("Contact", "/contact"),
     NavLink::leaf("Docs", "/docs"),
+    NavLink::leaf("Firm", "/"),
+    NavLink::leaf("Foundation", "/foundation"),
     NavLink::leaf("Navigator", "/navigator"),
-    NavLink::leaf("Neon Law", "/"),
     NavLink::leaf("Presentations", "/presentations"),
     NavLink::leaf("Privacy", "/privacy"),
     NavLink::leaf("Terms", "/terms"),
@@ -1313,13 +1318,19 @@ mod tests {
                 "Blog",
                 "Contact",
                 "Docs",
+                "Firm",
+                "Foundation",
                 "Navigator",
-                "Neon Law",
                 "Presentations",
                 "Privacy",
                 "Terms",
                 "Workshops"
             ]
+        );
+        assert_eq!(
+            footer.len(),
+            10,
+            "the footer lays the row out as two columns of five: {footer:?}"
         );
         let mut sorted = footer.clone();
         sorted.sort_unstable();
@@ -1343,20 +1354,22 @@ mod tests {
         );
     }
 
-    /// The firm's chrome reaches the Foundation, and it does so from the
-    /// footer.
+    /// Both faces are reachable from the footer, each labelled by the
+    /// organization rather than by its wordmark.
     ///
-    /// One binary serves both faces, so the nonprofit is no longer a different
-    /// host a link would have to leave for. That makes the cross-link both
-    /// possible and correct — and it belongs in the footer, because a visitor
+    /// One binary serves both faces, so neither is a different host a link
+    /// would have to leave for. That makes the pair of cross-links both
+    /// possible and correct — and they belong in the footer, because a visitor
     /// at the top of a law firm's page is deciding whether to hire a lawyer.
     #[test]
-    fn the_footer_nav_names_neon_law_at_the_site_root() {
-        let neon_law = super::firm_footer_nav()
-            .iter()
-            .find(|link| link.label == "Neon Law")
-            .expect("Neon Law is linked from the shared footer");
-        assert_eq!(neon_law.href, "/");
+    fn the_footer_nav_reaches_both_the_firm_and_the_foundation() {
+        for (label, href) in [("Firm", "/"), ("Foundation", "/foundation")] {
+            let link = super::firm_footer_nav()
+                .iter()
+                .find(|link| link.label == label)
+                .unwrap_or_else(|| panic!("{label} is linked from the shared footer"));
+            assert_eq!(link.href, href);
+        }
     }
 
     /// The Foundation's nav is trimmed to two entries: the training catalog
