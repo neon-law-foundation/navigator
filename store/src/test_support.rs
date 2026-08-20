@@ -137,6 +137,10 @@ pub async fn seed_entity(surreal: &crate::surreal::SurrealDb) -> Uuid {
 /// through the seam could not set the scene. It lives here rather than in
 /// a test file so there is exactly one documented way around the guard.
 ///
+/// It drops the `firm_anchor` claim as well as the column. Clearing only
+/// the column would leave the claim standing, and the window it is
+/// opening would be shut to every later mint.
+///
 /// # Panics
 ///
 /// If the write fails, or the entity does not exist.
@@ -146,7 +150,12 @@ pub async fn release_firm_anchor(
     aside_name: &str,
 ) {
     surreal
-        .query("UPDATE $id SET name = $name, firm_anchor_key = NONE")
+        .query(
+            "BEGIN TRANSACTION; \
+             DELETE firm_anchor WHERE entity_id = $id; \
+             UPDATE $id SET name = $name, firm_anchor_key = NONE; \
+             COMMIT TRANSACTION;",
+        )
         .bind(("id", crate::surreal::record_id("entity", entity_id)))
         .bind(("name", aside_name.to_string()))
         .await
