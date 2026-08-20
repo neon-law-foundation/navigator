@@ -6,7 +6,6 @@ use clap::{CommandFactory, Parser, Subcommand};
 use serde::Deserialize;
 
 mod assets;
-mod cli_release;
 mod credentials;
 mod devx;
 mod docs;
@@ -779,12 +778,6 @@ enum OpsCmd {
         #[command(subcommand)]
         action: AssetsAction,
     },
-    /// Publish the tagged `navigator` CLI archives into one deployment's
-    /// private bucket, where `/app/team` serves them to firm people.
-    CliRelease {
-        #[command(subcommand)]
-        action: CliReleaseAction,
-    },
     /// Bump `[workspace.package].version` to today's `YY.M.D` release date so
     /// the commit a release tags carries the version its Git tag names. Every
     /// crate inherits it (`version.workspace = true`) and `navigator --version`
@@ -902,33 +895,6 @@ enum GithubCmd {
         /// Print the reconciliation plan without writing GitHub.
         #[arg(long)]
         dry_run: bool,
-    },
-}
-
-#[derive(Subcommand)]
-enum CliReleaseAction {
-    /// Upload one tag's CLI archives into a deployment's private bucket under
-    /// `cli-releases/<tag>/`, where `/app/team` lists and serves them.
-    ///
-    /// The **private** bucket, not the public assets one: `/app/team` hands
-    /// these out behind a role gate with a short-lived signed URL. The software
-    /// is open source, so this is a distribution choice rather than a secrecy
-    /// one — the Firm runs no public download page, and the assets bucket would
-    /// be exactly that.
-    ///
-    /// Run once per deployment, after the release archives are built. Auth is
-    /// ADC, so each deployment's own `ops ship` credentials scope the write.
-    Upload {
-        /// Directory holding the built archives, as `deploy.yml` leaves them.
-        /// Every `navigator-<tag>-<platform>.<ext>` in it is uploaded.
-        #[arg(long, default_value = "dist")]
-        dir: PathBuf,
-        /// The release tag these archives are named for. It becomes the key
-        /// prefix, and `/app/team` reads that prefix for its own
-        /// `NAVIGATOR_RELEASE_TAG`, so a mismatch publishes bytes nothing
-        /// lists.
-        #[arg(long)]
-        tag: String,
     },
 }
 
@@ -1691,14 +1657,13 @@ fn main() -> ExitCode {
                 },
             },
         },
-        // `lsp publish`, the `assets` pipeline, and the CLI-archive publish
+        // `lsp publish` and the `assets` pipeline
         // carry operator blast radius but are not cluster lifecycle, so they
         // are handled here rather than routed into the KIND/cloud dispatcher
         // below.
         Command::Ops(
             action @ (OpsCmd::Lsp { .. }
             | OpsCmd::Assets { .. }
-            | OpsCmd::CliRelease { .. }
             | OpsCmd::ReleaseProvenance { .. }
             | OpsCmd::ReleaseVersion { .. }
             | OpsCmd::Notices { .. }),
@@ -1711,9 +1676,6 @@ fn main() -> ExitCode {
                 no_commit,
             } => release_version::run(&manifest_path, tag, hotfix, no_commit),
             OpsCmd::ReleaseProvenance { tag, repo } => release_provenance::run(&repo, &tag),
-            OpsCmd::CliRelease { action } => match action {
-                CliReleaseAction::Upload { dir, tag } => cli_release::run_upload(&dir, &tag),
-            },
             OpsCmd::Lsp { action } => match action {
                 LspAction::Publish { dir, bucket } => lsp_publish::run_publish(&dir, bucket),
             },

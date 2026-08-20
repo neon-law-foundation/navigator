@@ -477,19 +477,15 @@ fn ops_help_lists_operator_members() {
             "dns",
             "rebrand",
             "observability",
-            // Operator blast radius that is not cluster lifecycle: the three
-            // bucket-distribution pipelines, and the release-packaging steps
-            // that regenerate the licence notices the download must carry and
-            // stamp the release version into the manifest.
-            // `cli-release` is the private-bucket one — it publishes the CLI
-            // archives `/app/team` hands to firm people, which is the whole
-            // distribution channel now that nothing ships externally.
+            // Operator blast radius that is not cluster lifecycle: the two
+            // distribution pipelines and the release-packaging steps that
+            // regenerate the licence notices and stamp the release version into
+            // the manifest.
             // `release-version` bumps `[workspace.package].version` to the
             // `YY.M.D` a release tags, so the tagged source names its own
             // version and `deploy.yml` can reject a tag that disagrees.
             "lsp",
             "assets",
-            "cli-release",
             "release-version",
             "release-provenance",
             "notices",

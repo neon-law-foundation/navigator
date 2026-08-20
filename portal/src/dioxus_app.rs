@@ -3298,11 +3298,8 @@ pub const APP_DOC_PATH: &str = "/app/docs/{slug}";
 
 /// The firm team home — the post-login landing for every firm tier.
 pub const APP_TEAM_PATH: &str = "/app/team";
-/// One archive, by platform slug.
-pub const APP_TEAM_DOWNLOAD_PATH: &str = "/app/team/download/{platform}";
 
-/// `/app/team` — the firm team home (destination cards plus the `navigator` CLI
-/// download section), and the route that hands over the archive bytes.
+/// `/app/team` — the firm team home.
 ///
 /// Gated exactly like [`app_docs_router`]: `require_auth` then `require_policy`,
 /// so an anonymous request is a redirect to sign-in rather than a policy denial.
@@ -3312,13 +3309,7 @@ pub const APP_TEAM_DOWNLOAD_PATH: &str = "/app/team/download/{platform}";
 /// never reaches it, so `complete_sign_in` sends a client to `/app/projects`
 /// instead.
 ///
-/// The download route sits inside the same gate rather than beside it. It is
-/// the same audience by definition (whoever may read the list may fetch what it
-/// offers), and putting it on the `/app/team` prefix is what lets one policy
-/// rule cover both — a separate top-level download path would need its own rule
-/// and could drift away from the page's.
 pub fn app_team_router(
-    storage: std::sync::Arc<dyn cloud::StorageService>,
     sessions: crate::session::SessionStore,
     policy: crate::policy::PolicyClient,
     auth: crate::auth::AuthConfig,
@@ -3329,21 +3320,12 @@ pub fn app_team_router(
             get(render_handler)
                 .layer(from_fn(dioxus_document_head))
                 .layer(from_fn(inject_viewer_role))
-                .layer(from_fn(inject_app_brand_mark))
-                .layer(from_fn_with_state(
-                    storage.clone(),
-                    crate::cli_downloads::inject_downloads,
-                )),
+                .layer(from_fn(inject_app_brand_mark)),
         )
         .with_state(FullstackState::new(
             ServeConfig::new(),
             webapp::team_home::TeamHome,
         ))
-        .merge(
-            Router::new()
-                .route(APP_TEAM_DOWNLOAD_PATH, get(crate::cli_downloads::download))
-                .with_state(storage),
-        )
         .route_layer(from_fn_with_state(
             (sessions, policy),
             crate::policy::require_policy,

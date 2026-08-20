@@ -88,7 +88,6 @@ pub mod admin_playbooks;
 pub mod canonical_host;
 pub mod clauses;
 pub mod cli_auth;
-pub mod cli_downloads;
 pub mod config;
 pub mod content_loader;
 pub mod contract_review;
@@ -927,11 +926,7 @@ pub fn bootstrap(
         state.policy.clone(),
         state.auth.clone(),
     );
-    // The `navigator` CLI download page. The Firm publishes no external binary,
-    // so this and the archives behind it are the whole distribution channel —
-    // same audience as the authenticated docs above.
     let dioxus_app_team = dioxus_app::app_team_router(
-        state.storage.clone(),
         state.sessions.clone(),
         state.policy.clone(),
         state.auth.clone(),

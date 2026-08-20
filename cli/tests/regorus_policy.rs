@@ -41,12 +41,8 @@ fn regorus_matches_every_checked_in_policy_decision() {
     // again one document deeper, and the three denials that matter — a client
     // at the hub, a client at a document, and an anonymous request.
     //
-    // + 10 for `/app/team`, the CLI download page: the same four admitted
-    // tiers at the page, two of them again on the download route beneath it,
-    // and four denials — a client and an anonymous request at each of the page
-    // and the download. The download is enumerated separately from the page
-    // because it hands over the bytes rather than a listing, so "who may read
-    // the list" and "who may fetch the archive" are proved as two questions.
+    // + 4 for `/app/team`, the firm team home: each firm tier is admitted, and
+    // the client and anonymous requests are denied.
     // + 3 for a Project's client portal at `/app/projects/{code}/portal`: a
     // client and a firm-side caller admitted, and an anonymous request denied.
     // Admission only — the portal is *participation*-scoped, and the ledger this
@@ -121,10 +117,10 @@ fn regorus_matches_every_checked_in_policy_decision() {
     //   + 20  the remaining #866 GET reads: matter documents + conversation
     //         (authenticated, client-visible-filtered in the handler) and the
     //         expunge queue + a notation's review documents (lawyer-tier)
-    // 233 + 145 = 378.
+    // 233 + 141 = 374.
     assert_eq!(
         test_names.len(),
-        378,
+        374,
         "the policy decision inventory changed; review every new or removed rule"
     );
 

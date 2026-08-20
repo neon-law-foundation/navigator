@@ -258,8 +258,10 @@ async fn the_firm_terms_carry_the_sms_program_disclosures() {
         // Opt-out and help.
         "Reply STOP",
         "Reply HELP",
-        // Customer-care contact.
-        "+1 510 707 6036",
+        // Customer-care contact. Read from the branding constant the footer
+        // publishes rather than written out here, so the disclosure and the
+        // number a reader would dial cannot drift apart.
+        views::brand::firm_phone(),
         // Carrier-liability disclaimer, verbatim as the registry expects it.
         "Carriers are not liable for any delayed or undelivered messages",
     ] {
