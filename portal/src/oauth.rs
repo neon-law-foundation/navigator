@@ -1157,9 +1157,13 @@ async fn complete_sign_in(
     {
         Ok(t) => t,
         Err(ResolveError::NotPreSeeded) => {
+            // No `person_id` exists to log — the refusal *is* that no row
+            // matched. `sub` is the IdP's opaque subject, which correlates the
+            // attempt without carrying an address; the email itself stays out,
+            // because a sign-in refusal is exactly the line where an
+            // unprovisioned person's address would otherwise be recorded.
             tracing::info!(
                 sub = %claims.sub,
-                email = claims.email.as_deref().unwrap_or("<none>"),
                 "auth: no pre-seeded persons row for the supplied email; returning 403",
             );
             // Still a 403, but its own page: sign-up here is operator-mediated,
@@ -1207,9 +1211,11 @@ async fn complete_sign_in(
                 workflows::email::welcome::trigger_welcome(runtime.as_ref(), pid, &name, &email)
                     .await
             {
+                // `person_id` alone: it already identifies the signup, and the
+                // address would add nothing but client-identifying content to
+                // a signal that leaves the firm's trust boundary.
                 tracing::warn!(
                     error = %e,
-                    recipient = %email,
                     person_id = %pid,
                     "welcome workflow trigger failed",
                 );

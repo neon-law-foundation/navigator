@@ -724,10 +724,13 @@ pub(crate) async fn send_intake(
     )
     .with_html(html)
     .with_person(client.id.to_string());
+    // `person_id`, never the address: an email identifies a client, and
+    // telemetry leaves the firm's trust boundary (`telemetry/src/lib.rs`).
+    // The id answers "which intake failed" just as well.
     if let Err(e) = email.send(msg).await {
-        tracing::warn!(error = %e, %notation_id, recipient = %client.email, "send_intake: email send failed");
+        tracing::warn!(error = %e, %notation_id, person_id = %client.id, "send_intake: email send failed");
     } else {
-        tracing::info!(%notation_id, recipient = %client.email, "send_intake: intake link sent");
+        tracing::info!(%notation_id, person_id = %client.id, "send_intake: intake link sent");
     }
 
     Ok(client.email)

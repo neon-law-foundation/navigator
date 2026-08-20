@@ -151,9 +151,16 @@ impl LoggingEmail {
             sent_at: chrono::Utc::now(),
         };
         if let Err(e) = store::sent_emails::record(&self.db, &row).await {
+            // The recipient address stays out of the log field — it is
+            // client-identifying and telemetry leaves the firm's trust
+            // boundary (`telemetry/src/lib.rs`). `person_id` is carried on the
+            // message when the caller set it; the row that failed to insert
+            // holds the address itself, and `template_slug` says which kind of
+            // message it was.
             tracing::warn!(
                 error = %e,
-                recipient = %email.to,
+                person_id = email.person_id.as_deref().unwrap_or("<unset>"),
+                template_slug = email.template_slug.as_deref().unwrap_or("<none>"),
                 "sent_emails audit insert failed",
             );
         }
