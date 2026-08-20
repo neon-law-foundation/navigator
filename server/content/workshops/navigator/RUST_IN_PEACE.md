@@ -96,8 +96,6 @@ Neon Law Navigator is Affero licensed software designed to enable all lawyers to
 
 ### Agenda
 
-An agenda, not a lecture outline — you are here to argue back. By the end of the half hour you will be able to:
-
 - Why go all-in on Rust
 - {Library,Data,DevX,Cloud} tour
 - Navigator: Everyone vibes
@@ -112,7 +110,7 @@ We begin with our experience, we end rusting in peace.
 
 ### Compiled, correct, and fast
 
-It takes time to build in Rust, but it's worth it.
+![Ferris the Rust crab racing a hare at tremendous speed](img/rust-in-peace/ferris-races-the-hare.png)
 
 ---
 
@@ -121,6 +119,8 @@ If we're vibing, why not just vibe in Rust?
 ### Amazing Community
 
 What other compiled language has meetups this big? And a discord community of thousands.
+
+![A large Rust community meetup filling a presentation room](img/rust-in-peace/rust-community-meetup.png)
 
 ---
 
@@ -144,7 +144,7 @@ No need to worry about enterprise fees
 
 ### snake_case > camelCase
 
-rob_balicki or robBalicki
+`rob_balicki` or `robBalicki`
 
 ---
 
@@ -156,21 +156,17 @@ I'll die on this hill.
 
 Read our [Cargo.toml](https://github.com/neon-law-foundation/navigator/blob/main/Cargo.toml).
 
-- **HTTP and views** — `axum`, `dioxus`, `tower` / `tower-http`.
-- **Store** — `surrealdb`
-- **Durable execution** — `restate-sdk`.
-- **Telemetry** — `opentelemetry`
-- **Archive** — `arrow`, `parquet`
-- **Content** — `typst`.
-- **Cloud** — `google-cloud-storage`, `reqwest`.
-- **Identity** — `jsonwebtoken`, `oauth2`.
-- **Tests** — `fantoccini`, `cucumber`
+- **HTTP and views** — `axum`, `dioxus`, `tower` / `tower-http`
+- **Store & Durable execution** — `surrealdb`, `restate-sdk`
+- **Telemetry & Backups** — `opentelemetry`, `arrow`, `parquet`
+- **Notations** — `typst`
+- **Cloud** — `google-cloud-storage`, `reqwest`
 
 ---
 
 It's easier thinking in only one language.
 
-### Libraries: Some services
+### Libraries: Developer parity
 
 Local `KIND` deployment
 
@@ -384,11 +380,24 @@ Retention time is for everything that's not our final output. Very rarely is our
 
 ### Clippy for markdown
 
-`navigator validate`
+```bash
+navigator validate --help
+Validate every Markdown, event, and YAML file under `<dir>` (default `.`) against the Neon Law Navigator rule set
+
+Usage: navigator validate [OPTIONS] [DIR]
+
+Arguments:
+  [DIR]  Directory to walk [default: .]
+
+Options:
+      --fix                        Apply every safe-by-construction rule autofix (whitespace, ATX heading spacing, blockquote spacing) to the files in place, then re-validate. Diagnostic-only rules (N-family notation-template, M024 duplicate headings, M026 trailing punctuation) are still reported but not auto-fixed.
+      --question-codes-from-store  Load the stored question-code registry so N104 can reject codes outside it, instead of validating against the compiled-in canonical set. The registry lives in `SurrealDB`, so the codes are read from the `NAVIGATOR_SURREAL_*` connection. An unreachable store warns and falls back to the canonical set rather than failing the lint
+  -h, --help                       Print help
+```
 
 ---
 
-Imbue markdown with a ton of rules.
+Imbue markdown with a ton of rules. Incremental progress.
 
 ## Thanks
 
