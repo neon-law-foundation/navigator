@@ -67,23 +67,15 @@ const USER_AGENT: &str = concat!("neon-law-navigator/", env!("CARGO_PKG_VERSION"
 const API_VERSION: &str = "2022-11-28";
 const BRANCH_RULESET_NAME: &str = "production";
 
-/// The GitHub Actions App, which produces the `ci` check run the `production`
-/// ruleset requires.
-///
-/// The App ID is **per-host**: Actions is `15368` on github.com but `141` on
-/// this enterprise. Requiring a context under the wrong ID binds the rule to an
-/// App that never posts here, so the gate silently matches nothing and every
-/// pull request looks unguarded. Confirm it against a real check run before
-/// changing it:
-///
-/// ```text
-/// gh api repos/<owner>/<repo>/commits/<sha>/check-runs \
-///     --jq '.check_runs[] | "\(.name) \(.app.id) \(.app.slug)"'
-/// ```
-const ACTIONS_INTEGRATION_ID: u64 = 141;
 const TAG_RULESET_NAME: &str = "release-tags";
 const REVIEW_RULESET_NAME: &str = "production-review";
 const LABEL_COLOR: &str = "6f42c1";
+
+/// GitHub's own Actions App, which produces the `ci` check run the `production`
+/// ruleset requires. The **slug** is a property of GitHub's App rather than of
+/// any one host, so it is the same word on every deployment; only the numeric id
+/// behind it differs.
+const ACTIONS_APP_SLUG: &str = "github-actions";
 
 /// The single status check every administered repository is gated on.
 ///
@@ -382,6 +374,12 @@ struct Label {
     description: Option<String>,
 }
 
+/// One App, as `GET /apps/{slug}` returns it. Only the id is read.
+#[derive(Debug, Deserialize)]
+struct App {
+    id: u64,
+}
+
 #[derive(Debug, Deserialize)]
 struct Installation {
     app_id: u64,
@@ -412,8 +410,8 @@ impl Action {
 
 /// Every policy payload this command writes, in the order it reconciles them.
 /// Kept as typed Rust data so a review sees every protected rule.
-fn desired_rulesets(policy: RepositoryPolicy) -> Vec<RulesetPayload> {
-    let mut rulesets = vec![desired_branch_ruleset()];
+fn desired_rulesets(policy: RepositoryPolicy, actions_app_id: u64) -> Vec<RulesetPayload> {
+    let mut rulesets = vec![desired_branch_ruleset(actions_app_id)];
     if policy.release_tags {
         rulesets.push(desired_tag_ruleset());
     }
@@ -437,7 +435,7 @@ fn desired_rulesets(policy: RepositoryPolicy) -> Vec<RulesetPayload> {
 /// Splitting them buys the exact asymmetry the Firm wants. The administrator
 /// bypasses approval and nothing else; `required_status_checks` and
 /// `required_signatures` still apply to them, because those rules are here.
-fn desired_branch_ruleset() -> RulesetPayload {
+fn desired_branch_ruleset(actions_app_id: u64) -> RulesetPayload {
     RulesetPayload {
         name: BRANCH_RULESET_NAME.to_string(),
         target: "branch".to_string(),
@@ -466,7 +464,7 @@ fn desired_branch_ruleset() -> RulesetPayload {
                     "strict_required_status_checks_policy": false,
                     "do_not_enforce_on_create": false,
                     "required_status_checks": [
-                        {"context": REQUIRED_CHECK, "integration_id": ACTIONS_INTEGRATION_ID}
+                        {"context": REQUIRED_CHECK, "integration_id": actions_app_id}
                     ]
                 })),
             ),
@@ -643,8 +641,12 @@ fn rule(kind: &str, parameters: Option<serde_json::Value>) -> Rule {
     }
 }
 
-fn ruleset_by_name(policy: RepositoryPolicy, name: &str) -> Result<RulesetPayload> {
-    desired_rulesets(policy)
+fn ruleset_by_name(
+    policy: RepositoryPolicy,
+    actions_app_id: u64,
+    name: &str,
+) -> Result<RulesetPayload> {
+    desired_rulesets(policy, actions_app_id)
         .into_iter()
         .find(|ruleset| ruleset.name == name)
         .ok_or_else(|| anyhow!("no desired ruleset named {name}"))
@@ -654,6 +656,7 @@ fn ruleset_by_name(policy: RepositoryPolicy, name: &str) -> Result<RulesetPayloa
 /// holds for `desired_rulesets(target)[i]`, or `None` when that ruleset is missing.
 fn plan(
     policy: RepositoryPolicy,
+    actions_app_id: u64,
     merge_settings_match: bool,
     live_rulesets: &[Option<RulesetPayload>],
     labels: &[Label],
@@ -662,7 +665,10 @@ fn plan(
     if !merge_settings_match {
         actions.push(Action::UpdateMergeSettings);
     }
-    for (desired, live) in desired_rulesets(policy).iter().zip(live_rulesets) {
+    for (desired, live) in desired_rulesets(policy, actions_app_id)
+        .iter()
+        .zip(live_rulesets)
+    {
         match live {
             None => actions.push(Action::CreateRuleset {
                 name: desired.name.clone(),
@@ -878,6 +884,12 @@ async fn reconcile(policy: RepositoryPolicy, client: &GitHubClient, dry_run: boo
     // policy is left exactly as it was rather than half-reconciled.
     assert_required_check_job(client).await?;
 
+    // Read before planning, and before any write, for the same reason: the
+    // required-check rule is built from this id, so a host that cannot answer
+    // must stop the reconcile rather than have one guessed for it.
+    let actions_app_id = actions_integration_id(client).await?;
+    eprintln!("==> {ACTIONS_APP_SLUG:?} App on this host is id {actions_app_id}");
+
     if policy.assert_codeowners {
         let codeowners = client
             .get_text(&client.repo_path("/contents/.github/CODEOWNERS"))
@@ -894,7 +906,7 @@ async fn reconcile(policy: RepositoryPolicy, client: &GitHubClient, dry_run: boo
     let summaries: Vec<RulesetSummary> = client.get_json(&client.repo_path("/rulesets")).await?;
     let mut ruleset_ids = HashMap::new();
     let mut live_rulesets = Vec::new();
-    for desired in desired_rulesets(policy) {
+    for desired in desired_rulesets(policy, actions_app_id) {
         let Some(summary) = summaries
             .iter()
             .find(|summary| summary.name == desired.name)
@@ -916,6 +928,7 @@ async fn reconcile(policy: RepositoryPolicy, client: &GitHubClient, dry_run: boo
     };
     let actions = plan(
         policy,
+        actions_app_id,
         merge_settings_match(&repository),
         &live_rulesets,
         &labels,
@@ -936,7 +949,7 @@ async fn reconcile(policy: RepositoryPolicy, client: &GitHubClient, dry_run: boo
         return Ok(());
     }
     for action in actions {
-        apply(policy, client, &ruleset_ids, action).await?;
+        apply(policy, actions_app_id, client, &ruleset_ids, action).await?;
     }
     eprintln!("==> GitHub settings reconciled");
     Ok(())
@@ -944,6 +957,7 @@ async fn reconcile(policy: RepositoryPolicy, client: &GitHubClient, dry_run: boo
 
 async fn apply(
     policy: RepositoryPolicy,
+    actions_app_id: u64,
     client: &GitHubClient,
     ruleset_ids: &HashMap<String, u64>,
     action: Action,
@@ -958,7 +972,7 @@ async fn apply(
             client
                 .post_json(
                     &client.repo_path("/rulesets"),
-                    &ruleset_by_name(policy, &name)?,
+                    &ruleset_by_name(policy, actions_app_id, &name)?,
                 )
                 .await
         }
@@ -969,7 +983,7 @@ async fn apply(
             client
                 .put_json(
                     &client.repo_path(&format!("/rulesets/{id}")),
-                    &ruleset_by_name(policy, &name)?,
+                    &ruleset_by_name(policy, actions_app_id, &name)?,
                 )
                 .await
         }
@@ -1176,6 +1190,43 @@ async fn assert_required_check_job(client: &GitHubClient) -> Result<()> {
     )
 }
 
+/// The numeric id of the Actions App **on the host this run addresses**, read
+/// from that host.
+///
+/// The id is per-host — the same App is a different number on github.com than on
+/// an enterprise tenant — and requiring the `ci` context under the wrong one
+/// binds the rule to an App that never posts there. GitHub accepts such a rule
+/// and reports it as present, so the gate silently matches nothing and every
+/// pull request looks guarded while being unguarded. That is worse than no
+/// ruleset, because nothing looks wrong.
+///
+/// So it is **asked for rather than asserted**. A table of host-to-id mappings
+/// would be a second coordinate to keep true, and the failure mode of getting it
+/// wrong is silent; the host already knows the answer. This is also the check
+/// a human would run by hand:
+///
+/// ```text
+/// gh api repos/<owner>/<repo>/commits/<sha>/check-runs \
+///     --jq '.check_runs[] | "\(.name) \(.app.id) \(.app.slug)"'
+/// ```
+///
+/// A failure here stops the reconcile rather than falling back to a guess,
+/// matching [`enterprise_host`]: there is no default, because a wrong id writes
+/// a gate that does not gate.
+async fn actions_integration_id(client: &GitHubClient) -> Result<u64> {
+    let app: App = client
+        .get_json(&format!("/apps/{ACTIONS_APP_SLUG}"))
+        .await
+        .with_context(|| {
+            format!(
+                "read the {ACTIONS_APP_SLUG:?} App id from this host; the required \
+                 {REQUIRED_CHECK:?} context is bound to it, and a wrong id would leave the \
+                 ruleset matching nothing"
+            )
+        })?;
+    Ok(app.id)
+}
+
 async fn assert_app_installation(client: &GitHubClient) -> Result<()> {
     let Some(app_id) = optional_env(APP_ID_ENV) else {
         eprintln!("warning: {APP_ID_ENV} is unset; skipping DevX App installation assertion");
@@ -1212,8 +1263,80 @@ mod tests {
     use wiremock::matchers::{body_json, header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    /// Two arbitrary App ids. They are deliberately *not* either real
+    /// deployment's number: what these tests prove is that the id is carried
+    /// from wherever it was read to the rule that requires the check, and a
+    /// fixture pinning a real one would assert a coordinate instead of a
+    /// behaviour.
+    const TEST_ACTIONS_APP_ID: u64 = 4242;
+    const TEST_OTHER_APP_ID: u64 = 9931;
+
+    #[tokio::test]
+    async fn the_actions_app_id_is_read_from_the_host() {
+        // The id is per-host and the host is the only authority on it, so it is
+        // asked for rather than mapped from a name. A table of host-to-id pairs
+        // would be a second coordinate to keep true, and getting it wrong fails
+        // silently: the rule stays present and matches nothing.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/apps/{ACTIONS_APP_SLUG}")))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"id": TEST_ACTIONS_APP_ID})),
+            )
+            .mount(&server)
+            .await;
+        let client = test_client(&server);
+
+        assert_eq!(
+            actions_integration_id(&client).await.unwrap(),
+            TEST_ACTIONS_APP_ID
+        );
+    }
+
+    #[tokio::test]
+    async fn a_host_that_cannot_name_its_actions_app_stops_the_reconcile() {
+        // No fallback id. A guessed one writes a rule bound to an App that never
+        // posts here, which reads as configured while gating nothing — strictly
+        // worse than failing loudly.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/apps/{ACTIONS_APP_SLUG}")))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        let client = test_client(&server);
+
+        let error = actions_integration_id(&client)
+            .await
+            .expect_err("a host that cannot answer must not yield a default id");
+        assert!(
+            format!("{error:#}").contains(ACTIONS_APP_SLUG),
+            "the failure must name what it could not read, got: {error:#}"
+        );
+    }
+
+    #[test]
+    fn the_branch_ruleset_requires_ci_under_the_app_id_it_is_given() {
+        // The id is threaded, not constant: the same policy reconciled against
+        // two hosts must require the check under each host's own App.
+        for id in [TEST_ACTIONS_APP_ID, TEST_OTHER_APP_ID] {
+            let value = serde_json::to_value(desired_branch_ruleset(id)).unwrap();
+            let checks = value["rules"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|rule| rule["type"] == "required_status_checks")
+                .expect("a required_status_checks rule");
+            assert_eq!(
+                checks["parameters"]["required_status_checks"][0]["integration_id"],
+                serde_json::json!(id),
+            );
+        }
+    }
+
     fn live_ruleset() -> RulesetPayload {
-        let mut ruleset = desired_branch_ruleset();
+        let mut ruleset = desired_branch_ruleset(TEST_ACTIONS_APP_ID);
         let pull_request = ruleset
             .rules
             .iter_mut()
@@ -1255,7 +1378,7 @@ mod tests {
     #[test]
     fn branch_ruleset_has_no_bypass_actors() {
         assert_eq!(
-            desired_branch_ruleset().bypass_actors,
+            desired_branch_ruleset(TEST_ACTIONS_APP_ID).bypass_actors,
             Vec::<serde_json::Value>::new(),
         );
     }
@@ -1305,7 +1428,7 @@ mod tests {
     #[test]
     fn every_repository_carries_both_halves_of_the_gate() {
         let names = |policy| {
-            desired_rulesets(policy)
+            desired_rulesets(policy, TEST_ACTIONS_APP_ID)
                 .into_iter()
                 .map(|ruleset| ruleset.name)
                 .collect::<Vec<_>>()
@@ -1425,7 +1548,7 @@ mod tests {
     /// bypass actor.
     #[test]
     fn branch_ruleset_still_requires_signatures_of_everyone() {
-        let ruleset = desired_branch_ruleset();
+        let ruleset = desired_branch_ruleset(TEST_ACTIONS_APP_ID);
         assert!(ruleset
             .rules
             .iter()
@@ -1511,7 +1634,7 @@ mod tests {
 
     #[test]
     fn desired_ruleset_serializes_to_github_put_payload() {
-        let value = serde_json::to_value(desired_branch_ruleset()).unwrap();
+        let value = serde_json::to_value(desired_branch_ruleset(TEST_ACTIONS_APP_ID)).unwrap();
         assert_eq!(value["name"], "production");
         assert_eq!(
             value["conditions"]["ref_name"]["include"],
@@ -1545,7 +1668,7 @@ mod tests {
     /// posts a check here — the gate reads as configured and enforces nothing.
     #[test]
     fn branch_ruleset_gates_on_the_ci_test_check() {
-        let value = serde_json::to_value(desired_branch_ruleset()).unwrap();
+        let value = serde_json::to_value(desired_branch_ruleset(TEST_ACTIONS_APP_ID)).unwrap();
         let checks = value["rules"]
             .as_array()
             .unwrap()
@@ -1558,10 +1681,10 @@ mod tests {
         assert_eq!(
             checks,
             serde_json::json!([
-                {"context": REQUIRED_CHECK, "integration_id": ACTIONS_INTEGRATION_ID}
+                {"context": REQUIRED_CHECK, "integration_id": TEST_ACTIONS_APP_ID}
             ]),
             "the merge gate is the `ci` aggregating job posted by GitHub Actions \
-             ({ACTIONS_INTEGRATION_ID}); the context must match a job's check-run \
+             ({TEST_ACTIONS_APP_ID}); the context must match a job's check-run \
              name in .github/workflows/ci.yml exactly"
         );
     }
@@ -1572,7 +1695,7 @@ mod tests {
     #[test]
     fn every_repository_requires_the_same_check_context() {
         for policy in [NAVIGATOR_POLICY, COMMON_POLICY] {
-            let contexts = desired_rulesets(policy)
+            let contexts = desired_rulesets(policy, TEST_ACTIONS_APP_ID)
                 .into_iter()
                 .flat_map(|ruleset| ruleset.rules)
                 .filter(|rule| rule.kind == "required_status_checks")
@@ -1623,17 +1746,24 @@ mod tests {
     /// never converges.
     #[test]
     fn rule_order_is_not_drift() {
-        let desired = desired_branch_ruleset();
+        let desired = desired_branch_ruleset(TEST_ACTIONS_APP_ID);
         let mut permuted = desired.clone();
         permuted.rules.reverse();
         assert!(ruleset_matches(&desired, &permuted));
-        assert!(plan(COMMON_POLICY, true, &[Some(permuted)], &[]).is_empty());
+        assert!(plan(
+            COMMON_POLICY,
+            TEST_ACTIONS_APP_ID,
+            true,
+            &[Some(permuted)],
+            &[]
+        )
+        .is_empty());
     }
 
     /// Reordering is forgiven; a changed rule is not.
     #[test]
     fn a_changed_rule_is_still_drift() {
-        let desired = desired_branch_ruleset();
+        let desired = desired_branch_ruleset(TEST_ACTIONS_APP_ID);
         let mut weakened = desired.clone();
         weakened
             .rules
@@ -1650,21 +1780,21 @@ mod tests {
                 description: Some(label.description.to_string()),
             })
             .collect::<Vec<_>>();
-        let live = desired_rulesets(NAVIGATOR_POLICY)
+        let live = desired_rulesets(NAVIGATOR_POLICY, TEST_ACTIONS_APP_ID)
             .into_iter()
             .map(Some)
             .collect::<Vec<_>>();
-        assert!(plan(NAVIGATOR_POLICY, true, &live, &labels).is_empty());
+        assert!(plan(NAVIGATOR_POLICY, TEST_ACTIONS_APP_ID, true, &live, &labels).is_empty());
     }
 
     #[test]
     fn planner_reconciles_merge_settings_before_other_drift() {
-        let live = desired_rulesets(COMMON_POLICY)
+        let live = desired_rulesets(COMMON_POLICY, TEST_ACTIONS_APP_ID)
             .into_iter()
             .map(Some)
             .collect::<Vec<_>>();
         assert_eq!(
-            plan(COMMON_POLICY, false, &live, &[]),
+            plan(COMMON_POLICY, TEST_ACTIONS_APP_ID, false, &live, &[]),
             vec![Action::UpdateMergeSettings]
         );
     }
@@ -1673,9 +1803,13 @@ mod tests {
     /// create rather than silently skipping the ruleset it could not find.
     #[test]
     fn planner_creates_a_missing_ruleset() {
-        let live = vec![Some(desired_branch_ruleset()), None, None];
+        let live = vec![
+            Some(desired_branch_ruleset(TEST_ACTIONS_APP_ID)),
+            None,
+            None,
+        ];
         assert_eq!(
-            plan(NAVIGATOR_POLICY, true, &live, &[]),
+            plan(NAVIGATOR_POLICY, TEST_ACTIONS_APP_ID, true, &live, &[]),
             vec![
                 Action::CreateRuleset {
                     name: "release-tags".to_string()
@@ -1711,7 +1845,7 @@ mod tests {
             Some(desired_review_ruleset()),
         ];
         assert_eq!(
-            plan(NAVIGATOR_POLICY, true, &live, &labels),
+            plan(NAVIGATOR_POLICY, TEST_ACTIONS_APP_ID, true, &live, &labels),
             vec![
                 Action::UpdateRuleset {
                     name: "production".to_string()
@@ -1821,7 +1955,7 @@ mod tests {
     /// The common policy is the full gate minus only the release automation.
     #[test]
     fn the_common_policy_is_the_full_gate_without_release_automation() {
-        let rulesets = desired_rulesets(COMMON_POLICY);
+        let rulesets = desired_rulesets(COMMON_POLICY, TEST_ACTIONS_APP_ID);
         assert_eq!(rulesets.len(), 2);
         assert!(rulesets[0].bypass_actors.is_empty());
         let checks = serde_json::to_value(&rulesets[0]).unwrap()["rules"]
@@ -1836,7 +1970,7 @@ mod tests {
         // is the Firm's contract, so the gate never has to be re-pointed.
         assert_eq!(
             checks,
-            serde_json::json!([{"context": REQUIRED_CHECK, "integration_id": ACTIONS_INTEGRATION_ID}])
+            serde_json::json!([{"context": REQUIRED_CHECK, "integration_id": TEST_ACTIONS_APP_ID}])
         );
         assert!(COMMON_POLICY.labels.is_empty());
         const { assert!(!COMMON_POLICY.release_tags) };
@@ -1859,8 +1993,11 @@ mod tests {
         Mock::given(method("PUT"))
             .and(path("/repos/acme/navigator/rulesets/7"))
             .and(header("authorization", "Bearer token"))
+            // The id the mounted `/apps` read answers with, which is what
+            // `reconcile` will have carried into the rule. Asserting the written
+            // body against it is what proves the read reaches the write.
             .and(body_json(
-                serde_json::to_value(desired_branch_ruleset()).unwrap(),
+                serde_json::to_value(desired_branch_ruleset(TEST_ACTIONS_APP_ID)).unwrap(),
             ))
             .respond_with(ResponseTemplate::new(200))
             .expect(1)
@@ -1919,6 +2056,16 @@ mod tests {
     }
 
     async fn mount_reads(server: &MockServer, ruleset: &RulesetPayload, labels: Vec<Label>) {
+        // The host names its own Actions App, and the required-check rule is
+        // built from that id.
+        Mock::given(method("GET"))
+            .and(path(format!("/apps/{ACTIONS_APP_SLUG}")))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"id": TEST_ACTIONS_APP_ID})),
+            )
+            .mount(server)
+            .await;
         Mock::given(method("GET"))
             .and(path("/repos/acme/navigator"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({

@@ -39,6 +39,16 @@ async fn dry_run_prints_plan_without_writes() {
 }
 
 async fn mount_reads(server: &MockServer) {
+    // The required-check rule is bound to the Actions App id, and the host is
+    // the only authority on what that id is, so the reconcile reads it before
+    // it plans. Without this the dry run stops on a 404 rather than printing a
+    // plan — deliberately, because a guessed id writes a gate that does not
+    // gate.
+    Mock::given(method("GET"))
+        .and(path("/apps/github-actions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"id": 4242})))
+        .mount(server)
+        .await;
     Mock::given(method("GET"))
         .and(path("/repos/neon-law-foundation/navigator"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
