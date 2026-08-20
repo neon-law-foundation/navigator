@@ -85,9 +85,11 @@ The tag must equal `[workspace.package].version` — the value every crate inher
 cargo run -p cli -- ops release-version --tag 26.8.20
 ```
 
-Passing the same version you validated in step 0 is what keeps the manifest and the tag one decision rather than two
-that have to agree. The command refreshes `Cargo.lock` too and commits both files — every workspace crate is pinned in
-the lock as well, and the release builds with `--locked`. `--no-commit` writes both files and leaves the commit to you.
+`--tag` is required: the command derives nothing, so passing the version you validated in step 0 is what keeps the
+manifest and the tag one decision rather than two that have to agree. It re-checks the shape on the way in, with the
+same grammar as step 0 and `deploy.yml`, so a malformed name never reaches the manifest. It refreshes `Cargo.lock` too
+and commits both files — every workspace crate is pinned in the lock as well, and the release builds with `--locked`.
+`--no-commit` writes both files and leaves the commit to you.
 
 ## 3. Land it through a PR
 
@@ -126,13 +128,11 @@ sort as **older** than the `26.8.17` it fixes. Hanging it off the next day keeps
 ```
 
 So a second cut is the same four steps with a `<tomorrow's UTC date>-hotfix.N` version instead — you pick `N`, and step
-1 refuses it if that exact name is already on the remote. Step 2 passes your version to `--tag` rather than reaching for
-the CLI's `--hotfix`, which [`docs/gitops.md`](../../../docs/gitops.md) documents as deriving `N` from the current UTC
-hour: that flag is a fine shortcut by hand, but it makes the name a side effect of when the command ran, which is the
-one thing this skill exists to prevent. A hotfix publishes every image and archive and **bumps the Homebrew tap** like
-any other release — the tap holds one version and every `brew install` resolves to it, so that version has to be the
-newest build that exists. The one surface that treats it differently is the GitHub Release, flagged as a prerelease so
-it is not reported as "Latest".
+1 refuses it if that exact name is already on the remote. Nothing composes that name for you: `N` is a
+uniqueness-and-ordering discriminator, not an hour, and no command in the tree invents one. A hotfix publishes every
+image and archive and **bumps the Homebrew tap** like any other release — the tap holds one version and `brew install`
+resolves to whichever it holds, so that version has to be the newest build that exists. The one surface that treats it
+differently is the GitHub Release, flagged as a prerelease so it is not reported as "Latest".
 
 ## What the push actually does
 

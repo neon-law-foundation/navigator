@@ -131,7 +131,7 @@ PR merged to main
       (no images built — the PR flow is lean by design)
 
 A person bumps the version, lands it, and pushes an immutable release tag
-  └─→ navigator ops release-version   (writes Cargo.toml + Cargo.lock, commits)
+  └─→ navigator ops release-version --tag <version>   (Cargo.toml + Cargo.lock, commits)
   └─→ PR, wait for merge, then tag the merged main commit and push
   └─→ .github/workflows/deploy.yml runs, holding no cloud credential
                   ├─ validate shape/date/manifest and reachability from origin/main

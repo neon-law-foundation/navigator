@@ -128,7 +128,7 @@ regorus = { version = "0.11.0", default-features = false, features = ["arc", "st
 scraper = "0.27"
 encoding_rs = "0.8"
 sha2 = "0.11"
-# Test-only. `ops release-version` composes the `YY.M.D-hotfix.H` release
+# Test-only. `ops release-version` validates the `YY.M.D-hotfix.N` release
 # spelling, and the property that makes that convention correct is a SEMVER
 # ORDERING one: the hotfix must rank above the release it fixes and below the
 # next ordinary release. Asserting that against a real semver implementation is
