@@ -2935,3 +2935,36 @@ a.nav-link:hover {
   font-size: 0.875rem;
   color: var(--nav-color-text-muted);
 }
+
+/* The site-wide notice a deployment holding simulated matters publishes. It is
+   the first content in the document, injected into every HTML response by
+   `portal::dioxus_app`, so it sits above the header rather than inside the
+   page — including on the error pages, which no shell wraps.
+
+   Not sticky and not fixed. A fixed banner would need the page below it to
+   reserve room, which means a rule reaching into layouts this file does not
+   own; and a reader who has scrolled past it has already read it. Being in
+   normal flow is also what keeps it out of the way of a portal bundle's own
+   fixed chrome. */
+.simulated-matters-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--nav-color-warning-surface);
+  color: var(--nav-color-on-warning);
+  font-family: var(--nav-font-family);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.simulated-matters-banner__label {
+  /* Uppercased in CSS rather than in the copy so an assistive technology reads
+     the words rather than spelling out a shouted string. */
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}

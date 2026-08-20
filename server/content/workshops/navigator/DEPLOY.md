@@ -754,8 +754,8 @@ sole manifest owner, so a `RootSync` cannot revert one site's environment-specif
 
 | Operating mode | Selector | Runtime and data posture |
 | --- | --- | --- |
-| **Test** | `dev` + `NAVIGATOR_CI_HARNESS=1` | Schemas/KIND; Simpsons fixture; canonical seed + test fixtures |
-| **Dev** | `dev`; harness normally unset | KIND/cloud namespace; sandbox vendors; canonical seed + Simpsons fixture |
+| **Test** | `dev` + `NAVIGATOR_CI_HARNESS=1` | Schemas/KIND; simulated matters; canonical seed + test fixtures |
+| **Dev** | `dev`; harness normally unset | KIND/cloud namespace; sandbox vendors; canonical seed + simulated matters |
 | **Production** | `production`, empty, or unset | Hosted services; production vendors; canonical seed + live data |
 
 ---
@@ -774,10 +774,51 @@ fences provider endpoints, so the proving ring keeps production boot checks whil
 simulated matters.
 
 The data rule is small but not flat: every boot applies the same embedded, environment-blind canonical seed —
-jurisdictions above all, the reference table every entity and licensure record points at — and a `dev` boot additionally
-and idempotently applies the compiled Simpsons development fixture (one synthetic matter, its local participants, and
-the rows used by the portal walkthrough). Production never receives that fixture. Tests may add rows inside their
-isolated schemas; the deployment selector chooses whether the Simpsons fixture is applied.
+jurisdictions above all, the reference table every entity and licensure record points at — and a boot carrying simulated
+matters additionally and idempotently applies the compiled fixture (three synthetic matters, their participants, and the
+rows used by the portal walkthrough). Tests may add rows inside their isolated schemas.
+
+### The deployment that says its matters are simulated
+
+`NAVIGATOR_SIMULATED_MATTERS` is the second selector, and it answers a different question from the first. The profile
+above decides which runtime wiring a boot gets; this decides whether the matters in front of a visitor are invented.
+
+Left unset or empty it follows the profile: a `dev` boot carries simulated matters because that is all a `dev` boot has,
+and a `production` boot does not, because production is where the real files are. Exactly `true` or `false` overrides
+that in both directions, and every other value — `TRUE`, `1`, `yes`, a case or whitespace variant — is rejected rather
+than resolved to the permissive answer. That exactness is the point: a typo that quietly read as `true` would seed
+invented clients into a database of real ones.
+
+The override that matters is `true` under a `production` profile, which is exactly what `neon-law-stg` is. Both of its
+selectors are `production` on purpose, so nothing in the running process can tell it apart from the row holding real
+client files. It therefore says so itself, in `deployments/neon-law-stg/config.toml`:
+
+```toml
+NAVIGATOR_SIMULATED_MATTERS = "true"
+```
+
+Two things follow from that value. `store::seed` applies the simulated-matter fixture, so the row carries
+`donut-litigation`, `widget-works`, and `montgomery-estate` rather than an empty portfolio. And every page publishes a
+site-wide banner saying the matters are simulated — which is why `staging.neonlaw.com` is a link worth handing to
+somebody, because a demo matter cannot be mistaken for a client's file.
+
+It is a **coordinate, not a credential**, so it lives in `config.toml` beside the buckets and hostnames rather than in
+that deployment's `secrets.enc.yaml`. Adding it needs no SOPS re-encryption on either row.
+
+`neon-law-prod` states `"false"` for documentation rather than for behaviour. The code already reads a missing value as
+`false` under a `production` profile, and `ops ship` renders `false` into the web env when a deployment's config omits
+the key, so the substitution is deliberately optional: a config that never mentions it still renders and still ships. A
+key that could halt a production rollout by being deleted would be a worse failure than the one it guards against.
+
+---
+
+Two selectors, two questions. Ask the room which one decides whether a visitor sees invented clients — the answer is not
+the one whose name contains "environment". Then point out that staging's runtime profile is `production`, and let the
+implication land: nothing in the process can tell staging from production, so staging has to say so itself. That is why
+there is a second selector at all rather than a third value on the first one.
+
+The banner is the part worth dwelling on. It is not a developer convenience — it is what makes `staging.neonlaw.com` a
+link you can hand to somebody without them mistaking a demo for a client's file.
 
 ### Configuration precedence: the first source wins
 
@@ -922,6 +963,7 @@ that credential in each deployment's `secrets.enc.yaml` at the same time.
 | Concern | Environment variables |
 | --- | --- |
 | Profile fence | `NAVIGATOR_ENVIRONMENT`, `NAVIGATOR_CI_HARNESS`, `NAVIGATOR_CREDENTIAL_ENVIRONMENT` |
+| Simulated matters | `NAVIGATOR_SIMULATED_MATTERS` |
 | HTTP identity | `PORT`, `NAV_BASE_URL`, `CANONICAL_HOST`, `NAVIGATOR_RATE_LIMIT_PER_MIN` |
 | Branding and public assets | `NAVIGATOR_CUSTOM_BRANDING`, `NAVIGATOR_ASSET_BASE_URL` |
 | Store | `NAVIGATOR_SURREAL_ENDPOINT`, `NAVIGATOR_SURREAL_NAMESPACE`, `NAVIGATOR_SURREAL_DATABASE` |
@@ -1167,7 +1209,7 @@ disposable `navigator dev staging` lane, not `neon-law-stg`.
 | Surface | Local dev | Disposable `dev staging` | Persistent hosted rows |
 | --- | --- | --- | --- |
 | **Canonical database seed** | Always runs | Always runs | Always runs |
-| **Simpsons development fixture** | Always runs (`dev`) | Always runs (`dev`) | Never |
+| **Simulated-matter fixture** | Always runs (`dev`) | Always runs (`dev`) | `neon-law-stg` only |
 | **Test-local database fixtures** | Browser/E2E harness only | Integration harness only | Never |
 | Email | `CapturingEmail` by default | Non-production SendGrid | Production SendGrid |
 | E-signature | Stub IDs and documents | Non-binding DocuSign demo | Live DocuSign |
@@ -1182,12 +1224,13 @@ the bundled catalog and firm-owned baseline rows in every deployment, production
 clearest example of the distinction this table encodes. The full reference set — all 248 rows of
 `store/seeds/Jurisdiction.yaml`, every US state plus DC and every sovereign a matter can touch — is seeded on **every**
 boot in **every** environment, because an entity's domicile and an attorney's licensure must resolve wherever the
-application runs; since ENG-20 those rows live in SurrealDB, but the rule is engine-blind. The Simpsons fixture — one
-synthetic Project, its participants, and its walkthrough rows — is the second, idempotent layer that a `dev` boot (local
-KIND or the disposable `dev staging` lane) applies. The persistent staging deployment at `www.neonlaw.com` holds
-synthetic matters by data-plane policy, while production holds live matters; both deployment lanes receive the same
-canonical reference data. Both layers are applied by one environment-aware orchestration call
-(`store::seed::seed_environment`), so a reset or recreate restores the same canonical + Simpsons baseline automatically.
+application runs; since ENG-20 those rows live in SurrealDB, but the rule is engine-blind. The simulated-matter fixture
+— three synthetic Projects, their participants, and their walkthrough rows — is the second, idempotent layer. It is
+applied wherever `NAVIGATOR_SIMULATED_MATTERS` resolves true: every `dev` boot, whether local KIND or the disposable
+staging lane, plus `neon-law-stg`, which says so explicitly because its own runtime profile is `production`. So
+`staging.neonlaw.com` serves the three demo matters under the simulated-matter banner, and `www.neonlaw.com` holds live
+matters and no fixture; both receive the same canonical reference data. Both layers are applied by one environment-aware
+orchestration call (`store::seed::seed_environment`), so a reset or recreate restores the same baseline automatically.
 Provider simulation is a separate axis: the test harness permits fakes, while non-harness dev uses sandbox integrations.
 Test suites add further records inside isolated test schemas.
 

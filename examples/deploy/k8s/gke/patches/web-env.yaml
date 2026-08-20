@@ -70,6 +70,19 @@ spec:
             # carve-out cannot admit an address the IdP would not issue.
             - name: NAVIGATOR_BOOTSTRAP_OWNER_EMAIL
               value: nick@neonlaw.com
+            # Whether this deployment's matters are simulated rather than
+            # real. `false` for every deployment that does not say otherwise,
+            # including production — `ops ship` renders that default when the
+            # deployment's `config.toml` omits the key, so a row holding real
+            # client files cannot grow invented ones by accident.
+            #
+            # The persistent staging deployment sets it to `true` in its own
+            # `config.toml`. It has to: its runtime profile is `production`
+            # deliberately, so the profile alone cannot tell the two apart,
+            # and without this it would serve an empty portfolio with no
+            # banner. See docs/environments.md.
+            - name: NAVIGATOR_SIMULATED_MATTERS
+              value: "YOUR_SIMULATED_MATTERS"
             - name: NAVIGATOR_STORAGE_BACKEND
               value: gcs
             # NAVIGATOR_STORAGE_ENDPOINT is deliberately omitted in prod:

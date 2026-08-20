@@ -246,7 +246,7 @@ mod tests {
         ClientIntakeView {
             state: IntakeState::NeedsAnswer(Box::new(IntakeStepData {
                 project_id: "00000000-0000-0000-0000-000000000001".to_string(),
-                project_code: "simpsons".to_string(),
+                project_code: "donut-litigation".to_string(),
                 notation_id: "00000000-0000-0000-0000-000000000002".to_string(),
                 flow_label: "Application for Naturalization".to_string(),
                 question_code: "country__of_birth".to_string(),
@@ -271,7 +271,7 @@ mod tests {
         let html = render(&step("string", "", &[]));
         assert!(
             html.contains(
-                "action=\"/app/projects/simpsons\
+                "action=\"/app/projects/donut-litigation\
                  /intake/00000000-0000-0000-0000-000000000002\""
             ),
             "{html}"
@@ -346,7 +346,7 @@ mod tests {
     fn the_completion_landing_links_back_to_the_matter_and_offers_no_write() {
         let html = render(&ClientIntakeView {
             state: IntakeState::Complete {
-                project_code: "simpsons".to_string(),
+                project_code: "donut-litigation".to_string(),
                 flow_label: "Retainer Agreement".to_string(),
                 total: 4,
             },
@@ -354,7 +354,10 @@ mod tests {
             error: None,
         });
         assert!(html.contains("Thank you — your part is done"), "{html}");
-        assert!(html.contains("href=\"/app/projects/simpsons\""), "{html}");
+        assert!(
+            html.contains("href=\"/app/projects/donut-litigation\""),
+            "{html}"
+        );
         // Nothing on the finished page invites another answer.
         assert!(!html.contains("<form"), "{html}");
     }

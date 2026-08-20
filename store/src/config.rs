@@ -27,6 +27,65 @@ pub enum DeploymentEnvironment {
     Production,
 }
 
+/// Whether this deployment's matters are simulated rather than real.
+///
+/// A deployment carrying simulated matters says so out loud: it seeds the
+/// fixture matters and publishes a site-wide banner telling every visitor that
+/// nothing they are looking at is a real client's file.
+pub const NAVIGATOR_SIMULATED_MATTERS: &str = "NAVIGATOR_SIMULATED_MATTERS";
+
+/// Why a `NAVIGATOR_SIMULATED_MATTERS` value could not be read.
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum SimulatedMattersError {
+    #[error(
+        "NAVIGATOR_SIMULATED_MATTERS must be unset, empty, or exactly `true` or `false`; got `{0}`"
+    )]
+    Invalid(String),
+}
+
+/// Whether this deployment carries simulated matters, from the environment.
+///
+/// # Errors
+///
+/// Returns [`SimulatedMattersError::Invalid`] for any value that is not
+/// exactly `true` or `false`.
+pub fn simulated_matters(
+    environment: DeploymentEnvironment,
+) -> Result<bool, SimulatedMattersError> {
+    simulated_matters_from(environment, |key| std::env::var(key).ok())
+}
+
+/// [`simulated_matters`] with the environment read through `get`, so the
+/// decision is testable without mutating process state.
+///
+/// Unset or empty follows the deployment profile: a `dev` boot carries
+/// simulated matters because that is the only thing a `dev` boot has, and a
+/// `production` boot does not because production is where the real files are.
+///
+/// An explicit value overrides that in **both** directions, and the direction
+/// that matters is `true` under a `production` profile. That combination is not
+/// a mistake to guard against here — it is exactly what the persistent staging
+/// deployment is. Staging runs the production runtime profile deliberately, so
+/// that the application it proves is the application production runs; its data
+/// plane is the only thing about it that is synthetic. Nothing in this process
+/// can tell that apart from a real production deployment, so the value is
+/// trusted and the guard is the deployment's own `config.toml`.
+///
+/// The parser is exact for the same reason [`DeploymentEnvironment::from_lookup`]
+/// is: a typo that silently resolved to the permissive answer would seed
+/// invented clients into a database of real ones.
+pub fn simulated_matters_from<F: Fn(&str) -> Option<String>>(
+    environment: DeploymentEnvironment,
+    get: F,
+) -> Result<bool, SimulatedMattersError> {
+    match get(NAVIGATOR_SIMULATED_MATTERS).as_deref() {
+        None | Some("") => Ok(environment != DeploymentEnvironment::Production),
+        Some("true") => Ok(true),
+        Some("false") => Ok(false),
+        Some(other) => Err(SimulatedMattersError::Invalid(other.to_owned())),
+    }
+}
+
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum DeploymentEnvironmentError {
     #[error(
@@ -61,7 +120,65 @@ impl DeploymentEnvironment {
 
 #[cfg(test)]
 mod tests {
-    use super::{DeploymentEnvironment, DeploymentEnvironmentError, NAVIGATOR_ENVIRONMENT};
+    use super::{
+        simulated_matters_from, DeploymentEnvironment, DeploymentEnvironmentError,
+        SimulatedMattersError, NAVIGATOR_ENVIRONMENT, NAVIGATOR_SIMULATED_MATTERS,
+    };
+
+    /// Unset follows the profile, an explicit value overrides it in both
+    /// directions, and anything else is refused.
+    ///
+    /// The two rows that carry the design are `(Production, None) -> false`
+    /// and `(Production, "true") -> true`: the first is why an unconfigured
+    /// production deployment cannot grow invented clients, and the second is
+    /// the persistent staging deployment, which runs the production profile
+    /// over a synthetic data plane and has to say so.
+    #[test]
+    fn simulated_matters_defaults_to_the_profile_and_is_overridable() {
+        use DeploymentEnvironment::{Dev, Production};
+
+        let cases = [
+            // Unconfigured: a dev boot has nothing but fixtures; production
+            // has nothing but real files.
+            ((Dev, None), Ok(true)),
+            ((Dev, Some("")), Ok(true)),
+            ((Production, None), Ok(false)),
+            ((Production, Some("")), Ok(false)),
+            // Explicit, both directions. `(Production, "true")` is staging.
+            ((Production, Some("true")), Ok(true)),
+            ((Dev, Some("false")), Ok(false)),
+            ((Dev, Some("true")), Ok(true)),
+            ((Production, Some("false")), Ok(false)),
+        ];
+        for ((environment, value), expected) in cases {
+            assert_eq!(
+                simulated_matters_from(environment, |key| {
+                    assert_eq!(key, NAVIGATOR_SIMULATED_MATTERS);
+                    value.map(str::to_owned)
+                }),
+                expected,
+                "{environment:?} with {value:?}"
+            );
+        }
+    }
+
+    /// Every near-miss is refused rather than resolved to the permissive
+    /// answer. A `TRUE` that quietly read as "no simulated matters" would be
+    /// a staging deployment serving an empty portfolio with no banner; a
+    /// `yes` that quietly read as "simulated" would be production seeding
+    /// invented clients beside real ones.
+    #[test]
+    fn simulated_matters_parser_is_exact() {
+        for value in ["True", "TRUE", "1", "yes", "on", " true", "true ", "False"] {
+            assert_eq!(
+                simulated_matters_from(DeploymentEnvironment::Production, |_| Some(
+                    value.to_owned()
+                )),
+                Err(SimulatedMattersError::Invalid(value.to_owned())),
+                "`{value}` must not parse"
+            );
+        }
+    }
 
     #[test]
     fn deployment_environment_parser_is_exact_and_production_safe() {

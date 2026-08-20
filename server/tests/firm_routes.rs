@@ -1525,6 +1525,29 @@ async fn the_firm_footer_links_the_talks_catalog() {
     }
 }
 
+/// Every public firm page links its own Privacy Policy and Terms of Service
+/// from the footer.
+///
+/// Both documents already served at `/privacy` and `/terms`, and neither was
+/// linked from the header or the legal strip — so before this row carried
+/// them, a reader could only reach either by typing the URL. They are checked
+/// on the same footing as the Blog and Contact because that is where they now
+/// sit: one row, alphabetized, on every page of both faces.
+#[tokio::test]
+async fn the_firm_footer_links_privacy_and_terms() {
+    let app = site_app_with_talks().await;
+
+    for path in ["/", "/litigation", "/presentations"] {
+        let body = body_string(anon_get(&app, path).await).await;
+        for href in ["/privacy", "/terms"] {
+            assert!(
+                body.contains(&format!("href=\"{href}\"")),
+                "{path} links {href} from its footer: {body}"
+            );
+        }
+    }
+}
+
 /// The Navigator classes moved here with the talks, and read anonymously
 /// exactly as the talks do — the catalog page included.
 ///
@@ -1656,10 +1679,10 @@ async fn the_three_classes_render_and_land_beside_each_other() {
     );
 }
 
-/// The Using-the-Navigator class teaches the single Simpsons development flow,
+/// The Using-the-Navigator class teaches the single litigation matter development flow,
 /// read from the real content directory.
 #[tokio::test]
-async fn the_navigator_class_renders_the_simpsons_sample_project_exercise() {
+async fn the_navigator_class_renders_the_sample_project_exercise() {
     let materials = portal::workshops::loader::load_navigator(std::path::Path::new(
         portal::DEFAULT_WORKSHOPS_DIR,
     ))
@@ -1684,7 +1707,7 @@ async fn the_navigator_class_renders_the_simpsons_sample_project_exercise() {
         .await,
     )
     .await;
-    assert!(body.contains("simpsons"), "{body}");
+    assert!(body.contains("donut-litigation"), "{body}");
     assert!(body.contains("stages the output"), "{body}");
     assert!(body.contains("manifest name remains"), "{body}");
 }

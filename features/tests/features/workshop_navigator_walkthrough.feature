@@ -8,7 +8,7 @@ Feature: Workshop "Using the Neon Law Navigator to Rapidly Solve Legal Outcomes"
 
   The running matter is the one the workshop README names:
 
-    Project   — Simpson v. Flanders (code: simpsons)
+    Project   — Cruller v. Prine (code: donut-litigation)
     Client    — the seeded client account
     Template  — onboarding__retainer (the shared retainer template)
 
@@ -18,7 +18,7 @@ Feature: Workshop "Using the Neon Law Navigator to Rapidly Solve Legal Outcomes"
   the final scenario.
 
   Background:
-    Given a fresh dev Navigator app with the Simpsons workshop seed
+    Given a fresh dev Navigator app with the simulated-matter workshop seed
 
   Scenario: Remember — the four Neon Law Navigator nouns are real schema entities
     Then the schema defines a "project" table
@@ -27,7 +27,7 @@ Feature: Workshop "Using the Neon Law Navigator to Rapidly Solve Legal Outcomes"
     And the schema defines a "person" table
 
   Scenario: Apply — the presenter opens the seeded running matter
-    Then a project named "Simpson v. Flanders" exists in the database
+    Then a project named "Cruller v. Prine" exists in the database
     And the project status is "open"
 
   Scenario: Apply — the attorney binds the retainer template as a notation

@@ -539,15 +539,20 @@ enum DevCmd {
     /// `lawyer` role so the browser e2e's admin-gated walk can run.
     /// Native Rust.
     GrantLawyer,
-    /// Refresh and stage the Simpsons reference application
-    /// (`navigator-sample-project`) for the next local web boot. The checkout
-    /// and build happen in a temporary directory; the built `dist/` and
-    /// `navigator.yml` survive under `.devx/sample-project`, and the generated
-    /// `.devx/env` points `web` at them. Needs `git` and `pnpm`. Native Rust.
+    /// Refresh and stage each simulated matter's reference application for the
+    /// next local web boot. The checkouts and builds happen in temporary
+    /// directories; each built `dist/` and `navigator.yml` survives under
+    /// `.devx/sample-projects/<code>`, and the generated `.devx/env` points
+    /// `web` at the parent. Needs `git` and `pnpm`. Native Rust.
     SampleProject {
-        /// Repository to clone. Defaults to the URL recorded on the Project;
-        /// override to build a fork or a local mirror.
+        /// Refresh only this Project's application. Defaults to all of them;
+        /// naming one is the fast loop while iterating on a single app.
         #[arg(long)]
+        project: Option<String>,
+        /// Repository to clone. Defaults to the URL recorded on the Project;
+        /// override to build a fork or a local mirror. Requires `--project`,
+        /// since one URL cannot serve every matter.
+        #[arg(long, requires = "project")]
         repo: Option<String>,
         /// Branch or tag to build. Defaults to the repository's default
         /// branch.

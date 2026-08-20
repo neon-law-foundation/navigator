@@ -11,13 +11,15 @@ description: >
 
 # The public repository posture
 
-The Neon Law Foundation publishes four repositories on github.com, all in the `neon-law-foundation` organization:
+The Neon Law Foundation publishes six repositories on github.com, all in the `neon-law-foundation` organization:
 
 | Repository | What it holds |
 | --- | --- |
 | `navigator` | The Rust workspace: the delivery stack and the firm's website |
 | `navigator-ux` | The shared React component library Project portals build against |
-| `navigator-sample-project` | The reference Project application, mounted by the `simpsons` demo matter |
+| `navigator-sample-project-litigation` | The disputes Project application, mounted by `donut-litigation` |
+| `navigator-sample-project-transactional` | The company-counsel Project application, mounted by `widget-works` |
+| `navigator-sample-project-estate` | The estate Project application, mounted by `montgomery-estate` |
 | `homebrew-navigator` | The Homebrew tap for the `navigator` CLI |
 
 `navigator` is the reference. A new repository copies its shape; a repository that has drifted is brought back to it.
@@ -77,7 +79,7 @@ SECURITY.md             # support@neonlaw.org
 
 ## Repository settings
 
-Verified on all four, 2026-08-18:
+Verified on all six, 2026-08-19:
 
 | Setting | Value | Why |
 | --- | --- | --- |
@@ -126,7 +128,7 @@ One active ruleset on `~DEFAULT_BRANCH`, carrying five rules:
 **Name the required check after a job that actually reports on `pull_request`.** A required context no workflow produces
 leaves every PR waiting forever on a check that will never arrive.
 
-- `navigator`, `navigator-ux`, and `navigator-sample-project` each define a job named `ci`.
+- `navigator`, `navigator-ux`, and each `navigator-sample-project-*` define a job named `ci`.
 - `homebrew-navigator` requires `is the formula seeded` and `audit the formula`.
 
 Read the workflow before writing the ruleset:

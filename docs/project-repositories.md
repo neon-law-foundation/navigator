@@ -70,10 +70,9 @@ it from `github.event.repository.name`, and Vite derives its base from the check
 refuses a name that is not a valid code, so a checkout cloned into a differently named directory fails there rather than
 publishing under the wrong prefix.
 
-There is deliberately **no manifest**, and `navigator.yml` is not one: it names the locally staged Simpsons sample
-bundle (`store/src/sample_project.rs`), which `navigator dev up` builds outside any Project repository. A Project
-repository carrying one at its root fails the gate — `navigator.yml` is not in the source-only layout's allowed root
-entries.
+There is deliberately **no manifest**, and `navigator.yml` is not one: it names one locally staged sample bundle
+(`store/src/sample_project.rs`), which `navigator dev up` builds outside any Project repository. A Project repository
+carrying one at its root fails the gate — `navigator.yml` is not in the source-only layout's allowed root entries.
 
 The trailing slash is load-bearing twice: Vite joins asset URLs directly onto the base, and Navigator redirects the bare
 mount to the slashed form.
@@ -91,9 +90,9 @@ for a year.
 application is `/app/projects/<code>/portal/`. The Project code is the stable lowercase-kebab URL slug; the internal
 UUID is not exposed in the show-page route.
 
-During local development, `navigator dev up` and `navigator dev worktree-env up` clone, build, and stage the Simpsons
-sample project before writing `.devx/env`. The host `web` process therefore starts against the same refreshed portal
-bundle for every developer.
+During local development, `navigator dev up` and `navigator dev worktree-env up` clone, build, and stage each sample
+project before writing `.devx/env`. The host `web` process therefore starts against the same refreshed portal bundle for
+every developer.
 
 ## The organization is configuration, not a name in source
 

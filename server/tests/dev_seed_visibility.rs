@@ -1,9 +1,8 @@
-//! The Simpsons development fixture exercises participation-based visibility.
+//! The simulated-matter fixture exercises participation-based visibility.
 
 use std::sync::Arc;
 
 use store::test_support::mem_surreal;
-use store::DeploymentEnvironment;
 
 async fn storage() -> Arc<dyn cloud::StorageService> {
     Arc::new(
@@ -17,21 +16,30 @@ async fn storage() -> Arc<dyn cloud::StorageService> {
 }
 
 fn project_names(rows: Vec<store::projects::Project>) -> Vec<String> {
-    rows.into_iter().map(|row| row.name).collect()
+    let mut names: Vec<String> = rows.into_iter().map(|row| row.name).collect();
+    names.sort();
+    names
+}
+
+/// Every simulated matter's name, sorted, which is what a participant on all of
+/// them sees. Derived from the fixture rather than written out, so a fourth
+/// matter does not silently narrow what these tests assert.
+fn every_matter_name() -> Vec<String> {
+    let mut names: Vec<String> = store::seed::simulated_matter_names()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    names.sort();
+    names
 }
 
 #[tokio::test]
-async fn simpsons_participation_drives_client_and_lawyer_visibility() {
+async fn participation_drives_client_and_lawyer_visibility() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
-    store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Dev,
-        store::seed::BrandSeed::Neon,
-    )
-    .await
-    .unwrap();
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
+        .await
+        .unwrap();
 
     let client = store::persons::find_by_email_ci(&surreal, "client@neonlaw.com")
         .await
@@ -58,7 +66,7 @@ async fn simpsons_participation_drives_client_and_lawyer_visibility() {
                 .await
                 .unwrap(),
         ),
-        vec!["Simpson v. Flanders"],
+        every_matter_name(),
     );
     assert_eq!(
         project_names(
@@ -70,7 +78,7 @@ async fn simpsons_participation_drives_client_and_lawyer_visibility() {
             .await
             .unwrap(),
         ),
-        vec!["Simpson v. Flanders"],
+        every_matter_name(),
     );
     assert!(store::access::visible_projects_as_lawyer(
         &surreal,
@@ -83,17 +91,12 @@ async fn simpsons_participation_drives_client_and_lawyer_visibility() {
 }
 
 #[tokio::test]
-async fn simpsons_is_withheld_from_the_unassigned_admin() {
+async fn the_matters_are_withheld_from_the_unassigned_admin() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
-    store::seed::seed_environment(
-        &surreal,
-        &storage,
-        DeploymentEnvironment::Dev,
-        store::seed::BrandSeed::Neon,
-    )
-    .await
-    .unwrap();
+    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
+        .await
+        .unwrap();
 
     let admin = store::persons::find_by_email_ci(&surreal, "admin@neonlaw.com")
         .await
@@ -116,6 +119,6 @@ async fn simpsons_is_withheld_from_the_unassigned_admin() {
                 .await
                 .unwrap(),
         ),
-        vec!["Simpson v. Flanders"],
+        every_matter_name(),
     );
 }

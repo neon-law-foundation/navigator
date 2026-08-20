@@ -35,7 +35,7 @@ struct WorkshopWorld {
     app: Option<axum::Router>,
     storage: Option<Arc<dyn cloud::StorageService>>,
     /// The stock local attorney persona whose firm-side participation scopes
-    /// the seeded Simpsons matter.
+    /// the seeded litigation matter.
     attorney_email: Option<String>,
     project_id: Option<Uuid>,
     notation_id: Option<Uuid>,
@@ -99,8 +99,8 @@ impl WorkshopWorld {
     }
 }
 
-#[given("a fresh dev Navigator app with the Simpsons workshop seed")]
-async fn build_app_with_simpsons_seed(world: &mut WorkshopWorld) {
+#[given("a fresh dev Navigator app with the simulated-matter workshop seed")]
+async fn build_app_with_simulated_seed(world: &mut WorkshopWorld) {
     let surreal = features::shared_surreal().await;
     let storage = fs_storage("workshop-navigator-walkthrough").await;
     store::seed::seed_environment(
@@ -110,11 +110,11 @@ async fn build_app_with_simpsons_seed(world: &mut WorkshopWorld) {
         store::seed::BrandSeed::Neon,
     )
     .await
-    .expect("seed the Simpsons development fixture");
-    let simpsons = store::projects::find_by_code(&surreal, "simpsons")
+    .expect("seed the simulated-matter fixture");
+    let litigation = store::projects::find_by_code(&surreal, "donut-litigation")
         .await
-        .expect("query Simpsons matter")
-        .expect("dev seed opens the Simpsons matter");
+        .expect("query litigation matter")
+        .expect("dev seed opens the litigation matter");
     let lawyer = store::persons::find_by_email_ci(&surreal, "lawyer@neonlaw.com")
         .await
         .expect("query local lawyer persona")
@@ -132,7 +132,7 @@ async fn build_app_with_simpsons_seed(world: &mut WorkshopWorld) {
     let router = features::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     world.app = Some(router);
     world.storage = Some(storage);
-    world.project_id = Some(simpsons.id);
+    world.project_id = Some(litigation.id);
     world.attorney_email = Some(lawyer.email);
 }
 

@@ -1,52 +1,48 @@
-//! `navigator dev sample-project` — clone, build, and stage the reference
-//! project application.
+//! `navigator dev sample-project` — clone, build, and stage each simulated
+//! matter's project application.
 //!
-//! The `simpsons` demo matter carries the client portal at
-//! `/app/projects/simpsons/portal/`. Development boot clones the repository
-//! recorded on that Project, builds it with `pnpm`, and stages the resulting
-//! `dist/` before writing the environment that `web` reads.
+//! Every simulated matter carries a client portal at
+//! `/app/projects/{code}/portal/`. Development boot clones the repository
+//! recorded on each of those Projects, builds it with `pnpm`, and stages the
+//! resulting `dist/` before writing the environment that `web` reads.
 //!
-//! The URL comes from the Project rather than a constant here, so pointing a
-//! matter at a different forge — or standing up a second Project's application
-//! — is a data change. `--repo` still overrides it for a fork or a local
-//! mirror.
+//! The URLs come from the Projects rather than constants here, so pointing a
+//! matter at a different forge is a data change. `--repo` still overrides one
+//! for a fork or a local mirror, and `--project` narrows the refresh to a
+//! single matter — the fast loop while iterating on one app, since a full
+//! refresh is one `pnpm install` and build per matter.
 //!
 //! The clone and the build happen in a **temporary directory** that is removed
 //! when the command returns — a build tree is derived, so keeping it in the
 //! worktree would only invite editing the wrong copy. Two things survive into
-//! `.devx/sample-project/`: the built `dist/`, and the `navigator.yml` that
-//! declares which Project the bundle mounts on. Boot re-reads that manifest
-//! rather than trusting whoever set the environment variable, so the pair
-//! travels together. `--keep` retains the temp tree for debugging a failed
-//! build.
+//! `.devx/sample-projects/<code>/`: the built `dist/`, and the `navigator.yml`
+//! that declares which Project the bundle mounts on. Boot re-reads that
+//! manifest rather than trusting the directory it was found in, so the pair
+//! travels together and a bundle staged under the wrong code is refused rather
+//! than published on another matter's portal. `--keep` retains the temp tree
+//! for debugging a failed build.
 //!
-//! Nothing here runs in production: only the local `dev` boot path stages it.
+//! Nothing here runs in production: only the local boot path stages it.
 //!
 //! ## Testing
 //!
 //! Cloning and `pnpm` shell out to the network and to Node, so [`run`]'s
 //! sequencing is not unit-tested. Everything that *decides* something is
-//! extracted so it can be: which repository to clone ([`choose_repo`]), the git
-//! arguments, the two preconditions a contributor actually trips
-//! ([`require_lockfile`], [`built_bundle`]), the staged path, and the tree copy.
-//! What is left in `run` is the order of the shell-outs.
+//! extracted so it can be: which matters to refresh ([`choose_matters`]),
+//! which repository to clone ([`choose_repo`]), the git arguments, the two
+//! preconditions a contributor actually trips ([`require_lockfile`],
+//! [`built_bundle`]), the staged paths, and the tree copy. What is left in
+//! `run` is the order of the shell-outs.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 
-/// The Project whose application this command stages.
-///
-/// One demo matter carries a portal locally, so the code is fixed here while
-/// the *repository* is not: that is read from the Project row, which is what
-/// makes a second Project's application a data change rather than a code
-/// change.
-const PROJECT_CODE: &str = "simpsons";
-
-/// Where the project is staged, relative to the workspace root. Inside
-/// `.devx/` because it is generated, per-checkout, and already ignored.
-const STAGE_RELATIVE: [&str; 1] = ["sample-project"];
+/// Where the projects are staged, relative to the workspace root. Inside
+/// `.devx/` because it is generated, per-checkout, and already ignored. Each
+/// matter gets a subdirectory named for its Project code.
+const STAGE_RELATIVE: [&str; 1] = ["sample-projects"];
 
 /// Build the `git clone` arguments. Always a shallow, single-branch clone: the
 /// history is not wanted, only the tree that builds.
@@ -69,14 +65,20 @@ fn clone_args(repo: &str, git_ref: Option<&str>, dest: &Path) -> Vec<String> {
     args
 }
 
-/// Where the project is staged for the next `web` boot — the manifest and the
-/// built bundle together.
+/// The directory every staged project sits under — the one path `.devx/env`
+/// names, so `web` finds all of them from a single variable.
 fn staged_root(workspace_root: &Path) -> PathBuf {
     let mut path = workspace_root.join(".devx");
     for segment in STAGE_RELATIVE {
         path.push(segment);
     }
     path
+}
+
+/// Where one matter is staged for the next `web` boot — the manifest and the
+/// built bundle together, under the matter's own Project code.
+fn staged_for(workspace_root: &Path, project_code: &str) -> PathBuf {
+    staged_root(workspace_root).join(project_code)
 }
 
 /// Copy a directory tree, replacing `dst` wholesale.
@@ -131,45 +133,80 @@ fn run_in(dir: &Path, program: &str, args: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// Whether the store was even consulted, so the "no URL" error can say which
-/// of the two absences it is.
+/// Whether the store was even consulted, so the repository choice can say
+/// which of the two absences it is looking at.
 enum Lookup {
-    /// No row for [`PROJECT_CODE`] at all.
+    /// No row for this Project code at all.
     NoProject,
     /// The row exists and carries this `repository_url`.
     Project(Option<String>),
 }
 
-/// Choose the repository to clone, given the flag and what the store holds.
+/// Which matters this invocation refreshes.
+///
+/// No `--project` refreshes all of them, which is what a boot wants. Naming
+/// one narrows it to that matter, and a name that is not a simulated matter is
+/// refused with the list rather than silently refreshing nothing — a typo
+/// there would otherwise look like a successful no-op.
+fn choose_matters<'a>(project: Option<&str>, known: &[&'a str]) -> Result<Vec<&'a str>> {
+    let Some(code) = project else {
+        return Ok(known.to_vec());
+    };
+    match known.iter().find(|known| **known == code) {
+        Some(found) => Ok(vec![*found]),
+        None => bail!(
+            "`{code}` is not a simulated matter. Known matters: {}.",
+            known.join(", ")
+        ),
+    }
+}
+
+/// Choose the repository to clone for one matter, given the flag and what the
+/// store holds.
 ///
 /// The pure half of [`resolve_repo`]: every branch a caller can land in is
 /// decided here, so the IO wrapper stays a connect-and-read with no decisions
-/// of its own. `--repo` wins without a lookup, and each absence names its own
-/// fix rather than falling back to a compiled-in upstream.
-fn choose_repo(explicit: Option<&str>, lookup: impl FnOnce() -> Result<Lookup>) -> Result<String> {
+/// of its own.
+///
+/// `--repo` wins without a lookup. Otherwise the Project row wins, which is
+/// what keeps pointing a matter at a different forge a data change. Only when
+/// there is no row at all does the compiled-in URL for that matter stand in —
+/// that is a store nobody has seeded yet, and the row the seed is about to
+/// write carries exactly this URL. A row that exists but records no URL is
+/// still an error, because something deliberately cleared it.
+fn choose_repo(
+    project_code: &str,
+    explicit: Option<&str>,
+    fallback: Option<&str>,
+    lookup: impl FnOnce() -> Result<Lookup>,
+) -> Result<String> {
     if let Some(repo) = explicit {
         return Ok(repo.to_string());
     }
     match lookup()? {
-        Lookup::NoProject => bail!(
-            "no Project `{PROJECT_CODE}` in this store — start `web` once so the dev seed \
-             runs, or pass `--repo`"
-        ),
+        Lookup::Project(Some(url)) => Ok(url),
         Lookup::Project(None) => bail!(
-            "Project `{PROJECT_CODE}` records no repository URL. Set one on the matter, or \
+            "Project `{project_code}` records no repository URL. Set one on the matter, or \
              pass `--repo`."
         ),
-        Lookup::Project(Some(url)) => Ok(url),
+        Lookup::NoProject => match fallback {
+            Some(url) => Ok(url.to_string()),
+            None => bail!(
+                "no Project `{project_code}` in this store — start `web` once so the seed \
+                 runs, or pass `--repo`"
+            ),
+        },
     }
 }
 
-/// The repository to clone: `--repo` when given, else the URL recorded on the
-/// Project.
+/// The repository to clone for one matter: `--repo` when given, else the URL
+/// recorded on the Project, else the compiled-in default for that matter.
 ///
 /// Reading the Project is what keeps one source of truth. The decision lives in
 /// [`choose_repo`]; this only supplies the store.
-fn resolve_repo(explicit: Option<&str>) -> Result<String> {
-    choose_repo(explicit, || {
+fn resolve_repo(project_code: &str, explicit: Option<&str>) -> Result<String> {
+    let fallback = store::seed::simulated_matter_repository(project_code);
+    choose_repo(project_code, explicit, fallback, || {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -180,9 +217,9 @@ fn resolve_repo(explicit: Option<&str>) -> Result<String> {
                  this worktree's `.devx/env` first, or pass `--repo`",
             )?;
             Ok(
-                match store::projects::find_by_code(&surreal, PROJECT_CODE)
+                match store::projects::find_by_code(&surreal, project_code)
                     .await
-                    .with_context(|| format!("look up Project `{PROJECT_CODE}`"))?
+                    .with_context(|| format!("look up Project `{project_code}`"))?
                 {
                     None => Lookup::NoProject,
                     Some(project) => Lookup::Project(project.repository_url),
@@ -250,29 +287,83 @@ fn built_bundle(checkout: &Path) -> Result<PathBuf> {
     Ok(built)
 }
 
-/// Refresh the Simpsons application for a local boot.
-pub fn run(repo: Option<&str>, git_ref: Option<&str>, keep: bool) -> Result<()> {
+/// Refresh the simulated matters' applications for a local boot.
+pub fn run(
+    project: Option<&str>,
+    repo: Option<&str>,
+    git_ref: Option<&str>,
+    keep: bool,
+) -> Result<()> {
     super::require_tools(&["git", "pnpm"])?;
-    let repo = &resolve_repo(repo)?;
+    let known = store::seed::simulated_matter_codes();
+    let matters = choose_matters(project, &known)?;
     let workspace_root = super::orchestrate::workspace_root()?;
 
-    let (stage, copied) = run_for_root(repo, git_ref, keep, &workspace_root)?;
-    print!("{}", staging_instructions(copied, &stage));
+    let mut copied = 0;
+    for code in &matters {
+        let url = resolve_repo(code, repo)?;
+        copied += stage_one(code, &url, git_ref, keep, &workspace_root)?;
+    }
+    print!(
+        "{}",
+        staging_instructions(copied, matters.len(), &staged_root(&workspace_root))
+    );
     Ok(())
 }
 
-/// Clone, build, and stage the one local Simpsons application for `root`.
+/// Clone, build, and stage every simulated matter's application for `root`,
+/// each from the repository the compiled-in fixture records for it.
 ///
 /// The development orchestrator calls this before it renders `.devx/env`, so
-/// the following `web` process always reads the freshly staged bundle.
-pub(super) fn run_for_root(
+/// the following `web` process always reads freshly staged bundles. It reads
+/// the compiled-in URLs rather than the store because it runs before the first
+/// boot has seeded anything.
+///
+/// **Best-effort, per matter.** One application that will not clone or build
+/// does not fail the boot: it is reported and skipped, and the seed publishes
+/// that matter's deterministic portal document instead. Bringing up the whole
+/// local tier is not the moment to discover that somebody else's sample
+/// repository is having a bad day, and the two other matters have nothing to do
+/// with it. `dev sample-project` is the strict path — an operator who asked for
+/// a refresh wants the error, not a warning they have to go looking for.
+pub(super) fn run_for_root(keep: bool, workspace_root: &Path) -> Result<usize> {
+    super::require_tools(&["git", "pnpm"])?;
+    let mut copied = 0;
+    let mut skipped = Vec::new();
+    for code in store::seed::simulated_matter_codes() {
+        let Some(url) = store::seed::simulated_matter_repository(code) else {
+            skipped.push(code);
+            continue;
+        };
+        match stage_one(code, url, None, keep, workspace_root) {
+            Ok(count) => copied += count,
+            Err(error) => {
+                eprintln!("navigator: could not stage `{code}` from {url}: {error:#}");
+                skipped.push(code);
+            }
+        }
+    }
+    if !skipped.is_empty() {
+        eprintln!(
+            "navigator: {} matter(s) will serve the built-in portal document instead of a built \
+             bundle: {}. Run `navigator dev sample-project --project <code>` to see the failure \
+             on its own.",
+            skipped.len(),
+            skipped.join(", ")
+        );
+    }
+    Ok(copied)
+}
+
+/// Clone, build, and stage one matter's application, returning how many files
+/// landed in its staging directory.
+fn stage_one(
+    project_code: &str,
     repo: &str,
     git_ref: Option<&str>,
     keep: bool,
     workspace_root: &Path,
-) -> Result<(PathBuf, usize)> {
-    super::require_tools(&["git", "pnpm"])?;
-
+) -> Result<usize> {
     // The checkout and the build live in a temp tree; only `dist/` survives.
     let temp = tempfile::Builder::new()
         .prefix("navigator-sample-project-")
@@ -304,9 +395,22 @@ pub(super) fn run_for_root(
 
     let built = built_bundle(&checkout)?;
 
+    // Refuse a bundle that declares a different matter, here rather than at
+    // boot. The staging directory is named for the matter it belongs to, so
+    // staging one matter's bundle under another's code would be the one
+    // mistake that puts a client's application on another client's portal.
+    // Boot checks this again against the manifest it re-reads; this is the
+    // earlier, clearer failure.
+    if code != project_code {
+        bail!(
+            "{repo} declares Project `{code}`, but it is being staged for `{project_code}`. \
+             One matter's application must not mount on another's portal."
+        );
+    }
+
     // Stage the manifest beside the bundle: boot re-reads the declared Project
-    // rather than trusting whoever set the environment variable.
-    let stage = staged_root(workspace_root);
+    // rather than trusting the directory it was found in.
+    let stage = staged_for(workspace_root, project_code);
     let copied = copy_tree(&built, &stage.join(store::sample_project::DIST_DIR))?;
     std::fs::write(stage.join(store::sample_project::MANIFEST_FILE), &manifest)
         .with_context(|| format!("staging the manifest in {}", stage.display()))?;
@@ -317,16 +421,16 @@ pub(super) fn run_for_root(
         println!("navigator: kept the build tree at {}", path.display());
     }
 
-    Ok((stage, copied))
+    Ok(copied)
 }
 
-/// What to tell the operator once the bundle is staged.
+/// What to tell the operator once the bundles are staged.
 ///
 /// Built as a string so the refresh output is covered by a focused test.
-fn staging_instructions(copied: usize, stage: &Path) -> String {
+fn staging_instructions(copied: usize, matters: usize, stage: &Path) -> String {
     format!(
-        "\nnavigator: staged {copied} file(s) to {}\n\n\
-         The next `web` boot reads it from the generated `.devx/env`.\n",
+        "\nnavigator: staged {copied} file(s) across {matters} matter(s) under {}\n\n\
+         The next `web` boot reads them from the generated `.devx/env`.\n",
         stage.display(),
     )
 }
@@ -351,66 +455,137 @@ mod tests {
     /// flag exists for.
     #[test]
     fn an_explicit_repo_wins_without_reading_the_store() {
-        let chosen = choose_repo(Some("https://example.test/a-fork/x.git"), || {
-            panic!("the store must not be consulted when --repo is given")
-        })
+        let chosen = choose_repo(
+            "donut-litigation",
+            Some("https://example.test/a-fork/x.git"),
+            Some("https://example.test/compiled-in.git"),
+            || panic!("the store must not be consulted when --repo is given"),
+        )
         .expect("a repo");
         assert_eq!(chosen, "https://example.test/a-fork/x.git");
     }
 
     /// With no flag, the Project's own recorded URL is what gets cloned —
-    /// whatever forge it names.
+    /// whatever forge it names, and in preference to the compiled-in default.
+    /// That preference is what keeps repointing a matter a data change.
     #[test]
-    fn the_projects_recorded_url_is_cloned_when_no_flag_is_given() {
-        let chosen = choose_repo(None, || {
-            Ok(Lookup::Project(Some(
-                "https://gitlab.example/a-group/a-project.git".to_string(),
-            )))
-        })
+    fn the_projects_recorded_url_beats_the_compiled_in_default() {
+        let chosen = choose_repo(
+            "donut-litigation",
+            None,
+            Some("https://github.test/neon/compiled-in.git"),
+            || {
+                Ok(Lookup::Project(Some(
+                    "https://gitlab.example/a-group/a-project.git".to_string(),
+                )))
+            },
+        )
         .expect("a repo");
         assert_eq!(chosen, "https://gitlab.example/a-group/a-project.git");
     }
 
-    /// The two absences are different problems, so they get different messages.
-    ///
-    /// Neither falls back to a compiled-in upstream: this command carries no
-    /// default, and a silent one would clone somebody else's repository onto a
-    /// matter's portal.
+    /// A store nobody has seeded yet falls back to the matter's compiled-in
+    /// repository, because that is the URL the seed is about to write. This is
+    /// the first-boot path: the orchestrator stages the bundles *before*
+    /// anything has created a Project row to read.
     #[test]
-    fn each_absence_names_its_own_fix_rather_than_falling_back() {
-        let no_project = choose_repo(None, || Ok(Lookup::NoProject))
-            .expect_err("a store with no such Project is an error");
+    fn an_unseeded_store_falls_back_to_the_matters_own_repository() {
+        let chosen = choose_repo(
+            "widget-works",
+            None,
+            Some("https://github.test/neon/navigator-sample-project-transactional"),
+            || Ok(Lookup::NoProject),
+        )
+        .expect("a repo");
+        assert_eq!(
+            chosen,
+            "https://github.test/neon/navigator-sample-project-transactional"
+        );
+    }
+
+    /// The two absences are different problems, so they get different
+    /// messages — and a row that exists with an empty URL is still an error.
+    /// Something deliberately cleared it, so falling back would overwrite that
+    /// decision with a default the operator did not ask for.
+    #[test]
+    fn each_absence_names_its_own_fix() {
+        let no_project = choose_repo("donut-litigation", None, None, || Ok(Lookup::NoProject))
+            .expect_err("a store with no such Project and no default is an error");
         let message = no_project.to_string();
         assert!(
             message.contains("start `web` once") && message.contains("--repo"),
             "the no-Project error must name both fixes: {message}"
         );
 
-        let no_url = choose_repo(None, || Ok(Lookup::Project(None)))
-            .expect_err("a Project with no repository URL is an error");
+        let no_url = choose_repo(
+            "donut-litigation",
+            None,
+            Some("https://github.test/neon/compiled-in.git"),
+            || Ok(Lookup::Project(None)),
+        )
+        .expect_err("a Project with no repository URL is an error");
         let message = no_url.to_string();
         assert!(
             message.contains("records no repository URL"),
             "the no-URL error must say the column is empty: {message}"
         );
         assert!(
-            !message.contains("github.com"),
-            "no default upstream may appear in the error: {message}"
+            !message.contains("compiled-in"),
+            "a cleared URL must not be silently refilled from the default: {message}"
         );
     }
 
     /// A failed lookup propagates rather than being read as "no URL recorded".
     ///
     /// Otherwise an unreachable database would produce the *set one on the
-    /// matter* advice, sending the reader to fix a row that is probably fine.
+    /// matter* advice, sending the reader to fix a row that is probably fine —
+    /// or worse, silently build the compiled-in default.
     #[test]
     fn a_failed_lookup_propagates_instead_of_becoming_an_absence() {
-        let error = choose_repo(None, || anyhow::bail!("connection refused"))
-            .expect_err("a lookup failure is an error");
+        let error = choose_repo("donut-litigation", None, Some("https://x/y.git"), || {
+            anyhow::bail!("connection refused")
+        })
+        .expect_err("a lookup failure is an error");
         assert!(
             error.to_string().contains("connection refused"),
             "the underlying failure must survive: {error}"
         );
+    }
+
+    /// No `--project` refreshes everything; naming one narrows to it; a name
+    /// that is not a matter is refused with the list rather than refreshing
+    /// nothing and reporting success.
+    #[test]
+    fn choosing_matters_defaults_to_all_and_refuses_an_unknown_name() {
+        let known = ["donut-litigation", "widget-works", "montgomery-estate"];
+
+        assert_eq!(choose_matters(None, &known).expect("all"), known.to_vec());
+        assert_eq!(
+            choose_matters(Some("widget-works"), &known).expect("one"),
+            vec!["widget-works"]
+        );
+
+        let error = choose_matters(Some("no-such-matter"), &known)
+            .expect_err("a name that is not a matter must fail");
+        let message = error.to_string();
+        assert!(
+            message.contains("not a simulated matter") && message.contains("donut-litigation"),
+            "the error must list the real matters: {message}"
+        );
+    }
+
+    /// Every matter the seed carries resolves a compiled-in repository, so the
+    /// orchestrator's first-boot staging can never be handed a `None`.
+    #[test]
+    fn every_simulated_matter_records_a_repository() {
+        let codes = store::seed::simulated_matter_codes();
+        assert!(!codes.is_empty(), "the fixture carries at least one matter");
+        for code in codes {
+            let url = store::seed::simulated_matter_repository(code)
+                .unwrap_or_else(|| panic!("`{code}` records a repository"));
+            assert!(url.starts_with("https://"), "`{code}` -> {url}");
+        }
+        assert_eq!(store::seed::simulated_matter_repository("nope"), None);
     }
 
     /// A missing or unusable manifest is refused before a build is spent, and
@@ -438,13 +613,13 @@ mod tests {
 
         std::fs::write(
             dir.path().join(store::sample_project::MANIFEST_FILE),
-            b"name: simpsons\n",
+            b"name: donut-litigation\n",
         )
         .expect("write");
         let (manifest, code) = declared_project(dir.path()).expect("a valid manifest");
-        assert_eq!(code, "simpsons");
+        assert_eq!(code, "donut-litigation");
         assert_eq!(
-            manifest, "name: simpsons\n",
+            manifest, "name: donut-litigation\n",
             "the text is staged verbatim, so it must come back unaltered"
         );
     }
@@ -508,12 +683,16 @@ mod tests {
     /// The refresh output names the staged path and the generated environment.
     #[test]
     fn the_instructions_name_the_key_boot_reads_and_the_staged_path() {
-        let text = staging_instructions(5, Path::new("/w/.devx/sample-project"));
+        let text = staging_instructions(5, 3, Path::new("/w/.devx/sample-projects"));
         assert!(
-            text.contains("The next `web` boot reads it from the generated `.devx/env`."),
+            text.contains("The next `web` boot reads them from the generated `.devx/env`."),
             "{text}"
         );
-        assert!(text.contains("staged 5 file(s)"), "{text}");
+        assert!(
+            text.contains("staged 5 file(s) across 3 matter(s)"),
+            "{text}"
+        );
+        assert!(text.contains("/w/.devx/sample-projects"), "{text}");
     }
 
     /// `run_in` reports a failing command and a missing one differently.
@@ -570,19 +749,25 @@ mod tests {
         );
     }
 
+    /// One staging root, one subdirectory per matter. `web` reads the root
+    /// from a single generated variable and finds every bundle under it.
     #[test]
-    fn staged_root_lives_under_devx() {
+    fn staged_paths_live_under_devx_one_directory_per_matter() {
         assert_eq!(
             staged_root(Path::new("/w")),
-            PathBuf::from("/w/.devx/sample-project")
+            PathBuf::from("/w/.devx/sample-projects")
+        );
+        assert_eq!(
+            staged_for(Path::new("/w"), "montgomery-estate"),
+            PathBuf::from("/w/.devx/sample-projects/montgomery-estate")
         );
     }
 
     #[test]
     fn repo_basename_reads_through_the_git_suffix_and_trailing_slash() {
         assert_eq!(
-            repo_basename("https://github.com/o/navigator-sample-project.git"),
-            "navigator-sample-project"
+            repo_basename("https://github.com/o/navigator-sample-project-estate.git"),
+            "navigator-sample-project-estate"
         );
         // SCP-style remotes split on the same `/` as a URL path.
         assert_eq!(repo_basename("git@github.com:o/r.git"), "r");

@@ -808,10 +808,16 @@ pub fn dispatch(command: crate::Command) -> Result<()> {
         crate::Command::Dev(crate::DevCmd::GarageBootstrap) => garage::bootstrap(&cfg),
         crate::Command::Dev(crate::DevCmd::GrantLawyer) => e2e::grant_lawyer(&cfg),
         crate::Command::Dev(crate::DevCmd::SampleProject {
+            project,
             repo,
             git_ref,
             keep,
-        }) => sample_project::run(repo.as_deref(), git_ref.as_deref(), keep),
+        }) => sample_project::run(
+            project.as_deref(),
+            repo.as_deref(),
+            git_ref.as_deref(),
+            keep,
+        ),
         crate::Command::Dev(crate::DevCmd::BrowserE2e { base_url }) => {
             browser_e2e::run_browser_e2e(base_url.as_deref())
         }
@@ -1949,12 +1955,16 @@ fn render_env_for(cfg: &KindConfig, db_name: &str, web_port: u16, root: &Path) -
                     .to_string(),
             ),
         ),
+        // One directory holding every staged matter's bundle, each under its
+        // own Project code. Boot re-reads each `navigator.yml` rather than
+        // trusting the directory name, so a bundle staged under the wrong
+        // code is refused instead of published on another matter's portal.
         (
-            "NAVIGATOR_SAMPLE_PROJECT_DIR",
+            store::sample_project::STAGE_ENV,
             shell_single_quote(
                 &root
                     .join(".devx")
-                    .join("sample-project")
+                    .join("sample-projects")
                     .display()
                     .to_string(),
             ),

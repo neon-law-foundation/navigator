@@ -35,9 +35,9 @@ use crate::components::{
     FormCard, Freshness, GitHubStars, Icon, IconName, ImpersonationBanner, ImpersonationView,
     LawyerPortalBreadcrumb, LegalBlueprintDisclaimer, NavigatorDestination, NavigatorFooter,
     NavigatorFooterLink, NavigatorNavbar, NavigatorShell, NebulaHero, Pagination, PeopleListInputs,
-    PricingCard, PricingSection, PublicShell, RowActions, RunParagraph, SiteFooterFoundation,
-    SiteFooterLegal, SiteHeader, SiteNavLink, SocialMeta, SortState, TestimonialCard,
-    TestimonialSection, Toast, ToastTone, THEME_STYLESHEET_HREF,
+    PricingCard, PricingSection, PublicShell, RowActions, RunParagraph, SimulatedMattersBanner,
+    SiteFooterFoundation, SiteFooterLegal, SiteHeader, SiteNavLink, SocialMeta, SortState,
+    TestimonialCard, TestimonialSection, Toast, ToastTone, THEME_STYLESHEET_HREF,
 };
 
 /// The demo table's advertised sort keys — the JSON:API contract's allow-list.
@@ -385,6 +385,7 @@ pub fn DesignGallery() -> Element {
             TestimonialShowcase {}
             DisclaimerShowcase {}
             ImpersonationShowcase {}
+            SimulatedMattersShowcase {}
             CopyRunsShowcase {}
             NebulaHeroShowcase {}
             SiteHeaderShowcase {}
@@ -811,6 +812,28 @@ fn ImpersonationShowcase() -> Element {
                     csrf_token: String::new(),
                 },
             }
+        }
+    }
+}
+
+/// The site-wide notice a deployment holding invented matters publishes.
+///
+/// Shown here so the accessibility gate audits its contrast: the ground and
+/// ink are the one token pair in `tokens.css` that does *not* flip between
+/// themes, because a reader must not be able to miss this because their OS is
+/// in dark mode.
+#[component]
+fn SimulatedMattersShowcase() -> Element {
+    rsx! {
+        section {
+            h2 { "Simulated-matter banner" }
+            p {
+                "A deployment whose matters are invented says so on every page. It is \
+                 injected into every HTML response rather than rendered per page, because \
+                 the pages that carried it would teach a reader to trust its absence on \
+                 the ones that did not — the error pages above all."
+            }
+            SimulatedMattersBanner {}
         }
     }
 }
@@ -1316,6 +1339,7 @@ mod tests {
             "PricingSection",
             "PublicShell",
             "RowActions",
+            "SimulatedMattersBanner",
             "SiteFooterFoundation",
             "SiteFooterLegal",
             "SiteHeader",

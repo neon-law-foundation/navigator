@@ -180,9 +180,8 @@ supplies:
   wildcard redirect, logout, and origin URLs for isolated worktree ports.
 - **Role accounts:** `owner@neonlaw.com`, `admin@neonlaw.com`, `lawyer@neonlaw.com`, `clerk@neonlaw.com`, and
   `client@neonlaw.com`, each with password `password` and each carrying the matching app role. Four of the five are
-  seeded onto one demo matter, *Simpson v. Flanders* (project code `simpsons`); `admin@neonlaw.com` deliberately holds
-  no participation on it, so the fixture Admin is an unassigned administrator and sees the matter in neither the list
-  nor the detail view.
+  seeded onto all three demo matters; `admin@neonlaw.com` deliberately holds no participation on any of them, so the
+  fixture Admin is an unassigned administrator and sees them in neither the list nor the detail view.
 - **Rauthy administrator:** `nick@neonlaw.com` / `admin`, with the admin surface at
   `http://localhost:<rauthy-port>/auth/v1/admin`.
 

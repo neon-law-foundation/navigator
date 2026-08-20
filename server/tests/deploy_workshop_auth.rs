@@ -334,7 +334,7 @@ fn workshop_keeps_a_no_code_email_password_path_named() {
 #[test]
 fn local_rauthy_presenter_accounts_match_the_dev_seed_contract() {
     // A fresh KIND rehearsal relies on two joins: Rauthy username → email,
-    // then email → the disposable Person and Simpsons participation. Keep the
+    // then email → the disposable Person and litigation participation. Keep the
     // first join structured here; store's environment test exercises the rows
     // and participation in a real database.
     let rauthy = repo_file("k8s/overlays/kind/rauthy/local-fixture.yaml");
@@ -379,14 +379,14 @@ fn local_rauthy_presenter_accounts_match_the_dev_seed_contract() {
 
     let seed = repo_file("store/src/seed.rs");
     for token in [
-        "SIMPSONS_PROJECT_CODE: &str = \"simpsons\"",
+        "DONUT_LITIGATION_CODE: &str = \"donut-litigation\"",
         "lawyer@neonlaw.com",
         "\"client@neonlaw.com\"",
         "lawyer_id, \"attorney\"",
     ] {
         assert!(
             seed.contains(token),
-            "the dev seed must keep the Rauthy mapping and Simpsons participation: missing `{token}`",
+            "the dev seed must keep the Rauthy mapping and litigation participation: missing `{token}`",
         );
     }
 }

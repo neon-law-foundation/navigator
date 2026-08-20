@@ -160,9 +160,9 @@ async fn lawyer_logs_in_and_reaches_the_signed_in_chrome() {
 
 /// Fresh `dev` boot smoke: unlike the upload scenario below this test
 /// creates no data. It proves the Rauthy Lawyer harness can work
-/// the Simpsons fixture that startup seeded.
+/// the simulated-matter fixture that startup seeded.
 #[tokio::test]
-async fn stock_local_personas_reach_simpsons_through_their_own_lenses() {
+async fn stock_local_personas_reach_the_litigation_matter_through_their_own_lenses() {
     // This is the presenter dry run: the Rauthy fixture, development seed,
     // and browser-visible authorization all agree without a manual SQL grant.
     let Some(lawyer_browser) = new_client_or_skip().await else {
@@ -170,14 +170,14 @@ async fn stock_local_personas_reach_simpsons_through_their_own_lenses() {
     };
     login_as_lawyer(&lawyer_browser).await;
     // The stock `lawyer` login is a paralegal participant on every seeded
-    // Simpsons matter, so it reaches the project through the *lawyer* lens at
+    // litigation matter, so it reaches the project through the *lawyer* lens at
     // `/app/projects` — the workbench backed by `visible_projects_as_lawyer`. The
     // reload-aware wait rides out a workbench that is still settling immediately
     // after the deploy's rollout.
     wait_for_text_reloading(
         &lawyer_browser,
         &format!("{}/app/projects", base_url()),
-        "Simpson v. Flanders",
+        "Cruller v. Prine",
         Duration::from_secs(30),
     )
     .await;
@@ -193,7 +193,7 @@ async fn stock_local_personas_reach_simpsons_through_their_own_lenses() {
     wait_for_text_reloading(
         &client_browser,
         &format!("{}/app/projects", base_url()),
-        "Simpson v. Flanders",
+        "Cruller v. Prine",
         Duration::from_secs(30),
     )
     .await;
@@ -1214,7 +1214,7 @@ async fn a_portal_deep_link_falls_back_to_the_published_entrypoint() {
 /// The serve gate is `store::access::can_see_project`, which reads the
 /// participation ledger and carries no Owner/Admin bypass — and the bundle is
 /// streamed through the handler rather than redirected to, so participation is
-/// rechecked on every object. The fixture client is seeded onto `simpsons` and
+/// rechecked on every object. The fixture client is seeded onto `donut-litigation` and
 /// onto no matter this test creates, which is exactly the shape that must be
 /// refused: authenticated, same tier as a real portal reader, wrong matter.
 ///
