@@ -436,7 +436,7 @@ mod tests {
         create_entity, delete_entity, firm_anchor_key, is_firm_anchor, update_entity,
         CreateEntityCommand, EntityCommandError, UpdateEntityCommand,
     };
-    use crate::entities;
+    use crate::entities::{self, EntityError};
     use crate::surreal::test_support::mem;
     use crate::surreal::SurrealDb;
     use uuid::Uuid;
@@ -671,6 +671,23 @@ mod tests {
         );
     }
 
+    /// The index refusal is the *only* thing that catches a fork the read
+    /// guard missed, and which of the two racers hits it is up to the
+    /// scheduler. The mapping is therefore asserted here, on the
+    /// conversion itself, rather than left to whichever door
+    /// `concurrent_creates_cannot_fork_the_firm_anchor` happens to lose.
+    /// A caller must read a refused fork as a fork, not as a database
+    /// fault it could retry.
+    #[test]
+    fn the_index_refusal_reads_as_a_fork_rather_than_a_database_fault() {
+        let mapped = EntityCommandError::from(EntityError::FirmAnchorTaken);
+        assert!(
+            matches!(mapped, EntityCommandError::FirmAnchorExists),
+            "{mapped:?}"
+        );
+        assert_eq!(mapped.user_message(), super::FIRM_ANCHOR_EXISTS_MESSAGE);
+    }
+
     #[tokio::test]
     async fn update_replaces_every_field_and_returns_the_saved_row() {
         let (surreal, type_id, jur_id) = fixture().await;
@@ -886,6 +903,49 @@ mod tests {
         ));
     }
 
+    /// The immutability check reads a snapshot; `entities::update`'s own
+    /// `WHERE` is the authority. Stage the window between them instead of
+    /// racing for it: the row reads as ordinary by name, and carries the
+    /// anchor key by the time the write runs, which is what a concurrent
+    /// rename leaves behind. The rename must then be refused as
+    /// immutable, not reported as a vanished row.
+    #[tokio::test]
+    async fn update_refuses_a_row_that_became_the_anchor_after_the_read() {
+        let (surreal, type_id, jur_id) = fixture().await;
+        let ordinary = create_entity(
+            &surreal,
+            "Acme Anchor",
+            &command("Beta LLC", type_id, jur_id),
+        )
+        .await
+        .unwrap();
+        entities::set_firm_anchor_key(&surreal, ordinary.id, Some("beta llc".into()))
+            .await
+            .unwrap();
+
+        let refused = update_entity(
+            &surreal,
+            ordinary.id,
+            "Acme Anchor",
+            &edit("Gamma LLC", type_id, jur_id),
+        )
+        .await;
+
+        assert!(
+            matches!(refused, Err(EntityCommandError::FirmAnchorImmutable)),
+            "{refused:?}"
+        );
+        assert_eq!(
+            entities::find_by_id(&surreal, ordinary.id)
+                .await
+                .unwrap()
+                .unwrap()
+                .name,
+            "Beta LLC",
+            "the refused rename must leave the row alone"
+        );
+    }
+
     #[tokio::test]
     async fn update_maps_a_missing_reference_to_a_validation_error() {
         let (surreal, type_id, jur_id) = fixture().await;
@@ -1022,6 +1082,38 @@ mod tests {
             .await
             .unwrap()
             .is_none());
+    }
+
+    /// The delete door's anchor guard reads the name; the authority is
+    /// `entities::delete_unless_firm_anchor`'s own `WHERE`, which reads
+    /// the key. Stage the window between them rather than racing for it,
+    /// with the row ordinary by name and protected by key. The refusal
+    /// has to be `FirmAnchorProtected`, because reporting the row as
+    /// gone would tell an operator a removal happened.
+    #[tokio::test]
+    async fn delete_refuses_a_row_that_became_the_anchor_after_the_read() {
+        let (surreal, type_id, jur_id) = fixture().await;
+        let ordinary = create_entity(
+            &surreal,
+            "Acme Anchor",
+            &command("Beta LLC", type_id, jur_id),
+        )
+        .await
+        .unwrap();
+        entities::set_firm_anchor_key(&surreal, ordinary.id, Some("beta llc".into()))
+            .await
+            .unwrap();
+
+        let refused = delete_entity(&surreal, ordinary.id, "Acme Anchor").await;
+
+        assert!(
+            matches!(refused, Err(EntityCommandError::FirmAnchorProtected)),
+            "{refused:?}"
+        );
+        assert!(entities::find_by_id(&surreal, ordinary.id)
+            .await
+            .unwrap()
+            .is_some());
     }
 
     #[tokio::test]
