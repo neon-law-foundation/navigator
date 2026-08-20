@@ -261,22 +261,25 @@ test_anonymous_denied_on_the_foundation_pages if {
 	not authz.allow with input as {"path": ["transparency"], "method": "GET", "session": null}
 }
 
-# The catalog page is held to the same roles as the material it lists. A
-# client reaches neither: a table of contents for classes they cannot open is
-# not a page they gain anything from, and it names the firm's internal tiers.
+# Workshop reads are public and bypass this policy. Keep the client case here
+# as a guard against accidentally reintroducing a policy grant for the public
+# catalog or its class material.
 test_client_denied_on_the_workshops_catalog_and_its_classes if {
 	not authz.allow with input as {"path": ["workshops"], "method": "GET", "session": client_session}
 	not authz.allow with input as {"path": ["workshops", "use-the-navigator"], "method": "GET", "session": client_session}
 }
 
-# Every firm-side role reads the catalog, including the supervised Clerk.
-test_firm_side_roles_read_the_workshops_catalog if {
-	authz.allow with input as {"path": ["workshops"], "method": "GET", "session": owner_session}
-	authz.allow with input as {"path": ["workshops"], "method": "GET", "session": admin_session}
-	authz.allow with input as {"path": ["workshops"], "method": "GET", "session": lawyer_session}
-	authz.allow with input as {"path": ["workshops"], "method": "GET", "session": clerk_session}
+# Lawyer and Clerk likewise do not need a policy grant for public material;
+# Owner and Admin remain covered by their general bypass, which is unrelated
+# to the public route's authorization.
+test_firm_side_roles_do_not_need_a_workshop_policy_grant if {
+	not authz.allow with input as {"path": ["workshops"], "method": "GET", "session": lawyer_session}
+	not authz.allow with input as {"path": ["workshops"], "method": "GET", "session": clerk_session}
+	not authz.allow with input as {"path": ["workshops", "use-the-navigator"], "method": "GET", "session": lawyer_session}
+	not authz.allow with input as {"path": ["workshops", "use-the-navigator"], "method": "GET", "session": clerk_session}
 }
 
+# Anonymous access is also handled by the public route rather than this policy.
 test_anonymous_denied_on_the_workshops_catalog if {
 	not authz.allow with input as {"path": ["workshops"], "method": "GET", "session": null}
 }

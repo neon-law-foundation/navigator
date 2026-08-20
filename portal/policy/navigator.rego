@@ -180,8 +180,7 @@ allow if {
 # The Foundation's reading surfaces behind the session boundary. The talks
 # are the Foundation's public face and render at `/`; everything else it
 # publishes — the mission letter, Notations, the transparency disclosures,
-# the workshops catalog page — is readable by
-# any authenticated person.
+# is readable by any authenticated person.
 #
 # This is a *reading* grant and nothing more: no role is implied by it, and a
 # `client` reaches exactly these pages and no others. The stricter workshop
