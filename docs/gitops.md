@@ -665,7 +665,7 @@ Every roll target is a directory in the repository's `deployments/` tree: one `o
 first, then production, every deployment on the same tag.
 
 Staging is the only gate on the way to production, and it is the only one that earns its place. It runs the same
-`neon-server` image over a simulated data plane, so a failure there is evidence about the version rather than about real
+`neon-server` image over a sample data plane, so a failure there is evidence about the version rather than about real
 people's matters — which is exactly what a canary has to be. Nothing rolls it on your behalf any more, so it is a step
 the operator takes before the row clients are on rather than one a run reports.
 

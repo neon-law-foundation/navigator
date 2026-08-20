@@ -310,7 +310,7 @@ The topology is three runtime projects and the deployments checked into `deploym
 `neon-law-prod`, and `neon-law-prod`, each carrying its own `config.toml` and `secrets.enc.yaml`, and each rolled by the
 release run. `neon-law-prod` is provisioned in `neon-law-prod` and live: `www.neonlaw.com` resolves to its gateway IP
 and is served by its Ingress, so all three rows now serve their own public host. `neon-law-stg` is the only persistent
-staging lane; it exercises simulated matters through the same shared application, data-access, authorization, API, and
+staging lane; it exercises sample matters through the same shared application, data-access, authorization, API, and
 agent-protocol code used by every production brand. The image hub is a fourth project, `ghcr`, and is not an
 environment.
 
@@ -754,8 +754,8 @@ sole manifest owner, so a `RootSync` cannot revert one site's environment-specif
 
 | Operating mode | Selector | Runtime and data posture |
 | --- | --- | --- |
-| **Test** | `dev` + `NAVIGATOR_CI_HARNESS=1` | Schemas/KIND; simulated matters; canonical seed + test fixtures |
-| **Dev** | `dev`; harness normally unset | KIND/cloud namespace; sandbox vendors; canonical seed + simulated matters |
+| **Test** | `dev` + `NAVIGATOR_CI_HARNESS=1` | Schemas/KIND; sample matters; canonical seed + test fixtures |
+| **Dev** | `dev`; harness normally unset | KIND/cloud namespace; sandbox vendors; canonical seed + sample matters |
 | **Production** | `production`, empty, or unset | Hosted services; production vendors; canonical seed + live data |
 
 ---
@@ -770,20 +770,20 @@ absent selector is production-safe.
 The `-staging` suffix remains a deployment identity and release ring in `deployments/` directory names, Kubernetes
 namespaces, data planes, and public hosts. It never becomes a weaker runtime profile. Set both `NAVIGATOR_ENVIRONMENT`
 and `NAVIGATOR_CREDENTIAL_ENVIRONMENT` to `production` in `deployments/neon-law-stg/config.toml`; the runtime also
-fences provider endpoints, so the proving ring keeps production boot checks while its isolated data plane holds
-simulated matters.
+fences provider endpoints, so the proving ring keeps production boot checks while its isolated data plane holds sample
+matters.
 
 The data rule is small but not flat: every boot applies the same embedded, environment-blind canonical seed —
-jurisdictions above all, the reference table every entity and licensure record points at — and a boot carrying simulated
+jurisdictions above all, the reference table every entity and licensure record points at — and a boot carrying sample
 matters additionally and idempotently applies the compiled fixture (three synthetic matters, their participants, and the
 rows used by the portal walkthrough). Tests may add rows inside their isolated schemas.
 
-### The deployment that says its matters are simulated
+### The deployment that says its matters are sample
 
 `NAVIGATOR_SIMULATED_MATTERS` is the second selector, and it answers a different question from the first. The profile
 above decides which runtime wiring a boot gets; this decides whether the matters in front of a visitor are invented.
 
-Left unset or empty it follows the profile: a `dev` boot carries simulated matters because that is all a `dev` boot has,
+Left unset or empty it follows the profile: a `dev` boot carries sample matters because that is all a `dev` boot has,
 and a `production` boot does not, because production is where the real files are. Exactly `true` or `false` overrides
 that in both directions, and every other value — `TRUE`, `1`, `yes`, a case or whitespace variant — is rejected rather
 than resolved to the permissive answer. That exactness is the point: a typo that quietly read as `true` would seed
@@ -797,10 +797,10 @@ client files. It therefore says so itself, in `deployments/neon-law-stg/config.t
 NAVIGATOR_SIMULATED_MATTERS = "true"
 ```
 
-Two things follow from that value. `store::seed` applies the simulated-matter fixture, so the row carries
-`donut-litigation`, `widget-works`, and `montgomery-estate` rather than an empty portfolio. And every page publishes a
-site-wide banner saying the matters are simulated — which is why `staging.neonlaw.com` is a link worth handing to
-somebody, because a demo matter cannot be mistaken for a client's file.
+Two things follow from that value. `store::seed` applies the sample-matter fixture, so the row carries
+`sample-litigation`, `sample-transactional`, and `sample-estate` rather than an empty portfolio. And every page
+publishes a site-wide banner saying the matters are sample — which is why `staging.neonlaw.com` is a link worth handing
+to somebody, because a demo matter cannot be mistaken for a client's file.
 
 It is a **coordinate, not a credential**, so it lives in `config.toml` beside the buckets and hostnames rather than in
 that deployment's `secrets.enc.yaml`. Adding it needs no SOPS re-encryption on either row.
@@ -963,7 +963,7 @@ that credential in each deployment's `secrets.enc.yaml` at the same time.
 | Concern | Environment variables |
 | --- | --- |
 | Profile fence | `NAVIGATOR_ENVIRONMENT`, `NAVIGATOR_CI_HARNESS`, `NAVIGATOR_CREDENTIAL_ENVIRONMENT` |
-| Simulated matters | `NAVIGATOR_SIMULATED_MATTERS` |
+| Sample matters | `NAVIGATOR_SIMULATED_MATTERS` |
 | HTTP identity | `PORT`, `NAV_BASE_URL`, `CANONICAL_HOST`, `NAVIGATOR_RATE_LIMIT_PER_MIN` |
 | Branding and public assets | `NAVIGATOR_CUSTOM_BRANDING`, `NAVIGATOR_ASSET_BASE_URL` |
 | Store | `NAVIGATOR_SURREAL_ENDPOINT`, `NAVIGATOR_SURREAL_NAMESPACE`, `NAVIGATOR_SURREAL_DATABASE` |
@@ -1204,12 +1204,12 @@ selects one site's `deployments/<name>/config.toml` before it renders, diffs, an
 accepts exact `production` (or empty/unset) for every persistent hosted deployment. Exact `dev` belongs to the
 disposable `navigator dev staging` lane, not `neon-law-stg`.
 
-### When simulated data appears
+### When sample data appears
 
 | Surface | Local dev | Disposable `dev staging` | Persistent hosted rows |
 | --- | --- | --- | --- |
 | **Canonical database seed** | Always runs | Always runs | Always runs |
-| **Simulated-matter fixture** | Always runs (`dev`) | Always runs (`dev`) | `neon-law-stg` only |
+| **Sample-matter fixture** | Always runs (`dev`) | Always runs (`dev`) | `neon-law-stg` only |
 | **Test-local database fixtures** | Browser/E2E harness only | Integration harness only | Never |
 | Email | `CapturingEmail` by default | Non-production SendGrid | Production SendGrid |
 | E-signature | Stub IDs and documents | Non-binding DocuSign demo | Live DocuSign |
@@ -1224,11 +1224,11 @@ the bundled catalog and firm-owned baseline rows in every deployment, production
 clearest example of the distinction this table encodes. The full reference set — all 248 rows of
 `store/seeds/Jurisdiction.yaml`, every US state plus DC and every sovereign a matter can touch — is seeded on **every**
 boot in **every** environment, because an entity's domicile and an attorney's licensure must resolve wherever the
-application runs; since ENG-20 those rows live in SurrealDB, but the rule is engine-blind. The simulated-matter fixture
-— three synthetic Projects, their participants, and their walkthrough rows — is the second, idempotent layer. It is
+application runs; since ENG-20 those rows live in SurrealDB, but the rule is engine-blind. The sample-matter fixture —
+three synthetic Projects, their participants, and their walkthrough rows — is the second, idempotent layer. It is
 applied wherever `NAVIGATOR_SIMULATED_MATTERS` resolves true: every `dev` boot, whether local KIND or the disposable
 staging lane, plus `neon-law-stg`, which says so explicitly because its own runtime profile is `production`. So
-`staging.neonlaw.com` serves the three demo matters under the simulated-matter banner, and `www.neonlaw.com` holds live
+`staging.neonlaw.com` serves the three demo matters under the sample-matter banner, and `www.neonlaw.com` holds live
 matters and no fixture; both receive the same canonical reference data. Both layers are applied by one environment-aware
 orchestration call (`store::seed::seed_environment`), so a reset or recreate restores the same baseline automatically.
 Provider simulation is a separate axis: the test harness permits fakes, while non-harness dev uses sandbox integrations.

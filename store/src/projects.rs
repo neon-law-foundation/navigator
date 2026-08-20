@@ -55,6 +55,21 @@ pub struct Project {
     /// The Slack channel shared with the client, if this matter has one.
     /// Optional: most matters never get a client-facing channel.
     pub external_slack_channel_url: Option<String>,
+    /// The firm-only Notion page for this matter — the internal write-up,
+    /// research, and working notes. Paired with
+    /// [`Self::shared_notion_page_url`] for the same reason the two Slack
+    /// columns are separate: one page is firm-only work product and the other
+    /// is client-visible, and a single column would make a mistaken paste the
+    /// difference between them.
+    ///
+    /// Navigator stores the address only. Who may open the page is governed in
+    /// Notion's own sharing, which Navigator neither reads nor enforces — so a
+    /// firm-only page must be shared to the firm's Notion group, not left on
+    /// its workspace default.
+    pub private_notion_page_url: Option<String>,
+    /// The Notion page shared with the client, if this matter has one. Optional
+    /// in exactly the way [`Self::external_slack_channel_url`] is.
+    pub shared_notion_page_url: Option<String>,
     pub inserted_at: String,
     pub updated_at: String,
 }
@@ -74,6 +89,8 @@ struct ProjectRow {
     closed_at: Option<String>,
     internal_slack_channel_url: Option<String>,
     external_slack_channel_url: Option<String>,
+    private_notion_page_url: Option<String>,
+    shared_notion_page_url: Option<String>,
     inserted_at: String,
     updated_at: String,
 }
@@ -94,6 +111,8 @@ impl ProjectRow {
             closed_at: self.closed_at,
             internal_slack_channel_url: self.internal_slack_channel_url,
             external_slack_channel_url: self.external_slack_channel_url,
+            private_notion_page_url: self.private_notion_page_url,
+            shared_notion_page_url: self.shared_notion_page_url,
             inserted_at: self.inserted_at,
             updated_at: self.updated_at,
         })
@@ -108,6 +127,7 @@ const PROJECT_SELECT: &str = "id, code, name, status, entity_id, description, \
                               drive_folder_id, repository_url, git_initialized_at, \
                               forge_provisioned_at, closed_at, \
                               internal_slack_channel_url, external_slack_channel_url, \
+                              private_notion_page_url, shared_notion_page_url, \
                               inserted_at, updated_at";
 
 /// Errors from the SurrealDB Project read seam.
@@ -988,6 +1008,31 @@ pub fn is_valid_repository_url(url: &str) -> bool {
     !authority.is_empty() && !authority.contains('@') && !path.trim_matches('/').is_empty()
 }
 
+/// Human-readable reason [`is_valid_resource_url`] refuses a value, used as
+/// the caller-correctable message on the command boundary.
+pub const RESOURCE_URL_INVALID: &str =
+    "A resource link must be an http(s):// URL naming a host and a path.";
+
+/// Whether a value is usable as one of the matter's collaboration resource
+/// links — the two Slack channels and the two Notion pages.
+///
+/// Every one of these is rendered as an `href` on the matter page, to lawyer
+/// and client alike, which is the whole reason they are validated rather than
+/// merely trimmed. The rule is [`is_valid_repository_url`]'s: `http(s)` only,
+/// a real host, a non-empty path, no whitespace, and no embedded credential.
+/// A `javascript:` or `data:` value would execute instead of navigating, and a
+/// `user:token@host` value would put a secret into a rendered page.
+///
+/// It is deliberately the *same* rule rather than a looser one. These columns
+/// hold third-party addresses the firm pastes in, so there is no shape to
+/// check beyond "this is a link that navigates somewhere" — and a resource
+/// panel that trusted one column more than another would be a gap waiting for
+/// the next field to be added to the wrong half.
+#[must_use]
+pub fn is_valid_resource_url(url: &str) -> bool {
+    is_valid_repository_url(url)
+}
+
 /// The notation id of the person's **sole open matter**, for auto-routing an
 /// inbound message to a matter without manual triage. Returns `Some` only
 /// when the person is the client (`notations.person_id`) on exactly one
@@ -1242,7 +1287,7 @@ pub async fn set_drive_folder_id(
 /// not this general edit. `name` is a full replacement;
 /// `entity_id`, `description`, and the two Slack channel links are optional
 /// so a caller can leave any of them untouched.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, Default, serde::Deserialize)]
 pub struct UpdateProjectCommand {
     pub name: String,
     #[serde(default)]
@@ -1257,6 +1302,13 @@ pub struct UpdateProjectCommand {
     /// submission clears it; an omitted one leaves it untouched.
     #[serde(default)]
     pub repository_url: Option<String>,
+    /// The firm-only Notion page. A blank submission clears it; an omitted one
+    /// leaves it untouched.
+    #[serde(default)]
+    pub private_notion_page_url: Option<String>,
+    /// The client-shared Notion page, on the same blank-clears terms.
+    #[serde(default)]
+    pub shared_notion_page_url: Option<String>,
 }
 
 /// Set or clear the Project's source repository URL.
@@ -1332,6 +1384,59 @@ pub enum ProjectCommandError {
     Db(String),
 }
 
+/// Refuse any collaboration resource link that would not navigate.
+///
+/// Split out of [`update_project`] so the command body stays about *what* it
+/// writes. Each of the four is rendered as an `href` on the matter page, to
+/// lawyer and client alike, so the gate is the same for all of them — a panel
+/// that trusted one column more than another would be a gap waiting for the
+/// next field to be added to the wrong half. A blank value is the documented
+/// way to clear a column, so it passes.
+/// The optional text columns [`update_project`] may set, each paired with the
+/// command field it reads.
+///
+/// One table drives both halves of the sparse update — which assignments the
+/// `SET` clause carries and which parameters are bound — so a new optional
+/// column is one row here instead of two `if` blocks that must agree. `None`
+/// means "leave this column alone"; `Some("")` means "clear it".
+fn optional_text_columns(input: &UpdateProjectCommand) -> [(&'static str, Option<&String>); 6] {
+    [
+        ("description", input.description.as_ref()),
+        (
+            "internal_slack_channel_url",
+            input.internal_slack_channel_url.as_ref(),
+        ),
+        (
+            "external_slack_channel_url",
+            input.external_slack_channel_url.as_ref(),
+        ),
+        ("repository_url", input.repository_url.as_ref()),
+        (
+            "private_notion_page_url",
+            input.private_notion_page_url.as_ref(),
+        ),
+        (
+            "shared_notion_page_url",
+            input.shared_notion_page_url.as_ref(),
+        ),
+    ]
+}
+
+fn validate_resource_links(input: &UpdateProjectCommand) -> Result<(), ProjectCommandError> {
+    let links = [
+        &input.internal_slack_channel_url,
+        &input.external_slack_channel_url,
+        &input.private_notion_page_url,
+        &input.shared_notion_page_url,
+    ];
+    for url in links.into_iter().flatten() {
+        if !url.trim().is_empty() && !is_valid_resource_url(url) {
+            return Err(ProjectCommandError::Invalid(RESOURCE_URL_INVALID));
+        }
+    }
+    Ok(())
+}
+
 /// Update a matter's descriptive fields — name, entity, scope narrative, its
 /// Slack channels, and its source repository URL. Behind both the JSON
 /// `PATCH /app/api/projects/{id}` command and the `/app/projects/{id}` edit
@@ -1369,6 +1474,7 @@ pub async fn update_project(
             return Err(ProjectCommandError::Invalid(REPOSITORY_URL_INVALID));
         }
     }
+    validate_resource_links(input)?;
     if find_by_id(surreal, id)
         .await
         .map_err(|error| ProjectCommandError::Db(error.to_string()))?
@@ -1388,21 +1494,21 @@ pub async fn update_project(
             return Err(ProjectCommandError::Invalid("That entity does not exist."));
         }
     }
-    let mut assignments = vec!["name = $name", "updated_at = $updated_at"];
+    // The optional text columns are handled from one table, so a column is set
+    // and bound from the same row rather than from two `if` blocks a hundred
+    // lines apart that have to be kept in step.
+    let text_columns = optional_text_columns(input);
+    let mut assignments = vec![
+        "name = $name".to_string(),
+        "updated_at = $updated_at".to_string(),
+    ];
     if input.entity_id.is_some() {
-        assignments.push("entity_id = $entity_id");
+        assignments.push("entity_id = $entity_id".to_string());
     }
-    if input.description.is_some() {
-        assignments.push("description = $description");
-    }
-    if input.internal_slack_channel_url.is_some() {
-        assignments.push("internal_slack_channel_url = $internal_slack_channel_url");
-    }
-    if input.external_slack_channel_url.is_some() {
-        assignments.push("external_slack_channel_url = $external_slack_channel_url");
-    }
-    if input.repository_url.is_some() {
-        assignments.push("repository_url = $repository_url");
+    for (column, value) in text_columns {
+        if value.is_some() {
+            assignments.push(format!("{column} = ${column}"));
+        }
     }
     let mut response = surreal
         .query(format!(
@@ -1415,29 +1521,11 @@ pub async fn update_project(
     if let Some(entity_id) = input.entity_id {
         response = response.bind(("entity_id", record_id(ENTITY_TABLE, entity_id)));
     }
-    if let Some(description) = &input.description {
-        response = response.bind((
-            "description",
-            crate::people_commands::none_if_blank(Some(description)),
-        ));
-    }
-    if let Some(url) = &input.internal_slack_channel_url {
-        response = response.bind((
-            "internal_slack_channel_url",
-            crate::people_commands::none_if_blank(Some(url)),
-        ));
-    }
-    if let Some(url) = &input.external_slack_channel_url {
-        response = response.bind((
-            "external_slack_channel_url",
-            crate::people_commands::none_if_blank(Some(url)),
-        ));
-    }
-    if let Some(url) = &input.repository_url {
-        response = response.bind((
-            "repository_url",
-            crate::people_commands::none_if_blank(Some(url)),
-        ));
+    for (column, value) in text_columns {
+        if let Some(value) = value {
+            // A blank submission clears the column rather than storing "".
+            response = response.bind((column, crate::people_commands::none_if_blank(Some(value))));
+        }
     }
     let mut response = response
         .await

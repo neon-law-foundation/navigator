@@ -99,8 +99,8 @@ impl WorkshopWorld {
     }
 }
 
-#[given("a fresh dev Navigator app with the simulated-matter workshop seed")]
-async fn build_app_with_simulated_seed(world: &mut WorkshopWorld) {
+#[given("a fresh dev Navigator app with the sample-matter workshop seed")]
+async fn build_app_with_sample_seed(world: &mut WorkshopWorld) {
     let surreal = features::shared_surreal().await;
     let storage = fs_storage("workshop-navigator-walkthrough").await;
     store::seed::seed_environment(
@@ -110,8 +110,8 @@ async fn build_app_with_simulated_seed(world: &mut WorkshopWorld) {
         store::seed::BrandSeed::Neon,
     )
     .await
-    .expect("seed the simulated-matter fixture");
-    let litigation = store::projects::find_by_code(&surreal, "donut-litigation")
+    .expect("seed the sample-matter fixture");
+    let litigation = store::projects::find_by_code(&surreal, "sample-litigation")
         .await
         .expect("query litigation matter")
         .expect("dev seed opens the litigation matter");

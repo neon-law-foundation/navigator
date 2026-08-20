@@ -54,6 +54,13 @@ pub struct ProjectEditView {
     pub entities: Vec<EntityOption>,
     pub internal_slack_channel_url: String,
     pub external_slack_channel_url: String,
+    /// The firm-only Notion page. Blank when unset, and a blank submission
+    /// clears it — the same terms as every other resource link.
+    #[serde(default)]
+    pub private_notion_page_url: String,
+    /// The client-shared Notion page, on the same terms.
+    #[serde(default)]
+    pub shared_notion_page_url: String,
     /// The Project's source repository as a whole URL, on any forge. Blank when
     /// the matter records none, which is a legitimate state.
     pub repository_url: String,
@@ -178,6 +185,8 @@ pub async fn get_project_edit_form() -> Result<ProjectEditView, ServerFnError> {
         entities,
         internal_slack_channel_url: project.internal_slack_channel_url.unwrap_or_default(),
         external_slack_channel_url: project.external_slack_channel_url.unwrap_or_default(),
+        private_notion_page_url: project.private_notion_page_url.unwrap_or_default(),
+        shared_notion_page_url: project.shared_notion_page_url.unwrap_or_default(),
         repository_url: project.repository_url.unwrap_or_default(),
         csrf_token,
         error,
@@ -221,11 +230,29 @@ pub(crate) const DESCRIPTION_HELP: &str =
 
 /// The help line under the internal Slack channel field.
 pub(crate) const INTERNAL_SLACK_HELP: &str =
-    "The lawyer-only Slack channel for this matter. Shown as a button on the matter page.";
+    "The lawyer-only Slack channel for this matter. Firm-only: a client never sees it.";
 
 /// The help line under the external Slack channel field.
 pub(crate) const EXTERNAL_SLACK_HELP: &str =
-    "Optional — the Slack channel shared with the client, if this matter has one.";
+    "Optional — the Slack channel shared with the client, if this matter has one. \
+     Visible to the client.";
+
+/// The help line under the private Notion page field.
+///
+/// Names the sharing boundary explicitly. Navigator stores the address and
+/// nothing more: who may open the page is Notion's own permission, which
+/// Navigator neither reads nor enforces — so a page left on a workspace default
+/// is readable by everyone in that workspace no matter what this label says.
+pub(crate) const PRIVATE_NOTION_HELP: &str =
+    "The firm-only Notion page for this matter — internal write-up and working notes. \
+     Navigator never shows it to a client, but Notion\u{2019}s own sharing is what restricts \
+     who can open it: share the page to the firm\u{2019}s Notion group rather than leaving it on \
+     the workspace default.";
+
+/// The help line under the shared Notion page field.
+pub(crate) const SHARED_NOTION_HELP: &str =
+    "Optional — the Notion page shared with the client, if this matter has one. \
+     Visible to the client, so share it to them in Notion too.";
 
 /// The help line under the source repository field.
 ///
@@ -266,6 +293,20 @@ fn edit_body(view: &ProjectEditView) -> Element {
         )
         .placeholder("https://neonlaw.slack.com/archives/C0123456789")
         .help(EXTERNAL_SLACK_HELP),
+        Field::text(
+            "Private Notion page",
+            "private_notion_page_url",
+            view.private_notion_page_url.clone(),
+        )
+        .placeholder("https://www.notion.so/an-organization/A-matter-abc123")
+        .help(PRIVATE_NOTION_HELP),
+        Field::text(
+            "Shared Notion page",
+            "shared_notion_page_url",
+            view.shared_notion_page_url.clone(),
+        )
+        .placeholder("https://www.notion.so/an-organization/A-matter-def456")
+        .help(SHARED_NOTION_HELP),
         Field::text(
             "Source repository",
             "repository_url",
@@ -351,6 +392,8 @@ mod tests {
             internal_slack_channel_url: "https://neonlaw.slack.com/archives/C0000000001"
                 .to_string(),
             external_slack_channel_url: String::new(),
+            private_notion_page_url: "https://www.notion.so/neonlaw/Private-abc123".to_string(),
+            shared_notion_page_url: String::new(),
             // Deliberately on a self-hosted forge whose path resembles neither
             // the matter name nor a Project code: the field renders a stored
             // value and composes nothing.
@@ -378,6 +421,26 @@ mod tests {
             html.contains(r#"<option value="00000000-0000-0000-0000-000000000001" selected"#),
             "{html}"
         );
+    }
+
+    /// Both Notion pages are editable here, prefilled from the stored value,
+    /// and each names its audience in the label.
+    ///
+    /// This form is the only write path for the two columns, so a missing field
+    /// would leave them settable only by a direct database write. The labels
+    /// carry "Private"/"Shared" because that word is what tells a lawyer which
+    /// box a client will be able to open.
+    #[test]
+    fn offers_both_notion_page_fields_with_their_audience_named() {
+        let html = render(&view());
+        assert!(html.contains(r#"name="private_notion_page_url""#), "{html}");
+        assert!(html.contains(r#"name="shared_notion_page_url""#), "{html}");
+        assert!(
+            html.contains("https://www.notion.so/neonlaw/Private-abc123"),
+            "the private page is prefilled: {html}"
+        );
+        assert!(html.contains("Private Notion page"), "{html}");
+        assert!(html.contains("Shared Notion page"), "{html}");
     }
 
     /// The repository is editable here, prefilled from the stored value.

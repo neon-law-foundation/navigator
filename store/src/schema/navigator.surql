@@ -90,6 +90,19 @@ DEFINE FIELD OVERWRITE forge_provisioned_at ON project TYPE option<string>;
 DEFINE FIELD OVERWRITE closed_at ON project TYPE option<string>;
 DEFINE FIELD OVERWRITE internal_slack_channel_url ON project TYPE option<string>;
 DEFINE FIELD OVERWRITE external_slack_channel_url ON project TYPE option<string>;
+-- The matter's two Notion pages: the firm-only working page and the page
+-- shared with the client. Two columns rather than one for the same reason the
+-- two Slack channels are separate — one side is firm work product and the
+-- other is client-visible, so conflating them would make a mistaken paste the
+-- only thing standing between the two audiences.
+--
+-- Navigator stores the address and nothing else. Who may open a Notion page is
+-- governed by Notion's own sharing, which Navigator neither reads nor
+-- enforces. The link shape is validated in Rust at every write path
+-- (`store::projects::is_valid_resource_url`) because each value is rendered as
+-- an `href`; that is not restated here as a second rule to keep in step.
+DEFINE FIELD OVERWRITE private_notion_page_url ON project TYPE option<string>;
+DEFINE FIELD OVERWRITE shared_notion_page_url ON project TYPE option<string>;
 DEFINE FIELD OVERWRITE inserted_at ON project TYPE string;
 DEFINE FIELD OVERWRITE updated_at ON project TYPE string;
 DEFINE INDEX OVERWRITE project_code ON project FIELDS code UNIQUE;

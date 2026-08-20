@@ -35,27 +35,6 @@ pub const APP_ADMIN_HREF: &str = "/app/admin";
 /// end-session endpoint is a separate hop.
 pub const APP_SIGN_OUT_HREF: &str = "/auth/logout";
 
-/// A link into a Project's client portal — the one front-end application every
-/// Project has, served by Axum at `/app/projects/{code}/portal/` (the literal
-/// [`cloud::workspace::PORTAL_MOUNT_SEGMENT`]). A plain, same-origin anchor: the
-/// portal is a separately published bundle, not a Dioxus route, so it is a full
-/// navigation rather than a client-side `Link`.
-///
-/// The same link renders on every matter lens — client, clerk, and firm —
-/// because the portal serve gate (`store::access::can_see_project`) admits
-/// exactly the viewers the matter page does, so the one link is live for all of
-/// them. The href is built here rather than through the leaf theme because it
-/// encodes an application route.
-pub fn portal_link(code: &str) -> Element {
-    rsx! {
-        a {
-            class: "nav-btn nav-btn--secondary",
-            href: "/app/projects/{code}/portal/",
-            "Client portal"
-        }
-    }
-}
-
 /// The `/app` destinations a viewer of `role` may see, in render order.
 ///
 /// Links, not access decisions: the route middleware and each handler's own gate
@@ -184,18 +163,6 @@ mod tests {
             .into_iter()
             .map(|link| link.label)
             .collect()
-    }
-
-    /// The portal link points at the Project's one client-portal mount and
-    /// carries the same copy on every lens.
-    #[test]
-    fn portal_link_targets_the_project_portal_mount() {
-        let html = dioxus_ssr::render_element(portal_link("kizuna"));
-        assert!(
-            html.contains(r#"href="/app/projects/kizuna/portal/""#),
-            "{html}"
-        );
-        assert!(html.contains("Client portal"), "{html}");
     }
 
     /// A client sees the one destination every tier has, and the way out — never

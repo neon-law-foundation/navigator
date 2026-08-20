@@ -209,8 +209,8 @@ async fn dioxus_document_head(req: Request, next: Next) -> Response {
     let html = stamp_html_lang(&rendered, lang)
         .replace("<script>", &format!("<script nonce=\"{nonce}\">"))
         .replacen("</head>", &format!("{}</head>", *GORP_HEAD), 1);
-    let html = if *SIMULATED_MATTERS {
-        open_with_banner(&html, &SIMULATED_MATTERS_BANNER)
+    let html = if *SAMPLE_MATTERS {
+        open_with_banner(&html, &SAMPLE_MATTERS_BANNER)
     } else {
         html
     };
@@ -223,31 +223,31 @@ async fn dioxus_document_head(req: Request, next: Next) -> Response {
     Response::from_parts(parts, Body::from(html))
 }
 
-/// Whether this deployment's matters are simulated, read once at startup.
+/// Whether this deployment's matters are sample, read once at startup.
 ///
 /// Read once rather than per request because it cannot change while the
 /// process runs, and because a per-request `std::env::var` on the one
 /// middleware that touches every HTML response is a cost paid on every page.
 /// An unparsable value resolves to `false`: `web` boot already validates the
-/// pair through `store::config::simulated_matters` and fails loudly, so by the
+/// pair through `store::config::sample_matters` and fails loudly, so by the
 /// time a request is served this can only be the value boot accepted.
-static SIMULATED_MATTERS: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+static SAMPLE_MATTERS: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
     store::DeploymentEnvironment::from_env()
         .and_then(|environment| {
-            store::simulated_matters(environment).map_err(|_| {
-                store::DeploymentEnvironmentError::Invalid(String::from("simulated-matters"))
+            store::sample_matters(environment).map_err(|_| {
+                store::DeploymentEnvironmentError::Invalid(String::from("sample-matters"))
             })
         })
         .unwrap_or(false)
 });
 
-/// The rendered simulated-matter banner, built once.
+/// The rendered sample-matter banner, built once.
 ///
 /// The component carries no props and no brand-dependent copy, so its markup
 /// is the same on every page of both faces and there is nothing to re-render
 /// per request.
-static SIMULATED_MATTERS_BANNER: std::sync::LazyLock<String> =
-    std::sync::LazyLock::new(webapp::components::render_simulated_matters_banner);
+static SAMPLE_MATTERS_BANNER: std::sync::LazyLock<String> =
+    std::sync::LazyLock::new(webapp::components::render_sample_matters_banner);
 
 /// Insert `banner` as the first child of the document body.
 ///
@@ -3881,12 +3881,12 @@ mod tests {
     /// because this is the string that actually reaches a response.
     #[test]
     fn the_rendered_banner_is_the_one_the_walkthrough_finds() {
-        let banner = &*SIMULATED_MATTERS_BANNER;
+        let banner = &*SAMPLE_MATTERS_BANNER;
         assert!(
-            banner.contains(webapp::components::SIMULATED_MATTERS_BANNER_ID),
+            banner.contains(webapp::components::SAMPLE_MATTERS_BANNER_ID),
             "{banner}"
         );
-        assert!(banner.contains("Simulated matters"), "{banner}");
+        assert!(banner.contains("Sample matters"), "{banner}");
     }
 
     /// The route-scoped policy widens `img-src`/`font-src` to the deployment

@@ -1,7 +1,7 @@
-//! `navigator dev sample-project` — clone, build, and stage each simulated
+//! `navigator dev sample-project` — clone, build, and stage each sample
 //! matter's project application.
 //!
-//! Every simulated matter carries a client portal at
+//! Every sample matter carries a client portal at
 //! `/app/projects/{code}/portal/`. Development boot clones the repository
 //! recorded on each of those Projects, builds it with `pnpm`, and stages the
 //! resulting `dist/` before writing the environment that `web` reads.
@@ -145,7 +145,7 @@ enum Lookup {
 /// Which matters this invocation refreshes.
 ///
 /// No `--project` refreshes all of them, which is what a boot wants. Naming
-/// one narrows it to that matter, and a name that is not a simulated matter is
+/// one narrows it to that matter, and a name that is not a sample matter is
 /// refused with the list rather than silently refreshing nothing — a typo
 /// there would otherwise look like a successful no-op.
 fn choose_matters<'a>(project: Option<&str>, known: &[&'a str]) -> Result<Vec<&'a str>> {
@@ -155,7 +155,7 @@ fn choose_matters<'a>(project: Option<&str>, known: &[&'a str]) -> Result<Vec<&'
     match known.iter().find(|known| **known == code) {
         Some(found) => Ok(vec![*found]),
         None => bail!(
-            "`{code}` is not a simulated matter. Known matters: {}.",
+            "`{code}` is not a sample matter. Known matters: {}.",
             known.join(", ")
         ),
     }
@@ -205,7 +205,7 @@ fn choose_repo(
 /// Reading the Project is what keeps one source of truth. The decision lives in
 /// [`choose_repo`]; this only supplies the store.
 fn resolve_repo(project_code: &str, explicit: Option<&str>) -> Result<String> {
-    let fallback = store::seed::simulated_matter_repository(project_code);
+    let fallback = store::seed::sample_matter_repository(project_code);
     choose_repo(project_code, explicit, fallback, || {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -287,7 +287,7 @@ fn built_bundle(checkout: &Path) -> Result<PathBuf> {
     Ok(built)
 }
 
-/// Refresh the simulated matters' applications for a local boot.
+/// Refresh the sample matters' applications for a local boot.
 pub fn run(
     project: Option<&str>,
     repo: Option<&str>,
@@ -295,7 +295,7 @@ pub fn run(
     keep: bool,
 ) -> Result<()> {
     super::require_tools(&["git", "pnpm"])?;
-    let known = store::seed::simulated_matter_codes();
+    let known = store::seed::sample_matter_codes();
     let matters = choose_matters(project, &known)?;
     let workspace_root = super::orchestrate::workspace_root()?;
 
@@ -311,7 +311,7 @@ pub fn run(
     Ok(())
 }
 
-/// Clone, build, and stage every simulated matter's application for `root`,
+/// Clone, build, and stage every sample matter's application for `root`,
 /// each from the repository the compiled-in fixture records for it.
 ///
 /// The development orchestrator calls this before it renders `.devx/env`, so
@@ -330,8 +330,8 @@ pub(super) fn run_for_root(keep: bool, workspace_root: &Path) -> Result<usize> {
     super::require_tools(&["git", "pnpm"])?;
     let mut copied = 0;
     let mut skipped = Vec::new();
-    for code in store::seed::simulated_matter_codes() {
-        let Some(url) = store::seed::simulated_matter_repository(code) else {
+    for code in store::seed::sample_matter_codes() {
+        let Some(url) = store::seed::sample_matter_repository(code) else {
             skipped.push(code);
             continue;
         };
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn an_explicit_repo_wins_without_reading_the_store() {
         let chosen = choose_repo(
-            "donut-litigation",
+            "sample-litigation",
             Some("https://example.test/a-fork/x.git"),
             Some("https://example.test/compiled-in.git"),
             || panic!("the store must not be consulted when --repo is given"),
@@ -471,7 +471,7 @@ mod tests {
     #[test]
     fn the_projects_recorded_url_beats_the_compiled_in_default() {
         let chosen = choose_repo(
-            "donut-litigation",
+            "sample-litigation",
             None,
             Some("https://github.test/neon/compiled-in.git"),
             || {
@@ -491,7 +491,7 @@ mod tests {
     #[test]
     fn an_unseeded_store_falls_back_to_the_matters_own_repository() {
         let chosen = choose_repo(
-            "widget-works",
+            "sample-transactional",
             None,
             Some("https://github.test/neon/navigator-sample-project-transactional"),
             || Ok(Lookup::NoProject),
@@ -509,7 +509,7 @@ mod tests {
     /// decision with a default the operator did not ask for.
     #[test]
     fn each_absence_names_its_own_fix() {
-        let no_project = choose_repo("donut-litigation", None, None, || Ok(Lookup::NoProject))
+        let no_project = choose_repo("sample-litigation", None, None, || Ok(Lookup::NoProject))
             .expect_err("a store with no such Project and no default is an error");
         let message = no_project.to_string();
         assert!(
@@ -518,7 +518,7 @@ mod tests {
         );
 
         let no_url = choose_repo(
-            "donut-litigation",
+            "sample-litigation",
             None,
             Some("https://github.test/neon/compiled-in.git"),
             || Ok(Lookup::Project(None)),
@@ -542,7 +542,7 @@ mod tests {
     /// or worse, silently build the compiled-in default.
     #[test]
     fn a_failed_lookup_propagates_instead_of_becoming_an_absence() {
-        let error = choose_repo("donut-litigation", None, Some("https://x/y.git"), || {
+        let error = choose_repo("sample-litigation", None, Some("https://x/y.git"), || {
             anyhow::bail!("connection refused")
         })
         .expect_err("a lookup failure is an error");
@@ -557,19 +557,19 @@ mod tests {
     /// nothing and reporting success.
     #[test]
     fn choosing_matters_defaults_to_all_and_refuses_an_unknown_name() {
-        let known = ["donut-litigation", "widget-works", "montgomery-estate"];
+        let known = ["sample-litigation", "sample-transactional", "sample-estate"];
 
         assert_eq!(choose_matters(None, &known).expect("all"), known.to_vec());
         assert_eq!(
-            choose_matters(Some("widget-works"), &known).expect("one"),
-            vec!["widget-works"]
+            choose_matters(Some("sample-transactional"), &known).expect("one"),
+            vec!["sample-transactional"]
         );
 
         let error = choose_matters(Some("no-such-matter"), &known)
             .expect_err("a name that is not a matter must fail");
         let message = error.to_string();
         assert!(
-            message.contains("not a simulated matter") && message.contains("donut-litigation"),
+            message.contains("not a sample matter") && message.contains("sample-litigation"),
             "the error must list the real matters: {message}"
         );
     }
@@ -577,15 +577,15 @@ mod tests {
     /// Every matter the seed carries resolves a compiled-in repository, so the
     /// orchestrator's first-boot staging can never be handed a `None`.
     #[test]
-    fn every_simulated_matter_records_a_repository() {
-        let codes = store::seed::simulated_matter_codes();
+    fn every_sample_matter_records_a_repository() {
+        let codes = store::seed::sample_matter_codes();
         assert!(!codes.is_empty(), "the fixture carries at least one matter");
         for code in codes {
-            let url = store::seed::simulated_matter_repository(code)
+            let url = store::seed::sample_matter_repository(code)
                 .unwrap_or_else(|| panic!("`{code}` records a repository"));
             assert!(url.starts_with("https://"), "`{code}` -> {url}");
         }
-        assert_eq!(store::seed::simulated_matter_repository("nope"), None);
+        assert_eq!(store::seed::sample_matter_repository("nope"), None);
     }
 
     /// A missing or unusable manifest is refused before a build is spent, and
@@ -613,13 +613,13 @@ mod tests {
 
         std::fs::write(
             dir.path().join(store::sample_project::MANIFEST_FILE),
-            b"name: donut-litigation\n",
+            b"name: sample-litigation\n",
         )
         .expect("write");
         let (manifest, code) = declared_project(dir.path()).expect("a valid manifest");
-        assert_eq!(code, "donut-litigation");
+        assert_eq!(code, "sample-litigation");
         assert_eq!(
-            manifest, "name: donut-litigation\n",
+            manifest, "name: sample-litigation\n",
             "the text is staged verbatim, so it must come back unaltered"
         );
     }
@@ -758,8 +758,8 @@ mod tests {
             PathBuf::from("/w/.devx/sample-projects")
         );
         assert_eq!(
-            staged_for(Path::new("/w"), "montgomery-estate"),
-            PathBuf::from("/w/.devx/sample-projects/montgomery-estate")
+            staged_for(Path::new("/w"), "sample-estate"),
+            PathBuf::from("/w/.devx/sample-projects/sample-estate")
         );
     }
 

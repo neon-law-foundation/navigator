@@ -299,13 +299,13 @@ where
         env: "NAVIGATOR_OAUTH_CLIENT_ID_GEMINI",
         value: gemini_client_id,
     });
-    // Optional, and absence means `false`. A deployment carrying simulated
+    // Optional, and absence means `false`. A deployment carrying sample
     // matters has to say so; every other deployment says nothing and gets the
     // production answer. Deliberately not in TABLE, whose entries all bail
     // when missing: making this required would let a line deleted from a
     // production `config.toml` block a production roll, and the safe reading
     // of a missing value here is simply "these matters are real". The value is
-    // passed through verbatim so `store::config::simulated_matters` does the
+    // passed through verbatim so `store::config::sample_matters` does the
     // parsing in one place; a typo reaches the pod and fails the boot loudly
     // rather than being silently coerced here.
     substitutions.push(Substitution {

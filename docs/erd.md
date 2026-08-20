@@ -532,7 +532,9 @@ erDiagram
         string inserted_at
         option_string internal_slack_channel_url
         string name
+        option_string private_notion_page_url
         option_string repository_url
+        option_string shared_notion_page_url
         string status
         string updated_at
     }

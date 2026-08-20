@@ -84,6 +84,12 @@ pub struct ProjectDetailView {
     /// marker. The page is otherwise identical for every client on the matter;
     /// this gates the one control that is theirs alone to fire.
     pub is_dri: bool,
+    /// The matter's collaboration resources, filtered to a client's audience:
+    /// the shared Slack channel, the shared Notion page, and the portal. The
+    /// firm's three private resources are never built for this view, so no
+    /// firm-only URL reaches a client's markup or hydration payload.
+    #[serde(default)]
+    pub resources: crate::project_resources::ProjectResourcesView,
     pub csrf_token: String,
     pub role: ViewerRole,
     /// The deploy's brand mark for the navbar. `None` when the mounted brand
@@ -240,6 +246,22 @@ pub async fn get_project_detail() -> Result<ProjectDetailView, ServerFnError> {
             status: r.status,
         });
 
+    let resources = crate::project_resources::ProjectResourcesView {
+        resources: crate::project_resources::visible_resources(
+            &crate::project_resources::ProjectResourceLinks {
+                private_slack_channel_url: project.internal_slack_channel_url.clone(),
+                private_notion_page_url: project.private_notion_page_url.clone(),
+                drive_folder_id: project.drive_folder_id.clone(),
+                shared_slack_channel_url: project.external_slack_channel_url.clone(),
+                shared_notion_page_url: project.shared_notion_page_url.clone(),
+            },
+            &project.code,
+            role,
+        ),
+        // A client never configures a resource; the affordance is a lawyer's.
+        can_configure: false,
+        project_code: project.code.clone(),
+    };
     Ok(ProjectDetailView {
         id: project.id.to_string(),
         code: project.code,
@@ -251,6 +273,7 @@ pub async fn get_project_detail() -> Result<ProjectDetailView, ServerFnError> {
         review_docs: review_rows,
         show_approve_plan,
         is_dri,
+        resources,
         csrf_token,
         role,
         logo,
@@ -380,8 +403,9 @@ pub fn ClientProjectDetail() -> Element {
             h1 { "{view.name}" }
             p { span { class: "status-chip", "{view.status}" } }
 
+            crate::project_resources::ProjectResourcesPanel { view: view.resources.clone() }
+
             p { class: "portal-detail__actions",
-                {crate::app_chrome::portal_link(&view.code)}
                 if has_documents {
                     a {
                         class: "nav-btn nav-btn--secondary",

@@ -137,7 +137,7 @@ pub async fn build_from_env(brand_seed: store::seed::BrandSeed) -> anyhow::Resul
 
     // Every boot applies the canonical seed and the booting brand's own
     // seeds — both reach production. A `dev` boot additionally applies the
-    // simulated-matter fixture, which never does.
+    // sample-matter fixture, which never does.
     let seed_report =
         store::seed::seed_environment(&surreal, &storage, cfg.environment, brand_seed)
             .await
@@ -477,7 +477,7 @@ pub struct Brand {
     /// so a deploy names the face it serves in its first lines.
     pub key: &'static str,
     /// Which brand's own seeds this deployment applies. Unlike the
-    /// simulated-matter fixture, this layer reaches production, so
+    /// sample-matter fixture, this layer reaches production, so
     /// it carries the data one brand owns and the other must not — the
     /// Firm's postal identities against the Foundation's.
     pub seed: store::seed::BrandSeed,

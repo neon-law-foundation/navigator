@@ -49,8 +49,9 @@ pub mod platform_mark;
 pub mod practice_card;
 pub mod pricing;
 pub mod public_shell;
+pub mod resource_mark;
 pub mod row_actions;
-pub mod simulated_matters_banner;
+pub mod sample_matters_banner;
 pub mod site_footer;
 pub mod site_header;
 pub mod social;
@@ -90,8 +91,8 @@ pub use pricing::{PricingCard, PricingSection};
 pub use public_shell::PublicShell;
 pub use row_actions::RowActions;
 #[cfg(feature = "server")]
-pub use simulated_matters_banner::render_simulated_matters_banner;
-pub use simulated_matters_banner::{SimulatedMattersBanner, SIMULATED_MATTERS_BANNER_ID};
+pub use sample_matters_banner::render_sample_matters_banner;
+pub use sample_matters_banner::{SampleMattersBanner, SAMPLE_MATTERS_BANNER_ID};
 pub use site_footer::{
     FooterAttorney, FooterBarLicense, FooterNavLink, FooterOffice, SiteFooterLegal,
 };
@@ -306,6 +307,20 @@ mod leaf_contract {
         sources.push((gallery.clone(), code_of(&gallery)));
 
         for (path, source) in sources {
+            // `resource_mark` draws third-party logos — Slack's pinwheel,
+            // Google Drive's triangle — in their owners' colours. Those are
+            // exempt because the rule's reason does not reach them: a `--nav-*`
+            // token exists so one component serves three *firm* brands, and
+            // Slack's crimson is not one of our brands to re-theme. A
+            // deployment-varying Slack logo would be a wrong Slack logo. Every
+            // other component, this file included, still resolves every colour
+            // through a token.
+            if path
+                .file_name()
+                .is_some_and(|name| name == "resource_mark.rs")
+            {
+                continue;
+            }
             for (number, line) in source.lines().enumerate() {
                 assert!(
                     !literal_color(line),

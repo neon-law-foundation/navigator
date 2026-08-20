@@ -152,11 +152,8 @@ async fn the_edit_command_validates_and_clears_the_repository_url() {
 
     let command = |url: Option<&str>| UpdateProjectCommand {
         name: "Repo Command".to_string(),
-        entity_id: None,
-        description: None,
-        internal_slack_channel_url: None,
-        external_slack_channel_url: None,
         repository_url: url.map(str::to_string),
+        ..Default::default()
     };
 
     let updated = update_project(

@@ -1,4 +1,4 @@
-//! The local fixture is three simulated matters shared by the lenses.
+//! The local fixture is three sample matters shared by the lenses.
 
 use std::sync::Arc;
 
@@ -24,14 +24,14 @@ async fn person_id(surreal: &store::surreal::SurrealDb, email: &str) -> uuid::Uu
 }
 
 #[tokio::test]
-async fn the_simulated_fixture_is_scoped_for_client_lawyer_and_admin() {
+async fn the_sample_fixture_is_scoped_for_client_lawyer_and_admin() {
     let surreal = mem_surreal().await;
     let (storage, _storage_dir) = storage().await;
     store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
         .await
         .unwrap();
 
-    let expected = store::seed::simulated_matter_codes();
+    let expected = store::seed::sample_matter_codes();
     let codes = |mut projects: Vec<store::projects::Project>| {
         projects.sort_by(|a, b| a.code.cmp(&b.code));
         projects.into_iter().map(|p| p.code).collect::<Vec<_>>()

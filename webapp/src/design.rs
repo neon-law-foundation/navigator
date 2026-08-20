@@ -35,10 +35,14 @@ use crate::components::{
     FormCard, Freshness, GitHubStars, Icon, IconName, ImpersonationBanner, ImpersonationView,
     LawyerPortalBreadcrumb, LegalBlueprintDisclaimer, NavigatorDestination, NavigatorFooter,
     NavigatorFooterLink, NavigatorNavbar, NavigatorShell, NebulaHero, Pagination, PeopleListInputs,
-    PricingCard, PricingSection, PublicShell, RowActions, RunParagraph, SimulatedMattersBanner,
+    PricingCard, PricingSection, PublicShell, RowActions, RunParagraph, SampleMattersBanner,
     SiteFooterFoundation, SiteFooterLegal, SiteHeader, SiteNavLink, SocialMeta, SortState,
     TestimonialCard, TestimonialSection, Toast, ToastTone, THEME_STYLESHEET_HREF,
 };
+// The vendor marks come from their own module rather than the theme root: they
+// are the one component whose colours are a third party's rather than the
+// deployment's, so they are kept visibly apart from the themed set.
+use crate::components::resource_mark::{ResourceMark, ResourceMarkGlyph};
 
 /// The demo table's advertised sort keys — the JSON:API contract's allow-list.
 /// The `/design` route pre-handler (`portal::dioxus_app::design_router`) `400`s a
@@ -385,8 +389,9 @@ pub fn DesignGallery() -> Element {
             TestimonialShowcase {}
             DisclaimerShowcase {}
             ImpersonationShowcase {}
-            SimulatedMattersShowcase {}
+            SampleMattersShowcase {}
             CopyRunsShowcase {}
+            ResourceMarkShowcase {}
             NebulaHeroShowcase {}
             SiteHeaderShowcase {}
             SiteFooterShowcase {}
@@ -823,17 +828,17 @@ fn ImpersonationShowcase() -> Element {
 /// themes, because a reader must not be able to miss this because their OS is
 /// in dark mode.
 #[component]
-fn SimulatedMattersShowcase() -> Element {
+fn SampleMattersShowcase() -> Element {
     rsx! {
         section {
-            h2 { "Simulated-matter banner" }
+            h2 { "Sample-matter banner" }
             p {
                 "A deployment whose matters are invented says so on every page. It is \
                  injected into every HTML response rather than rendered per page, because \
                  the pages that carried it would teach a reader to trust its absence on \
                  the ones that did not — the error pages above all."
             }
-            SimulatedMattersBanner {}
+            SampleMattersBanner {}
         }
     }
 }
@@ -862,6 +867,49 @@ fn CopyRunsShowcase() -> Element {
                     ("one conversation".to_string(), true),
                     (".".to_string(), false),
                 ]),
+            }
+        }
+    }
+}
+
+/// The vendor marks that open a matter's collaboration-resource rows.
+///
+/// Shown with the label each one actually ships beside, because the label is
+/// what carries the row's meaning: the mark says *which service* and the label
+/// says *which audience*. A reader auditing this section should see that no
+/// mark is asked to convey "private" or "shared" on its own.
+///
+/// These are the one exception to the theme's no-literal-colour rule — a
+/// vendor's own colours are not ours to re-theme per deployment brand. See
+/// `webapp::components::resource_mark`.
+#[component]
+fn ResourceMarkShowcase() -> Element {
+    rsx! {
+        section {
+            h2 { "Resource marks" }
+            p {
+                "The matter workbench links out to the places work happens. Each \
+                 row opens on the service's own mark so six links are told apart \
+                 by shape before a word is read, and the label names the audience \
+                 the mark cannot show."
+            }
+            ul { class: "project-resources__list",
+                for (mark, label) in [
+                    (ResourceMark::Slack, "Private Slack channel"),
+                    (ResourceMark::Notion, "Private Notion page"),
+                    (ResourceMark::GoogleDrive, "Private Google Drive"),
+                    (ResourceMark::Portal, "Client portal"),
+                ] {
+                    li { key: "{mark.name()}", class: "project-resources__row",
+                        span { class: "project-resources__link",
+                            ResourceMarkGlyph {
+                                mark,
+                                class: "project-resources__mark".to_string(),
+                            }
+                            span { class: "project-resources__label", "{label}" }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1339,7 +1387,7 @@ mod tests {
             "PricingSection",
             "PublicShell",
             "RowActions",
-            "SimulatedMattersBanner",
+            "SampleMattersBanner",
             "SiteFooterFoundation",
             "SiteFooterLegal",
             "SiteHeader",

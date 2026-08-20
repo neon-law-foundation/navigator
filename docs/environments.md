@@ -12,13 +12,13 @@ names that repository either: `deploy.yml`'s Slack report points at a checkout, 
 Actions variable when one is set, and every command below takes `--deployments-dir` to say which checkout holds the
 tree. See [`deployment-secrets`](deployment-secrets.md).
 
-`neon-law-stg` is the one persistent staging deployment, and **it is the only deployment that holds simulated matters.**
+`neon-law-stg` is the one persistent staging deployment, and **it is the only deployment that holds sample matters.**
 Every case, client, document, and workshop roster in it is synthetic; no real person's matter is ever seeded there, and
-production never carries simulated data in the other direction. That boundary is what makes staging safe to reset, demo,
+production never carries sample data in the other direction. That boundary is what makes staging safe to reset, demo,
 and screenshot.
 
-Its deployment identity is staging, but its runtime profile is `production`: it runs `neon-server` over that simulated
-data plane and exercises the same root-mounted `portal` application, database access, authorization, APIs, and agent
+Its deployment identity is staging, but its runtime profile is `production`: it runs `neon-server` over that sample data
+plane and exercises the same root-mounted `portal` application, database access, authorization, APIs, and agent
 protocols the brand binary composes. Staging and production stay separate deployments because one holds synthetic
 matters and the other holds real ones; their public route tables are covered before release by the brand router and
 browser suites.
@@ -31,7 +31,7 @@ graph LR
 
     REG --> LS
     REG --> NP
-    LS --> LSTG["neon-law-stg<br/>staging.neonlaw.com<br/><i>simulated matters</i>"]
+    LS --> LSTG["neon-law-stg<br/>staging.neonlaw.com<br/><i>sample matters</i>"]
     NP --> NPRD["neon-law-prod<br/>www.neonlaw.com<br/><i>real matters</i>"]
 ```
 
@@ -43,7 +43,7 @@ instance, buckets, and cluster.
 
 | Deployment | GCP project | Public host | Matters | Image | Resource prefix |
 | --- | --- | --- | --- | --- | --- |
-| `neon-law-stg` | `neon-law-stg` | `staging.neonlaw.com` | simulated | `neon-server` | `neon-law-stg` |
+| `neon-law-stg` | `neon-law-stg` | `staging.neonlaw.com` | sample | `neon-server` | `neon-law-stg` |
 | `neon-law-prod` | `neon-law-prod` | `www.neonlaw.com` | real | `neon-server` | `neon-law-prod` |
 
 Each row also serves a workflows host beside its public one: `workflows-staging.neonlaw.com` for `neon-law-stg` and
@@ -69,10 +69,10 @@ by this deployment's Ingress, with both `ManagedCertificate` resources Active. T
 holds the name. See [`marketing-sites`](marketing-sites.md).
 
 Each deployment serves its own host, and the host says what the deployment is. `www.neonlaw.com` is production: the firm
-at the root and the Foundation under `/foundation`, over real matters. Staging serves `staging.neonlaw.com` over
-simulated data, so a visitor never has to guess which one they reached. `neon` is the identifier that names the GCP
-projects `neon-law-stg` and `neon-law-prod` and the image `neon-server`; the public brand lives only in the domain. Each
-row's Workspace is in the Drive table under [Matter storage](#matter-storage-and-workspace-attachment).
+at the root and the Foundation under `/foundation`, over real matters. Staging serves `staging.neonlaw.com` over sample
+data, so a visitor never has to guess which one they reached. `neon` is the identifier that names the GCP projects
+`neon-law-stg` and `neon-law-prod` and the image `neon-server`; the public brand lives only in the domain. Each row's
+Workspace is in the Drive table under [Matter storage](#matter-storage-and-workspace-attachment).
 
 For a resource prefix `<name>`, set:
 
@@ -122,7 +122,7 @@ runtime images to one immutable release tag.
 
 Staging and production keep their own data planes. A reset, secret rotation, version rollback, or failed certificate in
 one row cannot cross a database, bucket, cluster, runtime principal, or Restate journal boundary. Staging proves the
-shared application through its simulated-matter lane, while the build and route suites prove both public faces the one
+shared application through its sample-matter lane, while the build and route suites prove both public faces the one
 image serves.
 
 ## Matter storage and Workspace attachment
@@ -162,7 +162,7 @@ regional and remains a one-time administrative prerequisite; the regional GCP pr
 
 `ghcr` is the shared image hub and must never receive GKE or workload buckets. The two runtime projects are:
 
-- `neon-law-stg` — the one persistent staging deployment, serving its own host over simulated matters.
+- `neon-law-stg` — the one persistent staging deployment, serving its own host over sample matters.
 - `neon-law-prod` — production, serving `www.neonlaw.com` over real client matters: the firm at the root and the
   Foundation under `/foundation`.
 

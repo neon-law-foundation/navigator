@@ -9,7 +9,7 @@ pub const CI_HARNESS: &str = "NAVIGATOR_CI_HARNESS";
 ///
 /// `neon-law-stg` rather than a production project on purpose: engineering
 /// automation acts on this repository, not on anyone's matters, so it belongs
-/// in the deployment whose data plane is simulated by construction.
+/// in the deployment whose data plane is sample by construction.
 pub const GITHUB_AUTOMATION_HOME_PROJECT: &str = "neon-law-stg";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

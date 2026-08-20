@@ -1,4 +1,4 @@
-//! The simulated-matter fixture exercises participation-based visibility.
+//! The sample-matter fixture exercises participation-based visibility.
 
 use std::sync::Arc;
 
@@ -21,11 +21,11 @@ fn project_names(rows: Vec<store::projects::Project>) -> Vec<String> {
     names
 }
 
-/// Every simulated matter's name, sorted, which is what a participant on all of
+/// Every sample matter's name, sorted, which is what a participant on all of
 /// them sees. Derived from the fixture rather than written out, so a fourth
 /// matter does not silently narrow what these tests assert.
 fn every_matter_name() -> Vec<String> {
-    let mut names: Vec<String> = store::seed::simulated_matter_names()
+    let mut names: Vec<String> = store::seed::sample_matter_names()
         .iter()
         .map(ToString::to_string)
         .collect();

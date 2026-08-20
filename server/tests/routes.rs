@@ -11246,7 +11246,7 @@ async fn admin_send_welcome_flags_failed_when_email_send_errors() {
             _email: portal::email::OutboundEmail,
         ) -> Result<portal::email::SendReceipt, portal::email::EmailError> {
             Err(portal::email::EmailError::Transport(
-                "simulated transport failure".into(),
+                "sample transport failure".into(),
             ))
         }
     }
