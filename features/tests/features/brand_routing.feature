@@ -16,7 +16,7 @@ Feature: Public routing across one site's two faces
   # gated page, every retired redirect — live in `server/tests/routes.rs`,
   # which drives one router.
   #
-  # This harness loads no Nebula content, so the material catalogs are not
+  # This harness loads no Catalog content, so the material catalogs are not
   # asserted here; `server/tests/firm_routes.rs` covers them against real
   # content.
 
@@ -69,7 +69,6 @@ Feature: Public routing across one site's two faces
       | /notations      | "/foundation/notations"    |
       | /transparency   | "/foundation/transparency" |
       | /education      | "/foundation/education"    |
-      | /show-and-tell  | "/foundation/show-and-tell" |
 
   Scenario: The Foundation home is a page, not a redirect
     # It `301`ed to `/` while the Foundation was canonical at the site root.

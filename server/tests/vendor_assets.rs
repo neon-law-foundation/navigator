@@ -251,7 +251,7 @@ fn the_dioxus_theme_is_set_in_gorp_serif() {
 
 #[test]
 fn workshop_step_media_fits_the_visible_page_without_changing_display_mode() {
-    let css = std::fs::read_to_string(public_dir().join("css/nebula.css"))
+    let css = std::fs::read_to_string(public_dir().join("css/catalog.css"))
         .expect("read the workshop stylesheet");
 
     let media_frame = css
@@ -275,7 +275,7 @@ fn workshop_step_media_fits_the_visible_page_without_changing_display_mode() {
 
 #[test]
 fn presentation_practice_cards_hold_the_hover_treatment_without_motion() {
-    let css = std::fs::read_to_string(public_dir().join("css/nebula.css"))
+    let css = std::fs::read_to_string(public_dir().join("css/catalog.css"))
         .expect("read the workshop stylesheet");
 
     let card = css
@@ -302,6 +302,20 @@ fn presentation_practice_cards_hold_the_hover_treatment_without_motion() {
     assert!(wash.contains("opacity: 0.22;"));
     assert!(wash.contains("transform: scale(1.5);"));
     assert!(wash.contains("transition: none;"));
+}
+
+#[test]
+fn navigator_product_slide_keeps_its_heading_left_aligned() {
+    let css = std::fs::read_to_string(public_dir().join("css/catalog.css"))
+        .expect("read the workshop stylesheet");
+
+    let heading = css
+        .split_once(".workshop-navigator-slide h3 {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the Navigator product slide must own its heading alignment");
+    assert!(heading.contains("justify-self: stretch;"));
+    assert!(heading.contains("text-align: left;"));
 }
 
 #[test]

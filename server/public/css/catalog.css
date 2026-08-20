@@ -1,29 +1,15 @@
-/* Nebula — the firm's sharing surface: the `/workshops`, `/presentations`, and
-   `/show-and-tell` indexes and every material page beneath them.
+/* Shared workshop and presentation indexes and material pages. The decorative
+   hero follows the system color theme and freezes under reduced motion. */
 
-   Self-contained on its own `--neb-*` ramp, hoisted by the Dioxus pages that
-   need it, the same way `product-hero.css` serves the service heroes. The
-   `PageLayout` linked `brand.css` on every render, so these rules used to
-   arrive for free; a Dioxus page loads only what it names.
-
-   The hero is deep space with a star being born: two drifting starfields, a
-   cloud of nebula gas, a pulsing core, and an expanding shockwave — matching
-   the page's name, since a nebula is where new stars (new ideas) are made. Two
-   themes follow `prefers-color-scheme` (dark deep space / light daylight
-   nebula), both on Tailwind's cyan ramp.
-   Every bit of motion is decorative, hidden from the a11y tree, and frozen
-   wholesale under `prefers-reduced-motion` — the same access-to-justice
-   restraint the service heroes keep, no strobe for someone in crisis. */
-
-.nebula-hero {
+.catalog-hero {
   /* Cyan — the only hue, taken stop-for-stop from Tailwind's cyan ramp
      (400 / 300 / 900 / 100). Kept as literals here, and as hex rather than
      `oklch()`, so this self-contained scene never depends on the token layer
      having arrived and resolves the same where `color-mix` is absent. */
-  --neb-accent: #22d3ee;
-  --neb-bright: #67e8f9;
-  --neb-deep: #164e63;
-  --neb-soft: #cffafe;
+  --catalog-accent: #22d3ee;
+  --catalog-bright: #67e8f9;
+  --catalog-deep: #164e63;
+  --catalog-soft: #cffafe;
 
   position: relative;
   isolation: isolate;
@@ -32,21 +18,21 @@
   margin-bottom: 2.5rem;
   border-radius: 0.5rem;
   color: #fff;
-  /* Deep space: two faint cyan nebula washes over a cool near-black field. */
+  /* Deep space: two faint cyan catalog washes over a cool near-black field. */
   background:
     radial-gradient(ellipse 64% 56% at 72% 30%, rgba(22, 78, 99, 0.52), transparent 62%),
     radial-gradient(ellipse 58% 66% at 18% 82%, rgba(34, 211, 238, 0.16), transparent 64%),
     linear-gradient(180deg, #03090c 0%, #04161c 58%, #03080b 100%);
 }
 
-.nebula-hero-media {
+.catalog-hero-media {
   position: absolute;
   inset: 0;
 }
 
 /* A soft vignette so the bottom-left copy stays legible over the moving
    scene — light enough that the stars still read through it. */
-.nebula-hero-media::after {
+.catalog-hero-media::after {
   position: absolute;
   inset: 0;
   content: "";
@@ -58,48 +44,48 @@
 /* Two tiled starfields drifting at different speeds for parallax. Each plane is
    a handful of tiny radial-gradient dots repeated across the scene; the whole
    plane twinkles (opacity) and drifts (background position). */
-.nebula-hero__stars,
-.nebula-hero__stars--far {
+.catalog-hero__stars,
+.catalog-hero__stars--far {
   position: absolute;
   inset: 0;
   background-repeat: repeat;
   background-image:
     radial-gradient(1.5px 1.5px at 40px 60px, #fff, transparent),
-    radial-gradient(1px 1px at 130px 100px, var(--neb-soft), transparent),
-    radial-gradient(1.5px 1.5px at 200px 168px, var(--neb-bright), transparent),
+    radial-gradient(1px 1px at 130px 100px, var(--catalog-soft), transparent),
+    radial-gradient(1.5px 1.5px at 200px 168px, var(--catalog-bright), transparent),
     radial-gradient(1px 1px at 92px 224px, #fff, transparent),
-    radial-gradient(1px 1px at 252px 44px, var(--neb-soft), transparent),
-    radial-gradient(1.5px 1.5px at 280px 256px, var(--neb-accent), transparent);
+    radial-gradient(1px 1px at 252px 44px, var(--catalog-soft), transparent),
+    radial-gradient(1.5px 1.5px at 280px 256px, var(--catalog-accent), transparent);
   background-size: 300px 300px;
   animation:
-    nebula-twinkle 4.5s ease-in-out infinite,
-    nebula-drift 90s linear infinite;
+    catalog-twinkle 4.5s ease-in-out infinite,
+    catalog-drift 90s linear infinite;
 }
 
-.nebula-hero__stars--far {
+.catalog-hero__stars--far {
   background-size: 210px 210px;
   opacity: 0.6;
   animation:
-    nebula-twinkle 6.5s ease-in-out infinite 1.2s,
-    nebula-drift 150s linear infinite reverse;
+    catalog-twinkle 6.5s ease-in-out infinite 1.2s,
+    catalog-drift 150s linear infinite reverse;
 }
 
-/* The nebula gas — soft blurred cyan clouds that breathe and drift, the
+/* The catalog gas — soft blurred cyan clouds that breathe and drift, the
    cradle the new star forms inside. */
-.nebula-hero__cloud {
+.catalog-hero__cloud {
   position: absolute;
   inset: -12%;
   background:
-    radial-gradient(38% 50% at 70% 32%, color-mix(in srgb, var(--neb-accent) 32%, transparent), transparent 70%),
-    radial-gradient(30% 42% at 30% 60%, color-mix(in srgb, var(--neb-bright) 22%, transparent), transparent 72%),
-    radial-gradient(26% 36% at 82% 70%, color-mix(in srgb, var(--neb-deep) 28%, transparent), transparent 72%);
+    radial-gradient(38% 50% at 70% 32%, color-mix(in srgb, var(--catalog-accent) 32%, transparent), transparent 70%),
+    radial-gradient(30% 42% at 30% 60%, color-mix(in srgb, var(--catalog-bright) 22%, transparent), transparent 72%),
+    radial-gradient(26% 36% at 82% 70%, color-mix(in srgb, var(--catalog-deep) 28%, transparent), transparent 72%);
   filter: blur(26px);
-  animation: nebula-cloud 26s ease-in-out infinite alternate;
+  animation: catalog-cloud 26s ease-in-out infinite alternate;
 }
 
 /* The star being born, anchored to the densest knot of gas (72% / 32%): a
    bright pulsing core... */
-.nebula-hero__core {
+.catalog-hero__core {
   position: absolute;
   left: 72%;
   top: 32%;
@@ -107,15 +93,15 @@
   height: 12px;
   margin: -6px 0 0 -6px;
   border-radius: 50%;
-  background: radial-gradient(circle, #fff 0%, var(--neb-bright) 42%, transparent 72%);
+  background: radial-gradient(circle, #fff 0%, var(--catalog-bright) 42%, transparent 72%);
   box-shadow:
-    0 0 14px 4px var(--neb-bright),
-    0 0 40px 12px color-mix(in srgb, var(--neb-accent) 70%, transparent);
-  animation: nebula-core 5s ease-in-out infinite;
+    0 0 14px 4px var(--catalog-bright),
+    0 0 40px 12px color-mix(in srgb, var(--catalog-accent) 70%, transparent);
+  animation: catalog-core 5s ease-in-out infinite;
 }
 
 /* ...wrapped in a shockwave ring that expands and fades — the explosion. */
-.nebula-hero__burst {
+.catalog-hero__burst {
   position: absolute;
   left: 72%;
   top: 32%;
@@ -123,16 +109,16 @@
   height: 16px;
   margin: -8px 0 0 -8px;
   border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--neb-bright) 82%, transparent);
+  border: 2px solid color-mix(in srgb, var(--catalog-bright) 82%, transparent);
   transform: scale(0);
-  animation: nebula-burst 7s ease-out infinite;
+  animation: catalog-burst 7s ease-out infinite;
 }
 
 /* The copy block sits above the scene and is padded here rather than by the
    Bootstrap `py-5 px-4 px-lg-5` utilities the header used, so the layout
    survives Bootstrap's removal (#877). `mb-5` on the banner becomes the
-   `.nebula-hero` margin below. */
-.nebula-hero-copy {
+   `.catalog-hero` margin below. */
+.catalog-hero-copy {
   position: relative;
   display: flex;
   min-height: inherit;
@@ -143,7 +129,7 @@
 }
 
 @media (min-width: 992px) {
-  .nebula-hero-copy {
+  .catalog-hero-copy {
     padding: 2.25rem 3rem;
   }
 }
@@ -151,28 +137,28 @@
 /* The small uppercase attribution above the wordmark. The header spelled
    this with Bootstrap utilities (`text-uppercase small fw-semibold mb-2`); it
    is a named class here so the rule survives Bootstrap's removal (#877). */
-.nebula-hero__eyebrow {
+.catalog-hero__eyebrow {
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
   text-transform: uppercase;
 }
 
-.nebula-hero h1 {
+.catalog-hero h1 {
   font-size: clamp(2.75rem, 7vw, 4.25rem);
   line-height: 0.95;
   /* A gentle cyan halo ties the wordmark to the service heroes' glow. */
   text-shadow:
-    0 0 8px color-mix(in srgb, var(--neb-bright) 60%, transparent),
-    0 0 28px color-mix(in srgb, var(--neb-deep) 55%, transparent);
+    0 0 8px color-mix(in srgb, var(--catalog-bright) 60%, transparent),
+    0 0 28px color-mix(in srgb, var(--catalog-deep) 55%, transparent);
 }
 
-.nebula-hero .lede {
+.catalog-hero .lede {
   max-width: 44rem;
   color: rgba(255, 255, 255, 0.88);
 }
 
-@keyframes nebula-twinkle {
+@keyframes catalog-twinkle {
   0%,
   100% {
     opacity: 0.45;
@@ -182,7 +168,7 @@
   }
 }
 
-@keyframes nebula-drift {
+@keyframes catalog-drift {
   from {
     background-position: 0 0;
   }
@@ -191,7 +177,7 @@
   }
 }
 
-@keyframes nebula-cloud {
+@keyframes catalog-cloud {
   from {
     transform: translate3d(-3%, 2%, 0) scale(1);
   }
@@ -200,7 +186,7 @@
   }
 }
 
-@keyframes nebula-core {
+@keyframes catalog-core {
   0%,
   100% {
     transform: scale(0.8);
@@ -212,7 +198,7 @@
   }
 }
 
-@keyframes nebula-burst {
+@keyframes catalog-burst {
   0% {
     transform: scale(0);
     opacity: 0.9;
@@ -227,7 +213,7 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* LIGHT variant — "daylight nebula": the same cyan ramp re-tinted for  */
+/* LIGHT variant — "daylight catalog": the same cyan ramp re-tinted for  */
 /* cool paper. Deeper cyans hold contrast on white, and the copy flips  */
 /* to ink so it reads on the pale sky.                                  */
 /*                                                                      */
@@ -235,7 +221,7 @@
 /* layer without requiring a JavaScript theme toggle.                    */
 /* ------------------------------------------------------------------ */
 @media (prefers-color-scheme: light) {
-  .nebula-hero {
+  .catalog-hero {
     color: #083344;
     background:
       radial-gradient(ellipse 64% 56% at 72% 30%, rgba(34, 211, 238, 0.24), transparent 62%),
@@ -244,31 +230,31 @@
   }
 
   /* Deep-cyan stars so the dots read as a daytime sparkle on cool paper. */
-  .nebula-hero__stars,
-  .nebula-hero__stars--far {
+  .catalog-hero__stars,
+  .catalog-hero__stars--far {
     background-image:
-      radial-gradient(1.5px 1.5px at 40px 60px, var(--neb-deep), transparent),
-      radial-gradient(1px 1px at 130px 100px, var(--neb-accent), transparent),
+      radial-gradient(1.5px 1.5px at 40px 60px, var(--catalog-deep), transparent),
+      radial-gradient(1px 1px at 130px 100px, var(--catalog-accent), transparent),
       radial-gradient(1.5px 1.5px at 200px 168px, #155e75, transparent),
-      radial-gradient(1px 1px at 92px 224px, var(--neb-deep), transparent),
-      radial-gradient(1px 1px at 252px 44px, var(--neb-accent), transparent),
+      radial-gradient(1px 1px at 92px 224px, var(--catalog-deep), transparent),
+      radial-gradient(1px 1px at 252px 44px, var(--catalog-accent), transparent),
       radial-gradient(1.5px 1.5px at 280px 256px, #155e75, transparent);
   }
 
   /* Pale vignette so ink copy reads on the bright scene. */
-  .nebula-hero-media::after {
+  .catalog-hero-media::after {
     background:
       linear-gradient(90deg, rgba(236, 254, 255, 0.72), rgba(236, 254, 255, 0.2) 52%, rgba(236, 254, 255, 0)),
       linear-gradient(0deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0) 60%);
   }
 
   /* Ink wordmark with a soft cyan halo — no neon on paper. */
-  .nebula-hero h1 {
+  .catalog-hero h1 {
     color: #083344;
     text-shadow: 0 0 18px rgba(34, 211, 238, 0.3);
   }
 
-  .nebula-hero .lede {
+  .catalog-hero .lede {
     color: rgba(8, 51, 68, 0.78);
   }
 }
@@ -276,45 +262,43 @@
 /* Access-to-justice restraint: freeze the scene to a still, dignified space
    banner for anyone who asks for reduced motion. */
 @media (prefers-reduced-motion: reduce) {
-  .nebula-hero__stars,
-  .nebula-hero__stars--far,
-  .nebula-hero__cloud,
-  .nebula-hero__core {
+  .catalog-hero__stars,
+  .catalog-hero__stars--far,
+  .catalog-hero__cloud,
+  .catalog-hero__core {
     animation: none;
   }
 
-  .nebula-hero__burst {
+  .catalog-hero__burst {
     display: none;
   }
 }
 
 /* ------------------------------------------------------------------ */
-/* The material lists and the show-and-tell cards.                      */
+/* The material lists.                                                */
 /* ------------------------------------------------------------------ */
 
 /* The landing's material lists. The markup got its bullet removal and
    bottom margin from Bootstrap's `list-unstyled mb-5`; both are named rules
    here so the lists survive Bootstrap's removal (#877). */
-.nebula-materials {
+.catalog-materials {
   margin-bottom: 3rem;
   padding-left: 0;
   list-style: none;
 }
 
-/* One Nebula material (a workshop, a presentation, or a gathering) in the
-   landing's lists. */
-.nebula-material {
+/* One workshop or presentation in the landing's lists. */
+.catalog-material {
   margin-bottom: 1.5rem;
 }
 
-.nebula-material h3 {
+.catalog-material h3 {
   font-size: 1.25rem;
   line-height: 1.2;
 }
 
-/* The small uppercase line above a material's title: who it is for, or when a
-   gathering happens. */
-.nebula-eyebrow {
+/* The small uppercase line above a material's title. */
+.catalog-eyebrow {
   margin-bottom: 0.25rem;
   color: var(--nav-color-text-muted);
   font-size: 0.875rem;
@@ -322,134 +306,31 @@
   text-transform: uppercase;
 }
 
-.nebula-empty,
-.nebula-more {
+.catalog-empty,
+.catalog-more {
   color: var(--nav-color-text-muted);
 }
 
-.nebula-more {
+.catalog-more {
   font-style: italic;
 }
 
-/* The show-and-tell index is a vertical list of horizontal cards: a small image
-   thumbnail on the left, the title/description/actions on the right. */
-.show-tell-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-}
-
-.show-tell-card {
-  display: flex;
-  align-items: stretch;
-  overflow: hidden;
-  border: 1px solid var(--nav-color-border);
-  border-radius: var(--nav-radius);
-  background: var(--nav-color-surface);
-}
-
-.show-tell-card-media {
-  display: block;
-  flex: 0 0 clamp(8.5rem, 18vw, 13rem);
-  overflow: hidden;
-  background: var(--nav-color-surface-subtle);
-}
-
-.show-tell-card-media img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* An event with no image: the body spans the full card width. */
-.show-tell-card-body:only-child {
-  flex-basis: 100%;
-}
-
-.show-tell-card-body {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.25rem;
-  padding: 1rem;
-}
-
-.show-tell-card-body h3 {
-  font-size: 1.25rem;
-  line-height: 1.2;
-}
-
-.show-tell-card-body p {
-  margin-bottom: 0.75rem;
-}
-
-/* Each half of the archive — "Upcoming" and "Past". The markup spaced
-   these with Bootstrap's `mt-5 mb-3` utilities. */
-.show-tell-section {
-  margin-bottom: 3rem;
-}
-
-.show-tell-section h2 {
-  margin-bottom: 0.25rem;
-}
-
-/* The one-line note under each half's heading ("Today forward, nearest
-   first."). Plain muted body text, not an eyebrow — the markup spelled it
-   `text-body-secondary mb-0`. */
-.show-tell-section__note {
-  margin-bottom: 1rem;
-  color: var(--nav-color-text-muted);
-}
-
-/* One gathering's detail page. The version borrowed the blog's
-   `.blog-post` / `.blog-date` classes plus an inline `max-width: 65ch` cap;
-   the measure is class-driven here — the same move the service page made when
-   it replaced its inline cap with `.service-open-letter`. */
-.show-tell-detail {
-  max-width: 65ch;
-  margin-inline: auto;
-}
-
-.show-tell-detail__date {
-  color: var(--nav-color-text-muted);
-  font-size: 0.875rem;
-}
-
-/* The event picture on a gathering's detail page. The page got this from
-   Bootstrap's `img-fluid rounded`; it is a named rule here so the picture keeps
-   its size and corners after Bootstrap leaves (#877). */
-.show-tell-detail__image {
-  max-width: 100%;
-  height: auto;
-  border-radius: var(--nav-radius);
-}
-
 @media (max-width: 575.98px) {
-  .show-tell-card-media {
-    display: none;
-  }
-
-  .show-tell-card-body {
-    padding: 0.875rem;
-  }
-
-  .nebula-hero {
+  .catalog-hero {
     min-height: 15rem;
   }
 
-  .nebula-hero h1 {
+  .catalog-hero h1 {
     font-size: 2.75rem;
   }
 
-  .nebula-hero-media::after {
+  .catalog-hero-media::after {
     background: linear-gradient(0deg, rgba(3, 9, 12, 0.9), rgba(3, 9, 12, 0.36));
   }
 }
 
 @media (min-width: 992px) {
-  .nebula-hero h1 {
+  .catalog-hero h1 {
     font-size: 4.25rem;
   }
 }
@@ -468,14 +349,14 @@
   .workshop-step,
   .workshop-lighttable,
   .workshop-cert-sent,
-  .nebula-display
+  .catalog-display
 ),
 :is(
     .material-page,
     .workshop-step,
     .workshop-lighttable,
     .workshop-cert-sent,
-    .nebula-display
+    .catalog-display
   )
   * {
   box-sizing: border-box;
@@ -509,7 +390,7 @@
 }
 
 /* The material's own lede reads as body copy, not the hero treatment the
-   `.nebula-hero .lede` rule gives the landing wordmark. */
+   `.catalog-hero .lede` rule gives the landing wordmark. */
 .material-page .lede,
 .workshop-cert-sent .lede {
   color: var(--nav-color-text);
@@ -577,7 +458,7 @@
 
 /* The successor to Bootstrap's `badge text-bg-primary rounded-pill` — the
    chapter number, and the light table's viewed count. */
-.nebula-badge {
+.catalog-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -905,7 +786,7 @@
   font-weight: 600;
 }
 
-/* Nebula slide faces use Keynote's wide canvas shape: 16:9, equivalent to
+/* Catalog slide faces use Keynote's wide canvas shape: 16:9, equivalent to
    1920x1080 when an export pipeline needs pixels. The successor to the
    Bootstrap `card shadow-sm position-relative` the markup used. */
 .workshop-slide {
@@ -1021,8 +902,10 @@
 
 .workshop-navigator-slide h3 {
   align-self: start;
+  justify-self: stretch;
   margin: 0;
   line-height: 1.05;
+  text-align: left;
 }
 
 .workshop-navigator-slide__mark {
@@ -1176,38 +1059,38 @@
   margin-top: 1.5rem;
 }
 
-/* Nebula full-screen display mode (`…/display/{n}`): one slide, centered and
+/* Catalog full-screen display mode (`…/display/{n}`): one slide, centered and
    scaled to the largest 16:9 box that fits the viewport, on a bare page with no
    site chrome — a presenter's external monitor shows only the slide. `dvh`
    tracks the mobile dynamic viewport so a phone address bar doesn't clip it. */
-.nebula-display {
-  --nebula-display-pad: clamp(0.5rem, 3vw, 2.5rem);
+.catalog-display {
+  --catalog-display-pad: clamp(0.5rem, 3vw, 2.5rem);
   position: fixed;
   inset: 0;
   display: flex;
   overflow: hidden;
   align-items: center;
   justify-content: center;
-  padding: var(--nebula-display-pad);
+  padding: var(--catalog-display-pad);
   background: var(--nav-color-bg);
 }
 
-.nebula-display-slide {
+.catalog-display-slide {
   /* Largest 16:9 box that fits: the viewport width, or the width a
      height-limited 16:9 card would take — whichever is smaller.
      `.workshop-slide` supplies the aspect-ratio itself. `min-width: 0` stops a
      wide code block inside the slide from forcing the flex item past the
      viewport (flex items default to their content min-width). */
-  width: min(100%, (100dvh - 2 * var(--nebula-display-pad)) * 16 / 9);
+  width: min(100%, (100dvh - 2 * var(--catalog-display-pad)) * 16 / 9);
   min-width: 0;
-  max-height: calc(100dvh - 2 * var(--nebula-display-pad));
+  max-height: calc(100dvh - 2 * var(--catalog-display-pad));
   margin: 0;
   cursor: pointer;
 }
 
 /* The controls are near-invisible until the presenter moves the pointer or tabs
    to them, so a full-screen slide is uncluttered. */
-.nebula-display-controls {
+.catalog-display-controls {
   position: fixed;
   z-index: 2;
   bottom: clamp(0.5rem, 2vh, 1.5rem);
@@ -1220,20 +1103,20 @@
   transition: opacity 0.2s ease-in-out;
 }
 
-.nebula-display:hover .nebula-display-controls,
-.nebula-display-controls:focus-within {
+.catalog-display:hover .catalog-display-controls,
+.catalog-display-controls:focus-within {
   opacity: 1;
 }
 
 /* Touch screens have no hover, so keep the controls visible there. */
 @media (hover: none) {
-  .nebula-display-controls {
+  .catalog-display-controls {
     opacity: 1;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nebula-display-controls {
+  .catalog-display-controls {
     transition: none;
   }
 }
@@ -1241,9 +1124,9 @@
 /* The chevrons are chrome, not prose links, so they carry the body colour
    rather than the brand link colour `.nav-theme a` gives every anchor — stated
    at matching specificity because that rule would otherwise win. */
-.nebula-display-nav,
-.nav-theme a.nebula-display-nav,
-.nav-theme a.nebula-display-nav:hover {
+.catalog-display-nav,
+.nav-theme a.catalog-display-nav,
+.nav-theme a.catalog-display-nav:hover {
   display: inline-flex;
   width: 2.75rem;
   height: 2.75rem;
@@ -1258,7 +1141,7 @@
   text-decoration: none;
 }
 
-.nebula-display-nav--disabled {
+.catalog-display-nav--disabled {
   opacity: 0.35;
   pointer-events: none;
 }

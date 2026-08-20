@@ -79,12 +79,11 @@ two are otherwise indistinguishable from a response body. Admin cannot create, e
 No row in `persons` at all. Sees the host's own public pages and the login door, and nothing else. On the Foundation
 host that public surface is deliberately narrow: the marketing home at `/`, the three audience pages, and the legal and
 crawler documents. The Foundation gates everything else it publishes — the mission letter, Notations, the transparency
-disclosures, and the show-and-tell archive — so an anonymous reader who follows one gets the login door. The site nav
-still names them, which is what keeps a gated page discoverable rather than invisible.
+disclosures — so an anonymous reader who follows one gets the login door. The site nav still names them, which is what
+keeps a gated page discoverable rather than invisible.
 
-On the firm host nearly every page is anonymous, including the [Nebula](glossary.md#nebula) presentations catalog at
-`/presentations` and every talk beneath it. The exception is `/workshops`: the Navigator classes are firm-internal
-training, so the catalog page and the material below it read for Clerk, Lawyer, Admin, and Owner alone.
+On the firm host nearly every page is anonymous, including the [presentations](glossary.md#presentation) catalog at
+`/presentations`, every talk beneath it, and the `/workshops` catalog and workshop material.
 
 Every shared Navigator surface — `/app`, `/lawyer`, `/admin`, `/clerk`, the JSON API, `/templates/*`, `/app/api`,
 `/app/api/openapi.json`, and the Foundation's gated pages — composes behind one router-level boundary,

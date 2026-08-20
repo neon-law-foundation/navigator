@@ -12,18 +12,18 @@
 //! stylesheet and the slide canvas directly rather than going through
 //! [`crate::components::PublicShell`].
 //!
-//! `nebula-display.js` is what makes it a deck: it activates the
-//! `data-nebula-nav` anchors on click, arrow keys, Space, and PageUp/PageDown,
-//! and turns a click anywhere on `data-nebula-advance` into "next". The
+//! `catalog-display.js` is what makes it a deck: it activates the
+//! `data-catalog-nav` anchors on click, arrow keys, Space, and PageUp/PageDown,
+//! and turns a click anywhere on `data-catalog-advance` into "next". The
 //! `PageLayout` loaded it on every render; a Dioxus page loads only what it
 //! names, so without the hoist below the projector face becomes a still image.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{NEBULA_STYLESHEET_HREF, THEME_STYLESHEET_HREF};
-use crate::nebula_slide_body::NebulaSlideBody;
-use crate::nebula_step::NEBULA_DISPLAY_SCRIPT_HREF;
+use crate::catalog_slide_body::CatalogSlideBody;
+use crate::catalog_step::CATALOG_DISPLAY_SCRIPT_HREF;
+use crate::components::{CATALOG_STYLESHEET_HREF, THEME_STYLESHEET_HREF};
 
 /// Everything one projected slide renders.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
@@ -48,7 +48,7 @@ pub struct InjectedDisplay(pub DisplayContent);
 /// Resolve this slide's content. There is no chrome to resolve — the display
 /// face deliberately wears none.
 #[server]
-pub async fn nebula_display_view() -> Result<DisplayContent, ServerFnError> {
+pub async fn catalog_display_view() -> Result<DisplayContent, ServerFnError> {
     Ok(
         dioxus_fullstack_core::FullstackContext::extract::<axum::Extension<InjectedDisplay>, _>()
             .await
@@ -59,40 +59,40 @@ pub async fn nebula_display_view() -> Result<DisplayContent, ServerFnError> {
 
 /// The page's route entry.
 #[component]
-pub fn NebulaDisplayEntry() -> Element {
-    let resource = use_server_future(nebula_display_view)?;
+pub fn CatalogDisplayEntry() -> Element {
+    let resource = use_server_future(catalog_display_view)?;
     let content = match &*resource.read() {
         Some(Ok(content)) => content.clone(),
         _ => return rsx! {},
     };
     rsx! {
-        NebulaDisplayPage { content }
+        CatalogDisplayPage { content }
     }
 }
 
 /// The pure display face.
 #[component]
-pub fn NebulaDisplayPage(content: DisplayContent) -> Element {
+pub fn CatalogDisplayPage(content: DisplayContent) -> Element {
     rsx! {
         document::Title { "{content.title} | {content.workshop_title}" }
         // No `PublicShell` here, so the theme stylesheet is this page's own to
         // hoist — it carries the `--nav-*` tokens every rule below reads.
         document::Stylesheet { href: THEME_STYLESHEET_HREF }
-        document::Stylesheet { href: NEBULA_STYLESHEET_HREF }
+        document::Stylesheet { href: CATALOG_STYLESHEET_HREF }
         // Without this the projector face stops being a deck.
-        document::Script { src: NEBULA_DISPLAY_SCRIPT_HREF, defer: true }
+        document::Script { src: CATALOG_DISPLAY_SCRIPT_HREF, defer: true }
         // A `main` rather than a bare `div`: the projector face carries no site
         // chrome, so without it the page has no main landmark at all and a
         // screen-reader user has nothing to jump to. Every rule in
-        // `nebula.css` selects the class, so the element change is invisible.
-        main { class: "nav-theme nebula-display", "data-nebula-display": true,
+        // `catalog.css` selects the class, so the element change is invisible.
+        main { class: "nav-theme catalog-display", "data-catalog-display": true,
             // The same 16:9 canvas the step page and the light table use, so a
             // slide reads identically here — just scaled to the viewport. A
             // click anywhere on the surface advances.
             section {
-                class: "workshop-slide nebula-display-slide",
-                "data-nebula-advance": true,
-                NebulaSlideBody {
+                class: "workshop-slide catalog-display-slide",
+                "data-catalog-advance": true,
+                CatalogSlideBody {
                     title: content.title.clone(),
                     body_html: content.body_html.clone(),
                 }
@@ -101,12 +101,12 @@ pub fn NebulaDisplayPage(content: DisplayContent) -> Element {
             // full-screen slide stays uncluttered. The ends are inert spans
             // rather than links: the first slide has no previous and the last
             // has no next, and an arrow key there falls through untouched.
-            nav { class: "nebula-display-controls", "aria-label": "Slide navigation",
+            nav { class: "catalog-display-controls", "aria-label": "Slide navigation",
                 if let Some(prev) = content.prev_href.clone() {
                     a {
-                        class: "nebula-display-nav",
+                        class: "catalog-display-nav",
                         href: "{prev}",
-                        "data-nebula-nav": "prev",
+                        "data-catalog-nav": "prev",
                         "aria-label": "Previous slide",
                         span { "aria-hidden": "true", "‹" }
                     }
@@ -119,7 +119,7 @@ pub fn NebulaDisplayPage(content: DisplayContent) -> Element {
                     // pattern and keeps the deck's ends legible — axe reports
                     // the bare span as `aria-prohibited-attr`.
                     span {
-                        class: "nebula-display-nav nebula-display-nav--disabled",
+                        class: "catalog-display-nav catalog-display-nav--disabled",
                         role: "link",
                         "aria-disabled": "true",
                         "aria-label": "Previous slide",
@@ -127,17 +127,17 @@ pub fn NebulaDisplayPage(content: DisplayContent) -> Element {
                     }
                 }
                 a {
-                    class: "nebula-display-nav",
+                    class: "catalog-display-nav",
                     href: "{content.step_href}",
-                    "data-nebula-nav": "exit",
+                    "data-catalog-nav": "exit",
                     "aria-label": "Exit display mode",
                     span { "aria-hidden": "true", "✕" }
                 }
                 if let Some(next) = content.next_href.clone() {
                     a {
-                        class: "nebula-display-nav",
+                        class: "catalog-display-nav",
                         href: "{next}",
-                        "data-nebula-nav": "next",
+                        "data-catalog-nav": "next",
                         "aria-label": "Next slide",
                         span { "aria-hidden": "true", "›" }
                     }
@@ -145,7 +145,7 @@ pub fn NebulaDisplayPage(content: DisplayContent) -> Element {
                     // Named as a disabled link for the same reason as the
                     // previous control above.
                     span {
-                        class: "nebula-display-nav nebula-display-nav--disabled",
+                        class: "catalog-display-nav catalog-display-nav--disabled",
                         role: "link",
                         "aria-disabled": "true",
                         "aria-label": "Next slide",
@@ -181,7 +181,7 @@ mod tests {
     fn html() -> String {
         fn app() -> Element {
             rsx! {
-                NebulaDisplayPage { content: content() }
+                CatalogDisplayPage { content: content() }
             }
         }
         ssr(app)
@@ -205,22 +205,22 @@ mod tests {
         );
         for hook in ["prev", "next", "exit"] {
             assert!(
-                out.contains(&format!(r#"data-nebula-nav="{hook}""#)),
+                out.contains(&format!(r#"data-catalog-nav="{hook}""#)),
                 "missing {hook} hook: {out}"
             );
         }
     }
 
     #[test]
-    fn every_hook_nebula_display_js_reads_is_present() {
+    fn every_hook_catalog_display_js_reads_is_present() {
         // The script finds the page by the root attribute and the click surface
         // by the advance attribute. A rename here leaves a still image that
         // still looks correct.
         let out = html();
-        assert!(out.contains("data-nebula-display"), "root: {out}");
-        assert!(out.contains("data-nebula-advance"), "click surface: {out}");
+        assert!(out.contains("data-catalog-display"), "root: {out}");
+        assert!(out.contains("data-catalog-advance"), "click surface: {out}");
         assert!(
-            out.contains("workshop-slide nebula-display-slide"),
+            out.contains("workshop-slide catalog-display-slide"),
             "reuses the shared 16:9 canvas: {out}"
         );
     }
@@ -229,36 +229,36 @@ mod tests {
     fn the_deck_ends_render_inert_controls_rather_than_links() {
         fn first() -> Element {
             rsx! {
-                NebulaDisplayPage {
+                CatalogDisplayPage {
                     content: DisplayContent { prev_href: None, ..content() },
                 }
             }
         }
         fn last() -> Element {
             rsx! {
-                NebulaDisplayPage {
+                CatalogDisplayPage {
                     content: DisplayContent { next_href: None, ..content() },
                 }
             }
         }
         let out = ssr(first);
         assert!(
-            !out.contains(r#"data-nebula-nav="prev""#),
+            !out.contains(r#"data-catalog-nav="prev""#),
             "no previous anchor at the first slide: {out}"
         );
         assert!(
-            out.contains(r#"data-nebula-nav="next""#),
+            out.contains(r#"data-catalog-nav="next""#),
             "still advances: {out}"
         );
         assert!(out.contains(r#"aria-disabled="true""#), "inert end: {out}");
 
         let out = ssr(last);
         assert!(
-            !out.contains(r#"data-nebula-nav="next""#),
+            !out.contains(r#"data-catalog-nav="next""#),
             "no next anchor at the last slide: {out}"
         );
         assert!(
-            out.contains(r#"data-nebula-nav="prev""#),
+            out.contains(r#"data-catalog-nav="prev""#),
             "still goes back: {out}"
         );
         assert!(out.contains(r#"aria-disabled="true""#), "inert end: {out}");

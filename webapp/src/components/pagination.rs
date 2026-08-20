@@ -17,8 +17,7 @@ use dioxus::prelude::*;
 /// the table state.
 ///
 /// `page_param` names the query parameter this pager writes, defaulting to
-/// `page`. A page carrying two independent lists (the Nebula show-and-tell
-/// archive pages "upcoming" and "past" separately) gives each pager its own
+/// `page`. A page carrying two independent lists gives each pager its own
 /// parameter and passes the other's current page in `extra_query`, so paging
 /// one list never resets the other.
 #[component]

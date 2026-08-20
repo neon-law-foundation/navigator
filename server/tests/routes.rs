@@ -31,13 +31,13 @@ async fn state_with_engines() -> (AppState, store::surreal::SurrealDb) {
 /// The **firm** host, composed through `neon`'s own entry points.
 ///
 /// This file is otherwise the Foundation host's, and deliberately so. The
-/// Nebula material surface is the exception: both catalogs — the anonymous
+/// Catalog material surface is the exception: both catalogs — the anonymous
 /// talks and the gated Navigator classes — mount on the firm's host, so the
 /// tests that assert how a class or a talk *renders* have to drive that
 /// composition. What belongs to the Foundation host is that it serves neither,
 /// which `the_workshops_surface_is_not_mounted_on_the_foundation_host` and its
 /// `presentations` twin assert against [`server::neon_router`].
-fn nebula_router(state: AppState) -> axum::Router {
+fn catalog_router(state: AppState) -> axum::Router {
     let dioxus = neon::public_dioxus_routers(&state);
     portal::bootstrap(
         state,
@@ -102,20 +102,13 @@ fn session_cookie_for_role(role: store::persons::Role) -> String {
     )
 }
 
-/// A firm-side credential for the gated Nebula workshop surface.
-///
-/// The three Navigator classes are firm-internal training, so every workshop
-/// request in these tests carries a session. What each role may do is pinned
-/// separately, against the embedded policy, in the role tests below — the
-/// shared workshop state runs a passthrough policy, so this cookie is here to
-/// clear the session boundary, not to assert the role boundary.
+/// A firm-side credential for certificate requests in workshop tests.
 fn workshop_session_cookie() -> String {
     session_cookie_for_role(store::persons::Role::Lawyer)
 }
 
 /// A session for the Foundation's gated reading surfaces — the mission letter,
-/// Notations, the transparency disclosures, the show-and-tell archive,
-/// and the workshops catalog. Deliberately a `client`: those pages read for any
+/// Notations, and the transparency disclosures. Deliberately a `client`: those pages read for any
 /// authenticated person, and using the weakest role is what proves it.
 fn foundation_reader_cookie() -> String {
     session_cookie_for_role(store::persons::Role::Client)
@@ -529,7 +522,6 @@ async fn state_with_workshops(materials: Vec<WorkshopMaterial>) -> AppState {
         marketing: MarketingIndex::empty(),
         blog: portal::BlogIndex::empty(),
         transparency: portal::TransparencyIndex::empty(),
-        events: portal::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: portal::google_oauth::GoogleOauthConfig::passthrough(),
         rate_limit: portal::rate_limit::RateLimit::disabled(),
@@ -1766,7 +1758,6 @@ async fn health_returns_503_when_the_store_is_down() {
         marketing: MarketingIndex::empty(),
         blog: portal::BlogIndex::empty(),
         transparency: portal::TransparencyIndex::empty(),
-        events: portal::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: portal::google_oauth::GoogleOauthConfig::passthrough(),
         rate_limit: portal::rate_limit::RateLimit::disabled(),
@@ -2124,10 +2115,7 @@ async fn robots_txt_advertises_sitemap_and_blocks_private_surfaces() {
         "Disallow: /docs",
         "Disallow: /design",
         "Disallow: /templates",
-        // Everything the Foundation publishes except its talks and its classes
-        // reads only for a signed-in visitor, so the crawler policy names each
-        // one rather than sending a bot at a login redirect.
-        "Disallow: /show-and-tell",
+        // Gated Foundation pages are named rather than sending a bot at a login redirect.
         "Disallow: /notations",
         "Disallow: /transparency",
         "Disallow: /mission",
@@ -2224,8 +2212,6 @@ async fn sitemap_xml_lists_public_routes_from_loaded_indexes() {
         ))
         .unwrap(),
     );
-    state.events =
-        portal::events::load_dir(std::path::Path::new(portal::DEFAULT_EVENTS_DIR)).unwrap();
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     let resp = app
         .oneshot(
@@ -2278,14 +2264,13 @@ async fn sitemap_xml_lists_public_routes_from_loaded_indexes() {
     // The Foundation advertises its marketing pages and nothing else it
     // publishes: the rest reads only for a signed-in visitor, and a sitemap
     // entry resolving to a login redirect is worse than no entry at all. The
-    // two Nebula material catalogs are absent for a different reason — they
+    // two Catalog material catalogs are absent for a different reason — they
     // are the firm's, and this host serves neither.
     //
     // `/workshops` has left this list. The classes are public now, so the
     // catalog is a page a crawler should find rather than a login door it
     // should be kept away from.
     for gated in [
-        "/foundation/show-and-tell",
         "/foundation/notations",
         "/foundation/transparency",
         "/foundation/mission",
@@ -2375,8 +2360,8 @@ async fn the_foundation_publishes_a_page_for_each_audience_it_serves() {
     // (ENG-139), and that site was the Foundation's only public pitch to
     // either constituency.
     //
-    // `/workshops` still exists, gated, on the firm's host. The two are not
-    // duplicates: one is the delivery, this is the argument for it.
+    // `/workshops` still exists on the firm's host. The two are not duplicates:
+    // one is the delivery, this is the argument for it.
     let app = server::neon_router(
         empty_state().await,
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
@@ -2487,7 +2472,7 @@ fn sample_workshop() -> WorkshopMaterial {
     }
 }
 
-/// The anonymous half of Nebula: a `presentations`-category material. Same
+/// The anonymous half of Catalog: a `presentations`-category material. Same
 /// shape as [`sample_workshop`], different category — which is the only thing
 /// the gate keys on.
 fn sample_presentation() -> WorkshopMaterial {
@@ -2508,14 +2493,8 @@ async fn state_with_enforced_workshops(materials: Vec<WorkshopMaterial>) -> AppS
     state
 }
 
-/// The `/workshops` surface mounts at the site root, gated, and never under
+/// The `/workshops` surface mounts publicly at the site root and never under
 /// the Foundation's prefix.
-///
-/// It was absent while the Foundation had a host of its own. One binary serves
-/// both faces now, so the classes mount here behind the session boundary —
-/// `firm_routes.rs` asserts the login door and the role boundary. What must not
-/// happen is a copy beneath `/foundation`, which would publish firm-internal
-/// training under the nonprofit's brand.
 #[tokio::test]
 async fn the_workshops_surface_mounts_only_at_the_site_root() {
     let app = server::neon_router(
@@ -2534,11 +2513,10 @@ async fn the_workshops_surface_mounts_only_at_the_site_root() {
         assert_eq!(
             resp.status(),
             StatusCode::NOT_FOUND,
-            "firm-internal training must not publish under the nonprofit's prefix: {uri}"
+            "workshops must not publish under the nonprofit's prefix: {uri}"
         );
     }
-    // The catalog itself is gated rather than absent: an anonymous reader meets
-    // the login door, not a 404.
+    // The catalog itself is anonymously readable.
     let resp = app
         .clone()
         .oneshot(
@@ -2549,18 +2527,13 @@ async fn the_workshops_surface_mounts_only_at_the_site_root() {
         )
         .await
         .unwrap();
-    assert_ne!(
-        resp.status(),
-        StatusCode::NOT_FOUND,
-        "the classes mount at the site root, behind the session boundary"
-    );
+    assert_eq!(resp.status(), StatusCode::OK);
 }
 
-/// The Foundation's marketing home stays anonymous beside the gated
-/// workshops. The talks that used to sit here moved to the firm's host, where
-/// `firm_routes.rs` asserts their anonymity against the real content.
+/// The Foundation's marketing home stays anonymous beside the public material
+/// catalogs.
 #[tokio::test]
-async fn the_foundation_home_stays_anonymous_beside_the_gated_workshops() {
+async fn the_foundation_home_stays_anonymous_beside_the_public_catalogs() {
     let app = server::neon_router(
         state_with_enforced_workshops(vec![sample_workshop(), sample_presentation()]).await,
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
@@ -2580,9 +2553,7 @@ async fn the_foundation_home_stays_anonymous_beside_the_gated_workshops() {
         StatusCode::OK,
         "the marketing home must stay anonymously readable"
     );
-    // A talk is anonymous too, beside the gated classes. The two Nebula
-    // categories share a loader and differ only in their gate, so a change that
-    // gated one would silently gate the other.
+    // A talk is anonymous too. Both categories share the same public routers.
     let talk = app
         .oneshot(
             Request::builder()
@@ -2597,7 +2568,7 @@ async fn the_foundation_home_stays_anonymous_beside_the_gated_workshops() {
 
 #[tokio::test]
 async fn the_workshops_index_lists_each_class_you_voiced() {
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -2624,71 +2595,35 @@ async fn the_workshops_index_lists_each_class_you_voiced() {
 }
 
 #[tokio::test]
-async fn the_retired_foundation_urls_redirect_to_their_replacements() {
-    // Two consolidations left backlinks behind, and every URL that was ever
-    // published must still land somewhere. The `/foundation/*` pages are LIVE
-    // now, so what remains retired is the Nebula surface beneath them and the
-    // legacy event URLs.
+async fn foundation_prefixed_material_urls_are_not_mounted() {
+    // Workshops and presentations have only their top-level canonical paths.
     let app = server::neon_router(
         empty_state().await,
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
     );
-    for (uri, location) in [
-        // One host serves everything now, so every destination is relative —
-        // an absolute hop would send a visitor out to DNS and back for a page
-        // already in front of them.
-        ("/foundation/workshops", "/workshops"),
-        (
-            "/foundation/workshops/navigator",
-            "/workshops/use-the-navigator",
-        ),
-        ("/foundation/nebula", "/foundation"),
-        (
-            "/foundation/nebula/show-and-tell",
-            "/foundation/show-and-tell",
-        ),
-        (
-            "/foundation/nebula/show-and-tell/slc",
-            "/foundation/show-and-tell/slc",
-        ),
-        (
-            "/foundation/nebula/presentations/rust-in-peace",
-            "/presentations/rust-in-peace",
-        ),
-        (
-            "/foundation/nebula/presentations/rust-in-peace/slides",
-            "/presentations/rust-in-peace/slides",
-        ),
-        (
-            "/foundation/nebula/workshops/use-the-navigator/step/2",
-            "/workshops/use-the-navigator/step/2",
-        ),
-    ]
-    .into_iter()
-    // `/foundation/mission` is a gated PAGE now, not a retired URL: it answers
-    // an anonymous reader with a `303` to the login door rather than a `308`.
-    // Leaving it in this table asserted the wrong status for the right reason.
-    .filter(|(uri, _)| *uri != "/foundation/mission")
-    {
+    for uri in [
+        "/foundation/workshops",
+        "/foundation/workshops/navigator",
+        "/foundation/show-and-tell",
+        "/show-and-tell",
+        "/events",
+        concat!("/foundation/ne", "bula"),
+        concat!("/foundation/ne", "bula/show-and-tell"),
+        concat!("/foundation/ne", "bula/presentations/rust-in-peace"),
+        concat!("/foundation/ne", "bula/workshops/use-the-navigator/step/2"),
+    ] {
         let resp = app
             .clone()
             .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
             .await
             .unwrap();
-        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT, "{uri}");
-        assert_eq!(
-            resp.headers()
-                .get(header::LOCATION)
-                .and_then(|v| v.to_str().ok()),
-            Some(location),
-            "{uri}"
-        );
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "{uri}");
     }
 }
 
 #[tokio::test]
 async fn workshops_overview_renders_one_h1_and_links_steps() {
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -2729,7 +2664,7 @@ async fn workshops_overview_renders_one_h1_and_links_steps() {
 
 #[tokio::test]
 async fn workshops_material_md_twin_serves_raw_markdown() {
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -2756,7 +2691,7 @@ async fn workshops_material_md_twin_serves_raw_markdown() {
 
 #[tokio::test]
 async fn workshops_material_md_twin_404s_when_slug_missing() {
-    let app = nebula_router(empty_state().await);
+    let app = catalog_router(empty_state().await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -2829,7 +2764,6 @@ async fn llms_txt_indexes_the_markdown_corpus_with_absolute_urls() {
         "https://www.example.com/templates",
         "https://www.example.com/foundation/navigator/cli",
         "https://www.example.com/workshops",
-        "https://www.example.com/show-and-tell",
     ] {
         assert!(
             !body.contains(gated),
@@ -2877,7 +2811,7 @@ async fn deploy_workshop_md_twin_and_llms_index_the_real_content() {
         portal::DEFAULT_WORKSHOPS_DIR,
     ))
     .expect("load real workshop content");
-    let app = nebula_router(state_with_workshops(materials).await);
+    let app = catalog_router(state_with_workshops(materials).await);
 
     // The markdown twin serves raw markdown with the right content type.
     let resp = app
@@ -2926,18 +2860,14 @@ async fn deploy_workshop_md_twin_and_llms_index_the_real_content() {
         "the firm's llms.txt carries the talks corpus: {body}"
     );
     assert!(
-        !body.contains("/workshops/"),
-        "llms.txt must not advertise the gated class twins: {body}"
-    );
-    assert!(
-        !body.contains("https://www.example.com/workshops/"),
-        "llms.txt must not advertise the gated workshop twins: {body}"
+        body.contains("## Workshop Corpus") && body.contains("/workshops/"),
+        "llms.txt must advertise the public workshop corpus: {body}"
     );
 }
 
 #[tokio::test]
 async fn workshops_step_renders_single_section_with_progress() {
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -3001,7 +2931,7 @@ async fn fetch_workshop_csrf(app: &axum::Router, slug: &str) -> (String, String)
 
 #[tokio::test]
 async fn workshops_slides_renders_grid_and_mints_dedicated_csrf_cookie() {
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -3057,7 +2987,7 @@ async fn workshops_slides_renders_grid_and_mints_dedicated_csrf_cookie() {
 
 #[tokio::test]
 async fn workshops_certificate_rejects_request_without_valid_csrf() {
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -3083,7 +3013,7 @@ async fn workshops_certificate_accepts_valid_request_and_confirms() {
     // Post/redirect/get: the POST answers `303`, and the confirmation is its
     // own GET page. Asserted by re-requesting the `Location` rather than
     // trusting the redirect — a `303` proves only where the browser was sent.
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     let (cookie, token) = fetch_workshop_csrf(&app, "use-the-navigator").await;
     let resp = app
         .clone()
@@ -3146,7 +3076,7 @@ async fn workshops_certificate_accepts_valid_request_and_confirms() {
 
 #[tokio::test]
 async fn workshops_certificate_confirmation_404s_for_an_unknown_material() {
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -3164,7 +3094,7 @@ async fn workshops_certificate_confirmation_404s_for_an_unknown_material() {
 async fn workshops_certificate_rejects_overlong_name() {
     // Server-side length bound (matches the form maxlength) — a client that
     // bypasses the HTML constraint can't feed a huge string to the renderer.
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     let (cookie, token) = fetch_workshop_csrf(&app, "use-the-navigator").await;
     let long_name = "a".repeat(200);
     let resp = app
@@ -3189,7 +3119,7 @@ async fn workshops_certificate_rejects_overlong_name() {
 
 #[tokio::test]
 async fn workshops_display_renders_slide_only_without_presenter_notes() {
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -3204,7 +3134,7 @@ async fn workshops_display_renders_slide_only_without_presenter_notes() {
     let body = body_string(resp).await;
     // The slide body renders inside the full-screen display shell.
     assert!(body.contains("<h3>Install</h3>"));
-    assert!(body.contains("nebula-display"), "display shell: {body}");
+    assert!(body.contains("catalog-display"), "display shell: {body}");
     // The presenter notes for this section never reach the display screen.
     assert!(
         !body.contains("Presenter notes for install."),
@@ -3216,7 +3146,7 @@ async fn workshops_display_renders_slide_only_without_presenter_notes() {
     assert!(!body.contains("display/0"));
     // The navigation script is wired up. It lives in the document head, which
     // no component test can see — this is the only place the hoist is proven.
-    assert!(body.contains("/public/js/nebula-display.js"));
+    assert!(body.contains("/public/js/catalog-display.js"));
     // A projector shows the slide and nothing else: no site header, no footer.
     assert!(!body.contains("public-shell"), "no site chrome: {body}");
 }
@@ -3227,7 +3157,7 @@ async fn workshops_step_hoists_both_first_party_scripts() {
     // hoist is invisible to every markup assertion: the arrow keys stop moving
     // the deck and the light table's progress count and certificate gate never arrive.
     // Both tags live in the document head, out of reach of a component test.
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -3241,12 +3171,12 @@ async fn workshops_step_hoists_both_first_party_scripts() {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     for src in [
-        "/public/js/nebula-display.js",
+        "/public/js/catalog-display.js",
         "/public/js/workshop-progress.js",
     ] {
         assert!(body.contains(src), "missing script {src}: {body}");
     }
-    assert!(body.contains("/public/css/nebula.css"), "styles: {body}");
+    assert!(body.contains("/public/css/catalog.css"), "styles: {body}");
     // The Bootstrap dropdown the rail used cannot cross onto a page that
     // no longer loads Bootstrap; the section menu is a native disclosure.
     assert!(!body.contains("data-bs-toggle"), "no Bootstrap JS: {body}");
@@ -3258,7 +3188,7 @@ async fn workshops_step_hoists_both_first_party_scripts() {
 
 #[tokio::test]
 async fn workshops_display_out_of_range_404s() {
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     for uri in [
         "/workshops/use-the-navigator/display/0",
         "/workshops/use-the-navigator/display/3",
@@ -3281,7 +3211,7 @@ async fn workshops_display_out_of_range_404s() {
 
 #[tokio::test]
 async fn workshops_step_out_of_range_404s() {
-    let app = nebula_router(state_with_workshops(vec![sample_workshop()]).await);
+    let app = catalog_router(state_with_workshops(vec![sample_workshop()]).await);
     for uri in [
         "/workshops/use-the-navigator/step/0",
         "/workshops/use-the-navigator/step/3",
@@ -3303,7 +3233,7 @@ async fn workshops_step_out_of_range_404s() {
 
 #[tokio::test]
 async fn workshops_material_404s_when_slug_missing() {
-    let app = nebula_router(empty_state().await);
+    let app = catalog_router(empty_state().await);
     let resp = app
         .oneshot(
             Request::builder()
@@ -14612,230 +14542,6 @@ async fn the_statutes_reference_is_no_longer_routed() {
             "{uri} must be unrouted, not merely behind the login door"
         );
     }
-}
-
-fn event_fixture_date() -> chrono::NaiveDate {
-    chrono::Local::now().date_naive() + chrono::Duration::days(30)
-}
-
-fn event_state_with_one_event() -> portal::EventIndex {
-    seattle_event_on(event_fixture_date())
-}
-
-/// The same Seattle event dated relative to today, so it is always
-/// upcoming and the RSVP-on-Luma button always renders.
-fn upcoming_event_state() -> portal::EventIndex {
-    seattle_event_on(chrono::Local::now().date_naive() + chrono::Duration::days(7))
-}
-
-fn seattle_event_on(date: chrono::NaiveDate) -> portal::EventIndex {
-    portal::EventIndex::new(vec![portal::Event {
-        slug: "seattle-agentic-workflows-for-lawyers".into(),
-        public_slug: "seattle-summer-2026".into(),
-        date,
-        title: "Agentic Workflows for Lawyers".into(),
-        description: "A practical AI workflow gathering.".into(),
-        body_html: "<p>Trade real stories and workflows.</p>".into(),
-        starts_at: date.and_hms_opt(11, 0, 0).unwrap(),
-        ends_at: date.and_hms_opt(15, 0, 0).unwrap(),
-        timezone: "America/Los_Angeles".into(),
-        image_url: Some("/public/events/seattle.webp".into()),
-        image_alt: Some("Seattle skyline".into()),
-        luma_url: Some("https://luma.com/test-event".into()),
-    }])
-}
-
-fn test_event(slug: &str, title: &str, date: chrono::NaiveDate) -> portal::Event {
-    portal::Event {
-        slug: slug.into(),
-        public_slug: slug.into(),
-        date,
-        title: title.into(),
-        description: format!("{title} description."),
-        body_html: format!("<p>{title} body.</p>"),
-        starts_at: date.and_hms_opt(18, 0, 0).unwrap(),
-        ends_at: date.and_hms_opt(20, 0, 0).unwrap(),
-        timezone: "America/Los_Angeles".into(),
-        image_url: Some(format!("/public/events/{slug}.webp")),
-        image_alt: Some(format!("{title} event image")),
-        luma_url: Some(format!("https://luma.com/{slug}")),
-    }
-}
-
-#[tokio::test]
-async fn the_show_and_tell_index_lists_gatherings() {
-    let mut state = empty_state().await;
-    state.events = event_state_with_one_event();
-    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/show-and-tell")
-                .header(axum::http::header::COOKIE, foundation_reader_cookie())
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("Agentic Workflows for Lawyers"));
-    assert!(body.contains("href=\"/foundation/show-and-tell/seattle-summer-2026\""));
-    assert!(body.contains(&event_fixture_date().format("%B %-d, %Y").to_string()));
-}
-
-#[tokio::test]
-async fn nebula_show_tell_index_paginates_upcoming_and_past_events() {
-    let today = chrono::Local::now().date_naive();
-    let mut events = Vec::new();
-    for offset in 0..6 {
-        let date = today + chrono::Duration::days(offset);
-        events.push(test_event(
-            &format!("upcoming-{offset}"),
-            &format!("Upcoming {offset}"),
-            date,
-        ));
-    }
-    for offset in 1..=6 {
-        let date = today - chrono::Duration::days(offset);
-        events.push(test_event(
-            &format!("past-{offset}"),
-            &format!("Past {offset}"),
-            date,
-        ));
-    }
-    let mut state = empty_state().await;
-    state.events = portal::EventIndex::new(events);
-    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/show-and-tell?upcoming_page=2&past_page=2")
-                .header(axum::http::header::COOKIE, foundation_reader_cookie())
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("Show-and-tell events"));
-    assert!(body.contains("Upcoming 5"));
-    assert!(!body.contains("Upcoming 0"));
-    assert!(body.contains("Past 6"));
-    assert!(!body.contains("Past 1"));
-    assert!(body.contains("Page 2 of 2"));
-    assert!(body.contains("src=\"/public/events/upcoming-5.webp\""));
-    // The card links through to the detail page, which hosts the RSVP-on-Luma
-    // button; the card itself is a plain "View event" link.
-    assert!(body.contains("href=\"/foundation/show-and-tell/upcoming-5\""));
-    assert!(body.contains("View event"));
-}
-
-#[tokio::test]
-async fn nebula_show_tell_renders_luma_link_out() {
-    let mut state = empty_state().await;
-    state.events = upcoming_event_state();
-    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/show-and-tell/seattle-summer-2026")
-                .header(axum::http::header::COOKIE, foundation_reader_cookie())
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    assert!(body.contains("Trade real stories and workflows."));
-    // The page shows the picture and invites the visitor to Luma; there is no
-    // on-site registration form and no calendar feed.
-    assert!(body.contains("Check it out on Luma"));
-    assert!(body.contains("href=\"https://luma.com/test-event\""));
-    assert!(!body.contains("name=\"email\""));
-    assert!(!body.contains("calendar.ics"));
-    // The gathering links back to the archive it came from.
-    assert!(
-        body.contains("href=\"/foundation/show-and-tell\"")
-            && body.contains("Back to show-and-tell events"),
-        "the detail page links back to the archive: {body}"
-    );
-}
-
-#[tokio::test]
-async fn an_unknown_show_and_tell_slug_is_not_found() {
-    // `/show-and-tell/{slug}` is a static-segment route ahead
-    // of the generic `/{category}/{slug}` material route, so
-    // an unknown gathering must 404 here rather than fall through and be
-    // looked up as a workshop category. The lookup happens in the router's
-    // pre-layer, which short-circuits before the Dioxus render — otherwise a
-    // failed resolve would render an empty page at 200.
-    let mut state = empty_state().await;
-    state.events = upcoming_event_state();
-    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/foundation/show-and-tell/no-such-gathering")
-                .header(axum::http::header::COOKIE, foundation_reader_cookie())
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
-}
-
-#[tokio::test]
-async fn old_events_surface_redirects_into_the_show_and_tell_archive() {
-    let mut state = empty_state().await;
-    state.events = event_state_with_one_event();
-    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    for (uri, location) in [
-        ("/events", "/foundation/show-and-tell"),
-        (
-            "/events/seattle-agentic-workflows-for-lawyers",
-            "/foundation/show-and-tell/seattle-summer-2026",
-        ),
-        (
-            "/events/seattle-summer-2026",
-            "/foundation/show-and-tell/seattle-summer-2026",
-        ),
-    ] {
-        let resp = app
-            .clone()
-            .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT, "{uri}");
-        assert_eq!(
-            resp.headers()
-                .get(header::LOCATION)
-                .and_then(|v| v.to_str().ok()),
-            Some(location),
-            "{uri}"
-        );
-    }
-}
-
-#[tokio::test]
-async fn unknown_old_event_url_stays_not_found() {
-    let app = server::neon_router(
-        empty_state().await,
-        std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
-    );
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri("/events/missing-show-and-tell")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

@@ -213,30 +213,6 @@ form: nv__llc_formation
 The three travel together: N109 requires `form:` and `origin_url:` whenever `output: form` is declared, and rejects a
 `form:` key on any other profile. So `form:` present and `output: form` always imply each other.
 
-## Event pages
-
-An event page (a public show-and-tell) is dated, so it carries a start time on top of a title and description. From
-`server/content/events/`:
-
-```yaml
-title: "Salt Lake City Nebula Show and Tell"
-description: >
-  A Salt Lake City session for practical legal AI workflows, demos, peer review, and responsible adoption habits.
-draft: true
-starts_at: "2026-07-20T11:00:00"
-ends_at: "2026-07-20T15:00:00"
-timezone: America/Denver
-location_address: Salt Lake City, Utah
-```
-
-- **`title`** and **`description`** — the name and the one-line summary (the summary becomes the page's search and
-  social preview, so it cannot be blank).
-- **`starts_at`** and **`timezone`** — when it begins, and in which timezone. Both are required.
-- **`location_address`** or **`meeting_url`** — where to show up, in person or online (a hybrid event may give both).
-
-The `description: >` you see is just a way to wrap one long sentence across several lines; it still reads as a single
-sentence.
-
 ## Blog posts and board minutes
 
 These two are the simplest: a `title` and a `description`, and a filename that follows a fixed shape.

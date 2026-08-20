@@ -4,9 +4,8 @@
 //! A wall-clock timestamp is meaningless without the zone it is read in,
 //! so the two fields are required together: `starts_at` names the moment,
 //! `timezone` names the frame. The deeper checks (the timestamp parses,
-//! `ends_at` is after `starts_at`, the zone is one we emit a `VTIMEZONE`
-//! for) stay in the event loader (`portal::events`); this rule guards the
-//! authoring contract that both fields are present and non-empty.
+//! This rule guards the authoring contract that both fields are present and
+//! non-empty.
 
 use crate::{frontmatter, line_byte_range, Rule, SourceFile, Violation};
 

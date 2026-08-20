@@ -200,11 +200,6 @@ pub async fn build_from_env(brand_seed: store::seed::BrandSeed) -> anyhow::Resul
     let blog = crate::blog::load_dir(&blog_dir).context("loading blog posts")?;
     tracing::info!(count = blog.posts().len(), ?blog_dir, "loaded blog posts");
 
-    let events_dir = std::env::var("NAVIGATOR_EVENTS_DIR")
-        .map_or_else(|_| PathBuf::from(crate::DEFAULT_EVENTS_DIR), PathBuf::from);
-    let events = crate::events::load_dir(&events_dir).context("loading events")?;
-    tracing::info!(count = events.events().len(), ?events_dir, "loaded events");
-
     let foundation_dir = std::env::var("NAVIGATOR_FOUNDATION_DIR").map_or_else(
         |_| PathBuf::from(crate::DEFAULT_FOUNDATION_DIR),
         PathBuf::from,
@@ -378,7 +373,6 @@ pub async fn build_from_env(brand_seed: store::seed::BrandSeed) -> anyhow::Resul
         marketing,
         blog,
         transparency,
-        events,
         auth,
         google_oauth,
         rate_limit: crate::rate_limit::RateLimit::from_env(),

@@ -2,7 +2,7 @@
 //!
 //! Grounds the *renderable* claims of the "Operating Neon Law Navigator"
 //! workshop (`web/content/workshops/navigator/DEPLOY.md`) in the running
-//! web app: it is registered on the Nebula surface, renders under
+//! web app: it is registered on the Catalog surface, renders under
 //! the Foundation brand, opens with an Agenda, splits into stepped
 //! content, and shows the reader the real
 //! `cargo run -p cli -- ops gcp setup` command. The pipeline-grounding half

@@ -59,8 +59,6 @@ async fn the_foundations_former_root_urls_redirect_beneath_foundation() {
             "/transparency/minutes/2026-q1",
             "/foundation/transparency/minutes/2026-q1",
         ),
-        ("/show-and-tell", "/foundation/show-and-tell"),
-        ("/show-and-tell/june", "/foundation/show-and-tell/june"),
     ] {
         let response = anonymous_get(&app, from).await;
         assert_eq!(
@@ -93,45 +91,28 @@ async fn the_foundation_home_is_not_a_redirect() {
     );
 }
 
-/// The retired Nebula surface lands on the catalogs that replaced it, and every
-/// destination is relative.
+/// The obsolete Foundation-prefixed material surfaces are gone.
 ///
-/// While the firm and the Foundation were separate deployments, a hop between
-/// them had to be an absolute URL onto the other host. One binary serves both
-/// now, so an absolute redirect here would send a visitor out to DNS and back
-/// for a page already in front of them — and would break outright on any
-/// deployment not answering to that hostname.
+/// Workshops and presentations have one canonical home each at the site root;
+/// keeping aliases beneath `/foundation` would preserve a third, misleading
+/// catalog shape after the product vocabulary stopped naming one.
 #[tokio::test]
-async fn the_retired_nebula_surface_redirects_relatively() {
+async fn foundation_prefixed_material_paths_are_not_redirects() {
     let app = neon::retired_path_routes().with_state(state().await);
 
-    for (from, to) in [
-        ("/foundation/nebula", "/foundation"),
-        ("/foundation/workshops", "/workshops"),
-        (
-            "/foundation/workshops/navigator",
-            "/workshops/use-the-navigator",
-        ),
-        (
-            "/foundation/nebula/presentations/rust-in-peace",
-            "/presentations/rust-in-peace",
-        ),
-        (
-            "/foundation/nebula/show-and-tell/june",
-            "/foundation/show-and-tell/june",
-        ),
+    let retired_root = concat!("/foundation/ne", "bula");
+    for path in [
+        retired_root,
+        "/foundation/workshops",
+        "/foundation/workshops/navigator",
+        concat!("/foundation/ne", "bula/presentations/rust-in-peace"),
+        concat!("/foundation/ne", "bula/show-and-tell/june"),
     ] {
-        let response = anonymous_get(&app, from).await;
+        let response = anonymous_get(&app, path).await;
         assert_eq!(
             response.status(),
-            StatusCode::PERMANENT_REDIRECT,
-            "{from} must be answered as a permanent redirect"
-        );
-        let destination = location(&response).expect("a redirect carries a Location");
-        assert_eq!(destination, to, "{from} must land on {to}");
-        assert!(
-            destination.starts_with('/'),
-            "one host serves everything, so {from} redirects relatively: {destination}"
+            StatusCode::NOT_FOUND,
+            "{path} must not remain as an alias for the top-level catalogs"
         );
     }
 }

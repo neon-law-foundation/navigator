@@ -1,8 +1,8 @@
 //! `C001` — a published content page (blog post, board minutes, or
 //! event) must declare a non-empty `title` in its frontmatter.
 //!
-//! The web content loaders (`portal::blog`, `portal::transparency`,
-//! `portal::events`) deserialize `title` into a non-optional `String`, so a
+//! The web content loaders (`portal::blog`, `portal::transparency`) deserialize
+//! `title` into a non-optional `String`, so a
 //! missing or blank title fails the page at load time. This rule catches
 //! it at authoring time — the same shape as the notation-template title
 //! rule `N101`, but for the content surfaces that are not templates.

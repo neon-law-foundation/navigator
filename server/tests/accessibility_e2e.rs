@@ -168,13 +168,9 @@ const PARAMETERISED: &[(&str, &[&str])] = &[
         "/presentations/{slug}/certificate/sent",
         &["/presentations/rust-in-peace/certificate/sent"],
     ),
-    (
-        "/foundation/show-and-tell/{slug}",
-        &["/foundation/show-and-tell/seattle-summer-2026"],
-    ),
 ];
 
-/// The Foundation's former root URLs, and the legacy event URLs. Each answers
+/// The Foundation's former root URLs. Each answers
 /// a `301` rather than a page, so auditing one would run axe against an empty
 /// redirect body — and its destination is declared separately and audited on
 /// its own.
@@ -185,8 +181,6 @@ const RETIRED_REDIRECTS: &[&str] = &[
     "/attorneys",
     "/notations",
     "/transparency",
-    "/show-and-tell",
-    "/events",
 ];
 
 /// Classify one path declared in `neon::PUBLIC_PATHS`.
@@ -629,7 +623,7 @@ fn every_declared_public_path_is_classified() {
     );
     // Floors, not counts: they catch a classifier that started skipping real
     // pages, and are set below the true totals so adding a page never has to
-    // touch them. The firm carries the larger number now — both Nebula
+    // touch them. The firm carries the larger number now — both Catalog
     // material catalogs mount there, which is most of the difference.
     assert!(
         firm.len() >= 20 && foundation.len() >= 12,
@@ -716,10 +710,8 @@ async fn neon_public_pages_pass_axe_wcag_a_and_aa() {
 /// The whole public surface, derived from `neon::PUBLIC_PATHS` — both faces,
 /// since one table now declares them.
 ///
-/// Signed in as Lawyer. Most of the site is anonymous, but the Navigator
-/// classes beneath `/workshops` are firm-internal training and the Foundation's
-/// reading surface is gated, so an anonymous pass would audit the login door in
-/// their place.
+/// Signed in as Lawyer so the same pass also reaches the Foundation's gated
+/// reading surface; workshops and presentations themselves are anonymous.
 #[tokio::test]
 async fn public_pages_pass_axe_wcag_a_and_aa() {
     let routes = audit_urls(neon::PUBLIC_PATHS);

@@ -9,14 +9,14 @@
 //! alternative is telemetry on how someone reads.
 //!
 //! The `PageLayout` loaded that script on every render; a Dioxus page
-//! loads only what it names, so [`NebulaSlidesPage`] hoists it explicitly.
+//! loads only what it names, so [`CatalogSlidesPage`] hoists it explicitly.
 //! Without it the certificate form stays hidden forever.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{PublicShell, SiteHeader, SiteNavLink, NEBULA_STYLESHEET_HREF};
-use crate::nebula_slide_body::NebulaSlideBody;
+use crate::catalog_slide_body::CatalogSlideBody;
+use crate::components::{PublicShell, SiteHeader, SiteNavLink, CATALOG_STYLESHEET_HREF};
 use crate::public_chrome::{PublicChrome, PublicFooter};
 
 /// The first-party script that paints slide-seen state and reveals the
@@ -66,21 +66,21 @@ pub struct InjectedLightTable(pub LightTableContent);
 
 /// Everything the page renders.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
-pub struct NebulaSlidesView {
+pub struct CatalogSlidesView {
     pub chrome: PublicChrome,
     pub content: LightTableContent,
 }
 
 /// Resolve the Foundation chrome and this material's light table.
 #[server]
-pub async fn nebula_slides_view() -> Result<NebulaSlidesView, ServerFnError> {
+pub async fn catalog_slides_view() -> Result<CatalogSlidesView, ServerFnError> {
     let content =
         dioxus_fullstack_core::FullstackContext::extract::<axum::Extension<InjectedLightTable>, _>(
         )
         .await
         .map(|axum::Extension(c)| c.0)
         .unwrap_or_default();
-    Ok(NebulaSlidesView {
+    Ok(CatalogSlidesView {
         chrome: crate::public_chrome::foundation_public_chrome_from_context().await,
         content,
     })
@@ -88,20 +88,20 @@ pub async fn nebula_slides_view() -> Result<NebulaSlidesView, ServerFnError> {
 
 /// The page's route entry.
 #[component]
-pub fn NebulaSlidesEntry() -> Element {
-    let resource = use_server_future(nebula_slides_view)?;
+pub fn CatalogSlidesEntry() -> Element {
+    let resource = use_server_future(catalog_slides_view)?;
     let view = match &*resource.read() {
         Some(Ok(view)) => view.clone(),
         _ => return rsx! {},
     };
     rsx! {
-        NebulaSlidesPage { chrome: view.chrome, content: view.content }
+        CatalogSlidesPage { chrome: view.chrome, content: view.content }
     }
 }
 
 /// The pure light table.
 #[component]
-pub fn NebulaSlidesPage(chrome: PublicChrome, content: LightTableContent) -> Element {
+pub fn CatalogSlidesPage(chrome: PublicChrome, content: LightTableContent) -> Element {
     let header = rsx! {
         SiteHeader {
             brand_name: chrome.brand_name.clone(),
@@ -125,7 +125,7 @@ pub fn NebulaSlidesPage(chrome: PublicChrome, content: LightTableContent) -> Ele
     rsx! {
         document::Title { "{chrome.brand_name} | {content.workshop_title} | Slides" }
         document::Meta { name: "description", content: "Every slide in the workshop, at a glance." }
-        document::Stylesheet { href: NEBULA_STYLESHEET_HREF }
+        document::Stylesheet { href: CATALOG_STYLESHEET_HREF }
         // Without this nothing on the page is ever checked, the count stays at
         // zero, and the certificate gate never opens.
         document::Script { src: WORKSHOP_PROGRESS_SCRIPT_HREF, defer: true }
@@ -141,7 +141,7 @@ pub fn NebulaSlidesPage(chrome: PublicChrome, content: LightTableContent) -> Ele
                 header { class: "lighttable-header",
                     h1 { "{content.workshop_title}" }
                 }
-                p { class: "nebula-empty",
+                p { class: "catalog-empty",
                     "Open any slide to read it. View them all to unlock your certificate."
                 }
                 div { class: "lighttable-chapters",
@@ -166,9 +166,9 @@ fn LightTableChapter(chapter: SlideChapter) -> Element {
             class: "workshop-chapter",
             "data-workshop-chapter": "{chapter.title}",
             header { class: "workshop-chapter__header",
-                span { class: "nebula-badge", "{chapter.number}" }
+                span { class: "catalog-badge", "{chapter.number}" }
                 div {
-                    p { class: "nebula-eyebrow", "Chapter {chapter.number}" }
+                    p { class: "catalog-eyebrow", "Chapter {chapter.number}" }
                     h2 { class: "workshop-chapter__title", "{chapter.title}" }
                 }
             }
@@ -185,7 +185,7 @@ fn LightTableChapter(chapter: SlideChapter) -> Element {
                             class: "slide-thumb__preview",
                             "aria-hidden": "true",
                             inert: true,
-                            NebulaSlideBody {
+                            CatalogSlideBody {
                                 title: slide.title.clone(),
                                 body_html: slide.body_html.clone(),
                             }
@@ -241,7 +241,7 @@ fn CertificateGate(action: String, csrf_token: String) -> Element {
                 }
                 button { class: "nav-btn nav-btn--primary", r#type: "submit", "Email my certificate" }
             }
-            p { class: "nebula-empty", "We use your email only to send this certificate." }
+            p { class: "catalog-empty", "We use your email only to send this certificate." }
         }
     }
 }
@@ -288,7 +288,7 @@ mod tests {
     fn html() -> String {
         fn app() -> Element {
             rsx! {
-                NebulaSlidesPage { chrome: PublicChrome::default(), content: table() }
+                CatalogSlidesPage { chrome: PublicChrome::default(), content: table() }
             }
         }
         ssr(app)

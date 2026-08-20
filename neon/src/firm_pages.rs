@@ -31,8 +31,8 @@ const PRESENTATION_INDEX_FOOTNOTE: &str = "More talks land here as we give them.
 /// wants us at their meetup writes to the firm, not to the nonprofit.
 fn presentation_index_content(
     workshops: &WorkshopIndex,
-) -> webapp::nebula_index::NebulaIndexContent {
-    nebula_index_content(
+) -> webapp::catalog_index::CatalogIndexContent {
+    catalog_index_content(
         workshops,
         "presentations",
         PRESENTATION_INDEX_TITLE,
@@ -46,8 +46,8 @@ fn presentation_index_content(
 /// Gated exactly like the classes it lists. The page names the lawyer
 /// workbench, the admin deployment tier, and the contribution loop, so a
 /// reader who cannot open a single class gains nothing from the list.
-fn workshop_index_content(workshops: &WorkshopIndex) -> webapp::nebula_index::NebulaIndexContent {
-    nebula_index_content(
+fn workshop_index_content(workshops: &WorkshopIndex) -> webapp::catalog_index::CatalogIndexContent {
+    catalog_index_content(
         workshops,
         "workshops",
         WORKSHOP_INDEX_TITLE,
@@ -61,21 +61,21 @@ fn workshop_index_content(workshops: &WorkshopIndex) -> webapp::nebula_index::Ne
 ///
 /// The contact address is the firm's on both catalogs — the firm gives the
 /// talks and runs the classes, so a reader who wants either writes to it.
-fn nebula_index_content(
+fn catalog_index_content(
     workshops: &WorkshopIndex,
     category: &str,
     title: &str,
     lede: &str,
     footnote: &str,
-) -> webapp::nebula_index::NebulaIndexContent {
-    webapp::nebula_index::NebulaIndexContent {
+) -> webapp::catalog_index::CatalogIndexContent {
+    webapp::catalog_index::CatalogIndexContent {
         title: title.to_string(),
         lede: lede.to_string(),
         materials: workshops
             .materials()
             .iter()
             .filter(|m| m.category == category)
-            .map(|m| webapp::nebula_index::NebulaMaterial {
+            .map(|m| webapp::catalog_index::CatalogMaterial {
                 href: format!("/{}/{}", m.category, m.slug),
                 eyebrow: m.audience.clone(),
                 title: m.title.clone(),
@@ -198,45 +198,31 @@ pub fn firm_public_dioxus_routers(state: &AppState) -> Vec<Router> {
     // The hub's pre-layer also owns the `…/{slug}.md` raw-Markdown twin, which
     // matchit routes there rather than to a second path.
     //
-    // Mounted with `NebulaChrome::Firm` so a talk wears the firm's header and
-    // its regulated footer. The gated workshops catalog and classes use the
-    // same host and chrome, behind their session and policy boundaries.
-    routers.push(dioxus_app::nebula_index_router(
+    routers.push(dioxus_app::catalog_index_router(
         dioxus_app::PRESENTATION_INDEX_PATH,
         presentation_index_content(&state.workshops),
-        dioxus_app::NebulaChrome::Firm,
     ));
-    routers.extend(dioxus_app::nebula_material_routers(
+    routers.extend(dioxus_app::catalog_material_routers(
         &dioxus_app::PRESENTATION_PATHS,
         state.workshops.clone(),
         &state.sessions,
         secure_cookies(state),
-        dioxus_app::NebulaChrome::Firm,
     ));
     // The Navigator classes, anonymous like the talks.
-    //
-    // They were firm-internal training behind the session boundary and the
-    // embedded policy, readable by Clerk, Lawyer, Admin, and Owner alone. The
-    // repository is open source now, and the classes teach the software it
-    // publishes — gating them would put a login door in front of the one
-    // document that explains how to run what anyone can already clone.
-    //
-    // The certificate `POST` keeps its own gate: who may CLAIM a completion
+    // The certificate `POST` keeps its own gate: who may claim a completion
     // certificate is an authorization question, and it stays one even when the
     // material is free to read.
-    routers.push(dioxus_app::nebula_index_router(
+    routers.push(dioxus_app::catalog_index_router(
         dioxus_app::WORKSHOP_INDEX_PATH,
         workshop_index_content(&state.workshops),
-        dioxus_app::NebulaChrome::Firm,
     ));
-    routers.extend(dioxus_app::nebula_material_routers(
+    routers.extend(dioxus_app::catalog_material_routers(
         &dioxus_app::WORKSHOP_PATHS,
         state.workshops.clone(),
         &state.sessions,
         secure_cookies(state),
-        dioxus_app::NebulaChrome::Firm,
     ));
-    routers.push(portal::nebula_workshop_command_routes(state));
+    routers.push(portal::catalog_workshop_command_routes(state));
     routers
 }
 

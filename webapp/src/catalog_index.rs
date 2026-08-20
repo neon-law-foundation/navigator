@@ -5,15 +5,12 @@
 //! content decision rather than a second component: a reader arriving at
 //! `/workshops` and a reader arriving at `/presentations` see the same page
 //! rendered from different material.
-//!
-//! The show-and-tell archive keeps its own paginated index
-//! ([`crate::show_tell_index`]); the site nav is what gathers the three.
 
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::components::{
-    NebulaHero, PublicShell, SiteHeader, SiteNavLink, SocialMeta, NEBULA_STYLESHEET_HREF,
+    CatalogHero, PublicShell, SiteHeader, SiteNavLink, SocialMeta, CATALOG_STYLESHEET_HREF,
 };
 use crate::public_chrome::{PublicChrome, PublicFooter};
 
@@ -21,7 +18,7 @@ use crate::public_chrome::{PublicChrome, PublicFooter};
 /// small uppercase line above the title, naming the audience the material is
 /// written for.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
-pub struct NebulaMaterial {
+pub struct CatalogMaterial {
     pub href: String,
     pub eyebrow: String,
     pub title: String,
@@ -29,44 +26,44 @@ pub struct NebulaMaterial {
 }
 
 /// One category index's resolved content, built per request by the portal
-/// pre-layer and injected for [`nebula_index_view`]. The wasm-safe carrier
+/// pre-layer and injected for [`catalog_index_view`]. The wasm-safe carrier
 /// across the server-function boundary.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
-pub struct NebulaIndexContent {
+pub struct CatalogIndexContent {
     /// The category's heading, and the page title after the brand name.
     pub title: String,
     /// The hero paragraph, reused as the page's meta description.
     pub lede: String,
-    pub materials: Vec<NebulaMaterial>,
+    pub materials: Vec<CatalogMaterial>,
     /// The Foundation inbox the empty state writes to.
     pub contact_email: String,
     /// The line under the list. Empty renders nothing.
     pub footnote: String,
 }
 
-/// The [`NebulaIndexContent`] the portal pre-layer injects, read back in
-/// [`nebula_index_view`].
+/// The [`CatalogIndexContent`] the portal pre-layer injects, read back in
+/// [`catalog_index_view`].
 #[derive(Clone, Default)]
-pub struct InjectedNebulaIndex(pub NebulaIndexContent);
+pub struct InjectedCatalogIndex(pub CatalogIndexContent);
 
 /// Everything the page renders.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
-pub struct NebulaIndexView {
+pub struct CatalogIndexView {
     pub chrome: PublicChrome,
-    pub content: NebulaIndexContent,
+    pub content: CatalogIndexContent,
 }
 
 /// Resolve the Foundation chrome and this category's injected content.
 #[server]
-pub async fn nebula_index_view() -> Result<NebulaIndexView, ServerFnError> {
+pub async fn catalog_index_view() -> Result<CatalogIndexView, ServerFnError> {
     let content = dioxus_fullstack_core::FullstackContext::extract::<
-        axum::Extension<InjectedNebulaIndex>,
+        axum::Extension<InjectedCatalogIndex>,
         _,
     >()
     .await
     .map(|axum::Extension(c)| c.0)
     .unwrap_or_default();
-    Ok(NebulaIndexView {
+    Ok(CatalogIndexView {
         chrome: crate::public_chrome::foundation_public_chrome_from_context().await,
         content,
     })
@@ -74,21 +71,21 @@ pub async fn nebula_index_view() -> Result<NebulaIndexView, ServerFnError> {
 
 /// The page's route entry, mounted once per category.
 #[component]
-pub fn NebulaIndexEntry() -> Element {
-    let resource = use_server_future(nebula_index_view)?;
+pub fn CatalogIndexEntry() -> Element {
+    let resource = use_server_future(catalog_index_view)?;
     let view = match &*resource.read() {
         Some(Ok(view)) => view.clone(),
         _ => return rsx! {},
     };
     rsx! {
-        NebulaIndexPage { chrome: view.chrome, content: view.content }
+        CatalogIndexPage { chrome: view.chrome, content: view.content }
     }
 }
 
 /// The pure index page. Prop-driven, so it server-renders and unit-tests
 /// without a server future.
 #[component]
-pub fn NebulaIndexPage(chrome: PublicChrome, content: NebulaIndexContent) -> Element {
+pub fn CatalogIndexPage(chrome: PublicChrome, content: CatalogIndexContent) -> Element {
     let header = rsx! {
         SiteHeader {
             brand_name: chrome.brand_name.clone(),
@@ -129,23 +126,23 @@ pub fn NebulaIndexPage(chrome: PublicChrome, content: NebulaIndexContent) -> Ele
             site_name: chrome.brand_name.clone(),
             image: chrome.social_image.clone(),
         }
-        document::Stylesheet { href: NEBULA_STYLESHEET_HREF }
+        document::Stylesheet { href: CATALOG_STYLESHEET_HREF }
         PublicShell { header, footer,
-            NebulaHero {
+            CatalogHero {
                 eyebrow: chrome.brand_name.clone(),
                 title: content.title.clone(),
                 lede: content.lede.clone(),
             }
             if content.materials.is_empty() {
-                p { class: "nebula-empty",
+                p { class: "catalog-empty",
                     "This catalog is still loading. Email "
                     a { href: "{mailto}", "{content.contact_email}" }
                     " for the runbook in the meantime."
                 }
             } else {
-                NebulaMaterialList { materials: content.materials.clone() }
+                CatalogMaterialList { materials: content.materials.clone() }
                 if !content.footnote.is_empty() {
-                    p { class: "nebula-more", "{content.footnote}" }
+                    p { class: "catalog-more", "{content.footnote}" }
                 }
             }
         }
@@ -154,12 +151,12 @@ pub fn NebulaIndexPage(chrome: PublicChrome, content: NebulaIndexContent) -> Ele
 
 /// One list of materials.
 #[component]
-fn NebulaMaterialList(materials: Vec<NebulaMaterial>) -> Element {
+fn CatalogMaterialList(materials: Vec<CatalogMaterial>) -> Element {
     rsx! {
-        ul { class: "nebula-materials",
+        ul { class: "catalog-materials",
             for material in materials.iter() {
-                li { class: "nebula-material",
-                    p { class: "nebula-eyebrow", "{material.eyebrow}" }
+                li { class: "catalog-material",
+                    p { class: "catalog-eyebrow", "{material.eyebrow}" }
                     h3 {
                         a { href: "{material.href}", "{material.title}" }
                     }
@@ -180,8 +177,8 @@ mod tests {
         dioxus_ssr::render(&dom)
     }
 
-    fn material(title: &str, href: &str) -> NebulaMaterial {
-        NebulaMaterial {
+    fn material(title: &str, href: &str) -> CatalogMaterial {
+        CatalogMaterial {
             href: href.to_string(),
             eyebrow: "For lawyers".to_string(),
             title: title.to_string(),
@@ -189,8 +186,8 @@ mod tests {
         }
     }
 
-    fn workshops() -> NebulaIndexContent {
-        NebulaIndexContent {
+    fn workshops() -> CatalogIndexContent {
+        CatalogIndexContent {
             title: "Workshops".to_string(),
             lede: "Hands-on classes.".to_string(),
             materials: vec![
@@ -208,7 +205,7 @@ mod tests {
     fn html() -> String {
         fn app() -> Element {
             rsx! {
-                NebulaIndexPage { chrome: PublicChrome::default(), content: workshops() }
+                CatalogIndexPage { chrome: PublicChrome::default(), content: workshops() }
             }
         }
         ssr(app)
@@ -255,13 +252,13 @@ mod tests {
     #[test]
     fn an_empty_category_offers_the_foundation_inbox_instead() {
         fn app() -> Element {
-            let content = NebulaIndexContent {
+            let content = CatalogIndexContent {
                 title: "Presentations".to_string(),
                 contact_email: "support@example.org".to_string(),
-                ..NebulaIndexContent::default()
+                ..CatalogIndexContent::default()
             };
             rsx! {
-                NebulaIndexPage { chrome: PublicChrome::default(), content }
+                CatalogIndexPage { chrome: PublicChrome::default(), content }
             }
         }
         let out = ssr(app);

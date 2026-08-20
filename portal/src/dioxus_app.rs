@@ -314,7 +314,7 @@ fn generate_nonce() -> String {
 /// `img-src`, `font-src`, and `media-src` exactly as the site-wide policy does,
 /// because the licensed GORP faces this route declares live there — a
 /// `font-src 'self'` would block them and silently drop the page back to a
-/// fallback serif. `media-src` matters here in particular: Nebula slides render
+/// fallback serif. `media-src` matters here in particular: Catalog slides render
 /// through this route, so a slide's video is governed by this policy and not the
 /// site-wide one.
 fn csp_with_nonce(nonce: &str, asset_origin: Option<String>) -> String {
@@ -2610,115 +2610,42 @@ pub const FOUNDATION_ATTORNEYS_PATH: &str = "/foundation/attorneys";
 /// One category index — [`WORKSHOP_INDEX_PATH`] or
 /// [`PRESENTATION_INDEX_PATH`].
 ///
-/// Both mounts are public. The workshops index lists classes an anonymous
-/// reader cannot open, which is deliberate: the gate belongs on the material,
-/// not on the knowledge that the material exists.
+/// Both mounts are public.
 ///
 /// The catalog is fixed at construction, but the index is still built by a
 /// pre-layer rather than baked in, because the two mounts differ only by the
 /// content injected and resolving it on the request task is what keeps them
 /// one router.
-pub fn nebula_index_router(
+pub fn catalog_index_router(
     path: &str,
-    content: webapp::nebula_index::NebulaIndexContent,
-    chrome: NebulaChrome,
+    content: webapp::catalog_index::CatalogIndexContent,
 ) -> Router {
     Router::<FullstackState>::new()
         .route(
             path,
             get(render_handler)
                 .layer(from_fn(dioxus_document_head))
-                .layer(from_fn_with_state(chrome, inject_nebula_chrome))
-                .layer(from_fn_with_state(content, inject_nebula_index)),
+                .layer(from_fn(inject_public_utility))
+                .layer(from_fn_with_state(content, inject_catalog_index)),
         )
         .with_state(FullstackState::new(
             ServeConfig::new(),
-            webapp::nebula_index::NebulaIndexEntry,
+            webapp::catalog_index::CatalogIndexEntry,
         ))
 }
 
 /// Hand this category's resolved content to the render task.
-async fn inject_nebula_index(
-    axum::extract::State(content): axum::extract::State<webapp::nebula_index::NebulaIndexContent>,
+async fn inject_catalog_index(
+    axum::extract::State(content): axum::extract::State<webapp::catalog_index::CatalogIndexContent>,
     mut req: Request,
     next: Next,
 ) -> Response {
     req.extensions_mut()
-        .insert(webapp::nebula_index::InjectedNebulaIndex(content));
+        .insert(webapp::catalog_index::InjectedCatalogIndex(content));
     next.run(req).await
 }
 
-/// The paginated show-and-tell archive (`/show-and-tell`).
-/// Both lists page independently and "upcoming" is relative to today, so the
-/// content is per request.
-pub fn show_tell_index_router(path: &str, events: crate::EventIndex) -> Router {
-    Router::<FullstackState>::new()
-        .route(
-            path,
-            get(render_handler)
-                .layer(from_fn(dioxus_document_head))
-                .layer(from_fn(inject_foundation_chrome))
-                .layer(from_fn_with_state(events, inject_show_tell_index)),
-        )
-        .with_state(FullstackState::new(
-            ServeConfig::new(),
-            webapp::show_tell_index::ShowTellIndexEntry,
-        ))
-}
-
-async fn inject_show_tell_index(
-    axum::extract::State(events): axum::extract::State<crate::EventIndex>,
-    mut req: Request,
-    next: Next,
-) -> Response {
-    let content = crate::show_tell_index_content(&events, req.uri().query().unwrap_or_default());
-    req.extensions_mut()
-        .insert(webapp::show_tell_index::InjectedShowTellIndex(content));
-    next.run(req).await
-}
-
-/// One show-and-tell (`/show-and-tell/{slug}`).
-///
-/// Each catalog owns a static root path, so this is simply its own mount
-/// rather than a match that has to beat a generic `{category}` route.
-/// An unknown slug never enters the render: the pre-layer short-circuits with
-/// the 404 page, so there is no `Ok`-fallback-at-200 to re-commit.
-pub fn show_tell_detail_router(path: &str, events: crate::EventIndex) -> Router {
-    Router::<FullstackState>::new()
-        .route(
-            path,
-            get(render_handler)
-                .layer(from_fn(dioxus_document_head))
-                .layer(from_fn(inject_foundation_chrome))
-                .layer(from_fn_with_state(events, inject_show_tell_detail)),
-        )
-        .with_state(FullstackState::new(
-            ServeConfig::new(),
-            webapp::show_tell_detail::ShowTellDetailEntry,
-        ))
-}
-
-async fn inject_show_tell_detail(
-    axum::extract::State(events): axum::extract::State<crate::EventIndex>,
-    mut req: Request,
-    next: Next,
-) -> Response {
-    let slug = req
-        .uri()
-        .path()
-        .rsplit('/')
-        .next()
-        .unwrap_or_default()
-        .to_string();
-    let Some(content) = crate::show_tell_detail_content(&events, &slug) else {
-        return (StatusCode::NOT_FOUND, webapp::error_pages::not_found()).into_response();
-    };
-    req.extensions_mut()
-        .insert(webapp::show_tell_detail::InjectedShowTellDetail(content));
-    next.run(req).await
-}
-
-/// A Nebula material's hub — `/workshops/{slug}` or `/presentations/{slug}`
+/// A Catalog material's hub — `/workshops/{slug}` or `/presentations/{slug}`
 /// (#956 Phase 4).
 ///
 /// This path carries two behaviors and the pre-layer owns both, short-circuiting
@@ -2729,26 +2656,22 @@ async fn inject_show_tell_detail(
 ///   whole `readme.md` segment into `{slug}`, so the suffix is a branch here
 ///   rather than a second route, exactly as the handler had it.
 /// * An unknown material 404s.
-pub fn nebula_material_router(
-    path: &str,
-    workshops: crate::WorkshopIndex,
-    chrome: NebulaChrome,
-) -> Router {
+pub fn catalog_material_router(path: &str, workshops: crate::WorkshopIndex) -> Router {
     Router::<FullstackState>::new()
         .route(
             path,
             get(render_handler)
                 .layer(from_fn(dioxus_document_head))
-                .layer(from_fn_with_state(chrome, inject_nebula_chrome))
-                .layer(from_fn_with_state(workshops, inject_nebula_material)),
+                .layer(from_fn(inject_public_utility))
+                .layer(from_fn_with_state(workshops, inject_catalog_material)),
         )
         .with_state(FullstackState::new(
             ServeConfig::new(),
-            webapp::nebula_material::NebulaMaterialEntry,
+            webapp::catalog_material::CatalogMaterialEntry,
         ))
 }
 
-async fn inject_nebula_material(
+async fn inject_catalog_material(
     axum::extract::State(workshops): axum::extract::State<crate::WorkshopIndex>,
     mut req: Request,
     next: Next,
@@ -2767,7 +2690,7 @@ async fn inject_nebula_material(
         return (StatusCode::NOT_FOUND, webapp::error_pages::not_found()).into_response();
     };
     req.extensions_mut()
-        .insert(webapp::nebula_material::InjectedMaterial(
+        .insert(webapp::catalog_material::InjectedMaterial(
             crate::material_content(material),
         ));
     next.run(req).await
@@ -2777,31 +2700,30 @@ async fn inject_nebula_material(
 ///
 /// Mints the double-submit CSRF token for the certificate form embedded on the
 /// page, so the content is per request even though the slides are not.
-pub fn nebula_slides_router(
+pub fn catalog_slides_router(
     path: &str,
     workshops: crate::WorkshopIndex,
     sessions: crate::SessionStore,
     secure_cookies: bool,
-    chrome: NebulaChrome,
 ) -> Router {
     Router::<FullstackState>::new()
         .route(
             path,
             get(render_handler)
                 .layer(from_fn(dioxus_document_head))
-                .layer(from_fn_with_state(chrome, inject_nebula_chrome))
+                .layer(from_fn(inject_public_utility))
                 .layer(from_fn_with_state(
                     (workshops, sessions, secure_cookies),
-                    inject_nebula_slides,
+                    inject_catalog_slides,
                 )),
         )
         .with_state(FullstackState::new(
             ServeConfig::new(),
-            webapp::nebula_slides::NebulaSlidesEntry,
+            webapp::catalog_slides::CatalogSlidesEntry,
         ))
 }
 
-async fn inject_nebula_slides(
+async fn inject_catalog_slides(
     axum::extract::State((workshops, sessions, secure_cookies)): axum::extract::State<(
         crate::WorkshopIndex,
         crate::SessionStore,
@@ -2830,7 +2752,7 @@ async fn inject_nebula_slides(
         crate::WORKSHOP_CERT_CSRF_COOKIE_NAME,
     );
     req.extensions_mut()
-        .insert(webapp::nebula_slides::InjectedLightTable(
+        .insert(webapp::catalog_slides::InjectedLightTable(
             crate::light_table_content(material, csrf),
         ));
     next.run(req).await
@@ -2853,26 +2775,22 @@ fn material_slide_path(path: &str) -> Option<(String, String, usize)> {
 /// Steps are 1-based, so index `0` and anything past the last section are out
 /// of range. The pre-layer resolves the slide and 404s there rather than
 /// letting an unresolved render fall through to a `200` with an empty page.
-pub fn nebula_step_router(
-    path: &str,
-    workshops: crate::WorkshopIndex,
-    chrome: NebulaChrome,
-) -> Router {
+pub fn catalog_step_router(path: &str, workshops: crate::WorkshopIndex) -> Router {
     Router::<FullstackState>::new()
         .route(
             path,
             get(render_handler)
                 .layer(from_fn(dioxus_document_head))
-                .layer(from_fn_with_state(chrome, inject_nebula_chrome))
-                .layer(from_fn_with_state(workshops, inject_nebula_step)),
+                .layer(from_fn(inject_public_utility))
+                .layer(from_fn_with_state(workshops, inject_catalog_step)),
         )
         .with_state(FullstackState::new(
             ServeConfig::new(),
-            webapp::nebula_step::NebulaStepEntry,
+            webapp::catalog_step::CatalogStepEntry,
         ))
 }
 
-async fn inject_nebula_step(
+async fn inject_catalog_step(
     axum::extract::State(workshops): axum::extract::State<crate::WorkshopIndex>,
     mut req: Request,
     next: Next,
@@ -2888,7 +2806,7 @@ async fn inject_nebula_step(
         return not_found();
     };
     req.extensions_mut()
-        .insert(webapp::nebula_step::InjectedStep(content));
+        .insert(webapp::catalog_step::InjectedStep(content));
     next.run(req).await
 }
 
@@ -2897,21 +2815,21 @@ async fn inject_nebula_step(
 /// Same addressing and 404 rules as the classroom step, but the page wears no
 /// site chrome at all, so no chrome pre-layer runs here — a projector shows the
 /// slide and nothing else.
-pub fn nebula_display_router(path: &str, workshops: crate::WorkshopIndex) -> Router {
+pub fn catalog_display_router(path: &str, workshops: crate::WorkshopIndex) -> Router {
     Router::<FullstackState>::new()
         .route(
             path,
             get(render_handler)
                 .layer(from_fn(dioxus_document_head))
-                .layer(from_fn_with_state(workshops, inject_nebula_display)),
+                .layer(from_fn_with_state(workshops, inject_catalog_display)),
         )
         .with_state(FullstackState::new(
             ServeConfig::new(),
-            webapp::nebula_display::NebulaDisplayEntry,
+            webapp::catalog_display::CatalogDisplayEntry,
         ))
 }
 
-async fn inject_nebula_display(
+async fn inject_catalog_display(
     axum::extract::State(workshops): axum::extract::State<crate::WorkshopIndex>,
     mut req: Request,
     next: Next,
@@ -2927,7 +2845,7 @@ async fn inject_nebula_display(
         return not_found();
     };
     req.extensions_mut()
-        .insert(webapp::nebula_display::InjectedDisplay(content));
+        .insert(webapp::catalog_display::InjectedDisplay(content));
     next.run(req).await
 }
 
@@ -2936,22 +2854,18 @@ async fn inject_nebula_display(
 ///
 /// A GET route rather than the POST's own response body, so a reload
 /// re-renders the confirmation instead of dispatching a second certificate.
-pub fn certificate_sent_router(
-    path: &str,
-    workshops: crate::WorkshopIndex,
-    chrome: NebulaChrome,
-) -> Router {
+pub fn certificate_sent_router(path: &str, workshops: crate::WorkshopIndex) -> Router {
     Router::<FullstackState>::new()
         .route(
             path,
             get(render_handler)
                 .layer(from_fn(dioxus_document_head))
-                .layer(from_fn_with_state(chrome, inject_nebula_chrome))
+                .layer(from_fn(inject_public_utility))
                 .layer(from_fn_with_state(workshops, inject_certificate_sent)),
         )
         .with_state(FullstackState::new(
             ServeConfig::new(),
-            webapp::nebula_certificate_sent::CertificateSentEntry,
+            webapp::catalog_certificate_sent::CertificateSentEntry,
         ))
 }
 
@@ -2967,43 +2881,10 @@ async fn inject_certificate_sent(
         return (StatusCode::NOT_FOUND, webapp::error_pages::not_found()).into_response();
     };
     req.extensions_mut()
-        .insert(webapp::nebula_certificate_sent::InjectedCertificateSent(
+        .insert(webapp::catalog_certificate_sent::InjectedCertificateSent(
             crate::certificate_sent_content(material),
         ));
     next.run(req).await
-}
-
-/// Which brand's chrome a Nebula mount wears.
-///
-/// The two categories now live on different hosts: `workshops` is the
-/// Foundation's gated classroom under `/foundation`, and `presentations` is the
-/// firm's public talks catalog on `www.neonlaw.com`. A mount's chrome is
-/// therefore a property of where it is mounted, not of the shared routers, so
-/// the caller names it and the same five constructors serve either host.
-///
-/// Selecting here rather than at each page is what keeps a firm-hosted talk
-/// from shipping the nonprofit's footer — or a Foundation page from shipping
-/// the firm's regulated bar copy.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NebulaChrome {
-    /// The Foundation's header and its own footer.
-    Foundation,
-    /// The firm's header and its regulated footer — bar records, advertising
-    /// disclaimer and all.
-    Firm,
-}
-
-/// Resolve the mount's chrome onto the request, dispatching to the same two
-/// injectors every other page uses.
-async fn inject_nebula_chrome(
-    axum::extract::State(chrome): axum::extract::State<NebulaChrome>,
-    req: Request,
-    next: Next,
-) -> Response {
-    match chrome {
-        NebulaChrome::Foundation => inject_foundation_chrome(req, next).await,
-        NebulaChrome::Firm => inject_public_utility(req, next).await,
-    }
 }
 
 /// The five read routes one material category publishes.
@@ -3011,7 +2892,7 @@ async fn inject_nebula_chrome(
 /// A category owns a root path, and every material under it is addressed
 /// relative to that root. Naming the set once is what lets the `workshops`
 /// and `presentations` mounts be the same five routers behind different
-/// access rules rather than two hand-maintained copies.
+/// route sets rather than two hand-maintained copies.
 pub struct MaterialPaths {
     /// A material's hub, and — through the same pre-layer — its `.md` twin.
     pub material: &'static str,
@@ -3025,7 +2906,7 @@ pub struct MaterialPaths {
     pub certificate_sent: &'static str,
 }
 
-/// The gated `workshops` category.
+/// The public `workshops` category.
 pub const WORKSHOP_PATHS: MaterialPaths = MaterialPaths {
     material: WORKSHOP_MATERIAL_PATH,
     slides: "/workshops/{slug}/slides",
@@ -3043,7 +2924,7 @@ pub const PRESENTATION_PATHS: MaterialPaths = MaterialPaths {
     certificate_sent: "/presentations/{slug}/certificate/sent",
 };
 
-/// The public index of the gated classes.
+/// The public workshop index.
 pub const WORKSHOP_INDEX_PATH: &str = "/workshops";
 /// The public index of the talks.
 pub const PRESENTATION_INDEX_PATH: &str = "/presentations";
@@ -3063,61 +2944,25 @@ pub const PRESENTATION_CERTIFICATE_PATH: &str = "/presentations/{slug}/certifica
 /// from the end of the request path, so the same five constructors serve
 /// either category without knowing which root they were mounted under.
 #[must_use]
-pub fn nebula_material_routers(
+pub fn catalog_material_routers(
     paths: &MaterialPaths,
     workshops: crate::WorkshopIndex,
     sessions: &crate::SessionStore,
     secure_cookies: bool,
-    chrome: NebulaChrome,
 ) -> Vec<Router> {
     vec![
-        nebula_material_router(paths.material, workshops.clone(), chrome),
-        nebula_slides_router(
+        catalog_material_router(paths.material, workshops.clone()),
+        catalog_slides_router(
             paths.slides,
             workshops.clone(),
             sessions.clone(),
             secure_cookies,
-            chrome,
         ),
-        nebula_step_router(paths.step, workshops.clone(), chrome),
+        catalog_step_router(paths.step, workshops.clone()),
         // The projector face wears no site chrome at all, so it takes none.
-        nebula_display_router(paths.display, workshops.clone()),
-        certificate_sent_router(paths.certificate_sent, workshops, chrome),
+        catalog_display_router(paths.display, workshops.clone()),
+        certificate_sent_router(paths.certificate_sent, workshops),
     ]
-}
-
-/// The `workshops` category, mounted behind the session boundary.
-///
-/// The three Navigator classes are firm-internal training, so the whole
-/// material surface — the hub and its `.md` twin, the light table, a
-/// classroom step, the projector face, and the certificate confirmation —
-/// is reachable only by a firm-side role. Anonymous readers get the login
-/// redirect from the boundary; a `client` gets the policy's `403`.
-///
-/// The gate stops at the material: [`WORKSHOP_INDEX_PATH`] itself stays
-/// public and mounts elsewhere, because a reader who cannot open a class
-/// must still be able to learn it exists.
-#[must_use]
-pub fn nebula_workshop_routers(
-    workshops: crate::WorkshopIndex,
-    sessions: &crate::SessionStore,
-    policy: &crate::policy::PolicyClient,
-    auth: &crate::auth::AuthConfig,
-    secure_cookies: bool,
-    chrome: NebulaChrome,
-) -> Vec<Router> {
-    let gate = |router: Router| -> Router {
-        router
-            .route_layer(from_fn_with_state(
-                (sessions.clone(), policy.clone()),
-                crate::policy::require_policy,
-            ))
-            .route_layer(from_fn_with_state(auth.clone(), crate::auth::require_auth))
-    };
-    nebula_material_routers(&WORKSHOP_PATHS, workshops, sessions, secure_cookies, chrome)
-        .into_iter()
-        .map(gate)
-        .collect()
 }
 
 /// The Foundation's Notations page (#956 Phase 4). Its body is `templates/README.md`,
@@ -3916,7 +3761,7 @@ mod tests {
             cdn.contains("img-src 'self' data: https://storage.example.test;"),
             "{cdn}",
         );
-        // Nebula slides render through this route, so a slide's video is
+        // Catalog slides render through this route, so a slide's video is
         // governed here. Left to fall back to `default-src 'self'`, a clip
         // would play locally and be blocked from the bucket in production.
         assert!(

@@ -30,14 +30,15 @@ use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::components::{
-    wire_runs, AppLogo, AppNavbar, BackBreadcrumb, Card, Choice, CodeBlock, Column, ConfirmDelete,
-    DataTable, ExternalLink, Field, FooterAttorney, FooterBarLicense, FooterNavLink, FooterOffice,
-    FormCard, Freshness, GitHubStars, Icon, IconName, ImpersonationBanner, ImpersonationView,
-    LawyerPortalBreadcrumb, LegalBlueprintDisclaimer, NavigatorDestination, NavigatorFooter,
-    NavigatorFooterLink, NavigatorNavbar, NavigatorShell, NebulaHero, Pagination, PeopleListInputs,
-    PricingCard, PricingSection, PublicShell, RowActions, RunParagraph, SampleMattersBanner,
-    SiteFooterFoundation, SiteFooterLegal, SiteHeader, SiteNavLink, SocialMeta, SortState,
-    TestimonialCard, TestimonialSection, Toast, ToastTone, THEME_STYLESHEET_HREF,
+    wire_runs, AppLogo, AppNavbar, BackBreadcrumb, Card, CatalogHero, Choice, CodeBlock, Column,
+    ConfirmDelete, DataTable, ExternalLink, Field, FooterAttorney, FooterBarLicense, FooterNavLink,
+    FooterOffice, FormCard, Freshness, GitHubStars, Icon, IconName, ImpersonationBanner,
+    ImpersonationView, LawyerPortalBreadcrumb, LegalBlueprintDisclaimer, NavigatorDestination,
+    NavigatorFooter, NavigatorFooterLink, NavigatorNavbar, NavigatorShell, Pagination,
+    PeopleListInputs, PricingCard, PricingSection, PublicShell, RowActions, RunParagraph,
+    SampleMattersBanner, SiteFooterFoundation, SiteFooterLegal, SiteHeader, SiteNavLink,
+    SocialMeta, SortState, TestimonialCard, TestimonialSection, Toast, ToastTone,
+    THEME_STYLESHEET_HREF,
 };
 // The vendor marks come from their own module rather than the theme root: they
 // are the one component whose colours are a third party's rather than the
@@ -392,7 +393,7 @@ pub fn DesignGallery() -> Element {
             SampleMattersShowcase {}
             CopyRunsShowcase {}
             ResourceMarkShowcase {}
-            NebulaHeroShowcase {}
+            CatalogHeroShowcase {}
             SiteHeaderShowcase {}
             SiteFooterShowcase {}
             SiteFooterFoundationShowcase {}
@@ -915,7 +916,7 @@ fn ResourceMarkShowcase() -> Element {
     }
 }
 
-/// The Nebula hero the Foundation's material pages open with.
+/// The catalog hero workshop and presentation pages open with.
 ///
 /// This is the one showcase that renders a second `<h1>` on the gallery page:
 /// the hero *is* a page's first-level heading, so showing it faithfully means
@@ -924,11 +925,11 @@ fn ResourceMarkShowcase() -> Element {
 /// and rendering it with a downgraded heading would audit a component that
 /// does not ship.
 #[component]
-fn NebulaHeroShowcase() -> Element {
+fn CatalogHeroShowcase() -> Element {
     rsx! {
         section {
-            h2 { "Nebula hero" }
-            NebulaHero {
+            h2 { "Workshop and presentation hero" }
+            CatalogHero {
                 eyebrow: "For the hackers".to_string(),
                 title: "Rust in Peace".to_string(),
                 lede: "How the Foundation uses Rust to improve access to justice — \

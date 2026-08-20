@@ -244,9 +244,9 @@ async fn both_hosts_carry_the_shared_navigator_notes() {
     }
 }
 
-/// The corpus expands over the talks loaded at boot rather than a constant.
+/// The corpora expand over the materials loaded at boot rather than constants.
 #[tokio::test]
-async fn the_corpus_expands_over_the_loaded_talks() {
+async fn the_corpora_expand_over_the_loaded_materials() {
     let advertised = advertised_paths(&document(&app().await).await);
     assert!(
         advertised
@@ -260,12 +260,15 @@ async fn the_corpus_expands_over_the_loaded_talks() {
         body.contains("## Presentation Corpus"),
         "the talks are indexed under their own heading: {body}"
     );
-
-    // The gated half of Nebula stays out: the class material reads only for a
-    // signed-in visitor, so advertising it sends a crawler to a login door.
     assert!(
-        !advertised.iter().any(|path| path.starts_with("/workshops")),
-        "the workshops catalog is gated: {advertised:?}"
+        body.contains("## Workshop Corpus"),
+        "the workshops are indexed under their own heading: {body}"
+    );
+    assert!(
+        advertised
+            .iter()
+            .any(|path| path == "/workshops/use-the-navigator.md"),
+        "the workshop Markdown twin must be indexed: {advertised:?}"
     );
 }
 

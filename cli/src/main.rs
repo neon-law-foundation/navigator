@@ -2253,50 +2253,6 @@ fn standalone_tree_passes(dir: &std::path::Path) -> std::io::Result<(usize, usiz
     Ok((yaml_errors, mutable_tags))
 }
 
-/// Run the typed event loader over every `Event`-classified markdown file
-/// under `dir`, returning one error string per file that fails the deep
-/// semantic checks the lint rules leave to the loader (timestamps parse,
-/// `ends_at` after `starts_at`, a supported timezone, and a filename date
-/// that matches `starts_at`). Runs anywhere in the tree, not just the events
-/// content directory.
-fn event_typed_pass(dir: &std::path::Path) -> std::io::Result<Vec<String>> {
-    use rules::FileFilter;
-    let filter = rules::DefaultFileFilter::default();
-    let mut failures = Vec::new();
-    for entry in walkdir::WalkDir::new(dir)
-        .follow_links(false)
-        .into_iter()
-        .filter_entry(|e| {
-            if e.file_type().is_dir() && e.depth() > 0 {
-                filter.include_dir(e.path())
-            } else {
-                true
-            }
-        })
-    {
-        let entry = entry.map_err(std::io::Error::other)?;
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        let path = entry.path();
-        if !filter.include_file(path) {
-            continue;
-        }
-        let contents = std::fs::read_to_string(path)?;
-        let file = rules::SourceFile {
-            path: std::path::PathBuf::from(path),
-            contents,
-        };
-        if rules::classify_source(&file) != rules::DocumentKind::Event {
-            continue;
-        }
-        if let Err(err) = portal::events::load_file(path) {
-            failures.push(err.to_string());
-        }
-    }
-    Ok(failures)
-}
-
 /// The question codes N104 validates against: the stored catalog when
 /// `--question-codes-from-store` opts in, the compiled-in canonical set
 /// otherwise.
@@ -2396,21 +2352,7 @@ async fn run_validate(
     for v in &report.violations {
         print_violation(&v.path.display().to_string(), v.line, v.code, &v.message);
     }
-    let (mut error_count, warning_count) = severity_counts(&report.violations);
-
-    // Typed event pass: the deep per-file checks the lint rules leave to the
-    // loader, run over every event file in the same tree.
-    let event_failures = match event_typed_pass(dir) {
-        Ok(f) => f,
-        Err(e) => {
-            eprintln!("navigator: {e}");
-            return ExitCode::from(2);
-        }
-    };
-    for message in &event_failures {
-        println!("{} {message}", palette::highlight("event"));
-    }
-    error_count += event_failures.len();
+    let (error_count, warning_count) = severity_counts(&report.violations);
 
     println!(
         "{}",
@@ -2430,8 +2372,8 @@ async fn run_validate(
         }
     };
 
-    // Fail the gate on Error-severity markdown violations, any typed-event
-    // failure, a YAML parse error, or a consumed mutable tag. Warning-severity
+    // Fail the gate on Error-severity markdown violations, a YAML parse error,
+    // or a consumed mutable tag. Warning-severity
     // advisories (e.g. a step that's allowed but not built yet) are printed
     // but do not fail.
     if error_count > 0 || yaml_errors > 0 || mutable_tags > 0 {

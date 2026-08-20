@@ -117,7 +117,6 @@ pub async fn app_state(surreal: store::surreal::SurrealDb) -> AppState {
         marketing: MarketingIndex::empty(),
         blog: crate::BlogIndex::empty(),
         transparency: crate::TransparencyIndex::empty(),
-        events: crate::EventIndex::empty(),
         auth: AuthConfig::new(true, None),
         google_oauth: crate::google_oauth::GoogleOauthConfig::passthrough(),
         rate_limit: crate::rate_limit::RateLimit::disabled(),

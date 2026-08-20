@@ -346,7 +346,7 @@ The brand-owned public routes are:
 - Neon Law: `/`, `/contact`, `/team`, `/team/{slug}`, `/blog`, `/blog/{slug}`, `/privacy`, `/terms`, `/robots.txt`,
   `/sitemap.xml`, and `/llms.txt`;
 - Neon: `/`, `/foundation`, `/foundation/mission`, `/notations`, `/transparency/*`, `/workshops/*`,
-  `/foundation/nebula/*`, `/events/*`, `/privacy`, `/terms`, `/robots.txt`, `/sitemap.xml`, and `/llms.txt`.
+  `/presentations/*`, `/privacy`, `/terms`, `/robots.txt`, `/sitemap.xml`, and `/llms.txt`.
 
 This precedence is fail-closed, not merge order. Each brand declares every route it mounts; startup returns an error if
 an exact path or descendant overlaps a Navigator-owned prefix. A brand therefore cannot shadow data access,
@@ -1106,7 +1106,7 @@ reached the ledger.
 | GitHub daily token cap | `NAVIGATOR_GITHUB_MAX_DAILY_TOKENS` |
 | DevX Slack worker (in `workflows-service`) | `SLACK_WEBHOOK_URL` |
 | Main content roots | `NAVIGATOR_PUBLIC_DIR`, `NAVIGATOR_BLOG_DIR`, `NAVIGATOR_WORKSHOPS_DIR` |
-| Other content roots | `NAVIGATOR_MARKETING_DIR`, `NAVIGATOR_EVENTS_DIR`, `NAVIGATOR_FOUNDATION_DIR` |
+| Other content roots | `NAVIGATOR_MARKETING_DIR`, `NAVIGATOR_FOUNDATION_DIR` |
 | CLI login file | `NAVIGATOR_CREDENTIALS_FILE`, `NAVIGATOR_CONFIG_DIR` |
 | CLI live inquiry | `NAVIGATOR_NOTATION_TEMPLATE`, `NAVIGATOR_SPEECH_BACKEND` |
 | Harness worktree/cache | `NAVIGATOR_WORKTREE_PATH`, `NAVIGATOR_CHROME_CACHE_DIR` |

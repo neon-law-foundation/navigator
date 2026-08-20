@@ -105,7 +105,6 @@ pub mod email_threads;
 pub mod esign_view;
 pub mod esignature_webhook;
 pub mod estate;
-pub mod events;
 pub mod expunge;
 pub mod expunge_request_route;
 pub mod expunge_route;
@@ -162,7 +161,6 @@ pub use auth::{AuthClaims, AuthConfig};
 pub use blog::{BlogIndex, BlogPost};
 pub use config::{AppConfig, ConfigError};
 pub use docs::{Doc, DocsIndex};
-pub use events::{Event, EventIndex};
 pub use marketing::{MarketingDoc, MarketingIndex};
 pub use transparency::{DocCategory, TransparencyDoc, TransparencyIndex};
 // The A2A confirmation gate looks the *approver* up in `persons`, so a
@@ -197,8 +195,6 @@ const X_REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
 /// to `immutable` once asset paths are fingerprinted.
 const STATIC_CACHE_CONTROL: HeaderValue = HeaderValue::from_static("public, max-age=3600");
 const NOSNIFF: HeaderValue = HeaderValue::from_static("nosniff");
-
-const SHOW_TELL_EVENTS_PER_PAGE: usize = 5;
 
 /// `Strict-Transport-Security` value — two years with
 /// `includeSubDomains` and `preload`, making the site eligible for
@@ -287,11 +283,6 @@ pub const DEFAULT_MARKETING_DIR: &str =
 /// `NAVIGATOR_BLOG_DIR`.
 pub const DEFAULT_BLOG_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../server/content/blog");
 
-/// Root for the bundled Nebula show-and-tell pages. Override with
-/// `NAVIGATOR_EVENTS_DIR`.
-pub const DEFAULT_EVENTS_DIR: &str =
-    concat!(env!("CARGO_MANIFEST_DIR"), "/../server/content/events");
-
 /// Root for the bundled Foundation transparency documents served under
 /// `/transparency` (bylaws, conflict policy, quarterly board
 /// minutes). Override with `NAVIGATOR_FOUNDATION_DIR`.
@@ -320,9 +311,6 @@ pub struct AppState {
     /// board minutes) served under `/transparency`, loaded at boot
     /// from `server/content/foundation/`. See [`transparency`].
     pub transparency: TransparencyIndex,
-    /// Public Nebula show-and-tells, loaded from dated markdown files.
-    /// See [`events`].
-    pub events: EventIndex,
     pub auth: AuthConfig,
     /// Google OAuth access-token validator for `/mcp`. Pass-through
     /// when `GOOGLE_OAUTH_CLIENT_IDS` is unset (KIND / local dev).
@@ -490,12 +478,6 @@ impl FromRef<AppState> for BlogIndex {
 impl FromRef<AppState> for TransparencyIndex {
     fn from_ref(s: &AppState) -> Self {
         s.transparency.clone()
-    }
-}
-
-impl FromRef<AppState> for EventIndex {
-    fn from_ref(s: &AppState) -> Self {
-        s.events.clone()
     }
 }
 
@@ -1838,13 +1820,13 @@ pub fn bootstrap(
 
 /// The `presentations`-category certificate POST. The static route already
 /// fixes the category, so this hands the shared handler the pair it expects.
-async fn nebula_presentation_certificate_submit(
+async fn catalog_presentation_certificate_submit(
     state: State<AppState>,
     cookies: tower_cookies::Cookies,
     AxumPath(slug): AxumPath<String>,
     form: axum::extract::Form<CertificateForm>,
 ) -> axum::response::Response {
-    nebula_certificate_submit(
+    catalog_certificate_submit(
         state,
         cookies,
         AxumPath(("presentations".to_string(), slug)),
@@ -1865,10 +1847,10 @@ async fn nebula_presentation_certificate_submit(
 ///
 /// POST-only; a stray GET lands the reader back on the light table where the
 /// form lives.
-pub fn nebula_presentation_command_routes() -> Router<AppState> {
+pub fn catalog_presentation_command_routes() -> Router<AppState> {
     Router::new().route(
         dioxus_app::PRESENTATION_CERTIFICATE_PATH,
-        axum::routing::post(nebula_presentation_certificate_submit).get(
+        axum::routing::post(catalog_presentation_certificate_submit).get(
             |AxumPath(slug): AxumPath<String>| async move {
                 axum::response::Redirect::to(&format!("/presentations/{slug}/slides"))
             },
@@ -1876,7 +1858,7 @@ pub fn nebula_presentation_command_routes() -> Router<AppState> {
     )
 }
 
-/// The workshop certificate request — the one write on the Nebula material
+/// The workshop certificate request — the one write on the Catalog material
 /// surface, and the only part of it that is not a Dioxus page router.
 ///
 /// It carries the same policy gate the workshop pages carry, so a firm-side
@@ -1888,13 +1870,13 @@ pub fn nebula_presentation_command_routes() -> Router<AppState> {
 /// lead to. Returned already stated and already gated — through the same
 /// [`gated`] stack every other firm-side page rides — so the brand crate can push it
 /// into its router list beside the class pages themselves.
-pub fn nebula_workshop_command_routes(state: &AppState) -> Router {
+pub fn catalog_workshop_command_routes(state: &AppState) -> Router {
     gated(
         state,
         Router::new()
             .route(
                 dioxus_app::WORKSHOP_CERTIFICATE_PATH,
-                axum::routing::post(nebula_workshop_certificate_submit).get(
+                axum::routing::post(catalog_workshop_certificate_submit).get(
                     |AxumPath(slug): AxumPath<String>| async move {
                         axum::response::Redirect::to(&format!("/workshops/{slug}/slides"))
                     },
@@ -1906,13 +1888,13 @@ pub fn nebula_workshop_command_routes(state: &AppState) -> Router {
 
 /// The `workshops`-category certificate POST. The static route already fixes
 /// the category, so this hands the shared handler the pair it expects.
-async fn nebula_workshop_certificate_submit(
+async fn catalog_workshop_certificate_submit(
     state: State<AppState>,
     cookies: tower_cookies::Cookies,
     AxumPath(slug): AxumPath<String>,
     form: axum::extract::Form<CertificateForm>,
 ) -> axum::response::Response {
-    nebula_certificate_submit(
+    catalog_certificate_submit(
         state,
         cookies,
         AxumPath(("workshops".to_string(), slug)),
@@ -2084,29 +2066,6 @@ async fn scope_branding(
     views::brand::scope(branding, next.run(request)).await
 }
 
-fn format_event_datetime_range(
-    start: chrono::NaiveDateTime,
-    end: chrono::NaiveDateTime,
-    timezone: &str,
-) -> String {
-    format!(
-        "{}-{} {}",
-        start.format("%B %-d, %Y, %-I:%M %p"),
-        end.format("%-I:%M %p"),
-        timezone_label(timezone)
-    )
-}
-
-fn timezone_label(timezone: &str) -> &str {
-    match timezone {
-        "America/Los_Angeles" => "Pacific",
-        "America/Denver" => "Mountain",
-        "America/Chicago" => "Central",
-        "America/New_York" => "Eastern",
-        _ => timezone,
-    }
-}
-
 /// Build the kebab-case redirect target for a file-backed asset route
 /// when any path segment is in the legacy underscore form, or `None`
 /// when every segment is already canonical.
@@ -2169,140 +2128,27 @@ async fn docusign_consent_callback() -> axum::response::Html<String> {
     webapp::docusign_consent::render()
 }
 
-/// Route prefix for one material category. The Foundation host *is* the
-/// Foundation, so a category owns a root path rather than sitting under a
-/// `/foundation` or `/nebula` segment that would only ever repeat what the
-/// domain already says.
-pub(crate) fn nebula_material_base(category: &str) -> String {
+/// Route prefix for one material category. Workshops and presentations each
+/// own a top-level path.
+pub(crate) fn catalog_material_base(category: &str) -> String {
     format!("/{category}")
-}
-
-struct EventCardMeta {
-    detail_href: String,
-    time: String,
-    image_alt: String,
-}
-
-fn event_card_meta(event: &Event) -> EventCardMeta {
-    EventCardMeta {
-        detail_href: format!(
-            "{}/{}",
-            webapp::show_tell_index::SHOW_TELL_INDEX_PATH,
-            event.public_slug
-        ),
-        time: format_event_datetime_range(event.starts_at, event.ends_at, &event.timezone),
-        image_alt: event
-            .image_alt
-            .clone()
-            .unwrap_or_else(|| format!("{} event image", event.title)),
-    }
-}
-
-fn total_pages(total: usize) -> usize {
-    total.div_ceil(SHOW_TELL_EVENTS_PER_PAGE).max(1)
-}
-
-fn clamped_page(requested: Option<usize>, total: usize) -> usize {
-    requested.unwrap_or(1).clamp(1, total_pages(total))
-}
-
-fn event_page_slice<'a>(events: &[&'a Event], page: usize) -> Vec<&'a Event> {
-    let start = (page - 1) * SHOW_TELL_EVENTS_PER_PAGE;
-    events
-        .iter()
-        .skip(start)
-        .take(SHOW_TELL_EVENTS_PER_PAGE)
-        .copied()
-        .collect()
-}
-
-/// Build the show-and-tell archive's Dioxus content from the raw query string.
-///
-/// The two lists page independently (`?upcoming_page=` / `?past_page=`), and
-/// each page number is clamped to its own list's bounds, so an out-of-range or
-/// unparseable value lands on a real page rather than an empty one.
-fn show_tell_index_content(
-    events: &EventIndex,
-    query: &str,
-) -> webapp::show_tell_index::ShowTellIndexContent {
-    let param = |name: &str| -> Option<usize> {
-        query.split('&').find_map(|pair| {
-            let (key, value) = pair.split_once('=')?;
-            (key == name).then(|| value.parse().ok())?
-        })
-    };
-    let today = chrono::Local::now().date_naive();
-    let upcoming = events.upcoming(today);
-    let past = events.past(today);
-    let upcoming_page = clamped_page(param("upcoming_page"), upcoming.len());
-    let past_page = clamped_page(param("past_page"), past.len());
-    let list = |events: &[&Event], page: usize| webapp::show_tell_index::ShowTellList {
-        cards: event_page_slice(events, page)
-            .into_iter()
-            .map(show_tell_card)
-            .collect(),
-        current_page: u32::try_from(page).unwrap_or(1),
-        total_pages: u32::try_from(total_pages(events.len())).unwrap_or(1),
-    };
-    webapp::show_tell_index::ShowTellIndexContent {
-        upcoming: list(&upcoming, upcoming_page),
-        past: list(&past, past_page),
-    }
-}
-
-/// One gathering as an archive card.
-fn show_tell_card(event: &Event) -> webapp::show_tell_index::ShowTellCard {
-    let meta = event_card_meta(event);
-    webapp::show_tell_index::ShowTellCard {
-        detail_href: meta.detail_href,
-        title: event.title.clone(),
-        time: meta.time,
-        description: event.description.clone(),
-        image_url: event.image_url.clone(),
-        image_alt: meta.image_alt,
-    }
-}
-
-/// Build one gathering's detail content, or `None` when the slug is unknown —
-/// the router's pre-layer turns that into the 404 page without entering the
-/// Dioxus render.
-fn show_tell_detail_content(
-    events: &EventIndex,
-    slug: &str,
-) -> Option<webapp::show_tell_detail::ShowTellDetailContent> {
-    let event = events.get_public(slug)?;
-    Some(webapp::show_tell_detail::ShowTellDetailContent {
-        title: event.title.clone(),
-        description: event.description.clone(),
-        time: format_event_datetime_range(event.starts_at, event.ends_at, &event.timezone),
-        // Luma owns everything about attending; the page shows the event
-        // picture and invites the visitor to check it out on Luma. Present on
-        // every event (rule E004).
-        luma_url: event.luma_url.clone(),
-        image_url: event.image_url.clone(),
-        image_alt: event
-            .image_alt
-            .clone()
-            .unwrap_or_else(|| event.title.clone()),
-        body_html: event.body_html.clone(),
-    })
 }
 /// Build the table of contents shared by the overview and every step.
 /// Build a material's Dioxus hub content — the outline grouped by chapter,
 /// plus the start / slides / markdown affordances.
-pub(crate) fn material_content(m: &WorkshopMaterial) -> webapp::nebula_material::MaterialContent {
-    let base = nebula_material_base(&m.category);
-    let chapters: Vec<webapp::nebula_material::MaterialChapter> = m
+pub(crate) fn material_content(m: &WorkshopMaterial) -> webapp::catalog_material::MaterialContent {
+    let base = catalog_material_base(&m.category);
+    let chapters: Vec<webapp::catalog_material::MaterialChapter> = m
         .chapters
         .iter()
         .enumerate()
         .map(
-            |(chapter_index, chapter)| webapp::nebula_material::MaterialChapter {
+            |(chapter_index, chapter)| webapp::catalog_material::MaterialChapter {
                 number: chapter_index + 1,
                 title: chapter.title.clone(),
                 preamble_html: chapter.preamble_html.clone(),
                 steps: (chapter.section_start..chapter.section_start + chapter.section_count)
-                    .map(|section_index| webapp::nebula_material::MaterialStep {
+                    .map(|section_index| webapp::catalog_material::MaterialStep {
                         number: section_index + 1,
                         title: m.sections[section_index].title.clone(),
                         href: format!("{base}/{}/step/{}", m.slug, section_index + 1),
@@ -2315,7 +2161,7 @@ pub(crate) fn material_content(m: &WorkshopMaterial) -> webapp::nebula_material:
         .iter()
         .find_map(|chapter| chapter.steps.first())
         .map(|step| step.href.clone());
-    webapp::nebula_material::MaterialContent {
+    webapp::catalog_material::MaterialContent {
         title: m.title.clone(),
         description: m.description.clone(),
         intro_html: m.intro_html.clone(),
@@ -2333,18 +2179,18 @@ pub(crate) fn material_content(m: &WorkshopMaterial) -> webapp::nebula_material:
 pub(crate) fn light_table_content(
     m: &WorkshopMaterial,
     csrf_token: String,
-) -> webapp::nebula_slides::LightTableContent {
-    let base = nebula_material_base(&m.category);
-    let chapters: Vec<webapp::nebula_slides::SlideChapter> = m
+) -> webapp::catalog_slides::LightTableContent {
+    let base = catalog_material_base(&m.category);
+    let chapters: Vec<webapp::catalog_slides::SlideChapter> = m
         .chapters
         .iter()
         .enumerate()
         .map(
-            |(chapter_index, chapter)| webapp::nebula_slides::SlideChapter {
+            |(chapter_index, chapter)| webapp::catalog_slides::SlideChapter {
                 number: chapter_index + 1,
                 title: chapter.title.clone(),
                 slides: (chapter.section_start..chapter.section_start + chapter.section_count)
-                    .map(|section_index| webapp::nebula_slides::SlideThumb {
+                    .map(|section_index| webapp::catalog_slides::SlideThumb {
                         number: section_index + 1,
                         title: m.sections[section_index].title.clone(),
                         body_html: m.sections[section_index].body_html.clone(),
@@ -2354,7 +2200,7 @@ pub(crate) fn light_table_content(
             },
         )
         .collect();
-    webapp::nebula_slides::LightTableContent {
+    webapp::catalog_slides::LightTableContent {
         workshop_title: m.title.clone(),
         slug: m.slug.clone(),
         material_href: format!("{base}/{}", m.slug),
@@ -2370,24 +2216,24 @@ pub(crate) fn light_table_content(
 pub(crate) fn step_content(
     m: &WorkshopMaterial,
     step: usize,
-) -> Option<webapp::nebula_step::StepContent> {
+) -> Option<webapp::catalog_step::StepContent> {
     let index = step.checked_sub(1)?;
     let section = m.sections.get(index)?;
-    let base = nebula_material_base(&m.category);
+    let base = catalog_material_base(&m.category);
     let material_href = format!("{base}/{}", m.slug);
     let total = m.sections.len();
     let step_href = |n: usize| format!("{material_href}/step/{n}");
 
-    let chapters: Vec<webapp::nebula_step::StepMenuChapter> = m
+    let chapters: Vec<webapp::catalog_step::StepMenuChapter> = m
         .chapters
         .iter()
         .enumerate()
         .map(
-            |(chapter_index, chapter)| webapp::nebula_step::StepMenuChapter {
+            |(chapter_index, chapter)| webapp::catalog_step::StepMenuChapter {
                 number: chapter_index + 1,
                 title: chapter.title.clone(),
                 entries: (chapter.section_start..chapter.section_start + chapter.section_count)
-                    .map(|section_index| webapp::nebula_step::StepMenuEntry {
+                    .map(|section_index| webapp::catalog_step::StepMenuEntry {
                         number: section_index + 1,
                         title: m.sections[section_index].title.clone(),
                         href: step_href(section_index + 1),
@@ -2403,7 +2249,7 @@ pub(crate) fn step_content(
         .iter()
         .find(|chapter| chapter.entries.iter().any(|entry| entry.current));
 
-    Some(webapp::nebula_step::StepContent {
+    Some(webapp::catalog_step::StepContent {
         workshop_title: m.title.clone(),
         slug: m.slug.clone(),
         title: section.title.clone(),
@@ -2429,11 +2275,11 @@ pub(crate) fn step_content(
 pub(crate) fn display_content(
     m: &WorkshopMaterial,
     step: usize,
-) -> Option<webapp::nebula_display::DisplayContent> {
+) -> Option<webapp::catalog_display::DisplayContent> {
     let section = step.checked_sub(1).and_then(|i| m.sections.get(i))?;
-    let base = nebula_material_base(&m.category);
+    let base = catalog_material_base(&m.category);
     let material_href = format!("{base}/{}", m.slug);
-    Some(webapp::nebula_display::DisplayContent {
+    Some(webapp::catalog_display::DisplayContent {
         workshop_title: m.title.clone(),
         title: section.title.clone(),
         body_html: section.body_html.clone(),
@@ -2447,10 +2293,10 @@ pub(crate) fn display_content(
 /// Build the certificate confirmation (`…/{slug}/certificate/sent`).
 pub(crate) fn certificate_sent_content(
     m: &WorkshopMaterial,
-) -> webapp::nebula_certificate_sent::CertificateSentContent {
-    webapp::nebula_certificate_sent::CertificateSentContent {
+) -> webapp::catalog_certificate_sent::CertificateSentContent {
+    webapp::catalog_certificate_sent::CertificateSentContent {
         workshop_title: m.title.clone(),
-        material_href: format!("{}/{}", nebula_material_base(&m.category), m.slug),
+        material_href: format!("{}/{}", catalog_material_base(&m.category), m.slug),
     }
 }
 
@@ -2537,7 +2383,6 @@ User-agent: *
 Disallow: /app
 Disallow: /admin
 Disallow: /lawyer
-Disallow: /show-and-tell
 Disallow: /notations
 Disallow: /transparency
 Disallow: /mission
@@ -2917,7 +2762,7 @@ struct CertificateForm {
 /// from the Foundation address). Completion is client-trusted
 /// (localStorage, no telemetry), so this endpoint can't verify the slides
 /// were actually viewed — it's an educational courtesy, not a credential.
-async fn nebula_certificate_submit(
+async fn catalog_certificate_submit(
     State(app): State<AppState>,
     cookies: tower_cookies::Cookies,
     AxumPath((category, slug)): AxumPath<(String, String)>,
@@ -2976,7 +2821,7 @@ async fn nebula_certificate_submit(
     // re-renders it instead of dispatching a second certificate.
     axum::response::Redirect::to(&format!(
         "{}/{}/certificate/sent",
-        nebula_material_base(&m.category),
+        catalog_material_base(&m.category),
         m.slug
     ))
     .into_response()

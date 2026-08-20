@@ -37,7 +37,7 @@ pub fn render(src: &str) -> String {
 /// is the language (`rust` from ```` ```rust ````); an indented or bare block
 /// highlights as plain text.
 ///
-/// This is the shared highlighting seam: the Nebula material renderer
+/// This is the shared highlighting seam: the Catalog material renderer
 /// (`portal::workshops::loader`) applies it, so a slide's code reads the same
 /// on every deck face. The plain [`render`] path
 /// deliberately does not — README/doc prose keeps its inert `language-…` fence

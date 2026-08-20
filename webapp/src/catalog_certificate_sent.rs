@@ -17,7 +17,7 @@
 use dioxus::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::components::{PublicShell, SiteHeader, SiteNavLink, NEBULA_STYLESHEET_HREF};
+use crate::components::{PublicShell, SiteHeader, SiteNavLink, CATALOG_STYLESHEET_HREF};
 use crate::public_chrome::{PublicChrome, PublicFooter};
 
 /// Everything the confirmation renders.
@@ -97,7 +97,7 @@ pub fn CertificateSentPage(chrome: PublicChrome, content: CertificateSentContent
             name: "description",
             content: "Your workshop completion certificate is on its way.",
         }
-        document::Stylesheet { href: NEBULA_STYLESHEET_HREF }
+        document::Stylesheet { href: CATALOG_STYLESHEET_HREF }
         PublicShell { header, footer,
             article { class: "workshop-cert-sent",
                 h1 { "Check your inbox" }
