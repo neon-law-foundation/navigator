@@ -54,7 +54,7 @@ pub fn SampleMattersBanner() -> Element {
             strong { class: "sample-matters-banner__label", "Sample matters" }
             span { class: "sample-matters-banner__body",
                 "Every client, case, and document on this deployment is invented for
-                 demonstration. Nothing here is a real client's file."
+                 demonstration. This is purposefully a demo environment."
             }
         }
     }
@@ -97,17 +97,17 @@ mod tests {
         dioxus_ssr::render(&dom)
     }
 
-    /// The banner says the two things a reader needs: that the matters are
-    /// sample, and that none of them belongs to a real client. The second
-    /// sentence is the one that matters — "sample" alone is jargon a
-    /// visitor can read past.
+    /// The banner says the two things a reader needs: that every record on the
+    /// page was invented, and that the deployment carrying them is a demo on
+    /// purpose. The second sentence is the one that matters — "sample" alone is
+    /// jargon a visitor can read past.
     #[test]
-    fn the_banner_says_the_matters_are_invented_and_not_a_real_clients() {
+    fn the_banner_says_the_matters_are_invented_and_the_deployment_is_a_demo() {
         let out = html();
         assert!(out.contains("Sample matters"), "{out}");
         assert!(
-            out.contains("invented for") && out.contains("real client&#39;s file"),
-            "the banner must say outright that nothing here is a real client's file: {out}"
+            out.contains("invented for") && out.contains("purposefully a demo environment"),
+            "the banner must say outright that this deployment is a demo: {out}"
         );
     }
 
