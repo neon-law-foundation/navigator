@@ -2997,10 +2997,16 @@ a.nav-link:hover {
    own; and a reader who has scrolled past it has already read it. Being in
    normal flow is also what keeps it out of the way of a portal bundle's own
    fixed chrome. */
-.simulated-matters-banner {
+.sample-matters-banner {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
+  /* Centred, because it is a notice about the whole deployment rather than a
+     line of the page's own content: it belongs on the page's axis, not ragged
+     against its left edge. `justify-content` centres the two spans as a row;
+     `text-align` centres the body's own lines once it wraps on a narrow
+     viewport. */
+  justify-content: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
   background: var(--nav-color-warning-surface);
@@ -3008,10 +3014,17 @@ a.nav-link:hover {
   font-family: var(--nav-font-family);
   font-size: 0.9375rem;
   line-height: 1.4;
-  text-align: left;
+  text-align: center;
 }
 
-.simulated-matters-banner__label {
+/* The sentence a reader actually has to read. It wraps on any narrow
+   viewport, and centred text whose last line is one orphaned word reads as a
+   mistake rather than as a notice — `balance` evens the lines instead. */
+.sample-matters-banner__body {
+  text-wrap: balance;
+}
+
+.sample-matters-banner__label {
   /* Uppercased in CSS rather than in the copy so an assistive technology reads
      the words rather than spelling out a shouted string. */
   text-transform: uppercase;

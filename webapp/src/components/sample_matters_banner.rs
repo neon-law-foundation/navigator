@@ -145,4 +145,50 @@ mod tests {
         let out = html();
         assert!(!out.contains("neonlaw.com"), "{out}");
     }
+
+    /// Every class the banner emits is styled by the stylesheet that styles it.
+    ///
+    /// This is the one component whose entire job is to be *seen*: it is what
+    /// stands between a demonstration and somebody believing they were shown a
+    /// client's file. Renaming it without renaming its rules left it rendering
+    /// as unstyled text — no amber band, no separation between the label and
+    /// the sentence it qualifies — so the notice was on the page and invisible
+    /// as a notice. Nothing caught that, because nothing tied the class the
+    /// component emits to the rule that paints it.
+    ///
+    /// A markup-only assertion cannot cover this and neither can a rendering
+    /// one: the class is in the HTML either way, and no test in this crate
+    /// loads a stylesheet. So this reads the file across the seam by path,
+    /// which is the seam that broke.
+    #[test]
+    fn every_class_the_banner_emits_is_styled_by_the_theme() {
+        let theme =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../server/public/css/theme.css");
+        let css = std::fs::read_to_string(&theme)
+            .unwrap_or_else(|e| panic!("the theme stylesheet must be readable: {e}"));
+
+        let out = html();
+        let mut classes = Vec::new();
+        let mut rest = out.as_str();
+        while let Some(at) = rest.find("class=\"") {
+            rest = &rest[at + 7..];
+            let Some(end) = rest.find('"') else { break };
+            classes.extend(rest[..end].split_whitespace().map(str::to_string));
+            rest = &rest[end..];
+        }
+        assert!(
+            !classes.is_empty(),
+            "the banner emits classes, so this test must find some: {out}"
+        );
+
+        for class in classes {
+            assert!(
+                css.contains(&format!(".{class}")),
+                "`{class}` is emitted by the banner but has no rule in \
+                 server/public/css/theme.css — renaming the component without \
+                 renaming its rules publishes an unstyled notice, which is the \
+                 one thing this banner may not be"
+            );
+        }
+    }
 }
