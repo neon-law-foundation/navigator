@@ -768,6 +768,14 @@
   margin-bottom: 0.5rem;
 }
 
+/* The deck title is the step page's `h1`, so it carries the rail's own
+   scale rather than a document heading's. */
+.workshop-rail__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
 .workshop-rail__back {
   font-size: 0.875rem;
   text-decoration: none;

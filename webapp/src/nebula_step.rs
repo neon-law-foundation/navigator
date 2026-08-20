@@ -208,12 +208,22 @@ fn StepRail(content: StepContent) -> Element {
     rsx! {
         nav { class: "workshop-rail", "aria-label": "Workshop progress",
             div { class: "workshop-rail__top",
-                a { class: "workshop-rail__back", href: "{content.material_href}",
-                    "← {content.workshop_title}"
+                // The deck is what this page is about, so its title is the
+                // page's `h1` — and it doubles as the way back to the hub.
+                // Without it the slide's own `h3` was the first heading on the
+                // page, which skips two levels for anyone navigating by
+                // heading.
+                h1 { class: "workshop-rail__title",
+                    a { class: "workshop-rail__back", href: "{content.material_href}",
+                        "← {content.workshop_title}"
+                    }
                 }
                 div { class: "workshop-rail__meta",
                     div {
-                        p { class: "workshop-rail__chapter", "{content.chapter_title}" }
+                        // `h2` between the deck and the slide, matching the
+                        // light table: chapter titles are `##` in the source
+                        // Markdown and slide titles are `###`.
+                        h2 { class: "workshop-rail__chapter", "{content.chapter_title}" }
                         p { class: "workshop-rail__position",
                             "Chapter {content.chapter_number} of {content.chapter_total} · Section {content.number} of {content.total}"
                         }
@@ -507,8 +517,17 @@ mod tests {
             html.contains("href=\"/workshops/use-the-navigator/display/2\""),
             "display face for this slide: {html}"
         );
-        // The slide body renders; the chrome title is the only <h1>.
+        // The rail carries the deck as `h1` and the chapter as `h2`, so the
+        // slide's own `h3` lands under two levels rather than opening the page.
         assert!(html.contains("<h3>Build the template</h3>"));
+        assert!(
+            html.contains(r#"<h1 class="workshop-rail__title""#),
+            "the deck title is the page h1: {html}"
+        );
+        assert!(
+            html.contains(r#"<h2 class="workshop-rail__chapter""#),
+            "the chapter is the page h2: {html}"
+        );
     }
 
     #[test]
