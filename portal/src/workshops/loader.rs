@@ -756,21 +756,17 @@ mod tests {
         assert!(materials.is_empty());
     }
 
-    /// The "Rust in Peace" talk became a workshop when the standalone
-    /// Presentations surface was removed. Its convention survives the move:
-    /// every code slide is introduced by ``From `path/to/file`:`` followed
-    /// by a fenced block, and must be an **exact copy** of that workspace
-    /// file. This walks the baked talk, reads each cited file from the
-    /// workspace (not a second baked copy, which would always pass), and
-    /// fails the build when a snippet drifts.
-    #[test]
-    fn rust_in_peace_snippets_are_exact_copies_of_cited_sources() {
-        const TALK: &str = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../server/content/workshops/navigator/RUST_IN_PEACE.md"
-        ));
-        let workspace_root = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
-        let lines: Vec<&str> = TALK.lines().collect();
+    /// Walk a deck's ``From `path/to/file`:`` attributions and check each
+    /// fenced block that follows one is an exact copy of the cited workspace
+    /// file. Returns how many snippets were grounded, or the first problem.
+    ///
+    /// Split out of the test below so the drift detection is itself proven.
+    /// The shipped decks currently cite no sources at all, so a walk over
+    /// them alone never enters this loop and would pass while checking
+    /// nothing — which is exactly what a walk with no fixtures behind it did.
+    fn verify_cited_snippets(markdown: &str, workspace_root: &str) -> Result<usize, String> {
+        let lines: Vec<&str> = markdown.lines().collect();
+        let mut grounded = 0;
         let mut i = 0;
         while i < lines.len() {
             if let Some(path) = lines[i]
@@ -781,26 +777,128 @@ mod tests {
                 while open < lines.len() && !lines[open].starts_with("```") {
                     open += 1;
                 }
-                assert!(
-                    open < lines.len(),
-                    "attribution for {path} has no code fence after it"
-                );
+                if open >= lines.len() {
+                    return Err(format!("attribution for {path} has no code fence after it"));
+                }
                 let mut close = open + 1;
                 while close < lines.len() && lines[close] != "```" {
                     close += 1;
                 }
-                assert!(close < lines.len(), "code fence for {path} is never closed");
+                if close >= lines.len() {
+                    return Err(format!("code fence for {path} is never closed"));
+                }
                 let snippet = lines[open + 1..close].join("\n");
                 let source = fs::read_to_string(format!("{workspace_root}/{path}"))
-                    .unwrap_or_else(|e| panic!("cited source {path} is unreadable: {e}"));
-                assert!(
-                    source.contains(&snippet),
-                    "slide snippet drifted from {path} — update the talk to match the source"
-                );
+                    .map_err(|e| format!("cited source {path} is unreadable: {e}"))?;
+                if !source.contains(&snippet) {
+                    return Err(format!(
+                        "slide snippet drifted from {path} — update the talk to match the source"
+                    ));
+                }
+                grounded += 1;
                 i = close;
             }
             i += 1;
         }
+        Ok(grounded)
+    }
+
+    /// The "Rust in Peace" talk became a workshop when the standalone
+    /// Presentations surface was removed. Its convention survives the move:
+    /// every code slide is introduced by ``From `path/to/file`:`` followed
+    /// by a fenced block, and must be an **exact copy** of that workspace
+    /// file. This walks the baked talk, reads each cited file from the
+    /// workspace (not a second baked copy, which would always pass), and
+    /// fails the build when a snippet drifts.
+    ///
+    /// No count is asserted: how many snippets a deck cites is an authoring
+    /// decision, and a trimmed deck citing none is not a regression. What the
+    /// convention is worth is proven by the fixtures below instead.
+    #[test]
+    fn rust_in_peace_snippets_are_exact_copies_of_cited_sources() {
+        const TALK: &str = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../server/content/workshops/navigator/RUST_IN_PEACE.md"
+        ));
+        let workspace_root = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
+        if let Err(problem) = verify_cited_snippets(TALK, workspace_root) {
+            panic!("{problem}");
+        }
+    }
+
+    /// A snippet that matches its cited source is grounded, and one that has
+    /// drifted from it is caught. This is the assertion the real-deck walk
+    /// above cannot make while the shipped decks cite nothing.
+    #[test]
+    fn a_cited_snippet_is_grounded_and_a_drifted_one_is_caught() {
+        let root = tempfile::TempDir::new().unwrap();
+        fs::create_dir_all(root.path().join("src")).unwrap();
+        fs::write(
+            root.path().join("src/lib.rs"),
+            "fn one() -> u8 {\n    1\n}\n",
+        )
+        .unwrap();
+        let workspace_root = root.path().to_str().unwrap();
+
+        let grounded = "From `src/lib.rs`:\n\n```rust\nfn one() -> u8 {\n    1\n}\n```\n";
+        assert_eq!(
+            verify_cited_snippets(grounded, workspace_root),
+            Ok(1),
+            "a snippet copied from its source is grounded"
+        );
+
+        let drifted = "From `src/lib.rs`:\n\n```rust\nfn one() -> u8 {\n    2\n}\n```\n";
+        let problem = verify_cited_snippets(drifted, workspace_root).unwrap_err();
+        assert!(
+            problem.contains("drifted from src/lib.rs"),
+            "a changed line must be reported as drift, got: {problem}"
+        );
+    }
+
+    /// The three malformed shapes the walk has to reject rather than skip: an
+    /// attribution with no fence after it, a fence that never closes, and a
+    /// citation of a file that is not there. Each would otherwise let a code
+    /// slide ship unchecked.
+    #[test]
+    fn a_malformed_or_missing_citation_is_rejected() {
+        let root = tempfile::TempDir::new().unwrap();
+        fs::write(root.path().join("real.rs"), "fn real() {}\n").unwrap();
+        let workspace_root = root.path().to_str().unwrap();
+
+        let no_fence = "From `real.rs`:\n\nprose, not a fenced block\n";
+        assert!(
+            verify_cited_snippets(no_fence, workspace_root)
+                .unwrap_err()
+                .contains("no code fence"),
+            "an attribution with no fence after it is rejected"
+        );
+
+        let unclosed = "From `real.rs`:\n\n```rust\nfn real() {}\n";
+        assert!(
+            verify_cited_snippets(unclosed, workspace_root)
+                .unwrap_err()
+                .contains("never closed"),
+            "a fence that never closes is rejected"
+        );
+
+        let missing = "From `gone.rs`:\n\n```rust\nfn gone() {}\n```\n";
+        assert!(
+            verify_cited_snippets(missing, workspace_root)
+                .unwrap_err()
+                .contains("unreadable"),
+            "a citation of a file that is not there is rejected"
+        );
+    }
+
+    /// A deck that cites nothing walks clean and grounds nothing — the shape
+    /// every shipped deck currently has. Pinned so the walk's own behaviour on
+    /// that input is stated rather than assumed.
+    #[test]
+    fn a_deck_that_cites_no_source_grounds_nothing() {
+        assert_eq!(
+            verify_cited_snippets("### A slide\n\nProse only.\n", "/no/such/root"),
+            Ok(0)
+        );
     }
 
     #[test]
