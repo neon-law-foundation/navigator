@@ -67,19 +67,19 @@ The presenter notes: what you say. Shown under the slide, hidden in projector mo
 ## Wrap Up
 ```
 
-Four rules the suite enforces against the real baked content rather than a fixture, so a new deck cannot ship in the
+Three rules the suite enforces against the real baked content rather than a fixture, so a new deck cannot ship in the
 wrong shape:
 
-1. The first chapter is `Intro` and the last is `Wrap Up`.
-2. Every chapter holds at least one slide.
-3. Every slide has a non-empty face **and** non-empty notes. A slide with no `---` divider fails the build.
-4. No slide bullet crams two `**Term** — definition` pairs into one list item. Markdown folds an indented continuation
+1. Every chapter holds at least one slide, and the chapter ranges cover every slide exactly once.
+2. Every slide has a non-empty face **and** non-empty notes. A slide with no `---` divider fails the build.
+3. No slide bullet crams two `**Term** — definition` pairs into one list item. Markdown folds an indented continuation
    line into the preceding item, so a wrapped bullet silently collapses into a wall of text. Give each term its own
    bullet.
 
-The first three live in `every_material_has_boundary_chapters_and_section_notes`, the fourth in
-`no_slide_bullet_crams_multiple_terms_into_one_item`. The title, description, audience, and benefit shown on the
-`/foundation/nebula` overview come from the **manifest**, not from the markdown.
+The chapter names are yours: the suite prescribes neither a first chapter nor a last one. The first two rules live in
+`every_material_has_chapters_and_section_notes`, the third in `no_slide_bullet_crams_multiple_terms_into_one_item`. The
+title, description, audience, and benefit shown on the `/foundation/nebula` overview come from the **manifest**, not
+from the markdown.
 
 ## 2. Line length is a hard 120
 
