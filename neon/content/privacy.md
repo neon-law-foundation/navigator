@@ -1,5 +1,3 @@
-_Last updated: August 13, 2026_
-
 We believe privacy is a fundamental human right. This policy explains what we collect, why we collect it, who we share
 it with, and the choices you have. We aim to collect as little as possible and to be plain about the rest.
 
@@ -91,4 +89,4 @@ steps to notify you.
 
 If you have questions about this Privacy Policy, please contact the Neon Law Foundation at
 [support@neonlaw.org](mailto:support@neonlaw.org), or Shook Law PLLC at
-[contact@neonlaw.com](mailto:contact@neonlaw.com) or +1 510 707 6036.
+[contact@neonlaw.com](mailto:contact@neonlaw.com) or +1 510 800 2080.

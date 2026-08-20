@@ -50,7 +50,7 @@ varies.**
 **Rates.** **Message and data rates may apply.** Rates are set by your mobile carrier, not by us.
 
 **Opt out and help.** **Reply STOP to any message to unsubscribe; we will send one confirmation and no further messages.
-Reply HELP for help,** or contact us at [contact@neonlaw.com](mailto:contact@neonlaw.com) or +1 510 707 6036.
+Reply HELP for help,** or contact us at [contact@neonlaw.com](mailto:contact@neonlaw.com) or +1 510 800 2080.
 
 **Delivery.** **Carriers are not liable for any delayed or undelivered messages.**
 
@@ -88,4 +88,4 @@ in Washoe County, Nevada, and you consent to the jurisdiction of those courts.
 
 If you have questions about these Terms, please contact the Neon Law Foundation at
 [support@neonlaw.org](mailto:support@neonlaw.org), or Shook Law PLLC at
-[contact@neonlaw.com](mailto:contact@neonlaw.com) or +1 510 707 6036.
+[contact@neonlaw.com](mailto:contact@neonlaw.com) or +1 510 800 2080.
