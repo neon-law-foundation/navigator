@@ -59,6 +59,8 @@ the pipeline rejects a tag and each is free here:
 - **The working tree is clean.** A release names a commit, not a desk.
 - **`[workspace.package].version` equals the name from step 0.** `cli/build.rs` bakes that value into
   `navigator --version`, so a mismatch ships a binary naming a release its source never heard of.
+- **`Cargo.lock` agrees with the manifest** (`cargo metadata --locked`). The release builds with `--locked` in four
+  places, so a lock still naming the previous version fails *after* the tag is pushed, and a tag cannot be moved.
 - **Notices are current** (`ops notices --check`) — every permissive licence in the tree requires its notice to travel
   with the distributed binary, and the CLI archives carry it.
 - **The workspace gate passes.** CI runs the coverage floor inside this same pass.
@@ -73,7 +75,8 @@ cargo run -p cli -- ops release-version --tag "$(.claude/skills/cut-release/scri
 ```
 
 Passing the name from step 0 explicitly is what keeps the manifest and the tag one decision rather than two that have to
-agree. `--no-commit` writes the manifest and leaves the commit to you.
+agree. The command refreshes `Cargo.lock` too and commits both files — every workspace crate is pinned in the lock as
+well, and the release builds with `--locked`. `--no-commit` writes both files and leaves the commit to you.
 
 ## 3. Land it through a PR
 

@@ -13,6 +13,11 @@
 //! merged commit; `deploy.yml`'s `release-version` job fails a tag whose source
 //! version does not match, so the tag and the source can never drift.
 //!
+//! It writes `Cargo.lock` alongside the manifest, because the release builds
+//! with `--locked` and that flag refuses a lock whose versions the manifest has
+//! moved past. A bump carrying only `Cargo.toml` fails after the tag is pushed,
+//! and a tag cannot be moved.
+//!
 //! It never pushes to `main` itself: `main` is squash-merge-only and no ref may
 //! be moved by automation (`docs/gitops.md` → "`main` is sacred"). The bump goes
 //! through the ordinary PR flow like any other change.
@@ -131,10 +136,10 @@ fn set_workspace_version(manifest: &str, version: &str) -> Result<String, String
 
 /// Entry point for `ops release-version`.
 ///
-/// Writes the version and, unless `no_commit`, commits `Cargo.toml` on the
-/// current branch so the operator can push it as a PR. It refuses to commit on
-/// `main`: that branch takes no direct commits, so the bump must reach it the
-/// same way every change does.
+/// Writes the version, refreshes `Cargo.lock` to match, and unless `no_commit`
+/// commits both on the current branch so the operator can push them as a PR. It
+/// refuses to commit on `main`: that branch takes no direct commits, so the bump
+/// must reach it the same way every change does.
 pub fn run(
     manifest_path: &Path,
     version: Option<String>,
@@ -188,17 +193,82 @@ pub fn run(
         );
     }
 
+    // `Cargo.lock` pins every workspace crate's version too, and `deploy.yml`
+    // builds the release with `--locked` — in the provenance step and in all
+    // three CLI archive jobs. `--locked` refuses a lock the manifest has moved
+    // past, so writing one file without the other is latently fatal rather than
+    // untidy: the failure lands AFTER the tag is pushed, the `release-tags`
+    // ruleset admits no bypass actor, and the day's release name is spent. The
+    // archive jobs are also what `.github/actions/validate` downloads, so the
+    // breakage surfaces as a 404 in every Project repository's CI while nothing
+    // here goes red. Refresh the lock in the same breath as the manifest.
+    //
+    // Unconditionally, not only when the manifest changed: a manifest already at
+    // the target version beside a lock that never caught up is exactly the state
+    // this repairs.
+    let lockfile = manifest_path.with_file_name("Cargo.lock");
+    let lock_present = lockfile.exists();
+    if lock_present {
+        if let Err(error) = refresh_lockfile(manifest_path) {
+            eprintln!(
+                "navigator: release-version: could not refresh {}: {error}",
+                lockfile.display()
+            );
+            return ExitCode::from(2);
+        }
+        println!("navigator: refreshed {} to {version}", lockfile.display());
+    }
+
     if no_commit {
         println!("navigator: --no-commit: staged nothing; commit and tag it yourself");
         return ExitCode::SUCCESS;
     }
 
-    commit_bump(&version)
+    commit_bump(&version, lock_present)
 }
 
-/// Commit the bump on the current branch, refusing `main`. The commit forms a
-/// PR; the operator merges it and tags the merged commit.
-fn commit_bump(version: &str) -> ExitCode {
+/// Refresh `Cargo.lock` so every workspace crate's locked version equals the one
+/// just written to `[workspace.package]`.
+///
+/// `cargo update --workspace` is the narrow spelling: it re-resolves the
+/// workspace members only, so a release cut can never move a third-party pin as
+/// a side effect of writing a date.
+fn refresh_lockfile(manifest_path: &Path) -> Result<(), String> {
+    // Offline is the honest first attempt: only the members' own version strings
+    // moved, and that needs no registry data. A lock stale for some other reason
+    // — a dependency added since it was written — does need the index, so fall
+    // back to an online resolve rather than failing on the flag.
+    match cargo_update(manifest_path, true) {
+        Ok(()) => Ok(()),
+        Err(offline) => cargo_update(manifest_path, false)
+            .map_err(|online| format!("{online} (offline attempt: {offline})")),
+    }
+}
+
+/// One `cargo update --workspace` invocation, surfacing cargo's own stderr as the
+/// error so a failure explains itself.
+fn cargo_update(manifest_path: &Path, offline: bool) -> Result<(), String> {
+    // `CARGO` is set whenever cargo launched this process, which is how a release
+    // runs it; using it pins the nested call to the same toolchain.
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let mut command = std::process::Command::new(cargo);
+    command.args(["update", "--workspace", "--quiet"]);
+    if offline {
+        command.arg("--offline");
+    }
+    command.arg("--manifest-path").arg(manifest_path);
+
+    match command.output() {
+        Ok(output) if output.status.success() => Ok(()),
+        Ok(output) => Err(String::from_utf8_lossy(&output.stderr).trim().to_string()),
+        Err(error) => Err(format!("could not run `cargo update`: {error}")),
+    }
+}
+
+/// Commit the bump on the current branch, refusing `main`. The commit carries the
+/// manifest and the refreshed lock together; it forms a PR, and the operator
+/// merges it and tags the merged commit.
+fn commit_bump(version: &str, lock_present: bool) -> ExitCode {
     let branch = std::process::Command::new("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
         .output();
@@ -213,8 +283,15 @@ fn commit_bump(version: &str) -> ExitCode {
         }
     }
 
+    // Both files or neither: the release builds with `--locked`, so a commit
+    // carrying the manifest alone names a version its own lock refuses to build.
+    let mut paths = vec!["Cargo.toml"];
+    if lock_present {
+        paths.push("Cargo.lock");
+    }
     let staged = std::process::Command::new("git")
-        .args(["add", "Cargo.toml"])
+        .arg("add")
+        .args(&paths)
         .status();
     let committed = staged.is_ok_and(|status| status.success())
         && std::process::Command::new("git")
