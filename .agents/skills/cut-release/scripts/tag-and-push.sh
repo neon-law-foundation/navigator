@@ -65,5 +65,36 @@ else
     echo "pushed ${tag} at ${head:0:12}"
 fi
 
-run_id="$(gh run list --workflow=deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
-gh run watch "${run_id}"
+# Resolve THIS release's run BY THE TAG, never by recency. A tag push sets the
+# run's `headBranch` to the tag name, so the tag is an exact filter — and since
+# the version is now an argument, it is one this script already holds.
+#
+# `--limit 1` was not an exact filter, and the difference is a false green. In
+# the seconds after a push the new run usually does not exist yet, so `--limit 1`
+# returned the PREVIOUS run; when that one had already finished, this script
+# printed someone else's `has already completed with 'success'` and exited 0. On
+# 26.8.21-hotfix.10 it reported a `kind-ci/**` run from five hours earlier while
+# the real release run had not yet been created. The publish is what the tag
+# already did, so watching the run is the ONLY verification left — and it was
+# exactly the step that silently verified the wrong thing.
+run_id=""
+for _ in $(seq 1 30); do
+    run_id="$(gh run list --workflow=deploy.yml --branch "${tag}" \
+        --json databaseId --jq '.[0].databaseId // empty')"
+    [ -n "${run_id}" ] && break
+    sleep 5
+done
+
+if [ -z "${run_id}" ]; then
+    echo "warning: no deploy.yml run for ${tag} appeared within 150s." >&2
+    echo "         THE TAG IS PUSHED and the publish is under way — this is a" >&2
+    echo "         watch failure, not a release failure. Find the run under" >&2
+    echo "         the ${tag} ref in the Actions tab and watch it there." >&2
+    exit 1
+fi
+
+echo "watching deploy.yml run ${run_id} for ${tag}"
+# --exit-status so a red release exits non-zero. Without it `gh run watch`
+# reports a completed-and-failed run and still exits 0, which is the same false
+# green by a different route.
+gh run watch "${run_id}" --exit-status

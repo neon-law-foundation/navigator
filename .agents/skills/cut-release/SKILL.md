@@ -106,9 +106,12 @@ git fetch origin && git checkout main && git pull --ff-only
 
 Pass the same version again — the script signs the name it is handed and derives nothing, so the name that passed
 preflight is the name that publishes. It re-validates shape and base date (the last place a typo is still free), signs
-the tag, pushes it, and watches the run. Idempotent where a rerun can mean the same thing and a hard stop where it
-cannot: an already-pushed tag on this commit just watches the existing run, and a tag that exists on a *different*
-commit is refused rather than forced, because a tag cannot be moved.
+the tag, pushes it, then resolves this release's run **by the tag** and watches it with `--exit-status`. Both halves of
+that last step matter: a tag push sets the run's `headBranch` to the tag name, so the tag is an exact filter, where
+asking for the most recent run would race the API and report a previous, already-finished run as this release's success.
+Idempotent where a rerun can mean the same thing and a hard stop where it cannot: an already-pushed tag on this commit
+just watches the existing run, and a tag that exists on a *different* commit is refused rather than forced, because a
+tag cannot be moved.
 
 Pushing the tag is the publish.
 
