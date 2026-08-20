@@ -46,5 +46,21 @@ else
     echo "pushed ${tag} at ${head:0:12}"
 fi
 
-run_id="$(gh run list --workflow=deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+# Watch THIS tag's run, not simply the newest one. The run is created a few
+# seconds after the push, so `--limit 1` right after pushing returns whatever
+# ran last — a completed older release, which reads as instant success and
+# watches nothing. Select by head branch, which for a tag push IS the tag.
+run_id=""
+for _ in $(seq 1 30); do
+    run_id="$(gh run list --workflow=deploy.yml --limit 10 \
+        --json databaseId,headBranch \
+        --jq "[.[] | select(.headBranch == \"${tag}\")] | .[0].databaseId // empty")"
+    [ -n "${run_id}" ] && break
+    sleep 5
+done
+if [ -z "${run_id}" ]; then
+    echo "pushed ${tag}, but no deploy run appeared for it after 150s — check Actions." >&2
+    exit 1
+fi
+echo "watching deploy run ${run_id} for ${tag}"
 gh run watch "${run_id}"
