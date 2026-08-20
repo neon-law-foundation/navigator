@@ -14920,7 +14920,9 @@ async fn concurrent_creates_cannot_fork_the_firm_anchor() {
                 flash_of(store::entity_commands::FIRM_ANCHOR_EXISTS_MESSAGE),
                 "a losing racer must be refused for the anchor, not for a fault",
             ),
-            other => panic!("a racer must redirect, got {other:?}"),
+            other @ EntityWriteOutcome::NotRedirected(_) => {
+                panic!("a racer must redirect, got {other:?}")
+            }
         }
     }
     assert_eq!(created, 1, "exactly one racer may create the anchor");

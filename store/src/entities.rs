@@ -784,12 +784,12 @@ const DEPENDENT_TABLES: [(&str, &str); 4] = [
 
 #[cfg(test)]
 mod tests {
+    use super::classify_write;
     use super::{
         all, create, delete_unless_firm_anchor, dependents, find_by_id, find_by_ids, find_by_name,
         firm_anchor_exists, update, AlreadyExistsError, EntityError, ErrorDetails, NewEntity,
         CLAIM, CLAIM_TABLE, RELEASE, TABLE, WRITE_FIELDS,
     };
-    use super::classify_write;
     use crate::surreal::test_support::mem;
     use crate::surreal::{record_id, retry, SurrealDb};
     use uuid::Uuid;
