@@ -196,3 +196,155 @@ fn a_manifest_without_a_workspace_version_fails_loudly() {
     ])
     .failure();
 }
+
+/// A minimal two-crate workspace whose members inherit `version.workspace =
+/// true` — the shape that makes `Cargo.lock` go stale the moment only the
+/// manifest is written. No external dependencies, so it resolves offline.
+fn seed_workspace(root: &std::path::Path) -> std::path::PathBuf {
+    fs::create_dir_all(root.join("alpha/src")).expect("alpha src");
+    fs::create_dir_all(root.join("beta/src")).expect("beta src");
+    fs::write(root.join("alpha/src/lib.rs"), "").expect("alpha lib");
+    fs::write(root.join("beta/src/lib.rs"), "").expect("beta lib");
+    fs::write(
+        root.join("alpha/Cargo.toml"),
+        "[package]\nname = \"alpha\"\nversion.workspace = true\nedition.workspace = true\n\n\
+         [dependencies]\nbeta = { path = \"../beta\" }\n",
+    )
+    .expect("alpha manifest");
+    fs::write(
+        root.join("beta/Cargo.toml"),
+        "[package]\nname = \"beta\"\nversion.workspace = true\nedition.workspace = true\n",
+    )
+    .expect("beta manifest");
+
+    let manifest = root.join("Cargo.toml");
+    fs::write(
+        &manifest,
+        "[workspace]\nmembers = [\"alpha\", \"beta\"]\nresolver = \"2\"\n\n\
+         [workspace.package]\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .expect("workspace manifest");
+
+    // The stale lock this command has to refresh: written while the workspace
+    // still says 0.1.0, exactly as the previous release left it.
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let generated = std::process::Command::new(cargo)
+        .args([
+            "generate-lockfile",
+            "--offline",
+            "--quiet",
+            "--manifest-path",
+        ])
+        .arg(&manifest)
+        .status()
+        .expect("run cargo generate-lockfile");
+    assert!(generated.success(), "the fixture lock must be generated");
+
+    manifest
+}
+
+/// Every `[[package]]` version in a lock, keyed by package name.
+fn locked_versions(lockfile: &std::path::Path) -> Vec<(String, String)> {
+    let text = fs::read_to_string(lockfile).expect("read lock");
+    let mut found = Vec::new();
+    let mut name: Option<String> = None;
+    for line in text.lines() {
+        if let Some(value) = line.strip_prefix("name = \"") {
+            name = value.strip_suffix('"').map(str::to_string);
+        } else if let Some(value) = line.strip_prefix("version = \"") {
+            if let (Some(name), Some(version)) = (name.take(), value.strip_suffix('"')) {
+                found.push((name, version.to_string()));
+            }
+        }
+    }
+    found
+}
+
+/// THE PROPERTY A RELEASE DEPENDS ON, and the one that used to be missing.
+/// `deploy.yml` builds the release with `--locked` in four places — the
+/// provenance step and all three CLI archive jobs — and `--locked` refuses a
+/// lock the manifest has moved past. A bump that wrote only `Cargo.toml` failed
+/// AFTER the tag was pushed, and the `release-tags` ruleset admits no bypass
+/// actor, so the name could not be moved and the day's release was spent. The
+/// manifest and the lock must therefore agree the moment this command returns.
+#[test]
+fn the_lockfile_agrees_with_the_manifest_it_wrote() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let manifest = seed_workspace(dir.path());
+    let lockfile = dir.path().join("Cargo.lock");
+
+    assert!(
+        locked_versions(&lockfile)
+            .iter()
+            .all(|(_, version)| version == "0.1.0"),
+        "the fixture starts with a lock at the previous version"
+    );
+
+    run(&[
+        "ops",
+        "release-version",
+        "--tag",
+        "26.8.14",
+        "--no-commit",
+        "--manifest-path",
+        manifest.to_str().unwrap(),
+    ])
+    .success();
+
+    let locked = locked_versions(&lockfile);
+    assert_eq!(
+        locked.len(),
+        2,
+        "both workspace crates must still be locked: {locked:?}"
+    );
+    for (name, version) in &locked {
+        assert_eq!(
+            version, "26.8.14",
+            "{name} is locked at {version}, but the manifest says 26.8.14 — \
+             `cargo build --locked` would refuse this lock"
+        );
+    }
+}
+
+/// The refresh is not conditional on the manifest having changed. A rerun of an
+/// already-bumped manifest is exactly how the lock was left stale in the first
+/// place, so a second run must repair it rather than report success and do
+/// nothing.
+#[test]
+fn a_rerun_repairs_a_lock_left_behind_by_an_earlier_bump() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let manifest = seed_workspace(dir.path());
+    let lockfile = dir.path().join("Cargo.lock");
+
+    // The state the bug produced: manifest bumped by hand, lock untouched.
+    let text = fs::read_to_string(&manifest).expect("read manifest");
+    fs::write(
+        &manifest,
+        text.replace("version = \"0.1.0\"", "version = \"26.8.14\""),
+    )
+    .expect("write manifest");
+    assert!(
+        locked_versions(&lockfile)
+            .iter()
+            .all(|(_, version)| version == "0.1.0"),
+        "the lock is stale before the rerun"
+    );
+
+    run(&[
+        "ops",
+        "release-version",
+        "--tag",
+        "26.8.14",
+        "--no-commit",
+        "--manifest-path",
+        manifest.to_str().unwrap(),
+    ])
+    .success();
+
+    for (name, version) in locked_versions(&lockfile) {
+        assert_eq!(
+            version, "26.8.14",
+            "{name} must be refreshed even though the manifest already said 26.8.14"
+        );
+    }
+}

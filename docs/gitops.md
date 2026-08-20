@@ -406,9 +406,11 @@ image, and hands the operator the same `ops ship` command.
 `Cargo.toml`'s `[workspace.package].version` — the value every crate inherits through `version.workspace = true` and
 `cli/build.rs` bakes into `navigator --version`. Without this the manifest sat at `0.1.0` while tags marched on, so the
 tagged source misreported its release. The one-line bump is `navigator ops release-version`; it writes today's UTC
-`YY.M.D` (or `--tag` for an explicit value) and commits it. That commit lands through an ordinary PR — `main` takes no
-direct commits — and release creation waits for the merge. The provenance guard then refreshes `origin/main` and rejects
-any tag whose peeled commit is not reachable from it.
+`YY.M.D` (or `--tag` for an explicit value) and commits it. It refreshes `Cargo.lock` in the same commit: every
+workspace crate is pinned there too, and the archive jobs build with `--locked`, which refuses a lock the manifest has
+moved past — a failure that would land after the tag is already pushed. That commit lands through an ordinary PR —
+`main` takes no direct commits — and release creation waits for the merge. The provenance guard then refreshes
+`origin/main` and rejects any tag whose peeled commit is not reachable from it.
 
 **The midnight edge is real.** The date that matters is UTC's, not yours. On `-04:00`, from 20:00 local onward UTC has
 already rolled over, so the only releasable tag is *tomorrow's* local date and pushing the one that matches your wall

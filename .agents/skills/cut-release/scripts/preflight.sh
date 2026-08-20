@@ -46,6 +46,21 @@ if [ "${version}" != "${tag}" ]; then
 fi
 echo "    ok — ${version}"
 
+echo "==> Cargo.lock must agree with the manifest"
+# deploy.yml builds the release with --locked in four places: the provenance step
+# and all three CLI archive jobs. --locked refuses a lock the manifest has moved
+# past, so a bump that wrote only Cargo.toml fails AFTER the tag is pushed — and
+# the release-tags ruleset admits no bypass actor, so the name is spent. Reading
+# the manifest alone cannot see this; --locked is what the pipeline actually runs.
+if ! cargo metadata --locked --format-version 1 >/dev/null 2>&1; then
+    echo "FAIL: Cargo.lock does not match Cargo.toml." >&2
+    echo "      The archive jobs build with --locked and would refuse this lock," >&2
+    echo "      after the tag is pushed — and a release tag cannot be moved." >&2
+    echo "      Run: cargo run -p cli -- ops release-version --tag ${tag}" >&2
+    exit 1
+fi
+echo "    ok"
+
 echo "==> notices must travel with the distributed binary"
 cargo run -p cli --quiet -- ops notices --check
 
