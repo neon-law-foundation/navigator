@@ -38,11 +38,17 @@ spec:
               image: YOUR_IMAGE_REGISTRY/navigator-billing-canary-trigger:YY.M.D
               imagePullPolicy: Always
               env:
-                # Restate Cloud ingress endpoint for the navigator-prod
-                # environment. The trigger POSTs
+                # Restate Cloud ingress endpoint. Sourced from the Secret rather
+                # than written inline — see the `RESTATE_INGRESS_URL` note in
+                # kustomization.yaml for why a literal here blocks every manifest
+                # change. The trigger POSTs
                 # `${RESTATE_INGRESS_URL}/BillingCanary/<run-date>/run`.
                 - name: RESTATE_INGRESS_URL
-                  value: https://YOUR_RESTATE_CLOUD_INGRESS
+                  valueFrom:
+                    secretKeyRef:
+                      name: navigator-web-secrets
+                      key: RESTATE_INGRESS_URL
+                      optional: true
                 # Restate Cloud authenticates every ingress call with the
                 # tenant bearer. Sourced from the same `navigator-web-secrets`
                 # Secret the web Deployment mounts. `optional` so KIND — where

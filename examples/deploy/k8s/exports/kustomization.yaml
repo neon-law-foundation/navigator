@@ -6,6 +6,30 @@ namespace: navigator
 # `workflows-service` worker (see ../gke/workflows-service/) — these
 # CronJobs are thin triggers that POST to the Restate Cloud ingress to
 # start one invocation, then exit.
+#
+# RESTATE_INGRESS_URL AND RESTATE_AUTH_TOKEN COME FROM THE SECRET
+# --------------------------------------------------------------
+# Both are read with `valueFrom.secretKeyRef` into the projected
+# `navigator-web-secrets`, never written as a literal. `ops ship` applies
+# these CronJobs over the live ones, and a container's `env` list merges by
+# entry name: an inline `value` merges with the cluster's `valueFrom` into a
+# single entry carrying both, and the API server rejects the whole object:
+# "may not be specified when `value` is not empty". That aborts `kubectl diff
+# -k` before it compares anything, which blocks not just the trigger but EVERY
+# manifest change to the deployment, leaving version rolls stuck on `ops ship
+# --image-only`. A literal ingress URL did exactly that for two releases.
+#
+# Each reference is `optional: true`. `ship::omit_unwritten_objects` drops an
+# object the shipping deployment does not write from the rendered
+# `SecretProviderClass`, and `RESTATE_INGRESS_URL` is scoped to the automation
+# home — so an ordinary deployment's Secret carries no such key. A required
+# reference would leave those trigger pods in CreateContainerConfigError,
+# never started and never logging a reason; optional lets the trigger run and
+# exit naming the value it wanted.
+#
+# `triggers_source_every_projected_key_from_the_deployment_secret` in
+# `cli/src/devx/ship.rs` fails the build if any trigger inlines a key this
+# Secret projects.
 resources:
   - cron-archives-trigger.yaml
   - cron-surreal-archive.yaml
