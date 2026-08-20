@@ -500,9 +500,13 @@ pub async fn set_firm_anchor_key(
 /// Whether any row already carries `key` as its firm-anchor key.
 ///
 /// The existence half of the guard `entity_commands` runs before a
-/// create. It is **not** what makes the guard safe — the UNIQUE index
-/// is — but it turns the common case into a clean validation error
-/// rather than a write that has to fail first.
+/// create. It is **not** what makes the guard safe — the claim
+/// [`take_claim`] writes is — but it turns the common case into a clean
+/// validation error rather than a write that has to fail first.
+///
+/// It reads `entity.firm_anchor_key`, so it answers "does a row look like
+/// the anchor". [`firm_anchor_holder`] answers the different question of
+/// who holds the claim, and that is the one a race turns on.
 ///
 /// # Errors
 ///
@@ -781,10 +785,11 @@ const DEPENDENT_TABLES: [(&str, &str); 4] = [
 #[cfg(test)]
 mod tests {
     use super::{
-        all, classify_write, create, delete_unless_firm_anchor, dependents, find_by_id,
-        find_by_ids, find_by_name, firm_anchor_exists, update, AlreadyExistsError, EntityError,
-        ErrorDetails, NewEntity, CLAIM_TABLE, TABLE, WRITE_FIELDS,
+        all, create, delete_unless_firm_anchor, dependents, find_by_id, find_by_ids, find_by_name,
+        firm_anchor_exists, update, AlreadyExistsError, EntityError, ErrorDetails, NewEntity,
+        CLAIM, CLAIM_TABLE, RELEASE, TABLE, WRITE_FIELDS,
     };
+    use super::classify_write;
     use crate::surreal::test_support::mem;
     use crate::surreal::{record_id, retry, SurrealDb};
     use uuid::Uuid;
@@ -1160,5 +1165,16 @@ mod tests {
             .expect_err("a malformed statement must fail");
 
         assert!(matches!(classify_write(raw), EntityError::Db(_)));
+    }
+
+    /// [`CLAIM`] and [`RELEASE`] name the table in SurrealQL, where a
+    /// `const` cannot interpolate [`CLAIM_TABLE`]. Renaming the constant
+    /// without rewriting the statements would leave writes claiming one
+    /// table while [`claims_the_firm_anchor`] classified another — a
+    /// refusal silently demoted to a server fault.
+    #[test]
+    fn the_claim_statements_name_the_claim_table() {
+        assert!(CLAIM.contains(CLAIM_TABLE), "{CLAIM}");
+        assert!(RELEASE.contains(CLAIM_TABLE), "{RELEASE}");
     }
 }

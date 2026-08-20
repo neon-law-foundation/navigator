@@ -377,6 +377,10 @@ erDiagram
         string summary
         datetime updated_at
     }
+    firm_anchor {
+        record id PK
+        record_entity entity_id FK
+    }
     git_access_token {
         record id PK
         string expires_at
@@ -737,6 +741,7 @@ erDiagram
     person ||--o{ expunge_request : "requested_by_person_id"
     person ||--o{ expunge_request : "resolved_by_person_id"
     notation ||--o{ filing : "notation_id"
+    entity ||--o{ firm_anchor : "entity_id"
     person ||--o{ git_access_token : "person_id"
     project ||--o{ git_access_token : "project_id"
     mailroom ||--o{ letter : "mailroom_id"
