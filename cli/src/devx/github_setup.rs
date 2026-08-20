@@ -67,53 +67,15 @@ const USER_AGENT: &str = concat!("neon-law-navigator/", env!("CARGO_PKG_VERSION"
 const API_VERSION: &str = "2022-11-28";
 const BRANCH_RULESET_NAME: &str = "production";
 
-/// The GitHub Actions App on github.com, which produces the `ci` check run the
-/// `production` ruleset requires.
-const ACTIONS_INTEGRATION_ID_DOTCOM: u64 = 15368;
-
-/// The same App on the Firm's GitHub Enterprise Cloud tenant.
-const ACTIONS_INTEGRATION_ID_ENTERPRISE: u64 = 141;
-
 const TAG_RULESET_NAME: &str = "release-tags";
 const REVIEW_RULESET_NAME: &str = "production-review";
 const LABEL_COLOR: &str = "6f42c1";
 
-/// The Actions App ID for the host `api_base` addresses.
-///
-/// This **must** follow the host rather than be a constant. Requiring a context
-/// under the wrong ID binds the rule to an App that never posts there, so the
-/// gate silently matches nothing and every pull request looks guarded while
-/// being unguarded — a worse state than no ruleset, because it reads as
-/// configured. The single hard-coded ID this replaced was the enterprise's, so
-/// reconciling a github.com repository with it would have un-gated the very
-/// repository the command exists to govern.
-///
-/// Anything that is not github.com is treated as the enterprise, matching
-/// [`enterprise_host`]: the command refuses a host it does not govern long
-/// before this is read, so the fallback is never a guess about a third host.
-/// Confirm an ID against a real check run before adding one:
-///
-/// ```text
-/// gh api repos/<owner>/<repo>/commits/<sha>/check-runs \
-///     --jq '.check_runs[] | "\(.name) \(.app.id) \(.app.slug)"'
-/// ```
-fn actions_integration_id(api_base: &str) -> u64 {
-    // Match on the authority, not on the whole string: a base may carry a path
-    // (GitHub Enterprise Server spells it `https://<host>/api/v3`), and reading
-    // the last path segment instead of the host would answer for `v3`. Taking
-    // the authority means a trailing path cannot change the verdict.
-    let authority = api_base
-        .split_once("://")
-        .map_or(api_base, |(_, rest)| rest)
-        .split('/')
-        .next()
-        .unwrap_or_default();
-    if authority.eq_ignore_ascii_case("api.github.com") {
-        ACTIONS_INTEGRATION_ID_DOTCOM
-    } else {
-        ACTIONS_INTEGRATION_ID_ENTERPRISE
-    }
-}
+/// GitHub's own Actions App, which produces the `ci` check run the `production`
+/// ruleset requires. The **slug** is a property of GitHub's App rather than of
+/// any one host, so it is the same word on every deployment; only the numeric id
+/// behind it differs.
+const ACTIONS_APP_SLUG: &str = "github-actions";
 
 /// The single status check every administered repository is gated on.
 ///
@@ -410,6 +372,12 @@ struct MergeSettings {
 struct Label {
     name: String,
     description: Option<String>,
+}
+
+/// One App, as `GET /apps/{slug}` returns it. Only the id is read.
+#[derive(Debug, Deserialize)]
+struct App {
+    id: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -910,14 +878,17 @@ pub fn run(target: &RepositoryTarget, dry_run: bool) -> Result<()> {
 
 async fn reconcile(policy: RepositoryPolicy, client: &GitHubClient, dry_run: bool) -> Result<()> {
     eprintln!("==> reconciling {}", client.repository);
-    // The Actions App differs per host, so it is derived from the endpoint this
-    // run addresses rather than assumed. See `actions_integration_id`.
-    let actions_app_id = actions_integration_id(&client.api_base);
     let repository: Repository = client.get_json(&client.repo_path("")).await?;
 
     // Assertions run before any write, so a repository that cannot satisfy the
     // policy is left exactly as it was rather than half-reconciled.
     assert_required_check_job(client).await?;
+
+    // Read before planning, and before any write, for the same reason: the
+    // required-check rule is built from this id, so a host that cannot answer
+    // must stop the reconcile rather than have one guessed for it.
+    let actions_app_id = actions_integration_id(client).await?;
+    eprintln!("==> {ACTIONS_APP_SLUG:?} App on this host is id {actions_app_id}");
 
     if policy.assert_codeowners {
         let codeowners = client
@@ -1219,6 +1190,43 @@ async fn assert_required_check_job(client: &GitHubClient) -> Result<()> {
     )
 }
 
+/// The numeric id of the Actions App **on the host this run addresses**, read
+/// from that host.
+///
+/// The id is per-host — the same App is a different number on github.com than on
+/// an enterprise tenant — and requiring the `ci` context under the wrong one
+/// binds the rule to an App that never posts there. GitHub accepts such a rule
+/// and reports it as present, so the gate silently matches nothing and every
+/// pull request looks guarded while being unguarded. That is worse than no
+/// ruleset, because nothing looks wrong.
+///
+/// So it is **asked for rather than asserted**. A table of host-to-id mappings
+/// would be a second coordinate to keep true, and the failure mode of getting it
+/// wrong is silent; the host already knows the answer. This is also the check
+/// a human would run by hand:
+///
+/// ```text
+/// gh api repos/<owner>/<repo>/commits/<sha>/check-runs \
+///     --jq '.check_runs[] | "\(.name) \(.app.id) \(.app.slug)"'
+/// ```
+///
+/// A failure here stops the reconcile rather than falling back to a guess,
+/// matching [`enterprise_host`]: there is no default, because a wrong id writes
+/// a gate that does not gate.
+async fn actions_integration_id(client: &GitHubClient) -> Result<u64> {
+    let app: App = client
+        .get_json(&format!("/apps/{ACTIONS_APP_SLUG}"))
+        .await
+        .with_context(|| {
+            format!(
+                "read the {ACTIONS_APP_SLUG:?} App id from this host; the required \
+                 {REQUIRED_CHECK:?} context is bound to it, and a wrong id would leave the \
+                 ruleset matching nothing"
+            )
+        })?;
+    Ok(app.id)
+}
+
 async fn assert_app_installation(client: &GitHubClient) -> Result<()> {
     let Some(app_id) = optional_env(APP_ID_ENV) else {
         eprintln!("warning: {APP_ID_ENV} is unset; skipping DevX App installation assertion");
@@ -1255,47 +1263,64 @@ mod tests {
     use wiremock::matchers::{body_json, header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    #[test]
-    fn actions_app_id_follows_the_host() {
-        // github.com and the enterprise run different Actions Apps. Binding the
-        // required check to the wrong one leaves the rule present and matching
-        // nothing, so this is the difference between a gate and the appearance
-        // of one.
+    /// Two arbitrary App ids. They are deliberately *not* either real
+    /// deployment's number: what these tests prove is that the id is carried
+    /// from wherever it was read to the rule that requires the check, and a
+    /// fixture pinning a real one would assert a coordinate instead of a
+    /// behaviour.
+    const TEST_ACTIONS_APP_ID: u64 = 4242;
+    const TEST_OTHER_APP_ID: u64 = 9931;
+
+    #[tokio::test]
+    async fn the_actions_app_id_is_read_from_the_host() {
+        // The id is per-host and the host is the only authority on it, so it is
+        // asked for rather than mapped from a name. A table of host-to-id pairs
+        // would be a second coordinate to keep true, and getting it wrong fails
+        // silently: the rule stays present and matches nothing.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/apps/{ACTIONS_APP_SLUG}")))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"id": TEST_ACTIONS_APP_ID})),
+            )
+            .mount(&server)
+            .await;
+        let client = test_client(&server);
+
         assert_eq!(
-            actions_integration_id("https://api.github.com"),
-            ACTIONS_INTEGRATION_ID_DOTCOM
+            actions_integration_id(&client).await.unwrap(),
+            TEST_ACTIONS_APP_ID
         );
-        assert_eq!(
-            actions_integration_id("https://api.neon-law.ghe.com"),
-            ACTIONS_INTEGRATION_ID_ENTERPRISE
-        );
-        // A trailing slash is how `NAVIGATOR_GITHUB_API_BASE` is often written,
-        // and case is not significant in a host.
-        assert_eq!(
-            actions_integration_id("https://API.GitHub.com/"),
-            ACTIONS_INTEGRATION_ID_DOTCOM
-        );
-        // A base carrying a path resolves on its host, not its last segment —
-        // GitHub Enterprise Server spells its API this way.
-        assert_eq!(
-            actions_integration_id("https://neon-law.ghe.com/api/v3"),
-            ACTIONS_INTEGRATION_ID_ENTERPRISE
-        );
-        // A mock server, which is neither host and must not be read as one.
-        assert_eq!(
-            actions_integration_id("http://127.0.0.1:8080"),
-            ACTIONS_INTEGRATION_ID_ENTERPRISE
+    }
+
+    #[tokio::test]
+    async fn a_host_that_cannot_name_its_actions_app_stops_the_reconcile() {
+        // No fallback id. A guessed one writes a rule bound to an App that never
+        // posts here, which reads as configured while gating nothing — strictly
+        // worse than failing loudly.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/apps/{ACTIONS_APP_SLUG}")))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        let client = test_client(&server);
+
+        let error = actions_integration_id(&client)
+            .await
+            .expect_err("a host that cannot answer must not yield a default id");
+        assert!(
+            format!("{error:#}").contains(ACTIONS_APP_SLUG),
+            "the failure must name what it could not read, got: {error:#}"
         );
     }
 
     #[test]
     fn the_branch_ruleset_requires_ci_under_the_app_id_it_is_given() {
-        // The ID is threaded, not constant: the same policy reconciled against
+        // The id is threaded, not constant: the same policy reconciled against
         // two hosts must require the check under each host's own App.
-        for id in [
-            ACTIONS_INTEGRATION_ID_DOTCOM,
-            ACTIONS_INTEGRATION_ID_ENTERPRISE,
-        ] {
+        for id in [TEST_ACTIONS_APP_ID, TEST_OTHER_APP_ID] {
             let value = serde_json::to_value(desired_branch_ruleset(id)).unwrap();
             let checks = value["rules"]
                 .as_array()
@@ -1311,7 +1336,7 @@ mod tests {
     }
 
     fn live_ruleset() -> RulesetPayload {
-        let mut ruleset = desired_branch_ruleset(ACTIONS_INTEGRATION_ID_DOTCOM);
+        let mut ruleset = desired_branch_ruleset(TEST_ACTIONS_APP_ID);
         let pull_request = ruleset
             .rules
             .iter_mut()
@@ -1353,7 +1378,7 @@ mod tests {
     #[test]
     fn branch_ruleset_has_no_bypass_actors() {
         assert_eq!(
-            desired_branch_ruleset(ACTIONS_INTEGRATION_ID_DOTCOM).bypass_actors,
+            desired_branch_ruleset(TEST_ACTIONS_APP_ID).bypass_actors,
             Vec::<serde_json::Value>::new(),
         );
     }
@@ -1403,7 +1428,7 @@ mod tests {
     #[test]
     fn every_repository_carries_both_halves_of_the_gate() {
         let names = |policy| {
-            desired_rulesets(policy, ACTIONS_INTEGRATION_ID_DOTCOM)
+            desired_rulesets(policy, TEST_ACTIONS_APP_ID)
                 .into_iter()
                 .map(|ruleset| ruleset.name)
                 .collect::<Vec<_>>()
@@ -1523,7 +1548,7 @@ mod tests {
     /// bypass actor.
     #[test]
     fn branch_ruleset_still_requires_signatures_of_everyone() {
-        let ruleset = desired_branch_ruleset(ACTIONS_INTEGRATION_ID_DOTCOM);
+        let ruleset = desired_branch_ruleset(TEST_ACTIONS_APP_ID);
         assert!(ruleset
             .rules
             .iter()
@@ -1609,8 +1634,7 @@ mod tests {
 
     #[test]
     fn desired_ruleset_serializes_to_github_put_payload() {
-        let value =
-            serde_json::to_value(desired_branch_ruleset(ACTIONS_INTEGRATION_ID_DOTCOM)).unwrap();
+        let value = serde_json::to_value(desired_branch_ruleset(TEST_ACTIONS_APP_ID)).unwrap();
         assert_eq!(value["name"], "production");
         assert_eq!(
             value["conditions"]["ref_name"]["include"],
@@ -1644,8 +1668,7 @@ mod tests {
     /// posts a check here — the gate reads as configured and enforces nothing.
     #[test]
     fn branch_ruleset_gates_on_the_ci_test_check() {
-        let value =
-            serde_json::to_value(desired_branch_ruleset(ACTIONS_INTEGRATION_ID_DOTCOM)).unwrap();
+        let value = serde_json::to_value(desired_branch_ruleset(TEST_ACTIONS_APP_ID)).unwrap();
         let checks = value["rules"]
             .as_array()
             .unwrap()
@@ -1658,10 +1681,10 @@ mod tests {
         assert_eq!(
             checks,
             serde_json::json!([
-                {"context": REQUIRED_CHECK, "integration_id": ACTIONS_INTEGRATION_ID_DOTCOM}
+                {"context": REQUIRED_CHECK, "integration_id": TEST_ACTIONS_APP_ID}
             ]),
             "the merge gate is the `ci` aggregating job posted by GitHub Actions \
-             ({ACTIONS_INTEGRATION_ID_DOTCOM}); the context must match a job's check-run \
+             ({TEST_ACTIONS_APP_ID}); the context must match a job's check-run \
              name in .github/workflows/ci.yml exactly"
         );
     }
@@ -1672,7 +1695,7 @@ mod tests {
     #[test]
     fn every_repository_requires_the_same_check_context() {
         for policy in [NAVIGATOR_POLICY, COMMON_POLICY] {
-            let contexts = desired_rulesets(policy, ACTIONS_INTEGRATION_ID_DOTCOM)
+            let contexts = desired_rulesets(policy, TEST_ACTIONS_APP_ID)
                 .into_iter()
                 .flat_map(|ruleset| ruleset.rules)
                 .filter(|rule| rule.kind == "required_status_checks")
@@ -1723,13 +1746,13 @@ mod tests {
     /// never converges.
     #[test]
     fn rule_order_is_not_drift() {
-        let desired = desired_branch_ruleset(ACTIONS_INTEGRATION_ID_DOTCOM);
+        let desired = desired_branch_ruleset(TEST_ACTIONS_APP_ID);
         let mut permuted = desired.clone();
         permuted.rules.reverse();
         assert!(ruleset_matches(&desired, &permuted));
         assert!(plan(
             COMMON_POLICY,
-            ACTIONS_INTEGRATION_ID_DOTCOM,
+            TEST_ACTIONS_APP_ID,
             true,
             &[Some(permuted)],
             &[]
@@ -1740,7 +1763,7 @@ mod tests {
     /// Reordering is forgiven; a changed rule is not.
     #[test]
     fn a_changed_rule_is_still_drift() {
-        let desired = desired_branch_ruleset(ACTIONS_INTEGRATION_ID_DOTCOM);
+        let desired = desired_branch_ruleset(TEST_ACTIONS_APP_ID);
         let mut weakened = desired.clone();
         weakened
             .rules
@@ -1757,34 +1780,21 @@ mod tests {
                 description: Some(label.description.to_string()),
             })
             .collect::<Vec<_>>();
-        let live = desired_rulesets(NAVIGATOR_POLICY, ACTIONS_INTEGRATION_ID_DOTCOM)
+        let live = desired_rulesets(NAVIGATOR_POLICY, TEST_ACTIONS_APP_ID)
             .into_iter()
             .map(Some)
             .collect::<Vec<_>>();
-        assert!(plan(
-            NAVIGATOR_POLICY,
-            ACTIONS_INTEGRATION_ID_DOTCOM,
-            true,
-            &live,
-            &labels
-        )
-        .is_empty());
+        assert!(plan(NAVIGATOR_POLICY, TEST_ACTIONS_APP_ID, true, &live, &labels).is_empty());
     }
 
     #[test]
     fn planner_reconciles_merge_settings_before_other_drift() {
-        let live = desired_rulesets(COMMON_POLICY, ACTIONS_INTEGRATION_ID_DOTCOM)
+        let live = desired_rulesets(COMMON_POLICY, TEST_ACTIONS_APP_ID)
             .into_iter()
             .map(Some)
             .collect::<Vec<_>>();
         assert_eq!(
-            plan(
-                COMMON_POLICY,
-                ACTIONS_INTEGRATION_ID_DOTCOM,
-                false,
-                &live,
-                &[]
-            ),
+            plan(COMMON_POLICY, TEST_ACTIONS_APP_ID, false, &live, &[]),
             vec![Action::UpdateMergeSettings]
         );
     }
@@ -1794,18 +1804,12 @@ mod tests {
     #[test]
     fn planner_creates_a_missing_ruleset() {
         let live = vec![
-            Some(desired_branch_ruleset(ACTIONS_INTEGRATION_ID_DOTCOM)),
+            Some(desired_branch_ruleset(TEST_ACTIONS_APP_ID)),
             None,
             None,
         ];
         assert_eq!(
-            plan(
-                NAVIGATOR_POLICY,
-                ACTIONS_INTEGRATION_ID_DOTCOM,
-                true,
-                &live,
-                &[]
-            ),
+            plan(NAVIGATOR_POLICY, TEST_ACTIONS_APP_ID, true, &live, &[]),
             vec![
                 Action::CreateRuleset {
                     name: "release-tags".to_string()
@@ -1841,13 +1845,7 @@ mod tests {
             Some(desired_review_ruleset()),
         ];
         assert_eq!(
-            plan(
-                NAVIGATOR_POLICY,
-                ACTIONS_INTEGRATION_ID_DOTCOM,
-                true,
-                &live,
-                &labels
-            ),
+            plan(NAVIGATOR_POLICY, TEST_ACTIONS_APP_ID, true, &live, &labels),
             vec![
                 Action::UpdateRuleset {
                     name: "production".to_string()
@@ -1957,7 +1955,7 @@ mod tests {
     /// The common policy is the full gate minus only the release automation.
     #[test]
     fn the_common_policy_is_the_full_gate_without_release_automation() {
-        let rulesets = desired_rulesets(COMMON_POLICY, ACTIONS_INTEGRATION_ID_DOTCOM);
+        let rulesets = desired_rulesets(COMMON_POLICY, TEST_ACTIONS_APP_ID);
         assert_eq!(rulesets.len(), 2);
         assert!(rulesets[0].bypass_actors.is_empty());
         let checks = serde_json::to_value(&rulesets[0]).unwrap()["rules"]
@@ -1972,7 +1970,7 @@ mod tests {
         // is the Firm's contract, so the gate never has to be re-pointed.
         assert_eq!(
             checks,
-            serde_json::json!([{"context": REQUIRED_CHECK, "integration_id": ACTIONS_INTEGRATION_ID_DOTCOM}])
+            serde_json::json!([{"context": REQUIRED_CHECK, "integration_id": TEST_ACTIONS_APP_ID}])
         );
         assert!(COMMON_POLICY.labels.is_empty());
         const { assert!(!COMMON_POLICY.release_tags) };
@@ -1995,15 +1993,11 @@ mod tests {
         Mock::given(method("PUT"))
             .and(path("/repos/acme/navigator/rulesets/7"))
             .and(header("authorization", "Bearer token"))
-            // Derived, not pinned: `reconcile` reads the App ID off the base it
-            // is pointed at, and a mock server is not github.com. Hard-coding
-            // either ID here would make the assertion agree with itself rather
-            // than with what the command would write.
+            // The id the mounted `/apps` read answers with, which is what
+            // `reconcile` will have carried into the rule. Asserting the written
+            // body against it is what proves the read reaches the write.
             .and(body_json(
-                serde_json::to_value(desired_branch_ruleset(actions_integration_id(
-                    &server.uri(),
-                )))
-                .unwrap(),
+                serde_json::to_value(desired_branch_ruleset(TEST_ACTIONS_APP_ID)).unwrap(),
             ))
             .respond_with(ResponseTemplate::new(200))
             .expect(1)
@@ -2062,6 +2056,16 @@ mod tests {
     }
 
     async fn mount_reads(server: &MockServer, ruleset: &RulesetPayload, labels: Vec<Label>) {
+        // The host names its own Actions App, and the required-check rule is
+        // built from that id.
+        Mock::given(method("GET"))
+            .and(path(format!("/apps/{ACTIONS_APP_SLUG}")))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"id": TEST_ACTIONS_APP_ID})),
+            )
+            .mount(server)
+            .await;
         Mock::given(method("GET"))
             .and(path("/repos/acme/navigator"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
