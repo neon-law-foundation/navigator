@@ -1133,11 +1133,11 @@ mod tests {
             stale, current,
             "the stale principal must be a different one"
         );
-        let sa = "navigator-ci-deployer@neon-law-prod.iam.gserviceaccount.com";
+        let sa = "navigator-ci-deployer@neon-law-stg.iam.gserviceaccount.com";
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path(format!(
-                "/v1/projects/neon-law-prod/serviceAccounts/{sa}:getIamPolicy"
+                "/v1/projects/neon-law-stg/serviceAccounts/{sa}:getIamPolicy"
             )))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "bindings": [{
@@ -1149,7 +1149,7 @@ mod tests {
             .await;
         Mock::given(method("POST"))
             .and(path(format!(
-                "/v1/projects/neon-law-prod/serviceAccounts/{sa}:setIamPolicy"
+                "/v1/projects/neon-law-stg/serviceAccounts/{sa}:setIamPolicy"
             )))
             .and(body_partial_json(json!({
                 "policy": { "bindings": [{
@@ -1162,7 +1162,7 @@ mod tests {
             .mount(&server)
             .await;
         let client = client_for(&server, &[GcpService::Iam]);
-        let out = ensure_wif_impersonation(&client, "neon-law-prod", sa, &current)
+        let out = ensure_wif_impersonation(&client, "neon-law-stg", sa, &current)
             .await
             .unwrap();
         assert_eq!(out, BindingOutcome::Added);

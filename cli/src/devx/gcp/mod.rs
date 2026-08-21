@@ -173,7 +173,7 @@ pub struct SetupConfig {
     ///
     /// Neither derives from `project_id`. `neon-law-archives-<deployment>` is
     /// prefix-shaped, and `<deployment>-telemetry` names the deployment while
-    /// the project may be named for the entity — `neon-law-prod` lives in
+    /// the project may be named for the entity — `neon-law-stg` lives in
     /// `neon-law`, so a derived `neon-law-telemetry` would be a bucket nobody
     /// configured. Absent means the deployment declines that lane.
     pub archives_bucket: Option<String>,

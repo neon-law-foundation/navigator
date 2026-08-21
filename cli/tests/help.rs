@@ -375,7 +375,7 @@ fn ops_ship_help_describes_the_narrow_automated_lane() {
             "ops",
             "ship",
             "--deployment",
-            "neon-law-prod",
+            "neon-law-stg",
             "--deployments-dir",
             env!("CARGO_MANIFEST_DIR"),
             "--image-only",

@@ -435,7 +435,7 @@ enum Exemption {
     /// A `Requirement` carrying a `trigger` is demanded only once that trigger
     /// key is supplied, so a deployment supplying none of the integration has
     /// nothing to satisfy — and must not be handed a placeholder to get past
-    /// this check. `neon-law-prod` declines `DocuSign` (no `DOCUSIGN_BASE_URL`)
+    /// this check. `neon-law-stg` declines `DocuSign` (no `DOCUSIGN_BASE_URL`)
     /// and runs `StubSignatureProvider`, which `portal::signature` reaches only
     /// through genuine absence.
     Untriggered,
@@ -952,7 +952,7 @@ mod tests {
     /// repository, so there is nothing here to
     /// check a name against — and a name that cannot be checked is exactly the
     /// failure the old rule existed to prevent. It once left an operator
-    /// instructed to roll `neon-law-prod` from a config that did not exist;
+    /// instructed to roll `neon-law-stg` from a config that did not exist;
     /// hardcoding names now would reintroduce that with no gate at all.
     ///
     /// So every public instruction takes a placeholder, and the hand-off points
@@ -1038,11 +1038,11 @@ mod tests {
     #[test]
     fn instructed_deployments_reads_literals_and_skips_placeholders() {
         let text = "run `navigator ops ship --deployment neon-law-stg --tag 26.1.1`, then \
-                    `navigator ops ship --deployment=neon-law-prod --dry-run`; the general \
+                    `navigator ops ship --deployment=acme-stg --dry-run`; the general \
                     form is `navigator ops ship --deployment <name>` or --deployment $NAME";
         assert_eq!(
             instructed_deployments(text),
-            vec!["neon-law-stg".to_string(), "neon-law-prod".to_string()]
+            vec!["neon-law-stg".to_string(), "acme-stg".to_string()]
         );
     }
 
@@ -1609,7 +1609,7 @@ sops:
     /// `k8s/`, so `orchestrate::workspace_root` cannot find it.
     fn deploy_only_checkout() -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("create a temp checkout");
-        fs::create_dir_all(dir.path().join(TREE).join("neon-law-prod")).expect("create the tree");
+        fs::create_dir_all(dir.path().join(TREE).join("neon-law-stg")).expect("create the tree");
         dir
     }
 
@@ -1625,7 +1625,7 @@ sops:
         );
         assert_eq!(
             names(checkout.path()).expect("the tree is readable"),
-            vec!["neon-law-prod".to_owned()]
+            vec!["neon-law-stg".to_owned()]
         );
     }
 

@@ -206,7 +206,7 @@ enum ProjectsCmd {
         #[command(flatten)]
         host: HostOpt,
         /// Project code to resolve folder and repository coordinates for,
-        /// e.g. `spotonix`. Omit to check deployment-wide configuration only.
+        /// e.g. `acme`. Omit to check deployment-wide configuration only.
         #[arg(long)]
         project: Option<String>,
     },
