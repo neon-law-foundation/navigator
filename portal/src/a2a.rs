@@ -635,7 +635,7 @@ async fn handle_message_send(
         return RpcResponse::err(id, codes::INVALID_PARAMS, "`params.message` is required");
     };
     let metadata = message.get("metadata").cloned().unwrap_or(Value::Null);
-    let principal_email = principal.map_or("<anonymous>", |p| p.email.as_str());
+    let principal_email = principal.map_or(ANONYMOUS_PRINCIPAL, |p| p.email.as_str());
     let timestamp = chrono::Utc::now().to_rfc3339();
 
     // Path 0 — resume: this `message/send` carries a `taskId` we paused
@@ -676,7 +676,7 @@ async fn handle_message_send(
     if let Some(named_skill) = metadata.get("skill").and_then(Value::as_str) {
         let arguments = resolve_arguments(message, &metadata);
         tracing::info!(
-            principal = %principal_email,
+            principal_kind = %principal_kind(principal_email),
             skill = %named_skill,
             task_id = %task_id,
             context_id = %context_id,
@@ -755,7 +755,7 @@ async fn dispatch_single(
             target: "audit",
             event = "a2a.direct_skill.side_effect",
             skill = %skill,
-            principal = principal.map_or("<anonymous>", |p| p.email.as_str()),
+            principal_kind = principal_kind(principal.map_or(ANONYMOUS_PRINCIPAL, |p| p.email.as_str())),
             authorized,
             confirmed = false,
             confirmation_required,
@@ -963,7 +963,7 @@ async fn drive_loop(
             Ok(step) => step,
             Err(err) => {
                 tracing::warn!(
-                    principal = %principal_email,
+                    principal_kind = %principal_kind(principal_email),
                     task_id = %task_id,
                     step = step_n,
                     error = %err,
@@ -1008,7 +1008,7 @@ async fn drive_loop(
                         target: "audit",
                         event = "agent_action_authorization",
                         decision = "proposed",
-                        principal = %principal_email,
+                        principal_kind = %principal_kind(principal_email),
                         tool = %tool_name,
                         arguments = %pending_call.arguments,
                         task_id = %task_id,
@@ -1041,7 +1041,7 @@ async fn drive_loop(
 
                 let mcp_tool_name = to_mcp_tool_name(&tool_name);
                 tracing::info!(
-                    principal = %principal_email,
+                    principal_kind = %principal_kind(principal_email),
                     skill = %tool_name,
                     mcp_tool = %mcp_tool_name,
                     task_id = %task_id,
@@ -1085,7 +1085,7 @@ async fn drive_loop(
     }
 
     tracing::warn!(
-        principal = %principal_email,
+        principal_kind = %principal_kind(principal_email),
         task_id = %task_id,
         "a2a: router loop hit MAX_ROUTER_STEPS without finishing"
     );
@@ -1125,7 +1125,7 @@ async fn resume_after_confirmation(
             let pending_ctx = pending.context_id.clone();
             state.pending.insert(restash_task_id, pending);
             tracing::warn!(
-                principal = %principal_email,
+                principal_kind = %principal_kind(principal_email),
                 task_id = %task_id,
                 "a2a: confirmation rejected — contextId mismatch"
             );
@@ -1623,9 +1623,11 @@ fn audit_authorization(
         target: "audit",
         event = "agent_action_authorization",
         decision = decision,
-        principal = %principal_email,
+        principal_kind = %principal_kind(principal_email),
         approver_role = approver_role.map_or("none", |r| r.as_str()),
-        proposer = %pending.principal_email,
+        // The proposer is a second principal, so it gets the same treatment as
+        // the approver above: whether it authenticated, never its address.
+        proposer_kind = %principal_kind(&pending.principal_email),
         tool = %pending.pending_call.tool_name,
         arguments = %pending.pending_call.arguments,
         task_id = %task_id,
@@ -1633,6 +1635,30 @@ fn audit_authorization(
         "a2a: agent action authorization decision"
     );
 }
+
+/// Whether a request arrived authenticated, as a telemetry label.
+///
+/// The address itself must never reach a log field: telemetry leaves the
+/// firm's trust boundary and an email is client-identifying content, per the
+/// standing order in `telemetry/src/lib.rs`. What these log lines actually
+/// used the address *for* is the anonymous-versus-authenticated distinction,
+/// which this preserves.
+///
+/// A `person_id` would be strictly better and is deliberately **not** used
+/// here yet: [`Principal`] carries only an email (`mcp::principal`), so the id
+/// would need [`approver_role`] to return the row it already fetches and five
+/// signatures to carry it. That is a refactor rather than a logging fix.
+fn principal_kind(email: &str) -> &'static str {
+    if email == ANONYMOUS_PRINCIPAL {
+        "anonymous"
+    } else {
+        "authenticated"
+    }
+}
+
+/// Stand-in used where no principal authenticated. Not an address, so it is
+/// safe in a log field — but it is compared, so it has one spelling.
+const ANONYMOUS_PRINCIPAL: &str = "<anonymous>";
 
 /// Look up the role of the authenticated principal by email. `None` when
 /// the email isn't a known `persons` row — which the role gate treats as
