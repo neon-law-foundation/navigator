@@ -33,6 +33,25 @@ authoritative: read the narrowest relevant doc before acting and keep durable de
 - **No client data in the repository.** Shipped data contains only firm-owned or synthetic identities. Non-firm email
   addresses use reserved example domains, and phone numbers do not ship. The workspace test suite enforces this on every
   PR. See [`docs/agent-workflows.md`](docs/agent-workflows.md#no-client-data-in-the-repo).
+- **No client matter is ever named in writing that leaves the practice.** A real Project code *is* a client identifier:
+  it names who retained the firm, and a repository name, an object prefix, a bucket listing, and a portal URL all carry
+  it. So no commit message, branch name, code comment, test fixture, document, issue, pull-request title or body, or
+  agent transcript names a real client, matter, or Project code — not even in passing, and not even where the surface
+  feels internal. Issues and PR descriptions are the easy mistake, because they read as private and are not. Write about
+  the *mechanism* instead: "a Project's publish", "four publisher identities", "one matter's prefix". Where an example
+  is genuinely needed, use a synthetic code (`acme`, `sample-litigation`) or the seeded sample matters, which are
+  invented. Describing live state — how many Projects publish, when they last did — is fine as long as none of them is
+  named. If a real code is already written somewhere, do not propagate it; say where it is and let a human decide.
+- **Name only staging in this repository.** The published tree documents how Navigator deploys, and one worked example
+  is enough. Use the staging deployment — GCP project `neon-law-stg`, host `staging.neonlaw.com` — in every doc,
+  comment, fixture, and test. Production project ids, bucket names, hosts, and service-account emails are not secrets,
+  but they are a map of where client bytes live, and a public tree is the wrong place to draw it.
+- **Live debugging goes to staging, never production.** When an answer needs a running system — reading a bucket,
+  inspecting IAM, driving a browser, tailing logs — use the staging deployment. It is provisioned and shipped
+  identically, so what reproduces there reproduces in production. `kubectl` and `gcloud` frequently sit on a production
+  context by default: check with `kubectl config current-context` and `gcloud config get-value project` before the first
+  command, not after. A read against production needs the user to ask for it in that turn; a write to production is
+  propose-only, always.
 - **Production-shaped local development.** Local development runs the dependency tier in KIND; every cloud deployment is
   persistent and provisioned, shipped, and configured identically, with staging a role in the release order rather than
   a reduced topology. Ephemeral environments are for development only. Do not replace the KIND topology with ad hoc
