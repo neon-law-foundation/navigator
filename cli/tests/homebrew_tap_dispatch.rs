@@ -28,6 +28,15 @@ const JOB: &str = "release-homebrew-tap";
 /// release with no review to add.
 const TAP_REPO: &str = "neon-law-foundation/homebrew-navigator";
 
+/// The one file a bump changes, and the one the release reads back to prove the
+/// bump landed.
+const FORMULA_PATH: &str = "Formula/navigator.rb";
+
+/// How long the release waits for the tap to publish the formula. The bump
+/// itself runs in under a minute; the rest of the budget absorbs a queued
+/// runner and the tap's `bump-formula` concurrency group.
+const POLL_BUDGET_MINUTES: u64 = 15;
+
 fn deploy_workflow() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
@@ -125,6 +134,13 @@ fn a_hotfix_is_dispatched_to_the_tap() {
 /// would leave the tap unable to repair a bad bump from a bare tag — which
 /// matters because `YY.M.D` admits no second ordinary release the same UTC day,
 /// so a bump that went wrong cannot be fixed by re-cutting the release.
+///
+/// This once forbade the job to name `Formula/` at all, which read as the same
+/// invariant while the job only ever spoke to `/dispatches`. It is not the same
+/// invariant: the job now reads the formula back to prove the bump landed, and
+/// reading a file is how a release learns its own outcome. What must stay true
+/// is that the tap remains the only writer — so the ban is on the digesting and
+/// the writing, which is what "the tap owns its formula" actually means.
 #[test]
 fn the_dispatch_carries_the_tag_and_computes_no_digest() {
     let workflow = deploy_workflow();
@@ -142,13 +158,24 @@ fn the_dispatch_carries_the_tag_and_computes_no_digest() {
     }
 
     let job = serde_yaml::to_string(&deploy_job(JOB)).expect("the job serializes");
-    for forbidden in ["sha256", "shasum", "Formula/"] {
+    for forbidden in ["sha256", "shasum"] {
         assert!(
             !job.contains(forbidden),
             "`{JOB}` must not compute or carry `{forbidden}` — the tap digests the published \
              bytes itself"
         );
     }
+    for forbidden in ["--method PUT", "--method PATCH", "git commit", "git push"] {
+        assert!(
+            !job.contains(forbidden),
+            "`{JOB}` must not `{forbidden}` — it reads the tap's formula to confirm the bump and \
+             never writes it, so the tap stays the only author of its own history"
+        );
+    }
+    assert!(
+        !job.contains(&format!("--method POST \"/repos/{TAP_REPO}/contents")),
+        "`{JOB}` must not create the formula — its only write to the tap is the dispatch event"
+    );
 }
 
 /// A missing token must fail the release, not skip the bump.
@@ -228,5 +255,80 @@ fn the_slack_message_offers_the_homebrew_install() {
         "the message must say why brew is the recommended path on a Mac — an unsigned binary \
          downloaded through a browser is blocked, and a reader who does not know that concludes \
          the release is broken"
+    );
+}
+
+/// An accepted dispatch is not a completed bump.
+///
+/// `POST /dispatches` answers 204 the moment GitHub queues the event, and it
+/// carries no run id. So the dispatch step alone reports success for a tap that
+/// then fails to bump — which is what happened: three consecutive releases
+/// (`26.8.21-hotfix.10`, `.11`, and `.12`) were dispatched, all three bumps died
+/// at their final `git push`, and every one of those releases stayed green while
+/// `brew` served `26.8.20-hotfix.4`. That is the exact silence this file's
+/// header calls "only holdable by a test", one repository downstream of the
+/// break it already guards.
+///
+/// The job therefore reads the formula back and fails the release unless it
+/// reports this tag. Verifying the OUTCOME rather than the tap's run conclusion
+/// is deliberate on three counts: the fine-grained `HOMEBREW_TAP_TOKEN` needs no
+/// `actions: read` widening to read a file it can already write; there is no run
+/// to discover and therefore no race with a concurrent manual re-run; and a
+/// green bump that committed nothing is still caught.
+#[test]
+fn an_accepted_dispatch_is_not_proof_the_formula_moved() {
+    let workflow = deploy_workflow();
+
+    assert!(
+        workflow.contains(&format!("/repos/${{TAP_REPO}}/contents/{FORMULA_PATH}")),
+        "`{JOB}` must read the tap's formula back — a 204 from `POST /dispatches` only says \
+         GitHub queued the event, not that the bump landed"
+    );
+
+    let steps: Vec<String> = deploy_job(JOB)["steps"]
+        .as_sequence()
+        .expect("the job declares steps")
+        .iter()
+        .filter_map(|step| step.get("name")?.as_str().map(str::to_owned))
+        .collect();
+    let dispatch = steps
+        .iter()
+        .position(|name| name.contains("dispatch"))
+        .expect("the job dispatches the bump");
+    let confirm = steps
+        .iter()
+        .position(|name| name.contains("confirm"))
+        .unwrap_or_else(|| {
+            panic!("`{JOB}` must confirm the formula moved; its steps are {steps:?}")
+        });
+    assert!(
+        confirm > dispatch,
+        "the confirmation must follow the dispatch, not precede it: {steps:?}"
+    );
+}
+
+/// The confirmation must be able to fail, and must say what it saw.
+///
+/// A poll that gives up quietly, or one whose timeout is generous enough to
+/// outlive the job, restores the silence it exists to remove. The error names
+/// the version the formula actually reports so the reader does not have to open
+/// the tap to learn whether the bump ran late or died.
+#[test]
+fn a_tap_that_never_bumps_fails_the_release() {
+    let workflow = deploy_workflow();
+
+    assert!(
+        workflow.contains("the tap never published"),
+        "the timeout must state that the formula never reached this tag"
+    );
+
+    let job = deploy_job(JOB);
+    let timeout = job["timeout-minutes"]
+        .as_u64()
+        .unwrap_or_else(|| panic!("`{JOB}` must declare `timeout-minutes`"));
+    assert!(
+        timeout > POLL_BUDGET_MINUTES,
+        "`{JOB}`'s {timeout}-minute timeout must outlast its {POLL_BUDGET_MINUTES}-minute poll, \
+         or the job dies on the clock instead of reporting the stale formula"
     );
 }
