@@ -87,12 +87,12 @@ a client configuration, not by hand: started in a terminal it waits on stdin and
 
 ## What Claude can and cannot do
 
-The catalog Claude sees is deliberately narrower than the deployment's. Every read is offered, and the writes that touch
-only the firm's own records:
+The catalog Claude sees is deliberately narrower than the deployment's — ten tools of the fourteen. The reads, less one
+that is not yet matter-scoped, plus the writes that touch only the firm's own records:
 
 | Offered | Why |
 | --- | --- |
-| all 7 reads | a lookup changes nothing |
+| 6 of the 7 reads | a lookup changes nothing |
 | `aida_create_person` | a contact row, visible and correctable in `/app/admin` |
 | `aida_create_project` | opens a matter, on the attorney's own conflict attestation |
 | `aida_link_person_project` | participation on a matter |
