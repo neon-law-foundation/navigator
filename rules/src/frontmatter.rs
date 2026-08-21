@@ -24,35 +24,76 @@ use std::ops::RangeInclusive;
 /// `\r`, which `serde_yaml` accepts.
 #[must_use]
 pub fn extract(contents: &str) -> Option<&str> {
+    split(contents).map(|(frontmatter, _)| frontmatter)
+}
+
+/// Both halves of a document with leading frontmatter: the raw YAML,
+/// and the Markdown body that follows the closing `---`.
+///
+/// This is the one delimiter implementation in the workspace that
+/// callers should reach for. [`extract`] is a thin wrapper over it, so
+/// widening the line-ending handling here widens it everywhere rather
+/// than in one caller at a time — which is how a dozen independent
+/// hand-rolled copies of this parser came to disagree about CRLF.
+///
+/// Returns `None` when either marker is absent. An empty frontmatter
+/// block (`---` immediately followed by `---`) is `Some(("", body))`,
+/// not `None`: the block is present, it just declares nothing.
+///
+/// Accepts both LF and CRLF. The body slice is returned verbatim and so
+/// may retain interior `\r`; a caller that content-addresses or hashes
+/// it wants to normalise first, or the same document will hash
+/// differently depending on which checkout produced it.
+#[must_use]
+pub fn split(contents: &str) -> Option<(&str, &str)> {
     let after_open = contents
         .strip_prefix("---\n")
         .or_else(|| contents.strip_prefix("---\r\n"))?;
+
     // Empty frontmatter: closer immediately follows the opener.
-    if after_open == "---"
-        || after_open == "---\r"
-        || after_open.starts_with("---\n")
-        || after_open.starts_with("---\r\n")
+    if let Some(body) = after_open
+        .strip_prefix("---\n")
+        .or_else(|| after_open.strip_prefix("---\r\n"))
     {
-        return Some("");
+        return Some(("", body));
     }
-    if let Some(end) = find_closer(after_open) {
-        return Some(&after_open[..end]);
+    if after_open == "---" || after_open == "---\r" {
+        return Some(("", ""));
     }
-    // Closer at EOF without a trailing newline.
-    after_open
+
+    if let Some((end, delim_len)) = find_closer(after_open) {
+        return Some((&after_open[..end], &after_open[end + delim_len..]));
+    }
+
+    // Closer at EOF without a trailing newline, so no body follows.
+    let frontmatter = after_open
         .strip_suffix("\r\n---")
-        .or_else(|| after_open.strip_suffix("\n---"))
+        .or_else(|| after_open.strip_suffix("\n---"))?;
+    Some((frontmatter, ""))
 }
 
 /// Byte offset of the closing `---` delimiter line within the text
-/// following the opener, for either line-ending style. Takes the
-/// earlier of the two matches so a file with mixed endings closes at
-/// the first delimiter rather than the first *LF* delimiter.
-fn find_closer(after_open: &str) -> Option<usize> {
-    match (after_open.find("\n---\n"), after_open.find("\r\n---\r\n")) {
-        (Some(lf), Some(crlf)) => Some(lf.min(crlf)),
-        (Some(lf), None) => Some(lf),
-        (None, Some(crlf)) => Some(crlf),
+/// following the opener, paired with that delimiter's own length so the
+/// caller can slice the body starting after it.
+///
+/// Takes the earlier of the two matches so a file with mixed endings
+/// closes at the first delimiter rather than the first *LF* delimiter.
+/// `"\n---\n"` cannot match inside `"\r\n---\r\n"`, so the two probes
+/// never overlap on one delimiter and the earlier offset is always a
+/// genuine closer.
+fn find_closer(after_open: &str) -> Option<(usize, usize)> {
+    const LF: &str = "\n---\n";
+    const CRLF: &str = "\r\n---\r\n";
+    match (after_open.find(LF), after_open.find(CRLF)) {
+        (Some(lf), Some(crlf)) => {
+            if lf <= crlf {
+                Some((lf, LF.len()))
+            } else {
+                Some((crlf, CRLF.len()))
+            }
+        }
+        (Some(lf), None) => Some((lf, LF.len())),
+        (None, Some(crlf)) => Some((crlf, CRLF.len())),
         (None, None) => None,
     }
 }
@@ -293,7 +334,87 @@ fn leading_ws_len(line: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract, field, folded_scalar_lines, line_range};
+    use super::{extract, field, folded_scalar_lines, line_range, split};
+
+    /// The assertions on `split` compare *parsed halves* across an LF
+    /// document and its CRLF twin rather than counting failures. The
+    /// failure mode this guards is silent absence — `None`, or a body
+    /// that quietly still carries the frontmatter — and neither shows up
+    /// in an error count, which is why the LF-only copies of this parser
+    /// survived on Linux CI for so long.
+    fn crlf(s: &str) -> String {
+        s.replace('\n', "\r\n")
+    }
+
+    #[test]
+    fn split_returns_the_same_halves_from_lf_and_crlf() {
+        let lf = "---\nfoo: bar\nbaz: qux\n---\n# Body\n\nMore.\n";
+        let (lf_fm, lf_body) = split(lf).expect("lf splits");
+        let crlf_doc = crlf(lf);
+        let (crlf_fm, crlf_body) = split(&crlf_doc).expect("crlf splits");
+
+        assert_eq!(lf_fm, "foo: bar\nbaz: qux");
+        assert_eq!(lf_body, "# Body\n\nMore.\n");
+        // Same logical halves; the CRLF slices differ only by `\r`.
+        assert_eq!(crlf_fm, crlf(lf_fm));
+        assert_eq!(crlf_body, crlf(lf_body));
+        // And the values read out of them are equal, which is the point.
+        assert_eq!(field(lf_fm, "foo"), field(crlf_fm, "foo"));
+        assert_eq!(field(crlf_fm, "baz").as_deref(), Some("qux"));
+    }
+
+    #[test]
+    fn split_handles_closers_at_eof_and_empty_blocks_in_either_ending() {
+        // Closer at EOF: frontmatter present, no body.
+        assert_eq!(split("---\nfoo: bar\n---"), Some(("foo: bar", "")));
+        assert_eq!(split("---\r\nfoo: bar\r\n---"), Some(("foo: bar", "")));
+        // Empty block is present-but-empty, not absent.
+        assert_eq!(split("---\n---\nbody\n"), Some(("", "body\n")));
+        assert_eq!(split("---\r\n---\r\nbody\r\n"), Some(("", "body\r\n")));
+        assert_eq!(split("---\n---"), Some(("", "")));
+    }
+
+    #[test]
+    fn split_closes_a_mixed_ending_file_at_the_first_real_delimiter() {
+        // CRLF frontmatter, LF closer. The earlier match must win so the
+        // `---` further down the body is not taken as the closer.
+        assert_eq!(
+            split("---\r\nfoo: bar\n---\nbody\n---\ntail\n"),
+            Some(("foo: bar", "body\n---\ntail\n"))
+        );
+    }
+
+    #[test]
+    fn split_reports_absent_frontmatter() {
+        // Widening the endings must not start accepting documents that
+        // genuinely have no frontmatter.
+        for raw in [
+            "# no frontmatter\n",
+            "",
+            "--\nfoo: bar\n--\n",
+            "---\nfoo: bar\n",
+        ] {
+            assert!(split(raw).is_none(), "{raw:?}");
+        }
+    }
+
+    #[test]
+    fn extract_agrees_with_split() {
+        // `extract` is a wrapper, and this is what keeps it one.
+        for raw in [
+            "---\nfoo: bar\n---\nrest",
+            "---\r\nfoo: bar\r\n---\r\nrest",
+            "---\nfoo: bar\n---",
+            "---\n---\nrest",
+            "no frontmatter",
+        ] {
+            assert_eq!(
+                extract(raw),
+                split(raw).map(|(fm, _)| fm),
+                "diverged on {raw:?}"
+            );
+        }
+    }
 
     #[test]
     fn extract_returns_body_between_markers() {

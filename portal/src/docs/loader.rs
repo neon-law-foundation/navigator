@@ -75,10 +75,14 @@ fn markdown_body(raw: &str) -> &str {
 }
 
 /// The YAML body and Markdown body from a leading frontmatter block.
+///
+/// Delegates to `rules::frontmatter::split` so this loader accepts the
+/// same delimiters as every other reader of these files. The LF-only
+/// probe it replaces treated a CRLF checkout's docs as having no
+/// frontmatter at all, which silently dropped the publish control that
+/// `markdown_body` exists to hide.
 fn split_frontmatter(raw: &str) -> Option<(&str, &str)> {
-    let after_open = raw.strip_prefix("---\n")?;
-    let (frontmatter, body) = after_open.split_once("\n---\n")?;
-    Some((frontmatter, body))
+    rules::frontmatter::split(raw)
 }
 
 /// The page title is the doc's first `# ` heading. Anything else before
