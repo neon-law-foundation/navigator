@@ -19,6 +19,14 @@
 //! crates for other target platforms. Naming a crate whose code did not ship is
 //! harmless; omitting one whose code did is the compliance failure. When the
 //! set is later narrowed, narrow it deliberately.
+//!
+//! **An unpacked source is a precondition, not an outcome.** Licence text is
+//! read from `$CARGO_HOME/registry/src`, which cargo populates per crate as it
+//! unpacks one — `cargo fetch` unpacks every target platform's graph, while a
+//! build unpacks only the platform it built for. A crate whose source is absent
+//! therefore says nothing about that crate's licence; it says this machine never
+//! unpacked it. Folding that into the no-licence-file list would publish one
+//! machine's gap as the crate's, so an absent source refuses the run instead.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -109,16 +117,31 @@ fn registry_src_roots() -> Vec<PathBuf> {
     roots
 }
 
+/// What this machine's registry can say about one crate's notices.
+///
+/// The two cases are not interchangeable, and conflating them is how a notices
+/// file under-attributes: `Absent` is a fact about the machine, while
+/// `Present(vec![])` is a fact about the crate's published archive.
+enum Sources {
+    /// No unpacked source directory under any registry root.
+    Absent,
+    /// The source is unpacked. Carries every notice text found in it, which is
+    /// empty for a crate that publishes none.
+    Present(Vec<String>),
+}
+
 /// The notice texts a single crate's extracted source carries, sorted by
 /// filename so the output does not depend on directory iteration order.
-fn notices_for(roots: &[PathBuf], krate: &Crate) -> Vec<String> {
+fn notices_for(roots: &[PathBuf], krate: &Crate) -> Sources {
     let dir_name = format!("{}-{}", krate.name, krate.version);
+    let mut unpacked = false;
     let mut texts = Vec::new();
     for root in roots {
         let dir = root.join(&dir_name);
         let Ok(entries) = fs::read_dir(&dir) else {
             continue;
         };
+        unpacked = true;
         let mut files: Vec<PathBuf> = entries
             .flatten()
             .map(|e| e.path())
@@ -142,7 +165,11 @@ fn notices_for(roots: &[PathBuf], krate: &Crate) -> Vec<String> {
             break;
         }
     }
-    texts
+    if unpacked {
+        Sources::Present(texts)
+    } else {
+        Sources::Absent
+    }
 }
 
 /// The SPDX expression a crate declares in its own manifest.
@@ -189,23 +216,29 @@ pub struct Notices {
     pub by_text: BTreeMap<String, Vec<Crate>>,
     /// Crates whose published archive contains no licence file.
     pub gaps: Vec<Undeclared>,
+    /// Crates with no unpacked source on this machine, so nothing was read for
+    /// them at all. No licensing statement can be made from this, which is why
+    /// a non-empty set refuses the run rather than rendering.
+    pub absent: Vec<Crate>,
 }
 
 /// Group every crate's notice texts, collapsing identical texts.
 pub fn collect(roots: &[PathBuf], crates: &[Crate]) -> Notices {
     let mut by_text: BTreeMap<String, Vec<Crate>> = BTreeMap::new();
     let mut gaps = Vec::new();
+    let mut absent = Vec::new();
     for krate in crates {
-        let texts = notices_for(roots, krate);
-        if texts.is_empty() {
-            gaps.push(Undeclared {
+        match notices_for(roots, krate) {
+            Sources::Absent => absent.push(krate.clone()),
+            Sources::Present(texts) if texts.is_empty() => gaps.push(Undeclared {
                 krate: krate.clone(),
                 spdx: declared_license(roots, krate),
-            });
-            continue;
-        }
-        for text in texts {
-            by_text.entry(text).or_default().push(krate.clone());
+            }),
+            Sources::Present(texts) => {
+                for text in texts {
+                    by_text.entry(text).or_default().push(krate.clone());
+                }
+            }
         }
     }
     for crates in by_text.values_mut() {
@@ -213,7 +246,12 @@ pub fn collect(roots: &[PathBuf], crates: &[Crate]) -> Notices {
         crates.dedup();
     }
     gaps.sort();
-    Notices { by_text, gaps }
+    absent.sort();
+    Notices {
+        by_text,
+        gaps,
+        absent,
+    }
 }
 
 /// Render the notices file. Plain text, not Markdown: licence bodies carry
@@ -261,6 +299,23 @@ pub fn render(notices: &Notices) -> String {
         out.push('\n');
     }
 
+    // Unreachable through `run`, which refuses before rendering. Rendered
+    // anyway so that no caller can quietly produce an under-attributing file:
+    // the incompleteness is stated where a reader would look for the licence.
+    if !notices.absent.is_empty() {
+        out.push_str(&"-".repeat(88));
+        out.push_str(
+            "\nSOURCE NOT AVAILABLE — this file is incomplete and must not be distributed. The\n\
+             crates below have no unpacked source under $CARGO_HOME/registry/src on the machine\n\
+             that generated it, so their licences were never read. This says nothing about what\n\
+             those crates license under. Run `cargo fetch` and regenerate.\n\n",
+        );
+        for krate in &notices.absent {
+            let _ = writeln!(out, "{krate}");
+        }
+        out.push('\n');
+    }
+
     out
 }
 
@@ -287,6 +342,26 @@ pub fn run(out_path: &Path, check: bool) -> ExitCode {
         return ExitCode::from(2);
     }
     let notices = collect(&roots, &crates);
+    // Refuse before rendering. An absent source is not a licence fact about the
+    // crate, so there is no honest way to put it in the file: reading a partial
+    // registry and shipping the result is exactly the under-attribution this
+    // command exists to prevent. `cargo fetch` unpacks every target's graph.
+    if !notices.absent.is_empty() {
+        eprintln!(
+            "navigator: ops notices: {} of {} crates in Cargo.lock have no unpacked source \
+             under $CARGO_HOME/registry/src, so their licences could not be read. \
+             Run `cargo fetch` and try again.",
+            notices.absent.len(),
+            crates.len()
+        );
+        for krate in notices.absent.iter().take(10) {
+            eprintln!("  {krate}");
+        }
+        if notices.absent.len() > 10 {
+            eprintln!("  … and {} more", notices.absent.len() - 10);
+        }
+        return ExitCode::from(2);
+    }
     let rendered = render(&notices);
 
     if check {
@@ -409,25 +484,120 @@ source = "git+https://example.invalid/repo"
         assert!(out.contains("zzz 2.0.0"));
     }
 
-    /// A crate carrying no licence file must be named, not silently dropped:
-    /// a silent gap is an unattributed component.
+    /// A crate this machine never unpacked is a fact about the machine. Putting
+    /// it in the no-licence-file list publishes that gap as the crate's, which
+    /// is how a permissive licence's notice silently fails to ship.
     #[test]
-    fn crates_without_a_licence_file_are_reported_as_gaps() {
-        let missing = Crate {
+    fn a_crate_with_no_unpacked_source_is_absent_not_a_gap() {
+        let never_fetched = Crate {
             name: "never-fetched".into(),
             version: "9.9.9".into(),
         };
-        let notices = collect(&[], std::slice::from_ref(&missing));
+        let notices = collect(&[], std::slice::from_ref(&never_fetched));
+        assert_eq!(notices.absent, vec![never_fetched]);
+        assert!(
+            notices.gaps.is_empty(),
+            "an unread crate must not be reported as publishing no licence file"
+        );
+    }
+
+    /// Rendered loudly too, so no caller can quietly produce a file that
+    /// under-attributes: `run` refuses, and the text refuses with it.
+    #[test]
+    fn an_absent_source_renders_a_refusal_not_a_licence_claim() {
+        let notices = collect(
+            &[],
+            &[Crate {
+                name: "never-fetched".into(),
+                version: "9.9.9".into(),
+            }],
+        );
+        let out = render(&notices);
+        assert!(out.contains("SOURCE NOT AVAILABLE"));
+        assert!(out.contains("never-fetched 9.9.9"));
+        assert!(out.contains("cargo fetch"));
+        assert!(
+            !out.contains("publish no licence file"),
+            "an unread crate must not be described as publishing no licence file"
+        );
+    }
+
+    /// The other half of the split, and the case the gap list actually
+    /// describes: the source IS unpacked and ships no notice file, so the
+    /// manifest declaration is the attribution.
+    #[test]
+    fn a_crate_whose_source_ships_no_licence_file_is_a_gap() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let krate = Crate {
+            name: "no-licence-file".into(),
+            version: "1.0.0".into(),
+        };
+        let dir = root.path().join("no-licence-file-1.0.0");
+        std::fs::create_dir(&dir).expect("create crate dir");
+        std::fs::write(
+            dir.join("Cargo.toml"),
+            "[package]\nname = \"no-licence-file\"\nlicense = \"MIT OR Apache-2.0\"\n",
+        )
+        .expect("write manifest");
+
+        let notices = collect(&[root.path().to_path_buf()], std::slice::from_ref(&krate));
+        assert!(
+            notices.absent.is_empty(),
+            "the source is unpacked, so this is not an absent-source case"
+        );
         assert_eq!(
             notices.gaps,
             vec![Undeclared {
-                krate: missing,
-                spdx: None
+                krate,
+                spdx: Some("MIT OR Apache-2.0".into())
             }]
         );
         let out = render(&notices);
-        assert!(out.contains("never-fetched 9.9.9"));
-        assert!(out.contains("no licence declared"));
+        assert!(out.contains("publish no licence file"));
+        assert!(out.contains("no-licence-file 1.0.0  —  MIT OR Apache-2.0"));
+        assert!(!out.contains("SOURCE NOT AVAILABLE"));
+    }
+
+    /// Unpacked, no notice file, and no manifest declaration either — the one
+    /// genuinely unattributed case, which must still be named.
+    #[test]
+    fn an_unpacked_crate_declaring_nothing_is_named_as_undeclared() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let krate = Crate {
+            name: "silent".into(),
+            version: "0.1.0".into(),
+        };
+        std::fs::create_dir(root.path().join("silent-0.1.0")).expect("create crate dir");
+
+        let notices = collect(&[root.path().to_path_buf()], std::slice::from_ref(&krate));
+        assert!(notices.absent.is_empty());
+        assert_eq!(notices.gaps, vec![Undeclared { krate, spdx: None }]);
+        assert!(render(&notices).contains("silent 0.1.0  —  no licence declared"));
+    }
+
+    /// And the ordinary path: an unpacked crate carrying a notice file is
+    /// attributed from its text, in neither exception list.
+    #[test]
+    fn an_unpacked_crate_carrying_a_licence_file_is_attributed() {
+        let root = tempfile::tempdir().expect("tempdir");
+        let krate = Crate {
+            name: "with-licence".into(),
+            version: "2.0.0".into(),
+        };
+        let dir = root.path().join("with-licence-2.0.0");
+        std::fs::create_dir(&dir).expect("create crate dir");
+        std::fs::write(
+            dir.join("LICENSE-MIT"),
+            "MIT License\n\nPermission is hereby granted",
+        )
+        .expect("write licence");
+
+        let notices = collect(&[root.path().to_path_buf()], std::slice::from_ref(&krate));
+        assert!(notices.absent.is_empty());
+        assert!(notices.gaps.is_empty());
+        let out = render(&notices);
+        assert!(out.contains("with-licence 2.0.0"));
+        assert!(out.contains("Permission is hereby granted"));
     }
 
     #[test]
