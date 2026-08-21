@@ -43,16 +43,20 @@ gh api repos/neon-law-foundation/navigator/commits/<sha>/check-runs \
 Firm administers rather than a checked-in pair. The target resolves in precedence order — the explicit `owner/name`
 argument, then `GITHUB_REPOSITORY`, then the checkout's `origin` remote.
 
-The authorization boundary is the **host**. A remote pointing anywhere other than `github.com` is refused before a token
-is read, so an incidental checkout of someone else's fork cannot become a write target by being the current directory.
-That check mattered more when the host itself was the boundary; on a public host it is the last thing standing between a
-reconcile and a repository nobody meant to govern, so it stays.
+The authorization boundary is a **`(host, organization)` pair**: the public organization holding Navigator, and this
+deployment's own `NAVIGATOR_GITHUB_ORG`, on the host `NAVIGATOR_GIT_HOST` names. A repository in neither organization is
+refused before a token is read, so an incidental checkout of someone else's fork cannot become a write target by being
+the current directory. The host alone was the boundary while every repository the Firm owned sat on a private tenant; on
+a public host it admits any repository on GitHub, which is why the organization came back.
 
-Policy stays explicit; it is simply no longer an allowlist. Every repository gets `COMMON_POLICY`: the `production`
-branch protections, the CODEOWNERS assertion, and the merge policy — pull requests only, squash only, auto-merge,
-automatic head-branch deletion, and squash commits titled and described from the pull request.
-`neon-law-foundation/navigator` alone adds `NAVIGATOR_POLICY`'s three extras — the release-tag ruleset, the DevX labels,
-and the App-installation assertion — because it is the only repository that cuts a release or runs that automation.
+Policy stays explicit; it is simply no longer an allowlist. It forks by organization: a repository in the public
+organization gets `COMMON_POLICY` and one in the deployment's own gets `CLIENT_POLICY`, which is the same gate with
+client-confidential defaults — private visibility, and none of the open-source governance files a published repository
+carries. That gate, in either organization, is the `production` branch protections, the CODEOWNERS assertion, and the
+merge policy — pull requests only, squash only, auto-merge, automatic head-branch deletion, and squash commits titled
+and described from the pull request. `neon-law-foundation/navigator` alone adds `NAVIGATOR_POLICY`'s three extras — the
+release-tag ruleset, the DevX labels, and the App-installation assertion — because it is the only repository that cuts a
+release or runs that automation.
 
 There is one lighter tier and one repository in it. A repository the Firm administers on someone else's behalf still
 receives the same gate; what earns the exception is not ownership but whether a person writes `main` at all.

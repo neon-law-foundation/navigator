@@ -190,7 +190,11 @@ const REQUIRED_CHECK: &str = "ci";
 /// buy nothing: the required context is matched by job name, never by path.
 const CI_WORKFLOW_PATHS: &[&str] = &[".github/workflows/ci.yml", ".github/workflows/gate.yml"];
 
-/// The merge gate every repository the Firm *develops in* carries.
+/// The merge gate every repository the Firm *develops in* carries, with the
+/// public organization's posture.
+///
+/// The gate half of this constant is common to both organizations; see
+/// [`CLIENT_POLICY`] for the same gate under client-confidential defaults.
 ///
 /// There is one lighter tier and one repository in it — the Homebrew tap, whose
 /// `main` no human writes. Every other repository the Firm administers is held
@@ -204,6 +208,32 @@ const CI_WORKFLOW_PATHS: &[&str] = &[".github/workflows/ci.yml", ".github/workfl
 /// against an unresolvable — or absent — CODEOWNERS silently passes anyone's
 /// approval. The two ship together or neither means anything.
 const COMMON_POLICY: RepositoryPolicy = RepositoryPolicy {
+    default_visibility: Visibility::Public,
+    open_source_governance: true,
+    release_tags: false,
+    labels: &[],
+    assert_codeowners: true,
+    assert_devx_app: false,
+    review_gate: true,
+    branch_protections: true,
+};
+
+/// The same gate, with client-confidential defaults: what a repository in the
+/// deployment's own organization carries.
+///
+/// The gate does not change with the organization — a client matter's source is
+/// a repository the Firm develops in, and it is held to the same integrity rules
+/// and the same code-owner review as anything else. What changes is everything
+/// about *publication*, and the two fields that differ are the two the fork
+/// exists for.
+///
+/// The host check alone could never have expressed this. On a private tenant
+/// there was one organization and therefore one posture; on a public forge the
+/// same host holds both the repository whose whole point is to be readable by
+/// anyone and the repository whose whole point is that it is not.
+const CLIENT_POLICY: RepositoryPolicy = RepositoryPolicy {
+    default_visibility: Visibility::Private,
+    open_source_governance: false,
     release_tags: false,
     labels: &[],
     assert_codeowners: true,
@@ -216,6 +246,8 @@ const COMMON_POLICY: RepositoryPolicy = RepositoryPolicy {
 /// repository does — cut release tags, drive `DevX` automation off labels, and
 /// host the App installation that automation authenticates as.
 const NAVIGATOR_POLICY: RepositoryPolicy = RepositoryPolicy {
+    default_visibility: Visibility::Public,
+    open_source_governance: true,
     release_tags: true,
     labels: &DEVX_LABELS,
     assert_codeowners: true,
@@ -246,6 +278,8 @@ const NAVIGATOR_POLICY: RepositoryPolicy = RepositoryPolicy {
 /// still receives the merge settings, which govern its occasional human pull
 /// request and cannot block the bump.
 const TAP_POLICY: RepositoryPolicy = RepositoryPolicy {
+    default_visibility: Visibility::Public,
+    open_source_governance: true,
     release_tags: false,
     labels: &[],
     assert_codeowners: false,
@@ -254,14 +288,37 @@ const TAP_POLICY: RepositoryPolicy = RepositoryPolicy {
     branch_protections: false,
 };
 
+/// The policy a repository is reconciled against, forked by organization first.
+///
+/// The organization is the question that decides publication, so it is asked
+/// first: a repository in the public organization carries [`COMMON_POLICY`], and
+/// one in the deployment's own carries [`CLIENT_POLICY`]. Only then do the two
+/// repositories that carry something other than their organization's posture get
+/// their own answer, and both of them live in the public organization —
+/// `navigator`, which runs release automation nothing else runs, and the tap,
+/// whose `main` no human writes.
+///
+/// Splitting on the slug alone was right while one hard-coded slug was the only
+/// thing that differed. With two organizations it would answer the wrong
+/// question: it would give a client matter's repository the posture of a
+/// published one by default, which is the direction that fails badly.
 fn policy_for(slug: &str) -> RepositoryPolicy {
     if slug.eq_ignore_ascii_case(NAVIGATOR_SLUG) {
         NAVIGATOR_POLICY
     } else if slug.eq_ignore_ascii_case(TAP_SLUG) {
         TAP_POLICY
-    } else {
+    } else if in_public_organization(slug) {
         COMMON_POLICY
+    } else {
+        CLIENT_POLICY
     }
+}
+
+/// Whether a slug names a repository in the public organization.
+fn in_public_organization(slug: &str) -> bool {
+    slug.split('/')
+        .next()
+        .is_some_and(|owner| owner.eq_ignore_ascii_case(public_organization()))
 }
 
 /// A resolved repository inside the governed `(host, organization)` pair, with
@@ -403,9 +460,36 @@ fn split_remote(url: &str) -> Option<(&str, &str)> {
     }
 }
 
+/// Whether a repository is published or held to a client matter.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Visibility {
+    Public,
+    Private,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(clippy::struct_excessive_bools)] // One independent switch per policy half.
 struct RepositoryPolicy {
+    /// Visibility a repository in this organization is **created** with.
+    ///
+    /// A creation-time default rather than a setting this command reconciles.
+    /// `ops github setup` converges the policy of repositories that already
+    /// exist, and flipping a live repository's visibility is not a convergence
+    /// in either direction: it either publishes a client matter or unpublishes
+    /// the product. Repository creation reads this — ENG-282 — and this command
+    /// only carries it, which is why no [`Action`] writes it.
+    default_visibility: Visibility,
+    /// Whether this repository publishes the Foundation's open-source
+    /// governance file set: `LICENSE` carrying the `AGPL-3.0-only` text exactly
+    /// as the FSF publishes it, `NOTICE` carrying the Foundation's own
+    /// statements, and a `CONTRIBUTING.md` stating that contributions are
+    /// closed.
+    ///
+    /// False for a client matter, and not as an omission: a repository holding
+    /// one client's confidential material publishes nothing and grants nobody
+    /// anything, so a licence file there would describe rights that do not
+    /// exist.
+    open_source_governance: bool,
     release_tags: bool,
     labels: &'static [DesiredLabel],
     assert_codeowners: bool,
@@ -2085,8 +2169,8 @@ mod tests {
         );
     }
 
-    /// Navigator keeps its own policy; every other repository the Firm
-    /// administers resolves to the common one rather than being refused.
+    /// Navigator keeps its own policy; every other repository in the public
+    /// organization resolves to the common one rather than being refused.
     #[test]
     fn policy_is_navigator_only_for_navigator() {
         assert_eq!(
@@ -2097,9 +2181,105 @@ mod tests {
             policy_for("NEON-LAW-FOUNDATION/Navigator"),
             NAVIGATOR_POLICY
         );
-        for slug in ["ux/core", "marketing/site", "neon-law-foundation/other"] {
+        for slug in ["neon-law-foundation/other", "NEON-LAW-FOUNDATION/ux"] {
             assert_eq!(policy_for(slug), COMMON_POLICY, "{slug}");
         }
+    }
+
+    /// The two organizations get different policies, and the client
+    /// organization's default is private.
+    ///
+    /// This is the fork the move to a public forge made necessary. The same host
+    /// now holds the repository whose whole point is to be readable by anyone
+    /// and the repository whose whole point is that it is not, so the
+    /// organization has to be the question that decides publication — and the
+    /// default has to be the safe direction, because the unsafe one publishes a
+    /// client matter.
+    #[test]
+    fn the_two_organizations_get_different_policies() {
+        let public = policy_for("neon-law-foundation/some-repository");
+        let client = policy_for("a-deployment-org/cruller-v-prine");
+
+        assert_ne!(public, client);
+        assert_eq!(public.default_visibility, Visibility::Public);
+        assert_eq!(client.default_visibility, Visibility::Private);
+        assert!(public.open_source_governance);
+        assert!(!client.open_source_governance);
+
+        // The gate itself does not vary with the organization: a client
+        // matter's source is a repository the Firm develops in, held to the
+        // same integrity rules and the same code-owner review.
+        assert_eq!(client.branch_protections, public.branch_protections);
+        assert_eq!(client.review_gate, public.review_gate);
+        assert_eq!(client.assert_codeowners, public.assert_codeowners);
+        assert_eq!(client.release_tags, public.release_tags);
+        assert!(client.labels.is_empty());
+        assert!(!client.assert_devx_app);
+    }
+
+    /// Every repository in the public organization defaults to public, and
+    /// nothing outside it does.
+    ///
+    /// The case-insensitive halves matter: GitHub slugs are compared without
+    /// case, and a lookalike owner that merely *starts with* the public
+    /// organization is a different organization.
+    #[test]
+    fn only_the_public_organization_defaults_to_public() {
+        for slug in [NAVIGATOR_SLUG, TAP_SLUG, "NEON-LAW-FOUNDATION/anything"] {
+            assert_eq!(
+                policy_for(slug).default_visibility,
+                Visibility::Public,
+                "{slug}"
+            );
+        }
+        for slug in [
+            "ux/core",
+            "a-deployment-org/cruller-v-prine",
+            "neon-law-foundation-evil/navigator",
+        ] {
+            assert_eq!(
+                policy_for(slug).default_visibility,
+                Visibility::Private,
+                "{slug}"
+            );
+        }
+    }
+
+    /// No planned action writes visibility.
+    ///
+    /// The field is a creation-time default this command carries, not one it
+    /// converges: `ops github setup` is idempotent over repositories that
+    /// already exist, and a run that flipped visibility would either publish a
+    /// client matter or unpublish the product. Both are one-way doors, and
+    /// neither is a policy difference to write.
+    #[test]
+    fn no_planned_action_writes_visibility() {
+        // The planner's whole vocabulary, matched exhaustively: none of it is a
+        // visibility write. Adding a variant that was one would stop compiling
+        // here rather than shipping a one-way door.
+        let writes_visibility = |action: &Action| match action {
+            Action::UpdateMergeSettings
+            | Action::CreateRuleset { .. }
+            | Action::UpdateRuleset { .. }
+            | Action::CreateLabel { .. }
+            | Action::UpdateLabel { .. } => false,
+        };
+        for action in [
+            Action::UpdateMergeSettings,
+            Action::CreateRuleset { name: "x".into() },
+            Action::UpdateRuleset { name: "x".into() },
+            Action::CreateLabel { name: "x".into() },
+            Action::UpdateLabel { name: "x".into() },
+        ] {
+            assert!(!writes_visibility(&action), "{action:?}");
+        }
+
+        // And the two organizations' policies differ in nothing the planner
+        // reads, so a reconcile writes the same thing in either one.
+        assert_eq!(
+            plan(COMMON_POLICY, TEST_ACTIONS_APP_ID, false, &[], &[]),
+            plan(CLIENT_POLICY, TEST_ACTIONS_APP_ID, false, &[], &[]),
+        );
     }
 
     /// The governed host every test here supplies.
