@@ -10,6 +10,8 @@
 
 use serde_json::Value;
 
+use store::persons::Role;
+
 use crate::principal::Principal;
 use crate::server::McpState;
 
@@ -172,10 +174,16 @@ pub async fn call_tool(
     // side-effecting tool invoked by an *authenticated* non-lawyer caller
     // is refused here, so authz never depends solely on the endpoint's
     // embedded Rego policy gate or the LLM confirmation flow.
-    require_tool_authz(surreal, principal, name).await?;
+    let caller = resolve_caller(surreal, principal).await?;
+    caller.require_tool_authz(name)?;
+    // A read is never refused on tier — `require_tool_authz` returns
+    // early for anything read-only, and that stays true. What changed is
+    // the answer: a read is scoped to the caller's own lens rather than
+    // taken over the whole deployment.
+    let scope = caller.read_scope();
     match name {
         "aida_create_person" => create_person::call(surreal, arguments).await,
-        "aida_show_person" => show_person::call(surreal, arguments).await,
+        "aida_show_person" => show_person::call(surreal, &scope, arguments).await,
         "aida_list_jurisdictions" => list_jurisdictions::call(surreal, arguments).await,
         "aida_list_entities" => list_entities::call(surreal, arguments).await,
         "aida_create_notation" => {
@@ -193,7 +201,7 @@ pub async fn call_tool(
         }
         "aida_validate_notation" => validate_notation::call(arguments).await,
         "aida_create_project" => create_project::call(surreal, principal, arguments).await,
-        "aida_list_projects" => list_projects::call(surreal, arguments).await,
+        "aida_list_projects" => list_projects::call(surreal, &scope, arguments).await,
         "aida_link_person_project" => link_person_project::call(surreal, arguments).await,
         "aida_bulk_import" => aida_bulk_import::call(surreal, principal, arguments).await,
         "aida_list_tools" => list_tools::call(arguments).await,
@@ -203,40 +211,174 @@ pub async fn call_tool(
     }
 }
 
-/// Defense-in-depth tier check for side-effecting tools. An
-/// *authenticated* caller (a [`Principal`] is present) must resolve to a
-/// lawyer/admin `persons` row to run a side-effecting tool. An
-/// unauthenticated caller (`None`) is allowed through: that is the
-/// KIND/local-dev path where no auth layer ran and MCP has no identity,
-/// and in production the OAuth layer always injects a principal *and*
-/// the endpoint is embedded Rego policy-lawyer-gated. Read-only tools are never gated.
+/// Who a resolved `persons` row says the caller is: which person, and at
+/// which tier. The only two facts a dispatch reads off the row, so the
+/// row itself is not carried around.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Identity {
+    person_id: uuid::Uuid,
+    role: Role,
+}
+
+/// The acting [`Principal`], resolved once per dispatch.
 ///
-/// This closes the gap where any allowlisted token was treated as lawyer:
-/// a validated-but-non-lawyer identity (e.g. a Google token whose email
-/// maps to a client) can no longer invoke a write tool.
-async fn require_tool_authz(
+/// Both questions a dispatch asks about its caller — may they run a
+/// write, and which matters may they read — are answered from this one
+/// lookup rather than one apiece.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Caller {
+    /// No [`Principal`] reached the dispatcher. The KIND / local-dev path
+    /// where no auth layer ran, and the existing browser harness.
+    Anonymous,
+    /// A trusted email from the auth layer, and the identity it resolves
+    /// to — `None` when there is no `persons` row, because sign-in does
+    /// not create a Person.
+    ///
+    /// The email is the one the caller presented, not the one the row
+    /// stores: a refusal should name the address the caller used.
+    Authenticated {
+        email: String,
+        identity: Option<Identity>,
+    },
+}
+
+/// Resolve the acting principal into the identity both decisions read
+/// from.
+async fn resolve_caller(
     surreal: &store::surreal::SurrealDb,
     principal: Option<&Principal>,
-    tool_name: &str,
-) -> Result<(), ToolError> {
-    if !is_side_effecting(tool_name) {
-        return Ok(());
-    }
+) -> Result<Caller, ToolError> {
     let Some(email) = principal.map(|p| p.email.trim()).filter(|e| !e.is_empty()) else {
-        return Ok(());
+        return Ok(Caller::Anonymous);
     };
-    // Case-insensitive, like every other email lookup: a lawyer row stored
-    // as `Attorney@Example.com` must still authorize a caller whose IdP
+    // Case-insensitive, like every other email lookup: a row stored as
+    // `Attorney@Example.com` must still answer for a caller whose IdP
     // presents `attorney@example.com`.
-    let is_lawyer = store::persons::find_by_email_ci(surreal, email)
-        .await?
-        .is_some_and(|p| p.role.is_lawyer_tier());
-    if is_lawyer {
-        Ok(())
-    } else {
-        Err(ToolError::Forbidden(format!(
-            "{email} is not lawyer or admin; '{tool_name}' is a privileged operation"
-        )))
+    Ok(Caller::Authenticated {
+        email: email.to_string(),
+        identity: store::persons::find_by_email_ci(surreal, email)
+            .await?
+            .map(|person| Identity {
+                person_id: person.id,
+                role: person.role,
+            }),
+    })
+}
+
+impl Caller {
+    /// Defense-in-depth tier check for side-effecting tools. An
+    /// *authenticated* caller must resolve to a lawyer/admin `persons`
+    /// row to run one. An anonymous caller is allowed through: that is
+    /// the KIND/local-dev path where no auth layer ran and MCP has no
+    /// identity, and in production the OAuth layer always injects a
+    /// principal *and* the endpoint is embedded Rego policy-lawyer-gated.
+    /// Read-only tools are never gated on tier — they are *scoped*
+    /// instead, by [`Self::read_scope`].
+    ///
+    /// This closes the gap where any allowlisted token was treated as
+    /// lawyer: a validated-but-non-lawyer identity (e.g. a Google token
+    /// whose email maps to a client) can no longer invoke a write tool.
+    fn require_tool_authz(&self, tool_name: &str) -> Result<(), ToolError> {
+        if !is_side_effecting(tool_name) {
+            return Ok(());
+        }
+        let Self::Authenticated { email, identity } = self else {
+            return Ok(());
+        };
+        if identity.is_some_and(|i| i.role.is_lawyer_tier()) {
+            Ok(())
+        } else {
+            Err(ToolError::Forbidden(format!(
+                "{email} is not lawyer or admin; '{tool_name}' is a privileged operation"
+            )))
+        }
+    }
+
+    /// Which lens this caller's reads answer through.
+    fn read_scope(&self) -> ReadScope {
+        match self {
+            Self::Anonymous => ReadScope::Deployment,
+            Self::Authenticated { identity: None, .. } => ReadScope::Unlinked,
+            Self::Authenticated {
+                identity: Some(identity),
+                ..
+            } => {
+                if identity.role.is_admin_tier() {
+                    ReadScope::Directory {
+                        role: identity.role,
+                    }
+                } else {
+                    ReadScope::Membership {
+                        person_id: identity.person_id,
+                        role: identity.role,
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Which lens a read tool answers through — the store-level identity a
+/// [`Principal`]'s email resolves to.
+///
+/// `Principal` deliberately stays an email: it is the transport's trusted
+/// identity, and the Google-OAuth path has nothing else to offer. The
+/// person row and tier that participation scoping needs are resolved
+/// here instead, once per dispatch, so both protocol surfaces get the
+/// same answer and neither middleware has to carry fields it cannot fill.
+///
+/// These are not degrees of one query. `Membership` reads the
+/// participation ledger, `Directory` reads oversight, and `Deployment` is
+/// the local path with no identity to read at all — see
+/// [`Caller::read_scope`], which is where a caller becomes one of them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReadScope {
+    /// No [`Principal`] reached the dispatcher: the KIND / local-dev path
+    /// where no auth layer ran, and the existing browser harness. Reads
+    /// stay deployment-wide, exactly as they were before this scoping
+    /// existed. In production a principal is always injected, so this
+    /// variant is not a hole an authenticated caller can fall into.
+    Deployment,
+    /// Owner or Admin: oversight, not membership. Gets the matter
+    /// directory — that a matter exists and who is accountable for it —
+    /// and reaches no matter contents. Owner and Admin are not invited to
+    /// matters, so they hold no `person_project_roles` row and
+    /// [`store::access::visible_projects`] would correctly show them
+    /// nothing.
+    ///
+    /// Carries the caller's own role rather than assuming one: the
+    /// directory read re-checks the tier itself, and that check is only
+    /// worth anything if it is asked with the tier the caller actually
+    /// holds.
+    Directory { role: Role },
+    /// Lawyer, Clerk, or Client: membership. Scoped by the participation
+    /// ledger through [`store::access::visible_projects`], which is the
+    /// same predicate `/app/projects` renders from — a lawyer sees the
+    /// matters they are on, not all of them.
+    Membership { person_id: uuid::Uuid, role: Role },
+    /// An authenticated email with no `persons` row. Sees nothing.
+    ///
+    /// Fail-closed by construction rather than by a check: sign-in does
+    /// not create a Person, so an IdP-authenticated stranger is exactly
+    /// the caller who must reach no matter at all.
+    Unlinked,
+}
+
+impl ReadScope {
+    /// `true` when this caller reads from the firm's side of the house.
+    ///
+    /// The firm's people directory is firm-internal: oversight and the
+    /// lawyer tier both legitimately search it (a lawyer needs a
+    /// `person_id` before they can link one to a matter), while Clerk —
+    /// the supervised tier, whose whole surface is one matter's name,
+    /// status, and supervising lawyer — and Client do not.
+    #[must_use]
+    pub fn reads_firm_directory(&self) -> bool {
+        match self {
+            Self::Deployment | Self::Directory { .. } => true,
+            Self::Membership { role, .. } => role.is_lawyer_tier(),
+            Self::Unlinked => false,
+        }
     }
 }
 
@@ -378,7 +520,10 @@ pub(crate) fn decode_args<T: serde::de::DeserializeOwned>(
 
 #[cfg(test)]
 mod tests {
-    use super::{call_tool, list_tools, ToolError, REQUIRED_PREFIX};
+    use super::{
+        call_tool, list_tools, resolve_caller, Principal, ReadScope, Role, ToolError,
+        REQUIRED_PREFIX,
+    };
     use crate::server::McpState;
     use serde_json::json;
     use std::sync::Arc;
@@ -389,6 +534,18 @@ mod tests {
         let surreal = mem_surreal().await;
         let runtime: Arc<dyn workflows::StateMachineRuntime> = Arc::new(InMemoryRuntime::new());
         McpState::new(surreal, runtime)
+    }
+
+    /// The write-tier check as a dispatch performs it: resolve the
+    /// caller once, then ask.
+    async fn authz(
+        surreal: &store::surreal::SurrealDb,
+        principal: Option<&Principal>,
+        tool_name: &str,
+    ) -> Result<(), ToolError> {
+        resolve_caller(surreal, principal)
+            .await?
+            .require_tool_authz(tool_name)
     }
 
     /// Generic invariant: every tool descriptor returned by
@@ -581,9 +738,6 @@ mod tests {
 
     #[tokio::test]
     async fn require_tool_authz_blocks_non_lawyer_yet_allows_anonymous_and_read_only() {
-        use super::require_tool_authz;
-        use crate::principal::Principal;
-
         let s = state().await;
         store::persons::create(
             &s.surreal,
@@ -598,34 +752,27 @@ mod tests {
         let client = Principal::new("client@example.com");
 
         // Anonymous (dev / no auth layer) is allowed even for writes.
-        assert!(require_tool_authz(&s.surreal, None, "aida_create_project")
+        assert!(authz(&s.surreal, None, "aida_create_project").await.is_ok());
+        // A read-only tool is never gated on tier.
+        assert!(authz(&s.surreal, Some(&client), "aida_show_person")
             .await
             .is_ok());
-        // A read-only tool is never gated.
-        assert!(
-            require_tool_authz(&s.surreal, Some(&client), "aida_show_person")
-                .await
-                .is_ok()
-        );
         // A side-effecting tool by an authenticated client-tier caller is
         // refused — the core of the fix.
         assert!(matches!(
-            require_tool_authz(&s.surreal, Some(&client), "aida_create_project").await,
+            authz(&s.surreal, Some(&client), "aida_create_project").await,
             Err(ToolError::Forbidden(_))
         ));
         // An authenticated caller with no `persons` row is also refused.
         let ghost = Principal::new("ghost@example.com");
         assert!(matches!(
-            require_tool_authz(&s.surreal, Some(&ghost), "aida_create_project").await,
+            authz(&s.surreal, Some(&ghost), "aida_create_project").await,
             Err(ToolError::Forbidden(_))
         ));
     }
 
     #[tokio::test]
     async fn require_tool_authz_matches_lawyer_email_case_insensitively() {
-        use super::require_tool_authz;
-        use crate::principal::Principal;
-
         // A lawyer row stored with mixed-case email. The gate matches the
         // stored `email_lower` field, so a differently-cased principal is
         // authorized instead of being rejected before the tool's own
@@ -644,7 +791,7 @@ mod tests {
 
         let caller = Principal::new("attorney@example.com");
         assert!(
-            require_tool_authz(&s.surreal, Some(&caller), "aida_create_project")
+            authz(&s.surreal, Some(&caller), "aida_create_project")
                 .await
                 .is_ok(),
             "a mixed-case lawyer row must authorize a lower-case caller through the dispatched gate"
@@ -663,5 +810,163 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(result["structuredContent"]["clean"], true);
+    }
+
+    // -----------------------------------------------------------------
+    // Read scope. The tier check above refuses a *write*; these decide
+    // which lens a *read* answers through.
+    // -----------------------------------------------------------------
+
+    async fn scope_for(
+        surreal: &store::surreal::SurrealDb,
+        principal: Option<&Principal>,
+    ) -> ReadScope {
+        resolve_caller(surreal, principal)
+            .await
+            .unwrap()
+            .read_scope()
+    }
+
+    async fn seed_at(
+        surreal: &store::surreal::SurrealDb,
+        email: &str,
+        role: Role,
+    ) -> store::persons::Person {
+        store::persons::create(
+            surreal,
+            &store::persons::NewPerson::with_role(email, email, role),
+        )
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn no_principal_resolves_to_the_deployment_scope() {
+        // The KIND / local-dev path and the browser harness: no auth
+        // layer ran, so reads stay deployment-wide as they always were.
+        let surreal = mem_surreal().await;
+        assert_eq!(scope_for(&surreal, None).await, ReadScope::Deployment);
+        // An empty or whitespace email is not an identity either.
+        let blank = Principal::new("   ");
+        assert_eq!(
+            scope_for(&surreal, Some(&blank)).await,
+            ReadScope::Deployment
+        );
+    }
+
+    #[tokio::test]
+    async fn owner_and_admin_resolve_to_the_directory_lens() {
+        for role in [Role::Owner, Role::Admin] {
+            let surreal = mem_surreal().await;
+            seed_at(&surreal, "boss@example.com", role).await;
+            assert_eq!(
+                scope_for(&surreal, Some(&Principal::new("boss@example.com"))).await,
+                ReadScope::Directory { role },
+                "{role:?} is oversight, not membership"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn the_membership_tiers_resolve_to_their_own_person_and_role() {
+        for role in [Role::Lawyer, Role::Clerk, Role::Client] {
+            let surreal = mem_surreal().await;
+            let person = seed_at(&surreal, "member@example.com", role).await;
+            assert_eq!(
+                scope_for(&surreal, Some(&Principal::new("member@example.com"))).await,
+                ReadScope::Membership {
+                    person_id: person.id,
+                    role
+                },
+                "{role:?} reads through the participation ledger"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn the_lookup_is_case_insensitive_like_every_other_email_lookup() {
+        // A row stored mixed-case must still scope a caller whose IdP
+        // presents the address lowercased.
+        let surreal = mem_surreal().await;
+        let person = seed_at(&surreal, "Attorney@Example.com", Role::Lawyer).await;
+        assert_eq!(
+            scope_for(&surreal, Some(&Principal::new("attorney@example.com"))).await,
+            ReadScope::Membership {
+                person_id: person.id,
+                role: Role::Lawyer
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn an_authenticated_email_with_no_persons_row_is_unlinked() {
+        // Sign-in does not create a Person, so an IdP-authenticated
+        // stranger is exactly the caller who must reach nothing.
+        let surreal = mem_surreal().await;
+        assert_eq!(
+            scope_for(&surreal, Some(&Principal::new("stranger@example.com"))).await,
+            ReadScope::Unlinked
+        );
+    }
+
+    #[test]
+    fn only_the_firm_side_reads_the_people_directory() {
+        assert!(ReadScope::Deployment.reads_firm_directory());
+        assert!(ReadScope::Directory { role: Role::Owner }.reads_firm_directory());
+        assert!(ReadScope::Directory { role: Role::Admin }.reads_firm_directory());
+        assert!(!ReadScope::Unlinked.reads_firm_directory());
+        for (role, expected) in [
+            (Role::Lawyer, true),
+            // Clerk is the supervised tier, not a narrower Lawyer: its
+            // surface is one matter's name, status, and supervising
+            // lawyer, which a firm-wide people search is not.
+            (Role::Clerk, false),
+            (Role::Client, false),
+        ] {
+            assert_eq!(
+                ReadScope::Membership {
+                    person_id: uuid::Uuid::now_v7(),
+                    role
+                }
+                .reads_firm_directory(),
+                expected,
+                "{role:?}"
+            );
+        }
+    }
+
+    /// A read is still never refused on *tier* — `require_tool_authz`
+    /// returns early for anything read-only, and threading a scope
+    /// through did not change that. What changed is the answer.
+    #[tokio::test]
+    async fn a_read_tool_is_not_gated_by_the_write_tier_check() {
+        let state = state().await;
+        store::persons::create(
+            &state.surreal,
+            &store::persons::NewPerson::with_role(
+                "client@example.com",
+                "client@example.com",
+                Role::Client,
+            ),
+        )
+        .await
+        .unwrap();
+        let principal = Principal::new("client@example.com");
+        // A client cannot run a write tool...
+        let write = call_tool(
+            &state,
+            Some(&principal),
+            "aida_create_project",
+            &json!({ "name": "Nope" }),
+        )
+        .await;
+        assert!(matches!(write, Err(ToolError::Forbidden(_))));
+        // ...but the read runs, and answers with their own empty list
+        // rather than a refusal.
+        let read = call_tool(&state, Some(&principal), "aida_list_projects", &json!({}))
+            .await
+            .unwrap();
+        assert_eq!(read["structuredContent"]["count"], 0);
+        assert_eq!(read["structuredContent"]["lens"], "membership");
     }
 }
