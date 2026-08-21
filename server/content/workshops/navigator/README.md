@@ -1,3 +1,9 @@
+---
+kind: workshop
+title: Using Neon Law Navigator
+description: Work one litigation matter end to end, from the retainer template to the client portal.
+---
+
 # Using the Navigator Workshop
 
 This workshop uses one local matter from start to finish: **Cruller v. Prine**. The matter code is `sample-litigation`,
