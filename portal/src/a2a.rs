@@ -243,8 +243,8 @@ pub struct A2aState {
 /// the user asks again.
 const PENDING_TTL: Duration = Duration::from_mins(15);
 
-/// One paused side-effecting call plus exactly enough loop state to
-/// resume the agentic loop once the user approves. In-memory only.
+/// One paused side-effecting call plus exactly enough state to carry on
+/// once the user approves. In-memory only.
 struct PendingConfirmation {
     /// The conversation context this task belongs to. The resuming
     /// `message/send` must carry a matching `contextId` (spec: agents
@@ -254,18 +254,51 @@ struct PendingConfirmation {
     /// principal may confirm it — you can't approve an action AIDA
     /// proposed to someone else.
     principal_email: String,
-    /// The user's original request, replayed as the loop's seed when we
-    /// resume after approval.
-    user_text: String,
-    /// The reads / prior steps already run this turn (before the pause).
-    history: Vec<Turn>,
     /// The side-effecting call awaiting approval.
     pending_call: RoutedCall,
-    /// The step index the loop had reached when it paused, so the
-    /// remaining step budget carries across the confirmation round-trip.
-    steps_used: usize,
+    /// What happens after the approver says yes.
+    resume: Resume,
     /// When the pause was recorded, for [`PENDING_TTL`] pruning.
     created_at: Instant,
+}
+
+/// What a confirmed call continues into.
+///
+/// Both arms run the same approval boundary — matching `contextId`, the
+/// same principal, a lawyer-tier approver, and the same `target: "audit"`
+/// events. They differ only in what happens *after* the call succeeds,
+/// because the two request shapes mean different things: a paused
+/// agentic turn has more steps to take, and a named skill was the whole
+/// request.
+enum Resume {
+    /// The natural-language loop paused mid-chain. Replay the seed and
+    /// keep going for the remaining step budget — which may pause again
+    /// on the next side-effecting call.
+    Loop {
+        /// The user's original request, replayed as the loop's seed.
+        user_text: String,
+        /// The reads / prior steps already run this turn.
+        history: Vec<Turn>,
+        /// The step index the loop had reached, so the remaining budget
+        /// carries across the confirmation round-trip.
+        steps_used: usize,
+    },
+    /// A `metadata.skill` dispatch paused before its single call. The
+    /// client named the tool and the arguments itself, so there is no
+    /// loop to resume and no model to consult: run the call and finish.
+    DirectSkill,
+}
+
+impl Resume {
+    /// The prior turns to quote in a confirmation prompt. A direct skill
+    /// has none — the caller named the tool outright, so there is no
+    /// preceding read whose result the prompt could resolve names from.
+    fn history(&self) -> &[Turn] {
+        match self {
+            Self::Loop { history, .. } => history,
+            Self::DirectSkill => &[],
+        }
+    }
 }
 
 /// Thread-safe map of `taskId` → [`PendingConfirmation`]. Cloned into
@@ -702,19 +735,22 @@ async fn dispatch_single(
     skill: &str,
     arguments: &Value,
 ) -> RpcResponse {
-    // The `metadata.skill` path skips the router's LLM-driven
-    // confirmation loop, so it is a privileged programmatic entry point.
-    // A side-effecting skill named directly must be authorized by a
-    // lawyer/admin principal — the same tier the router loop requires of
-    // the human who approves a paused side-effect — and every such
-    // dispatch is audited (→ OTLP → Iceberg) as an unconfirmed,
-    // direct privileged action.
+    // The `metadata.skill` path bypasses the router, so it is a
+    // privileged programmatic entry point and carries its own two
+    // controls. Both apply only to a *known* side-effecting skill: an
+    // unknown name must fall through to `Unknown` rather than be
+    // reported as an authorization failure.
     if tools::is_side_effecting(skill) && tools::is_known_tool(skill) {
+        // Control 1 — tier. A side-effecting skill named directly must
+        // be authorized by a lawyer/admin principal, the same tier the
+        // router loop requires of the human who approves a paused
+        // side-effect. Audited (→ OTLP → Iceberg) either way.
         let role = match principal {
             Some(p) => approver_role(&state.mcp.surreal, &p.email).await,
             None => None,
         };
         let authorized = role.is_some_and(store::persons::Role::is_lawyer_tier);
+        let confirmation_required = tools::requires_confirmation(skill);
         tracing::info!(
             target: "audit",
             event = "a2a.direct_skill.side_effect",
@@ -722,6 +758,7 @@ async fn dispatch_single(
             principal = principal.map_or("<anonymous>", |p| p.email.as_str()),
             authorized,
             confirmed = false,
+            confirmation_required,
             "a2a: side-effecting skill dispatched directly via metadata.skill",
         );
         if !authorized {
@@ -738,9 +775,88 @@ async fn dispatch_single(
                 .expect("Task is always serializable"),
             );
         }
+
+        // Control 2 — supervision. Lawyer tier answers *who is asking*;
+        // it does not answer *has a human agreed to this particular
+        // act*. For a skill that emails a client or moves a binding
+        // artifact, those are different questions, and a model naming
+        // the skill is the agent proposing — never the human approving.
+        // So pause exactly as the router loop does, and let the same
+        // `input-required` round trip resolve it. Park the resolved call
+        // under this `taskId`; Path 0 in `handle_message_send` picks it
+        // back up.
+        if confirmation_required {
+            let pending_call = RoutedCall {
+                tool_name: skill.to_string(),
+                arguments: arguments.clone(),
+            };
+            let prompt = confirmation_prompt(&pending_call, &[]);
+            tracing::info!(
+                target: "audit",
+                event = "agent_action_authorization",
+                decision = "proposed",
+                principal = principal.map_or("<anonymous>", |p| p.email.as_str()),
+                tool = %skill,
+                arguments = %pending_call.arguments,
+                task_id = %task_id,
+                routed_via_llm = false,
+                "a2a: named skill needs confirmation → pausing (input-required)"
+            );
+            let response = input_required_response(
+                id,
+                task_id.clone(),
+                context_id.clone(),
+                timestamp,
+                &prompt,
+            );
+            state.pending.insert(
+                task_id,
+                PendingConfirmation {
+                    context_id,
+                    principal_email: principal.map_or_else(String::new, |p| p.email.clone()),
+                    pending_call,
+                    resume: Resume::DirectSkill,
+                    created_at: Instant::now(),
+                },
+            );
+            return response;
+        }
     }
     let mcp_tool_name = to_mcp_tool_name(skill);
-    match tools::call_tool(&state.mcp, principal, &mcp_tool_name, arguments).await {
+    single_call_task(
+        state,
+        principal,
+        id,
+        task_id,
+        context_id,
+        timestamp,
+        skill,
+        &mcp_tool_name,
+        arguments,
+    )
+    .await
+}
+
+/// Run exactly one tool and wrap the outcome in a terminal Task.
+///
+/// Shared by the two endings a named skill can have, so they cannot
+/// drift: the unconfirmed dispatch in [`dispatch_single`], and the
+/// approved second call in [`resume_after_confirmation`]. A client that
+/// had to confirm an action gets back the same Task shape it would have
+/// received had the action needed no confirmation at all.
+#[allow(clippy::too_many_arguments)]
+async fn single_call_task(
+    state: &A2aState,
+    principal: Option<&Principal>,
+    id: Value,
+    task_id: String,
+    context_id: String,
+    timestamp: String,
+    skill: &str,
+    mcp_tool_name: &str,
+    arguments: &Value,
+) -> RpcResponse {
+    match tools::call_tool(&state.mcp, principal, mcp_tool_name, arguments).await {
         Ok(result) => RpcResponse::ok(
             id,
             serde_json::to_value(Task {
@@ -911,10 +1027,12 @@ async fn drive_loop(
                         PendingConfirmation {
                             context_id,
                             principal_email: principal_email.to_string(),
-                            user_text: user_text.to_string(),
-                            history,
                             pending_call,
-                            steps_used: step_n,
+                            resume: Resume::Loop {
+                                user_text: user_text.to_string(),
+                                history,
+                                steps_used: step_n,
+                            },
                             created_at: Instant::now(),
                         },
                     );
@@ -1076,7 +1194,32 @@ async fn resume_after_confirmation(
                 arguments,
             } = pending.pending_call;
             let mcp_tool_name = to_mcp_tool_name(&tool_name);
-            let mut history = pending.history;
+
+            // A direct skill was the entire request, so the approved
+            // call is the answer. Run it and return the same Task shape
+            // an unconfirmed `metadata.skill` dispatch returns — the
+            // bridge's second call sees `completed`, not a loop it never
+            // asked for.
+            let Resume::Loop {
+                user_text,
+                mut history,
+                steps_used,
+            } = pending.resume
+            else {
+                return single_call_task(
+                    state,
+                    principal,
+                    id,
+                    task_id,
+                    pending.context_id,
+                    timestamp,
+                    &tool_name,
+                    &mcp_tool_name,
+                    &arguments,
+                )
+                .await;
+            };
+
             let mut last_action: Option<(String, Value)> = None;
             match tools::call_tool(&state.mcp, principal, &mcp_tool_name, &arguments).await {
                 Ok(result) => {
@@ -1111,10 +1254,10 @@ async fn resume_after_confirmation(
                 task_id,
                 pending.context_id,
                 timestamp,
-                &pending.user_text,
+                &user_text,
                 principal_email,
                 history,
-                pending.steps_used + 1,
+                steps_used + 1,
                 last_action,
             )
             .await
@@ -1140,7 +1283,7 @@ async fn resume_after_confirmation(
         Confirmation::Ambiguous => {
             let prompt = format!(
                 "I didn't catch that as a yes or no.\n\n{}",
-                confirmation_prompt(&pending.pending_call, &pending.history)
+                confirmation_prompt(&pending.pending_call, pending.resume.history())
             );
             let restash_task_id = task_id.clone();
             let pending_ctx = pending.context_id.clone();
@@ -1687,7 +1830,7 @@ pub fn build_routers(
             crate::mcp_principal::inject_principal,
         ))
         .route_layer(axum::middleware::from_fn_with_state(
-            (sessions, policy_client),
+            (sessions.clone(), policy_client),
             crate::policy::require_policy,
         ))
         .route_layer(axum::middleware::from_fn_with_state(
@@ -1697,6 +1840,25 @@ pub fn build_routers(
         .route_layer(axum::middleware::from_fn_with_state(
             google_oauth.with_db(surreal),
             crate::google_oauth::require_google_oauth,
+        ))
+        // Outermost of the auth chain, so it runs FIRST and every layer
+        // below sees a resolved session: the `navigator` CLI's own bearer.
+        //
+        // Without this the CLI cannot reach A2A at all. Its credential is
+        // the HMAC-signed `SessionData` blob `cli_auth` mints — not a JWT
+        // and not a Google access token — so `require_auth` found nothing
+        // to validate, the policy layer evaluated an anonymous session
+        // against a rule requiring `is_lawyer`, and the request was
+        // redirected to a login page a JSON-RPC client cannot follow.
+        //
+        // Resolving it here is not a widening: `SessionStore::decode`
+        // accepts only a blob this deployment signed, carrying the role
+        // and expiry it minted at an authenticated OIDC login. It is the
+        // same mechanism every other `navigator site` command already
+        // relies on through `session_boundary`.
+        .route_layer(axum::middleware::from_fn_with_state(
+            sessions,
+            crate::auth::inject_bearer_session,
         ));
     (card, rpc)
 }
@@ -2976,5 +3138,250 @@ mod tests {
     fn to_mcp_tool_name_is_idempotent_on_prefix() {
         assert_eq!(to_mcp_tool_name("create_person"), "aida_create_person");
         assert_eq!(to_mcp_tool_name("aida_create_person"), "aida_create_person");
+    }
+
+    /// A `metadata.skill` request for a named skill, with no confirmation
+    /// token. `arguments` ride in `metadata` like every other direct call.
+    fn direct_skill(id: i64, skill: &str, arguments: &Value) -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "messageId": format!("m-{id}"),
+                    "role": "user",
+                    "kind": "message",
+                    "parts": [],
+                    "metadata": { "skill": skill, "arguments": arguments }
+                }
+            }
+        })
+    }
+
+    /// The confirmation reply: same task, same context, one "yes"/"no".
+    fn confirm_reply(id: i64, task_id: &str, context_id: &str, answer: &str) -> Value {
+        json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": "message/send",
+            "params": {
+                "message": {
+                    "messageId": format!("m-{id}"),
+                    "role": "user",
+                    "kind": "message",
+                    "taskId": task_id,
+                    "contextId": context_id,
+                    "parts": [{ "kind": "text", "text": answer }]
+                }
+            }
+        })
+    }
+
+    /// Seed a firm lawyer plus a client to act on. Returns the store and
+    /// the client's `person_id`, which is how `send_welcome_email`
+    /// identifies a recipient — never a free-text address.
+    async fn welcome_fixture() -> (store::surreal::SurrealDb, uuid::Uuid) {
+        let engines = db().await;
+        let person = store::persons::create(
+            &engines,
+            &store::persons::NewPerson::new("Nick", "nick@neonlaw.com"),
+        )
+        .await
+        .expect("seed the person to welcome");
+        seed_person(
+            &engines,
+            "Firm Lawyer",
+            "lawyer@neonlaw.com",
+            store::persons::Role::Lawyer,
+        )
+        .await;
+        (engines, person.id)
+    }
+
+    #[tokio::test]
+    async fn direct_skill_requiring_confirmation_pauses_instead_of_running() {
+        // The gate this whole path was missing: a lawyer naming
+        // `send_welcome_email` outright must still be asked. Lawyer tier
+        // says who is calling; it does not say a human agreed to mail
+        // this client.
+        let (engines, person_id) = welcome_fixture().await;
+        let (_, rpc) = routes(state_with(engines));
+        let (status, body) = post_rpc_as(
+            rpc,
+            direct_skill(30, "send_welcome_email", &json!({ "person_id": person_id })),
+            "lawyer@neonlaw.com",
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.get("error").is_none(), "unexpected error: {body}");
+        let task = &body["result"];
+        assert_eq!(
+            task["status"]["state"], "input-required",
+            "a named client-facing skill must pause; got: {task}"
+        );
+        assert!(
+            task["artifacts"].as_array().unwrap().is_empty(),
+            "nothing may run before the approval: {task}"
+        );
+        let prompt = task["status"]["message"]["parts"][0]["text"]
+            .as_str()
+            .unwrap_or_default();
+        assert!(
+            prompt.contains("Send Welcome Email"),
+            "the prompt must name the action awaiting approval, got: {prompt}"
+        );
+    }
+
+    #[tokio::test]
+    async fn direct_skill_confirmation_completes_without_entering_the_router_loop() {
+        // The two-call handshake the stdio bridge translates. The state
+        // here carries `NullRouter`, so if the approved call fell through
+        // to `drive_loop` the task would come back `failed` — a passing
+        // `completed` is the proof that a named skill resumes as one
+        // call and stops.
+        let (engines, person_id) = welcome_fixture().await;
+        let (_, rpc) = routes(state_with(engines));
+        let (_, body) = post_rpc_as(
+            rpc.clone(),
+            direct_skill(31, "send_welcome_email", &json!({ "person_id": person_id })),
+            "lawyer@neonlaw.com",
+        )
+        .await;
+        let task_id = body["result"]["id"].as_str().unwrap().to_string();
+        let context_id = body["result"]["contextId"].as_str().unwrap().to_string();
+
+        let (status, body2) = post_rpc_as(
+            rpc,
+            confirm_reply(32, &task_id, &context_id, "yes"),
+            "lawyer@neonlaw.com",
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK);
+        let task = &body2["result"];
+        assert_eq!(
+            task["status"]["state"], "completed",
+            "the approved call should run and finish; got: {task}"
+        );
+        assert_eq!(
+            task["id"], task_id,
+            "the confirmation continues the same task"
+        );
+        let artifacts = task["artifacts"].as_array().unwrap();
+        assert_eq!(artifacts.len(), 1, "one call, one artifact: {task}");
+        assert_eq!(artifacts[0]["name"], "send_welcome_email");
+    }
+
+    #[tokio::test]
+    async fn direct_skill_confirmation_declined_runs_nothing() {
+        let (engines, person_id) = welcome_fixture().await;
+        let (_, rpc) = routes(state_with(engines));
+        let (_, body) = post_rpc_as(
+            rpc.clone(),
+            direct_skill(33, "send_welcome_email", &json!({ "person_id": person_id })),
+            "lawyer@neonlaw.com",
+        )
+        .await;
+        let task_id = body["result"]["id"].as_str().unwrap().to_string();
+        let context_id = body["result"]["contextId"].as_str().unwrap().to_string();
+
+        let (_, body2) = post_rpc_as(
+            rpc,
+            confirm_reply(34, &task_id, &context_id, "no"),
+            "lawyer@neonlaw.com",
+        )
+        .await;
+
+        let task = &body2["result"];
+        assert_eq!(
+            task["status"]["state"], "canceled",
+            "a declined named skill cancels; got: {task}"
+        );
+        assert!(
+            task["artifacts"].as_array().unwrap().is_empty(),
+            "a decline must run nothing: {task}"
+        );
+    }
+
+    #[tokio::test]
+    async fn direct_skill_confirmation_is_refused_from_another_account() {
+        // The identity half of the approval boundary reaches the direct
+        // path too: the pause belongs to the principal who opened it.
+        let (engines, person_id) = welcome_fixture().await;
+        seed_person(
+            &engines,
+            "Other Lawyer",
+            "other@neonlaw.com",
+            store::persons::Role::Lawyer,
+        )
+        .await;
+        let (_, rpc) = routes(state_with(engines));
+        let (_, body) = post_rpc_as(
+            rpc.clone(),
+            direct_skill(35, "send_welcome_email", &json!({ "person_id": person_id })),
+            "lawyer@neonlaw.com",
+        )
+        .await;
+        assert_eq!(
+            body["result"]["status"]["state"], "input-required",
+            "the pause must exist before we test who may resolve it; got: {body}"
+        );
+        let task_id = body["result"]["id"].as_str().unwrap().to_string();
+        let context_id = body["result"]["contextId"].as_str().unwrap().to_string();
+
+        let (_, body2) = post_rpc_as(
+            rpc,
+            confirm_reply(36, &task_id, &context_id, "yes"),
+            "other@neonlaw.com",
+        )
+        .await;
+
+        let task = &body2["result"];
+        assert_eq!(
+            task["status"]["state"], "failed",
+            "another lawyer must not be able to approve this pause; got: {task}"
+        );
+        assert!(
+            task["artifacts"].as_array().unwrap().is_empty(),
+            "a refused approval must run nothing: {task}"
+        );
+    }
+
+    #[tokio::test]
+    async fn direct_skill_exempt_crm_write_runs_without_a_pause() {
+        // The other half of the decision: a bulk contact load must not
+        // cost a round trip per row, so the CRM writers stay unpaused on
+        // the lawyer-tier check alone. Asserts the row actually landed,
+        // not merely that the task said `completed`.
+        let engines = db().await;
+        seed_person(
+            &engines,
+            "Firm Lawyer",
+            "lawyer@neonlaw.com",
+            store::persons::Role::Lawyer,
+        )
+        .await;
+        let (_, rpc) = routes(state_with(engines.clone()));
+        let (_, body) = post_rpc_as(
+            rpc,
+            direct_skill(
+                37,
+                "create_person",
+                &json!({ "name": "Straight Through", "email": "straight@example.com" }),
+            ),
+            "lawyer@neonlaw.com",
+        )
+        .await;
+
+        assert_eq!(
+            body["result"]["status"]["state"], "completed",
+            "an exempt CRM write must not pause; got: {body}"
+        );
+        let landed = store::persons::find_by_email_ci(&engines, "straight@example.com")
+            .await
+            .expect("person lookup should succeed");
+        assert!(landed.is_some(), "the row should have been written");
     }
 }

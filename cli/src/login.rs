@@ -1,5 +1,5 @@
 //! `navigator site login` / `auth logout` / `auth whoami` — the browser-loopback OAuth
-//! that lands a short-lived (~8h) bearer token on disk, after which the
+//! that lands a short-lived (1h) bearer token on disk, after which the
 //! CLI drives the firm's matter flow against the live site.
 //!
 //! Mirrors `gcloud` / `restate`: `login` opens a one-shot loopback

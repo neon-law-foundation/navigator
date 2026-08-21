@@ -2150,6 +2150,7 @@ dependencies = [
  "kube",
  "live-inquiry",
  "lopdf",
+ "mcp",
  "neon",
  "owo-colors",
  "pdf",

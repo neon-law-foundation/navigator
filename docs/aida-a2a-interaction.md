@@ -38,7 +38,15 @@ send runs → Task state = completed, the send is the artifact
 ```
 
 Read-only tools ([`tools::READ_ONLY_TOOLS`](../mcp/src/tools/mod.rs)) run unconfirmed, so a lookup→act chain only ever
-stops the user once — at the act. Everything else is side-effecting and waits.
+stops the user once — at the act. On this path everything else is side-effecting and waits.
+
+**Which path a request took decides which gate it met.** The two are not interchangeable, and reading only the loop
+above is how you conclude the gate is universal when it is not:
+
+| Request shape | Who picks the tool | Gate |
+| --- | --- | --- |
+| Free-form text, no `metadata.skill` | the router (Gemini Flash) | every side-effecting tool pauses |
+| `metadata.skill` named directly | the client | lawyer tier, plus a pause for `requires_confirmation` tools |
 
 ## The confirmation gate
 
@@ -47,6 +55,12 @@ resolved call, returns the Task in the non-terminal `input-required` state, and 
 The follow-up `message/send` (same `taskId`/`contextId`) routes through
 [`resume_after_confirmation`](../portal/src/a2a.rs), which enforces the trust boundary and then runs, cancels, or
 re-prompts.
+
+A named skill pauses through the same door. [`dispatch_single`](../portal/src/a2a.rs) parks the call under a
+`Resume::DirectSkill` marker and returns the identical `input-required` Task, so a client that named the tool itself
+gets the same two-call handshake and the same audit events. The marker is the only difference, and it decides one thing:
+an approved named skill runs its one call and stops, where an approved loop step carries on for its remaining step
+budget. Every check between the two is shared code.
 
 The gate is **not** decoration — it is a legal-supervision requirement. A client-facing act AIDA proposes is authorized
 by a licensed human (ABA Model Rule 5.3 supervision of a non-lawyer assistant). Two checks run before the call fires:
@@ -79,21 +93,30 @@ The engineering council reviewed this. The findings, and the line between what w
   and other outbound or irreversible actions must keep exactly one human authorization. That is the supervision line the
   legal council drew; loosening it is a legal decision, not engineering. The change here removes the *typed text*, not
   the *authorization* — a lawyer principal still consciously chooses yes.
-- **What we control: the number of gates.** The gate today treats *every* non-read tool identically via
-  [`tools::is_side_effecting`](../mcp/src/tools/mod.rs). But the strict Rule-5.3 requirement is about **client-facing**
-  acts. Writes that only touch the firm's own records and send nothing outward — `create_person`, `create_project`,
-  `link_person_project`, `create_notation` — are closer to "confirm the data we already have." Splitting the
-  classification into *internal write* (light confirmation, or a once-per-session trust window) versus *client-facing
-  act* (always the hard gate) is the highest-leverage way to reduce prompts. **This is a proposal pending legal
-  sign-off, not yet implemented** — it changes the supervision boundary and must go through the legal council first.
+- **What we control: the number of gates.** The strict Rule-5.3 requirement is about **client-facing** acts. Writes
+  that only touch the firm's own records and send nothing outward are closer to "confirm the data we already have."
+  Splitting the classification into *internal write* versus *client-facing act* is the highest-leverage way to reduce
+  prompts. That split now exists as [`tools::requires_confirmation`](../mcp/src/tools/mod.rs) — `create_person`,
+  `create_project`, `link_person_project`, and `bulk_import` are exempt; `send_welcome_email`, `create_notation`, and
+  `answer_notation` are not, because a Notation is a binding legal artifact even before it leaves the building. The
+  exempt list is fail-closed: a tool nobody classified requires confirmation, so a new writer cannot skip the gate by
+  omission.
+
+  **Read the scope carefully, because it is narrower than the proposal it came from.** The split governs the
+  `metadata.skill` path *only*, which had no pause at all before it — so it added supervision where there was none and
+  removed none anywhere. The router loop still gates every side-effecting tool through
+  [`tools::is_side_effecting`](../mcp/src/tools/mod.rs), unchanged. Loosening *that* path is still a legal-council
+  decision that has not been taken.
 - **What we do not control: whether the client renders a button.** A2A 0.3 has no standardized "quick-reply button"
   primitive, so whether Gemini Enterprise draws a tap or a text box for an `input-required` status is the client's call.
   This does **not** affect correctness: a button-tap sends the choice as a `data` Part and a text box sends the typed
   `yes`/`no` token, and `extract_confirmation` accepts both. Either way the approver supplies only a yes/no — never a
   free-form prompt — so there is no live-client behavior left to verify before relying on this in production.
 
-The consensus action: keep the gate, advertise the structured yes/no choice, accept only the exact `yes`/`no` token in
-either envelope, and pursue the internal-vs-client-facing split as a legal-council item.
+The consensus action: keep the gate, advertise the structured yes/no choice, and accept only the exact `yes`/`no` token
+in either envelope. The internal-vs-client-facing split has since landed on the named-skill path, where it only ever
+tightened the boundary. Applying it to the router loop — the change that would actually drop an existing prompt —
+remains a legal-council item.
 
 ## Error propagation
 

@@ -226,6 +226,28 @@ pub async fn require_google_oauth(
     if !cfg.is_enforced() {
         return Ok(next.run(req).await);
     }
+    // A first-party credential this deployment minted itself is already
+    // authenticated, so it does not have to be a Google token as well.
+    //
+    // `inject_bearer_session` runs ahead of this layer on the A2A route
+    // and inserts a `SessionData` only when `SessionStore::decode`
+    // verifies the blob's HMAC against this deployment's own key — so a
+    // session in the extensions here is proof of an authenticated
+    // `navigator site login`, carrying the role and expiry that login
+    // resolved. Handing it to Google's tokeninfo would reject it for not
+    // being something it never claimed to be, and the `navigator` CLI
+    // would have no way to reach this endpoint at all.
+    //
+    // What this does NOT do is skip authorization. The chain continues to
+    // `require_policy`, where the same Rego lawyer-gate decides, from the
+    // role on that session, exactly as it does for a Google caller.
+    if let Some(session) = req.extensions().get::<crate::session::SessionData>() {
+        tracing::debug!(
+            source = ?session.source,
+            "google_oauth: first-party session already resolved; skipping tokeninfo"
+        );
+        return Ok(next.run(req).await);
+    }
     let Some(token) = req
         .headers()
         .get(header::AUTHORIZATION)
@@ -324,6 +346,12 @@ mod tests {
         claims.sub
     }
 
+    /// Reports the resolved session's email — the shape the A2A route
+    /// depends on when the caller is the `navigator` CLI.
+    async fn session_email(Extension(s): Extension<crate::session::SessionData>) -> String {
+        s.email.unwrap_or_default()
+    }
+
     fn app(cfg: GoogleOauthConfig) -> Router {
         Router::new().route("/protected", get(handler)).route_layer(
             axum::middleware::from_fn_with_state(cfg, require_google_oauth),
@@ -374,6 +402,49 @@ mod tests {
         // Pass-through → handler runs without AuthClaims → 500.
         // The key signal: NOT 401.
         assert_ne!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn a_resolved_first_party_session_skips_tokeninfo() {
+        // The `navigator` CLI's credential is not a Google token, so
+        // handing it to tokeninfo would 401 a caller this deployment
+        // itself authenticated. A session already in the extensions —
+        // which only `inject_bearer_session` puts there, and only for a
+        // blob whose HMAC verified — passes straight through.
+        //
+        // `.expect(0)` is the assertion that matters: the mock must never
+        // be called.
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/tokeninfo"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+        let cfg =
+            GoogleOauthConfig::for_test([ALLOWED_CLIENT], Some("example.com"), mock_url(&server));
+        let app = Router::new()
+            .route("/protected", get(session_email))
+            .route_layer(axum::middleware::from_fn_with_state(
+                cfg,
+                require_google_oauth,
+            ));
+
+        let mut session =
+            crate::session::SessionData::fresh("lawyer@example.com", store::persons::Role::Lawyer);
+        session.email = Some("lawyer@example.com".into());
+        session.source = crate::session::SessionSource::Cli;
+
+        let mut req = Request::builder()
+            .uri("/protected")
+            .body(Body::empty())
+            .unwrap();
+        req.extensions_mut().insert(session);
+        let resp = app.oneshot(req).await.unwrap();
+
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        assert_eq!(&body[..], b"lawyer@example.com");
     }
 
     #[tokio::test]
