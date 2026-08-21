@@ -240,6 +240,13 @@ blocks no pull request — it exists only because an Actions cache is scoped per
 pull request restores has to be written by a run on `main`. It is a separate file rather than a job in `ci.yml`
 precisely so that `ci.yml` keeps running on `pull_request` alone.
 
+Writing that entry is necessary but not sufficient: the Actions cache is a single 10 GB budget shared by every cache in
+the repository, and an entry evicted before the next pull request reads it is indistinguishable from one never written.
+That budget is why `deploy.yml`'s `build` job exports a `type=gha` cache only on the legs carrying a `ci_cache_scope` —
+the scopes `publish-service` reads back. A `mode=max` export of a Rust builder stage carries the whole `target`
+directory, so one leg nobody reads is enough to starve the gate. Before adding a `cache-to` anywhere, check
+`/actions/cache/usage` and name the reader.
+
 | Workflow | Trigger | Job |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | `pull_request` → `main` | Rust quality gate |
