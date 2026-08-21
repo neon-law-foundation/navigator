@@ -620,14 +620,21 @@ fn ensure_namespace(namespace: &str) -> Result<()> {
 /// then `kind load image-archive` the single-platform tar — `--all-platforms`
 /// then finds exactly one platform and succeeds.
 ///
-/// Only a *failed `docker save`* triggers the legacy fallback: a save that
-/// can't produce `<platform>` means the image is older/single-arch, where
-/// `kind load docker-image` still works (one platform, nothing to mismatch).
-/// A failure of the `kind load image-archive` step is deliberately *not*
-/// caught — KIND being unreachable or out of disk would fail the legacy load
-/// the same way, and on a multi-arch image the fallback would re-trigger the
-/// very `--all-platforms` digest bug this exists to avoid. That error
-/// propagates directly instead of hiding behind a "flatten failed" message.
+/// Two failures trigger the legacy fallback, and both are narrow.
+///
+/// A *failed `docker save`*: a save that can't produce `<platform>` means the
+/// image is older/single-arch, where `kind load docker-image` still works (one
+/// platform, nothing to mismatch).
+///
+/// A *failed `kind load image-archive` whose error is the containerd import
+/// mismatch* — see [`is_unrecognized_image_format`]. Every other
+/// image-archive failure propagates directly, because the reasoning that kept
+/// this uncaught still holds for them: KIND being unreachable or out of disk
+/// would fail the legacy load the same way, and on a multi-arch image the
+/// fallback would re-trigger the very `--all-platforms` digest bug this exists
+/// to avoid. Matching on the error is what separates "this daemon rejects the
+/// archive format" from "the cluster is broken"; without it the fallback turns
+/// every cluster-level failure into a second, more confusing one.
 fn kind_load_image_into_cluster(tag: &str, cfg: &KindConfig) -> Result<()> {
     let platform = format!("linux/{}", docker_daemon_arch());
     let archive = tempfile::Builder::new()
@@ -669,6 +676,13 @@ fn kind_load_image_into_cluster(tag: &str, cfg: &KindConfig) -> Result<()> {
         // archive `docker save --platform` produces with `unrecognized image
         // format`, even though the archive is well-formed — one manifest, one
         // platform, `manifest.json` present.
+        //
+        // Only that rejection falls back. Anything else — an unreachable
+        // cluster, a full disk — propagates, because `kind load docker-image`
+        // would fail it the same way after wasting a second load.
+        if !is_unrecognized_image_format(&format!("{err:#}")) {
+            return Err(err);
+        }
         //
         // `docker load`-ing the same image through `kind load docker-image`
         // succeeds against the identical daemon and cluster, so the fallback is
@@ -1340,5 +1354,69 @@ impl StateDir {
     fn clear(&self) {
         let _ = fs::remove_file(self.pids_path());
         let _ = fs::remove_file(self.env_path());
+    }
+}
+
+/// Does this `kind load image-archive` error mean the daemon's containerd
+/// image store refused the archive's *format*, rather than something being
+/// wrong with the cluster?
+///
+/// The discriminator is the error text, not the operating system, and that is
+/// the whole point: the same Docker version and image store reproduce this on
+/// any host, and a host whose daemon uses the classic image store never
+/// reaches it. `ctr images import` emits `unrecognized image format` for a
+/// single-platform archive that `docker save --platform` produced correctly,
+/// so the string is the only signal available — `kind` surfaces `ctr`'s
+/// stderr rather than a typed error.
+///
+/// Matched case-insensitively and on the two spellings observed, because the
+/// text belongs to `ctr` and is not a stable interface.
+fn is_unrecognized_image_format(error: &str) -> bool {
+    let lowered = error.to_ascii_lowercase();
+    lowered.contains("unrecognized image format") || lowered.contains("unrecognised image format")
+}
+
+#[cfg(test)]
+mod kind_load_fallback_tests {
+    use super::is_unrecognized_image_format;
+
+    /// The observed failure, as `kind` surfaces `ctr`'s stderr.
+    #[test]
+    fn recognizes_the_containerd_import_mismatch() {
+        assert!(is_unrecognized_image_format(
+            "command failed: ctr: unrecognized image format"
+        ));
+    }
+
+    /// Case and the British spelling both count: the text is `ctr`'s, not ours.
+    #[test]
+    fn recognizes_spelling_and_case_variants() {
+        assert!(is_unrecognized_image_format(
+            "CTR: Unrecognized Image Format"
+        ));
+        assert!(is_unrecognized_image_format(
+            "ctr: unrecognised image format"
+        ));
+    }
+
+    /// A broken cluster must NOT fall back. This is the case the doc comment
+    /// above the loader warned about: `kind load docker-image` fails the same
+    /// way, so falling back turns one clear error into two confusing ones —
+    /// and on a multi-arch image it re-triggers the `--all-platforms` digest
+    /// bug the archive path exists to avoid.
+    #[test]
+    fn cluster_level_failures_do_not_fall_back() {
+        for error in [
+            "failed to load image: node navigator-control-plane not found",
+            "write /var/lib/containerd/tmp: no space left on device",
+            "ctr: content digest sha256:abc: not found",
+            "Cannot connect to the Docker daemon",
+            "",
+        ] {
+            assert!(
+                !is_unrecognized_image_format(error),
+                "must not fall back on: {error}"
+            );
+        }
     }
 }
