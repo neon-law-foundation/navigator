@@ -895,7 +895,10 @@ jobs:
 "#;
         let found = findings(contents);
         assert_eq!(found.len(), 1, "{found:?}");
-        assert!(found[0].contains("release tag"), "{found:?}");
+        assert!(
+            found[0].contains("must be an exact release version"),
+            "{found:?}"
+        );
     }
 
     /// A gate that does not parse is its own failure. Reporting it as a missing
