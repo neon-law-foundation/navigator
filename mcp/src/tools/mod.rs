@@ -56,15 +56,16 @@ pub fn list_tools() -> Vec<Value> {
 /// `every_tool_name_starts_with_aida_prefix` in this module's tests.
 pub const REQUIRED_PREFIX: &str = "aida_";
 
-/// Tools that only read. These run without a human confirmation step
-/// on the A2A surface. Everything NOT listed here is treated as
-/// side-effecting — it writes a row, sends mail, or commits to a matter
-/// repo — and the A2A confirmation gate pauses for explicit user approval before
-/// it runs (the `input-required` task state). Defaulting to "needs
-/// confirmation" is deliberate: a newly-added tool is gated until
-/// someone consciously marks it read-only here, so we never ship a
-/// silent side-effect. Kept in lockstep with [`list_tools`] by
+/// Tools that only read. These run unconfirmed on every surface.
+/// Everything NOT listed here is treated as side-effecting — it writes a
+/// row, sends mail, or commits to a matter repo. Defaulting to
+/// side-effecting is deliberate: a newly-added tool is treated as a
+/// writer until someone consciously marks it read-only here, so we never
+/// ship a silent side-effect. Kept in lockstep with [`list_tools`] by
 /// `read_only_set_only_names_real_tools`.
+///
+/// Side-effecting is not the same question as *needs a human to approve
+/// it* — that is [`requires_confirmation`], a strictly narrower set.
 const READ_ONLY_TOOLS: &[&str] = &[
     "aida_show_person",
     "aida_list_jurisdictions",
@@ -76,12 +77,11 @@ const READ_ONLY_TOOLS: &[&str] = &[
 ];
 
 /// Whether a tool mutates state — writes a row, sends an email, commits
-/// to a matter repo — and therefore needs an explicit confirmation step before the
-/// A2A surface runs it. Accepts either the prefixed MCP name
+/// to a matter repo. Accepts either the prefixed MCP name
 /// (`aida_create_person`) or the unprefixed A2A skill id
 /// (`create_person`). Tools not listed in [`READ_ONLY_TOOLS`] default to
-/// side-effecting, so the safe answer (gate it) is the default for
-/// anything new or unrecognized.
+/// side-effecting, so the safe answer is the default for anything new or
+/// unrecognized.
 #[must_use]
 pub fn is_side_effecting(tool_name: &str) -> bool {
     let prefixed = if tool_name.starts_with(REQUIRED_PREFIX) {
@@ -90,6 +90,49 @@ pub fn is_side_effecting(tool_name: &str) -> bool {
         format!("{REQUIRED_PREFIX}{tool_name}")
     };
     !READ_ONLY_TOOLS.contains(&prefixed.as_str())
+}
+
+/// Side-effecting tools a lawyer principal may run without pausing for
+/// an explicit approval.
+///
+/// Every tool here writes only Navigator's own CRM rows: a contact, an
+/// organization, a matter, or the link between them. A lawyer who names
+/// one of these has already decided to create the row, the write is
+/// visible and correctable in `/app/admin`, and nothing leaves the
+/// building. Pausing them would put a round trip in front of every
+/// contact in a bulk load without protecting anyone.
+///
+/// What is deliberately NOT here is the line that matters: a tool that
+/// emails a client, or that creates or answers a Notation — a binding
+/// legal artifact. Those are supervised acts, so
+/// [`requires_confirmation`] pauses them for a licensed human even when
+/// a lawyer named the skill directly.
+const CONFIRMATION_EXEMPT_TOOLS: &[&str] = &[
+    "aida_create_person",
+    "aida_create_project",
+    "aida_link_person_project",
+    "aida_bulk_import",
+];
+
+/// Whether running `tool_name` requires an explicit human approval —
+/// the A2A `input-required` pause — rather than running on the caller's
+/// lawyer tier alone. Accepts a prefixed MCP name or an unprefixed A2A
+/// skill id.
+///
+/// This is [`is_side_effecting`] minus [`CONFIRMATION_EXEMPT_TOOLS`], and
+/// it is fail-closed in the direction that matters: a tool nobody has
+/// classified is side-effecting by default and absent from the exempt
+/// list, so it requires confirmation. Shipping a new writer that emails
+/// a client cannot skip the gate by omission — only by someone adding it
+/// to the exempt list on purpose.
+#[must_use]
+pub fn requires_confirmation(tool_name: &str) -> bool {
+    let prefixed = if tool_name.starts_with(REQUIRED_PREFIX) {
+        tool_name.to_string()
+    } else {
+        format!("{REQUIRED_PREFIX}{tool_name}")
+    };
+    is_side_effecting(&prefixed) && !CONFIRMATION_EXEMPT_TOOLS.contains(&prefixed.as_str())
 }
 
 /// Whether `tool_name` (prefixed or unprefixed) names a real tool in the
@@ -448,6 +491,83 @@ mod tests {
                 "READ_ONLY_TOOLS lists `{name}`, which is not in list_tools()"
             );
         }
+    }
+
+    #[test]
+    fn confirmation_exempt_set_only_names_real_side_effecting_tools() {
+        // Same drift guard as the read-only allowlist, plus the stronger
+        // claim: exempting a read-only tool from confirmation is
+        // meaningless, so every entry must actually be a writer.
+        let tools = list_tools();
+        let real: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+        for name in super::CONFIRMATION_EXEMPT_TOOLS {
+            assert!(
+                real.contains(name),
+                "CONFIRMATION_EXEMPT_TOOLS lists `{name}`, which is not in list_tools()"
+            );
+            assert!(
+                super::is_side_effecting(name),
+                "CONFIRMATION_EXEMPT_TOOLS lists read-only `{name}`; only writers need exempting"
+            );
+        }
+    }
+
+    #[test]
+    fn requires_confirmation_gates_client_facing_and_notation_writes() {
+        // The three that reach a client or move a binding artifact.
+        for name in [
+            "aida_send_welcome_email",
+            "aida_create_notation",
+            "aida_answer_notation",
+        ] {
+            assert!(
+                super::requires_confirmation(name),
+                "`{name}` reaches a client or a binding artifact and must be confirmed"
+            );
+        }
+        // The CRM writers a lawyer may run straight through, so a bulk
+        // contact load is not one round trip per row.
+        for name in [
+            "aida_create_person",
+            "aida_create_project",
+            "aida_link_person_project",
+            "aida_bulk_import",
+        ] {
+            assert!(
+                !super::requires_confirmation(name),
+                "`{name}` writes only Navigator's own CRM rows and must not pause"
+            );
+        }
+    }
+
+    #[test]
+    fn requires_confirmation_never_gates_a_read() {
+        for name in super::READ_ONLY_TOOLS {
+            assert!(
+                !super::requires_confirmation(name),
+                "read-only `{name}` must never require confirmation"
+            );
+        }
+    }
+
+    #[test]
+    fn requires_confirmation_accepts_prefixed_and_unprefixed_names() {
+        // A2A carries the unprefixed skill id; MCP carries the prefix.
+        // Both must reach the same verdict or the gate depends on which
+        // protocol asked.
+        assert!(super::requires_confirmation("send_welcome_email"));
+        assert!(super::requires_confirmation("aida_send_welcome_email"));
+        assert!(!super::requires_confirmation("create_person"));
+        assert!(!super::requires_confirmation("aida_create_person"));
+    }
+
+    #[test]
+    fn requires_confirmation_is_fail_closed_for_an_unclassified_tool() {
+        // A writer nobody has classified is absent from both lists, so
+        // it must land on the gated side. Shipping a new client-facing
+        // tool cannot skip the pause by omission.
+        assert!(super::requires_confirmation("aida_some_future_writer"));
+        assert!(super::requires_confirmation("totally_unknown"));
     }
 
     #[tokio::test]
