@@ -484,7 +484,14 @@ impl RepoStore {
         )?;
 
         let _ = std::fs::remove_file(&index);
-        tracing::info!(repo = %repo_str, author = author.email, commit = %commit, "server-side commit");
+        // `repo` and `commit` identify this operation completely, and the
+        // commit object itself carries the authorship — that attribution is
+        // the whole point of `Author` and it stays. The log field does not get
+        // it: an address names a person, telemetry leaves the firm's trust
+        // boundary, and one caller builds its `Author` from a prospective
+        // client's `external_email`. Identifiers and counts, never content
+        // (`telemetry/src/lib.rs`).
+        tracing::info!(repo = %repo_str, commit = %commit, "server-side commit");
         Ok(commit)
     }
 
