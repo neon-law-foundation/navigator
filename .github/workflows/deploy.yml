@@ -1886,9 +1886,9 @@ jobs:
     # integration — compiles none of them.
     if: needs.release-version.outputs.publishable == 'true'
     runs-on: windows-latest
-    # `windows-latest` is a standard GitHub-hosted Windows runner available to
-    # this GHE.com tenant. The CLI compiles the Rust dependency graph in release
-    # mode, so leave enough time for a cold two-core private-repository runner.
+    # `windows-latest` is a standard GitHub-hosted Windows runner. The CLI
+    # compiles the Rust dependency graph in release mode, so leave enough time
+    # for a cold two-core runner.
     timeout-minutes: 90
     permissions:
       contents: read

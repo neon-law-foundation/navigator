@@ -1,13 +1,14 @@
 # CODEOWNERS — @nick reviews everything.
 #
-# The handle must resolve on the host this repository lives on. This enterprise
-# is GitHub Enterprise Cloud with data residency, whose accounts are
-# EMU-provisioned through Google SAML and share no namespace with github.com:
-# the github.com handle `@shicholas` does not exist here, and GitHub silently
-# ignores an owner it cannot resolve. An unresolvable owner does not fail the
-# file — it just leaves every path unowned, which is indistinguishable from
-# having no CODEOWNERS at all. `ops github setup` resolves every owner named
-# here against the API for exactly that reason.
+# The handle must resolve on the host this repository lives on, which is
+# github.com. That was the whole difficulty on the tenant this repository moved
+# off: its accounts were EMU-provisioned through Google SAML and shared no
+# namespace with github.com, so a handle valid in one place existed in neither
+# the other. GitHub silently ignores an owner it cannot resolve — an
+# unresolvable owner does not fail the file, it just leaves every path unowned,
+# which is indistinguishable from having no CODEOWNERS at all. `ops github
+# setup` resolves every owner named here against the API for exactly that
+# reason.
 #
 # https://docs.github.com/articles/about-code-owners
 * @nick

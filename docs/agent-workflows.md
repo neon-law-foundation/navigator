@@ -127,9 +127,8 @@ commit subject, so write it as the Conventional Commit you want in `main`'s hist
 ### GitHub CLI authentication
 
 Navigator is public at [`neon-law-foundation/navigator`](https://github.com/neon-law-foundation/navigator) on
-github.com. `gh` defaults to that host, so no `--hostname` and no `GH_HOST` is needed — the repository moved off GitHub
-Enterprise Cloud with data residency when it was open-sourced, and every command that named the enterprise host should
-now name nothing.
+github.com. `gh` defaults to that host, so no `--hostname` and no `GH_HOST` is needed, and a command that names a host
+should be reviewed rather than copied.
 
 `gh` drives PR creation, review, and image uploads. Check auth before remote work:
 

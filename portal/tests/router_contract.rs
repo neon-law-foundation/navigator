@@ -251,11 +251,12 @@ async fn every_first_tranche_path_answers_its_declared_anonymous_contract() {
 /// `/github-stars` is not routed, and no host reserves a prefix for it.
 ///
 /// The endpoint proxied a star count from
-/// `api.github.com/repos/neon-law-foundation/navigator`. That repository is
-/// gone — Navigator moved to the private enterprise host — so the upstream
-/// answers `404` and no public count exists to read. The lane was deleted
-/// rather than repointed, and this pins the absence: re-adding the route puts
-/// an anonymous ingress back on the boundary this file specifies.
+/// `api.github.com/repos/neon-law-foundation/navigator`. It was deleted while
+/// that repository was private and the upstream answered `404`; the repository
+/// is public again, so the lane could be made to work, and that is exactly why
+/// the absence is pinned rather than assumed. Re-adding the route puts an
+/// anonymous ingress back on the boundary this file specifies, which is a
+/// decision to argue for and not a repair.
 #[tokio::test]
 async fn github_stars_is_not_routed() {
     let app = portal::router(contract_state().await);

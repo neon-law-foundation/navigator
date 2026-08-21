@@ -62,13 +62,15 @@ pub const DELETE_POLICY_ID: &str = "delete-unretained-versions";
 /// Workload Identity Federation pool + provider ids for GitHub Actions.
 pub const WIF_POOL_ID: &str = "github";
 pub const WIF_PROVIDER_ID: &str = "github-oidc";
-/// The Actions OIDC token issuer for the `github.com` data-residency
-/// tenant, which mints its own tokens rather than deferring to github.com.
+/// The Actions OIDC token issuer for github.com, which is the host Navigator's
+/// repositories live on.
 ///
-/// `https://token.actions.githubusercontent.com` is github.com's issuer. A pool
-/// that trusts it accepts the create, reports healthy, and then fails every
-/// token exchange — so the wrong value here is silent until the first publish.
-/// Read from the tenant itself:
+/// The wrong value here is silent until the first publish: a pool that trusts an
+/// issuer the tokens are not minted by accepts the create, reports healthy, and
+/// then fails every token exchange. That is the failure this constant exists to
+/// keep single-sourced, and it runs in both directions — a self-hoster on their
+/// own tenant mints from that tenant's own subdomain and must not copy this
+/// value. Read it off the host rather than copying it:
 ///
 /// ```text
 /// curl https://token.actions.githubusercontent.com/.well-known/openid-configuration
@@ -1080,10 +1082,10 @@ mod tests {
         assert_eq!(out, EnsureOutcome::Created);
     }
 
-    /// A ghe.com tenant issues its own OIDC tokens, so a provider pinned to
-    /// github.com's issuer authenticates nothing. The pool and provider already
-    /// exist in `ghcr`, so the create path never runs again — only
-    /// this PATCH can repair them.
+    /// A host that mints its own OIDC tokens authenticates nothing against a
+    /// provider pinned to another host's issuer. The pool and provider already
+    /// exist in `ghcr`, so the create path never runs again — only this PATCH
+    /// can repair them.
     #[tokio::test]
     async fn wif_provider_converges_an_existing_provider_instead_of_reporting_success() {
         let server = MockServer::start().await;

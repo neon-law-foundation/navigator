@@ -208,9 +208,9 @@ sites](marketing-sites.md) document explains. Because the whole resource travels
 id are the deployment's business and never a name a Project repository knows.
 
 **On `neon-law-prod` that resource is the `github` pool's `github-oidc` provider, which is not what
-`cli/src/devx/gcp/app_publisher.rs` provisions** — it creates an `app-publisher` pool with a `ghe-oidc` provider, a name
-left over from the GitHub Enterprise era, and no such pool exists in that project. lex-tecnica was onboarded onto the
-existing `github` provider by hand. Reconciling the two is ENG-255's work, and it is the reason a provider's
+`cli/src/devx/gcp/app_publisher.rs` provisions** — it creates an `app-publisher` pool with a `ghe-oidc` provider, whose
+name is a live resource id rather than a description, and no such pool exists in that project. lex-tecnica was onboarded
+onto the existing `github` provider by hand. Reconciling the two is ENG-255's work, and it is the reason a provider's
 `attributeCondition` must never be rewritten by hand: one CEL expression guards every identity in the pool, Navigator's
 own `navigator-ci-pusher` deploy identity included, so a clause appended carelessly breaks Navigator's deploys an hour
 later and somewhere else.

@@ -99,27 +99,28 @@ request, against a tree the `verify` job already typechecked, linted, and built.
 The job mints a short-lived OIDC token and federates it into the deployer. **No service-account key exists**, so there
 is none to leak or rotate.
 
-The issuer is the subtlety. These repositories are on GitHub Enterprise Cloud with data residency, which issues Actions
-tokens from the enterprise's own subdomain:
+The issuer is the subtlety. These repositories are on github.com, so Actions tokens are minted by github.com's own
+issuer:
 
 ```text
-https://token.actions.github.com
+https://token.actions.githubusercontent.com
 ```
 
-That is **not** `token.actions.githubusercontent.com`, which is what `ops gcp hub setup` trusts for the Navigator
-repository on github.com. The two live under the same identity pool as separate providers, `ghe-oidc` and `github-oidc`,
-precisely because they trust different issuers. Collapsing them would have one silently overwrite the other, and a
-provider carrying the wrong issuer rejects every token with a signature failure that never names the mistake.
+`ops gcp hub setup` trusts the same issuer for the Navigator repository, because there is only one issuer on this host.
+The two lanes still live under the same identity pool as separate providers, `ghe-oidc` and `github-oidc`, because they
+admit different sets of repositories; collapsing them would have one silently overwrite the other, and a provider
+carrying the wrong issuer rejects every token with a signature failure that never names the mistake.
 
-Because the issuer already sits on a per-enterprise subdomain it is inherently scoped to this enterprise. No
-`include_enterprise_slug` configuration is required — that setting exists for enterprises hosted on github.com, which
-share one issuer. The provider narrows further to the `marketing` owner, and each impersonation binding narrows again to
-one `attribute.repository`, so neither marketing repository can publish over the other's site.
+A shared issuer scopes nothing on its own, which is what makes the attribute condition load-bearing rather than
+defensive: every repository on github.com mints against the same issuer, so the provider's narrowing to the `marketing`
+owner is the whole boundary, and each impersonation binding narrows again to one `attribute.repository` so neither
+marketing repository can publish over the other's site. A self-hoster on their own tenant gets a tenant-scoped issuer
+instead, and the condition still matters for the same reason one organization holds more than one repository.
 
-Verify the issuer before changing the constant:
+Read the issuer off the host rather than copying it, and read it from *your* host if you are not on github.com:
 
 ```bash
-curl https://token.actions.github.com/.well-known/openid-configuration
+curl https://token.actions.githubusercontent.com/.well-known/openid-configuration
 ```
 
 ### The repository variables
