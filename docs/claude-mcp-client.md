@@ -134,8 +134,11 @@ nothing on any surface provisions the repository behind it — see the note in E
 - **stdio is per-laptop.** This serves Claude Code and Claude Desktop. It does not serve claude.ai on the web or mobile,
   which would need OAuth protected-resource metadata and dynamic client registration.
 - **The token is about eight hours.** When it ages out, calls come back as a tool error naming the fix. Run
-  `navigator site login` again and restart the server; the client will not pick up a new credential under a live
-  process.
+  `navigator site login` again and retry — the credential is read from disk per call, so a re-login lands without
+  restarting the server or the client.
+- **Registering before logging in is fine.** The server starts, lists its tools, and explains the missing login on the
+  first call. It does not refuse to start: a stdio server that exits has no way to tell the client why, so the client
+  would show a dead entry and no reason.
 - **The advertised catalog is compiled into the CLI.** A `navigator` older than the deployment advertises the catalog it
   shipped with. Both directions fail gracefully: a tool the deployment has but the binary does not is simply
   unavailable, and one the binary offers that the deployment has dropped returns an unknown-tool error naming it.

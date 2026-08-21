@@ -76,29 +76,36 @@ pub trait Upstream: Send + Sync {
 }
 
 /// The real upstream: an authenticated `POST` to a running deployment.
+///
+/// The credential is resolved per call rather than once at startup, and
+/// both halves of that matter. A server that refused to start without a
+/// login would appear in the client as a dead entry with no message,
+/// because a stdio server that exits has no way to say why — whereas one
+/// that starts, lists its tools, and explains itself on first use puts
+/// the reason where the user is looking. And because
+/// `remote::resolve` re-reads `~/.navigator.json` each time, a
+/// `navigator site login` part-way through a session is picked up on the
+/// next call with no restart, which is exactly what an eight-hour token
+/// needs.
 pub struct HttpUpstream {
     client: reqwest::Client,
-    base: String,
-    token: String,
+    host: Option<String>,
 }
 
 impl HttpUpstream {
-    /// Resolve the stored bearer for `host` and build a client against it.
-    /// Fails loudly when there is no login or it has expired — an MCP
-    /// client gives the user no other place to learn that.
-    pub fn resolve(host: Option<&str>) -> Result<Self> {
-        let (base, token) = crate::remote::resolve(host)?;
-        Ok(Self {
+    #[must_use]
+    pub fn new(host: Option<&str>) -> Self {
+        Self {
             client: reqwest::Client::new(),
-            base,
-            token,
-        })
+            host: host.map(ToOwned::to_owned),
+        }
     }
 }
 
 #[async_trait::async_trait]
 impl Upstream for HttpUpstream {
     async fn send_skill(&self, skill: &str, arguments: &Value) -> Result<Value> {
+        let (base, token) = crate::remote::resolve(self.host.as_deref())?;
         // The A2A envelope for a direct dispatch: no text parts, the
         // skill and its arguments in `metadata`.
         let body = json!({
@@ -115,11 +122,11 @@ impl Upstream for HttpUpstream {
                 }
             }
         });
-        let url = format!("{}{A2A_RPC_PATH}", self.base);
+        let url = format!("{base}{A2A_RPC_PATH}");
         let resp = self
             .client
             .post(&url)
-            .bearer_auth(&self.token)
+            .bearer_auth(&token)
             .json(&body)
             .send()
             .await
@@ -133,10 +140,8 @@ impl Upstream for HttpUpstream {
             // status code it will paraphrase as a mystery.
             if status == reqwest::StatusCode::UNAUTHORIZED {
                 return Err(anyhow!(
-                    "the stored token for {} is no longer accepted — run \
-                     `navigator site login --host {}` and restart this server",
-                    self.base,
-                    self.base
+                    "the stored token for {base} is no longer accepted — run \
+                     `navigator site login --host {base}`, then try again (no restart needed)"
                 ));
             }
             return Err(anyhow!("A2A returned {status}: {text}"));
@@ -404,14 +409,14 @@ where
 /// `navigator site mcp` — resolve the stored credential, then serve MCP
 /// on stdio until the client closes it.
 pub async fn run(host: Option<&str>) -> ExitCode {
-    let upstream = match HttpUpstream::resolve(host) {
-        Ok(u) => u,
-        Err(e) => {
-            eprintln!("navigator site mcp: {e:#}");
-            return ExitCode::from(2);
-        }
-    };
+    let upstream = HttpUpstream::new(host);
     // stderr, never stdout: the client is parsing stdout as protocol.
+    // Report a missing login here as a warning rather than an exit — the
+    // catalog still lists, and the first call explains itself.
+    match crate::remote::resolve(host) {
+        Ok((base, _)) => eprintln!("navigator site mcp: {base}"),
+        Err(e) => eprintln!("navigator site mcp: not ready — {e:#}"),
+    }
     eprintln!(
         "navigator site mcp: serving {} tool(s) over stdio",
         advertised_catalog().len()
