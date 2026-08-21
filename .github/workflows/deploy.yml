@@ -337,9 +337,9 @@ jobs:
       github.repository == 'neon-law-foundation/navigator'
       && (needs.release-version.outputs.publishable == 'true'
           || startsWith(github.ref_name, 'kind-ci/'))
-    # Per-image runner: the Rust-workspace images exhaust the tenant
+    # Per-image runner: the Rust-workspace image exhausts the tenant
     # `ubuntu-latest` disk before rustup even finishes (run 142012686,
-    # "No space left on device" at `rustup target add`), so they build on
+    # "No space left on device" at `rustup target add`), so it builds on
     # a wide runner. The gateway image compiles
     # one small crate and stays on `ubuntu-latest` — a wide runner caps
     # at two concurrent jobs and bills per-minute, so light builds must not
@@ -347,7 +347,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     # Cold workspace compile; cap so a stuck build can't hang the run.
     #
-    # 90 and not 45: `navigator-web` is the long pole, measured at 24m
+    # 90 and not 45: `neon-server` is the long pole, measured at 24m
     # (warm, main) and 32m (warm, tag) on a hosted runner, and a cold
     # `kind-ci/**` branch build ran straight through the old 45-minute cap
     # (run 30393950030, killed at 45m32s). That kill cost the entire run:
@@ -368,19 +368,25 @@ jobs:
       fail-fast: true
       matrix:
         include:
-          # `navigator-web` is now an alias tag for the Foundation brand image:
-          # the deployed GKE manifests still pull `navigator-web` (see
-          # `k8s/base/web/web.yaml`), and they flip to `neon-server` with #796's
-          # ship targets. Same Containerfile, so the two tags are byte-identical
-          # until that cutover retires this entry.
-          - image: navigator-web
-            dockerfile: images/Containerfile.neon
-            runner: blacksmith-8vcpu-ubuntu-2404
-          # The brand image every deployment actually rolls. `navigator-web`
-          # above is the same bytes from the same Containerfile and is retired
-          # once the ship targets flip.
+          # The brand image every deployment actually rolls, and the only
+          # Rust-workspace compile in this matrix.
+          #
+          # `alias` is what `navigator-web` costs now: a second TAG on this
+          # leg's image rather than a second leg. The deployed GKE manifests
+          # still pull `navigator-web` (see `k8s/base/web/web.yaml`) and flip to
+          # `neon-server` with #796's ship targets, and both names have always
+          # come from this one Containerfile — so the alias leg was paying a
+          # second ~26-minute metered build for bytes it already had. Measured
+          # across five days: 263 min of `navigator-web` beside 272 min of
+          # `neon-server`, half of this workflow's whole runner bill, for an
+          # image that was identical by coincidence rather than by
+          # construction. It is identical by construction now.
+          #
+          # `publish` already made exactly this move for the same pair; see the
+          # `alias` note in its matrix.
           - image: neon-server
             dockerfile: images/Containerfile.neon
+            alias: navigator-web
             runner: blacksmith-8vcpu-ubuntu-2404
           - image: navigator-workflows-service
             dockerfile: images/Containerfile.workflows-service
@@ -392,7 +398,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
       - uses: ./.github/actions/slack-progress
-        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        if: matrix.image == 'neon-server'
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           tag: "${{ needs.release-version.outputs.tag }}"
@@ -403,16 +409,17 @@ jobs:
       # the same paths after the real public GCS origin has been verified.
       # Production still serves images from GCS at runtime.
       #
-      # This must cover both public-host images that the KIND browser gate
-      # serves (`navigator-web` and `neon-server`); otherwise its content-image
+      # This covers both public-host tags the KIND browser gate serves,
+      # because they are now one image: `navigator-web` is an alias tag of the
+      # `neon-server` build below. Without the stubs its content-image
       # assertions find the references but only 404 responses at their paths.
       - name: install rust toolchain
-        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        if: matrix.image == 'neon-server'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.97.0
       - uses: ./.github/actions/slack-progress
-        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        if: matrix.image == 'neon-server'
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           tag: "${{ needs.release-version.outputs.tag }}"
@@ -422,7 +429,7 @@ jobs:
       # GitHub token, so nothing here reaches api.github.com with an
       # enterprise-issued credential.
       - name: cache cargo
-        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        if: matrix.image == 'neon-server'
         uses: actions/cache@v6
         with:
           path: |
@@ -434,14 +441,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-build-
       - uses: ./.github/actions/slack-progress
-        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        if: matrix.image == 'neon-server'
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           tag: "${{ needs.release-version.outputs.tag }}"
           stage: "build ${{ matrix.image }}"
           step: "stub public assets for KIND public-host images"
       - name: stub public assets for KIND public-host images
-        if: matrix.image == 'navigator-web' || matrix.image == 'neon-server'
+        if: matrix.image == 'neon-server'
         run: |
           set -euo pipefail
           cargo run -p cli --quiet -- ops assets stub-referenced --out server/public
@@ -496,8 +503,25 @@ jobs:
           tag: "${{ needs.release-version.outputs.tag }}"
           stage: "build ${{ matrix.image }}"
           step: "save image tarball"
+      # The alias is a `docker tag` over the image this leg just built, not a
+      # second build. `integration` loads one tar per image name and retags it
+      # to `:dev`, so both names keep arriving in exactly the shape its
+      # `for img in ...` loop already expects.
+      #
+      # In one step rather than three, because `build` is a narrated job:
+      # `cli/tests/deploy_slack_progress.rs` requires a #navigator post
+      # immediately before every named step, and the alias work does not need
+      # three lines in Slack to say what one says.
       - name: save image tarball
-        run: docker save "${{ matrix.image }}:ci-${{ github.sha }}" -o "/tmp/${{ matrix.image }}.tar"
+        run: |
+          set -euo pipefail
+          docker save "${{ matrix.image }}:ci-${{ github.sha }}" -o "/tmp/${{ matrix.image }}.tar"
+          alias_image="${{ matrix.alias }}"
+          if [ -n "${alias_image}" ]; then
+              docker tag "${{ matrix.image }}:ci-${{ github.sha }}" "${alias_image}:ci-${{ github.sha }}"
+              docker save "${alias_image}:ci-${{ github.sha }}" -o "/tmp/${alias_image}.tar"
+              echo "saved ${alias_image} as an alias tag of ${{ matrix.image }}"
+          fi
       - uses: ./.github/actions/slack-progress
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -509,6 +533,23 @@ jobs:
         with:
           name: ci-image-${{ matrix.image }}
           path: /tmp/${{ matrix.image }}.tar
+          retention-days: 1
+      - uses: ./.github/actions/slack-progress
+        if: matrix.alias != ''
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: "${{ needs.release-version.outputs.tag }}"
+          stage: "build ${{ matrix.image }}"
+          step: "upload alias image artifact"
+      # A separate artifact rather than a second file in the one above, so the
+      # `ci-image-*` set `integration` downloads is exactly what it was when
+      # `navigator-web` had its own leg.
+      - name: upload alias image artifact
+        if: matrix.alias != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-image-${{ matrix.alias }}
+          path: /tmp/${{ matrix.alias }}.tar
           retention-days: 1
 
   # ---------- Stage 1: KIND end-to-end integration ----------

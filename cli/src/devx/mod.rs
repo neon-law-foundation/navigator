@@ -2428,6 +2428,26 @@ mod tests {
             .map(|v| v.trim().split(':').next().unwrap_or_default().to_string())
     }
 
+    /// The `build`-matrix leg that actually COMPILES `image` — the leg whose
+    /// own `image` it is, or the leg carrying it as an `alias`.
+    ///
+    /// `navigator-web` is now a tag on the `neon-server` leg's image rather
+    /// than a leg of its own, because both names always came from the same
+    /// Containerfile and the second leg was a second metered compile of bytes
+    /// the run already had. Every guard that asks "is the image the KIND pod
+    /// runs built correctly?" has to follow that indirection, or it reads a
+    /// leg that no longer exists and reports drift that is not there.
+    fn build_leg_for_image(deploy_yml: &str, image: &str) -> Option<String> {
+        let workflow: serde_yaml::Value = serde_yaml::from_str(deploy_yml).ok()?;
+        let legs = workflow["jobs"]["build"]["strategy"]["matrix"]["include"].as_sequence()?;
+        legs.iter()
+            .find(|leg| {
+                leg["image"].as_str() == Some(image) || leg["alias"].as_str() == Some(image)
+            })
+            .and_then(|leg| leg["image"].as_str())
+            .map(str::to_string)
+    }
+
     /// `Ok` iff the deploy workflow's public-asset stub step is gated to run
     /// for `kind_web_image`; `Err(explanation)` otherwise. This is the exact
     /// linkage that broke once: the step ran only for one family while the
@@ -2472,8 +2492,18 @@ mod tests {
 
         let deploy = std::fs::read_to_string(root.join(".github/workflows/deploy.yml"))
             .expect("read deploy.yml");
-        stub_step_covers_image(&deploy, &kind_web_image)
-            .expect("deploy.yml stub step must cover the KIND web image");
+        // Through the alias, not around it: the KIND pod runs `navigator-web`,
+        // which is a tag on whichever leg builds it. The stubs have to be in
+        // THAT leg's image.
+        let builder = build_leg_for_image(&deploy, &kind_web_image).unwrap_or_else(|| {
+            panic!(
+                "deploy.yml's build matrix must produce `{kind_web_image}`, as a leg's own image \
+                 or as its `alias`"
+            )
+        });
+        stub_step_covers_image(&deploy, &builder).expect(
+            "deploy.yml stub step must cover the leg that builds the image the KIND web pod runs",
+        );
     }
 
     /// No KIND overlay may override the web-container `image:`. The base pin
@@ -2528,12 +2558,21 @@ mod tests {
         );
     }
 
-    /// The release builds exactly one web-family image. `navigator-git` was a
-    /// second full-workspace compile of the same `neon` binary on a
-    /// git-bearing base, costing 22m build + 13m publish per nightly run
-    /// while nothing deployed consumed it (ENG-142).
+    /// The release COMPILES the web application exactly once.
+    ///
+    /// Two ways that has been violated, both of them a second full-workspace
+    /// build of the same `neon` binary. `navigator-git` was one, on a
+    /// git-bearing base, costing 22m build + 13m publish per nightly run while
+    /// nothing deployed consumed it (ENG-142). `navigator-web` as its own
+    /// matrix leg was the other, measured at 263 min beside `neon-server`'s
+    /// 272 over five days — half of `deploy.yml`'s whole runner bill for a
+    /// byte-identical image.
+    ///
+    /// So the count that matters is legs compiling `Containerfile.neon`, not
+    /// spellings of a name: the alias tag is free and must stay allowed, while
+    /// a second compile must not.
     #[test]
-    fn the_release_builds_exactly_one_web_family_image() {
+    fn the_release_compiles_the_web_application_exactly_once() {
         use std::path::Path;
         let root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
@@ -2541,19 +2580,29 @@ mod tests {
             .to_path_buf();
         let deploy = std::fs::read_to_string(root.join(".github/workflows/deploy.yml"))
             .expect("read deploy.yml");
+        let workflow: serde_yaml::Value =
+            serde_yaml::from_str(&deploy).expect("deploy.yml parses as YAML");
 
-        let web_family: Vec<&str> = deploy
-            .lines()
-            .filter_map(|l| l.trim().strip_prefix("- image: "))
-            .filter(|img| img.starts_with("navigator-web") || img.starts_with("navigator-git"))
+        let compiles_web: Vec<&str> = workflow["jobs"]["build"]["strategy"]["matrix"]["include"]
+            .as_sequence()
+            .expect("the build job must declare an include matrix")
+            .iter()
+            .filter(|leg| leg["dockerfile"].as_str() == Some("images/Containerfile.neon"))
+            .filter_map(|leg| leg["image"].as_str())
             .collect();
-        // Exactly one: the per-commit `build` matrix entry. `publish-service`
-        // does not add a second — it publishes `neon-server` and points the
-        // `navigator-web` repository at that same manifest via `alias`.
         assert_eq!(
-            web_family,
-            ["navigator-web"],
-            "deploy.yml must build exactly one web-family image"
+            compiles_web,
+            ["neon-server"],
+            "deploy.yml must compile the web application exactly once"
+        );
+
+        // ...and the name the deployed manifests still pull has to keep
+        // arriving, as a tag on that one compile.
+        assert_eq!(
+            build_leg_for_image(&deploy, "navigator-web").as_deref(),
+            Some("neon-server"),
+            "`k8s/base/web/web.yaml` still pulls navigator-web, so it must remain an alias of the \
+             image that leg builds"
         );
         assert!(
             !deploy.contains("navigator-git") && !deploy.contains("Containerfile.git"),
@@ -2625,6 +2674,39 @@ mod tests {
         assert!(stub_step_covers_image(no_if, "navigator-web")
             .unwrap_err()
             .contains("no `if:` condition"));
+    }
+
+    /// Alias resolution is the indirection every guard above now walks, so it
+    /// gets its own pass and fail paths: a name reached through `alias` must
+    /// resolve to the leg that compiles it, a name that is a leg resolves to
+    /// itself, and a name in neither resolves to nothing rather than to a
+    /// confident wrong answer.
+    #[test]
+    fn build_leg_resolution_follows_an_alias_tag_to_the_leg_that_compiles_it() {
+        let matrix = "jobs:\n  build:\n    strategy:\n      matrix:\n        include:\n\
+                      \x20         - image: neon-server\n            dockerfile: images/Containerfile.neon\n\
+                      \x20           alias: navigator-web\n\
+                      \x20         - image: navigator-gateway\n            dockerfile: images/Containerfile.gateway\n";
+
+        assert_eq!(
+            build_leg_for_image(matrix, "navigator-web").as_deref(),
+            Some("neon-server"),
+            "an alias must resolve to the leg that compiles it"
+        );
+        assert_eq!(
+            build_leg_for_image(matrix, "neon-server").as_deref(),
+            Some("neon-server")
+        );
+        assert_eq!(
+            build_leg_for_image(matrix, "navigator-gateway").as_deref(),
+            Some("navigator-gateway"),
+            "a leg with no alias still resolves to itself"
+        );
+        assert_eq!(build_leg_for_image(matrix, "navigator-git"), None);
+        assert_eq!(
+            build_leg_for_image("not: yaml: at: all", "navigator-web"),
+            None
+        );
     }
 
     // The `linux/<arch>` platform fed to `docker save` (in
