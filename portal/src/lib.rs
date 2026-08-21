@@ -1007,6 +1007,24 @@ pub fn bootstrap(
             state.google_oauth.clone().with_db(state.surreal.clone()),
             crate::google_oauth::require_google_oauth,
         ))
+        // Above the auth chain, so every layer below sees a resolved
+        // session: the `navigator` CLI's own bearer, the same layer the
+        // A2A rpc route already carries.
+        //
+        // Without it `/mcp` has no identity to scope a read by. The CLI's
+        // credential is the HMAC-signed `SessionData` blob `cli_auth`
+        // mints — not a JWT and not a Google access token — so
+        // `require_auth` found nothing to validate and `inject_principal`
+        // found no session to read an email from. Every read then
+        // answered as the deployment rather than as the person signed in.
+        //
+        // Resolving it here is not a widening: `SessionStore::decode`
+        // accepts only a blob this deployment signed, carrying the role
+        // and expiry it minted at an authenticated OIDC login.
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.sessions.clone(),
+            crate::auth::inject_bearer_session,
+        ))
         // Outermost: shed an over-budget IP with 429 before any auth or
         // tokeninfo work runs.
         .route_layer(axum::middleware::from_fn_with_state(
