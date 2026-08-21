@@ -105,13 +105,13 @@ Each deployment reads its own bucket, named by `NAVIGATOR_ASSETS_BUCKET` in `dep
 
 | Deployment | Bucket | Serves |
 | --- | --- | --- |
-| `neon-law-stg` | `neon-law-stg-assets` | `https://www.neonlaw.com/assets` |
-| `neon-law-prod` | `neon-law-prod-assets` | `https://www.neonlaw.com/assets` |
-| `neon-law-prod` | its `config.toml` | its `config.toml` |
+| `neon-law-stg` | `neon-law-stg-assets` | `https://staging.neonlaw.com/assets` |
+| the production deployment | its `<deployment>-assets` | its public host's `/assets` |
+| any other deployment | its `config.toml` | its `config.toml` |
 
 ```bash
 cargo run -p cli -- ops assets upload --bucket neon-law-stg-assets
-cargo run -p cli -- ops assets upload --bucket neon-law-prod-assets
+cargo run -p cli -- ops assets upload --bucket <production>-assets
 ```
 
 Auth is ADC (`gcloud auth application-default login`). Upload walks `server/public/img/` and pushes every recognized
@@ -145,7 +145,7 @@ curl -I https://www.neonlaw.com/assets/img/berkeley-bay/berkeley-bay-1200w.jpg
 Restoring a machine that has empty slots (a fresh clone, or someone else's photo):
 
 ```bash
-export NAVIGATOR_ASSETS_BUCKET=neon-law-prod-assets
+export NAVIGATOR_ASSETS_BUCKET=neon-law-stg-assets
 cargo run -p cli -- ops assets pull
 ```
 

@@ -145,7 +145,7 @@ Code reaches production through PRs and dated images:
    side branch before it publishes anything.
 3. The deploy workflow builds and publishes the service images to the Google Artifact Registry: the three brand server
    images and `navigator-workflows-service`.
-4. The same run rolls GKE onto that tag — `neon-law-stg` first, then `neon-law-prod` once staging is green — and reports
+4. The same run rolls GKE onto that tag — `neon-law-stg` first, then production once staging is green — and reports
    both to `#navigator`. No operator step; the `ops ship` command below remains for a roll outside a release run.
 
 `navigator ops ship --deployment <name> --tag YY.M.D` is the self-contained reconcile: every coordinate comes from

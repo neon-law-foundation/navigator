@@ -107,7 +107,7 @@ Once per deployment, before its `secrets.enc.yaml` exists. Run it against that d
 
 ```bash
 OPERATOR="user:you@neonlaw.com"
-PROJECT="neon-law-prod"
+PROJECT="neon-law-stg"
 LOCATION="us-west4"
 
 gcloud services enable cloudkms.googleapis.com secretmanager.googleapis.com --project "$PROJECT"
@@ -133,7 +133,7 @@ account, it fails at `iam.serviceAccounts.getAccessToken` before it ever reaches
 `PERMISSION_DENIED` says nothing about the key. Enumeration also covers principals nobody thought to test.
 
 ```bash
-PROJECT="neon-law-prod"
+PROJECT="neon-law-stg"
 
 gcloud kms keys get-iam-policy deployment-config \
     --project "$PROJECT" --location us-west4 --keyring navigator-secrets
@@ -164,13 +164,13 @@ Keyrings and keys cannot be deleted, only disabled, so the location and names ab
 `sops` opens the file in `$EDITOR` decrypted and re-encrypts on save. The plaintext never touches disk:
 
 ```bash
-sops deployments/neon-law-prod/secrets.enc.yaml
+sops deployments/neon-law-stg/secrets.enc.yaml
 ```
 
 For a value that must not pass through an editor buffer — a private key PEM, a database URL — set it from a pipe:
 
 ```bash
-sops set deployments/neon-law-prod/secrets.enc.yaml '["SESSION_SECRET"]' "\"$(openssl rand -hex 32)\""
+sops set deployments/neon-law-stg/secrets.enc.yaml '["SESSION_SECRET"]' "\"$(openssl rand -hex 32)\""
 ```
 
 Committing a decrypted file is the one unrecoverable mistake here, so two guards sit in front of it. `.gitignore`
@@ -238,17 +238,17 @@ in another, and this is what resolves that:
   `github_webhooks::ReceiverConfig::from_env` already refuses outside the automation home, so no deployment loses a
   receiver it was running.
 - **Integration declined.** A deployment that supplies no `DOCUSIGN_BASE_URL` declares no DocuSign and renders none of
-  its nine objects. `neon-law-prod` is that case; it runs `StubSignatureProvider`, which `portal::signature` reaches
-  only through genuine absence.
+  its nine objects. The production deployment is that case; it runs `StubSignatureProvider`, which `portal::signature`
+  reaches only through genuine absence.
 
 Referencing an object a deployment does not write used to abort its ship at the resolve preflight, which is what kept
-`neon-law-prod` from completing a first ship. Adding an object to the manifest is therefore safe once **any** deployment
-carries it; the rows that do not carry it render without it, and
+the production deployment from completing a first ship. Adding an object to the manifest is therefore safe once **any**
+deployment carries it; the rows that do not carry it render without it, and
 `ship::tests::the_rendered_class_references_exactly_what_the_deployment_writes` holds that for every deployment in the
 tree.
 
-`neon-law-prod` is live on the projected Secret. Bringing another deployment onto it, one at a time and never two in one
-sitting:
+The production deployment is live on the projected Secret. Bringing another deployment onto it, one at a time and never
+two in one sitting:
 
 1. **Reconcile the naming.** The `SecretProviderClass` references uppercase object names (`SESSION_SECRET`,
    `SESSION_SECRET`, …). Migrate or delete any object in that project under another convention so nothing is ambiguous.
@@ -272,11 +272,12 @@ A deployment holding real client matters goes last, in the risk-ascending order 
 
 ## Known gaps
 
-`neon-law-prod`'s `SENDGRID_API_KEY` is a **stub**, not a credential. It satisfies the boot invariant so the parity gate
-is green, and it sends no mail — that deployment's outbound email is dead until a real key from the production SendGrid
-account replaces it. The value is encrypted and therefore invisible in a diff, so the stub is recorded in
-`deployments/neon-law-prod/config.toml` as well; a green gate here does not mean a working mail rail. This is the one
-case where the gate reports satisfied without the deployment being usable, which is why it is written down twice.
+The production deployment's `SENDGRID_API_KEY` is a **stub**, not a credential. It satisfies the boot invariant so the
+parity gate is green, and it sends no mail — that deployment's outbound email is dead until a real key from the
+production SendGrid account replaces it. The value is encrypted and therefore invisible in a diff, so the stub is
+recorded in the production deployment's `config.toml` as well; a green gate here does not mean a working mail rail. This
+is the one case where the gate reports satisfied without the deployment being usable, which is why it is written down
+twice.
 
 Objects that no deployment supplies are trimmed from the manifest rather than stubbed, because a stub is a value the
 mount succeeds on and the feature then fails against. Three sets have been trimmed on those grounds: the four Workspace
@@ -285,10 +286,11 @@ Drive ids (documented in [`environments.md`](environments.md) but unconfigured; 
 and `DOCUSIGN_ACCESS_TOKEN` (the alternative to the DocuSign JWT triple, which every deployment authenticates with
 instead). Re-add each alongside the deployment that first carries a real value.
 
-`NAVIGATOR_GITHUB_APP_LOGIN` is misfiled on purpose, and it is the one entry in `neon-law-prod`'s `secrets.enc.yaml`
-that is not key material. A bot login is a public coordinate and belongs in `config.toml` — but the App still carries a
-login the brand guard in `cli/tests/brand_identifier_is_neon.rs` holds to `neon`, and that guard reads plaintext
-anywhere in the workspace. Encrypting it satisfies the guard mechanically while the deployment keeps working.
+`NAVIGATOR_GITHUB_APP_LOGIN` is misfiled on purpose, and it is the one entry in the production deployment's
+`secrets.enc.yaml` that is not key material. A bot login is a public coordinate and belongs in `config.toml` — but the
+App still carries a login the brand guard in `cli/tests/brand_identifier_is_neon.rs` holds to `neon`, and that guard
+reads plaintext anywhere in the workspace. Encrypting it satisfies the guard mechanically while the deployment keeps
+working.
 
 That is an interim, not a resolution. **Renaming the GitHub App is the real fix**; the value then moves back to
 `config.toml` where it belongs. Until then the exception is recorded here and in that deployment's `config.toml`, so
@@ -311,7 +313,7 @@ Declining an integration is not the same as stubbing one, and the difference is 
 not reach the stub — `portal::signature::DocuSignSignatureProvider::from_env` returns `Some` for any non-empty value, so
 a fake credential boots the *real* provider and the deployment ships green and fails on its first signature request. The
 stub is reachable only through genuine absence. Where an integration has no such fork, a placeholder is still the only
-option: `neon-law-prod`'s `SENDGRID_API_KEY` is a documented stub for exactly that reason, because
+option: the production deployment's `SENDGRID_API_KEY` is a documented stub for exactly that reason, because
 `NAVIGATOR_EMAIL_BACKEND` admits no stub backend to select.
 
 The gate reads key names and never decrypts, so it runs with no credential and no network call. That is the whole point

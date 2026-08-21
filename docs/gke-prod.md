@@ -94,7 +94,7 @@ The marketing sites in [`marketing-sites.md`](marketing-sites.md) cut over diffe
 Certificate Manager authorizes those through a DNS record instead. That option is not available here: the GKE ingress
 owns its certificates. Do not copy that runbook onto a deployment host and expect a seamless switch.
 
-Verified on the `neon-law-prod` cutover of 2026-08-05: `www.neonlaw.com` moved off the marketing site, and the host was
+Verified on the production cutover of 2026-08-05: `www.neonlaw.com` moved off the marketing site, and the host was
 unreachable over HTTPS for roughly half an hour between the DNS change and the edge serving the certificate.
 
 ## Data and access boundary

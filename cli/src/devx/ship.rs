@@ -2678,7 +2678,7 @@ mod tests {
         // because both are valid clusters and both contexts exist.
         let cfg = ShipConfig {
             project_id: "neon-law".into(),
-            cluster: "neon-law-prod".into(),
+            cluster: "neon-law-stg".into(),
             context: "gke_neon-law-org_us-west4_neon-production".into(),
             ..sample_config()
         };
@@ -2695,10 +2695,10 @@ mod tests {
         let message = context_mismatch_error(&cfg, &check);
         // Names BOTH sides, so the operator can see which one is wrong…
         assert!(message.contains("names cluster neon-production in neon-law-org/us-west4"));
-        assert!(message.contains("resolved cluster neon-law-prod in neon-law/us-west4"));
+        assert!(message.contains("resolved cluster neon-law-stg in neon-law/us-west4"));
         // …and carries the exact command that fixes it.
         assert!(message.contains(
-            "gcloud container clusters get-credentials neon-law-prod --region us-west4 \
+            "gcloud container clusters get-credentials neon-law-stg --region us-west4 \
              --project neon-law"
         ));
     }
@@ -2759,7 +2759,7 @@ mod tests {
         // needs no cluster.
         let cfg = ShipConfig {
             project_id: "neon-law".into(),
-            cluster: "neon-law-prod".into(),
+            cluster: "acme-stg".into(),
             context: "gke_neon-law-stg_us-west4_neon-law-stg".into(),
             ..sample_config()
         };
@@ -5417,7 +5417,7 @@ spec:
         // The other half: the automation home declares DocuSign and owns the
         // receiver, so nothing is omitted for it and its render is unchanged.
         //
-        // This asked `neon-law-prod` while `neon-law-stg` is the automation
+        // This asked `neon-law-stg` while `neon-law-stg` is the automation
         // home, and passed because the row was unprovisioned and the test
         // returned early. Both halves are fixed together: the row it names is
         // now the one whose project id `GITHUB_AUTOMATION_HOME_PROJECT`
@@ -5551,7 +5551,7 @@ spec:
         // stale shell from rolling one deployment onto another's cluster.
         let cfg = ShipConfig {
             project_id: "neon-law".into(),
-            cluster: "neon-law-prod".into(),
+            cluster: "acme-stg".into(),
             context: "gke_neon-law-stg_us-west4_neon-law-stg".into(),
             ..sample_config()
         };

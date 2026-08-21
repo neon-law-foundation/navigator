@@ -173,7 +173,7 @@ pub struct SetupConfig {
     ///
     /// Neither derives from `project_id`. `neon-law-archives-<deployment>` is
     /// prefix-shaped, and `<deployment>-telemetry` names the deployment while
-    /// the project may be named for the entity — `neon-law-prod` lives in
+    /// the project may be named for the entity — `neon-law-stg` lives in
     /// `neon-law`, so a derived `neon-law-telemetry` would be a bucket nobody
     /// configured. Absent means the deployment declines that lane.
     pub archives_bucket: Option<String>,
@@ -327,8 +327,8 @@ async fn ensure_buckets(
         &format!("private applications bucket {}", names.applications),
     );
     buckets::ensure_bucket(client, project_id, &names.applications, region).await?;
-    // The 30-day orphaned-asset expiry, safety-coupled to the publish
-    // overwriting unconditionally (see `APPLICATIONS_RETENTION_DAYS`).
+    // The ten-year orphaned-asset expiry. The publish must still overwrite
+    // unconditionally (see `APPLICATIONS_RETENTION_DAYS`).
     buckets::ensure_lifecycle(client, &names.applications).await?;
 
     ensure_optional_bucket(
@@ -750,8 +750,8 @@ mod tests {
         );
         assert_body_contains(
             &calls[11],
-            "\"age\":30",
-            "step 3e applications bucket expires orphaned assets at 30 days",
+            &format!("\"age\":{}", super::buckets::APPLICATIONS_RETENTION_DAYS),
+            "step 3e applications bucket expires orphaned assets at the retention limit",
         );
         // Steps 12..=20 are direct runtime and Workspace identity shell-outs.
         for (i, m) in methods.iter().enumerate().take(21).skip(12) {

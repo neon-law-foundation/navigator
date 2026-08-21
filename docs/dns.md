@@ -43,13 +43,13 @@ navigator ops dns setup \
   --dry-run
 ```
 
-There is one production site on one zone. `neon-law-prod` serves `www.neonlaw.com` — the firm at the root, the Neon Law
-Foundation under `/foundation` — with `workflows.neonlaw.com` on the same gateway address. Staging has no public host,
-so it has no DNS.
+There is one production site on one zone. The production deployment serves `www.neonlaw.com` — the firm at the root, the
+Neon Law Foundation under `/foundation` — with `workflows.neonlaw.com` on the same gateway address. Staging has no
+public host, so it has no DNS.
 
 | Zone | Deployment | `www` / `workflows` → |
 | --- | --- | --- |
-| `neonlaw.com` | `neon-law-prod` | `neon-law-prod-gateway-ip` |
+| `neonlaw.com` | the production deployment | its `<prefix>-gateway-ip` |
 
 The apex is not a third entry: `neonlaw.com` itself carries a `URL` record that 301s to `https://www.neonlaw.com`, which
 is a record inside this zone rather than a deployment of its own. It is the Apex→www row of the record table below.

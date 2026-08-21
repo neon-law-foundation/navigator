@@ -141,18 +141,24 @@ impl BucketKind {
 /// still be re-run from the original bytes.
 pub const TELEMETRY_RETENTION_DAYS: u32 = 90;
 
-/// Objects in a Project-applications bucket are deleted at 30 days.
+/// Objects in a Project-applications bucket are deleted at ten years.
 ///
-/// **This is only safe because a publish overwrites every live object
-/// unconditionally.** Each publish rewrites `index.html` and every current
-/// hashed asset, refreshing their `updateTime`, so the age rule can only ever
-/// reach an *orphaned* asset from a superseded build — never a live one. An
-/// "optimization" that skipped unchanged objects on publish would let a live
-/// asset age past 30 days and be deleted out from under a served portal, and
-/// the breakage would surface weeks after the change that caused it. The rule
-/// and the unconditional-overwrite publish are one decision; do not separate
-/// them.
-pub const APPLICATIONS_RETENTION_DAYS: u32 = 30;
+/// The bucket holds client-facing engagement records, so this expiry bounds the
+/// accumulation of superseded builds — it is not a recycling window for live
+/// ones. Ten years outlives any engagement a portal documents. A thirty-day
+/// window did not: it made deletion of a *published* portal the normal outcome
+/// of publishing once and then going quiet.
+///
+/// **A publish must still overwrite every live object unconditionally.** Each
+/// publish rewrites `index.html` and every current hashed asset, refreshing
+/// their `updateTime`, so the age rule can only ever reach an *orphaned* asset
+/// from a superseded build — never a live one. An "optimization" that skips
+/// unchanged objects — `gcloud storage rsync` is exactly that — lets a live
+/// asset age out and be deleted from under a served portal, and the breakage
+/// surfaces long after the change that caused it. Ten years makes that slow
+/// rather than imminent; it does not make it safe. Publish with `gcloud storage
+/// cp`, never `rsync`: see `.github/actions/application-publish/action.yml`.
+pub const APPLICATIONS_RETENTION_DAYS: u32 = 3650;
 
 #[derive(Serialize)]
 struct CreateBucketBody<'a> {
@@ -534,7 +540,7 @@ mod tests {
             BucketKind::Archives
         );
         assert_eq!(
-            BucketKind::from_name("neon-law-prod-telemetry"),
+            BucketKind::from_name("neon-law-stg-telemetry"),
             BucketKind::Telemetry
         );
         // The four original kinds keep classifying exactly as before.
@@ -549,7 +555,7 @@ mod tests {
         // the 30-day expiry and enforced-private access rather than the
         // Assets default.
         assert_eq!(
-            BucketKind::from_name("neon-law-prod-applications"),
+            BucketKind::from_name("neon-law-stg-applications"),
             BucketKind::Applications
         );
     }
@@ -559,8 +565,9 @@ mod tests {
         // The whole point of the archive/telemetry split: the landing zone is
         // disposable and the archive is not. An age rule on the archive would
         // silently answer a retention question nobody asked. The applications
-        // bucket expires too — but only its orphaned assets, and only because
-        // publishes overwrite unconditionally (see `APPLICATIONS_RETENTION_DAYS`).
+        // bucket expires too, at ten years — long enough that the expiry only
+        // ever reaches orphaned assets from superseded builds, and never the
+        // live bundle of an engagement still on foot.
         assert_eq!(
             BucketKind::Telemetry.retention_days(),
             Some(TELEMETRY_RETENTION_DAYS)
@@ -569,7 +576,9 @@ mod tests {
             BucketKind::Applications.retention_days(),
             Some(APPLICATIONS_RETENTION_DAYS)
         );
-        assert_eq!(APPLICATIONS_RETENTION_DAYS, 30);
+        // Ten years, in days. A short window here deletes published client
+        // portals; ENG-273 raised it from thirty days for exactly that reason.
+        assert_eq!(APPLICATIONS_RETENTION_DAYS, 3650);
         // The applications bundle is streamed through Axum, never served to a
         // browser directly, so it is enforced-private like archives/telemetry.
         assert_eq!(
@@ -641,7 +650,7 @@ mod tests {
         // which is precisely the thing that goes stale in a shared one.
         let server = MockServer::start().await;
         Mock::given(method("PATCH"))
-            .and(path("/storage/v1/b/neon-law-prod-telemetry"))
+            .and(path("/storage/v1/b/neon-law-stg-telemetry"))
             .and(body_partial_json(json!({
                 "lifecycle": {
                     "rule": [{
@@ -656,7 +665,7 @@ mod tests {
             .await;
 
         let client = client_pointed_at(&server);
-        ensure_lifecycle(&client, "neon-law-prod-telemetry")
+        ensure_lifecycle(&client, "neon-law-stg-telemetry")
             .await
             .unwrap();
     }

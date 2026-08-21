@@ -243,7 +243,7 @@ const DEPLOYMENT_IDENTIFYING_KEYS: &[&str] = &[
 const REAL_DEPLOYMENT_IDENTIFIERS: &[(&str, &str)] = &[
     ("NAVIGATOR_PUBLIC_HOST", "www.neonlaw.com"),
     ("NAVIGATOR_WORKFLOWS_HOST", "workflows.neonlaw.com"),
-    ("NAVIGATOR_GCP_PROJECT_ID", "neon-law-prod"),
+    ("NAVIGATOR_GCP_PROJECT_ID", "neon-law-stg"),
     ("NAVIGATOR_GCP_PROJECT_ID", "neon-law-stg"),
 ];
 

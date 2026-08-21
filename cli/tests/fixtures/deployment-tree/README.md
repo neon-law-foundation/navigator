@@ -1,8 +1,8 @@
 # A synthetic deployment tree
 
 **These are not deployments.** Nothing here names a resource that exists, and nothing here is shipped. The real rows —
-`neon-law-stg` and `neon-law-prod` — live in a private repository, together with the workflow that rolls them. See
-[`docs/deployment-secrets.md`](../../../../docs/deployment-secrets.md).
+`neon-law-stg` and the production deployment — live in a private repository, together with the workflow that rolls them.
+See [`docs/deployment-secrets.md`](../../../../docs/deployment-secrets.md).
 
 This tree exists so the gates that read a deployment keep running in the workspace suite after the real tree left. It is
 the input to `cli/src/devx/deployments.rs`, `cli/src/devx/ship.rs`, and `cli/src/devx/gcp/kms.rs` — the loader, the

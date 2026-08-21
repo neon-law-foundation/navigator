@@ -354,7 +354,7 @@ fn slide_image_authoring_keeps_the_local_staging_and_production_copies_together(
         .find("neon-law-stg-assets")
         .expect("slide images must name the staging publication target");
     let production = guide
-        .find("neon-law-prod-assets")
+        .find("<production>-assets")
         .expect("slide images must name the production publication target");
 
     assert!(
