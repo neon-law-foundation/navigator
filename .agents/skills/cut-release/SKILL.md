@@ -1,151 +1,118 @@
 ---
 name: cut-release
 description: >
-  Cut a Neon Law Navigator release from a version YOU name: validate the version you provide, run every check the
-  pipeline will run, write it into the workspace, land it through a PR, then tag that merged commit so `deploy.yml`
-  publishes. Trigger when the user says "/cut-release", "cut a release", "ship a release", "tag a release", or "publish
-  the CLI". The whole point is to fail on this machine, in seconds, instead of on a pushed tag that cannot be moved — a
-  rejected tag spends the name for good. Stops at "the tag is pushed and the run is watched"; rolling a cluster is
-  `navigator ops ship`, a separate human act.
+  Cut a Neon Law Navigator release by writing the version you name into `[workspace.package].version` and landing it on
+  `main` through a PR — the merge is the publish. Trigger when the user says "/cut-release", "cut a release", "ship a
+  release", "tag a release", or "publish the CLI". There is no tag to push: `deploy.yml` reads the merged manifest,
+  proves the tree, creates the immutable tag itself, and publishes. Stops at "the bump is merged and the run is
+  watched"; rolling a cluster is `navigator ops ship`, a separate human act.
 ---
 
 # cut-release
 
-Publishing has exactly one trigger: **a person pushes an immutable release tag**. There is no cron and no
-`workflow_dispatch`, because neither carries a tag and both could only *derive* a version — which is how the manifest
-once sat at `0.1.0` while tags marched on. Read [`docs/gitops.md`](../../../docs/gitops.md) for the authoritative flow;
-this file is the order of operations and the checks that must happen *before* the ref exists.
+Publishing has exactly one trigger: **a version bump lands on `main`**. There is no tag push, no cron, and no
+`workflow_dispatch`. Read [`docs/gitops.md`](../../../docs/gitops.md) for the authoritative flow; this file is the order
+of operations.
 
-**The tag is immutable and the name is spent the moment it is pushed.** The `release-tags` ruleset restricts deletion,
-update, and non-fast-forward with no bypass actor. Every check below exists because discovering the problem after the
-push costs the day.
+**The version is `[workspace.package].version`.** `deploy.yml` runs `ops release-check` on every push to `main`, and a
+version newer than every release tag is what makes that push build, prove, tag, and publish. The tag is derived from the
+manifest rather than compared against it, so the tag and the source cannot disagree — they are one decision.
 
 ## 0. The operator names the version
 
-**You provide the version. This skill never chooses one.** Naming a release is an operator decision — whether today's
-work is an ordinary cut or a hotfix, and which `N` a hotfix carries — so the skill's job is to *check* the name you give
-it, not to pick one and hand it back.
+**You provide the version. This skill never chooses one.** Naming a release is an operator decision, so the skill's job
+is to *check* the name you give it.
 
-Pass the version to every command below. It is validated before anything else runs:
+There are exactly two rules, and only the second is enforced:
 
-```bash
-.claude/skills/cut-release/scripts/validate-release-tag.sh 26.8.20
-```
+| Rule | Enforced by | What it admits |
+| --- | --- | --- |
+| It is a version | `semver::Version::parse` | three components, no leading zeros, no build metadata, any prerelease |
+| It is **newer than every release tag** | `ops release-check` | semver ordering: a prerelease is below its base |
 
-Offline, read-only, and repeatable. It transcribes the two rules `deploy.yml` applies rather than remembering them, and
-rejects a name the workflow would refuse:
+**`YY.M.D` is the convention and nothing checks it.** Name a release after the UTC day you cut it — `26.8.23` — because
+a date is a useful thing for a version to mean. But no date check exists any more: a bump is authored days before it
+merges, so a clock check could only ever fail a release for having been reviewed slowly. If the convention does not fit,
+depart from it; the pipeline only cares that the number went up.
 
-| Rule | What it admits |
-| --- | --- |
-| SHAPE | `YY.M.D` — two-digit year, unpadded month and day — optionally suffixed `-hotfix.N` |
-| DATE | a plain tag's base is TODAY's UTC date; a `-hotfix.N` base is TOMORROW's |
+Three things that follow, each of which used to be a rule someone had to know:
 
-Three things that rule encodes, each of which costs a day when guessed instead:
+- **A prerelease of a released version is refused, and its own base is fine.** `26.8.23-hotfix.1` is admissible after
+  `26.8.22` and refused after `26.8.23`, because semver ranks a prerelease below its base (spec §11.3). The old rule
+  that a hotfix hangs off tomorrow's date was a description of exactly this; the comparator does the job now.
+- **Unpadded, always.** August is `8`. Not a preference — `26.08.23` is not a version, and semver forbids a leading zero
+  in a numeric prerelease identifier, so `hotfix.08` is not one either.
+- **A second release the same day needs no special spelling.** `26.8.23` after `26.8.22`, or `26.8.23-hotfix.1`. Both
+  are just bigger numbers.
 
-- **A plain tag must equal TODAY's UTC date; a prerelease base must equal TOMORROW's.** The workflow checks exactly
-  that, so at 23:30 UTC there is no way to cut a plain tag for tomorrow — wait thirty minutes and today's name becomes
-  it. The date that matters is UTC's, never your wall clock.
-- **A hotfix hangs off the NEXT day.** Semver ranks a prerelease below its own base (spec §11.3), so
-  `26.8.19-hotfix.23` would sort as *older* than the `26.8.19` it follows.
-- **Unpadded, always.** August is `8`, not `08`, and semver forbids a leading zero in a numeric prerelease identifier,
-  so `hotfix.08` is not a version at all.
-
-`N` is a uniqueness-and-ordering discriminator, not an hour: it is yours to pick and nothing bounds it at 23. Whether
-the name is still unspent is a question about the remote, so step 1 asks it — a name already on `origin` is refused
-there rather than at the push.
-
-## 1. Preflight — everything that can fail locally
+## 1. Write the version
 
 ```bash
-.claude/skills/cut-release/scripts/preflight.sh 26.8.20
+cargo run -p cli -- ops release-version --tag 26.8.23
 ```
 
-Read-only and safely repeatable. It validates the version, fetches, then refuses the cut unless every one of these
-holds, because each is a way the pipeline rejects a tag and each is free here:
+`--tag` is required: the command derives nothing, so passing the version you named is what keeps the manifest and the
+release one decision. It parses the version on the way in, so a name the pipeline would refuse fails here. It refreshes
+`Cargo.lock` too and commits both files — every workspace crate is pinned in the lock as well, and the release builds
+with `--locked`. `--no-commit` writes both files and leaves the commit to you.
 
-- **The version is one `deploy.yml` will accept** — shape and base date, per step 0.
-- **The version is not already taken on `origin`.** The `release-tags` ruleset admits no bypass actor, so a spent name
-  is spent for good; a second release in one UTC day is a `-hotfix.N` prerelease on tomorrow's base.
-- **The target is reachable from `origin/main`.** A PR branch is never a release source; wait for the PR to merge.
-- **The working tree is clean.** A release names a commit, not a desk.
-- **`[workspace.package].version` equals the version you named.** `cli/build.rs` bakes that value into
-  `navigator --version`, so a mismatch ships a binary naming a release its source never heard of.
-- **`Cargo.lock` agrees with the manifest** (`cargo metadata --locked`). The release builds with `--locked` in four
-  places, so a lock still naming the previous version fails *after* the tag is pushed, and a tag cannot be moved.
-- **Notices are current** (`ops notices --check`) — every permissive licence in the tree requires its notice to travel
-  with the distributed binary, and the CLI archives carry it.
-- **The workspace gate passes.** CI runs the coverage floor inside this same pass.
-
-## 2. Write the version
-
-The tag must equal `[workspace.package].version` — the value every crate inherits and `cli/build.rs` bakes into
-`navigator --version`. Without it a plain build of the tagged source names a release the source never heard of.
+## 2. Preflight — everything that can fail locally
 
 ```bash
-cargo run -p cli -- ops release-version --tag 26.8.20
+.agents/skills/cut-release/scripts/preflight.sh
 ```
 
-`--tag` is required: the command derives nothing, so passing the version you validated in step 0 is what keeps the
-manifest and the tag one decision rather than two that have to agree. It re-checks the shape on the way in, with the
-same grammar as step 0 and `deploy.yml`, so a malformed name never reaches the manifest. It refreshes `Cargo.lock` too
-and commits both files — every workspace crate is pinned in the lock as well, and the release builds with `--locked`.
-`--no-commit` writes both files and leaves the commit to you.
+Read-only and safely repeatable, and it takes no version: it reads the one you just wrote. It runs the release decision
+exactly as CI will, checks the notices and the lock, and runs the workspace gate.
+
+**`ci.yml` runs the first three of those on the pull request**, so this script is about not wasting a CI cycle rather
+than about being the only line of defence. That is the change worth knowing: the release preflight used to live only
+here, on your machine, skippable by forgetting.
+
+**The browser suite is the exception, and it matters.** A green `ci` proves the Rust workspace and says nothing about
+the browser and accessibility suites — they self-skip when no harness is present, so the only thing that runs them is
+`deploy.yml`'s `integration` job, on the merge that publishes. A UI regression is otherwise discovered by the release:
+
+```bash
+cargo run -p cli -- dev browser-e2e
+```
 
 ## 3. Land it through a PR
 
-`main` is squash-merge-only and takes no direct commits, so the bump lands as an ordinary PR. Wait for it to merge — the
-tag goes on the **merged** commit, not on the branch tip that produced it.
+`main` is squash-merge-only and takes no direct commits, so the bump lands as an ordinary PR. Its `ci` check is the last
+place the release preflight is still free to fix, and it runs all of it: `ops release-check`, `ops notices --check`, and
+the `--locked` lock check.
 
-## 4. Tag the merged commit and push
+**Merging is the publish.** Nothing else is required of you.
 
-Sign the tag: an unsigned commit cannot enter the merge queue, and commit verification recognizes the `nick@neonlaw.com`
-identity.
+## 4. Watch the run
+
+The merge starts `deploy.yml`. Watch it:
 
 ```bash
-git fetch origin && git checkout main && git pull --ff-only
-.claude/skills/cut-release/scripts/tag-and-push.sh 26.8.20
+gh run watch "$(gh run list --workflow deploy.yml --branch main --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
 ```
 
-Pass the same version again — the script signs the name it is handed and derives nothing, so the name that passed
-preflight is the name that publishes. It re-validates shape and base date (the last place a typo is still free), signs
-the tag, pushes it, then resolves this release's run **by the tag** and watches it with `--exit-status`. Both halves of
-that last step matter: a tag push sets the run's `headBranch` to the tag name, so the tag is an exact filter, where
-asking for the most recent run would race the API and report a previous, already-finished run as this release's success.
-Idempotent where a rerun can mean the same thing and a hard stop where it cannot: an already-pushed tag on this commit
-just watches the existing run, and a tag that exists on a *different* commit is refused rather than forced, because a
-tag cannot be moved.
+`--branch main` is the filter that matters: every merge starts a run, and almost all of them end in seconds having
+decided there is nothing to publish.
 
-Pushing the tag is the publish.
+## What the merge actually does
 
-## Releasing twice in one day
+`deploy.yml` reads the version, builds four images, proves them in KIND, **creates the release tag**, publishes to GHCR,
+attaches three CLI archives to a GitHub Release, bumps the Homebrew tap, and reports to `#navigator`.
 
-The day's `YY.M.D` is spent, so a second release is a semver prerelease — and **its base is the NEXT day**, which is
-correctness rather than taste. Semver ranks a prerelease *below* its own base (spec §11.3), so `26.8.17-hotfix.17` would
-sort as **older** than the `26.8.17` it fixes. Hanging it off the next day keeps the order true:
+**The tag is created after integration passes and before anything publishes**, and that ordering is the point. While a
+person pushed the tag, the ref existed before a single image was built, so a release that went red had already spent its
+name. Now a failure above that line costs nothing but a re-run.
 
-```text
-26.8.17  <  26.8.18-hotfix.17  <  26.8.18-hotfix.21  <  26.8.18
-```
-
-So a second cut is the same four steps with a `<tomorrow's UTC date>-hotfix.N` version instead — you pick `N`, and step
-1 refuses it if that exact name is already on the remote. Nothing composes that name for you: `N` is a
-uniqueness-and-ordering discriminator, not an hour, and no command in the tree invents one. A hotfix publishes every
-image and archive and **bumps the Homebrew tap** like any other release — the tap holds one version and `brew install`
-resolves to whichever it holds, so that version has to be the newest build that exists. The one surface that treats it
-differently is the GitHub Release, flagged as a prerelease so it is not reported as "Latest".
-
-## What the push actually does
-
-`deploy.yml` validates the tag, builds four images, proves them in KIND, publishes to GHCR, attaches three CLI archives
-to a GitHub Release, and reports to `#navigator`. Its `release-version` job is the authority every check above
-transcribes: shape, base date, equality with `[workspace.package].version`, and provenance from `origin/main`. Two
-things it never does:
+Two things it never does:
 
 - **It deploys nothing and holds no cloud credential.** It ends at the registry. Every rollout is `navigator ops ship`,
-  run by a person against their own short-lived ADC. Do not add a ship job to that workflow — the seam is what keeps
-  "which version is production on?" answered by the operator who rolled it.
-- **It cannot move a ref.** The only job holding `contents: write` creates the GitHub Release, and the ref arrived
-  before the run did.
+  run by a person against their own short-lived ADC. Do not add a ship job — the seam is what keeps "which version is
+  production on?" answered by the operator who rolled it.
+- **It cannot move a ref.** `release-tag` creates one and refuses a tag that already exists at a different commit;
+  `release-windows-cli-publish` creates a Release against it. The `release-tags` ruleset restricts deletion, update, and
+  non-fast-forward with no bypass actor.
 
 The CLI archives are load-bearing beyond the human download: `.github/actions/validate`, the gate every Project
 repository runs, fetches them from the Release this run creates. If that lane stops, Project CI breaks everywhere with a
@@ -153,12 +120,19 @@ download 404 and nothing in this repository goes red.
 
 ## When it fails
 
-- **A flake** — re-run the failed jobs. The tag is unchanged, so a re-run republishes the same name over itself. There
-  is nothing to un-publish, because nothing was deployed.
-- **The source is wrong** — the name is spent. Fix forward and cut a hotfix, or tag the next UTC day. A moved tag would
-  make every artifact already carrying that version a lie.
-- **A change to `deploy.yml` itself** — prove it on a `kind-ci/**` branch, which runs the integration job and publishes
-  nothing. That is the only way to test the workflow without spending a tag.
+- **Before the tag** — a red build or a red KIND suite. Nothing was created and nothing published; re-run it, and the
+  version keeps its name. This is most failures, and it is the whole reason the tag moved into the pipeline.
+- **After the tag** — a registry flake, a tap rejection. Re-run the failed jobs; the tag is unchanged, so a re-run
+  republishes the same name over itself. There is nothing to un-publish, because nothing was deployed.
+- **"Re-run all jobs" is safe.** `release-check` reports a version whose tag already names *this* commit as publishable,
+  so a full re-run republishes instead of deciding there is nothing to do.
+- **The source is wrong** — that version is spent. Bump past it and merge again.
+- **A change to `deploy.yml` itself** — prove it on a `kind-ci/**` branch, which runs the integration job, creates no
+  tag, and publishes nothing. That is the only way to test the workflow without publishing.
+- **`release-check` says the version is OLDER than a released one** — a bad bump, or a rebase that resurrected an old
+  manifest. Bump past the version it names.
 
-Nothing runs this pipeline on a clock, so a defect introduced today is invisible until someone next tags. Pushing a
-`kind-ci/**` branch is the periodic check that replaced the retired nightly cron — a habit, not a trigger.
+Nothing runs this pipeline on a clock, so a defect in the publishing stages is invisible until someone next bumps the
+version. Pushing a `kind-ci/**` branch is the periodic check that replaced the retired nightly cron — a habit, not a
+trigger. One thing did get cheaper: the decision job runs on *every* merge, so a break in the trigger itself surfaces at
+the next merge rather than at the next release.

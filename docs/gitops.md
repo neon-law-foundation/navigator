@@ -1,13 +1,15 @@
 # GitOps: edit → merge → release → deploy
 
-Every change reaches production through an auto-merging PR to `main`, followed by a release tag, image publication, and
-a deliberate rollout. This flow supports the actions in [`agent-workflows.md`](agent-workflows.md).
+Every change reaches production through an auto-merging PR to `main`. A release is one particular such PR — the one that
+bumps `[workspace.package].version` — and merging it is what creates the tag, publishes the images, and hands the
+operator a deliberate rollout. This flow supports the actions in [`agent-workflows.md`](agent-workflows.md).
 
 ## `main` is sacred and squash-merge-only
 
 - **Never commit directly to `main`.** PRs squash to one commit; merge and rebase-merge are disabled.
-- **Production follows `main`.** GKE reconciles `examples/deploy/k8s/gke`, and release tags target commits reachable
-  from `main`. A PR branch is never a release source. See [`gke-prod.md`](gke-prod.md).
+- **Production follows `main`.** GKE reconciles `examples/deploy/k8s/gke`, and every release tag is created by
+  `deploy.yml` at a commit on `main` — so a PR branch cannot be a release source by construction, rather than by a
+  check. See [`gke-prod.md`](gke-prod.md).
 
 ## The branch → PR → auto-merge flow
 
@@ -236,7 +238,7 @@ Add jobs to the workflow that owns their trigger; do not create a redundant work
 | Workflow | Trigger | Job |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | `pull_request` → `main` | Rust quality gate |
-| `.github/workflows/deploy.yml` | a dated `YY.M.D` tag, or a `kind-ci/**` branch | prove + publish images |
+| `.github/workflows/deploy.yml` | a push to `main`, or a `kind-ci/**` branch | prove + tag + publish images |
 | `.github/workflows/ghcr-retention.yml` | 01:11 UTC nightly, or a dispatch | prune old GHCR versions |
 | `.github/workflows/codeql.yml` | `pull_request` → `main` | CodeQL scan — enable it, see below |
 
@@ -325,143 +327,172 @@ development](../CLAUDE.md#local-kind-development) and the `web-preview` / `kind-
 
 ### One workflow owns publishing — `deploy.yml`
 
-Publishing is a deliberate act: a person pushes an immutable release tag, and that run proves the workspace in KIND,
-builds every image, pushes them to GHCR, attaches the three `navigator` CLI archives to the tag's GitHub Release, hands
-the release to the Homebrew tap, and reports what it published. Versions omit leading zeros, remain valid semver, and
-align with image tags and `navigator --version`.
+Publishing is a deliberate act, and the act is **landing a version bump on `main`**. Bump `[workspace.package].version`
+in an ordinary pull request, merge it, and that push proves the workspace in KIND, builds every image, pushes them to
+GHCR, creates the immutable release tag, attaches the three `navigator` CLI archives to that tag's GitHub Release, hands
+the release to the Homebrew tap, and reports what it published.
 
-**A pushed tag is the only way to publish, and that is what makes a version trustworthy.** A cron and a
-`workflow_dispatch` both ran this pipeline once, and both are gone for one reason: neither carried a tag, so each could
-only *derive* a version from the runner clock, and a derived version stands behind no Git ref. That is how `Cargo.toml`
-sat at `0.1.0` while published images marched on under names the source had never heard of. A tag cannot drift from
-itself. The tag threads into every image build as the `RELEASE_TAG` build-arg, which each Containerfile turns into the
+**The version in the manifest is the release, and that is what makes a version trustworthy.** Three triggers have owned
+this pipeline. A cron and a `workflow_dispatch` each derived a version from the runner clock, so the name an image
+carried stood behind no Git ref — which is how `Cargo.toml` sat at `0.1.0` while published images marched on under names
+the source had never heard of. A hand-pushed tag fixed the drift but paid for it in ceremony: four validations existed
+purely to re-establish facts a bare ref cannot carry, and each of them, failing late, spent an immutable name.
+
+Reading the version out of the merged manifest answers all four by construction:
+
+| The old check | Why it is gone |
+| --- | --- |
+| SHAPE — a `YY.M.D` regex | `semver::Version::parse` is the shape, and it is stricter than the regex was |
+| DATE — the tag equals today's UTC date | a bump merges days after it is authored, so this punished slow review |
+| MANIFEST — the tag equals `[workspace.package].version` | the tag is *derived from* it; they are one decision |
+| PROVENANCE — the tag's commit is reachable from `main` | a push to `main` **is** the provenance |
+
+What survives is the one question none of them asked, and it is now the whole gate: **is this version newer than every
+version already published?** `navigator ops release-check` reads the manifest, lists every release tag, and compares
+them with semver's own ordering. Three answers:
+
+| Answer | What happens |
+| --- | --- |
+| newer than every released version | this is a release: build, prove, tag, publish |
+| equal to the newest | already released — the run ends in seconds. Almost every merge |
+| older than the newest | **the job fails.** A bad bump, or a rebase that resurrected an old manifest |
+
+The version threads into every image build as the `RELEASE_TAG` build-arg, which each Containerfile turns into the
 runtime environment variable `NAVIGATOR_RELEASE_TAG`.
 
-**Three components, plus an optional `-hotfix.N` prerelease.** No fourth component is possible: Cargo parses
-`[workspace.package].version` as strict semver and rejects one outright, so a `YY.M.D.H` tag could never equal the
-manifest and the tag-equals-manifest check below would be unsatisfiable. A semver *prerelease* has no such problem:
-`26.8.18-hotfix.17` parses, and Cargo holds it verbatim. That is the whole reason a same-day hotfix has a spelling at
-all — see [Releasing twice in one day](#releasing-twice-in-one-day). `release-version` anchors the shape with a regex
-rather than trusting the push filter, whose `[0-9]*.[0-9]*.[0-9]*` glob is looser than it looks: fnmatch's `*` matches
-dots and hyphens, so that filter alone admits `26.8.17.13`.
+**`YY.M.D` is a convention, not a rule.** Nothing validates the calendar any more. The naming convention is still
+`YY.M.D`, optionally suffixed with a prerelease, and the [`cut-release`](../.agents/skills/cut-release/SKILL.md) skill
+is where it is written down — but a version that departs from it publishes just as well, provided it is newer than the
+last one. What the date really bought was uniqueness, and comparing against the tags buys that directly.
 
-The registry and deploy parser also retains the historical `YY.M.D.H` form. Its numeric ordering is explicit when a
-registry contains every convention for one date: base `YY.M.D` first, then legacy `.H`, then current `-hotfix.N`;
-numbers within either variant sort numerically. New GitHub Releases use the semver-compatible base or `-hotfix.N` forms,
-because Cargo cannot represent a four-component version.
+Three shape facts still hold, because they are semver's:
 
-**Only merged source may publish.** Before any GitHub Release, CLI archive, or image can be published, the first job
-fetches `origin/main`, peels the pushed lightweight or annotated tag to its commit, and runs `git merge-base
---is-ancestor <release-commit> origin/main`. A tag on an unmerged PR or side branch fails there. Release creation must
-wait for the version PR to merge, and the tag goes on the merged commit.
+- **No leading zeros.** August is `8`; `26.08.22` is not a version at all, and neither is `-hotfix.08`.
+- **Three components exactly.** Cargo parses `[workspace.package].version` as strict semver, so a fourth component
+  (`26.8.22.13`) cannot be written into the manifest — which is why the historical `YY.M.D.H` spelling is retired
+  everywhere, including in the registry parser that once ordered it.
+- **No build metadata.** `+` is not a legal character in an OCI image tag, and its precedence is not portable: the spec
+  says to ignore it, the `semver` crate orders by it. `cli/src/release.rs` refuses it rather than depending on either.
+
+**Ordering replaced the hotfix rules.** A prerelease ranks *below* its own base version (semver §11.3), so the whole "a
+hotfix hangs off tomorrow's date" rule was a hand-written description of what `Version::cmp` already computes. Comparing
+against the highest released version makes it a consequence instead:
+
+```text
+26.8.21  <  26.8.22-hotfix.3  <  26.8.22-hotfix.21  <  26.8.22
+```
+
+So `26.8.22-hotfix.3` is admissible after `26.8.21` and **refused** after `26.8.22` — and nobody has to know why. See
+[Releasing twice in one day](#releasing-twice-in-one-day).
 
 **This workflow deploys nothing, and holds no cloud credential.** It ends at the registry. Putting a version in front of
 real clients' matters is a separate act a person takes from their own machine — see [The deploy is a human
 act](#the-deploy-is-a-human-act).
 
-**Run the browser gate locally before you tag.** A green `ci` proves the Rust workspace and says nothing at all about
-the browser and accessibility suites: they self-skip when no harness is present, so the only thing that runs them on CI
-is `deploy.yml`'s `integration` job, and the only thing that runs `integration` on a tag is the tag itself. That means a
-UI regression is discovered by the release, forty-odd minutes in, on an immutable tag whose name is spent for the day.
-So prove it first:
+**Run the browser gate locally before you merge the bump.** A green `ci` proves the Rust workspace and says nothing at
+all about the browser and accessibility suites: they self-skip when no harness is present, so the only thing that runs
+them on CI is `deploy.yml`'s `integration` job. So prove it first:
 
 ```bash
 cargo run -p cli -- dev browser-e2e
 ```
 
-Green locally is the precondition for pushing the tag. A `kind-ci/<topic>` branch push is the CI-side alternative when
-the change is to the workflow itself rather than to a page — it runs `integration` alone and publishes nothing.
+A `kind-ci/<topic>` branch push is the CI-side alternative when the change is to the workflow itself rather than to a
+page — it runs `integration` alone, creates no tag, and publishes nothing.
 
-**One ordinary tag per calendar day, in UTC.** `YY.M.D` admits only one per day by construction, and `release-version`
-enforces it rather than trusting it: a tag whose base is not the current UTC date fails the run at its first job, before
-any image is built. UTC is the zone this convention has always been derived in, it carries no DST discontinuity, and the
-runner clock is already UTC. A day whose tag is already spent releases again through a `-hotfix.N` prerelease, below.
+**A failed release no longer costs its name.** This is the reason the tag is created *inside* the pipeline rather than
+pushed ahead of it. The tag job sits between `integration` and every publisher, so:
+
+- **A failure before the tag** — a red build, a red KIND suite — creates no ref and publishes nothing. Re-run it; the
+  version keeps its name.
+- **A failure after the tag** — a registry flake, a tap rejection — leaves an immutable ref, but a re-run republishes
+  the same name over itself. There is nothing to un-publish, because nothing was deployed.
+- **A wrong source** spends that version for good. Bump past it and merge again.
+
+`release-check` reports a version whose tag already names *this very commit* as publishable, so re-running the whole
+workflow republishes rather than skipping every job and reporting success for having done nothing.
 
 ### Releasing twice in one day
 
-The day's release name is spent the moment it is pushed: `YY.M.D` admits one ordinary tag per UTC day, and the
-`release-tags` ruleset restricts deletion, update, and non-fast-forward with no bypass actor, so the tag cannot be moved
-onto a fix. Releasing again that day means a new name, and the only valid one is a semver prerelease:
+Nothing forbids it, and no special spelling is required — the calendar is not a rule. Two ordinary ways to name a second
+release the same day, and both are just "a bigger number":
 
-```text
-26.8.18-hotfix.17
-```
+| After releasing | A valid next version | Why |
+| --- | --- | --- |
+| `26.8.22` | `26.8.23` | tomorrow's date, cut early |
+| `26.8.22` | `26.8.23-hotfix.1` | a prerelease of tomorrow's |
 
-**The base is the NEXT day, and that is correctness rather than taste.** Semver ranks a prerelease *below* its own base
-version (spec §11.3), so `26.8.17-hotfix.17` would sort as **older** than the `26.8.17` it exists to fix — Cargo,
-Homebrew, and every image sort would read the fix as the earlier release. Hanging it off the next day makes the order
-monotonic and true:
+Both sort strictly above `26.8.22`, so both are admissible. What is **refused** is a prerelease of a version already
+released — `26.8.22-hotfix.1` after `26.8.22` — because semver ranks it below the release it would be fixing, and every
+consumer resolving those two versions would read the fix as the older one. `release-check` says so by name rather than
+letting it publish.
 
-```text
-26.8.17  <  26.8.18-hotfix.17  <  26.8.18-hotfix.21  <  26.8.18
-```
+`N` in `-hotfix.N` is an unpadded nonnegative integer and it is the operator's to choose: a uniqueness-and-ordering
+discriminator, never an hour. The padding is not cosmetic — semver forbids a leading zero in a numeric prerelease
+identifier, so `hotfix.08` is not a version. Nothing derives `N`; `ops release-version` writes the name it is given.
 
-Read plainly, a hotfix *is* the next day's release cut early: it carries fixes that would otherwise wait for the next
-UTC day. Several hotfixes may run in one day, ordered by their numeric discriminator.
-
-`N` is an unpadded nonnegative integer, and it is the operator's to choose. The padding is not cosmetic — semver forbids
-a leading zero in a numeric prerelease identifier, so `hotfix.08` is not a valid version at all. Nothing derives `N`:
-`ops release-version` requires `--tag` and writes the name it is given, and the workflow does not clock-check `N`
-either, so it is a uniqueness-and-ordering discriminator rather than an hour.
-
-Write the version the same way as any other release, then land it and tag the merged commit:
+Write the version the same way as any other release, then land it:
 
 ```bash
-cargo run -p cli -- ops release-version --tag 26.8.18-hotfix.17
+cargo run -p cli -- ops release-version --tag 26.8.23-hotfix.1
 ```
 
-**A hotfix does not become the default download.** Exactly one thing behaves differently from an ordinary release,
+**A prerelease does not become the default download.** Exactly one thing behaves differently from an ordinary release,
 because a prerelease must not present itself as the latest version to someone browsing the releases page:
 
-| Surface | Ordinary release | `-hotfix.N` |
+| Surface | Ordinary release | prerelease |
 | --- | --- | --- |
 | GHCR images and CLI archives | published | published |
 | GitHub Release | latest | flagged `--prerelease` |
 | Homebrew tap | bumped | bumped |
 
-**The tap follows every publishable tag, hotfix included.** It holds exactly one version and every `brew install`
-resolves to it, so the version it holds has to be the newest build that exists — not the newest build of a particular
-shape. Excluding hotfixes meant the formula could only move when an ordinary `YY.M.D` release succeeded end to end, and
-a run of ordinary releases failing at the KIND gate left `brew install` serving a 404 for days with every check green,
-because a skipped job is not a failed one.
+Which versions count as prereleases is no longer a spelling rule the workflow knows: `release-check` reports it from
+`Version::pre`, so `-hotfix.3` and `-rc.1` are both flagged.
+
+**The tap follows every publishable version, prerelease included.** It holds exactly one version and every `brew
+install` resolves to it, so the version it holds has to be the newest build that exists — not the newest build of a
+particular shape. Excluding prereleases meant the formula could only move when an ordinary release succeeded end to end,
+and a run of ordinary releases failing at the KIND gate left `brew install` serving a 404 for days with every check
+green, because a skipped job is not a failed one.
 
 What made the exclusion look necessary is real, but it belongs to the tap: **Homebrew's comparator is not semver.** It
-orders `26.8.20-hotfix.4` *above* `26.8.20`, the reverse of the §11.3 ranking [Releasing twice in one
-day](#releasing-twice-in-one-day) relies on. A formula walked from a hotfix to its own base version therefore looks like
-a downgrade, and `brew` reports the keg as current instead of upgrading it. `scripts/bump.sh` in the tap closes that
-with `version_scheme` — Homebrew's own mechanism for a version series that stops sorting forward — comparing each new
-tag to the outgoing one with Homebrew's comparator and incrementing the scheme whenever the new tag does not sort
-strictly above. Every bump is an upgrade, whatever the shape of either tag.
+orders `26.8.20-hotfix.4` *above* `26.8.20`, the reverse of the §11.3 ranking above. A formula walked from a prerelease
+to its own base version therefore looks like a downgrade, and `brew` reports the keg as current instead of upgrading it.
+`scripts/bump.sh` in the tap closes that with `version_scheme` — Homebrew's own mechanism for a version series that
+stops sorting forward — comparing each new tag to the outgoing one with Homebrew's comparator and incrementing the
+scheme whenever the new tag does not sort strictly above. Every bump is an upgrade, whatever the shape of either tag.
 
-A hotfix is still a full release in every way that matters to a deploy: it proves the workspace in KIND, publishes every
-image, and hands the operator the same `ops ship` command.
+A prerelease is still a full release in every way that matters to a deploy: it proves the workspace in KIND, publishes
+every image, and hands the operator the same `ops ship` command.
 
-**The tag must carry its own version and main provenance.** The same first job also fails a tag that does not equal
-`Cargo.toml`'s `[workspace.package].version` — the value every crate inherits through `version.workspace = true` and
-`cli/build.rs` bakes into `navigator --version`. Without this the manifest sat at `0.1.0` while tags marched on, so the
-tagged source misreported its release. The one-line bump is `navigator ops release-version --tag <version>`; `--tag` is
-required, because naming a release is the operator's decision and a derived name is only ever a fact about when the
-command ran. It validates the shape the workflow validates, then commits it. It refreshes `Cargo.lock` in the same
-commit: every workspace crate is pinned there too, and the archive jobs build with `--locked`, which refuses a lock the
-manifest has moved past — a failure that would land after the tag is already pushed. That commit lands through an
-ordinary PR — `main` takes no direct commits — and release creation waits for the merge. The provenance guard then
-refreshes `origin/main` and rejects any tag whose peeled commit is not reachable from it.
+**The bump carries `Cargo.lock` too.** `navigator ops release-version --tag <version>` writes
+`[workspace.package].version` — the value every crate inherits through `version.workspace = true` and `cli/build.rs`
+bakes into `navigator --version` — and refreshes `Cargo.lock` in the same commit. Every workspace crate is pinned there
+as well, and the archive jobs build with `--locked`, which refuses a lock the manifest has moved past. `ci.yml` runs
+`cargo metadata --locked` on every pull request for exactly that reason: it is the last place that failure is free.
 
-**The midnight edge is real.** The date that matters is UTC's, not yours. On `-04:00`, from 20:00 local onward UTC has
-already rolled over, so the only releasable tag is *tomorrow's* local date and pushing the one that matches your wall
-clock fails. The error names the tag to push instead, and because nothing has been built yet, re-tagging costs a minute.
+`--tag` is required, because naming a release is the operator's decision and a derived name is only ever a fact about
+when the command ran. That commit lands through an ordinary PR — `main` takes no direct commits.
 
-**Nothing in the pipeline can move a ref.** `release-version` existed to cut the nightly tag and held `contents: write`
-for exactly that; it now validates the ref it was handed, and the only job still holding `contents: write` is the one
-attaching CLI archives to the tag's GitHub Release. No App identity is involved either: a separate `release-tag.yml`
-once cut the tag as the `navigator-release` App purely to defeat GitHub's recursion guard — a tag created with the
-built-in `GITHUB_TOKEN` does not trigger another workflow's `on: push: tags` — and a tag pushed by a person is subject
-to no such guard.
+**The release preflight is a required check now, not a habit.** On every pull request `ci.yml` runs `ops release-check`,
+`ops notices --check`, and the `--locked` lock check. All three lived only in the `cut-release` preflight script, run on
+the operator's machine, skippable by forgetting; the merge is what publishes now, so the pull request is the last point
+at which any of them is still free to fix.
+
+**One job creates a ref, and it can only create.** `release-tag` holds `contents: write` to create `refs/tags/<version>`
+at the merged commit; `release-windows-cli-publish` holds it to create the GitHub Release against that tag. Neither can
+move one: the `release-tags` ruleset restricts deletion, update, and non-fast-forward with no bypass actor, and the job
+refuses a tag that already exists at a *different* commit rather than forcing it.
+
+**The tag is created inside the same run, and that is a constraint rather than a preference.** A tag created with the
+built-in `GITHUB_TOKEN` does not trigger another workflow's `on: push: tags`, so a job that created the tag and handed
+off to a second workflow could not work — a separate `release-tag.yml` once cut the tag as the `navigator-release` App
+purely to defeat that recursion guard. One workflow, two triggers, no App identity.
 
 ### What each stage does — `deploy.yml`
 
 The release run proves the workspace in KIND and publishes all service and trigger images, plus three `navigator` CLI
-archives attached to the GitHub Release hanging off the pushed tag: `navigator-<tag>-windows.zip`,
+archives attached to the GitHub Release hanging off the tag the run created: `navigator-<tag>-windows.zip`,
 `navigator-<tag>-linux.tar.gz`, and `navigator-<tag>-macos.tar.gz`. Each carries the executable beside `LICENSE`.
 Container images are **linux/amd64 only**; GKE Autopilot consumes amd64. The macOS archive is arm64 — `macos-latest` is
 Apple silicon — so an Intel Mac still builds the immutable release tag locally with Cargo, and the `#navigator` report
@@ -535,20 +566,27 @@ because nobody notices a *missing* Slack line.
 
 ### What detects a broken pipeline
 
-**Nothing on a clock does, and that is the deliberate cost of releasing on a tag.** The nightly train doubled as a daily
-liveness check on the whole release path: images still build, KIND still stands up, `ops ship` still authenticates. A
-defect introduced today is now invisible until someone next tags. And the cron was never a reliable signal even while it
-ran — a silent nightly failure went unnoticed for four consecutive nights — so the honest statement is that this
-pipeline has no automatic breakage detection, not that it has a weaker one.
+**Nothing on a clock does.** The nightly train doubled as a daily liveness check on the whole release path: images still
+build, KIND still stands up, `ops ship` still authenticates. A defect in the publishing stages is invisible until
+someone next bumps the version. And the cron was never a reliable signal even while it ran — a silent nightly failure
+went unnoticed for four consecutive nights — so the honest statement is that this pipeline has no automatic breakage
+detection, not that it has a weaker one.
+
+One part of it did get cheaper. `deploy.yml`'s first job now runs on **every** merge to `main`, so a break in the
+release trigger itself — the manifest read, the tag comparison, the guard binary — surfaces at the next merge rather
+than at the next release. The build, KIND, tag, and publish stages still wait for a real bump.
 
 What remains, and what each does not cover:
 
 - When `SLACK_WEBHOOK_URL` is configured, `notify-failure` pages `#navigator` when a release fails, reading the trigger
-  ref rather than a job output so that a failure anywhere — including the tag validation — still pages. It can only fire
-  on a run that happened; without the optional webhook, the GitHub run conclusion is the signal.
+  ref rather than a job output, so a failure anywhere — including the release decision — still pages. Reading the ref
+  costs nothing in false positives: a merge carrying no bump has nothing to fail, because the decision job succeeds,
+  reports `publishable=false`, and every other job skips. It can only fire on a run that happened; without the optional
+  webhook, the GitHub run conclusion is the signal.
 - `kind-ci/**` proves a release-workflow change on demand: push a `kind-ci/<topic>` branch to run the KIND integration
-  job alone, publishing nothing and shipping nothing. On demand, not on a schedule.
-- `ci.yml` proves the Rust workspace on every PR and says nothing about images, KIND, or shipping.
+  job alone, creating no tag, publishing nothing and shipping nothing. On demand, not on a schedule.
+- `ci.yml` proves the Rust workspace on every PR, plus the three release preflight checks — `ops release-check`,
+  `ops notices --check`, and `cargo metadata --locked`. It still says nothing about images, KIND, or shipping.
 
 Two consequences to plan around rather than discover:
 
@@ -635,9 +673,9 @@ than a delete: `artifact_registry.rs` also hosts the WIF helpers that `marketing
 ### Image retention
 
 Published images are pruned by `.github/workflows/ghcr-retention.yml`, at 01:11 UTC nightly — the slot the release train
-held before publishing moved to a pushed tag. GHCR offers no server-side retention rule, so a workflow is the only place
-this can live. Its credential is the run's own `GITHUB_TOKEN` with `packages: write`: no PAT, nothing to rotate, and no
-cloud provider.
+held before publishing moved off the nightly clock. GHCR offers no server-side retention rule, so a workflow is the only
+place this can live. Its credential is the run's own `GITHUB_TOKEN` with `packages: write`: no PAT, nothing to rotate,
+and no cloud provider.
 
 **A version must clear three independent floors to be deleted, and the count floor is the load-bearing one.** Age alone
 is only safe while releases outrun it. Under the nightly train every running tag was a day old, so the old

@@ -85,7 +85,7 @@ The full alphabetical reference is [`glossary`](glossary.md); notation vocabular
 
 - [`environments`](environments.md) — the map of five GCP projects: one image registry hub and four runtime projects
   containing one staging and three production deployments, plus the three per-brand images. [`gitops`](gitops.md) —
-  branch, PR, release tag, deploy. [`gke-prod`](gke-prod.md) — GKE production architecture.
+  branch, PR, release, and deploy. [`gke-prod`](gke-prod.md) — GKE production architecture.
   [`oss-install`](oss-install.md) — installing Neon Law Navigator on your own cloud. [`dns`](dns.md) — DNS for a public
   deploy: reachability, apex redirect, and Google Workspace and SendGrid mail. [`marketing-sites`](marketing-sites.md) —
   the two brand marketing sites, published as static files to `neon-law-marketing` and deployed keyless from their own

@@ -130,12 +130,14 @@ PR merged to main
   └─→ .github/workflows/ci.yml runs fmt + clippy + cargo test --workspace
       (no images built — the PR flow is lean by design)
 
-A person bumps the version, lands it, and pushes an immutable release tag
+A person bumps the version and lands it — the merge is the publish
   └─→ navigator ops release-version --tag <version>   (Cargo.toml + Cargo.lock, commits)
-  └─→ PR, wait for merge, then tag the merged main commit and push
+  └─→ PR, merge. Nothing else is required: no tag is pushed by hand
   └─→ .github/workflows/deploy.yml runs, holding no cloud credential
-                  ├─ validate shape/date/manifest and reachability from origin/main
+                  ├─ ops release-check: is this version newer than every release tag?
+                  │    (equal → the run ends here, which is almost every merge)
                   ├─ KIND integration suite (e2e + interop + browser)
+                  ├─ create the immutable YY.M.D tag at the merged commit
                   ├─ build + push service images to GHCR tagged YY.M.D + latest
                   ├─ attach three CLI archives to the tag's GitHub Release
                   ├─ dispatch the tag to the homebrew-navigator tap, which
@@ -185,11 +187,14 @@ than 30 days **and** outside its image's newest 10 **and** not the one carrying 
 deferred roll cannot age a running tag off the shelf — the ten most recent versions of every image stay pullable however
 long the gap between releases. See [GitOps](gitops.md#image-retention).
 
-A release version is `YY.M.D` or the semver-compatible `YY.M.D-hotfix.N`; registry consumption also retains legacy
-`YY.M.D.H`. `deploy.yml` verifies the UTC date and manifest equality, fetches `origin/main`, and refuses a tag whose
-peeled commit is not reachable from it. A PR branch is never a release source: wait for its merge, then tag the merged
-commit. See [GitOps](gitops.md#one-workflow-owns-publishing----deployyml). Rolling a published version onto the cluster
-is always `ops ship`, above, run by a person. To exercise the pipeline without publishing, push a `kind-ci/**` branch.
+A release version is whatever `semver` parses, and `YY.M.D` — optionally with a prerelease such as `-hotfix.N` — is the
+convention. The one rule `deploy.yml` enforces is ORDERING: `ops release-check` refuses a version that is not newer than
+every release tag already published. Nothing checks the calendar, because a bump is authored days before it merges; and
+nothing checks provenance, because a push to `main` is the only thing that publishes. The legacy four-component
+`YY.M.D.H` form is retired: Cargo cannot parse it as a version, so no release has been able to carry it since the tag
+started coming from `[workspace.package].version`. See [GitOps](gitops.md#one-workflow-owns-publishing----deployyml).
+Rolling a published version onto the cluster is always `ops ship`, above, run by a person. To exercise the pipeline
+without publishing, push a `kind-ci/**` branch.
 
 ## Manifest delivery
 

@@ -1,57 +1,31 @@
 #!/usr/bin/env bash
-# Every release check that can fail on this machine, run before a ref exists.
+# Every release check that can fail on this machine, run before the bump is
+# pushed.
 #
-# Takes the version the operator chose; it derives nothing and has no default.
+#   preflight.sh [remote]
 #
-#   preflight.sh <version> [remote]
+# IT TAKES NO VERSION, and that is the change. The version is whatever
+# `[workspace.package].version` says: `ops release-version` wrote it, this script
+# checks it, `ci.yml` checks it again on the pull request, and `deploy.yml` reads
+# it on merge. One value, read in four places, named in one.
 #
-# Read-only and safely repeatable: it fetches, inspects, and runs the gate. It
-# writes nothing, so a failed run costs a rerun rather than a spent name.
+# Read-only and safely repeatable. It writes nothing, so a failed run costs a
+# rerun.
 #
-# Each check maps to a way the pipeline refuses a tag, and each is free here.
-# The tag is immutable and the name is spent the moment it is pushed, so
-# discovering any of these afterwards costs the day.
+# WHAT IT NO LONGER DOES, because the pipeline stopped asking:
+#
+#   - validate a `YY.M.D` shape or its date. The shape is semver's, checked by
+#     `ops release-check`; the calendar is a convention with no enforcement.
+#   - prove the name is unspent on the remote. `ops release-check` compares the
+#     version against every release tag, which is the same question asked better.
+#   - prove HEAD is reachable from `origin/main`. A merge to `main` is what
+#     publishes, so the release source cannot be anything else.
 set -euo pipefail
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-tag="${1:-}"
-remote="${2:-origin}"
-
-if [ -z "${tag}" ]; then
-    echo "usage: preflight.sh <version> [remote]" >&2
-    echo "       The version is yours to choose — e.g. 26.8.20 or 26.8.21-hotfix.3." >&2
-    exit 2
-fi
-
-echo "==> the version must be one deploy.yml will accept"
-"${here}/validate-release-tag.sh" "${tag}"
+remote="${1:-origin}"
 
 echo "==> fetching ${remote}"
 git fetch "${remote}" --tags --prune
-
-echo "==> ${tag} must not already be taken"
-# The remote is the only authoritative place a spent name lives; a local tag can
-# be stale in either direction. `^{}` peel lines are dereferenced annotated
-# tags, so both spellings of an existing tag are caught.
-if git ls-remote --tags "${remote}" \
-        | sed -e 's|.*refs/tags/||' -e 's|\^{}$||' \
-        | grep -qxF "${tag}"; then
-    echo "FAIL: ${tag} already exists on ${remote}." >&2
-    echo "      The release-tags ruleset admits no bypass actor, so that name is" >&2
-    echo "      spent for good. Choose the next one — a same-day second release is" >&2
-    echo "      a <tomorrow's UTC date>-hotfix.N prerelease." >&2
-    exit 1
-fi
-echo "    ok"
-
-echo "==> the release target must be reachable from ${remote}/main"
-head="$(git rev-parse HEAD)"
-if ! git merge-base --is-ancestor "${head}" "${remote}/main"; then
-    echo "FAIL: HEAD (${head:0:12}) is not reachable from ${remote}/main." >&2
-    echo "      A PR branch is never a release source; wait for the PR to merge." >&2
-    exit 1
-fi
-echo "    ok — ${head:0:12} is on ${remote}/main"
 
 echo "==> the working tree must be clean"
 if [ -n "$(git status --porcelain)" ]; then
@@ -61,38 +35,38 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 echo "    ok"
 
-echo "==> the manifest must equal ${tag}"
-version="$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
-if [ "${version}" != "${tag}" ]; then
-    echo "FAIL: [workspace.package].version is ${version}, the tag would be ${tag}." >&2
-    echo "      Run: cargo run -p cli -- ops release-version --tag ${tag}" >&2
-    echo "      cli/build.rs bakes this value into \`navigator --version\`, so a" >&2
-    echo "      mismatch ships a binary naming a release its source never heard of." >&2
-    exit 1
-fi
-echo "    ok — ${version}"
-
-echo "==> Cargo.lock must agree with the manifest"
-# deploy.yml builds the release with --locked in four places: the provenance step
-# and all three CLI archive jobs. --locked refuses a lock the manifest has moved
-# past, so a bump that wrote only Cargo.toml fails AFTER the tag is pushed — and
-# the release-tags ruleset admits no bypass actor, so the name is spent. Reading
-# the manifest alone cannot see this; --locked is what the pipeline actually runs.
-if ! cargo metadata --locked --format-version 1 >/dev/null 2>&1; then
-    echo "FAIL: Cargo.lock does not match Cargo.toml." >&2
-    echo "      The archive jobs build with --locked and would refuse this lock," >&2
-    echo "      after the tag is pushed — and a release tag cannot be moved." >&2
-    echo "      Run: cargo run -p cli -- ops release-version --tag ${tag}" >&2
-    exit 1
-fi
-echo "    ok"
+# The release decision itself, run locally exactly as `ci.yml` and `deploy.yml`
+# run it. Three outcomes: this version is a release, it is already released
+# (nothing to publish — you have not bumped yet), or it is BEHIND one already
+# published, which fails.
+echo "==> is the workspace version a release?"
+cargo run -p cli --quiet -- ops release-check --no-fetch
 
 echo "==> notices must travel with the distributed binary"
 cargo run -p cli --quiet -- ops notices --check
+
+# `deploy.yml` builds the release with `--locked` in four places, and `--locked`
+# refuses a lock the manifest has moved past. `ops release-version` refreshes
+# both files together; this proves it happened.
+echo "==> Cargo.lock must agree with the manifest"
+if ! cargo metadata --locked --format-version 1 >/dev/null 2>&1; then
+    echo "FAIL: Cargo.lock does not match Cargo.toml." >&2
+    echo "      Re-run: cargo run -p cli -- ops release-version --tag <version>" >&2
+    exit 1
+fi
+echo "    ok"
 
 echo "==> the workspace gate"
 cargo nextest run --workspace
 cargo test -p features
 
 echo
-echo "preflight passed. The cut is: ${tag}"
+echo "preflight passed."
+echo
+echo "THE BROWSER SUITE IS NOT IN THIS GATE, and nothing else runs it before the"
+echo "release does. \`ci\` proves the Rust workspace and says nothing about the"
+echo "browser and accessibility suites — they self-skip with no harness, so the"
+echo "only thing that runs them is deploy.yml's integration job, on the merge"
+echo "that publishes. Prove it here instead:"
+echo
+echo "    cargo run -p cli -- dev browser-e2e"
