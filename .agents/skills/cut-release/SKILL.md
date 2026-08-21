@@ -65,9 +65,14 @@ with `--locked`. `--no-commit` writes both files and leaves the commit to you.
 Read-only and safely repeatable, and it takes no version: it reads the one you just wrote. It runs the release decision
 exactly as CI will, checks the notices and the lock, and runs the workspace gate.
 
-**`ci.yml` runs the first three of those on the pull request**, so this script is about not wasting a CI cycle rather
-than about being the only line of defence. That is the change worth knowing: the release preflight used to live only
-here, on your machine, skippable by forgetting.
+**`ci.yml` runs the release decision and the lock check on the pull request**, so for those two this script is about not
+wasting a CI cycle rather than being the only line of defence. That is the change worth knowing: the release preflight
+used to live only here, skippable by forgetting.
+
+**The notices check is still only here**, and it is not reproducible across machines: it reads licence texts out of your
+unpacked `$CARGO_HOME/registry/src`, and a crate whose source you have never fetched is recorded exactly like one that
+ships no licence file. Run it, but do not read a green result as proof the file is right for the Linux and Windows
+archives.
 
 **The browser suite is the exception, and it matters.** A green `ci` proves the Rust workspace and says nothing about
 the browser and accessibility suites — they self-skip when no harness is present, so the only thing that runs them is
@@ -80,8 +85,7 @@ cargo run -p cli -- dev browser-e2e
 ## 3. Land it through a PR
 
 `main` is squash-merge-only and takes no direct commits, so the bump lands as an ordinary PR. Its `ci` check is the last
-place the release preflight is still free to fix, and it runs all of it: `ops release-check`, `ops notices --check`, and
-the `--locked` lock check.
+place the release preflight is still free to fix: it runs `ops release-check` and the `--locked` lock check.
 
 **Merging is the publish.** Nothing else is required of you.
 

@@ -411,22 +411,25 @@ jobs:
         run: "${CARGO_TARGET_DIR:-target}/debug/navigator validate ."
       # ---- The release preflight, run on every pull request ----------------
       #
-      # THESE THREE CHECKS USED TO LIVE ONLY IN A SCRIPT SOMEONE REMEMBERED TO
-      # RUN. `cut-release`'s preflight asked all of them on the operator's
-      # machine, before a tag was pushed; nothing in CI did. Now that a merge to
-      # `main` is what publishes, the pull request is the last place any of them
-      # is still free to fix — so they are required checks rather than a habit.
+      # THESE CHECKS USED TO LIVE ONLY IN A SCRIPT SOMEONE REMEMBERED TO RUN.
+      # `cut-release`'s preflight asked them on the operator's machine, before a
+      # tag was pushed; nothing in CI did. Now that a merge to `main` is what
+      # publishes, the pull request is the last place either is still free to
+      # fix — so they are required checks rather than a habit.
       #
-      # All three are cheap and none of them is release-specific: they pass on
-      # every ordinary PR and only have anything to say when a bump is involved.
+      # Both are cheap and neither is release-specific: they pass on every
+      # ordinary PR and only have anything to say when a bump is involved.
+      #
+      # `ops notices --check` is NOT here, and cannot be until it is made
+      # reproducible. It reads licence texts out of the runner's unpacked
+      # `$CARGO_HOME/registry/src`, and `notices_for` cannot tell a crate whose
+      # source is absent from one that ships no licence file — both become
+      # "gaps". `Cargo.lock` is deliberately over-inclusive across target
+      # platforms, so a macOS machine and a Linux runner each read the other's
+      # platform-only crates as gaps and can never agree on the file. It stays in
+      # the operator's preflight, where it has always been.
       - name: is the workspace version a releasable one
         run: "${CARGO_TARGET_DIR:-target}/debug/navigator ops release-check"
-      # Every permissive licence in the tree requires its notice to travel with
-      # the distributed binary, and the CLI archives a release publishes carry
-      # this file. A stale notice is only discoverable here: nothing downstream
-      # regenerates it.
-      - name: are the third-party notices current
-        run: "${CARGO_TARGET_DIR:-target}/debug/navigator ops notices --check"
       # `Cargo.lock` pins every workspace crate's version too, and the release
       # builds with `--locked` in four places. A bump that carried only
       # `Cargo.toml` would fail those builds AFTER the release tag exists, which
