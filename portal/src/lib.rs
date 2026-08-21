@@ -152,7 +152,7 @@ pub mod welcome;
 pub mod workshops;
 
 pub use oauth::{AuthState as OAuthState, OAuthConfig};
-pub use session::{SessionData, SessionStore};
+pub use session::{SessionData, SessionSource, SessionStore};
 
 pub use canonical_host::CanonicalHost;
 pub use portal_only::PortalOnly;

@@ -25,7 +25,13 @@ web  →  portal::a2a::dispatch_single  →  mcp::tools::call_tool
         lawyer-tier check + target: "audit" events
 ```
 
-Two decisions inside that are worth stating, because both are load-bearing.
+The credential is a first-party one. `inject_bearer_session` resolves the signed `SessionData` blob on this route,
+`require_google_oauth` lets an already-resolved first-party session past its tokeninfo check rather than rejecting it
+for not being a Google token, and `inject_principal` reads the principal off the session's `email`. All three are
+needed: without them the CLI's credential reaches the endpoint and is redirected to a login page a JSON-RPC client
+cannot follow. None of it widens who may call — the same Rego lawyer-gate still decides, from the role on that session.
+
+Two more decisions are worth stating, because both are load-bearing.
 
 **It dials A2A, not `/mcp`, even though it speaks MCP to Claude.** A2A is where the supervision lives: the lawyer-tier
 check, and the `target: "audit"` record of every decision. Sending to `/mcp` would be one fewer hop and would skip all

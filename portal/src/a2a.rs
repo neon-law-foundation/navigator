@@ -1830,7 +1830,7 @@ pub fn build_routers(
             crate::mcp_principal::inject_principal,
         ))
         .route_layer(axum::middleware::from_fn_with_state(
-            (sessions, policy_client),
+            (sessions.clone(), policy_client),
             crate::policy::require_policy,
         ))
         .route_layer(axum::middleware::from_fn_with_state(
@@ -1840,6 +1840,25 @@ pub fn build_routers(
         .route_layer(axum::middleware::from_fn_with_state(
             google_oauth.with_db(surreal),
             crate::google_oauth::require_google_oauth,
+        ))
+        // Outermost of the auth chain, so it runs FIRST and every layer
+        // below sees a resolved session: the `navigator` CLI's own bearer.
+        //
+        // Without this the CLI cannot reach A2A at all. Its credential is
+        // the HMAC-signed `SessionData` blob `cli_auth` mints — not a JWT
+        // and not a Google access token — so `require_auth` found nothing
+        // to validate, the policy layer evaluated an anonymous session
+        // against a rule requiring `is_lawyer`, and the request was
+        // redirected to a login page a JSON-RPC client cannot follow.
+        //
+        // Resolving it here is not a widening: `SessionStore::decode`
+        // accepts only a blob this deployment signed, carrying the role
+        // and expiry it minted at an authenticated OIDC login. It is the
+        // same mechanism every other `navigator site` command already
+        // relies on through `session_boundary`.
+        .route_layer(axum::middleware::from_fn_with_state(
+            sessions,
+            crate::auth::inject_bearer_session,
         ));
     (card, rpc)
 }
