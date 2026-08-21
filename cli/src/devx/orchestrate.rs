@@ -656,12 +656,41 @@ fn kind_load_image_into_cluster(tag: &str, cfg: &KindConfig) -> Result<()> {
             .arg(&cfg.cluster));
     }
     eprintln!("==> kind load image-archive ({tag} → {})", cfg.cluster);
-    run(Command::new("kind")
+    let loaded = run(Command::new("kind")
         .arg("load")
         .arg("image-archive")
         .arg(archive.path())
         .arg("--name")
-        .arg(&cfg.cluster))
+        .arg(&cfg.cluster));
+    if let Err(err) = loaded {
+        // `image-archive` is preferred (it is what makes the platform flatten
+        // above worth doing), but it is not universally accepted: on Docker
+        // 29.7.2 + containerd image store, `ctr images import` rejects the
+        // archive `docker save --platform` produces with `unrecognized image
+        // format`, even though the archive is well-formed — one manifest, one
+        // platform, `manifest.json` present.
+        //
+        // `docker load`-ing the same image through `kind load docker-image`
+        // succeeds against the identical daemon and cluster, so the fallback is
+        // not a lesser path here — it is the one that works. Measured: the
+        // archive load fails and the docker-image load then lands the image in
+        // the node's containerd (`crictl images` shows it) in the same run.
+        //
+        // Kept as a fallback rather than a replacement so the flattened-archive
+        // path stays primary where it works, and so this stops being reached
+        // the moment the upstream mismatch is fixed.
+        eprintln!(
+            "==> `kind load image-archive` failed ({err:#}); \
+             falling back to `kind load docker-image`"
+        );
+        return run(Command::new("kind")
+            .arg("load")
+            .arg("docker-image")
+            .arg(tag)
+            .arg("--name")
+            .arg(&cfg.cluster));
+    }
+    Ok(())
 }
 
 /// Architecture the Docker daemon runs as (`arm64` / `amd64`), used to build
