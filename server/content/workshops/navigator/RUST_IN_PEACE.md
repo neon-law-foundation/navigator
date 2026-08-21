@@ -130,6 +130,8 @@ Also perhaps other communities like JavaScript and Python are too big and subseq
 
 Rust works on all three.
 
+![Ferris works across Apple, Windows, and Linux](img/rust-in-peace/ferris-apple-windows-linux.png)
+
 ---
 
 You can download our `navigator` CLI on each cloud.
@@ -137,6 +139,8 @@ You can download our `navigator` CLI on each cloud.
 ### Non-profit governance
 
 The Rust Foundation > Private Company
+
+![Ferris shares governance with an equal business community](img/rust-in-peace/ferris-shared-governance.png)
 
 ---
 
@@ -211,11 +215,11 @@ Contracts, pleadings, forms.
 
 ---
 
-The more signed and filed documents we create, the better our business.
+The more signed PDFs we acquire the better our business.
 
 ### DevX: Monorepo
 
-Check out github.com/neon-law-foundation/navigator
+github.com/neon-law-foundation/navigator
 
 ---
 
@@ -233,6 +237,8 @@ Keeping terms aligned ensures that we're reviewing work together.
 
 Unit & Integration. High code coverage.
 
+![Eight continuous integration checks passed](img/rust-in-peace/tests-checks-passed.png)
+
 ---
 
 If we're vibing, vibe high and as much as possible.
@@ -242,6 +248,8 @@ If we're vibing, vibe high and as much as possible.
 Compare a long string that can't fit in memory? 6 unique spots.
 
 Here, 6 unique explanations. Tests, code, prs, commits, diagrams, workshops, etc.
+
+![Three Ferris crabs point at one another](img/rust-in-peace/ferris-three-way-pointing.png)
 
 ---
 
@@ -271,6 +279,8 @@ Flex Rust's skills to work everywhere.
 
 Web. CLI. MCP.
 
+![Ferris uses a website, CLI, and MCP tools](img/rust-in-peace/ferris-web-cli-mcp.png)
+
 ---
 
 Everyone uses software in different ways.
@@ -297,6 +307,8 @@ The `gcloud` CLI and IAM much easier to reason about.
 
 Kubernetes is awesome, even if maintaining isn't.
 
+![Ferris relaxes while a Kubernetes cloudship runs on autopilot](img/rust-in-peace/ferris-gke-autopilot.png)
+
 ---
 
 Benefits of using the same manifests and tech like sidecars don't need to learn something new.
@@ -315,9 +327,16 @@ We create documents, not rebuild the above.
 
 Each proudly Rust and based abroad.
 
+![Ferris presents the SurrealDB and Restate logos](img/rust-in-peace/ferris-surrealdb-restate.png)
+
 ---
 
 Each uses the Business Source license, an excellent choice for tech companies.
+
+[Sources]
+
+- <https://surrealdb.com/brand>
+- <https://restate.dev/logo.svg>
 
 ### Cloud: Iceberg backups
 
@@ -335,13 +354,15 @@ Never lose data.
 
 Our north star is Access to Justice
 
+![Ferris helps every person be seen and heard](img/rust-in-peace/ferris-access-to-justice.png)
+
 ---
 
 And all of our actions should be consistent with working towards access to justice sustainably.
 
 ### Lifecycle of a project
 
-Intake. Feedback. Documents.
+![Three recycling arrows labeled Intake, Feedback, and Documents](img/rust-in-peace/project-lifecycle.png)
 
 ---
 
@@ -366,19 +387,87 @@ Custom web apps, client MCPs, phone & video.
 
 The more our clients are engaged with the process, the happier they are with our services.
 
+### Vibing for clients
+
+<https://staging.neonlaw.com>
+
+![Groovy card: asterisk everyone loves vibing; nearly](img/rust-in-peace/everyone-loves-vibing.png)
+
+---
+
+Everyone knows is vibing is cool, let's do more of it.
+
 ### Create documents
+
+![Ferris signs a document with a quill and the Rust logo](img/rust-in-peace/ferris-signs-rust-document.png)
+
+---
 
 We'll cover in our `Notations` section. High-level PDFs we sign.
 
 Nearly everything else is ephemeral toward that pursuit.
 
----
-
 Retention time is for everything that's not our final output. Very rarely is our final output not some sort of PDF.
 
 ## Notations: Markdown => PDF with workflows
 
-### Clippy for markdown
+### Frontmatter
+
+```yaml
+title: Retainer Agreement
+code: onboarding__retainer
+respondent_type: person_and_entity
+jurisdiction: NV
+confidential: true
+
+questionnaire:
+  BEGIN: { _: person__client }
+  person__client: { _: project__engagement }
+  project__engagement: { _: END }
+  END: {}
+
+workflow:
+  BEGIN: { intake_submitted: intake_persisted__client }
+  intake_persisted__client: { retainer_rendered: lawyer_review }
+  lawyer_review:
+    approved: generate_pdf__retainer_pdf
+    changes_requested: reask__client
+    rejected: END
+  generate_pdf__retainer_pdf:
+    pdf_persisted: sent_for_signature__pending
+  sent_for_signature__pending:
+    signature_received: END
+  END: {}
+```
+
+---
+
+Imbue markdown with a ton of rules. Incremental progress.
+
+### Markdown
+
+```md
+{{custom_datetime__engagement_start_date}}
+
+{{person__client.name}}
+
+Re: Retainer Agreement — {{project__engagement.name}}
+
+Dear {{person__client.name}}:
+
+This Retainer Agreement (the "Agreement") is entered into between the Firm and
+{{person__client.name}} (the "Client"), reachable at
+{{person__client.email}}, for legal services on the matter referred to as
+{{project__engagement.name}}.
+
+...
+```
+
+---
+
+Imbue markdown with a ton of rules. Incremental progress.
+
+### A Clippy for law
 
 ```bash
 navigator validate --help
@@ -399,12 +488,32 @@ Options:
 
 Imbue markdown with a ton of rules. Incremental progress.
 
+### Render the retainer
+
+```bash
+navigator template render \
+  templates/neon_law/shared/retainer.md \
+  --out /tmp/retainer.pdf
+```
+
+![First page of the rendered Retainer Agreement PDF](img/rust-in-peace/retainer-agreement-preview.png)
+
+---
+
+Markdown in, PDF out.
+
 ## Thanks
 
 ### Rust in peace
 
 I still vibe in the background, but the foreground is being your lawyer.
 
+![Ferris rests at Green-Wood Cemetery surrounded by friends](img/rust-in-peace/ferris-green-wood-farewell.png)
+
 ---
 
 Imbue markdown with a ton of rules.
+
+Rust in peace, Ferris
+
+Surrounded by friends at Green-Wood Cemetery.

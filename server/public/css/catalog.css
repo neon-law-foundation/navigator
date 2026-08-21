@@ -999,6 +999,37 @@
   object-fit: contain;
 }
 
+/* A render-demo slide pairs the command with its document output. Put the two
+   side by side so a portrait PDF page can use the full canvas height instead
+   of shrinking into the short row left beneath a wide code block. */
+.workshop-slide > .material-body:has(pre + p > img) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.58fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  column-gap: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.workshop-slide > .material-body:has(pre + p > img) > h3 {
+  grid-column: 1 / -1;
+}
+
+.workshop-slide > .material-body:has(pre + p > img) > pre {
+  align-self: center;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.workshop-slide > .material-body:has(pre + p > img) > p:has(> img) {
+  grid-column: 2;
+  grid-row: 2;
+  align-items: stretch;
+  margin-block: 0;
+}
+
+.workshop-slide > .material-body:has(pre + p > img) > p > img {
+  height: 100%;
+}
+
 /* The regular workshop page also includes navigation and presenter controls,
    so its 16:9 slide can extend below a short browser viewport. Keep media in
    the visible portion of that page, with breathing room above and below. The
