@@ -285,44 +285,38 @@ jobs:
       # publish jobs now cache into Artifact Registry instead, which leaves the
       # quota to this.
       #
-      # This step is now READ-ONLY, and that is the fix for a cache that had
-      # stopped working entirely. Every run logged
+      # This step both restores AND saves. The gate owns its cache end to end,
+      # so there is no second workflow writing the entry it reads and no pair of
+      # files that have to agree.
       #
-      #     No cache found.
+      # The cost, stated plainly rather than discovered later: Actions caches are
+      # scoped per ref, so an entry written by one pull request is readable only
+      # by that pull request. The FIRST push of a new branch is therefore always
+      # cold — ~6 min of test build plus the dependency share of clippy and the
+      # CLI build — and only its later pushes restore. A `main`-scoped entry
+      # written after each merge is the one shape that can warm a first push,
+      # and this repository deliberately no longer keeps one.
       #
-      # then uploaded a 2.07 GB archive in its post step that nothing ever read
-      # — checked on five runs including four consecutive pushes of one branch
-      # (32397621468, 32399733980, 32403859790, 32407113109), all misses. So
-      # every gate run compiled the whole third-party graph from zero: ~6 min of
-      # test build plus the dependency share of clippy and the CLI build.
-      #
-      # Two causes, and a PR-scoped write cannot beat either. Actions caches are
-      # scoped per ref — a cache written by one PR is readable only by that PR,
-      # and only a default-branch cache is readable by all of them — and the
-      # repository quota is 10 GB, against which ~25 gate runs a day writing
-      # 2 GB each evict an entry long before the same PR pushes again.
-      #
-      # So `warm-cache.yml` writes exactly one `main`-scoped entry per merge and
-      # this job only restores it. That is one write a merge instead of 25 a
-      # day, and it makes the FIRST push of every new PR warm, which is the case
-      # a PR-scoped cache could never serve.
+      # What it buys is a quota nothing has to share. ~1.6 GB per active branch
+      # against 10 GB for the whole repository is roughly six live branches
+      # before eviction begins, which is exactly why the `deploy.yml` rule below
+      # still matters: one unread `mode=max` export is enough to starve all of
+      # them.
       #
       # It authenticates the way the first-party action does — the
       # runner-injected `ACTIONS_RUNTIME_TOKEN` — so nothing here reaches
       # api.github.com. The key it derives already covers the rustc version, the
       # lock file, and `CARGO_TARGET_DIR`, so it follows the build directory
       # wherever the step above put it.
-      - name: restore the Rust dependency cache
+      - name: cache the Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           # `shared-key`, NOT `key`. `key` is added to an automatic per-job key
-          # (`add-job-id-key` defaults to true), so an entry written by any
-          # other job is unreadable here — including `warm-cache.yml`'s, the
-          # only job that writes one now. `shared-key` replaces the automatic
-          # part, so both halves address the same entry. Change it in both
-          # files or in neither.
+          # (`add-job-id-key` defaults to true), which would scope the entry to
+          # this job id and make it unreadable the moment the job is renamed.
+          # `shared-key` replaces that automatic part, so the entry this job
+          # writes is the entry it reads on the next push of the same branch.
           shared-key: workspace
-          save-if: false
       # SurrealDB for the server-mode lane (#1093). Unit tests use the
       # embedded `kv-mem` engine and need nothing running; this container
       # exists for `store/tests/surreal_server.rs`, which covers what an
