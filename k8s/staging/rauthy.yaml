@@ -6,8 +6,8 @@
 # - Secret `rauthy-secrets` with Hiqlite/encryption keys, the Rauthy bootstrap administrator,
 #   PUB_URL, RP_ORIGIN, and OAUTH_ISSUER_URL;
 # - Secret `rauthy-client` with the navigator-web OAUTH_CLIENT_SECRET; and
-# - ConfigMap `rauthy-bootstrap` with config.toml, users.json, clients.json, and
-#   api_keys.json. Every one of those keys is named in a volume `items:` list
+# - ConfigMap `rauthy-bootstrap` with config.toml, users.json, and clients.json.
+#   Every one of those keys is named in a volume `items:` list
 #   below, and a key named there but absent from the ConfigMap does not degrade
 #   gracefully: the kubelet reports `configmap references non-existent config
 #   key` and the pod stays in ContainerCreating indefinitely. Adding a key here
@@ -116,8 +116,6 @@ spec:
                 path: users.json
               - key: clients.json
                 path: clients.json
-              - key: api_keys.json
-                path: api_keys.json
         # Ephemeral on purpose, and that has a consequence worth stating: every
         # pod restart is a fresh Hiqlite database, so first-boot bootstrap runs
         # again on every start. Anything declared in `rauthy-bootstrap` (users,
