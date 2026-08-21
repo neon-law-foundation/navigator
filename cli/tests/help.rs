@@ -486,13 +486,17 @@ fn ops_help_lists_operator_members() {
             // distribution pipelines and the release-packaging steps that
             // regenerate the licence notices and stamp the release version into
             // the manifest.
-            // `release-version` bumps `[workspace.package].version` to the
-            // `YY.M.D` a release tags, so the tagged source names its own
-            // version and `deploy.yml` can reject a tag that disagrees.
+            //
+            // `release-version` writes `[workspace.package].version`, which is
+            // the act that cuts a release; `release-check` is what decides
+            // whether a given commit's version IS one, and `deploy.yml` runs it
+            // on every push to `main`. Together they replaced the pushed tag:
+            // `release-provenance` proved a tag came from `main`, which a push to
+            // `main` now asserts by construction.
             "lsp",
             "assets",
             "release-version",
-            "release-provenance",
+            "release-check",
             "notices",
             "help",
         ]

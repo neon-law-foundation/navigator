@@ -45,40 +45,27 @@ fn deploy_workflow_has_no_pull_request_trigger() {
     );
 }
 
-/// A PUSHED TAG IS THE ONLY WAY TO PUBLISH, and that is what makes an image's
-/// version trustworthy.
-///
-/// The clock and the dispatch both derived a version from `date`, so the name an
-/// image carried stood behind no Git ref: `Cargo.toml` sat at one version while
-/// published images marched on under another, and a plain build of the source a
-/// release was cut from misreported itself. Deriving is what allowed the drift —
-/// a tag cannot drift from itself, because `release-version` refuses a tag that
-/// does not equal `[workspace.package].version`.
-///
-/// Both retired triggers are asserted absent rather than merely unused. A
-/// surviving `workflow_dispatch` would publish whatever `date` returned, under a
-/// version no tag and no manifest agrees with, and would go green doing it.
-#[test]
-fn deploy_workflow_publishes_only_from_a_pushed_tag() {
-    assert!(
-        !has_trigger("schedule"),
-        "deploy.yml must not publish on a clock: a cron carries no tag, so it can only derive a \
-         version, which is exactly the drift the tag-equals-manifest check exists to stop"
-    );
-    assert!(
-        !has_trigger("workflow_dispatch"),
-        "deploy.yml must not publish on demand: a dispatch runs from a branch and would publish a \
-         derived version no Git tag stands behind. Push the tag instead"
-    );
-    assert!(
-        has_trigger("push"),
-        "deploy.yml publishes from a pushed tag, so it must keep its `push` trigger"
-    );
+/// One job's `needs`, normalised — the key is written as a scalar, a flow list,
+/// and a block list across this file's jobs.
+fn job_needs(workflow: &serde_yaml::Value, job: &str) -> Vec<String> {
+    match &workflow["jobs"][job]["needs"] {
+        serde_yaml::Value::String(need) => vec![need.clone()],
+        serde_yaml::Value::Sequence(needs) => needs
+            .iter()
+            .map(|need| {
+                need.as_str()
+                    .unwrap_or_else(|| panic!("{job} has a non-string need"))
+                    .to_string()
+            })
+            .collect(),
+        serde_yaml::Value::Null => panic!("{job} declares no needs"),
+        other => panic!("{job} needs must be a string or list, got {other:?}"),
+    }
 }
 
-/// THE WORKFLOW DEPLOYS NOTHING. It ends at the registry: every rollout is
-/// `navigator ops ship`, run by a person against their own short-lived
-/// credentials.
+/// THE WORKFLOW DEPLOYS NOTHING, AND HOLDS NO CLOUD CREDENTIAL. It ends at the
+/// registry: every rollout is `navigator ops ship`, run by a person against
+/// their own short-lived credentials.
 ///
 /// This is a security boundary, not a preference. A pipeline that can roll a
 /// cluster is a pipeline whose compromise rolls that cluster, and a ship job
@@ -140,170 +127,20 @@ fn deploy_workflow_references_no_workflow_inputs() {
     );
 }
 
-/// The tag filter and the `release-tags` ruleset must admit the same shape.
-///
-/// `cli/src/devx/github_setup.rs` protects `refs/tags/[0-9]*.[0-9]*.[0-9]*`
-/// against deletion and update. A filter here that admitted more than that —
-/// `v*`, or a bare `*` — would let an unprotected, movable tag start a publish,
-/// and a moved tag makes every artifact already carrying that version a lie.
-#[test]
-fn deploy_workflow_publishes_from_a_dated_tag() {
-    let triggers = deploy_triggers();
-    let push = triggers
-        .get(serde_yaml::Value::String("push".into()))
-        .expect("deploy.yml must keep its push trigger");
-
-    let tags: Vec<String> = serde_yaml::from_value(push["tags"].clone())
-        .expect("the push trigger must carry a `tags` filter — a tag is the publish path");
-    assert!(
-        tags.iter().any(|glob| glob == "[0-9]*.[0-9]*.[0-9]*"),
-        "deploy.yml must publish only from a dated tag matching the `release-tags` ruleset glob \
-         `[0-9]*.[0-9]*.[0-9]*`, so every publishing ref is one GitHub refuses to move. Got: \
-         {tags:?}"
-    );
-
-    // The pre-publish iteration seam: the only way to prove a change to this
-    // workflow without spending a day's tag to find out.
-    let branches: Vec<String> = serde_yaml::from_value(push["branches"].clone())
-        .expect("the push trigger must keep its `kind-ci/**` branch filter");
-    assert!(
-        branches.iter().any(|glob| glob == "kind-ci/**"),
-        "deploy.yml must keep the `kind-ci/**` integration-only trigger: it is the one way to \
-         prove a workflow change without spending a tag. Got: {branches:?}"
-    );
-}
-
-/// The tag is CHECKED against the UTC clock, not derived from it.
-///
-/// The zone is a decision, and the wrong one rejects a whole day's releases for
-/// part of the year. UTC is the zone `YY.M.D` has always been derived in, it has
-/// no DST discontinuity, and `cli/src/release_version.rs` writes the manifest
-/// version in that same zone — so a local-zone check here would reject the tag
-/// the CLI just told the operator to push.
-#[test]
-fn the_release_tag_must_be_todays_utc_date() {
-    let workflow = deploy_workflow();
-
-    assert!(
-        workflow.contains("TZ=UTC date +'%y %m %d'"),
-        "deploy.yml must compare the pushed tag against the UTC clock"
-    );
-    assert!(
-        !workflow.contains("TZ=America"),
-        "the release date is UTC: it is the zone `YY.M.D` has always been derived in, it has no \
-         DST discontinuity, and `ops release-version` writes the manifest in it"
-    );
-}
-
-/// A SAME-DAY HOTFIX HAS A SPELLING, and it hangs off TOMORROW's date.
-///
-/// `YY.M.D` admits one ordinary release per UTC day and the `release-tags`
-/// ruleset will not let anyone move the tag, so the day's release name is spent
-/// the moment it is pushed. A semver prerelease is the escape hatch — Cargo
-/// parses `26.8.18-hotfix.17` where it rejects a fourth component outright.
-///
-/// THE BASE IS THE NEXT DAY BECAUSE SEMVER RANKS A PRERELEASE BELOW ITS OWN
-/// BASE (spec §11.3). `26.8.17-hotfix.17` would sort as OLDER than the `26.8.17`
-/// it exists to fix, so Cargo, Homebrew, and every image sort would read the fix
-/// as the earlier release. This test pins the tomorrow-base rule shut.
-#[test]
-fn a_hotfix_tag_is_a_prerelease_on_tomorrows_utc_date() {
-    let workflow = deploy_workflow();
-
-    assert!(
-        workflow.contains("(-hotfix\\.(0|[1-9][0-9]*))?$"),
-        "the shape check must admit an optional `-hotfix.N` suffix with any unpadded numeric N — \
-         a missing, empty, nonnumeric, or padded number is invalid"
-    );
-    assert!(
-        workflow.contains("date -d 'tomorrow'"),
-        "the hotfix base is TOMORROW's UTC date, so the step must derive it"
-    );
-    assert!(
-        workflow.contains("expected=\"${tomorrow}\""),
-        "a prerelease tag must be validated against tomorrow's base, not today's"
-    );
-    assert!(
-        workflow.contains("expected=\"${today}\""),
-        "an ordinary release must still be validated against today's base"
-    );
-}
-
-/// The release source must already have passed through `main`. A tag can be
-/// pushed from any commit, and Git commits retain no branch name, so the first
-/// job has to fetch `origin/main`, peel the tag to its commit, and prove that
-/// commit is an ancestor before any image, archive, or GitHub Release publishes.
-#[test]
-fn publication_waits_for_the_main_reachability_guard() {
-    let workflow: serde_yaml::Value =
-        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
-    let release = &workflow["jobs"]["release-version"];
-    let steps = release["steps"]
-        .as_sequence()
-        .expect("release-version must declare steps");
-
-    let guard = steps
-        .iter()
-        .find(|step| {
-            step["run"]
-                .as_str()
-                .is_some_and(|run| run.contains("ops release-provenance"))
-        })
-        .expect("release-version must invoke the Rust release-provenance guard");
-    let run = guard["run"].as_str().expect("the guard must be a run step");
-    assert!(run.contains("--tag \"${REF_NAME}\""), "{run}");
-
-    let checkout = steps
-        .iter()
-        .find(|step| {
-            step["uses"]
-                .as_str()
-                .unwrap_or_default()
-                .starts_with("actions/checkout")
-        })
-        .expect("release-version must check out the tagged tree");
-    assert_eq!(
-        checkout["with"]["fetch-depth"].as_u64(),
-        Some(0),
-        "the ancestry test needs the complete tag and main history"
-    );
-
-    for publisher in [
-        "publish-service",
-        "publish-triggers",
-        "release-windows-cli-build",
-        "release-cli-build-linux",
-        "release-cli-build-macos",
-        "release-windows-cli-publish",
-    ] {
-        let needs = match &workflow["jobs"][publisher]["needs"] {
-            serde_yaml::Value::String(need) => vec![need.clone()],
-            serde_yaml::Value::Sequence(needs) => needs
-                .iter()
-                .map(|need| {
-                    need.as_str()
-                        .unwrap_or_else(|| panic!("{publisher} has a non-string need"))
-                        .to_string()
-                })
-                .collect(),
-            other => panic!("{publisher} needs must be a string or list, got {other:?}"),
-        };
-        assert!(
-            needs.iter().any(|need| need == "release-version"),
-            "{publisher} must wait for the main-reachability guard"
-        );
-    }
-}
-
-/// A hotfix must not masquerade as the latest release on the one surface that
-/// decides what a browsing reader gets by default.
+/// A prerelease must not masquerade as the latest release on the one surface
+/// that decides what a browsing reader gets by default.
 ///
 /// The GitHub Release is flagged so it stops being reported as "Latest". That is
-/// now the ONLY place a `-hotfix.N` behaves differently: `brew` resolves exactly
-/// one version and needs it to be the newest good build, so the tap follows
-/// every publishable tag. `a_hotfix_is_dispatched_to_the_tap` holds that half.
+/// the ONLY place a prerelease behaves differently: `brew` resolves exactly one
+/// version and needs it to be the newest good build, so the tap follows every
+/// publishable version. `a_hotfix_is_dispatched_to_the_tap` holds that half.
+///
+/// Which versions ARE prereleases is no longer a spelling rule this workflow
+/// knows. `ops release-check` reports `prerelease` from `Version::pre`, so any
+/// semver prerelease — `-hotfix.3`, `-rc.1` — is flagged, and the workflow reads
+/// the answer instead of matching a suffix.
 #[test]
-fn a_hotfix_publishes_as_a_prerelease() {
+fn a_prerelease_publishes_as_a_prerelease() {
     let workflow: serde_yaml::Value =
         serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
 
@@ -315,25 +152,64 @@ fn a_hotfix_publishes_as_a_prerelease() {
 
     assert!(
         deploy_workflow().contains("flags+=(--prerelease)"),
-        "the GitHub Release for a hotfix must be created with --prerelease so it is not reported \
-         as the latest release"
+        "the GitHub Release for a prerelease must be created with --prerelease so it is not \
+         reported as the latest release"
     );
 }
 
-/// THE TAG MUST CARRY ITS OWN VERSION. This is the check that makes a published
-/// image's self-reported version true.
+/// A LANDED VERSION BUMP IS THE ONLY WAY TO PUBLISH, and that is what makes an
+/// image's version trustworthy.
 ///
-/// Without it `Cargo.toml` sat at `0.1.0` while tags marched on, so `navigator
-/// --version` and a plain build of the tagged source both named a release the
-/// source had never heard of. `cli/build.rs` bakes
-/// `[workspace.package].version` into the binary, and `RELEASE_TAG` stamps the
-/// image — this comparison is the only thing forcing those two to agree.
+/// Three triggers have owned this workflow. The clock and the dispatch both
+/// derived a version from `date`, so the name an image carried stood behind no
+/// Git ref: `Cargo.toml` sat at one version while published images marched on
+/// under another. The pushed tag fixed that but paid in ceremony — four
+/// validations existed to re-establish facts a bare ref cannot carry, each of
+/// which spent an immutable name when it failed late.
 ///
-/// It must fail the run at the FIRST job. A mismatch caught after forty minutes
-/// of image builds has already spent the day's tag, which the `release-tags`
-/// ruleset will not let anyone move.
+/// Reading the version out of the merged manifest answers all four by
+/// construction. All three retired triggers are asserted absent rather than
+/// merely unused: any of them surviving would publish under a version this
+/// repository's source does not name, and would go green doing it.
 #[test]
-fn the_release_tag_must_equal_the_workspace_version() {
+fn deploy_workflow_publishes_only_from_a_landed_version_bump() {
+    assert!(
+        !has_trigger("schedule"),
+        "deploy.yml must not publish on a clock: a cron can only derive a version, which is \
+         exactly the drift that made the manifest and the published images disagree"
+    );
+    assert!(
+        !has_trigger("workflow_dispatch"),
+        "deploy.yml must not publish on demand: a dispatch would publish a version nobody \
+         reviewed. Merge the bump instead"
+    );
+    assert!(
+        has_trigger("push"),
+        "deploy.yml publishes from a push to `main`, so it must keep its `push` trigger"
+    );
+
+    let triggers = deploy_triggers();
+    let push = &triggers[&serde_yaml::Value::String("push".into())];
+    assert!(
+        push["tags"].is_null(),
+        "deploy.yml must carry NO tag trigger. A pushed tag was the publish path until the \
+         version became the trigger, and keeping it would mean keeping the four validations a \
+         bare ref needs — shape, date, manifest equality, and provenance — for a second path \
+         nobody uses"
+    );
+}
+
+/// THE VERSION IS THE MANIFEST, and the manifest is read by one Rust guard.
+///
+/// This replaces four workflow-level checks with one call, and the deletion is
+/// the point rather than a side effect. Shape was a `grep -E` transcribing a
+/// grammar; date was UTC arithmetic that could only fail a bump for having been
+/// reviewed slowly; manifest equality compared a tag against the value the tag
+/// is now derived FROM; and provenance proved an ancestry that a push to `main`
+/// asserts. What survives is the one question none of them asked: is this
+/// version newer than every version already published?
+#[test]
+fn the_release_decision_is_one_rust_guard_over_the_manifest() {
     let workflow: serde_yaml::Value =
         serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
     let steps = workflow["jobs"]["release-version"]["steps"]
@@ -347,15 +223,35 @@ fn the_release_tag_must_equal_the_workspace_version() {
         .join("\n");
 
     assert!(
-        script.contains("workspace.package"),
-        "release-version must read `[workspace.package].version` out of Cargo.toml and refuse a \
-         tag that does not equal it — otherwise a published container reports a version its own \
-         source never carried"
+        script.contains("ops release-check --github-output"),
+        "release-version must decide the release by running `ops release-check`, which reads \
+         `[workspace.package].version` and compares it against the release tags"
     );
 
-    // Reading the manifest and building the Rust provenance guard require the
-    // source on disk. A sparse metadata checkout would make one or both checks
-    // impossible.
+    // The retired checks, asserted GONE. Each one left behind would be a second
+    // rule the release has to satisfy, and the date check in particular would
+    // refuse a bump merged on a different day than it was authored.
+    let source = deploy_workflow();
+    for (forbidden, why) in [
+        (
+            "TZ=UTC date",
+            "the release must not read a clock: `YY.M.D` is a naming convention, and a bump is \
+             authored days before it merges",
+        ),
+        (
+            "ops release-provenance",
+            "a push to `main` IS the provenance, so the ancestry guard has nothing left to prove",
+        ),
+    ] {
+        assert!(
+            !source.contains(forbidden),
+            "deploy.yml still references `{forbidden}` — {why}"
+        );
+    }
+
+    // Reading the manifest and building the Rust guard require the source on
+    // disk, and the decision is made against the tags — so the checkout has to
+    // carry them.
     let checkout = steps
         .iter()
         .find(|step| {
@@ -364,11 +260,181 @@ fn the_release_tag_must_equal_the_workspace_version() {
                 .unwrap_or_default()
                 .starts_with("actions/checkout")
         })
-        .expect("release-version must check out the tree it validates");
+        .expect("release-version must check out the tree it reads");
     assert!(
         checkout["with"]["sparse-checkout"].is_null(),
-        "release-version must check out the full source for Cargo.toml and the Rust provenance guard"
+        "release-version must check out the full source: the guard that makes the decision is a \
+         Rust binary in this tree"
     );
+    assert_eq!(
+        checkout["with"]["fetch-depth"].as_u64(),
+        Some(0),
+        "the release decision is made against every release tag, so the checkout must carry them"
+    );
+}
+
+/// NO MERGE THAT CARRIES NO BUMP MAY BUILD ANYTHING.
+///
+/// Every merge to `main` starts this workflow and almost none of them are
+/// releases. `release-version` answers in seconds, but `build` and `integration`
+/// are a four-image cold compile and the whole KIND suite — so without a
+/// publishability gate on those two, the trigger change would bill the entire
+/// release pipeline on every merge and publish nothing. That failure is silent:
+/// the run goes green.
+///
+/// The `kind-ci/**` leg has to survive the same gate, because a branch iteration
+/// reports `publishable=false` by design and building the images is the entire
+/// point of that trigger.
+#[test]
+fn only_a_release_or_a_branch_iteration_builds() {
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
+
+    for job in ["build", "integration"] {
+        let condition = workflow["jobs"][job]["if"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{job} must carry an `if`"));
+        let condition: String = condition.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(
+            condition.contains("needs.release-version.outputs.publishable == 'true'"),
+            "{job} must be gated on publishability, or every merge to `main` runs it: {condition}"
+        );
+        assert!(
+            condition.contains("startsWith(github.ref_name, 'kind-ci/')"),
+            "{job} must still run for a `kind-ci/**` branch iteration, which reports \
+             publishable=false by design: {condition}"
+        );
+    }
+}
+
+/// THE TAG IS CREATED AFTER THE TREE IS PROVED, AND BEFORE ANYTHING PUBLISHES.
+///
+/// The ordering is the whole value of moving the tag into the pipeline. While a
+/// person pushed it, the ref existed before a single image was built, so a
+/// release that then went red had already spent its name and had to be recovered
+/// under a different version. Created here, a failure above the line costs
+/// nothing but a re-run.
+///
+/// Both halves are asserted. `release-tag` must wait for `integration`, or the
+/// ref would again precede the proof; and every publisher must wait for
+/// `release-tag`, or an artifact could exist under a version no ref names.
+#[test]
+fn the_release_tag_is_created_between_the_proof_and_the_publish() {
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
+
+    let tag_job = &workflow["jobs"]["release-tag"];
+    assert!(
+        !tag_job.is_null(),
+        "deploy.yml must declare the `release-tag` job that creates the release ref"
+    );
+    assert!(
+        job_needs(&workflow, "release-tag").contains(&"integration".to_string()),
+        "release-tag must wait for integration: a ref created before the proof is a name spent on \
+         an unproved tree"
+    );
+    assert_eq!(
+        tag_job["if"].as_str(),
+        Some("needs.release-version.outputs.publishable == 'true'"),
+        "release-tag must create nothing on a `kind-ci/**` iteration or an ordinary merge"
+    );
+
+    for publisher in [
+        "publish-service",
+        "publish-triggers",
+        "release-windows-cli-build",
+        "release-cli-build-linux",
+        "release-cli-build-macos",
+    ] {
+        assert!(
+            job_needs(&workflow, publisher).contains(&"release-tag".to_string()),
+            "{publisher} must wait for the release tag, or it could publish an artifact under a \
+             version no Git ref names"
+        );
+    }
+
+    // The Release attaches to the ref this run created, so it inherits the wait
+    // transitively through the archive builds — asserted explicitly because
+    // "transitively" is exactly the kind of claim that stops being true.
+    let release_needs = job_needs(&workflow, "release-windows-cli-publish");
+    assert!(
+        release_needs
+            .iter()
+            .any(|need| need == "release-cli-build-linux"),
+        "the GitHub Release job must wait for the archive builds that wait for the tag"
+    );
+}
+
+/// The tag this workflow CREATES must be one the `release-tags` ruleset
+/// protects.
+///
+/// `cli/src/devx/github_setup.rs` restricts `refs/tags/[0-9]*.[0-9]*.[0-9]*`
+/// against deletion, update, and non-fast-forward with no bypass actor. That is
+/// what makes a published version's ref immutable — and it only binds if the
+/// name this job creates matches the glob. A version that fell outside it would
+/// publish under a MOVABLE ref, which makes every artifact carrying that version
+/// rewritable after the fact.
+#[test]
+fn the_created_tag_matches_the_protected_glob() {
+    let glob = "refs/tags/[0-9]*.[0-9]*.[0-9]*";
+    let setup = repo_file("cli/src/devx/github_setup.rs");
+    assert!(
+        setup.contains(glob),
+        "the `release-tags` ruleset must still protect `{glob}`"
+    );
+
+    // The Rust side owns the shape, so the glob and the parser live together —
+    // this asserts the workflow creates a ref under the namespace that glob
+    // covers rather than re-deriving the shape here.
+    let workflow = deploy_workflow();
+    assert!(
+        workflow.contains("ref=refs/tags/${TAG}"),
+        "release-tag must create the ref under `refs/tags/`, the namespace the ruleset protects"
+    );
+    let release = repo_file("cli/src/release.rs");
+    assert!(
+        release.contains(r#"pub const RELEASE_TAG_GLOB: &str = "[0-9]*.[0-9]*.[0-9]*";"#),
+        "cli/src/release.rs must hold the same glob the ruleset protects, so the one place that \
+         lists tags and the one place that protects them cannot drift"
+    );
+}
+
+/// Creating the tag must be idempotent, because a release run gets re-run.
+///
+/// A tag already pointing at this commit is this run's own, and saying so is
+/// what lets a failed release be re-run instead of recovered under a new
+/// version. A tag pointing at a DIFFERENT commit must be refused rather than
+/// forced: that is someone else's release wearing this version.
+#[test]
+fn creating_the_release_tag_is_idempotent_but_never_forced() {
+    let workflow = deploy_workflow();
+
+    assert!(
+        workflow.contains(r#"if [ "${existing}" = "${SHA}" ]; then"#),
+        "release-tag must recognise its own tag on a re-run instead of failing"
+    );
+    // The two ways a ref could be MOVED, asserted absent. A blanket `--force`
+    // search would be wrong here: `kubectl apply --force-conflicts` and the
+    // Intel-Mac `cargo install --force` fallback both live in this file and
+    // neither touches a ref.
+    let effective: String = workflow
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for forbidden in [
+        "git push --force",
+        "git push -f",
+        "--method PATCH",
+        "--method PUT",
+    ] {
+        assert!(
+            !effective.contains(forbidden),
+            "deploy.yml references `{forbidden}` — nothing here may move a ref. The \
+             `release-tags` ruleset forbids it, and a moved tag makes every artifact already \
+             carrying that version a lie"
+        );
+    }
 }
 
 /// A CONTAINER MUST REPORT THE VERSION ITS IMAGE IS TAGGED WITH.
@@ -430,14 +496,24 @@ fn no_job_can_write_repository_contents() {
         }
     }
 
-    // `release-windows-cli-publish` is the ONE exception: it creates the
-    // GitHub Release that hangs off the already-pushed tag and uploads the CLI
-    // archives to it. It creates no ref.
+    // TWO JOBS, AND THE LIST IS THE POINT. `release-tag` creates the release ref
+    // once integration has proved the tree; `release-windows-cli-publish`
+    // creates the GitHub Release that hangs off it and uploads the CLI archives.
+    // Neither can MOVE a ref — see
+    // `creating_the_release_tag_is_idempotent_but_never_forced` — and
+    // `release-version`, which makes the decision, holds `contents: read`: the
+    // job that decides is not the job that writes.
     assert_eq!(
         writers,
-        ["release-windows-cli-publish"],
-        "only the Release-attach job may hold `contents: write`. `release-version` validates the \
-         ref it was handed and must never create one again"
+        ["release-tag", "release-windows-cli-publish"],
+        "exactly two jobs may hold `contents: write`: the one that creates the release ref and \
+         the one that creates the Release against it"
+    );
+
+    assert_eq!(
+        workflow["jobs"]["release-version"]["permissions"]["contents"].as_str(),
+        Some("read"),
+        "the job that decides whether this is a release must not be able to write one"
     );
 }
 

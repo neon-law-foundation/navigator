@@ -328,7 +328,7 @@ supporting checks inside them.
   explicit.
 
 The full recipes live in [`docs/agent-workflows.md`](docs/agent-workflows.md). Branching, gates, auto-merge behavior,
-release tags, and production handoff live in [`docs/gitops.md`](docs/gitops.md).
+releases, and production handoff live in [`docs/gitops.md`](docs/gitops.md).
 
 ## Cross-cutting rules
 

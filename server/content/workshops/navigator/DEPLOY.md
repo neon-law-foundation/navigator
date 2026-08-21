@@ -1821,12 +1821,12 @@ applies.
 
 ### Post the verified handoff in `#navigator`
 
-Post only after the verification loop prints all three `OK` lines. Replace `YY.M.D.H` once with the deployed tag and
+Post only after the verification loop prints all three `OK` lines. Replace `YY.M.D` once with the deployed tag and
 preserve the config/host mapping exactly. The message body is:
 
-:white_check_mark: **Navigator `YY.M.D.H` is live on three deployment stacks**
+:white_check_mark: **Navigator `YY.M.D` is live on three deployment stacks**
 
-Verified `/readyz`, `/version.release == "YY.M.D.H"`, and a browser visit:
+Verified `/readyz`, `/version.release == "YY.M.D"`, and a browser visit:
 
 - [staging](https://www.neonlaw.com)
 - [Neon production](https://www.neonlaw.com)
@@ -1837,7 +1837,7 @@ Set exactly one website to one published version:
 Choose its `name` from the `deployments/` tree (`host` is that config's `NAVIGATOR_PUBLIC_HOST`), set `tag`, then run:
 
 ```bash
-name=neon-law-stg tag=YY.M.D.H
+name=neon-law-stg tag=YY.M.D
 host=$(sed -n 's/^NAVIGATOR_PUBLIC_HOST = "\(.*\)"$/\1/p' "deployments/${name}/config.toml")
 gcloud auth login --force --update-adc
 

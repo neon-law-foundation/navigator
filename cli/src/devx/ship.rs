@@ -1175,7 +1175,7 @@ pub struct ShipOpts {
     /// apply — silently running the cheap lane against a changed tree is
     /// the failure this flag would otherwise introduce.
     pub image_only: bool,
-    /// The immutable `YY.M.D`, legacy `YY.M.D.H`, or `YY.M.D-hotfix.N` tag to
+    /// The immutable `YY.M.D` or `YY.M.D-hotfix.N` tag to
     /// roll onto. Required for a roll —
     /// `None` is rejected (we never guess the latest tag); only the
     /// `--restart-only` path, which changes no image, runs without it.
@@ -1362,7 +1362,7 @@ fn image_only_image_writes(cfg: &ShipConfig, tag: &str) -> [(&'static str, Strin
 /// Two refusals, not one. The lane's only job is to move images to a named
 /// release, so an absent `--tag` leaves it with nothing to do — and it never
 /// guesses the latest published tag, exactly as the full roll never does.
-/// A present tag still has to be a real `YY.M.D`, legacy `YY.M.D.H`, or
+/// A present tag still has to be a real `YY.M.D` or
 /// `YY.M.D-hotfix.N` release name: the
 /// scheduled caller derives the tag from a clock, and a derivation that
 /// produces `2026-08-17` or an empty string must fail here rather than as a
@@ -1461,7 +1461,7 @@ fn roll(
     //    roll guess. Present service deployments get the SAME tag.
     let Some(tag) = opts.tag.as_deref() else {
         bail!(
-            "`--tag <YY.M.D|YY.M.D.H|YY.M.D-hotfix.N>` is required: name the published release to roll onto. \
+            "`--tag <YY.M.D|YY.M.D-hotfix.N>` is required: name the published release to roll onto. \
              We never guess the latest tag; pass the tag from the deploy hand-off \
              (or use `--restart-only` to re-read a rotated Secret without changing the image)."
         );

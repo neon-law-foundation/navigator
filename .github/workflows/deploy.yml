@@ -1,33 +1,42 @@
 name: deploy
 
 # The publish flow (see docs/gitops.md "CI/CD workflows"). ONE workflow builds
-# the images: a person pushes a `YY.M.D` tag, and this run proves the workspace,
-# publishes it to GHCR, attaches the CLI archives, and reports it. In strict
-# order:
+# the images: a version bump lands on `main`, and this run proves the workspace,
+# publishes it to GHCR, creates the release tag, attaches the CLI archives, and
+# reports it. In strict order:
 #
-#   0. release-version — VALIDATE the pushed tag. It creates nothing, derives
-#      nothing, and holds `contents: read`; it reads the ref it was handed and
-#      refuses it on four counts, each of which would otherwise publish an
-#      image whose name is a lie:
+#   0. release-version — DECIDE whether this commit is a release, by running
+#      `navigator ops release-check`. It reads `[workspace.package].version` and
+#      compares it against every release tag in the repository, using semver's
+#      own ordering. Three answers, and the middle one is the ordinary case:
 #
-#        a. SHAPE — `YY.M.D`, unpadded, matching the `release-tags` ruleset glob
-#           so every publishing ref is one GitHub refuses to move.
-#        b. DATE — the current UTC day. `YY.M.D` admits one release per calendar
-#           day by construction, and checking it makes that a guarantee rather
-#           than a convention.
-#        c. MANIFEST — equal to `[workspace.package].version`, the value every
-#           crate inherits and `cli/build.rs` bakes into `navigator --version`.
-#           This is the check the derived-version era could not make, and its
-#           absence is how `Cargo.toml` sat at `0.1.0` while tags marched on:
-#           a plain build of the tagged source named a release the source had
-#           never heard of. `navigator ops release-version` writes the bump; it
-#           lands through an ordinary PR, and the tag goes on that merged
-#           commit.
-#        d. PROVENANCE — the tag peels to a commit reachable from the freshly
-#           fetched `origin/main`. A PR branch is never a release source, even
-#           when every other tag check passes.
+#        - NEWER than every released version → this is a release.
+#          `publishable=true`, and everything below runs.
+#        - EQUAL to the newest → already released. `publishable=false`, and the
+#          run ends here in seconds. This is almost every push to `main`.
+#        - OLDER than the newest → the job FAILS. A manifest naming a version
+#          already superseded is a bad bump or a rebase that resurrected an old
+#          one, and publishing it would hand consumers a version they have
+#          already moved past.
 #
-#      The tag then threads into every image build as the `RELEASE_TAG`
+#      THE VERSION IS THE MANIFEST, so the two checks this job used to make are
+#      gone — not relaxed, but unsatisfiable-by-construction. There is no
+#      tag-equals-manifest comparison because the tag is DERIVED from the
+#      manifest, and no provenance check because a push to `main` is the trigger.
+#      Between them those were the whole reason `Cargo.toml` once sat at `0.1.0`
+#      while tags marched on: a version and a tag were two decisions that had to
+#      be made to agree. They are one decision now.
+#
+#      NOTHING HERE READS A CLOCK. `YY.M.D` remains the naming convention (see
+#      the `cut-release` skill), but a bump is authored days before it merges, so
+#      a date check could only fail a release for having been reviewed slowly.
+#      What the calendar really bought was uniqueness, and comparing against the
+#      tags buys that directly. Ordering does the rest: semver ranks a
+#      prerelease below its own base, so `26.8.22-hotfix.3` is admissible after
+#      `26.8.21` and refused after `26.8.22`, with no rule about which day a
+#      hotfix hangs off.
+#
+#      The version then threads into every image build as the `RELEASE_TAG`
 #      build-arg, which each Containerfile turns into a runtime
 #      `ENV NAVIGATOR_RELEASE_TAG` that `main.rs` reads — so a running container
 #      reports exactly the string its image is tagged with AND the string its
@@ -35,8 +44,17 @@ name: deploy
 #      stops after integration.
 #   1. integration — build the KIND service images, stand up KIND, run the full
 #      e2e + interop + browser/accessibility suite against the live cluster.
+#   1b. release-tag — create the immutable `YY.M.D` tag at this commit, once
+#      integration is green and before anything publishes. THE ORDER IS THE
+#      POINT. While a person pushed the tag, the ref existed before a single
+#      image was built, so a release that went red spent its name for good and
+#      had to be recovered as a hotfix. Creating it here means a failed release
+#      costs nothing: re-run the run. This is the only job that writes a Git ref,
+#      it creates and never moves one, and the `release-tags` ruleset — which
+#      restricts deletion, update, and non-fast-forward with no bypass actor —
+#      makes that irreversible the moment it lands.
 #   2. publish     — only if integration is green, push all images to GHCR
-#      tagged with the pushed tag + `latest`. The service images go
+#      tagged with the release version + `latest`. The service images go
 #      through `publish-service` (amd64-only, one native build per image); the
 #      CronJob images go through `publish-triggers` (also amd64-only).
 #      Prod runs on GKE Autopilot, which schedules on amd64 nodes, so amd64 is
@@ -45,10 +63,9 @@ name: deploy
 #      macOS `navigator` archive, IN THIS SAME STAGE and behind the same
 #      `integration` gate the image publishes carry. Then
 #      `release-windows-cli-publish` creates the GitHub Release hanging off the
-#      ALREADY-PUSHED tag and attaches them. That job is the only holder of
-#      `contents: write`, and it holds it to create a Release, not a ref:
-#      nothing in this file can move a ref, because the ref arrived before the
-#      run did.
+#      tag `release-tag` created and attaches them. Two jobs hold
+#      `contents: write` and neither can MOVE a ref: `release-tag` creates one
+#      and `release-windows-cli-publish` creates a Release against it.
 #
 #      The archives share stage 2 with the images because they share a version.
 #      One tag names the GHCR image tags, these three archives,
@@ -85,72 +102,92 @@ name: deploy
 # version + run URL — the "identifiers and counts, never content" rule binds
 # here too. A missing webhook cannot turn one failed release into two failures.
 #
-# NOTHING ON A CLOCK PROVES THIS PATH, and that is the deliberate cost of
-# releasing on a tag. A nightly cron exercised the whole pipeline whether or not
-# anything changed, so a defect introduced today surfaced the next morning; a
-# defect introduced today is now invisible until someone next tags. The cron was
-# never a reliable signal even while it ran — a silent nightly failure went
-# unnoticed for four consecutive nights — so the honest statement is that this
-# pipeline has no automatic breakage detection, not that it has a weaker one.
-# Push a `kind-ci/**` branch to exercise it without publishing; that is the
-# periodic check the cron used to be, and it is a habit rather than a trigger
-# now. See docs/gitops.md § "What detects a broken pipeline".
+# NOTHING ON A CLOCK PROVES THIS PATH. A nightly cron exercised the whole
+# pipeline whether or not anything changed, so a defect introduced today
+# surfaced the next morning; a defect introduced today is now invisible until
+# someone next bumps the version. The cron was never a reliable signal even
+# while it ran — a silent nightly failure went unnoticed for four consecutive
+# nights — so the honest statement is that this pipeline has no automatic
+# breakage detection, not that it has a weaker one. Push a `kind-ci/**` branch
+# to exercise it without publishing; that is the periodic check the cron used to
+# be, and it is a habit rather than a trigger. See docs/gitops.md § "What
+# detects a broken pipeline".
+#
+# One thing did get cheaper here: the gate on every push to `main` runs
+# `release-check`, so the FIRST job of this workflow is now exercised on every
+# merge rather than only on a release. A break in the trigger itself surfaces at
+# the next merge instead of at the next release.
 #
 # And running underneath every stage: every forward-path step opens with a
 # `./.github/actions/slack-progress` post to #navigator, so the channel watches
 # the run advance instead of waiting ~45 silent minutes for a verdict, and the
 # last line posted names the step a failure died in. Those posts are advisory —
-# the action never fails a job over a webhook — and they self-gate on the tag
-# ref, so a `kind-ci/**` branch iteration stays silent exactly as the two
-# reports above do. Steps gated on `failure()`/`always()` are post-mortem
+# the action never fails a job over a webhook — and they self-gate on
+# publishability, so a `kind-ci/**` branch iteration and an ordinary merge that
+# carries no bump both stay silent exactly as the two reports above do. Steps gated on `failure()`/`always()` are post-mortem
 # diagnostics rather than progress and are deliberately not narrated;
 # `notify-failure` already covers that moment.
 #
-# THE VERSION IS THE PUSHED TAG, validated in job 0 and threaded through every
-# build as the `RELEASE_TAG` build-arg. Every component is unpadded — no leading
-# zeros (June is `6`).
+# THE VERSION IS `[workspace.package].version`, read in job 0 and threaded
+# through every build as the `RELEASE_TAG` build-arg. Components are unpadded —
+# no leading zeros, which semver requires rather than merely prefers (June is
+# `6`, and `26.06.1` is not a version at all).
 #
 # RECOVERING A FAILED RELEASE (docs/gitops.md § "Recovering a failed release"):
-# re-run the failed jobs for a flake — the tag is unchanged, so a re-run
-# republishes the same name over itself. There is nothing to un-publish, because
-# nothing was deployed: the images either reached GHCR or they did not. If the
-# SOURCE is wrong, the day's tag is spent — the `release-tags` ruleset forbids
-# moving it, and a moved tag would make every artifact already carrying that
-# version a lie — so fix forward and tag the next UTC day.
+# re-run the failed jobs. WHERE THE RUN DIED DECIDES WHAT THAT COSTS, and the
+# tag job is the line. Before it, no ref exists and no artifact was published,
+# so a re-run is free and the version keeps its name. After it, the tag is
+# immutable — the `release-tags` ruleset forbids moving it — but a re-run
+# republishes the same name over itself, and there is nothing to un-publish
+# because nothing was deployed: the images either reached the registry or they
+# did not. If the SOURCE is wrong, that version is spent: bump past it and merge
+# again.
 
-# ONE WAY TO PUBLISH: push a `YY.M.D` tag. Deliberately no second.
+# ONE WAY TO PUBLISH: land a version bump on `main`. Deliberately no second.
 #
-# The clock and the `workflow_dispatch` both ran, and both are gone for the same
-# reason: neither carried a tag, so both could only DERIVE a version, and a
-# derived version stands behind no Git ref. That is how the manifest drifted from
-# the published images. A tag cannot drift from itself.
+# The clock, the `workflow_dispatch`, and the hand-pushed tag have all been
+# triggers here, and all three are gone. The first two could only DERIVE a
+# version, which is how the manifest drifted from the published images. The tag
+# push fixed the drift but paid for it in ceremony: four validations existed
+# purely to re-establish facts a tag cannot carry — is this shape right, is this
+# the right day, does it match the manifest, did it come from `main` — and every
+# one of them, discovered late, spent an immutable name.
 #
-# What the cron did buy was liveness — it exercised this path nightly whether or
-# not anything changed — and losing that is a real cost, stated plainly above and
-# in docs/gitops.md § "What detects a broken pipeline" rather than papered over.
-# `kind-ci/**` is what replaces it, on demand.
+# Reading the version out of the merged manifest answers all four by
+# construction. The shape is whatever `semver` parses, the day does not matter,
+# the manifest IS the tag, and a push to `main` is provenance. What remains is
+# the one question none of them asked: is this version newer than the last one
+# published?
+#
+# A TAG PUSHED BY `GITHUB_TOKEN` STARTS NO WORKFLOW RUN, which is why the tag is
+# created inside this run rather than by a job that hands off to a second
+# workflow. One workflow, two triggers.
 #
 # The distinction worth holding: "publish an image" and "deploy to a cluster"
 # are different powers. Publishing costs a registry push; deploying is what put
 # cloud credentials in CI, and it is a human act (`navigator ops ship`).
 on:
   push:
-    # The publish path. This glob is the SAME shape the `release-tags` ruleset
-    # protects (`cli/src/devx/github_setup.rs`), which is what makes every
-    # publishing ref one GitHub refuses to delete or move — widen it here and
-    # you admit a mutable tag, which would let a re-push silently relabel an
-    # already-published version.
-    tags:
-      - "[0-9]*.[0-9]*.[0-9]*"
-    # CI-iteration seam, and the ONLY way to prove a change to this file.
-    # Pushing a branch named `kind-ci/**` runs ONLY the KIND integration job
-    # below — the publish-* jobs, notify, and notify-failure are all gated on
-    # `publishable`, so a branch run pushes no images and posts no Slack.
-    # Without it, editing this workflow would mean shipping the edit untested
-    # and finding out from a tag whose name is then spent for the day. Not a
-    # second workflow — same deploy.yml, just an extra trigger on the one job
-    # that needs pre-publish iteration.
     branches:
+      # THE PUBLISH PATH. Every merge lands here and `release-version` decides in
+      # seconds whether it is a release: almost always it is not, because the
+      # workspace version already equals the newest tag, and the run stops.
+      #
+      # There is deliberately NO tag trigger. A pushed tag was the publish path
+      # until the version became the trigger, and keeping it would mean keeping
+      # the four validations a bare ref needs — shape, date, manifest equality,
+      # and provenance — for a second path nobody uses. The tag this workflow
+      # CREATES still matches the `release-tags` ruleset glob
+      # (`cli/src/devx/github_setup.rs`), which is what makes every published
+      # version's ref one GitHub refuses to delete or move.
+      - main
+      # CI-iteration seam, and the ONLY way to prove a change to this file.
+      # Pushing a branch named `kind-ci/**` runs ONLY the KIND integration job
+      # below — the tag job, the publish-* jobs, notify, and notify-failure are
+      # all gated on `publishable`, so a branch run creates no ref, pushes no
+      # images, and posts no Slack. Without it, editing this workflow would mean
+      # shipping the edit untested. Not a second workflow — same deploy.yml,
+      # just an extra trigger on the one job that needs pre-publish iteration.
       - "kind-ci/**"
 
 permissions:
@@ -171,216 +208,105 @@ permissions:
 # verifies KIND serves them.
 
 concurrency:
-  # Releases share one serialized lane so a pushed tag and a `kind-ci/**`
-  # branch iteration never race each other.
+  # Releases share one serialized lane so two merges to `main` — or a merge and a
+  # `kind-ci/**` branch iteration — never race each other. This matters more than
+  # it did while a person pushed the tag: EVERY merge starts a run now, so two
+  # merges landing close together would otherwise overlap, and the second one's
+  # release decision would read a tag list the first one is still writing to.
   group: deploy-release
   cancel-in-progress: false
 
 jobs:
   release-version:
-    name: validate the release tag
+    name: is this commit a release?
     if: github.repository == 'neon-law-foundation/navigator'
     runs-on: ubuntu-latest
-    # This job CREATES NOTHING. It reads the ref it was handed, refuses it or
-    # passes it downstream, and writes nothing to the repository. It once cut
-    # the nightly tag and held `contents: write` for exactly that; a person
-    # pushes the tag now, so the permission is gone.
+    # This job CREATES NOTHING and holds `contents: read`. It reads the merged
+    # manifest and the tag list, answers one question, and writes nothing. The
+    # ref that names this release is created by `release-tag`, after integration
+    # has proved the tree.
     permissions:
       contents: read
     outputs:
+      # The release version, read out of `[workspace.package].version`. Threaded
+      # into every image build as `RELEASE_TAG`, used as the ref `release-tag`
+      # creates, and named in the Slack report.
       tag: ${{ steps.version.outputs.tag }}
-      # The one place the "is this a real release?" question is answered.
-      # Downstream jobs read this instead of each re-deriving the same
-      # ref/event boolean — a `kind-ci/**` branch run reports false and stops
-      # after integration.
+      # The one place the "is this commit a release?" question is answered.
+      # Downstream jobs read this instead of each re-deriving it — an ordinary
+      # merge carrying no version bump reports false, as does a `kind-ci/**`
+      # branch run, and both stop after integration.
       publishable: ${{ steps.version.outputs.publishable }}
-      # Whether this tag is a same-day `-hotfix.N` prerelease. It gates the one
-      # place a prerelease must NOT behave like an ordinary release: the GitHub
-      # Release is marked as a prerelease, so GitHub stops reporting it as
-      # "Latest release". The Homebrew tap IS told about a hotfix — see
+      # Whether this version is a semver prerelease. It gates the one place a
+      # prerelease must NOT behave like an ordinary release: the GitHub Release
+      # is marked as a prerelease, so GitHub stops reporting it as "Latest
+      # release". The Homebrew tap IS told about a prerelease — see
       # `release-homebrew-tap` for why that is safe.
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      # Full history is required for `release-provenance` to prove ancestry,
-      # and the full source is required to build that Rust CLI guard. A shallow
-      # tag checkout cannot prove that its commit is behind `origin/main`.
+      # THE TAGS ARE THE ANCHOR, so the checkout has to carry them. `fetch-depth:
+      # 0` fetches the full history and every tag; `release-check` also fetches
+      # them itself, so a shallower checkout would still work — but the full
+      # source is required regardless, because the guard that makes the decision
+      # is a Rust binary in this tree.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/slack-progress
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          tag: ""
-          stage: "release-version"
-          step: "install rust toolchain"
       - name: install rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.97.0
-      - uses: ./.github/actions/slack-progress
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          tag: ""
-          stage: "release-version"
-          step: "validate the release tag"
-      - name: validate the release tag
+      # THE WHOLE RELEASE DECISION, in one step so the job has one place to read
+      # its outputs from. `ops release-check` reads
+      # `[workspace.package].version`, lists every release tag, and compares them
+      # with semver's own ordering — see `cli/src/release_check.rs` for why the
+      # tags are the anchor rather than the previous commit's manifest.
+      #
+      # It writes `tag`, `publishable`, and `prerelease` to `$GITHUB_OUTPUT`, and
+      # it FAILS THE JOB when the manifest names a version OLDER than one already
+      # released. That is the one failure re-running cannot fix, and it is caught
+      # before any image is built: `ci.yml` runs the same command on every pull
+      # request, so a bad bump is normally refused while it is still a branch.
+      #
+      # Nothing here validates a date. `YY.M.D` is the convention the
+      # `cut-release` skill documents; the pipeline's only rule is that a release
+      # is newer than every release before it.
+      #
+      # A `kind-ci/**` branch iteration never asks the question. It exists to
+      # prove a change to THIS FILE, its branch name is not a version, and it
+      # reports `publishable=false` — with the ref name standing in for a version
+      # so progress lines and job titles name something real. Nothing downstream
+      # consumes that string, because every publishing job is gated on
+      # `publishable`.
+      - name: is this commit a release?
         id: version
         env:
           REF_NAME: ${{ github.ref_name }}
-          REF_TYPE: ${{ github.ref_type }}
         run: |
           set -euo pipefail
-          # Two refs reach this workflow and the REF TYPE tells them apart: a
-          # pushed `YY.M.D` tag publishes, a `kind-ci/**` branch does not.
-          if [ "${REF_TYPE}" != "tag" ]; then
-              # A `kind-ci/**` branch iteration: integration only. The ref name
-              # stands in for a version so progress lines and job titles name
-              # something real; nothing downstream consumes it, because every
-              # publishing job is gated on `publishable`.
-              echo "tag=${REF_NAME}" >> "$GITHUB_OUTPUT"
-              echo "publishable=false" >> "$GITHUB_OUTPUT"
-              echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          if [ "${REF_NAME}" != "main" ]; then
+              {
+                  echo "tag=${REF_NAME}"
+                  echo "publishable=false"
+                  echo "prerelease=false"
+              } >> "$GITHUB_OUTPUT"
               echo "branch iteration ${REF_NAME}: integration only, nothing publishes"
               exit 0
           fi
 
-          tag="${REF_NAME}"
-
-          # 1. SHAPE. The push filter already admits only `[0-9]*.[0-9]*.[0-9]*`,
-          #    but that glob is far looser than it looks — fnmatch's `*` matches
-          #    dots, so `26.8.17.13`, `26.8.x`, and every `-hotfix.N` tag below
-          #    all pass it. Anchor the real shape here: two-digit year, unpadded
-          #    month and day, and an OPTIONAL `-hotfix.N` prerelease.
-          #
-          #    A FOURTH COMPONENT IS STILL IMPOSSIBLE, BUT A PRERELEASE IS NOT.
-          #    Cargo parses `[workspace.package].version` as strict semver and
-          #    rejects `26.8.17.13` outright ("unexpected character '.' after
-          #    patch version number") — so a `YY.M.D.H` tag could never equal
-          #    the manifest and check 3 would be unsatisfiable. A semver
-          #    PRERELEASE has no such problem: `26.8.18-hotfix.17` parses, and
-          #    Cargo holds it in the manifest verbatim. That is the whole reason
-          #    a same-day hotfix has a spelling at all.
-          #
-          #    `N` is an unpadded numeric release discriminator. It is not an
-          #    hour and is not bounded at 23. Semver forbids a leading zero in
-          #    a numeric prerelease identifier, so `hotfix.014` is invalid.
-          if ! printf '%s' "${tag}" | grep -Eq '^[0-9]{2}\.(0|[1-9][0-9]?)\.(0|[1-9][0-9]?)(-hotfix\.(0|[1-9][0-9]*))?$'; then
-              echo "::error::tag ${tag} is not a YY.M.D release version, optionally suffixed -hotfix.N (two-digit year; unpadded numeric month, day, and N)"
-              exit 1
-          fi
-
-          # Split the semver base from the optional prerelease. Every check
-          # below reasons about the base date; `prerelease` decides only whether
-          # this publishes as a hotfix (see the `prerelease` output).
-          base="${tag%%-*}"
-          if [ "${base}" = "${tag}" ]; then prerelease=false; else prerelease=true; fi
-
-          # 2. DATE. `YY.M.D` admits one ordinary release per calendar day by
-          #    construction; checking it makes that a guarantee rather than a
-          #    convention, and catches the midnight edge before anything is
-          #    built.
-          #
-          #    UTC, not a local zone: it is the zone `YY.M.D` has always been
-          #    derived in, it has no DST discontinuity, the runner clock is
-          #    already UTC, and `navigator ops release-version` writes the
-          #    manifest in it — a local-zone check here would reject the tag the
-          #    CLI just told the operator to push. `10#` forces base-10 so
-          #    `08`/`09` are not read as bad octal, and every component is
-          #    unpadded (August is `8`).
-          #
-          #    THE MIDNIGHT EDGE IS REAL. On `-04:00`, from 20:00 local onward
-          #    UTC has already rolled over, so the only releasable tag is
-          #    tomorrow's local date. Name the tag to push instead of just
-          #    refusing: nothing is built yet, so re-tagging costs a minute.
-          read -r y m d <<< "$(TZ=UTC date +'%y %m %d')"
-          today="$((10#$y)).$((10#$m)).$((10#$d))"
-          read -r y m d <<< "$(TZ=UTC date -d 'tomorrow' +'%y %m %d' 2>/dev/null || TZ=UTC date -v+1d +'%y %m %d')"
-          tomorrow="$((10#$y)).$((10#$m)).$((10#$d))"
-
-          #    A HOTFIX HANGS OFF TOMORROW'S BASE, NOT TODAY'S, and that is a
-          #    correctness requirement rather than a naming taste. Semver ranks
-          #    a prerelease BELOW its own base version (spec §11.3), so
-          #    `26.8.17-hotfix.17` would sort as OLDER than the `26.8.17` it
-          #    exists to fix — Cargo, Homebrew, and every image sort would read
-          #    the fix as the earlier release. Hanging it off the next day makes
-          #    the order monotonic and true:
-          #
-          #        26.8.17 < 26.8.18-hotfix.17 < 26.8.18-hotfix.21 < 26.8.18
-          #
-          #    Read plainly, a hotfix IS tomorrow's release cut early: it
-          #    carries fixes that would otherwise wait for the next UTC day.
-          if [ "${prerelease}" = "true" ]; then
-              expected="${tomorrow}"
-              label="tomorrow's UTC date (a hotfix sorts below its own base, so it hangs off the NEXT day)"
-          else
-              expected="${today}"
-              label="today's UTC date (one ordinary release per UTC calendar day)"
-          fi
-          if [ "${base}" != "${expected}" ]; then
-              echo "::error::tag ${tag} has base ${base}, which is not ${label} — expected base ${expected}"
-              exit 1
-          fi
-
-          #    NOTHING CLOCK-CHECKS `N`. It is a uniqueness-and-ordering
-          #    discriminator, not an assertion this job can verify: a tag pushed
-          #    at 17:58 whose run starts at 18:01 carries an hour that was
-          #    correct when pushed, and failing it would burn an immutable tag
-          #    over queue latency. The shape check above is the whole contract.
-
-          # 3. MANIFEST. The check that makes a published image's self-reported
-          #    version true. `cli/build.rs` bakes
-          #    `[workspace.package].version` into `navigator --version`, and
-          #    every crate inherits it through `version.workspace = true`;
-          #    without this the manifest sat at `0.1.0` while tags marched on,
-          #    so a plain build of the tagged source named a release the source
-          #    had never heard of. `navigator ops release-version` writes the
-          #    bump, it lands through an ordinary PR, and the tag goes on that
-          #    merged commit.
-          #
-          #    Read the value out of the `[workspace.package]` table only.
-          #    `[workspace.dependencies]` holds dozens of `version =` lines, and
-          #    a file-wide grep would compare the tag against the first
-          #    dependency pin it found — which is a check that passes and proves
-          #    nothing.
-          if [ ! -f Cargo.toml ]; then
-              echo "::error::Cargo.toml is not in this job's sparse checkout — the tag cannot be validated against the workspace version"
-              exit 1
-          fi
-          #    `rust-version` sits in that same table and must not be mistaken
-          #    for `version`, which is why the key is anchored rather than
-          #    matched loosely.
-          manifest="$(awk '
-              /^\[/ { in_package = ($0 ~ /^\[workspace\.package\]/); next }
-              in_package && /^[[:space:]]*version[[:space:]]*=/ {
-                  split($0, quoted, "\""); print quoted[2]; exit
-              }
-          ' Cargo.toml)"
-          if [ -z "${manifest}" ]; then
-              echo "::error::Cargo.toml has no version under [workspace.package] — the manifest shape moved"
-              exit 1
-          fi
-          if [ "${tag}" != "${manifest}" ]; then
-              echo "::error::tag ${tag} does not match [workspace.package] version ${manifest} — run \`navigator ops release-version\`, land the bump, and tag that commit"
-              exit 1
-          fi
-
-          # 4. PROVENANCE. A tag carries no branch name, so shape, date, and
-          #    manifest equality cannot distinguish merged main from an
-          #    unmerged PR commit. The Rust CLI fetches `origin/main`, peels
-          #    annotated or lightweight tags to a commit, and runs Git's own
-          #    `merge-base --is-ancestor` check. Every publisher needs this job,
-          #    so a refusal happens before any image, archive, or Release.
-          cargo run --locked -p cli --quiet -- ops release-provenance --tag "${REF_NAME}"
-
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "publishable=true" >> "$GITHUB_OUTPUT"
-          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
-          if [ "${prerelease}" = "true" ]; then
-              echo "hotfix ${tag}: shape, base date ${base} (tomorrow UTC), workspace version, and main provenance all agree — publishes as a prerelease, and the Homebrew tap is notified"
-          else
-              echo "release ${tag}: shape, UTC date, workspace version, and main provenance all agree"
-          fi
-
+          cargo run --locked -p cli --quiet -- ops release-check --github-output
+      # THE FIRST LINE #navigator SEES, and it comes after the decision rather
+      # than before it. Every merge to `main` starts this workflow, so a post
+      # ahead of the answer would narrate the ~95% of merges that publish
+      # nothing — two lines each, for a release that is not happening. The
+      # narration opens once there is a release to narrate.
+      - uses: ./.github/actions/slack-progress
+        if: steps.version.outputs.publishable == 'true'
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: ${{ steps.version.outputs.tag }}
+          stage: "release-version"
+          step: "this commit is a release — building"
 
   # ---------- Stage 0: build both service images in parallel ----------
   # Each image cold-compiles the whole Rust workspace. Building them as a
@@ -397,7 +323,20 @@ jobs:
   build:
     name: build ${{ matrix.image }}
     needs: release-version
-    if: github.repository == 'neon-law-foundation/navigator'
+    # WORK ONLY WHEN THERE IS A RELEASE TO PROVE. Every merge to `main` starts
+    # this workflow, and almost none of them carry a version bump — so without
+    # this gate an ordinary merge would cold-compile four images and run the
+    # whole KIND suite to publish nothing. `release-version` answers in seconds
+    # and the run stops there.
+    #
+    # The `kind-ci/**` leg is the exception that has to be spelled out: a branch
+    # iteration reports `publishable=false` by design, and building and proving
+    # the images is the ENTIRE point of that trigger. It is the only way to test
+    # a change to this file.
+    if: >-
+      github.repository == 'neon-law-foundation/navigator'
+      && (needs.release-version.outputs.publishable == 'true'
+          || startsWith(github.ref_name, 'kind-ci/'))
     # Per-image runner: the Rust-workspace images exhaust the tenant
     # `ubuntu-latest` disk before rustup even finishes (run 142012686,
     # "No space left on device" at `rustup target add`), so they build on
@@ -576,7 +515,20 @@ jobs:
   integration:
     name: KIND integration (tag ${{ needs.release-version.outputs.tag }})
     needs: [build, release-version]
-    if: github.repository == 'neon-law-foundation/navigator'
+    # WORK ONLY WHEN THERE IS A RELEASE TO PROVE. Every merge to `main` starts
+    # this workflow, and almost none of them carry a version bump — so without
+    # this gate an ordinary merge would cold-compile four images and run the
+    # whole KIND suite to publish nothing. `release-version` answers in seconds
+    # and the run stops there.
+    #
+    # The `kind-ci/**` leg is the exception that has to be spelled out: a branch
+    # iteration reports `publishable=false` by design, and building and proving
+    # the images is the ENTIRE point of that trigger. It is the only way to test
+    # a change to this file.
+    if: >-
+      github.repository == 'neon-law-foundation/navigator'
+      && (needs.release-version.outputs.publishable == 'true'
+          || startsWith(github.ref_name, 'kind-ci/'))
     runs-on: ubuntu-latest
     # Fail fast instead of hanging for hours. With the image builds moved
     # to the parallel `build` job, a healthy run here is just the KIND
@@ -1357,9 +1309,89 @@ jobs:
   # manifest list and no arm64 leg under emulation. Demos live on the staging
   # website rather than an Apple-Silicon KIND cluster, so nothing needs a native
   # arm64 pull either.
+  # ---------- Stage 1b: create the ref that names this release ----------
+  # THE ORDER OF THIS JOB IS THE WHOLE POINT. The tag is immutable the moment it
+  # exists — the `release-tags` ruleset restricts deletion, update, and
+  # non-fast-forward with no bypass actor — so WHEN it is created decides what a
+  # failed release costs.
+  #
+  # While a person pushed the tag, it existed before a single image was built. A
+  # release that then went red had already spent its name, and recovering meant
+  # cutting a hotfix under a different version. Creating it here, after
+  # `integration` has proved the tree and before anything publishes, means a
+  # failure above this line costs nothing but a re-run.
+  #
+  # It is idempotent by design, because `deploy.yml` must survive being re-run.
+  # A tag already pointing at this commit is this run's own tag: the job says so
+  # and succeeds. A tag pointing at a DIFFERENT commit is refused rather than
+  # forced — that would be someone else's release wearing this version, and the
+  # ruleset would refuse the push anyway. `release-check` complements this from
+  # the other side: it reports a version whose tag already names this commit as
+  # publishable, so re-running the whole workflow republishes instead of
+  # skipping every job and reporting success for having done nothing.
+  release-tag:
+    name: tag ${{ needs.release-version.outputs.tag }}
+    needs: [integration, release-version]
+    if: needs.release-version.outputs.publishable == 'true'
+    runs-on: ubuntu-latest
+    # THE ONLY JOB IN THIS FILE THAT WRITES A GIT REF, and it only ever creates
+    # one. `release-windows-cli-publish` also holds `contents: write`, to create
+    # the GitHub Release that hangs off this tag. Nothing here can move a ref:
+    # the ruleset forbids it, and `git push --force` is not what this does.
+    permissions:
+      contents: write
+    steps:
+      # The local `slack-progress` composite action lives in this tree, so it
+      # cannot be used before a checkout.
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/slack-progress
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          tag: ${{ needs.release-version.outputs.tag }}
+          stage: "release-tag"
+          step: "create the release tag"
+      - name: create the release tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-version.outputs.tag }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # `gh api` exits nonzero on a 404, which is the ORDINARY case here: the
+          # tag does not exist yet. Anything else — a rate limit, a network blip —
+          # must not be read as "no tag", because that reading walks straight into
+          # the create below. So the two are told apart rather than both swallowed.
+          status=0
+          body="$(gh api "/repos/${REPO}/git/ref/tags/${TAG}" 2>/tmp/ref-read.err)" || status=$?
+          if [ "${status}" -eq 0 ]; then
+              existing="$(jq -r '.object.sha' <<< "${body}")"
+          elif grep -q 'Not Found' /tmp/ref-read.err; then
+              existing=""
+          else
+              echo "::error::could not read refs/tags/${TAG}: $(tr '\n' ' ' < /tmp/ref-read.err). Refusing to create a tag without knowing whether one already exists"
+              exit 1
+          fi
+
+          if [ -n "${existing}" ]; then
+              if [ "${existing}" = "${SHA}" ]; then
+                  echo "tag ${TAG} already names ${SHA}: this run's own tag, so this is a re-run"
+                  exit 0
+              fi
+              echo "::error::tag ${TAG} already exists and names ${existing}, not this run's commit ${SHA}. A release tag cannot be moved, so this version belongs to that commit: bump [workspace.package].version past ${TAG} and merge again"
+              exit 1
+          fi
+
+          gh api --method POST "/repos/${REPO}/git/refs" \
+              -f "ref=refs/tags/${TAG}" \
+              -f "sha=${SHA}" \
+              --jq '.ref' > /dev/null
+          echo "created refs/tags/${TAG} at ${SHA}"
+
   publish-service:
     name: publish ${{ matrix.image }} to Artifact Registry
-    needs: [integration, release-version]
+    needs: [integration, release-version, release-tag]
     # Tag only. A `kind-ci/**` branch run stops after integration — it
     # must never push branch-tagged images to the registry.
     if: needs.release-version.outputs.publishable == 'true'
@@ -1626,7 +1658,7 @@ jobs:
           # silently failed under its own `ignore-error`, this lookup misses
           # and the registry cache above still serves the build.
           cache-from: ${{ steps.cf.outputs.sources }}
-          # ignore-error: the release tag is pushed before this export, so a
+          # ignore-error: the release tag exists before this export, so a
           # registry hiccup on the `mode=max` export must not fail the publish
           # after the release image is already in Artifact Registry. This is
           # the leg that failed run 29929842056 (navigator-web amd64) purely at
@@ -1671,7 +1703,7 @@ jobs:
 
   publish-triggers:
     name: publish ${{ matrix.image }} to Artifact Registry
-    needs: [integration, release-version]
+    needs: [integration, release-version, release-tag]
     if: needs.release-version.outputs.publishable == 'true'
     # Per-image runner. A trigger image compiles ONE musl binary out of the
     # workspace — a very different shape from the 209 linked test binaries that
@@ -1879,7 +1911,7 @@ jobs:
     # a lane beside it. `integration` is the KIND e2e, interop, and
     # browser/accessibility suite; nothing this job produces can outlive a red
     # one, because nothing is compiled until it is green.
-    needs: [integration, release-version]
+    needs: [integration, release-version, release-tag]
     # The second half of that same gate, stated directly. `publish-service`
     # carries it too, so a run that publishes images always ships all three
     # archives, and a `kind-ci/**` branch iteration — which stops after
@@ -1952,7 +1984,7 @@ jobs:
     name: build Linux navigator CLI release archive
     # Same stage as the Windows archive and the GHCR publishes: the e2e gate plus
     # the tag, gated on `publishable`.
-    needs: [integration, release-version]
+    needs: [integration, release-version, release-tag]
     if: needs.release-version.outputs.publishable == 'true'
     runs-on: ubuntu-latest
     # This is the archive CI actually consumes. `.github/actions/validate`
@@ -2029,7 +2061,7 @@ jobs:
     name: build macOS navigator CLI release archive
     # Same stage as the other two archives: the e2e gate plus the tag, gated on
     # `publishable`.
-    needs: [integration, release-version]
+    needs: [integration, release-version, release-tag]
     if: needs.release-version.outputs.publishable == 'true'
     runs-on: macos-latest
     # The third archive, and the one that closes a live hole rather than adding
@@ -2197,11 +2229,11 @@ jobs:
               if [ "${PRERELEASE}" = "true" ]; then
                   flags+=(--prerelease)
               fi
-              # NO `--target`. The tag already exists — it is what started this
-              # run — so the Release hangs off the ref a person pushed, at the
-              # SHA every archive in this run was compiled from. `--target` was
-              # load-bearing while this job CREATED the tag, and passing it now
-              # would name a SHA for a ref that already has one.
+              # NO `--target`. The tag already exists — `release-tag` created it
+              # earlier in THIS run, at the SHA every archive here was compiled
+              # from — so the Release hangs off that ref. `--target` was
+              # load-bearing while this job created the tag itself, and passing
+              # it now would name a SHA for a ref that already has one.
               gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" "${flags[@]}"
           fi
           gh release upload "${TAG}" dist/navigator-*-windows.zip \
@@ -2624,6 +2656,7 @@ jobs:
         release-version,
         build,
         integration,
+        release-tag,
         publish-service,
         publish-triggers,
         release-windows-cli-build,
@@ -2633,21 +2666,25 @@ jobs:
         release-homebrew-tap,
         notify,
       ]
-    # Tag only: a failed `kind-ci/**` branch iteration is expected churn and
-    # must not page engineering — only a failed release does.
+    # `main` only: a failed `kind-ci/**` branch iteration is expected churn and
+    # must not page engineering.
     #
-    # Deliberately NOT gated on release-version's `publishable` output: that is
-    # the job that REJECTS a wrong-dated or manifest-mismatched tag, so it is
-    # among the most likely to fail — and when it does, its outputs are empty and
-    # an output-gated guard would stay silent about the very failure it exists to
-    # report. That is exactly how the old two-workflow release failed unnoticed
-    # for four consecutive nights. Read the trigger ref directly, so a failure
-    # ANYWHERE, including the tag validation, still pages.
+    # Deliberately NOT gated on release-version's `publishable` output. That job
+    # is the one that REJECTS a manifest naming an already-superseded version, so
+    # it is among the most likely to fail — and when it does its outputs are
+    # empty, so an output-gated guard would stay silent about the very failure it
+    # exists to report. That is exactly how the old two-workflow release failed
+    # unnoticed for four consecutive nights. Read the trigger ref instead.
+    #
+    # Reading the ref costs nothing in false positives here, because a merge
+    # carrying no version bump has nothing to fail: `release-version` succeeds,
+    # reports `publishable=false`, and every other job skips. So any failed
+    # `main` run is a real one.
     #
     # This is the automatic Slack signal that a release broke when the optional
     # webhook is configured. GitHub's run conclusion remains the source of truth
     # either way; see docs/gitops.md § "What detects a broken pipeline".
-    if: failure() && github.ref_type == 'tag'
+    if: failure() && github.ref_name == 'main'
     runs-on: ubuntu-latest
     # A single webhook POST — cap it so a hung request can't keep the run open.
     timeout-minutes: 10

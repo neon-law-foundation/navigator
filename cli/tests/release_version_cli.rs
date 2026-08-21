@@ -141,16 +141,19 @@ fn omitting_the_tag_is_a_usage_error() {
     );
 }
 
-/// A malformed version is refused before anything is written, because the shape
-/// this command accepts is the shape `deploy.yml` accepts — and discovering the
-/// mismatch there costs an immutable tag.
+/// A version the manifest could not carry is refused before anything is written.
+///
+/// The shape is semver's — `cli/src/release.rs` — so what is refused here is what
+/// Cargo itself cannot parse, plus build metadata. `-rc.1` is deliberately NOT in
+/// this list: the prerelease label is the operator's to choose, and the old
+/// grammar's insistence on `-hotfix.N` exactly was a rule with nothing behind it.
 #[test]
 fn a_malformed_version_is_refused_before_the_manifest_is_touched() {
     for bad in [
         "26.08.20",
         "26.8.20.13",
         "26.8.18-hotfix.08",
-        "26.8.18-rc.1",
+        "26.8.20+build.1",
         "v26.8.20",
     ] {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -343,6 +346,40 @@ fn a_rerun_repairs_a_lock_left_behind_by_an_earlier_bump() {
         assert_eq!(
             version, "26.8.14",
             "{name} must be refreshed even though the manifest already said 26.8.14"
+        );
+    }
+}
+
+/// ANY SEMVER PRERELEASE IS WRITABLE, because the pipeline's only ordering rule
+/// is "newer than the last release" and the comparator handles every label the
+/// same way. The convention stays `-hotfix.N`; nothing enforces it.
+#[test]
+fn any_semver_prerelease_is_written_verbatim() {
+    for good in [
+        "26.8.23-hotfix.1",
+        "26.8.23-rc.1",
+        "26.8.23-hotfix",
+        "2026.8.23",
+    ] {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let manifest = dir.path().join("Cargo.toml");
+        fs::write(&manifest, MANIFEST).expect("write manifest");
+
+        run(&[
+            "ops",
+            "release-version",
+            "--tag",
+            good,
+            "--no-commit",
+            "--manifest-path",
+            manifest.to_str().unwrap(),
+        ])
+        .success();
+
+        let written = fs::read_to_string(&manifest).expect("read manifest");
+        assert!(
+            written.contains(&format!("version = \"{good}\"")),
+            "{good} must be written verbatim, got: {written}"
         );
     }
 }

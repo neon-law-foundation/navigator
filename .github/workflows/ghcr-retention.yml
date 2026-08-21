@@ -46,7 +46,7 @@ on:
     # 01:11 UTC. An odd minute rather than :00, because the top of the hour is
     # when GitHub's hosted-runner queue is deepest and a scheduled run is
     # delayed, not queued fairly. This is the slot the nightly release train
-    # held before publishing moved to a pushed tag.
+    # held before publishing moved off the nightly clock.
     - cron: "11 1 * * *"
   workflow_dispatch:
     inputs:

@@ -1,29 +1,34 @@
 //! `navigator ops release-version` — write the release version the operator
-//! names into `[workspace.package].version`, so the commit a release tags
-//! carries the version its Git tag names.
+//! names into `[workspace.package].version`, which is the act that cuts a
+//! release.
+//!
+//! THIS COMMAND IS THE RELEASE TRIGGER, one step removed. `deploy.yml` runs
+//! `ops release-check` on every push to `main`; when the workspace version is
+//! newer than every version already tagged, that push builds, proves, tags, and
+//! publishes. So bumping this value and landing it is the whole of cutting a
+//! release — there is no tag to push afterwards, and no clock decides anything.
 //!
 //! IT DERIVES NOTHING. `--tag` is required and its value is written verbatim
-//! once the shape checks out. Naming a release is an operator decision — whether
-//! a cut is ordinary or a hotfix, and which `N` a hotfix carries — and a command
-//! that guessed made the name a side effect of when it happened to run.
-//! `deploy.yml`'s `release-version` job is the authority on which names are
-//! admissible; this command refuses the ones that job would refuse, here, while
-//! nothing has been published and the name is still free.
+//! once it parses. Naming a release is an operator decision, and a command that
+//! guessed made the name a side effect of when it happened to run.
 //!
-//! The release is a deliberate tag push (`docs/gitops.md` → "One workflow owns
-//! the release"). Nothing derives the version from the tag at build time unless
-//! `NAVIGATOR_RELEASE_TAG` is set, so a plain build of the tagged source reports
-//! the workspace crate version — which used to stay `0.1.0` forever, a binary
-//! that misreports the release it was cut from. Every crate inherits this value
-//! through `version.workspace = true` and `cli/build.rs` bakes it into
-//! `navigator --version`. Run it, land the bump on `main` through a PR, then tag
-//! that merged commit; `deploy.yml` fails a tag whose source version disagrees,
-//! so the tag and the source can never drift.
+//! The shape it accepts is semver and nothing narrower — see [`crate::release`]
+//! for why the calendar is a convention rather than a rule. `YY.M.D` remains
+//! that convention, and the `cut-release` skill is where it is written down; a
+//! version that departs from it publishes just as well, provided it is newer
+//! than the last one.
+//!
+//! Every crate inherits this value through `version.workspace = true` and
+//! `cli/build.rs` bakes it into `navigator --version`, so a plain build of the
+//! released source reports the release it was cut from — which used to stay
+//! `0.1.0` forever while tags marched on. Because `deploy.yml` now derives the
+//! tag FROM this value rather than comparing a pushed tag against it, that drift
+//! is no longer a check that can fail: the tag and the manifest are one
+//! decision.
 //!
 //! It writes `Cargo.lock` alongside the manifest, because the release builds
 //! with `--locked` and that flag refuses a lock whose versions the manifest has
-//! moved past. A bump carrying only `Cargo.toml` fails after the tag is pushed,
-//! and a tag cannot be moved.
+//! moved past.
 //!
 //! It never pushes to `main` itself: `main` is squash-merge-only and no ref may
 //! be moved by automation (`docs/gitops.md` → "`main` is sacred"). The bump goes
@@ -32,81 +37,24 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-/// Accept exactly the release versions `deploy.yml`'s `release-version` job
-/// accepts, and reject everything else before a byte is written.
+/// Refuse a version a release could not carry, before a byte is written.
 ///
-/// This check REPLACES a derivation rather than adding a new rule. While this
-/// command computed the version itself, a well-formed name was a property of the
-/// code; now that the operator supplies every name it is an input, and an
-/// unchecked input would write a version Cargo cannot parse into the manifest —
-/// to be discovered by the release, on a tag that cannot be moved.
+/// The grammar lives in [`crate::release`] and is semver's own — this is a thin
+/// delegation on purpose. It used to be ninety lines of component checking
+/// transcribed from `deploy.yml`'s `grep -E`, which is two copies of one rule
+/// and therefore two chances to disagree with the parser that ultimately
+/// decides. `Version::parse` refuses everything that grammar refused (a fourth
+/// component, a padded month, a padded prerelease number) and refuses it against
+/// the specification.
 ///
-/// The grammar is `deploy.yml`'s, transcribed: a two-digit year, an unpadded
-/// month and day, and an optional `-hotfix.N` prerelease whose `N` is unpadded.
-/// Padding is not cosmetic — semver forbids a leading zero in a numeric
-/// prerelease identifier, so `hotfix.08` is not a version at all.
-///
-/// IT DOES NOT READ THE CLOCK. Whether a base is today's or tomorrow's UTC date
-/// is a question about *when* this runs, and answering it here would restore, in
-/// a different shape, exactly the guessing this command stopped doing. The two
-/// places that already own that check keep it: `deploy.yml`'s date guard, and
-/// `cut-release`'s `validate-release-tag.sh` before anything is written.
+/// IT DOES NOT READ THE CLOCK, and no longer needs to: the release is cut by
+/// merging this bump, so the version is written days before it publishes.
+/// Whether it is newer than everything already released is [`crate::release_check`]'s
+/// question, asked against the tags rather than against a calendar.
 fn validate_release_version(version: &str) -> Result<(), String> {
-    let (base, prerelease) = match version.split_once('-') {
-        Some((base, rest)) => (base, Some(rest)),
-        None => (version, None),
-    };
-
-    let mut components = base.split('.');
-    let (Some(year), Some(month), Some(day), None) = (
-        components.next(),
-        components.next(),
-        components.next(),
-        components.next(),
-    ) else {
-        return Err(format!(
-            "`{version}` is not a `YY.M.D` release version: its base needs exactly three              dot-separated components"
-        ));
-    };
-
-    if year.len() != 2 || !year.bytes().all(|byte| byte.is_ascii_digit()) {
-        return Err(format!(
-            "`{version}` must open with a two-digit year, not `{year}`"
-        ));
-    }
-
-    for (label, component) in [("month", month), ("day", day)] {
-        if !is_unpadded_number(component, Some(2)) {
-            return Err(format!(
-                "`{version}` has an invalid {label} `{component}`: it must be an unpadded number                  (August is `8`, never `08`)"
-            ));
-        }
-    }
-
-    if let Some(prerelease) = prerelease {
-        let Some(number) = prerelease.strip_prefix("hotfix.") else {
-            return Err(format!(
-                "`{version}`: the only prerelease a release may carry is `-hotfix.N`, not                  `-{prerelease}`"
-            ));
-        };
-        if !is_unpadded_number(number, None) {
-            return Err(format!(
-                "`{version}` has an invalid hotfix number `{number}`: semver forbids a leading                  zero in a numeric prerelease identifier, so a padded one is not a version at all"
-            ));
-        }
-    }
-
-    Ok(())
-}
-
-/// An unpadded nonnegative integer: `0` itself, or digits that do not open with
-/// a zero. `max_digits` bounds the length where the grammar does — a month or a
-/// day admits at most two digits, while a hotfix `N` is unbounded.
-fn is_unpadded_number(text: &str, max_digits: Option<usize>) -> bool {
-    !text.is_empty()
-        && max_digits.is_none_or(|max| text.len() <= max)
-        && text.bytes().all(|byte| byte.is_ascii_digit())
-        && (text == "0" || !text.starts_with('0'))
+    crate::release::parse(version)
+        .map(|_| ())
+        .map_err(|error| format!("{error:#}"))
 }
 
 /// Replace the `version` value inside the `[workspace.package]` table only,
@@ -216,11 +164,12 @@ pub fn run(manifest_path: &Path, version: &str, no_commit: bool) -> ExitCode {
     }
 
     // `Cargo.lock` pins every workspace crate's version too, and `deploy.yml`
-    // builds the release with `--locked` — in the provenance step and in all
-    // three CLI archive jobs. `--locked` refuses a lock the manifest has moved
-    // past, so writing one file without the other is latently fatal rather than
-    // untidy: the failure lands AFTER the tag is pushed, the `release-tags`
-    // ruleset admits no bypass actor, and the day's release name is spent. The
+    // builds the release with `--locked` — in the release decision itself and in
+    // all three CLI archive jobs. `--locked` refuses a lock the manifest has
+    // moved past, so writing one file without the other is latently fatal rather
+    // than untidy. `ci.yml` catches it on the pull request, which is where it is
+    // free; unnoticed, it lands after the release tag exists, and the
+    // `release-tags` ruleset admits no bypass actor, so that version is spent. The
     // archive jobs are also what `.github/actions/validate` downloads, so the
     // breakage surfaces as a 404 in every Project repository's CI while nothing
     // here goes red. Refresh the lock in the same breath as the manifest.
@@ -342,97 +291,49 @@ fn commit_bump(version: &str, lock_present: bool) -> ExitCode {
 mod tests {
     use super::{set_workspace_version, validate_release_version};
 
-    /// An ordinary release version is accepted as written.
+    /// The convention is accepted, and so is every other shape semver admits.
+    ///
+    /// The grammar is `crate::release`'s and is tested exhaustively there. What
+    /// this asserts is that the command DELEGATES to it — a version this
+    /// command once refused for departing from `YY.M.D` now writes cleanly,
+    /// because the calendar is a convention and the only hard rule is that a
+    /// release version is a version.
     #[test]
-    fn accepts_an_unpadded_yy_m_d_version() {
-        assert!(validate_release_version("26.8.5").is_ok());
-        assert!(validate_release_version("26.12.25").is_ok());
-    }
-
-    /// A hotfix prerelease is accepted, and `N` is not hour-bounded — it is a
-    /// uniqueness-and-ordering discriminator the operator chooses, so a value
-    /// past 23 is as valid as any other.
-    #[test]
-    fn accepts_a_hotfix_prerelease_with_any_unpadded_number() {
-        assert!(validate_release_version("26.8.18-hotfix.3").is_ok());
-        assert!(validate_release_version("26.8.18-hotfix.0").is_ok());
-        assert!(validate_release_version("26.8.18-hotfix.99").is_ok());
-    }
-
-    /// THE PROPERTY THE WHOLE CONVENTION EXISTS FOR, asserted against a real
-    /// semver implementation on the literal spellings this validator admits: a
-    /// hotfix must sort ABOVE the release it fixes and BELOW the next ordinary
-    /// release, and a larger `N` above a smaller one. Hanging the prerelease off
-    /// the SAME day would invert the first comparison, because semver ranks a
-    /// prerelease below its own base — which is why a hotfix names TOMORROW.
-    #[test]
-    fn a_hotfix_sorts_between_the_release_it_fixes_and_the_next_one() {
-        let names = [
-            "26.8.17",
-            "26.8.18-hotfix.3",
-            "26.8.18-hotfix.21",
-            "26.8.18",
-        ];
-        for name in names {
+    fn accepts_any_semver_version_not_only_the_convention() {
+        for version in [
+            "26.8.5",
+            "26.12.25",
+            "26.8.18-hotfix.0",
+            "26.8.18-hotfix.9999",
+            "2026.8.20",
+            "1.4.2",
+            "26.8.18-rc.1",
+        ] {
             assert!(
-                validate_release_version(name).is_ok(),
-                "{name} must be an admissible release version"
+                validate_release_version(version).is_ok(),
+                "`{version}` must be writable into the manifest"
             );
         }
+    }
 
-        let parsed: Vec<semver::Version> = names
-            .iter()
-            .map(|name| name.parse().expect("valid semver"))
-            .collect();
-        for pair in parsed.windows(2) {
-            assert!(pair[0] < pair[1], "{} must sort below {}", pair[0], pair[1]);
+    /// A version the manifest could not carry is refused here, while nothing has
+    /// been published and the name is still free to change.
+    #[test]
+    fn rejects_what_a_release_version_cannot_be() {
+        for version in [
+            "26.08.20",          // padded month
+            "26.8.20.13",        // a fourth component, which Cargo cannot parse
+            "26.8.18-hotfix.08", // semver forbids a leading zero here
+            "v26.8.20",
+            "26.8",
+            "26.8.20+build.1", // build metadata does not order
+            "",
+        ] {
+            assert!(
+                validate_release_version(version).is_err(),
+                "`{version}` must never reach the manifest"
+            );
         }
-    }
-
-    /// A padded component is not cosmetic: `deploy.yml` anchors the unpadded
-    /// shape, so `26.08.20` is a tag the release refuses.
-    #[test]
-    fn rejects_padded_month_and_day() {
-        assert!(validate_release_version("26.08.20").is_err());
-        assert!(validate_release_version("26.8.05").is_err());
-    }
-
-    /// A fourth component is impossible by construction — Cargo parses this
-    /// value as strict semver and rejects it — so it must never reach the
-    /// manifest.
-    #[test]
-    fn rejects_a_fourth_component() {
-        assert!(validate_release_version("26.8.20.13").is_err());
-        assert!(validate_release_version("26.8").is_err());
-    }
-
-    /// Semver forbids a leading zero in a numeric prerelease identifier, so a
-    /// padded `hotfix.08` is not a version at all — and would not parse.
-    #[test]
-    fn rejects_a_padded_hotfix_number() {
-        assert!(validate_release_version("26.8.18-hotfix.08").is_err());
-        assert!(
-            "26.8.18-hotfix.08".parse::<semver::Version>().is_err(),
-            "the rejection is semver's rule, not a local preference"
-        );
-    }
-
-    /// `-hotfix.N` is the only prerelease a release may carry: the publish path
-    /// and the Homebrew tap both reason about that one spelling.
-    #[test]
-    fn rejects_any_other_prerelease() {
-        assert!(validate_release_version("26.8.18-rc.1").is_err());
-        assert!(validate_release_version("26.8.18-hotfix").is_err());
-        assert!(validate_release_version("26.8.18-hotfix.x").is_err());
-    }
-
-    /// A four-digit year, a `v` prefix, and empty input are all refused rather
-    /// than written into the manifest.
-    #[test]
-    fn rejects_a_malformed_year_or_prefix() {
-        assert!(validate_release_version("2026.8.20").is_err());
-        assert!(validate_release_version("v26.8.20").is_err());
-        assert!(validate_release_version("").is_err());
     }
 
     /// The one line under `[workspace.package]` is rewritten and nothing else.
