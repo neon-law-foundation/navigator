@@ -235,12 +235,18 @@ rather than half-reconciled.
 
 Add jobs to the workflow that owns their trigger; do not create a redundant workflow.
 
+`warm-cache.yml` is the one workflow that is not a gate. It runs after a merge, nothing waits on it, and its failure
+blocks no pull request — it exists only because an Actions cache is scoped per ref, so the `main`-scoped entry every
+pull request restores has to be written by a run on `main`. It is a separate file rather than a job in `ci.yml`
+precisely so that `ci.yml` keeps running on `pull_request` alone.
+
 | Workflow | Trigger | Job |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | `pull_request` → `main` | Rust quality gate |
 | `.github/workflows/deploy.yml` | a push to `main`, or a `kind-ci/**` branch | prove + tag + publish images |
 | `.github/workflows/ghcr-retention.yml` | 01:11 UTC nightly, or a dispatch | prune old GHCR versions |
 | `.github/workflows/codeql.yml` | `pull_request` → `main` | CodeQL scan — enable it, see below |
+| `.github/workflows/warm-cache.yml` | `push` → `main` | write the Rust dependency cache the gate reads |
 
 ### CodeQL can be turned back on
 
