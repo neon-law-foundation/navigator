@@ -64,10 +64,14 @@ pub fn load_dir(dir: &Path) -> Result<Vec<MarketingDoc>, ContentLoadError> {
 /// is set in front-matter (typical case — file stem matches).
 #[must_use]
 pub fn parse(raw: &str, fallback_slug: &str) -> Option<MarketingDoc> {
-    let after_open = raw.strip_prefix("---\n")?;
-    let end = after_open.find("\n---")?;
-    let frontmatter = &after_open[..end];
-    let body = after_open[end + "\n---".len()..].trim_start_matches('\n');
+    // Delimiter handling lives in `rules::frontmatter` rather than here,
+    // so this loader cannot drift from the other readers of the same
+    // files. The local probe it replaces was LF-only, and every `.md`
+    // under `server/content` opens `---\r\n` on a checkout with
+    // `core.autocrlf=true` — so `parse` returned `None` for all of them
+    // and `web` died at boot on `loading marketing content`.
+    let (frontmatter, body) = rules::frontmatter::split(raw)?;
+    let body = body.trim_start_matches(['\n', '\r']);
     let fields = parse_frontmatter(frontmatter);
 
     let title = fields
@@ -195,6 +199,93 @@ mod tests {
     use super::{load_dir, parse, rewrite_image_src};
     use std::fs;
     use tempfile::TempDir;
+
+    const LF_DOC: &str = "---\ntitle: Mission\nslug: mission\ndescription: Why we exist\nweight: 2\n---\n# Heading\n\nA paragraph.\n";
+
+    fn crlf(s: &str) -> String {
+        s.replace('\n', "\r\n")
+    }
+
+    #[test]
+    fn parse_reads_the_same_values_from_lf_and_crlf() {
+        // Values, not an error count. `parse` returning `None` on CRLF is
+        // what stopped `web` booting, and a count-based assertion would
+        // have passed on Linux throughout.
+        let lf = parse(LF_DOC, "fallback").expect("lf parses");
+        let crlf_doc = crlf(LF_DOC);
+        let from_crlf = parse(&crlf_doc, "fallback").expect("crlf parses");
+
+        assert_eq!(from_crlf.title, lf.title);
+        assert_eq!(from_crlf.slug, lf.slug);
+        assert_eq!(from_crlf.description, lf.description);
+        assert_eq!(from_crlf.metadata, lf.metadata);
+        assert_eq!(from_crlf.body_html, lf.body_html);
+
+        // Spot-check the absolute values so the equality above cannot be
+        // satisfied by both sides being empty.
+        assert_eq!(from_crlf.title, "Mission");
+        assert_eq!(from_crlf.slug, "mission");
+        assert_eq!(from_crlf.description, "Why we exist");
+        assert_eq!(
+            from_crlf.metadata.get("weight").map(String::as_str),
+            Some("2")
+        );
+        assert!(
+            from_crlf.body_html.contains("<h1>Heading</h1>"),
+            "body rendered from a CRLF document: {}",
+            from_crlf.body_html
+        );
+        // The closing delimiter must not survive into the rendered body.
+        assert!(!from_crlf.body_html.contains("---"));
+        assert!(!from_crlf.body_html.contains("title: Mission"));
+    }
+
+    #[test]
+    fn parse_handles_a_crlf_closer_at_eof() {
+        let doc = "---\r\ntitle: T\r\nslug: s\r\n---";
+        let parsed = parse(doc, "fallback").expect("closer at eof parses");
+        assert_eq!(parsed.title, "T");
+        assert_eq!(parsed.slug, "s");
+        assert_eq!(parsed.body_html.trim(), "");
+    }
+
+    #[test]
+    fn every_tracked_content_file_parses_on_this_checkout() {
+        // Covers the strictness change: `parse` used to probe `find("\n---")`,
+        // which also matched a non-delimiter line like `----`. Routing
+        // through `rules::frontmatter::split` requires a real delimiter, so
+        // assert the shipped files still parse and still carry a title.
+        //
+        // This reads the real tree, so it fails on whichever platform is
+        // actually broken rather than on a synthetic fixture.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../server/content");
+        let mut seen = 0;
+        let mut stack = vec![root.clone()];
+        while let Some(dir) = stack.pop() {
+            let Ok(entries) = fs::read_dir(&dir) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().and_then(|x| x.to_str()) == Some("md") {
+                    let raw = fs::read_to_string(&path).expect("read content file");
+                    if !raw.starts_with("---") {
+                        continue; // not a frontmatter-bearing fragment
+                    }
+                    let parsed = parse(&raw, "fallback")
+                        .unwrap_or_else(|| panic!("{}: frontmatter not found", path.display()));
+                    assert!(!parsed.title.is_empty(), "{}: empty title", path.display());
+                    seen += 1;
+                }
+            }
+        }
+        assert!(
+            seen >= 9,
+            "expected the tracked content fragments to be covered, saw {seen}"
+        );
+    }
 
     #[test]
     fn relative_image_src_routes_through_the_asset_seam() {
