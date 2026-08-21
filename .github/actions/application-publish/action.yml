@@ -176,10 +176,28 @@ runs:
     # Upload order is load-bearing, and the applications bucket adds a second
     # rule the marketing sites do not have: it is private, shared across every
     # Project, and served object-by-object by Navigator, so a publish NEVER
-    # deletes. Neither pass carries
-    # `--delete-unmatched-destination-objects`, so a stale hashed asset is left
-    # unreachable rather than removed, and one Project's publish can never prune
-    # another's objects out of the flat namespace.
+    # deletes. `cp` cannot delete, so a stale hashed asset is left unreachable
+    # rather than removed, and one Project's publish can never prune another's
+    # objects out of the flat namespace.
+    #
+    # ## Why `cp` and not `rsync`
+    #
+    # Two independent reasons, and both are load-bearing. Do not "optimize" this
+    # back to `gcloud storage rsync` for speed.
+    #
+    # 1. **Retention.** The bucket carries an object-age Delete rule —
+    #    `cli/src/devx/gcp/buckets.rs`, `APPLICATIONS_RETENTION_DAYS`. An upload
+    #    that skips unchanged objects leaves a live asset's age running while
+    #    `index.html` keeps naming it, so the entry document outlives the assets
+    #    it points at and the portal serves a blank page. `rsync` skips
+    #    unchanged objects by definition; `cp` rewrites every object every
+    #    publish, which is what keeps a live asset's age at zero.
+    # 2. **Least privilege.** `rsync` compares against the destination, so it
+    #    needs `storage.objects.list` — and that permission is evaluated against
+    #    the *bucket*, never an object, so no prefix condition can scope it. It
+    #    would hand every Project's CI the ability to enumerate every other
+    #    Project's object names in this shared bucket. `cp` never lists, so the
+    #    publisher needs only prefix-conditioned create/update.
     #
     # Pass 1 — everything except index.html, so that by the time any HTML naming
     # a new hashed filename is readable, that file already exists.
@@ -191,9 +209,29 @@ runs:
         DIST_DIR: ${{ inputs.dist_dir }}
       run: |
         set -euo pipefail
-        gcloud storage rsync "${DIST_DIR}" "gs://${BUCKET}/${PREFIX}" \
-            --recursive \
-            --exclude '^index\.html$'
+
+        # `gcloud storage cp --recursive <dir> <dst>` NESTS the directory: it
+        # writes `<prefix>/dist/assets/...`, which Navigator does not serve. A
+        # trailing slash on the source does not change that. Uploading the
+        # directory's *entries* is what merges them, so `assets/` lands at
+        # `<prefix>/assets/`. This is also how index.html is held back: `cp`
+        # has no `--exclude`, so it is filtered out of the entry list here and
+        # uploaded by the next step instead.
+        shopt -s dotglob nullglob
+        entries=()
+        for entry in "${DIST_DIR}"/*; do
+            if [ "$(basename "${entry}")" = "index.html" ]; then
+                continue
+            fi
+            entries+=("${entry}")
+        done
+
+        if [ "${#entries[@]}" -eq 0 ]; then
+            echo "::error::${DIST_DIR} holds nothing but index.html; the build produced no assets."
+            exit 1
+        fi
+
+        gcloud storage cp --recursive "${entries[@]}" "gs://${BUCKET}/${PREFIX}/"
 
     # Pass 2 — index.html LAST, once every asset it names is already in place.
     - name: publish index.html last
