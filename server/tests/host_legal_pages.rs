@@ -211,6 +211,38 @@ async fn the_pages_keep_the_navigator_ownership_attribution() {
     );
 }
 
+/// Both surfaces that cite the registration point a reader at the register.
+///
+/// A notice a reader cannot check is the site's own word for who owns the name
+/// on its door. The registration number is the claim and the USPTO record is
+/// where it resolves, so the footer that carries the mark on every page and the
+/// Terms section that explains it both link out — and the whole route is what
+/// proves it, since the footer's notice is resolved from the brand per request
+/// rather than written into the page.
+#[tokio::test]
+async fn the_registration_links_to_the_uspto_record_on_the_page_and_in_the_terms() {
+    const RECORD: &str = "https://tmsearch.uspto.gov/search/search-results/90039224";
+
+    let app = app().await;
+    let (_, terms) = get(&app, "/terms").await;
+    let flat = terms.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    // The footer renders on every page, so this one response carries both.
+    assert!(
+        flat.contains("is a registered trademark of Shook Law PLLC, "),
+        "the footer notices the mark and names the registrant: {flat}"
+    );
+    assert!(
+        flat.contains("U.S. Reg. No. 6,325,650"),
+        "and cites the registration: {flat}"
+    );
+    assert_eq!(
+        terms.matches(RECORD).count(),
+        2,
+        "the footer notice and the Terms section each link the record: {terms}"
+    );
+}
+
 /// The firm publishes an SMS program (clients text the firm about their
 /// matter), so its legal copy must carry the A2P 10DLC disclosures a carrier
 /// campaign review requires. The privacy policy names the two the reviewer

@@ -86,6 +86,13 @@ pub struct PublicChrome {
     /// brand on both faces.
     pub legal_entity: String,
     pub disclaimer: String,
+    /// The firm's registered word mark, its U.S. registration number, and the
+    /// register's own record for it — the footer's trademark notice. Resolved
+    /// from the firm brand on both faces, like `legal_entity` beside it, since
+    /// the notice names that entity as the registrant.
+    pub trademark: String,
+    pub trademark_registration: String,
+    pub trademark_record_url: String,
     pub copyright_year: i32,
     /// The firm's inbound support address — the footer's contact CTA.
     pub firm_email: String,
@@ -159,6 +166,12 @@ pub fn PublicFooter(chrome: PublicChrome) -> Element {
             // faces, so it is the same name at the bottom of every page.
             copyright_holder: chrome.legal_entity.clone(),
             disclaimer: chrome.disclaimer.clone(),
+            // The mark notice reads `copyright_holder` as its registrant, so
+            // it is handed in beside that name rather than resolved apart from
+            // it — the registration and its owner are one claim.
+            trademark: chrome.trademark.clone(),
+            trademark_registration: chrome.trademark_registration.clone(),
+            trademark_record_url: chrome.trademark_record_url.clone(),
             copyright_year: chrome.copyright_year,
             logo_href: chrome.firm_logo_href.clone(),
             // The wordmark beside the footer mark is the firm's, on every page
@@ -252,6 +265,11 @@ pub fn foundation_public_chrome(utility: Vec<ChromeNavLink>) -> PublicChrome {
 fn chrome_for(brand: &views::brand::SiteBrand, utility: Vec<ChromeNavLink>) -> PublicChrome {
     use views::brand::FIRM_BRAND;
 
+    // The mark, its registration, and the register's record, resolved together
+    // — the notice is one claim and a footer holding two thirds of it makes an
+    // ownership statement a reader cannot check.
+    let (trademark, registration, record) = views::brand::firm_trademark();
+
     let destinations = brand
         .nav
         .iter()
@@ -283,6 +301,9 @@ fn chrome_for(brand: &views::brand::SiteBrand, utility: Vec<ChromeNavLink>) -> P
         foundation_name: views::brand::foundation_entity().to_string(),
         legal_entity: FIRM_BRAND.legal_entity.to_string(),
         disclaimer: views::brand::firm_disclaimer().to_string(),
+        trademark: trademark.to_string(),
+        trademark_registration: registration.to_string(),
+        trademark_record_url: record.to_string(),
         // The footer fixes the joint-copyright year too; a deploy-time
         // value replaces the constant when the footer year is wired through.
         copyright_year: 2026,
@@ -403,6 +424,14 @@ mod tests {
             foundation_name: "Neon Law".to_string(),
             legal_entity: "Shook Law PLLC".to_string(),
             disclaimer: "This is an attorney advertisement.".to_string(),
+            // The real registration, as `chrome_for` resolves it from the firm
+            // brand: the notice's registrant is `legal_entity` above, so a
+            // fixture inventing a number here would document the one pairing
+            // this footer must never publish.
+            trademark: "NEON LAW".to_string(),
+            trademark_registration: "6,325,650".to_string(),
+            trademark_record_url: "https://tmsearch.uspto.gov/search/search-results/90039224"
+                .to_string(),
             copyright_year: 2026,
             firm_email: "support@neonlaw.com".to_string(),
             firm_phone: "+1 555 010 0100".to_string(),
@@ -487,6 +516,35 @@ mod tests {
         }
         let out = ssr(app);
         assert!(out.contains("© 2026 Shook Law PLLC"), "{out}");
+    }
+
+    /// The mark notice names the registrant the copyright line names, and
+    /// points at the register rather than at the site's own word for it.
+    ///
+    /// The registrant is the assertion that matters: U.S. Reg. No. 6,325,650 is
+    /// the Firm's, and a footer citing that number beside any other name would
+    /// hand a reader permission nobody gave them.
+    #[test]
+    fn the_mark_notice_names_the_registrant_and_links_the_record() {
+        fn app() -> Element {
+            rsx! { PublicFooter { chrome: firm_chrome() } }
+        }
+        let out = ssr(app);
+        assert!(
+            out.contains("NEON LAW") && out.contains("®"),
+            "the mark renders as registered: {out}"
+        );
+        assert!(
+            out.contains("is a registered trademark of Shook Law PLLC"),
+            "the registrant is the legal person, not the wordmark: {out}"
+        );
+        assert!(
+            out.contains("U.S. Reg. No. 6,325,650")
+                && out.contains(
+                    r#"href="https://tmsearch.uspto.gov/search/search-results/90039224""#
+                ),
+            "the registration is cited and linked to the register: {out}"
+        );
     }
 
     /// Foundation chrome renders the one shared footer, byte-identical to the
