@@ -118,6 +118,74 @@ data:
         "email_verified": true
       }
     ]
+  # An API key so upstream auth providers can be configured without a console
+  # click-through. Rauthy has no declarative surface for providers — its
+  # `bootstrap_dir` parses exactly `api_keys.json`, `roles.json`, `groups.json`,
+  # `scopes.json`, `user_attributes.json`, `users.json` and `clients.json`, and
+  # there is no `providers.json` and no `[[providers]]` in `config.toml`. So a
+  # provider is runtime state, created through `POST /providers/create`, and this
+  # key is the only declarative way to hold the credential that call needs.
+  #
+  # `AuthProviders` is the one access group required. Local fixture only: the
+  # secret is committed on purpose, exactly as the user passwords and the
+  # `navigator-web` client secret beside it are, and this file never leaves the
+  # KIND lane. A deployed tier supplies its own through `rauthy-bootstrap`.
+  #
+  # Two shapes below are load-bearing, and getting either wrong is expensive:
+  #
+  # - `name` must match `{2,24}` characters. A longer name does not degrade to a
+  #   rejected key — Rauthy *panics* out of bootstrap
+  #   (`src/data/src/migration/bootstrap/api_key.rs:57`) and the container exits
+  #   139. Kubernetes then restarts it onto the same non-empty `emptyDir`, so
+  #   bootstrap is skipped, the pod goes Ready with no key at all, and the only
+  #   evidence is in the *previous* container's log. A 25-character name cost a
+  #   session to find; `kubectl logs --previous` is where it is visible.
+  # - `secret` must be exactly 64 characters (`API_KEY_LENGTH`). A 65-character
+  #   secret bootstraps clean and then never authenticates.
+  #
+  # The key itself survives a pod restart, because it is re-bootstrapped from
+  # this ConfigMap every time the `emptyDir` comes up empty. The provider rows
+  # it creates do not — see the note on the `data` volume in
+  # `k8s/staging/rauthy.yaml`.
+  #
+  # A key is required rather than merely convenient. `POST /providers/create`
+  # takes `validate_api_key_or_admin_session`, so an admin session is nominally
+  # the alternative, but it is not scriptable: obtaining one needs a passkey
+  # wherever `admin_force_mfa` holds Rauthy's documented default of `true`. It
+  # works in KIND only because the `config.toml` above sets it to `false`.
+  # Lowering that setting on a deployed tier to avoid needing a key would trade
+  # admin MFA for a credential we can hold declaratively here — do not. The API
+  # key is both the scriptable path and the one that survives a restart.
+  #
+  # Whatever eventually performs the reconcile must obey two API constraints,
+  # both found the hard way:
+  #
+  # - Use known routes only, and never probe. Rauthy answers repeated unknown
+  #   paths with `429 IP Blocked` against the calling IP for roughly 24 minutes.
+  #   A script that discovers endpoints by guessing locks itself out, and does
+  #   it while looking exactly like a broken deploy.
+  # - `POST /providers/create` is not idempotent. Re-running it duplicates the
+  #   provider under a fresh id and renders a duplicate sign-in button, so a
+  #   reconcile has to list through `POST /providers` (Read right) and then skip
+  #   or `PUT /providers/{id}`. Note that plain `POST /providers` *is* the list
+  #   endpoint: aim a create at it and the `200`/`[]` reads like a silent
+  #   failure. Create is `POST /providers/create`.
+  api_keys.json: |
+    [
+      {
+        "name": "navigator-providers",
+        "exp": 4102444800,
+        "secret": {
+          "Plain": "navigatorlocalproviderskey00000000000000000000000000000000000000"
+        },
+        "access": [
+          {
+            "group": "AuthProviders",
+            "access_rights": ["read", "create", "update", "delete"]
+          }
+        ]
+      }
+    ]
   clients.json: |
     [
       {
