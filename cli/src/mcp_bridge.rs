@@ -96,66 +96,108 @@ impl HttpUpstream {
     #[must_use]
     pub fn new(host: Option<&str>) -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: client(),
             host: host.map(ToOwned::to_owned),
         }
     }
+}
+
+/// The HTTP client every dispatch uses. It does **not** follow redirects,
+/// and that is the whole point of having a constructor for it.
+///
+/// An unaccepted credential does not come back as an error status. The
+/// policy layer answers `303` toward a sign-in page, and a client that
+/// follows the hop fetches that page and hands back HTML — so the failure
+/// surfaces as "A2A response was not valid JSON" and reads like a
+/// protocol bug rather than the auth problem it is. Refusing the hop lets
+/// the `303` reach [`dispatch`], which knows what it means.
+fn client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        // Only a TLS/resolver initialization failure can fail this, and
+        // the default builder is what `Client::new` itself unwraps.
+        .unwrap_or_else(|_| reqwest::Client::new())
 }
 
 #[async_trait::async_trait]
 impl Upstream for HttpUpstream {
     async fn send_skill(&self, skill: &str, arguments: &Value) -> Result<Value> {
         let (base, token) = crate::remote::resolve(self.host.as_deref())?;
-        // The A2A envelope for a direct dispatch: no text parts, the
-        // skill and its arguments in `metadata`.
-        let body = json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "message/send",
-            "params": {
-                "message": {
-                    "messageId": uuid::Uuid::new_v4().to_string(),
-                    "role": "user",
-                    "kind": "message",
-                    "parts": [],
-                    "metadata": { "skill": skill, "arguments": arguments }
-                }
-            }
-        });
-        let url = format!("{base}{A2A_RPC_PATH}");
-        let resp = self
-            .client
-            .post(&url)
-            .bearer_auth(&token)
-            .json(&body)
-            .send()
-            .await
-            .with_context(|| format!("POST {url}"))?;
-
-        let status = resp.status();
-        let text = resp.text().await.context("read A2A response body")?;
-        if !status.is_success() {
-            // 401 here is nearly always the ~8h CLI token having aged
-            // out mid-session. Say so, rather than handing Claude a bare
-            // status code it will paraphrase as a mystery.
-            if status == reqwest::StatusCode::UNAUTHORIZED {
-                return Err(anyhow!(
-                    "the stored token for {base} is no longer accepted — run \
-                     `navigator site login --host {base}`, then try again (no restart needed)"
-                ));
-            }
-            return Err(anyhow!("A2A returned {status}: {text}"));
-        }
-        let envelope: Value =
-            serde_json::from_str(&text).context("A2A response was not valid JSON")?;
-        if let Some(err) = envelope.get("error") {
-            return Err(anyhow!("A2A error: {err}"));
-        }
-        envelope
-            .get("result")
-            .cloned()
-            .ok_or_else(|| anyhow!("A2A response carried neither `result` nor `error`"))
+        dispatch(&self.client, &base, &token, skill, arguments).await
     }
+}
+
+/// POST one named skill to a deployment's A2A endpoint and return the
+/// `Task` it produced.
+///
+/// Split out of [`HttpUpstream::send_skill`] so that finding a credential
+/// and speaking the protocol are separable — the caller resolves the
+/// first, this owns the second, and a test can exercise every branch here
+/// against a local server without a credential file or a mutated
+/// environment.
+async fn dispatch(
+    client: &reqwest::Client,
+    base: &str,
+    token: &str,
+    skill: &str,
+    arguments: &Value,
+) -> Result<Value> {
+    // The A2A envelope for a direct dispatch: no text parts, the skill
+    // and its arguments in `metadata`.
+    let body = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "message/send",
+        "params": {
+            "message": {
+                "messageId": uuid::Uuid::new_v4().to_string(),
+                "role": "user",
+                "kind": "message",
+                "parts": [],
+                "metadata": { "skill": skill, "arguments": arguments }
+            }
+        }
+    });
+    let url = format!("{base}{A2A_RPC_PATH}");
+    let resp = client
+        .post(&url)
+        .bearer_auth(token)
+        .json(&body)
+        .send()
+        .await
+        .with_context(|| format!("POST {url}"))?;
+
+    let status = resp.status();
+    let text = resp.text().await.context("read A2A response body")?;
+    if !status.is_success() {
+        // 401 here is nearly always the one-hour CLI token having aged
+        // out mid-session. Say so, rather than handing Claude a bare
+        // status code it will paraphrase as a mystery.
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(anyhow!(
+                "the stored token for {base} is no longer accepted — run \
+                 `navigator site login --host {base}`, then try again (no restart needed)"
+            ));
+        }
+        // A `303` is the policy layer redirecting an unauthenticated
+        // caller to a login page, which a JSON-RPC client cannot follow.
+        if status == reqwest::StatusCode::SEE_OTHER {
+            return Err(anyhow!(
+                "{base} redirected the call to a sign-in page, so the stored credential was \
+                 not accepted — run `navigator site login --host {base}` and try again"
+            ));
+        }
+        return Err(anyhow!("A2A returned {status}: {text}"));
+    }
+    let envelope: Value = serde_json::from_str(&text).context("A2A response was not valid JSON")?;
+    if let Some(err) = envelope.get("error") {
+        return Err(anyhow!("A2A error: {err}"));
+    }
+    envelope
+        .get("result")
+        .cloned()
+        .ok_or_else(|| anyhow!("A2A response carried neither `result` nor `error`"))
 }
 
 /// Reads withheld because they are not yet scoped to the caller's own
@@ -818,5 +860,137 @@ mod tests {
         assert_eq!(first["error"]["code"], codes::PARSE_ERROR);
         let second: Value = serde_json::from_str(lines[1]).unwrap();
         assert_eq!(second["id"], 7);
+    }
+
+    mod http {
+        use super::*;
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        async fn post(server: &MockServer) -> anyhow::Result<Value> {
+            dispatch(
+                &client(),
+                &server.uri(),
+                "the-stored-token",
+                "aida_create_person",
+                &json!({ "name": "Ada", "email": "ada@example.com" }),
+            )
+            .await
+        }
+
+        #[tokio::test]
+        async fn the_request_carries_the_bearer_and_the_named_skill() {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path("/app/api/aida/rpc"))
+                .and(header("authorization", "Bearer the-stored-token"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": { "id": "t", "contextId": "c", "kind": "task",
+                                "status": { "state": "completed", "timestamp": "now" },
+                                "artifacts": [], "history": [] }
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let task = post(&server).await.expect("a 200 with a result is a Task");
+            assert_eq!(task["status"]["state"], "completed");
+        }
+
+        #[tokio::test]
+        async fn an_unauthorized_answer_names_the_re_login() {
+            // The one failure a user will actually hit: a token that aged
+            // out part-way through a session.
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(401))
+                .mount(&server)
+                .await;
+
+            let err = post(&server).await.expect_err("401 must not be a Task");
+            let msg = format!("{err:#}");
+            assert!(
+                msg.contains("navigator site login") && msg.contains("no restart needed"),
+                "the message must say how to recover, got: {msg}"
+            );
+        }
+
+        #[tokio::test]
+        async fn a_redirect_to_sign_in_is_explained_rather_than_followed() {
+            // What an unaccepted credential actually produces: the policy
+            // layer redirects to a login page, which a JSON-RPC client
+            // cannot follow. Left as a bare status this reads as a
+            // protocol fault rather than an auth one.
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(303).insert_header("location", "/auth/login"))
+                .mount(&server)
+                .await;
+
+            let err = post(&server).await.expect_err("303 must not be a Task");
+            let msg = format!("{err:#}");
+            assert!(
+                msg.contains("sign-in page") && msg.contains("navigator site login"),
+                "a redirect should be reported as an auth problem, got: {msg}"
+            );
+        }
+
+        #[tokio::test]
+        async fn a_non_json_body_is_reported_as_such() {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200).set_body_string("<html>nope</html>"))
+                .mount(&server)
+                .await;
+
+            let err = post(&server).await.expect_err("HTML is not a Task");
+            assert!(format!("{err:#}").contains("not valid JSON"));
+        }
+
+        #[tokio::test]
+        async fn a_jsonrpc_error_envelope_surfaces_the_error() {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "jsonrpc": "2.0", "id": 1,
+                    "error": { "code": -32601, "message": "method not found" }
+                })))
+                .mount(&server)
+                .await;
+
+            let err = post(&server)
+                .await
+                .expect_err("an error envelope is not a Task");
+            assert!(format!("{err:#}").contains("method not found"));
+        }
+
+        #[tokio::test]
+        async fn a_result_less_envelope_is_an_error_not_a_silent_empty_task() {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(
+                    ResponseTemplate::new(200).set_body_json(json!({ "jsonrpc": "2.0", "id": 1 })),
+                )
+                .mount(&server)
+                .await;
+
+            let err = post(&server).await.expect_err("neither result nor error");
+            assert!(format!("{err:#}").contains("neither"));
+        }
+
+        #[tokio::test]
+        async fn another_failing_status_carries_its_body_for_diagnosis() {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .respond_with(ResponseTemplate::new(500).set_body_string("boom"))
+                .mount(&server)
+                .await;
+
+            let err = post(&server).await.expect_err("500 must not be a Task");
+            let msg = format!("{err:#}");
+            assert!(msg.contains("500") && msg.contains("boom"), "got: {msg}");
+        }
     }
 }
