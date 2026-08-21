@@ -787,3 +787,85 @@ fn standalone_wasm_workflow_stays_retired() {
         "the deploy image build is the one Dioxus wasm proof path"
     );
 }
+
+/// An Actions-cache export nobody reads is pure quota. The 10 GB per-repository
+/// budget is shared with `ci.yml`'s Rust dependency cache, and `mode=max` over a
+/// Rust builder stage exports the whole `target` directory. Joining each `build`
+/// leg's exported layer digests against the cache listing for run 32487939326
+/// measured 3.78 GB for `neon-server`, 1.81 GB for `navigator-workflows-service`
+/// and 0.54 GB for `navigator-gateway` — and `publish-service` gives
+/// `neon-server` no `ci_cache_scope`, so the largest of the three was read by
+/// nothing. Together they left no room for the gate's ~1.7 GB dependency cache,
+/// which uploaded at the end of a `main` run and was evicted before the next PR
+/// could restore it, so every gate run logged `No cache found.`
+///
+/// `build` therefore exports a scope only where `publish-service` reads one
+/// back. The two matrices are edited independently and the coupling is invisible
+/// from either one alone, which is why it is asserted here.
+#[test]
+fn build_exports_an_actions_cache_scope_only_where_publish_service_reads_it() {
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
+
+    let legs = |job: &str| -> Vec<serde_yaml::Value> {
+        workflow["jobs"][job]["strategy"]["matrix"]["include"]
+            .as_sequence()
+            .unwrap_or_else(|| panic!("the {job} job must declare an include matrix"))
+            .clone()
+    };
+    let scopes = |job: &str| -> Vec<String> {
+        legs(job)
+            .iter()
+            .filter_map(|leg| leg["ci_cache_scope"].as_str().map(str::to_string))
+            .collect()
+    };
+
+    let exported = scopes("build");
+    let read_back = scopes("publish-service");
+
+    assert!(
+        !exported.is_empty(),
+        "at least one build leg must still export a scope publish-service reads, or a release \
+         compiles the same crates twice"
+    );
+    for scope in &exported {
+        assert!(
+            read_back.contains(scope),
+            "the build job exports the Actions-cache scope {scope}, which publish-service does \
+             not list as a ci_cache_scope — an export with no reader spends the shared 10 GB \
+             quota and evicts ci.yml's Rust dependency cache"
+        );
+    }
+
+    // The export must be reachable ONLY through that key, so a leg without one
+    // touches the Actions cache not at all.
+    let build = &workflow["jobs"]["build"];
+    let cache_to = build["steps"]
+        .as_sequence()
+        .expect("the build job must declare steps")
+        .iter()
+        .find_map(|step| step["with"]["cache-to"].as_str())
+        .expect("the build job must declare a cache-to");
+    assert!(
+        cache_to.contains("matrix.ci_cache_scope") && !cache_to.contains("matrix.image"),
+        "cache-to must be gated on matrix.ci_cache_scope, not derived from matrix.image — \
+         deriving it exports a scope for every leg, including the one nothing reads"
+    );
+
+    // The reason this job cannot simply follow publish-service into Artifact
+    // Registry: its `if:` admits `kind-ci/**` branch pushes, which no review
+    // gates, so it must never hold a registry credential.
+    assert!(
+        build["permissions"].is_null(),
+        "build must not declare permissions of its own — it runs for kind-ci/** branch pushes \
+         and must hold no registry credential (no id-token: write, no WIF)"
+    );
+    assert!(
+        build["if"]
+            .as_str()
+            .expect("the build job must declare an if:")
+            .contains("kind-ci/"),
+        "the kind-ci/** trigger is why build holds no registry credential; if it stops running \
+         for branch pushes, revisit where this job caches"
+    );
+}
