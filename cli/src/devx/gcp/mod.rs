@@ -327,8 +327,8 @@ async fn ensure_buckets(
         &format!("private applications bucket {}", names.applications),
     );
     buckets::ensure_bucket(client, project_id, &names.applications, region).await?;
-    // The 30-day orphaned-asset expiry, safety-coupled to the publish
-    // overwriting unconditionally (see `APPLICATIONS_RETENTION_DAYS`).
+    // The ten-year orphaned-asset expiry. The publish must still overwrite
+    // unconditionally (see `APPLICATIONS_RETENTION_DAYS`).
     buckets::ensure_lifecycle(client, &names.applications).await?;
 
     ensure_optional_bucket(
@@ -750,8 +750,8 @@ mod tests {
         );
         assert_body_contains(
             &calls[11],
-            "\"age\":30",
-            "step 3e applications bucket expires orphaned assets at 30 days",
+            &format!("\"age\":{}", super::buckets::APPLICATIONS_RETENTION_DAYS),
+            "step 3e applications bucket expires orphaned assets at the retention limit",
         );
         // Steps 12..=20 are direct runtime and Workspace identity shell-outs.
         for (i, m) in methods.iter().enumerate().take(21).skip(12) {
