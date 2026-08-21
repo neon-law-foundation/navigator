@@ -54,10 +54,39 @@ automatic head-branch deletion, and squash commits titled and described from the
 `neon-law-foundation/navigator` alone adds `NAVIGATOR_POLICY`'s three extras — the release-tag ruleset, the DevX labels,
 and the App-installation assertion — because it is the only repository that cuts a release or runs that automation.
 
-There is no lighter tier — a repository the Firm administers on someone else's behalf would receive the same gate.
+There is one lighter tier and one repository in it. A repository the Firm administers on someone else's behalf still
+receives the same gate; what earns the exception is not ownership but whether a person writes `main` at all.
 `assert_codeowners` sits in the common policy rather than beside the review gate for a reason the tests enforce:
 `require_code_owner_review` against an absent or unresolvable CODEOWNERS silently accepts anyone's approval, so the two
 ship together or neither means anything.
+
+#### The Homebrew tap carries no gate
+
+`neon-law-foundation/homebrew-navigator` receives `TAP_POLICY`: no `production` ruleset, no review ruleset, and neither
+assertion. It still receives the merge settings, which govern its occasional human pull request.
+
+A tap is the published output of a release rather than a repository the Firm develops in. Its `main` holds one
+mechanical file and grows by one commit per release, written by the tap's own `bump` workflow *after* that workflow has
+computed each sha256 from the published archives, installed the formula, and run `brew test` against the binary it is
+about to publish. The verification a reviewer would perform has already run, by machine, against the actual bytes — so a
+review gate there has nothing left to read.
+
+Worse, it does not merely add nothing. Every rule in the `production` ruleset refuses that write instead of governing
+it: `pull_request` admits no direct push, and `required_signatures` rejects a runner's `git commit`, which GitHub
+verifies only for commits made through the API or the web editor. A gated tap reports a stale version to everyone who
+installed through it while every check stays green. That is not hypothetical — the ruleset cost three consecutive
+releases (`26.8.21-hotfix.10`, `.11`, and `.12`), each dispatched, each dying at the bump's final `git push`, while
+`brew install` served `26.8.20-hotfix.4`. `deploy.yml` now reads the formula back and fails the release when it does not
+move, so a recurrence is loud rather than silent.
+
+The assertions are off for the same structural reason rather than as a convenience: the tap has no CODEOWNERS to resolve
+and no `ci` job to bind, because it has no reviewer and no test gate of that shape. Asserting either would make the
+command refuse a repository it is in fact configured for.
+
+**Adding a second exception is a policy decision, not a config change.** The test a repository must pass is that no
+human writes its default branch and a machine has already proved each commit before pushing it. If you point this
+command at the tap it is a no-op on rulesets — nothing is created, and because the command emits no `DeleteRuleset`,
+nothing a human deliberately adds is taken away either.
 
 Run a dry run before applying drift, then rerun without it:
 
@@ -142,7 +171,7 @@ owner who resolves and actually reviews, *then* re-enable the ruleset. `require_
 owner is the deadlock above, not a gate.
 
 > **The code has not caught up.** `cli::devx::github_setup` still sets `review_gate: true` in both `COMMON_POLICY`
-> (`:165`) and `NAVIGATOR_POLICY` (`:176`), still builds `desired_review_ruleset`, and its test still asserts that
+> and `NAVIGATOR_POLICY`, still builds `desired_review_ruleset`, and its test still asserts that
 > `navigator` carries `production-review`. A run of `ops github setup` would therefore recreate the ruleset this
 > section says is intentionally absent. Reconciling the command with this decision is a separate change.
 

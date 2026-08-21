@@ -59,6 +59,11 @@ fn enterprise_host() -> Result<String> {
 /// The one repository carrying more than [`COMMON_POLICY`].
 const NAVIGATOR_SLUG: &str = "neon-law-foundation/navigator";
 
+/// The Homebrew tap, the one administered repository outside the merge gate.
+///
+/// See [`TAP_POLICY`] for why a publication surface cannot carry one.
+const TAP_SLUG: &str = "neon-law-foundation/homebrew-navigator";
+
 const REPOSITORY_ENV: &str = "GITHUB_REPOSITORY";
 const API_BASE_ENV: &str = "NAVIGATOR_GITHUB_API_BASE";
 const TOKEN_ENV: &str = "GITHUB_TOKEN";
@@ -112,11 +117,14 @@ const REQUIRED_CHECK: &str = "ci";
 /// buy nothing: the required context is matched by job name, never by path.
 const CI_WORKFLOW_PATHS: &[&str] = &[".github/workflows/ci.yml", ".github/workflows/gate.yml"];
 
-/// The merge gate every repository on this enterprise carries.
+/// The merge gate every repository the Firm *develops in* carries.
 ///
-/// There is no lighter tier. A repository the Firm administers is held to the
-/// same integrity rules and the same code-owner review as Navigator itself;
-/// what varies is only the automation Navigator alone runs.
+/// There is one lighter tier and one repository in it — the Homebrew tap, whose
+/// `main` no human writes. Every other repository the Firm administers is held
+/// to the same integrity rules and the same code-owner review as Navigator
+/// itself; what varies is only the automation Navigator alone runs. Adding a
+/// second exception is a policy decision, not a config change: see
+/// [`TAP_POLICY`] for the test the tap passes and a source repository does not.
 ///
 /// `assert_codeowners` is part of the common policy rather than a Navigator
 /// extra because `review_gate` is meaningless without it: `require_code_owner_review`
@@ -128,6 +136,7 @@ const COMMON_POLICY: RepositoryPolicy = RepositoryPolicy {
     assert_codeowners: true,
     assert_devx_app: false,
     review_gate: true,
+    branch_protections: true,
 };
 
 /// Navigator's own policy: the common gate plus the three things only this
@@ -139,11 +148,44 @@ const NAVIGATOR_POLICY: RepositoryPolicy = RepositoryPolicy {
     assert_codeowners: true,
     assert_devx_app: true,
     review_gate: true,
+    branch_protections: true,
+};
+
+/// The Homebrew tap's policy: nothing on `main` at all.
+///
+/// A tap is not a repository the Firm develops in — it is the published output
+/// of a release. Its `main` holds one mechanical file and grows by one commit
+/// per Navigator release, written by its own `bump` workflow only after that
+/// workflow has computed the digests, installed the formula, and tested the
+/// binary it is about to publish. The verification a reviewer would perform has
+/// already run, by machine, against the actual bytes.
+///
+/// Every rule in [`desired_branch_ruleset`] refuses that write rather than
+/// governing it: `pull_request` admits no direct push, and `required_signatures`
+/// rejects a runner's `git commit`, which GitHub verifies only for commits made
+/// through the API or the web editor. A gated tap therefore reports a stale
+/// version to everyone who installed through it while every check stays green —
+/// which is exactly what happened, for three consecutive releases.
+///
+/// The assertions are off for the same reason and not as a convenience: the tap
+/// has no CODEOWNERS to resolve and no `ci` job to bind, because it has no
+/// reviewer and no test gate of the shape [`CI_WORKFLOW_PATHS`] describes. It
+/// still receives the merge settings, which govern its occasional human pull
+/// request and cannot block the bump.
+const TAP_POLICY: RepositoryPolicy = RepositoryPolicy {
+    release_tags: false,
+    labels: &[],
+    assert_codeowners: false,
+    assert_devx_app: false,
+    review_gate: false,
+    branch_protections: false,
 };
 
 fn policy_for(slug: &str) -> RepositoryPolicy {
     if slug.eq_ignore_ascii_case(NAVIGATOR_SLUG) {
         NAVIGATOR_POLICY
+    } else if slug.eq_ignore_ascii_case(TAP_SLUG) {
+        TAP_POLICY
     } else {
         COMMON_POLICY
     }
@@ -282,6 +324,13 @@ struct RepositoryPolicy {
     /// Whether merges additionally require a code owner's approval, enforced
     /// by the separate [`REVIEW_RULESET_NAME`] ruleset.
     review_gate: bool,
+    /// Whether `main` carries the integrity half of the gate at all — the
+    /// [`BRANCH_RULESET_NAME`] ruleset.
+    ///
+    /// True everywhere a person opens pull requests. False only for a surface
+    /// whose `main` is written by a machine, where the same rules refuse the
+    /// write instead of reviewing it.
+    branch_protections: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -411,7 +460,10 @@ impl Action {
 /// Every policy payload this command writes, in the order it reconciles them.
 /// Kept as typed Rust data so a review sees every protected rule.
 fn desired_rulesets(policy: RepositoryPolicy, actions_app_id: u64) -> Vec<RulesetPayload> {
-    let mut rulesets = vec![desired_branch_ruleset(actions_app_id)];
+    let mut rulesets = Vec::new();
+    if policy.branch_protections {
+        rulesets.push(desired_branch_ruleset(actions_app_id));
+    }
     if policy.release_tags {
         rulesets.push(desired_tag_ruleset());
     }
@@ -882,7 +934,15 @@ async fn reconcile(policy: RepositoryPolicy, client: &GitHubClient, dry_run: boo
 
     // Assertions run before any write, so a repository that cannot satisfy the
     // policy is left exactly as it was rather than half-reconciled.
-    assert_required_check_job(client).await?;
+    //
+    // This one exists to stop `required_status_checks` binding a context that
+    // nothing posts, so it is owed only where that rule is written. A policy
+    // carrying no branch protections has no context to bind and no workflow to
+    // demand — asserting anyway would refuse a repository this command is
+    // configured for.
+    if policy.branch_protections {
+        assert_required_check_job(client).await?;
+    }
 
     // Read before planning, and before any write, for the same reason: the
     // required-check rule is built from this id, so a host that cannot answer
@@ -1443,12 +1503,82 @@ mod tests {
         );
     }
 
+    /// The Homebrew tap is governed by writing to it, and a rule that stops the
+    /// write governs nothing.
+    ///
+    /// Its `main` is a machine-written log: one commit per Navigator release,
+    /// pushed by the tap's own `bump` workflow after that workflow has installed
+    /// and tested the formula it is about to publish. `pull_request` and
+    /// `required_signatures` in the `production` ruleset each refuse that push
+    /// outright — a runner's `git commit` is unsigned, and there is no reviewer
+    /// for a mechanical digest bump — so a gated tap is a tap whose formula
+    /// silently stops following releases. Three releases were lost that way
+    /// before the ruleset came off.
+    ///
+    /// So the tap receives no rulesets at all. `desired_rulesets` never emits a
+    /// `DeleteRuleset`, so an empty desired set also means a reconcile aimed
+    /// here is a no-op rather than a removal — it cannot restore the gate, and
+    /// it cannot take away one a human deliberately adds.
+    #[test]
+    fn the_tap_is_governed_by_writing_to_it_and_carries_no_rulesets() {
+        assert_eq!(
+            policy_for(TAP_SLUG),
+            TAP_POLICY,
+            "the tap must resolve to its own policy, not the common gate"
+        );
+        assert_eq!(
+            policy_for("NEON-LAW-FOUNDATION/Homebrew-Navigator"),
+            TAP_POLICY,
+            "slugs are matched case-insensitively, as they are for Navigator itself"
+        );
+        assert!(
+            desired_rulesets(TAP_POLICY, TEST_ACTIONS_APP_ID).is_empty(),
+            "a ruleset on the tap refuses the bump push that is the tap's whole purpose"
+        );
+    }
+
+    /// The tap must not trip an assertion written for a source repository.
+    ///
+    /// `reconcile` fails closed on a missing CODEOWNERS and on a missing `ci`
+    /// job, and the tap has neither: it holds one formula and two workflows. Any
+    /// policy that asserts them would abort a reconcile aimed here — which reads
+    /// as the command refusing a repository it is in fact configured for.
+    #[test]
+    fn the_tap_asserts_nothing_a_publication_surface_cannot_have() {
+        // Const blocks: every field is known at compile time, so these hold at
+        // compile time too rather than waiting for the suite to run.
+        const {
+            assert!(
+                !TAP_POLICY.assert_codeowners,
+                "the tap has no CODEOWNERS, and no reviewer to name in one"
+            );
+        }
+        const {
+            assert!(
+                !TAP_POLICY.assert_devx_app,
+                "DevX automation runs against Navigator, not the tap"
+            );
+        }
+        const {
+            assert!(
+                !TAP_POLICY.branch_protections,
+                "the `production` ruleset is what refuses the bump push"
+            );
+        }
+        const {
+            assert!(
+                TAP_POLICY.labels.is_empty() && !TAP_POLICY.release_tags,
+                "the tap cuts no release and runs no label automation"
+            );
+        }
+    }
+
     /// `require_code_owner_review` against an absent or unresolvable
     /// CODEOWNERS silently accepts anyone's approval, so a policy that gates
     /// on code owners without asserting the file is a gate that does nothing.
     #[test]
     fn the_review_gate_never_ships_without_the_codeowners_assertion() {
-        for policy in [NAVIGATOR_POLICY, COMMON_POLICY] {
+        for policy in [NAVIGATOR_POLICY, COMMON_POLICY, TAP_POLICY] {
             assert!(
                 !policy.review_gate || policy.assert_codeowners,
                 "{policy:?} gates on code owners without asserting CODEOWNERS"
@@ -2034,6 +2164,69 @@ mod tests {
         assert!(requests
             .iter()
             .all(|request| request.method == wiremock::http::Method::GET));
+    }
+
+    /// A reconcile aimed at the tap must succeed, write nothing, and never even
+    /// ask for what a tap does not have.
+    ///
+    /// This is the behaviour the carve-out exists for. Only three reads are
+    /// mounted — the Actions App, the repository, and its ruleset list — so a
+    /// request for CODEOWNERS or for `ci.yml` would 404 against this server and
+    /// fail the reconcile. Passing therefore proves those assertions are skipped
+    /// rather than merely satisfied.
+    ///
+    /// The live `production` ruleset in the list is the other half: the command
+    /// emits no `DeleteRuleset`, so a gate a human deliberately adds here is
+    /// left alone. Pointing this command at the tap is a no-op, not a fight.
+    #[tokio::test]
+    async fn a_reconcile_aimed_at_the_tap_writes_nothing_and_asserts_nothing() {
+        let server = MockServer::start().await;
+        let client = test_client(&server);
+        Mock::given(method("GET"))
+            .and(path(format!("/apps/{ACTIONS_APP_SLUG}")))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"id": TEST_ACTIONS_APP_ID})),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/navigator"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "allow_squash_merge": true,
+                "allow_merge_commit": false,
+                "allow_rebase_merge": false,
+                "allow_auto_merge": true,
+                "delete_branch_on_merge": true,
+                "squash_merge_commit_title": "PR_TITLE",
+                "squash_merge_commit_message": "PR_BODY",
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/repos/acme/navigator/rulesets"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+                {"id":7,"name":"production"},
+            ])))
+            .mount(&server)
+            .await;
+
+        reconcile(TAP_POLICY, &client, false).await.unwrap();
+
+        let requests = server.received_requests().await.unwrap();
+        assert!(
+            requests
+                .iter()
+                .all(|request| request.method == wiremock::http::Method::GET),
+            "a tap reconcile must write nothing"
+        );
+        assert!(
+            !requests
+                .iter()
+                .any(|request| request.url.path().contains("CODEOWNERS")
+                    || request.url.path().contains("workflows/")),
+            "a tap reconcile must not read a CODEOWNERS or a CI workflow it has no reason to have"
+        );
     }
 
     fn test_client(server: &MockServer) -> GitHubClient {
