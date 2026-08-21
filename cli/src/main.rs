@@ -23,7 +23,8 @@ mod notices;
 mod palette;
 mod project;
 mod projects;
-mod release_provenance;
+mod release;
+mod release_check;
 mod release_version;
 mod remote;
 mod scaffold;
@@ -663,7 +664,7 @@ enum OpsCmd {
     /// One-shot deployment reconciler — the "do everything" button documented
     /// in `docs/cloud-operations.md`. CI (`deploy.yml`) builds and publishes
     /// the images to GHCR under an immutable release tag; `ops ship` reconciles
-    /// the cluster. Flow: take the `--tag` (`YY.M.D`, legacy `YY.M.D.H`, or
+    /// the cluster. Flow: take the `--tag` (`YY.M.D` or
     /// `YY.M.D-hotfix.N`) →
     /// reconcile the manifests (render the embedded GKE tree with the selected
     /// deployment's `NAVIGATOR_*` coordinates into a temp dir and `kubectl
@@ -704,7 +705,7 @@ enum OpsCmd {
         /// differ from the cluster, because it applies none of that diff.
         #[arg(long)]
         image_only: bool,
-        /// Immutable registry tag to roll onto: `YY.M.D`, legacy `YY.M.D.H`,
+        /// Immutable registry tag to roll onto: `YY.M.D`
         /// or `YY.M.D-hotfix.N`. Required for a roll; omit only with
         /// `--restart-only`.
         #[arg(long)]
@@ -830,18 +831,31 @@ enum OpsCmd {
         #[arg(long)]
         no_commit: bool,
     },
-    /// Verify that a release tag resolves to a commit already reachable from
-    /// `origin/main`. Fetches `origin/main` first, peels annotated or
-    /// lightweight tags to their commit, and refuses an unmerged PR or side
-    /// branch. Run by `deploy.yml` before it publishes images, CLI archives, or
-    /// a GitHub Release.
-    ReleaseProvenance {
-        /// Immutable release tag to verify.
-        #[arg(long)]
-        tag: String,
-        /// Git checkout containing the tag and an `origin` remote.
+    /// Decide whether `[workspace.package].version` names a release that has not
+    /// happened yet, by comparing it against every release tag in the
+    /// repository. This is the release trigger: `deploy.yml` runs it on every
+    /// push to `main`, and a publishable answer is what makes that push build,
+    /// prove, tag, and publish. Ordering is semver's, so a version equal to the
+    /// newest tag publishes nothing (the ordinary state of `main`) and a version
+    /// BELOW it fails — a manifest naming an already-superseded version is a bad
+    /// bump or a rebase that resurrected an old one. `ci.yml` runs it on every
+    /// pull request for exactly that reason: it is the only check that sees a bad
+    /// bump while the bump is still free to change.
+    ReleaseCheck {
+        /// The workspace manifest whose version is the candidate release.
+        #[arg(long, default_value = "Cargo.toml")]
+        manifest_path: PathBuf,
+        /// Git checkout whose tags are the record of what has been released.
         #[arg(long, default_value = ".")]
         repo: PathBuf,
+        /// Compare against the tags already in this clone instead of fetching
+        /// from `origin` first. Offline, and only as current as the clone.
+        #[arg(long)]
+        no_fetch: bool,
+        /// Append `tag`, `publishable`, and `prerelease` to `$GITHUB_OUTPUT` for
+        /// the workflow jobs that gate on them.
+        #[arg(long)]
+        github_output: bool,
     },
     /// Regenerate `THIRD-PARTY-NOTICES.txt` from `Cargo.lock` — the licence
     /// texts the downloadable binary must carry, deduplicated so each distinct
@@ -1689,7 +1703,7 @@ fn main() -> ExitCode {
         Command::Ops(
             action @ (OpsCmd::Lsp { .. }
             | OpsCmd::Assets { .. }
-            | OpsCmd::ReleaseProvenance { .. }
+            | OpsCmd::ReleaseCheck { .. }
             | OpsCmd::ReleaseVersion { .. }
             | OpsCmd::Notices { .. }),
         ) => match action {
@@ -1699,7 +1713,12 @@ fn main() -> ExitCode {
                 manifest_path,
                 no_commit,
             } => release_version::run(&manifest_path, &tag, no_commit),
-            OpsCmd::ReleaseProvenance { tag, repo } => release_provenance::run(&repo, &tag),
+            OpsCmd::ReleaseCheck {
+                manifest_path,
+                repo,
+                no_fetch,
+                github_output,
+            } => release_check::run(&manifest_path, &repo, !no_fetch, github_output),
             OpsCmd::Lsp { action } => match action {
                 LspAction::Publish { dir, bucket } => lsp_publish::run_publish(&dir, bucket),
             },

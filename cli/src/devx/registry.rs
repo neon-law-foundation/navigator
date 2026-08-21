@@ -61,136 +61,59 @@ pub fn image_ref(registry: &str, image: &str, tag: &str) -> String {
     format!("{registry}/{image}:{tag}")
 }
 
-/// One parsed immutable release tag.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct ReleaseTag {
-    year: u32,
-    month: u32,
-    day: u32,
-    variant: ReleaseVariant,
-}
-
-/// Same-day release variants, in their compatibility order.
+/// True when `tag` names an immutable release.
 ///
-/// The legacy `.H` form predates `-hotfix.N`. Keeping it between the base and
-/// the current hotfix form makes the ordering deterministic if a registry
-/// contains both conventions for one date: base < `.H` < `-hotfix.N`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ReleaseVariant {
-    Base,
-    Legacy(u32),
-    Hotfix(u32),
-}
-
-/// True when `tag` is one of the immutable release shapes: `YY.M.D`, the
-/// legacy `YY.M.D.H`, or the current `YY.M.D-hotfix.N`.
+/// The grammar is semver's, via [`crate::release`]. It used to be a
+/// `parse_release_tag` written here, with its own `ReleaseVariant` ordering that
+/// ranked `YY.M.D-hotfix.N` ABOVE the `YY.M.D` it hangs off — the exact
+/// inversion semver forbids, and therefore the opposite of what Cargo and every
+/// consumer resolving a version compute. One implementation now answers this for
+/// the release pipeline and for `ops ship` alike.
 ///
-/// Each component carries **no leading zeros** (the firm-wide version
-/// convention: June is `6`). Date and legacy components are one or two digits;
-/// the hotfix number is any `u32`, written unpadded so it remains valid semver.
+/// The legacy four-component `YY.M.D.H` spelling is no longer admitted: Cargo
+/// cannot parse it as a version, so no release has been able to carry it since
+/// the tag started coming from `[workspace.package].version`, and image
+/// retention keeps only the last ten versions. Nothing in a live registry still
+/// wears one.
 #[must_use]
 pub fn is_release_tag(tag: &str) -> bool {
-    parse_release_tag(tag).is_some()
+    crate::release::is_release_version(tag)
 }
 
 /// Reject a `--tag` that is not an immutable release tag — rolling `latest`,
 /// `buildcache`, or `ci-<sha>` onto a workload is exactly the unauditable
 /// deploy we forbid.
 pub fn validate_release_tag(tag: &str) -> Result<()> {
-    if is_release_tag(tag) {
-        Ok(())
-    } else {
-        bail!(
-            "--tag must be an immutable YY.M.D, YY.M.D.H, or YY.M.D-hotfix.N release tag (for example 26.8.19, 26.8.19.4, or 26.8.19-hotfix.14), got `{tag}`"
-        );
-    }
+    crate::release::parse(tag)
+        .map(|_| ())
+        .with_context(|| format!("--tag must be an immutable release tag, got `{tag}`"))
 }
 
 /// The newest immutable release tag in `tags`.
 ///
-/// Comparison is numeric, never lexical. Dates order by `(year, month, day)`;
-/// variants on the same date order base < legacy `.H` < `-hotfix.N`, and
-/// numbers within each variant order numerically. Non-release tags are ignored.
+/// Ordering is semver's, so a base version outranks its own prerelease and
+/// `26.8.22` is correctly newer than `26.8.22-hotfix.22`. Non-release tags are
+/// ignored.
 #[must_use]
 pub fn pick_latest_release_tag(tags: &[String]) -> Option<String> {
+    let latest = crate::release::highest_release(tags)?;
+    // Return the tag as the registry spells it rather than the re-rendered
+    // version: the string is about to be used as an image reference, and a
+    // round-trip through `Version` is a chance to hand back something the
+    // registry does not have.
     tags.iter()
-        .filter(|t| is_release_tag(t))
-        .max_by_key(|t| release_sort_key(t))
+        .find(|tag| crate::release::parse(tag).ok().as_ref() == Some(&latest))
         .cloned()
 }
 
-/// Parse a release tag into a numerically comparable key.
-fn release_sort_key(tag: &str) -> (u32, u32, u32, u8, u32) {
-    let parsed = parse_release_tag(tag).expect("caller filtered with is_release_tag");
-    let (variant, number) = match parsed.variant {
-        ReleaseVariant::Base => (0, 0),
-        ReleaseVariant::Legacy(number) => (1, number),
-        ReleaseVariant::Hotfix(number) => (2, number),
-    };
-    (parsed.year, parsed.month, parsed.day, variant, number)
-}
-
-fn parse_release_tag(tag: &str) -> Option<ReleaseTag> {
-    let (base, variant) = if let Some((base, number)) = tag.split_once("-hotfix.") {
-        if base.contains('-') || number.contains('.') {
-            return None;
-        }
-        (
-            base,
-            ReleaseVariant::Hotfix(number_component(number, None)?),
-        )
-    } else {
-        (tag, ReleaseVariant::Base)
-    };
-
-    let mut groups = base.split('.');
-    let year = short_component(groups.next()?)?;
-    let month = short_component(groups.next()?)?;
-    let day = short_component(groups.next()?)?;
-    let trailing = groups.next();
-    if groups.next().is_some() {
-        return None;
-    }
-
-    let variant = match (variant, trailing) {
-        (ReleaseVariant::Base, None) => ReleaseVariant::Base,
-        (ReleaseVariant::Base, Some(number)) => ReleaseVariant::Legacy(short_component(number)?),
-        (ReleaseVariant::Hotfix(number), None) => ReleaseVariant::Hotfix(number),
-        (ReleaseVariant::Hotfix(_), Some(_)) => return None,
-        (ReleaseVariant::Legacy(_), _) => unreachable!("parser never constructs legacy early"),
-    };
-
-    Some(ReleaseTag {
-        year,
-        month,
-        day,
-        variant,
-    })
-}
-
-fn short_component(component: &str) -> Option<u32> {
-    number_component(component, Some(2))
-}
-
-fn number_component(component: &str, max_len: Option<usize>) -> Option<u32> {
-    if component.is_empty()
-        || max_len.is_some_and(|max| component.len() > max)
-        || (component.len() > 1 && component.starts_with('0'))
-        || !component.bytes().all(|byte| byte.is_ascii_digit())
-    {
-        return None;
-    }
-    component.parse().ok()
-}
-
 /// Resolve the latest published immutable release tag for `<registry>/<image>`.
-/// Errors when the package has no release tag yet (e.g. the daily deploy
-/// has never run for this fork).
+/// Errors when the package has no release tag yet — a fork whose `main` has
+/// never carried a version bump has published nothing.
 pub fn resolve_latest_tag(registry: &str, image: &str) -> Result<String> {
     let tags = fetch_tags(registry, image)?;
     pick_latest_release_tag(&tags).ok_or_else(|| {
         anyhow::anyhow!(
-            "no YY.M.D, YY.M.D.H, or YY.M.D-hotfix.N release tag on {registry}/{image} — has a release published one yet?"
+            "no release tag on {registry}/{image} — has a version bump landed on main yet?"
         )
     })
 }
@@ -289,31 +212,42 @@ pub fn ensure_tag_published(registry: &str, image: &str, tag: &str) -> Result<()
 mod tests {
     use super::*;
 
+    /// What `--tag` admits is a release VERSION, which is now the same question
+    /// the release pipeline asks. A rolling or per-commit ref is what this must
+    /// refuse: rolling `latest` onto a workload is the unauditable deploy the
+    /// whole immutable-tag convention exists to prevent.
     #[test]
-    fn is_release_tag_accepts_every_immutable_release_form() {
-        // Canonical no-leading-zeros shape.
+    fn is_release_tag_accepts_a_release_version_and_nothing_else() {
         assert!(is_release_tag("26.6.23"));
         assert!(is_release_tag("26.6.5")); // single-digit day
-        assert!(is_release_tag("0.1.9")); // every component single-digit
-        assert!(is_release_tag("26.6.25.14")); // ad-hoc same-day .H suffix
-        assert!(is_release_tag("26.6.25.4")); // single-digit hour
-        assert!(is_release_tag("26.6.25.0"));
+        assert!(is_release_tag("0.1.9"));
         assert!(is_release_tag("26.8.19-hotfix.14"));
         assert!(is_release_tag("26.8.19-hotfix.0"));
         assert!(is_release_tag("26.8.19-hotfix.214"));
+        // The calendar is a convention, so a version departing from it is still
+        // a version — a four-digit year is no longer refused here.
+        assert!(is_release_tag("2026.6.23"));
         // Non-releases and malformed shapes stay rejected.
         assert!(!is_release_tag("latest"));
         assert!(!is_release_tag("buildcache"));
         assert!(!is_release_tag("ci-6a5f96a"));
-        assert!(!is_release_tag("2026.6.23")); // four-digit year
-        assert!(!is_release_tag("26.6")); // too few groups
-        assert!(!is_release_tag("26.6.25.14.30")); // too many groups
-        assert!(!is_release_tag("26..6")); // empty group
-        assert!(!is_release_tag("26.8.19-hotfix")); // missing number
-        assert!(!is_release_tag("26.8.19-hotfix.")); // empty number
-        assert!(!is_release_tag("26.8.19-hotfix.x")); // nonnumeric number
-        assert!(!is_release_tag("26.8.19-hotfix.14.1")); // too many groups
-        assert!(!is_release_tag("26.8.19-hotfix.014")); // invalid semver number
+        assert!(!is_release_tag("26.6")); // too few components
+        assert!(!is_release_tag("26..6")); // empty component
+        assert!(!is_release_tag("26.8.19-hotfix.")); // empty prerelease identifier
+        assert!(!is_release_tag("26.8.19-hotfix.014")); // a numeric identifier may not pad
+                                                        // A bare alphanumeric prerelease IS a version, and it orders below any
+                                                        // numbered one (`hotfix` < `hotfix.14`), so nothing needs to refuse it.
+                                                        // The old grammar did, for requiring `-hotfix.N` exactly.
+        assert!(is_release_tag("26.8.19-hotfix"));
+        assert!(is_release_tag("26.8.19-hotfix.14.1"));
+        // A fourth component is not a version Cargo can parse, so no release
+        // can carry one — the legacy `.H` spelling is retired with the
+        // derived-tag era that produced it.
+        assert!(!is_release_tag("26.6.25.14"));
+        assert!(!is_release_tag("26.6.25.14.30"));
+        // Build metadata does not order, so two tags differing only there would
+        // compare equal.
+        assert!(!is_release_tag("26.6.23+build.1"));
     }
 
     #[test]
@@ -326,22 +260,23 @@ mod tests {
             "26.5.31".to_string(),
         ];
         assert_eq!(pick_latest_release_tag(&tags), Some("26.6.23".to_string()));
-        // An ad-hoc `.H` release sorts after the bare same-day tag.
-        assert_eq!(
-            pick_latest_release_tag(&[
-                "26.6.25".to_string(),
-                "26.6.25.14".to_string(),
-                "26.6.10".to_string(),
-            ]),
-            Some("26.6.25.14".to_string())
-        );
-        // Same-day forms have one explicit compatibility order: the base is
-        // first, then the legacy `.H` form, then the current `-hotfix.N` form.
+        // A BASE VERSION OUTRANKS ITS OWN PRERELEASE. This is the assertion that
+        // reversed: the retired hand-rolled ordering put `-hotfix.N` above the
+        // version it hangs off, so `ops ship` resolving "latest" would roll the
+        // hotfix over the release that superseded it. Semver — and therefore
+        // Cargo, and therefore every consumer — orders it the other way.
         assert_eq!(
             pick_latest_release_tag(&[
                 "26.8.19-hotfix.9".to_string(),
                 "26.8.19".to_string(),
-                "26.8.19.99".to_string(),
+                "26.8.19-hotfix.14".to_string(),
+            ]),
+            Some("26.8.19".to_string())
+        );
+        // Among prereleases of one base, the larger number wins.
+        assert_eq!(
+            pick_latest_release_tag(&[
+                "26.8.19-hotfix.9".to_string(),
                 "26.8.19-hotfix.14".to_string(),
             ]),
             Some("26.8.19-hotfix.14".to_string())

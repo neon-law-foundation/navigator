@@ -398,7 +398,7 @@ fn validate_workflow(path: &Path, contents: &str, errors: &mut Vec<Finding>) {
         errors.push(Finding::at(
             path,
             format!(
-                "validation action ref `{action_version}` must be an exact YY.M.D, YY.M.D.H, or YY.M.D-hotfix.N release tag"
+                "validation action ref `{action_version}` must be an exact release version, such as YY.M.D or YY.M.D-hotfix.N"
             ),
         ));
     }
@@ -625,10 +625,13 @@ mod tests {
     fn generated_template_has_a_stable_code() {
         assert!(example_template().contains("code: project_template"));
         assert!(is_release_tag("26.7.27"));
-        assert!(is_release_tag("26.7.27.4"));
         assert!(is_release_tag("26.8.19-hotfix.14"));
         assert!(!is_release_tag("main"));
         assert!(!is_release_tag("26.8.19-hotfix."));
+        // The legacy four-component spelling is not a version Cargo can parse,
+        // so no release has been able to carry it since the tag started coming
+        // from `[workspace.package].version`.
+        assert!(!is_release_tag("26.7.27.4"));
     }
 
     /// The generated gate is one always-running required job.

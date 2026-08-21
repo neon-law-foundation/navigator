@@ -88,8 +88,8 @@ pub enum WorktreeEnvCmd {
         /// light host-`web` + shared-deps dev environment.
         #[arg(long)]
         demo: bool,
-        /// Pin an immutable registry image tag to pull (`YY.M.D`, legacy
-        /// `YY.M.D.H`, or `YY.M.D-hotfix.N`). Only meaningful
+        /// Pin an immutable registry image tag to pull (`YY.M.D` or
+        /// `YY.M.D-hotfix.N`). Only meaningful
         /// with `--demo`; omit to pull the latest published tag.
         #[arg(long)]
         tag: Option<String>,
