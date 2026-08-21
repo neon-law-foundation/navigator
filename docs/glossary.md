@@ -1161,6 +1161,13 @@ Each carries its own companion application, refreshed from its own public reposi
 `/app/projects/{code}/portal/`. The project code is the URL slug: lowercase letters and numbers joined by single
 hyphens, with no UUID in the project show URL.
 
+A `dev` boot with no built bundle staged publishes a deterministic placeholder document, which is what keeps a portal
+serving something while a Vite build is broken. A boot under the **production** deployment profile publishes nothing:
+whatever sits in that deployment's applications bucket was published by an operator and is authoritative, so the seed
+leaves it alone and an unpublished portal answers 404 rather than a placeholder that looks like a working application.
+That is the one place [Deployment Environment](#deployment-environment) reaches past which rows get seeded and into what
+gets written to object storage.
+
 The fixture Client participates in all three, so a signed-in client sees a project list worth looking at. The fixture
 Admin participates in none of them — see [Deployment Environment](#deployment-environment) for which deployments apply
 this layer at all.

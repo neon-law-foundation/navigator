@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use cloud::StorageService;
 use store::test_support::mem_surreal;
+use store::DeploymentEnvironment;
 
 async fn storage() -> (Arc<dyn StorageService>, tempfile::TempDir) {
     let dir = tempfile::tempdir().unwrap();
@@ -27,9 +28,15 @@ async fn person_id(surreal: &store::surreal::SurrealDb, email: &str) -> uuid::Uu
 async fn the_sample_fixture_is_scoped_for_client_lawyer_and_admin() {
     let surreal = mem_surreal().await;
     let (storage, _storage_dir) = storage().await;
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Dev,
+        store::seed::BrandSeed::Neon,
+        true,
+    )
+    .await
+    .unwrap();
 
     let expected = store::seed::sample_matter_codes();
     let codes = |mut projects: Vec<store::projects::Project>| {
