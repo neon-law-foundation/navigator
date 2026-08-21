@@ -78,15 +78,19 @@ name: ci
 # red build.
 
 on:
-  # Pull requests targeting `main` only. `main` itself never runs CI on push:
-  # it advances solely through PRs (merge-only), and every heavy/deploy path
-  # rides the release flow (`deploy.yml`), which a pushed tag starts. So the PR
-  # run is the single gate before merge — no redundant post-merge push build.
+  # Pull requests targeting `main` only. `main` itself never runs THIS workflow
+  # on push: it advances solely through PRs (merge-only), so the PR run is the
+  # single gate before merge and a post-merge repeat would prove nothing new.
   #
-  # NOTHING RUNS THIS PIPELINE ON A CLOCK, which is worth knowing before relying
-  # on it: `deploy.yml` was scheduled nightly and is now tag-driven, and the one
-  # remaining scheduled workflow (`ghcr-retention.yml`) only prunes the registry.
-  # See docs/gitops.md § "What detects a broken pipeline".
+  # `deploy.yml` DOES run on every push to `main`, and the division of labour is
+  # worth holding: this workflow decides whether the code is good, that one
+  # decides whether the commit is a release. Its first job answers in seconds and
+  # stops, because almost no merge carries a version bump.
+  #
+  # NOTHING RUNS EITHER PIPELINE ON A CLOCK, which is worth knowing before
+  # relying on it: `deploy.yml` was scheduled nightly and now waits for a version
+  # bump, and the one remaining scheduled workflow (`ghcr-retention.yml`) only
+  # prunes the registry. See docs/gitops.md § "What detects a broken pipeline".
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
@@ -405,6 +409,32 @@ jobs:
       # and parse every `.yaml`/`.yml` in the same walk.
       - name: validate content tree with navigator
         run: "${CARGO_TARGET_DIR:-target}/debug/navigator validate ."
+      # ---- The release preflight, run on every pull request ----------------
+      #
+      # THESE THREE CHECKS USED TO LIVE ONLY IN A SCRIPT SOMEONE REMEMBERED TO
+      # RUN. `cut-release`'s preflight asked all of them on the operator's
+      # machine, before a tag was pushed; nothing in CI did. Now that a merge to
+      # `main` is what publishes, the pull request is the last place any of them
+      # is still free to fix — so they are required checks rather than a habit.
+      #
+      # All three are cheap and none of them is release-specific: they pass on
+      # every ordinary PR and only have anything to say when a bump is involved.
+      - name: is the workspace version a releasable one
+        run: "${CARGO_TARGET_DIR:-target}/debug/navigator ops release-check"
+      # Every permissive licence in the tree requires its notice to travel with
+      # the distributed binary, and the CLI archives a release publishes carry
+      # this file. A stale notice is only discoverable here: nothing downstream
+      # regenerates it.
+      - name: are the third-party notices current
+        run: "${CARGO_TARGET_DIR:-target}/debug/navigator ops notices --check"
+      # `Cargo.lock` pins every workspace crate's version too, and the release
+      # builds with `--locked` in four places. A bump that carried only
+      # `Cargo.toml` would fail those builds AFTER the release tag exists, which
+      # is the one failure in the pipeline that cannot be re-run away.
+      # `ops release-version` refreshes both files together; this is the check
+      # that proves it happened.
+      - name: does Cargo.lock agree with the manifest
+        run: cargo metadata --locked --no-deps --format-version 1 > /dev/null
       # The repo holds the firm's OWN data and synthetic fixtures — never a
       # client's. That invariant is enforced by `cli/tests/no_client_data.rs`,
       # which scans the shipped data surfaces (store/seeds, templates,

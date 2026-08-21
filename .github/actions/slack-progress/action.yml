@@ -6,7 +6,7 @@ description: >-
 # The narration half of the Slack surface. deploy.yml's `notify` reports the
 # finished release and its `notify-failure` pages engineering when a stage dies;
 # neither says anything while the pipeline is running, so a release is silent for
-# the ~45 minutes between the tag push and its verdict. This action is called at
+# the ~45 minutes between the merge and its verdict. This action is called at
 # the top of each step so #navigator watches the run advance and the last line
 # posted names the step a failure died in — without opening the run.
 #
@@ -16,8 +16,10 @@ description: >-
 #      network blip prints a notice and exits 0. A release must not be lost
 #      to its own narration.
 #   2. IT SELF-GATES. A `kind-ci/**` branch iteration posts nothing, matching
-#      the rule the terminal reports already follow: only a real release — a
-#      pushed tag — talks to #navigator.
+#      the rule the terminal reports already follow: only a real release talks
+#      to #navigator. An ordinary merge carrying no version bump is silent for a
+#      second reason — every job that calls this action is gated on
+#      `publishable`, so on such a merge there is no call site to reach.
 #   3. IT CARRIES IDENTIFIERS ONLY. Tag, stage, step, run URL. The
 #      "identifiers and counts, never content" rule binds this surface as
 #      hard as it binds the reports.
@@ -38,8 +40,9 @@ inputs:
     required: true
   tag:
     description: >-
-      The release tag this run is building. Empty for `release-version`'s own
-      first post, which runs before the tag has been validated.
+      The release version this run is publishing, read out of
+      `[workspace.package].version` by `ops release-check`. Empty only if a
+      caller posts before that answer exists.
     required: false
     default: ""
 
@@ -58,22 +61,28 @@ runs:
         # No `set -e`: every failure path below is deliberately non-fatal.
         set -uo pipefail
 
-        # A `kind-ci/**` branch run is pre-tag iteration on the release
+        # A `kind-ci/**` branch run is pre-publish iteration on the release
         # workflow itself. It pushes no images and ships nothing, so it stays
         # out of the channel exactly as `notify` and `notify-failure` do — read
         # from the run rather than from a caller-supplied flag, so a new call
         # site cannot forget the gate.
         #
-        # ONE thing talks to #navigator now, and it runs from a TAG. This was an
-        # event test while the clock owned publishing, because a cron and a
-        # dispatch both ran from a branch ref; both triggers are gone, and
-        # `promote.yml` — the other caller, which dispatched from
-        # `refs/heads/main` — is gone with them. So the gate is a ref test
-        # again, and it admits exactly what deploy.yml's `push.tags` filter
-        # admits. Widening one without the other is how a release goes silent or
-        # a branch iteration reports a publish it never made.
+        # THE GATE ADMITS `refs/heads/main`, which is what deploy.yml's push
+        # filter publishes from. It admitted `refs/tags/*` while a person pushed
+        # the tag; the version in the merged manifest is the trigger now, and the
+        # tag is something this pipeline CREATES rather than something it runs
+        # from. Keeping the old test would have silenced every progress post
+        # while looking like a working gate.
+        #
+        # An ordinary merge that carries no version bump is silent without any
+        # help from this test: every job that calls this action is gated on
+        # `release-version`'s `publishable` output, so on such a merge nothing
+        # reaches a call site. That is why this stays a ref test rather than
+        # taking a flag — widening this and widening deploy.yml's push filter are
+        # one decision, and a caller-supplied flag is one a new call site can
+        # forget.
         case "${GITHUB_REF}" in
-            refs/tags/*) ;;
+            refs/heads/main) ;;
             *)
                 echo "not a publish run (${GITHUB_REF}, ${GITHUB_EVENT_NAME}) — skipping the #navigator progress post"
                 exit 0
@@ -85,8 +94,8 @@ runs:
             exit 0
         fi
 
-        # `release-version` posts before the tag exists; say so rather than
-        # rendering an empty field.
+        # A caller with no version to name says so rather than rendering an
+        # empty field.
         label="${TAG:-untagged}"
         TEXT=":arrow_forward: deploy ${label} · ${STAGE} · ${STEP}
         Run: ${RUN_URL}"

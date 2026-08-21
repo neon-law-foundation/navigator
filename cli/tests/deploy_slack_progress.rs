@@ -10,12 +10,18 @@
 //! `deploy.yml` is the one narrated workflow: the publish run that builds the
 //! images and hands them to the operator. Nothing else talks to #navigator.
 //!
-//! Two categories are deliberately exempt, and this test encodes both:
+//! Three categories are deliberately exempt, and this file encodes all three:
 //!
 //! - steps before the job's `actions/checkout`, because the post is a local
 //!   composite action and is not on disk yet;
 //! - steps gated on `failure()` or `always()`, which are post-mortem
-//!   diagnostics rather than progress — `notify-failure` covers that moment.
+//!   diagnostics rather than progress — `notify-failure` covers that moment;
+//! - `release-version`, the job that DECIDES whether this commit is a release.
+//!   Every merge to `main` starts this workflow and almost none of them publish,
+//!   so narrating that job's steps would post two lines on every merge about a
+//!   release that is not happening. It gets its own guard instead —
+//!   `the_decision_job_narrates_once_and_only_for_a_real_release` — which is
+//!   stricter than the general rule rather than a hole in it.
 
 use std::fs;
 use std::path::PathBuf;
@@ -25,10 +31,11 @@ use serde_yaml::Value;
 /// The action every narrated step calls.
 const PROGRESS_ACTION: &str = "./.github/actions/slack-progress";
 
-/// The release jobs that narrate. `notify` and `notify-failure` are the
-/// Slack surface itself — narrating them would post about posting.
+/// The release jobs that narrate every forward-path step. `notify` and
+/// `notify-failure` are the Slack surface itself — narrating them would post
+/// about posting — and `release-version` narrates once rather than per step,
+/// because it runs on every merge.
 const NARRATED_JOBS: &[&str] = &[
-    "release-version",
     "build",
     "integration",
     "publish-service",
@@ -179,6 +186,58 @@ fn every_progress_post_is_wired_to_the_webhook() {
     );
 }
 
+/// THE DECISION JOB NARRATES ONCE, AND ONLY WHEN THERE IS A RELEASE.
+///
+/// `release-version` is the one job that runs on every push to `main`, and
+/// almost every push is not a release. A post ahead of its answer would narrate
+/// ~95% of merges as releases that then silently stop — so its single post comes
+/// AFTER the decision and is gated on it.
+///
+/// Both halves matter. Without a post the whole release goes unannounced until
+/// `build` starts; without the gate #navigator gets two lines per merge and
+/// stops being read.
+#[test]
+fn the_decision_job_narrates_once_and_only_for_a_real_release() {
+    let workflow = deploy_workflow();
+    let steps = steps(&workflow, "release-version");
+
+    let posts: Vec<&Value> = steps
+        .iter()
+        .filter(|step| uses(step) == PROGRESS_ACTION)
+        .collect();
+    assert_eq!(
+        posts.len(),
+        1,
+        "release-version must narrate exactly once: it runs on every merge to `main`"
+    );
+
+    assert_eq!(
+        condition(posts[0]).trim(),
+        "steps.version.outputs.publishable == 'true'",
+        "release-version's post must be gated on the decision it just made, or #navigator gets \
+         two lines for every merge that publishes nothing"
+    );
+
+    // After the decision, not before it — a post ahead of the answer cannot be
+    // gated on the answer.
+    let decision = steps
+        .iter()
+        .position(|step| {
+            step.get("run")
+                .and_then(Value::as_str)
+                .is_some_and(|run| run.contains("ops release-check"))
+        })
+        .expect("release-version must run `ops release-check`");
+    let post = steps
+        .iter()
+        .position(|step| uses(step) == PROGRESS_ACTION)
+        .expect("release-version must narrate once");
+    assert!(
+        post > decision,
+        "the post must follow the decision it reports"
+    );
+}
+
 /// The Slack surface is the report jobs' own business, in both workflows. A
 /// progress post there would narrate the narration.
 #[test]
@@ -197,13 +256,14 @@ fn the_report_jobs_are_not_narrated() {
     }
 }
 
-/// PUBLISHING RUNS FROM A TAG, so the gate is a ref test again.
+/// PUBLISHING RUNS FROM A PUSH TO `main`, so the gate is a ref test on `main`.
 ///
 /// The gate has to track the trigger exactly, and it fails silently in both
 /// directions. Too narrow and a real release goes unnarrated — every post
-/// skipped, the whole publish invisible in #navigator, which is what a
-/// `refs/tags/*` test did while the clock owned publishing. Too wide and a
-/// `kind-ci/**` iteration posts a release report for images it never pushed.
+/// skipped, the whole publish invisible in #navigator, which is exactly what a
+/// surviving `refs/tags/*` test would do now that the tag is something this
+/// pipeline CREATES rather than runs from. Too wide and a `kind-ci/**` iteration
+/// posts a release report for images it never pushed.
 ///
 /// Read from the run rather than from a caller-supplied flag, so a new call site
 /// cannot forget it.
@@ -214,9 +274,14 @@ fn the_progress_gate_admits_exactly_the_publishing_ref() {
         .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
 
     assert!(
-        raw.contains("refs/tags/*)"),
-        "slack-progress must admit a tag ref: a pushed tag is the only thing that publishes, and a \
-         gate that does not name it silences every release"
+        raw.contains("refs/heads/main)"),
+        "slack-progress must admit `refs/heads/main`: a landed version bump is the only thing that \
+         publishes, and a gate that does not name it silences every release"
+    );
+    assert!(
+        !raw.contains("refs/tags/*)"),
+        "the gate must not still admit a tag ref: deploy.yml carries no tag trigger, so a tag arm \
+         can only match a ref this pipeline created itself"
     );
     assert!(
         !raw.contains("schedule | workflow_dispatch)"),
