@@ -436,6 +436,11 @@ fn grant_lawyer_help_names_the_store_it_grants_in() {
 /// stored bearer token. `auth` is flattened away: once `site` names the group,
 /// `site login` already reads as "log in to the site", and the extra noun only
 /// lengthened the path the regroup exists to shorten.
+///
+/// The order is two runs, not one list. `login` / `logout` / `whoami` / `mcp`
+/// operate on the stored credential itself — `mcp` sits with them because it
+/// hands that credential to an agent client rather than driving a matter. The
+/// rest are the matter nouns a session then acts on.
 #[test]
 fn site_help_lists_the_live_deployment_members() {
     let output = help(&["site", "--help"]);
@@ -443,8 +448,8 @@ fn site_help_lists_the_live_deployment_members() {
     assert_eq!(
         command_names(&output),
         vec![
-            "login", "logout", "whoami", "projects", "intake", "notation", "retainer", "project",
-            "help",
+            "login", "logout", "whoami", "mcp", "projects", "intake", "notation", "retainer",
+            "project", "help",
         ]
     );
 }

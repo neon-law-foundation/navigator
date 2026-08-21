@@ -18,6 +18,7 @@ mod intake;
 mod list;
 mod login;
 mod lsp_publish;
+mod mcp_bridge;
 mod notices;
 mod palette;
 mod project;
@@ -431,6 +432,27 @@ enum SiteCmd {
     /// Print the stored identity and how long the token has left.
     Whoami {
         /// Host to inspect. Optional when exactly one host is stored.
+        #[arg(long)]
+        host: Option<String>,
+    },
+    /// Serve the AIDA tool catalog to Claude as a local MCP server over
+    /// stdio, dispatching each call to the host's A2A endpoint with the
+    /// stored bearer token.
+    ///
+    /// Claude speaks MCP and has no A2A client; A2A is where the
+    /// lawyer-tier check and the `audit` trail live. This bridges the two
+    /// so Claude picks the tool and Navigator authorizes it.
+    ///
+    /// Only tools that run without a human approving them are offered:
+    /// every read, plus the CRM writers (person, project, participation,
+    /// bulk contact import). A tool that needs an explicit approval is
+    /// not advertised, because MCP cannot pause a call to ask a person
+    /// and a confirmation the model supplies to itself is not one.
+    ///
+    /// Speaks protocol on stdout and diagnostics on stderr. Run it from a
+    /// client's server configuration, not by hand.
+    Mcp {
+        /// Host to serve. Optional when exactly one host is stored.
         #[arg(long)]
         host: Option<String>,
     },
@@ -1562,6 +1584,7 @@ fn main() -> ExitCode {
             }
             SiteCmd::Logout { host } => login::run_logout(host.as_deref()),
             SiteCmd::Whoami { host } => login::run_whoami(host.as_deref()),
+            SiteCmd::Mcp { host } => runtime().block_on(mcp_bridge::run(host.as_deref())),
             SiteCmd::Projects { action } => runtime().block_on(run_projects(action)),
             SiteCmd::Retainer { action } => runtime().block_on(run_retainer(action)),
             SiteCmd::Intake { action } => runtime().block_on(run_intake(action)),

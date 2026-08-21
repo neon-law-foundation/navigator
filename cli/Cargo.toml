@@ -30,6 +30,7 @@ include_dir.workspace = true
 k8s-openapi.workspace = true
 kube.workspace = true
 live-inquiry.workspace = true
+mcp.workspace = true
 owo-colors.workspace = true
 pdf.workspace = true
 portal.workspace = true
