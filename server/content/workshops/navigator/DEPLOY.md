@@ -689,10 +689,14 @@ the identities that push to and pull from it:
 Two values decide whether that federation works at all, and both are easy to get wrong in a way nothing reports:
 
 ```text
-issuerUri           https://token.actions.<your-tenant>.ghe.com   # NOT token.actions.githubusercontent.com
+issuerUri           https://token.actions.githubusercontent.com
+                    (on your own GHE tenant: https://token.actions.<your-tenant>.ghe.com)
 attributeCondition  assertion.repository == '<owner>/<repo>'
                         && (assertion.ref == 'refs/heads/main' || assertion.ref.startsWith('refs/tags/'))
 ```
+
+Navigator itself runs on github.com, so the public issuer is the one this workshop's own deployment uses. The tenant
+issuer above is for readers who do not.
 
 ---
 
@@ -1094,8 +1098,7 @@ reached the ledger.
 | Capability | Environment variables |
 | --- | --- |
 | Mounted Git writer | `NAVIGATOR_GIT_REPO_ROOT` |
-| Deployment's own organization | `NAVIGATOR_GITHUB_ORG` — required once a deployment is named, no default |
-| Governance write boundary | `NAVIGATOR_GIT_HOST` — read only by `ops github setup`, no default |
+| Forge coordinate, both required | `NAVIGATOR_GIT_HOST` (default `github.com`), `NAVIGATOR_GITHUB_ORG` (no default) |
 | GitHub App identity | `NAVIGATOR_GITHUB_APP_ID` |
 | GitHub App proof | `NAVIGATOR_GITHUB_APP_PRIVATE_KEY`, `NAVIGATOR_GITHUB_INSTALLATION_ID` |
 | GitHub endpoint | `NAVIGATOR_GITHUB_API_BASE` |

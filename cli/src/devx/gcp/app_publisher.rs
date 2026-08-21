@@ -44,6 +44,14 @@ pub const APP_PUBLISHER_ACCOUNT_ID: &str = "navigator-app-publisher";
 /// from the registry's `github` pool, which environment projects never create.
 pub const APP_PUBLISHER_WIF_POOL_ID: &str = "app-publisher";
 /// The provider id the consumer Action expects in the resource it is passed.
+///
+/// **The `ghe-oidc` spelling stays, and this is not stale narration.** It is a
+/// live resource id, and a provider id is not patchable: renaming it here would
+/// ask for a *second* provider under the same pool rather than renaming the
+/// first, while `create_lro_or_conflict` read the 409 from the existing one as
+/// success. The rename would report success and converge nothing — and
+/// `.github/actions/application-publish/action.yml` names this id in the
+/// resource it documents, so the two would disagree.
 pub const APP_PUBLISHER_WIF_PROVIDER_ID: &str = "ghe-oidc";
 /// The one role the publisher holds on the applications bucket: create, never
 /// delete, and no `buckets.get`.
@@ -226,6 +234,12 @@ async fn ensure_wif_provider(client: &GcpClient, project_id: &str, org: &str) ->
          {APP_PUBLISHER_WIF_POOL_ID}/providers\
          ?workloadIdentityPoolProviderId={APP_PUBLISHER_WIF_PROVIDER_ID}"
     );
+    // The "GitHub Enterprise OIDC" display name is stale — these repositories
+    // are on github.com — and it is deliberately left. `create_lro_or_conflict`
+    // POSTs and reads a 409 as done; there is no PATCH path here, so a rename
+    // would apply to providers created *after* it and to none of the ones that
+    // exist. Correcting it means adding convergence first, which is a change to
+    // live infrastructure rather than to a name (ENG-284 category 2).
     let body = json!({
         "displayName": "GitHub Enterprise OIDC",
         "oidc": { "issuerUri": GITHUB_OIDC_ISSUER },

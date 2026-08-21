@@ -13,26 +13,25 @@
 //! anonymously readable, so [`super::tenants`] refuses the mismatch before the
 //! first GCP call.
 //!
-//! ## The GHE issuer
+//! ## The OIDC issuer
 //!
 //! The deploy identity is federated, not a downloaded key. The subtlety is the
-//! issuer: these repositories live on GitHub Enterprise Cloud with data
-//! residency, which mints Actions OIDC tokens from the enterprise's own
-//! subdomain — [`GHE_OIDC_ISSUER`] — and *not* from
-//! `token.actions.githubusercontent.com`. A provider configured with the wrong
-//! issuer rejects every token with a signature failure.
+//! issuer: a provider configured with the wrong one rejects every token with a
+//! signature failure, and does it only at the first publish. These repositories
+//! are on github.com, so the issuer is
+//! [`super::artifact_registry::GITHUB_OIDC_ISSUER`] — the same constant, read
+//! directly rather than aliased, because one host mints from one issuer and two
+//! copies of that literal can drift apart while both still compile.
 //!
-//! One enterprise issues from one host, so this is the same issuer
-//! [`super::artifact_registry`] trusts for `neon-law-foundation/navigator`, and
-//! [`GHE_OIDC_ISSUER`] aliases that constant rather than repeating the literal.
-//! What still differs is the *provider*: each lives in its own project and
-//! narrows to its own repositories.
-//!
-//! Because the issuer already lives on a per-enterprise subdomain, it is
-//! inherently scoped to this enterprise: no other tenant can mint a token
-//! against it. The provider narrows it further to the `marketing` owner, and
-//! the impersonation binding narrows it again to one specific repository, so a
-//! token from a different repository in the same org cannot deploy this site.
+//! What differs between the lanes is the *provider*: each lives in its own
+//! project and narrows to its own repositories. The provider narrows the issuer
+//! to the [`MARKETING_REPOSITORY_OWNER`] owner, and the impersonation binding
+//! narrows it again to one specific repository, so a token from a different
+//! repository in the same organization cannot deploy this site. That narrowing
+//! is what does the scoping here — the issuer itself is shared by every
+//! repository on github.com and scopes nothing on its own, which is a real
+//! difference from a self-hoster's tenant subdomain and the reason the
+//! condition is not optional.
 
 use super::artifact_registry::{ensure_wif_impersonation, ensure_wif_pool, WIF_POOL_ID};
 use super::client::{GcpClient, GcpService};
@@ -54,24 +53,21 @@ pub const REQUIRED_SERVICES: &[&str] = &[
     "sts.googleapis.com",
 ];
 
-/// The Actions OIDC issuer for this GitHub Enterprise Cloud tenant.
-///
-/// Data residency puts the issuer on the enterprise subdomain rather than on
-/// the shared `token.actions.githubusercontent.com`. Verify with
-/// `curl https://token.actions.githubusercontent.com/.well-known/openid-configuration`
-/// before changing it — a wrong issuer fails closed, at token exchange, with
-/// an error that does not name this constant.
-///
-/// Aliased rather than repeated: the tenant has exactly one issuer, and two
-/// copies of that literal can drift apart while both still compile.
-pub const GHE_OIDC_ISSUER: &str = super::artifact_registry::GITHUB_OIDC_ISSUER;
+/// The GitHub organization that owns both marketing sites.
+pub const MARKETING_REPOSITORY_OWNER: &str = "marketing";
 
-/// The GitHub organization on the enterprise that owns both marketing sites.
-pub const GHE_REPOSITORY_OWNER: &str = "marketing";
-
-/// The Workload Identity provider for the enterprise's Actions. Distinct from
-/// [`super::artifact_registry::WIF_PROVIDER_ID`] because it admits a different
-/// set of repositories; sharing an id would let one overwrite the other.
+/// The Workload Identity provider for the marketing sites' Actions. Distinct
+/// from [`super::artifact_registry::WIF_PROVIDER_ID`] because it admits a
+/// different set of repositories; sharing an id would let one overwrite the
+/// other.
+///
+/// **The `ghe-oidc` spelling stays, and this is not stale narration.** It is the
+/// id of a provider that already exists in live projects, and a provider id is
+/// not patchable: renaming it here would not rename the resource, it would ask
+/// for a *second* provider under the same pool while the first kept serving
+/// every existing workflow. `ensure_wif_provider` treats the 409 from the
+/// existing one as success, so the rename would report success and converge
+/// nothing.
 pub const GHE_WIF_PROVIDER_ID: &str = "ghe-oidc";
 
 /// What a site's deployer needs on its own bucket, and nothing more. Both are
@@ -453,24 +449,31 @@ async fn ensure_load_balancer(
     Ok(())
 }
 
-/// Idempotently create the GHE OIDC provider under the shared pool.
+/// Idempotently create the [`GHE_WIF_PROVIDER_ID`] provider under the shared
+/// pool.
 ///
-/// The attribute condition pins it to the `marketing` owner, so no other
-/// organization on this enterprise can mint a token the project will trust.
+/// The attribute condition pins it to the [`MARKETING_REPOSITORY_OWNER`] owner,
+/// so no other organization on github.com can mint a token the project will
+/// trust. On a shared public issuer that condition is the only thing doing the
+/// scoping, so it is not optional.
 pub async fn ensure_ghe_wif_provider(client: &GcpClient, project_id: &str) -> SetupResult<()> {
     let path = format!(
         "/v1/projects/{project_id}/locations/global/workloadIdentityPools/{WIF_POOL_ID}/\
          providers?workloadIdentityPoolProviderId={GHE_WIF_PROVIDER_ID}"
     );
     let body = json!({
+        // Stale, and deliberately left: see the note on
+        // `app_publisher::APP_PUBLISHER_WIF_PROVIDER_ID`. This create path reads
+        // a 409 as done, so a renamed display name would reach providers created
+        // after it and none of the ones that exist (ENG-284 category 2).
         "displayName": "GitHub Enterprise OIDC",
-        "oidc": { "issuerUri": GHE_OIDC_ISSUER },
+        "oidc": { "issuerUri": super::artifact_registry::GITHUB_OIDC_ISSUER },
         "attributeMapping": {
             "google.subject": "assertion.sub",
             "attribute.repository": "assertion.repository",
             "attribute.repository_owner": "assertion.repository_owner"
         },
-        "attributeCondition": format!("assertion.repository_owner == '{GHE_REPOSITORY_OWNER}'")
+        "attributeCondition": format!("assertion.repository_owner == '{MARKETING_REPOSITORY_OWNER}'")
     });
     create_or_conflict(
         client,
@@ -650,28 +653,21 @@ mod tests {
         }
     }
 
-    /// The single most breakable fact in this module. GitHub Enterprise Cloud
-    /// with data residency does not use the public issuer, and a provider
-    /// carrying the wrong one fails at token exchange with an error that never
-    /// names the constant.
-    /// The issuer is the standard public one.
+    /// The single most breakable fact in this module: the issuer is the
+    /// standard public one.
     ///
-    /// This asserted the opposite while Navigator sat on a data-residency
-    /// enterprise, which minted its own Actions tokens under the tenant host: a
-    /// provider pinned to the wrong issuer is accepted at create time, reports
-    /// `ACTIVE`, and then fails every token exchange with an error that never
-    /// names the constant. The repository is public now, so the standard issuer
-    /// is the correct one — and the same failure mode applies in reverse.
+    /// A provider pinned to an issuer its tokens are not minted by is accepted
+    /// at create time, reports `ACTIVE`, and then fails every token exchange
+    /// with an error that never names the constant. These repositories are on
+    /// github.com, so the public issuer is the correct one — and the same
+    /// failure mode applies in reverse to a self-hoster whose own tenant mints
+    /// its own tokens, which is why the value is read off the host rather than
+    /// copied.
     #[test]
     fn the_oidc_issuer_is_the_public_github_one() {
         assert_eq!(
-            GHE_OIDC_ISSUER,
-            "https://token.actions.githubusercontent.com"
-        );
-        assert_eq!(
-            GHE_OIDC_ISSUER,
             super::super::artifact_registry::GITHUB_OIDC_ISSUER,
-            "one enterprise mints from one host; keep the constant single-sourced",
+            "https://token.actions.githubusercontent.com"
         );
     }
 
@@ -680,7 +676,7 @@ mod tests {
         assert_ne!(
             GHE_WIF_PROVIDER_ID,
             super::super::artifact_registry::WIF_PROVIDER_ID,
-            "two providers trusting different issuers cannot share an id",
+            "two providers narrowing to different owners cannot share an id",
         );
     }
 

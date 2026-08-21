@@ -652,7 +652,7 @@ pub enum GcpMarketingCmd {
     /// Create each site's public website bucket, its CDN-backed HTTPS load
     /// balancer and managed certificate, its deployer service account scoped
     /// to that one bucket, and the Workload Identity trust that lets the
-    /// site's GitHub Enterprise repository deploy without a stored key.
+    /// site's own repository deploy without a stored key.
     /// Safe to re-run: every step treats "already exists" as success.
     ///
     /// Prints the static IP each hostname's DNS `A` record must point at.

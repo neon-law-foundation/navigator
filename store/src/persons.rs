@@ -85,7 +85,7 @@ pub enum Role {
     /// A licensed lawyer authorized to perform legal work through Navigator.
     /// The lawyer tier may perform work only on assigned projects and supervise
     /// Clerk work where a future Clerk-specific capability permits it. This is
-    /// not an employment, email-domain, or GitHub Enterprise membership grant.
+    /// not an employment, email-domain, or source-forge membership grant.
     Lawyer,
     /// A supervised non-lawyer firm worker. This role is intentionally
     /// outside the lawyer tier and receives no `/lawyer`, MCP, Git, or

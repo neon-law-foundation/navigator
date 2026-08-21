@@ -22,7 +22,7 @@ use std::process::ExitCode;
 
 use cloud::workspace::{
     DriveCoordinates, WorkspaceConfig, WorkspaceConfigError, NAVIGATOR_GITHUB_ORG,
-    NAVIGATOR_PROJECTS_DRIVE_MOUNT,
+    NAVIGATOR_GIT_HOST, NAVIGATOR_PROJECTS_DRIVE_MOUNT,
 };
 
 use crate::credentials::{self, Credentials};
@@ -210,6 +210,12 @@ fn deployment_error_detail(error: &WorkspaceConfigError) -> String {
             format!(
                 "{key} is unset; a named deployment must configure the organization its own \
                  automation occupies, and there is no default"
+            )
+        }
+        WorkspaceConfigError::MissingCoordinate(key) if *key == NAVIGATOR_GIT_HOST => {
+            format!(
+                "{key} is set to a blank value; unset it to take the default host, or name the \
+                 host this deployment's organization lives on"
             )
         }
         other @ WorkspaceConfigError::MissingCoordinate(_) => other.to_string(),
@@ -490,9 +496,9 @@ mod tests {
     ///
     /// The organization is this deployment's own, and there is no default: a
     /// value that silently appeared would let a staging run describe production.
-    /// `NAVIGATOR_GIT_HOST` is deliberately *not* in this loop — it is only
-    /// `ops github setup`'s authorization boundary now, and `WorkspaceConfig`
-    /// does not read it, so its absence must not fail a Drive diagnosis.
+    /// Its paired host is read here too, to the different rule the pair's two
+    /// halves carry — see
+    /// [`a_named_deployment_whose_host_is_blank_fails_and_names_the_key`].
     #[test]
     fn a_named_deployment_without_its_organization_fails_and_names_the_key() {
         let creds = Credentials::default();
@@ -517,6 +523,40 @@ mod tests {
             "the report must say there is no fallback: {detail}"
         );
         // And nothing may be reported for a deployment that did not resolve.
+        assert!(diagnosis.check("project folder").is_none());
+    }
+
+    /// A named deployment whose host is blank fails closed naming that key.
+    ///
+    /// The host is now half of this deployment's forge coordinate, so the
+    /// diagnosis reads it. It carries a default, which is why *absence* stays
+    /// healthy — every fixture in this module omits it — and why a
+    /// templated-and-never-filled value is the failure worth reporting.
+    #[test]
+    fn a_named_deployment_whose_host_is_blank_fails_and_names_the_key() {
+        let creds = Credentials::default();
+        let mut pairs = deployment("neon-law");
+        pairs.push((NAVIGATOR_GIT_HOST, "   "));
+        let lookup = env(&pairs);
+        let diagnosis = diagnose(&Probe {
+            env: &lookup,
+            path_exists: &nothing_exists,
+            credentials: &creds,
+            now: 0,
+            host: None,
+            project_code: Some("spotonix"),
+        });
+
+        assert!(
+            !diagnosis.is_healthy(),
+            "{NAVIGATOR_GIT_HOST} must fail the report"
+        );
+        let detail = &diagnosis.check("deployment").unwrap().detail;
+        assert!(detail.contains(NAVIGATOR_GIT_HOST), "{detail}");
+        assert!(
+            detail.contains("blank"),
+            "the report must say what is wrong with the value: {detail}"
+        );
         assert!(diagnosis.check("project folder").is_none());
     }
 

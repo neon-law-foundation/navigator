@@ -29,7 +29,7 @@ name: ci
 # The history matters, because the previous label cost a full CI cycle to
 # diagnose. This workflow used to name `neon-law-medium`, a GitHub-hosted
 # larger runner on the *previous* organisation, back when the repository lived
-# on a `*.ghe.com` tenant with no Marketplace and so no third-party fleets.
+# on a tenant with no Marketplace and so no third-party fleets.
 # Neither that label nor `neon-law-large` exists in `neon-law-foundation`, and
 # a `runs-on` label with no runner behind it does not fail — GitHub queues the
 # job forever, so the PR waits on a check that can never report.
@@ -779,11 +779,12 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
-          # `gh` targets github.com unless told otherwise, and this enterprise
-          # is GitHub Enterprise Cloud with data residency: an Actions token
-          # sent to api.github.com comes back "Bad credentials" (HTTP 401), not
-          # a permissions error. Derive the API host from the run itself so the
-          # same block works on any host.
+          # `gh` targets github.com unless told otherwise, which is where this
+          # repository lives — so the default is right here and was not on the
+          # tenant this moved off, where an Actions token sent to api.github.com
+          # came back "Bad credentials" (HTTP 401) rather than a permissions
+          # error. Derive the API host from the run itself so the same block
+          # works on any host.
           GH_HOST="${GITHUB_SERVER_URL#https://}"
           export GH_HOST
           auto_merge_enabled="$(

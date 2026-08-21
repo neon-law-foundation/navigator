@@ -96,11 +96,17 @@ every developer.
 
 ## The organization is configuration, not a name in source
 
-Navigator spells no organization and no forge host anywhere in its source. `NAVIGATOR_GITHUB_ORG` names the organization
-this deployment's *own* automation occupies. `NAVIGATOR_GIT_HOST` is the single enterprise host `ops github setup` may
-write repository governance to — an authorization boundary, so a remote pointing anywhere else is refused before a token
-is read. `cli/tests/forge_coordinate_retired.rs` is the guard that keeps both out of source, and that keeps neither from
-being composed into a Project's URL.
+Navigator spells no organization in its source, and one forge host: the named default
+`cloud::workspace::DEFAULT_GIT_HOST`. `NAVIGATOR_GITHUB_ORG` names the organization this deployment's *own* automation
+occupies, and `NAVIGATOR_GIT_HOST` names the host it lives on. The two are one `(host, organization)` coordinate — where
+this deployment's Project repositories are created, and the boundary `ops github setup` refuses a governance write
+outside. Two organizations are admissible on a governance write: the public one holding Navigator itself, and this
+deployment's own. A remote in neither is refused before a token is read.
+
+Only the host carries a default, and only because it has a right answer. An organization has none, so a named deployment
+must state it. `cli/tests/forge_coordinate_retired.rs` is the guard that keeps the organization out of source, admits
+exactly one spelling of the host — that constant's own declaration — and keeps neither from being composed into a
+Project's URL.
 
 **Neither names a client matter's source.** That is `project.repository_url`, which is data. A deployment's organization
 and a Project's repository are independent: the Foundation's deployment can serve a matter whose source lives in a
@@ -202,9 +208,9 @@ sites](marketing-sites.md) document explains. Because the whole resource travels
 id are the deployment's business and never a name a Project repository knows.
 
 **On `neon-law-prod` that resource is the `github` pool's `github-oidc` provider, which is not what
-`cli/src/devx/gcp/app_publisher.rs` provisions** — it creates an `app-publisher` pool with a `ghe-oidc` provider, a name
-left over from the GitHub Enterprise era, and no such pool exists in that project. lex-tecnica was onboarded onto the
-existing `github` provider by hand. Reconciling the two is ENG-255's work, and it is the reason a provider's
+`cli/src/devx/gcp/app_publisher.rs` provisions** — it creates an `app-publisher` pool with a `ghe-oidc` provider, whose
+name is a live resource id rather than a description, and no such pool exists in that project. lex-tecnica was onboarded
+onto the existing `github` provider by hand. Reconciling the two is ENG-255's work, and it is the reason a provider's
 `attributeCondition` must never be rewritten by hand: one CEL expression guards every identity in the pool, Navigator's
 own `navigator-ci-pusher` deploy identity included, so a clause appended carelessly breaks Navigator's deploys an hour
 later and somewhere else.
@@ -341,9 +347,9 @@ dependencies, or build output.
 
 ## Access boundary
 
-Navigator Project participation authorizes Navigator and the served client portal. It never grants GitHub Enterprise
-access. Outside lawyers work through Navigator, Drive, and the served portal without GHE membership. Repository access
-is an independently administered source-control decision.
+Navigator Project participation authorizes Navigator and the served client portal. It never grants source-forge access.
+Outside lawyers work through Navigator, Drive, and the served portal without any membership of the forge that hosts the
+source. Repository access is an independently administered source-control decision.
 
 This is also why the model stops at one repository per Project rather than one repository per organization with
 `projects/<code>/` subdirectories, which would be the same logic one step further. **Repository access is the per-matter

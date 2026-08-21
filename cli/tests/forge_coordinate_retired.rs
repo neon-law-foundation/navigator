@@ -13,20 +13,29 @@
 //! the same way `brand_identifier_is_neon.rs` asserts that the brand identifier
 //! is `neon`.
 //!
-//! **No forge host is a literal in the files that read forge configuration.**
-//! This is the sharper half, and it is the defect the collapse removed:
-//! `portal::config` read `NAVIGATOR_GIT_HOST` with a **public forge as the
-//! default**, so an unset variable silently pointed every Project's clone URL at
-//! a namespace the Firm does not control — while `ops github setup` deliberately
-//! had no such fallback and documented why. Two crates, opposite rules, and the
-//! permissive one was the one serving users.
+//! **No forge host is a *bare* literal in the files that read forge
+//! configuration.** This is the sharper half, and it is the defect the collapse
+//! removed: `portal::config` read `NAVIGATOR_GIT_HOST` with a **public forge as
+//! the default**, so an unset variable silently pointed every Project's clone
+//! URL at a namespace the Firm does not control — while `ops github setup`
+//! deliberately had no such fallback and documented why. Two crates, opposite
+//! rules, and the permissive one was the one serving users.
+//!
+//! A host default is legitimate now, and exactly one exists:
+//! `cloud::workspace::DEFAULT_GIT_HOST`. What made the old fallback a defect was
+//! never that a host had a default — it was that the default was anonymous,
+//! undocumented, and reached by a variable nobody had set. So the rule is that
+//! the default is *named*: [`is_named_default`] admits the one constant and its
+//! uses, and [`the_host_default_is_declared_exactly_once`] refuses a second one.
+//! Every other spelling of a forge host in these files still fails.
 //!
 //! **No Project repository URL is composed at all.** A Project's source is a
 //! whole URL stored on the row (`store::projects::Project::repository_url`), on
 //! whatever forge hosts it, so the derivation those two halves used to police is
-//! gone rather than merely configured. The one surviving host in configuration is
-//! `ops github setup`'s authorization boundary, which governs *this* tenant's own
-//! repositories and never names a client matter's source.
+//! gone rather than merely configured. The surviving host in configuration is
+//! half of one `(host, organization)` coordinate — where a deployment's own
+//! repositories are created, and the boundary `ops github setup` refuses a
+//! governance write outside — and it never names a client matter's source.
 //!
 //! # Why the second half is scoped rather than tree-wide
 //!
@@ -44,7 +53,7 @@
 //! here polices their contents; this guard walks this tree and nothing else.
 
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// The six retiring organization names. No allowlist: not one of them has a
@@ -59,7 +68,11 @@ const RETIRED_ORGANIZATIONS: &[&str] = &[
 ];
 
 /// Forge hosts that may not be spelled where a Project coordinate is composed.
-const FORGE_HOSTS: &[&str] = &["github.com", "github.com"];
+///
+/// One entry, and it used to be two: the second was the retired
+/// `neon-law.ghe.com` tenant, which the migration rewrote to `github.com` and
+/// left as a duplicate of the first.
+const FORGE_HOSTS: &[&str] = &["github.com"];
 
 /// The files that compose, render, or verify a Project repository coordinate.
 ///
@@ -202,21 +215,32 @@ fn is_comment(line: &str) -> bool {
     trimmed.starts_with("//") || trimmed.starts_with('#') || trimmed.starts_with("--")
 }
 
-/// No forge host is a literal in the code that composes a Project coordinate.
+/// The one place a forge host may be spelled: the declaration of the named
+/// default, and the code that reads it by name.
 ///
-/// The host is `NAVIGATOR_GIT_HOST`, read with no default. A literal in one of
-/// these files is either a fallback nobody chose or a fixture asserting one
-/// deployment's spelling, and both are how the permissive default got there the
-/// first time.
+/// A default reached through this constant is a decision a reader can find and
+/// a test can pin. The defect this guard exists for was the opposite shape — an
+/// anonymous `"github.com"` inlined into an `unwrap_or_else`, which is why the
+/// admission is by *name* rather than by file or by line number.
+fn is_named_default(line: &str) -> bool {
+    line.contains("DEFAULT_GIT_HOST")
+}
+
+/// No forge host is a bare literal in the code that composes a Project
+/// coordinate.
+///
+/// A literal in one of these files that is not the named default is either a
+/// fallback nobody chose or a fixture asserting one deployment's spelling, and
+/// both are how the permissive default got there the first time.
 #[test]
-fn no_forge_host_is_a_literal_where_a_coordinate_is_composed() {
+fn no_forge_host_is_a_bare_literal_where_a_coordinate_is_composed() {
     let mut hits = Vec::new();
     for source in COORDINATE_SOURCES {
         let path = repo_root().join(source);
         let body = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
         for (index, line) in body.lines().enumerate() {
-            if is_comment(line) {
+            if is_comment(line) || is_named_default(line) {
                 continue;
             }
             let lowered = line.to_lowercase();
@@ -229,12 +253,43 @@ fn no_forge_host_is_a_literal_where_a_coordinate_is_composed() {
     }
     assert!(
         hits.is_empty(),
-        "every forge value these files read comes from configuration — NAVIGATOR_GITHUB_ORG and \
-         NAVIGATOR_GIT_HOST, neither with a default — and a Project's own repository is a stored \
-         URL, not a composed one. A forge host spelled here is either a fallback nobody chose or \
-         a fixture pinning one deployment's spelling. Found {} occurrence(s):\n  {}",
+        "every forge value these files read comes from configuration — NAVIGATOR_GITHUB_ORG, \
+         which has no default, and NAVIGATOR_GIT_HOST, whose one default is the named \
+         DEFAULT_GIT_HOST — and a Project's own repository is a stored URL, not a composed one. \
+         A forge host spelled here otherwise is either a fallback nobody chose or a fixture \
+         pinning one deployment's spelling. Found {} occurrence(s):\n  {}",
         hits.len(),
         hits.join("\n  ")
+    );
+}
+
+/// The named default is declared once, in the module that owns the coordinate.
+///
+/// [`is_named_default`] admits every line mentioning the constant, so a second
+/// declaration elsewhere would inherit the admission and reintroduce exactly the
+/// per-crate disagreement the collapse removed: two defaults, one of them the
+/// permissive one, and no way to tell from a call site which was in force.
+#[test]
+fn the_host_default_is_declared_exactly_once() {
+    let mut declarations = Vec::new();
+    for path in tracked_files() {
+        let is_rust = Path::new(&path)
+            .extension()
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("rs"));
+        if SKIPPED_FILES.contains(&basename(&path)) || !is_rust {
+            continue;
+        }
+        let Ok(body) = std::fs::read_to_string(repo_root().join(&path)) else {
+            continue;
+        };
+        if body.contains("const DEFAULT_GIT_HOST") {
+            declarations.push(path);
+        }
+    }
+    assert_eq!(
+        declarations,
+        vec!["cloud/src/workspace.rs".to_string()],
+        "the host default is one named constant in cloud::workspace and nowhere else",
     );
 }
 
@@ -258,42 +313,67 @@ fn every_coordinate_source_still_exists_and_is_tracked() {
     );
 }
 
-/// Each surviving forge value is read from configuration, and neither supplies
-/// a default.
+/// Both halves of the surviving forge coordinate are read from configuration,
+/// each to its own rule.
 ///
-/// This is the positive half. The two negative tests above prove no host is
-/// *written down*; this one proves the values are actually *read*, so the guard
-/// cannot be satisfied by a file that stopped reading configuration at all.
+/// This is the positive half. The negative tests above prove no host is *bare*;
+/// this one proves the values are actually *read*, so the guard cannot be
+/// satisfied by a file that stopped reading configuration at all.
 ///
-/// The two keys serve different purposes now and live in different crates:
-/// `NAVIGATOR_GITHUB_ORG` is the organization this deployment's own automation
-/// occupies, resolved by `cloud::workspace`; `NAVIGATOR_GIT_HOST` is the single
-/// enterprise host `ops github setup` may write governance to. Neither composes
-/// a Project's repository URL — see
-/// [`no_project_repository_url_is_composed_from_a_project_code`].
+/// The two keys are one coordinate resolved in one place. `NAVIGATOR_GITHUB_ORG`
+/// is the organization this deployment's own automation occupies and has no
+/// right answer, so a named deployment must state it. `NAVIGATOR_GIT_HOST` is
+/// the host that organization lives on and has one, so absence resolves to
+/// `DEFAULT_GIT_HOST` while a blank value — a configuration templated and never
+/// filled in — still fails closed. Neither composes a Project's repository URL:
+/// see [`no_project_repository_url_is_composed_from_a_project_code`].
 #[test]
-fn the_surviving_forge_values_are_read_from_configuration_with_no_default() {
+fn both_halves_of_the_forge_coordinate_are_read_from_configuration() {
     let workspace = std::fs::read_to_string(repo_root().join("cloud/src/workspace.rs"))
         .expect("read cloud/src/workspace.rs");
-    assert!(
-        workspace.contains("NAVIGATOR_GITHUB_ORG"),
-        "cloud::workspace must read NAVIGATOR_GITHUB_ORG rather than naming an organization",
-    );
-
-    let governance = std::fs::read_to_string(repo_root().join("cli/src/devx/github_setup.rs"))
-        .expect("read cli/src/devx/github_setup.rs");
-    assert!(
-        governance.contains("NAVIGATOR_GIT_HOST"),
-        "ops github setup must read NAVIGATOR_GIT_HOST as its authorization boundary",
-    );
+    for key in ["NAVIGATOR_GITHUB_ORG", "NAVIGATOR_GIT_HOST"] {
+        assert!(
+            workspace.contains(key),
+            "cloud::workspace must read {key} rather than naming a forge coordinate",
+        );
+    }
 
     // A named deployment with no organization fails closed. Asserted against the
     // real resolver rather than against the file's text, because what matters is
     // the behaviour and not the spelling.
-    let lookup = |key: &str| (key == "NAVIGATOR_GCP_PROJECT_ID").then(|| "neon-law".to_string());
-    assert!(
-        cloud::workspace::WorkspaceConfig::from_lookup(lookup).is_err(),
+    let named = |key: &str| (key == "NAVIGATOR_GCP_PROJECT_ID").then(|| "neon-law".to_string());
+    assert_eq!(
+        cloud::workspace::WorkspaceConfig::from_lookup(named).unwrap_err(),
+        cloud::workspace::WorkspaceConfigError::MissingCoordinate("NAVIGATOR_GITHUB_ORG"),
         "a named deployment with no organization must not resolve",
+    );
+
+    // The host half resolves without being named, and refuses to resolve when it
+    // is named blank.
+    let configured = |host: &'static str| {
+        move |key: &str| match key {
+            "NAVIGATOR_GCP_PROJECT_ID" => Some("neon-law".to_string()),
+            "NAVIGATOR_GITHUB_ORG" => Some("an-organization".to_string()),
+            "NAVIGATOR_GIT_HOST" if !host.is_empty() => Some(host.to_string()),
+            _ => None,
+        }
+    };
+    assert_eq!(
+        cloud::workspace::WorkspaceConfig::from_lookup(configured(""))
+            .expect("an unnamed host resolves")
+            .host,
+        cloud::workspace::DEFAULT_GIT_HOST,
+    );
+    // The one place the default's *value* is spelled. `cloud::workspace` may not
+    // spell it twice — the constant is the declaration and a fixture repeating
+    // it would be a second spelling to keep true — and this file is the one
+    // exempt by provenance, because its own refusal lists are written in the
+    // things it forbids.
+    assert_eq!(cloud::workspace::DEFAULT_GIT_HOST, "github.com");
+    assert_eq!(
+        cloud::workspace::WorkspaceConfig::from_lookup(configured("   ")).unwrap_err(),
+        cloud::workspace::WorkspaceConfigError::MissingCoordinate("NAVIGATOR_GIT_HOST"),
+        "a blank host is a misconfigured deployment, not an absent one",
     );
 
     // And no deployment named stays the benign absence it is: the local loop and

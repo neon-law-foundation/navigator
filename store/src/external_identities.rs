@@ -29,12 +29,12 @@
 //! asserts that against the authorization surfaces by name rather than
 //! leaving it to be remembered.
 //!
-//! Project participation likewise never grants GitHub Enterprise
-//! access. The rule is per-system, not per-role — a `client` Person
-//! holding a `google` identity for Drive sharing is legitimate, and the
-//! same Person is still never provisioned into GHE — so the schema
-//! carries no blanket role constraint and the enforcement belongs where
-//! provisioning happens. See
+//! Project participation likewise never grants source-forge access. The
+//! rule is per-system, not per-role — a `client` Person holding a
+//! `google` identity for Drive sharing is legitimate, and the same
+//! Person is still never provisioned into the forge that hosts the
+//! source — so the schema carries no blanket role constraint and the
+//! enforcement belongs where provisioning happens. See
 //! [`docs/access-model.md`](../../../docs/access-model.md) and
 //! [`docs/project-repositories.md`](../../../docs/project-repositories.md).
 //!
@@ -93,6 +93,12 @@ const PERSON_TABLE: &str = "person";
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum ExternalSystem {
     /// GitHub / GitHub Enterprise. `external_id` is the numeric user id.
+    ///
+    /// One variant covers both, and naming GitHub Enterprise here is
+    /// deliberate rather than left over: Navigator runs on github.com, and
+    /// a self-hoster running it against their own tenant records ids issued
+    /// by that tenant through this same variant. The system is the kind of
+    /// forge, not one deployment's host.
     Github,
     /// Slack. `external_id` is the `U…` member id.
     Slack,

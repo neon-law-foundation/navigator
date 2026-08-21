@@ -596,8 +596,8 @@ quietly — the provisioning call simply fails to find a user, at exactly the mo
 `persons.role` is the authorization tier and `person_project_roles.participation` is the scope, and an external identity
 is neither. No code may read it to make an access decision. This is what keeps the [Clerk](#person) rule intact — a
 Clerk recorded as GitHub user `12345` receives no Git authority by that record — and what keeps the table from becoming
-a back door around the rule that Project participation never grants GitHub Enterprise access. The vocabulary of systems
-is closed and fails closed; the values themselves are unverified, so a wrong id is a data-entry bug and a stale row is
+a back door around the rule that Project participation never grants source-forge access. The vocabulary of systems is
+closed and fails closed; the values themselves are unverified, so a wrong id is a data-entry bug and a stale row is
 wrong data, not a security incident.
 
 - Schema and queries: [`store::external_identities`](../store/src/external_identities.rs) (SurrealDB; ENG-85) —
@@ -831,7 +831,7 @@ Not to be confused with [Disclosure](#disclosure), which is the firm's conflicts
 A human contact. The system-wide tier — `owner`, `admin`, `lawyer`, `clerk`, or `client` — lives on this row in the
 `role` field, not on the OIDC token. The Rauthy / Google id_token carries only `sub` and `email`; the callback handler
 links that pair to a Person via `oidc_subject` and reads `role` from the DB. `lawyer` means a person licensed to
-practice law authorized for Navigator legal work, not a firm email or GitHub Enterprise membership. See
+practice law authorized for Navigator legal work, not a firm email or source-forge membership. See
 [`docs/access-model.md`](access-model.md) and [`docs/oidc.md`](oidc.md).
 
 This is a SurrealDB table and [`store::persons`](../store/src/persons.rs) is the only module that reads or writes it.
@@ -949,7 +949,7 @@ objects in GCS — so deleting a Project's database rows never deletes its archi
 
 Google Drive is the Project's legal-file workspace. Its deployment-selected root holds one folder per matter, named for
 `projects.code`; working files that are not yet Navigator documents live there. Project participation grants Navigator
-and deployed Project-application access, never GitHub Enterprise access.
+and deployed Project-application access, never source-forge access.
 
 - Schema and commands: [`store::projects`](../store/src/projects.rs) ·
   [`store/src/schema/navigator.surql`](../store/src/schema/navigator.surql)

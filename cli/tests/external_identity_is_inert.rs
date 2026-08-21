@@ -14,7 +14,7 @@
 //!   authority by inheritance" ([`docs/glossary.md`](../../docs/glossary.md)),
 //!   so a Clerk who *is* GitHub user `12345` gains nothing by being recorded as
 //!   such; and
-//! - Project participation never grants GitHub Enterprise access
+//! - Project participation never grants source-forge access
 //!   ([`docs/project-repositories.md`](../../docs/project-repositories.md), ENG-45,
 //!   ENG-49), so this table must not become the back door that reverses it.
 //!
