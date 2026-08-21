@@ -6,7 +6,13 @@
 # - Secret `rauthy-secrets` with Hiqlite/encryption keys, the Rauthy bootstrap administrator,
 #   PUB_URL, RP_ORIGIN, and OAUTH_ISSUER_URL;
 # - Secret `rauthy-client` with the navigator-web OAUTH_CLIENT_SECRET; and
-# - ConfigMap `rauthy-bootstrap` with config.toml, users.json, and clients.json.
+# - ConfigMap `rauthy-bootstrap` with config.toml, users.json, clients.json, and
+#   api_keys.json. Every one of those keys is named in a volume `items:` list
+#   below, and a key named there but absent from the ConfigMap does not degrade
+#   gracefully: the kubelet reports `configmap references non-existent config
+#   key` and the pod stays in ContainerCreating indefinitely. Adding a key here
+#   is therefore a breaking change for any tier that supplies its own
+#   `rauthy-bootstrap` — the ConfigMap has to gain the entry first.
 #
 # The KIND overlays provide local-only fixtures. Without environment-owned
 # values, Rauthy and navigator-web fail to start instead of inheriting a
@@ -99,11 +105,27 @@ spec:
         - name: bootstrap
           configMap:
             name: rauthy-bootstrap
+            # Enumerated rather than projecting the whole ConfigMap, because
+            # `config.toml` lives in the same one and must not appear inside
+            # `bootstrap_dir`. A key absent from this list is silently invisible
+            # to Rauthy: its bootstrap logs a missing file at DEBUG and returns
+            # Ok, so a new `*.json` added to the ConfigMap alone does nothing
+            # and says nothing. Add it here too.
             items:
               - key: users.json
                 path: users.json
               - key: clients.json
                 path: clients.json
+              - key: api_keys.json
+                path: api_keys.json
+        # Ephemeral on purpose, and that has a consequence worth stating: every
+        # pod restart is a fresh Hiqlite database, so first-boot bootstrap runs
+        # again on every start. Anything declared in `rauthy-bootstrap` (users,
+        # clients, API keys) is therefore durable across restarts, and anything
+        # created at runtime is not. Upstream auth providers are runtime rows —
+        # `POST /providers/create`, with no bootstrap file and no `[[providers]]`
+        # in config.toml — so they are destroyed on every restart and must be
+        # reconciled after each one, not once at setup.
         - name: data
           emptyDir: {}
 ---
