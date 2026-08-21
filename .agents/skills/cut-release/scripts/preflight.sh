@@ -43,6 +43,15 @@ echo "==> is the workspace version a release?"
 cargo run -p cli --quiet -- ops release-check --no-fetch
 
 echo "==> notices must travel with the distributed binary"
+# `cargo fetch` first, and it is load-bearing. `ops notices` reads licence text
+# from $CARGO_HOME/registry/src, where cargo unpacks a crate only when something
+# needs it — a build unpacks the platform it built for, so a desk that has only
+# ever built for macOS has never unpacked the Linux- or Windows-only crates
+# Cargo.lock also names. `cargo fetch` with no --target unpacks every target's
+# graph, which is what makes the generated file the same on any machine. Without
+# it the command refuses, because rendering a partial registry would publish
+# this desk's gap as the crates' own.
+cargo fetch --locked
 cargo run -p cli --quiet -- ops notices --check
 
 # `deploy.yml` builds the release with `--locked` in four places, and `--locked`

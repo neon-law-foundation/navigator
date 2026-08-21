@@ -420,16 +420,39 @@ jobs:
       # Both are cheap and neither is release-specific: they pass on every
       # ordinary PR and only have anything to say when a bump is involved.
       #
-      # `ops notices --check` is NOT here, and cannot be until it is made
-      # reproducible. It reads licence texts out of the runner's unpacked
-      # `$CARGO_HOME/registry/src`, and `notices_for` cannot tell a crate whose
-      # source is absent from one that ships no licence file — both become
-      # "gaps". `Cargo.lock` is deliberately over-inclusive across target
-      # platforms, so a macOS machine and a Linux runner each read the other's
-      # platform-only crates as gaps and can never agree on the file. It stays in
-      # the operator's preflight, where it has always been.
       - name: is the workspace version a releasable one
         run: "${CARGO_TARGET_DIR:-target}/debug/navigator ops release-check"
+      # `ops notices --check` is here now. It could not be while `notices_for`
+      # read "this crate's source is absent" and "this crate ships no licence
+      # file" as the same empty result: `Cargo.lock` is deliberately
+      # over-inclusive across target platforms, so a macOS desk and a Linux
+      # runner each rendered the other's platform-only crates as gaps and could
+      # never agree on the file.
+      #
+      # Two things make it reproducible. The command now REFUSES an unread
+      # registry instead of rendering it as the crates' own licence gap, and
+      # `cargo fetch` with no --target unpacks EVERY target platform's graph
+      # where the build steps above unpack only this runner's — Linux plus
+      # wasm32. The fetch is what makes this step pass rather than merely
+      # correct, so it is not tidiness and must not be dropped.
+      #
+      # It earns a required check because THIRD-PARTY-NOTICES.txt is compiled
+      # into the binary with `include_str!` (cli/src/main.rs) and printed by
+      # `navigator --third-party-notices`. Whatever is committed is what every
+      # published archive ships, on all three platforms at once, and a
+      # permissive licence whose text was never read is one whose notice did
+      # not travel with the work it covers.
+      #
+      # Two costs to read off the run rather than assume: the extra ~500 crate
+      # sources land on the root disk this job already fights for, and they
+      # grow the `~/.cargo` half of the rust-cache archive against a 10 GB
+      # repository-wide quota. The `df -h` prices the first. If either bites,
+      # move this pair into its own small job.
+      - name: are the third-party notices current
+        run: |
+          cargo fetch --locked
+          df -h
+          "${CARGO_TARGET_DIR:-target}/debug/navigator" ops notices --check
       # `Cargo.lock` pins every workspace crate's version too, and the release
       # builds with `--locked` in four places. A bump that carried only
       # `Cargo.toml` would fail those builds AFTER the release tag exists, which
