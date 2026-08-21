@@ -1359,10 +1359,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          # `gh api` exits nonzero on a 404, which is the ordinary case: the tag
-          # does not exist yet. Distinguish that from a real failure by asking
-          # for the ref and tolerating only an empty answer.
-          existing="$(gh api "/repos/${REPO}/git/ref/tags/${TAG}" --jq '.object.sha' 2>/dev/null || true)"
+          # `gh api` exits nonzero on a 404, which is the ORDINARY case here: the
+          # tag does not exist yet. Anything else — a rate limit, a network blip —
+          # must not be read as "no tag", because that reading walks straight into
+          # the create below. So the two are told apart rather than both swallowed.
+          status=0
+          body="$(gh api "/repos/${REPO}/git/ref/tags/${TAG}" 2>/tmp/ref-read.err)" || status=$?
+          if [ "${status}" -eq 0 ]; then
+              existing="$(jq -r '.object.sha' <<< "${body}")"
+          elif grep -q 'Not Found' /tmp/ref-read.err; then
+              existing=""
+          else
+              echo "::error::could not read refs/tags/${TAG}: $(tr '\n' ' ' < /tmp/ref-read.err). Refusing to create a tag without knowing whether one already exists"
+              exit 1
+          fi
 
           if [ -n "${existing}" ]; then
               if [ "${existing}" = "${SHA}" ]; then
@@ -2219,11 +2229,11 @@ jobs:
               if [ "${PRERELEASE}" = "true" ]; then
                   flags+=(--prerelease)
               fi
-              # NO `--target`. The tag already exists — it is what started this
-              # run — so the Release hangs off the ref a person pushed, at the
-              # SHA every archive in this run was compiled from. `--target` was
-              # load-bearing while this job CREATED the tag, and passing it now
-              # would name a SHA for a ref that already has one.
+              # NO `--target`. The tag already exists — `release-tag` created it
+              # earlier in THIS run, at the SHA every archive here was compiled
+              # from — so the Release hangs off that ref. `--target` was
+              # load-bearing while this job created the tag itself, and passing
+              # it now would name a SHA for a ref that already has one.
               gh release create "${TAG}" --repo "${GITHUB_REPOSITORY}" "${flags[@]}"
           fi
           gh release upload "${TAG}" dist/navigator-*-windows.zip \
