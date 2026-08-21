@@ -2,9 +2,10 @@
 //!
 //! One repository per Project code, holding notation templates under
 //! `templates/` and the client portal under `portal/`. There is one scaffold and
-//! one validator for both, and no manifest: the repository name *is* the Project
-//! code, so nothing in the repository declares it and nothing can disagree with
-//! it.
+//! one validator for both, and the validator takes the Project code from the
+//! repository name. A repository may also carry a root manifest declaring that
+//! code — the layout admits one — but the scaffold does not write it and these
+//! tests do not depend on it.
 
 use std::fs;
 use std::path::Path;
@@ -60,7 +61,9 @@ fn the_scaffold_produces_a_repository_that_validates_and_is_idempotent() {
     assert!(workflow.contains("project_repository: true"));
     assert!(workflow.contains("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"));
 
-    // Nothing declares its own name, so neither manifest is written.
+    // Neither retired manifest is written. `mount.json` and `navigator.toml`
+    // declared a repository's own coordinates and every reader of them is gone;
+    // the scaffold must not bring either back.
     assert!(!dir.path().join("navigator.toml").exists());
     assert!(!dir.path().join("mount.json").exists());
 

@@ -12,16 +12,38 @@
 //! ├── templates/         # *.md notation blueprints
 //! ├── AGENTS.md
 //! ├── CLAUDE.md
-//! └── README.md
+//! ├── README.md
+//! └── navigator.yaml     # the Project this repository declares
 //! ```
 //!
-//! # Nothing declares its own name
+//! # Where the Project code comes from
 //!
-//! There is no manifest. The Project code *is* the repository name, and the
-//! mount is that name plus the literal `portal`, so a manifest could only
-//! restate what the repository is already called — and then disagree with it.
-//! [`validate`] takes the code from the repository name, and CI has that name
-//! as `github.event.repository.name`.
+//! [`validate`] takes it from the repository name, and CI has that name as
+//! `github.event.repository.name`. The mount is that name plus the literal
+//! `portal`.
+//!
+//! A repository may **also** declare its Project in a root manifest, and that
+//! manifest is part of the layout. So the code is derived in one place and
+//! declared in another, and the two can disagree — which they already do for
+//! the sample matters, where `navigator-sample-project-litigation` publishes as
+//! `sample-litigation`. `store::sample_project::project_code_for` is what
+//! refuses a bundle declaring a code other than the one it is published under,
+//! so a disagreement is rejected rather than unrepresentable.
+//!
+//! Collapsing the two spellings to one file and one key, and deciding whether
+//! the publish action should read the manifest instead of the repository name,
+//! is an open decision. Until it lands both spellings stay allowed roots:
+//! refusing either would fail a repository that is correct as shipped.
+//!
+//! # Exemptions live here, not per repository
+//!
+//! [`ALLOWED_ROOTS`] is a closed list, and that is the gate rather than an
+//! inconvenience: a Project repository holds client-adjacent source, so
+//! "anything unenumerated is refused" is what keeps generated documents,
+//! exports, and credentials out of one. A legitimate new root is admitted
+//! here — reviewed once, for every repository — never by a per-repository
+//! exemption file, which would make the gate advisory and let a repository
+//! quietly exempt the thing the gate exists to catch.
 //!
 //! # The scaffold does not write the portal
 //!
@@ -41,6 +63,8 @@ const TEMPLATE_DIRECTORY: &str = "templates";
 /// The client portal's Vite workspace.
 const PORTAL_DIRECTORY: &str = "portal";
 const WORKFLOW: &str = ".github/workflows/gate.yml";
+/// The manifest a Project repository declares its Project code in.
+const PROJECT_MANIFEST: &str = "navigator.yaml";
 const ALLOWED_ROOTS: &[&str] = &[
     ".github",
     ".gitignore",
@@ -53,6 +77,18 @@ const ALLOWED_ROOTS: &[&str] = &[
     "LICENSE.md",
     "README.md",
     "fixtures",
+    // The manifest a Project repository declares its Project code in. Refusing
+    // it made the layout unsatisfiable for every repository that carries one,
+    // which is why the pinned validate action had to be pulled from all six
+    // Project gates rather than the manifest being removed.
+    //
+    // Both spellings are admitted because both are live: the Project
+    // repositories carry `navigator.yaml`, the sample-project bundles carry
+    // `navigator.yml` (`store::sample_project::MANIFEST_FILE`). Collapsing them
+    // to one file and one key is a separate decision; until it lands, refusing
+    // either would fail a repository that is correct as shipped.
+    PROJECT_MANIFEST,
+    store::sample_project::MANIFEST_FILE,
     PORTAL_DIRECTORY,
     TEMPLATE_DIRECTORY,
     "tests",
@@ -357,35 +393,108 @@ fn validate_portal(root: &Path, errors: &mut Vec<Finding>) {
     }
 }
 
-fn validate_workflow(path: &Path, contents: &str, errors: &mut Vec<Finding>) {
-    const ACTION: &str = "neon-law-foundation/navigator/.github/actions/validate@";
-    let action_version = contents.lines().find_map(|line| {
-        line.trim()
-            .strip_prefix("- uses: ")
-            .and_then(|value| value.strip_prefix(ACTION))
-            .map(|value| value.split_whitespace().next().unwrap_or_default())
-    });
-    let input_version = contents.lines().find_map(|line| {
-        line.trim()
-            .strip_prefix("version:")
-            .map(str::trim)
-            .map(|value| value.trim_matches(['\'', '"']))
-    });
+/// The pinned validate action a Project repository's gate must call.
+const VALIDATE_ACTION: &str = "neon-law-foundation/navigator/.github/actions/validate@";
 
-    let Some(action_version) = action_version else {
+/// Just enough of a workflow to find one step and read its inputs.
+///
+/// Deliberately permissive: every field is optional and unknown keys are
+/// ignored, because this gate speaks about one step and must not fail on an
+/// unrelated addition elsewhere in the file.
+#[derive(serde::Deserialize)]
+struct Workflow {
+    #[serde(default)]
+    jobs: BTreeMap<String, WorkflowJob>,
+}
+
+#[derive(serde::Deserialize)]
+struct WorkflowJob {
+    #[serde(default)]
+    steps: Vec<WorkflowStep>,
+}
+
+#[derive(serde::Deserialize)]
+struct WorkflowStep {
+    #[serde(default)]
+    uses: Option<String>,
+    #[serde(default)]
+    with: BTreeMap<String, serde_yaml::Value>,
+}
+
+/// A YAML scalar as the string a workflow input actually carries.
+///
+/// `version: "26.7.27"` is a string and `project_repository: true` is a bool,
+/// but a caller may quote either, so both spellings have to read the same.
+fn scalar(value: &serde_yaml::Value) -> Option<String> {
+    match value {
+        serde_yaml::Value::String(value) => Some(value.trim().to_string()),
+        serde_yaml::Value::Number(value) => Some(value.to_string()),
+        serde_yaml::Value::Bool(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+/// Hold the CI gate to calling Navigator's pinned validate action, at a release
+/// tag matching the CLI version it downloads, in Project-repository mode.
+///
+/// # Read the step, not the lines
+///
+/// Every check here is anchored to **the one step that `uses` the validate
+/// action**, and that is load-bearing rather than tidiness. Scanning raw lines
+/// got all three wrong: matching `- uses: ` saw only a step whose first key was
+/// `uses`, so an ordinarily labelled `- name:` step was reported absent while
+/// calling the action on the next line; the first `version:` line anywhere won,
+/// so the pnpm setup every portal repository runs first supplied its own
+/// version as the CLI's; and `project_repository: true` was a substring search
+/// a comment could satisfy. Parsing costs nothing and the three findings then
+/// describe the step they name.
+fn validate_workflow(path: &Path, contents: &str, errors: &mut Vec<Finding>) {
+    let workflow: Workflow = match serde_yaml::from_str(contents) {
+        Ok(workflow) => workflow,
+        // A gate that does not parse is its own failure. Reporting it as a
+        // missing action sends the reader hunting for a step that is right
+        // there in front of them.
+        Err(error) => {
+            errors.push(Finding::at(
+                path,
+                format!("CI gate is not valid YAML: {error}"),
+            ));
+            return;
+        }
+    };
+
+    let step = workflow
+        .jobs
+        .values()
+        .flat_map(|job| &job.steps)
+        .find(|step| {
+            step.uses
+                .as_deref()
+                .is_some_and(|uses| uses.trim().starts_with(VALIDATE_ACTION))
+        });
+    let Some(step) = step else {
         errors.push(Finding::at(
             path,
             "CI gate must call Navigator's pinned validate action",
         ));
         return;
     };
-    let Some(input_version) = input_version else {
+
+    let action_version = step
+        .uses
+        .as_deref()
+        .unwrap_or_default()
+        .trim()
+        .strip_prefix(VALIDATE_ACTION)
+        .unwrap_or_default();
+    let Some(input_version) = step.with.get("version").and_then(scalar) else {
         errors.push(Finding::at(
             path,
             "CI gate must pass the action's exact release tag as `version`",
         ));
         return;
     };
+
     if action_version != input_version {
         errors.push(Finding::at(
             path,
@@ -402,7 +511,13 @@ fn validate_workflow(path: &Path, contents: &str, errors: &mut Vec<Finding>) {
             ),
         ));
     }
-    if !contents.contains("project_repository: true") {
+    if step
+        .with
+        .get("project_repository")
+        .and_then(scalar)
+        .as_deref()
+        != Some("true")
+    {
         errors.push(Finding::at(
             path,
             "CI gate must set `project_repository: true`",
@@ -610,8 +725,32 @@ jobs:
 
 #[cfg(test)]
 mod tests {
-    use super::{example_template, is_release_tag, repository_name, workflow, ALLOWED_ROOTS};
+    use super::{
+        example_template, is_release_tag, repository_name, validate_layout, validate_workflow,
+        workflow, Finding, ALLOWED_ROOTS, WORKFLOW,
+    };
     use std::path::Path;
+
+    /// The messages `validate_workflow` reports for one gate file.
+    fn findings(contents: &str) -> Vec<String> {
+        let mut errors: Vec<Finding> = Vec::new();
+        validate_workflow(Path::new("gate.yml"), contents, &mut errors);
+        errors.into_iter().map(|error| error.message).collect()
+    }
+
+    /// The smallest checkout `validate_layout` accepts, so a test adding one
+    /// file measures that file and nothing else.
+    fn scaffold_minimal(root: &Path) {
+        std::fs::create_dir_all(root.join(".github/workflows")).unwrap();
+        std::fs::write(root.join("README.md"), "# fixture\n").unwrap();
+        std::fs::write(root.join(WORKFLOW), workflow()).unwrap();
+    }
+
+    fn layout_findings(root: &Path) -> Vec<String> {
+        let mut errors: Vec<Finding> = Vec::new();
+        validate_layout(root, &mut errors);
+        errors.into_iter().map(|error| error.message).collect()
+    }
 
     #[test]
     fn repository_name_prefers_the_explicit_coordinate() {
@@ -643,6 +782,187 @@ mod tests {
         // the root made the layout unsatisfiable for that shape rather than
         // merely opinionated.
         assert!(ALLOWED_ROOTS.contains(&"LICENSE.md"));
+    }
+
+    /// A step labelled with `name:` before `uses:` is the ordinary way to write
+    /// one, and the gate must see it. Matching on a line beginning `- uses: `
+    /// only ever saw a step whose *first* key was `uses`, so a labelled step
+    /// was reported absent while calling the action on the very next line —
+    /// and the early return meant its version was never checked either.
+    #[test]
+    fn a_labelled_step_calls_the_action() {
+        let contents = r#"name: ci
+on: [pull_request]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate the Project repository
+        uses: neon-law-foundation/navigator/.github/actions/validate@26.7.27
+        with:
+          version: "26.7.27"
+          project_repository: true
+"#;
+        assert_eq!(findings(contents), Vec::<String>::new());
+    }
+
+    /// `version` belongs to the validate step, not to the file. Reading the
+    /// first `version:` line anywhere meant an earlier action's own input won:
+    /// every portal repository sets pnpm up before validating, so the standard
+    /// layout reported a mismatch naming pnpm's version as the CLI's.
+    #[test]
+    fn an_earlier_actions_version_input_is_not_the_cli_version() {
+        let contents = r#"name: ci
+on: [pull_request]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "9.1.0"
+      - uses: neon-law-foundation/navigator/.github/actions/validate@26.7.27
+        with:
+          version: "26.7.27"
+          project_repository: true
+"#;
+        assert_eq!(findings(contents), Vec::<String>::new());
+    }
+
+    /// The input has to be *passed*, not merely present in the file. A bare
+    /// substring search was satisfied by a comment, or by another step.
+    #[test]
+    fn project_repository_must_be_passed_to_the_validate_step() {
+        let contents = r#"name: ci
+on: [pull_request]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      # project_repository: true
+      - uses: other/action@v1
+        with:
+          project_repository: true
+      - uses: neon-law-foundation/navigator/.github/actions/validate@26.7.27
+        with:
+          version: "26.7.27"
+"#;
+        assert_eq!(
+            findings(contents),
+            vec!["CI gate must set `project_repository: true`".to_string()]
+        );
+    }
+
+    /// The fix must not stop checking. A genuine disagreement between the ref
+    /// and the downloaded version is still the whole point of the gate.
+    #[test]
+    fn a_real_version_mismatch_is_still_caught() {
+        let contents = r#"name: ci
+on: [pull_request]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: neon-law-foundation/navigator/.github/actions/validate@26.7.27
+        with:
+          version: "26.7.26"
+          project_repository: true
+"#;
+        let found = findings(contents);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(
+            found[0].contains("must equal its downloaded CLI version"),
+            "{found:?}"
+        );
+    }
+
+    /// A moving ref is not a pin, so `@main` stays refused.
+    #[test]
+    fn a_moving_ref_is_still_refused() {
+        let contents = r#"name: ci
+on: [pull_request]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: neon-law-foundation/navigator/.github/actions/validate@main
+        with:
+          version: "main"
+          project_repository: true
+"#;
+        let found = findings(contents);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].contains("release tag"), "{found:?}");
+    }
+
+    /// A gate that does not parse is its own failure. Reporting it as a missing
+    /// action sends the reader looking for a step that is right there.
+    #[test]
+    fn an_unparseable_gate_says_so() {
+        let found = findings("name: ci\njobs: [oops\n");
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].contains("not valid YAML"), "{found:?}");
+    }
+
+    /// The generator and the validator must agree. Nothing asserted this, which
+    /// is how three defects lived in one twelve-line function.
+    #[test]
+    fn the_scaffolded_gate_passes_its_own_validation() {
+        assert_eq!(findings(&workflow()), Vec::<String>::new());
+    }
+
+    /// Six Project repositories declare their Project in a root manifest. The
+    /// layout gate refused it, which is why the pinned action had to be pulled
+    /// from every one of their gates.
+    #[test]
+    fn the_project_manifest_is_part_of_the_layout() {
+        assert!(ALLOWED_ROOTS.contains(&"navigator.yaml"));
+        assert!(ALLOWED_ROOTS.contains(&"navigator.yml"));
+    }
+
+    #[test]
+    fn a_checkout_carrying_the_manifest_has_no_layout_finding() {
+        let root = tempfile::tempdir().unwrap();
+        scaffold_minimal(root.path());
+        std::fs::write(
+            root.path().join("navigator.yaml"),
+            "host: www.neonlaw.com\nproject: lex-tecnica\n",
+        )
+        .unwrap();
+
+        assert_eq!(layout_findings(root.path()), Vec::<String>::new());
+    }
+
+    /// Admitting the manifest must not make the closed list permissive: the
+    /// point of `ALLOWED_ROOTS` is that anything unenumerated is refused.
+    #[test]
+    fn an_unlisted_root_is_still_refused() {
+        let root = tempfile::tempdir().unwrap();
+        scaffold_minimal(root.path());
+        std::fs::write(root.path().join("notes.md"), "scratch\n").unwrap();
+
+        assert_eq!(
+            layout_findings(root.path()),
+            vec!["path is outside the source-only Project repository layout".to_string()]
+        );
+    }
+
+    /// The forbidden-path checks run independently of the allowed-root list, so
+    /// admitting a new root cannot open a door for build output beside it.
+    #[test]
+    fn a_forbidden_component_still_wins() {
+        let root = tempfile::tempdir().unwrap();
+        scaffold_minimal(root.path());
+        std::fs::write(root.path().join("navigator.yaml"), "project: lex-tecnica\n").unwrap();
+        std::fs::write(root.path().join(".env"), "SECRET=1\n").unwrap();
+
+        let found = layout_findings(root.path());
+        assert!(
+            found
+                .iter()
+                .any(|finding| finding.contains("must not be committed")),
+            "{found:?}"
+        );
     }
 
     #[test]
