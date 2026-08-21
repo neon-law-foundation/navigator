@@ -3,9 +3,17 @@
 //! A Project's Drive folder and its one source repository are determined by the
 //! deployment serving the Project. The Drive root is a property of the
 //! deployment; the forge organization and host are configuration this module
-//! reads and never spells. This module contains no provider client: it is a
-//! pure, fail-closed resolver that later provisioning and diagnostic commands
-//! can share.
+//! reads. This module contains no provider client: it is a pure, fail-closed
+//! resolver that later provisioning and diagnostic commands can share.
+//!
+//! # One `(host, organization)` pair per deployment
+//!
+//! [`NAVIGATOR_GIT_HOST`] and [`NAVIGATOR_GITHUB_ORG`] are one coordinate in
+//! two keys, resolved together on [`WorkspaceConfig`]. That pair is where a
+//! deployment's Project repositories are created, and it is the boundary `ops
+//! github setup` refuses a governance write outside. Only the host carries a
+//! default, and only because it has a right answer:
+//! [`DEFAULT_GIT_HOST`].
 //!
 //! # One repository per Project code
 //!
@@ -28,18 +36,37 @@ pub const NAVIGATOR_PROJECTS_DRIVE_MOUNT: &str = "NAVIGATOR_PROJECTS_DRIVE_MOUNT
 /// deployment's Project repositories live in — so it belongs in configuration
 /// and nowhere in source.
 pub const NAVIGATOR_GITHUB_ORG: &str = "NAVIGATOR_GITHUB_ORG";
-/// Environment key naming the one enterprise forge host `ops github setup`
-/// may write repository governance to.
+/// Environment key naming the forge host this deployment's repositories live
+/// on.
 ///
-/// This is an **authorization boundary, not a coordinate**: a Project's source
-/// repository is a whole URL stored on the Project
+/// This is the other half of a **coordinate**, paired with
+/// [`NAVIGATOR_GITHUB_ORG`]: one deployment is coupled to one `(host,
+/// organization)` pair, and that pair is where its Project repositories are
+/// created. `ops github setup` also reads it as the authorization boundary on
+/// governance writes, but the boundary is now the whole pair rather than the
+/// host alone — on a public forge, *every repository on this host* and *every
+/// repository the Firm owns* stopped being the same set.
+///
+/// A Project's source repository stays a whole URL stored on the Project
 /// (`store::projects::Project::repository_url`) and may live on any forge, so
-/// nothing composes this host into a clone URL. It scopes governance writes to
-/// the tenant the Firm administers — see `cli::devx::github_setup`.
+/// nothing composes this host into a clone URL for an already-recorded Project.
+/// The pair supplies the default *target at creation time*.
 ///
-/// There is deliberately **no default**. A value that silently appears would
-/// aim a ruleset write at a host the Firm does not administer.
+/// Unset resolves to [`DEFAULT_GIT_HOST`], which is where Navigator itself and
+/// every deployment the Firm operates live. Present-but-blank does **not**: a
+/// configuration that was templated and never filled in fails closed naming
+/// this key, exactly as [`NAVIGATOR_GITHUB_ORG`] does. The asymmetry is the
+/// point — a host has one right answer for almost every deployment, and an
+/// organization has none.
 pub const NAVIGATOR_GIT_HOST: &str = "NAVIGATOR_GIT_HOST";
+
+/// The host [`NAVIGATOR_GIT_HOST`] resolves to when a deployment names none.
+///
+/// Navigator's own public URL is not configuration: it is always
+/// `github.com/neon-law-foundation/navigator`. A fresh clone, a laptop, or a CI
+/// job that sourced no deployment config therefore has a host without being
+/// told one.
+pub const DEFAULT_GIT_HOST: &str = "github.com";
 
 /// The customer whose Projects this deployment serves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,6 +197,13 @@ pub struct WorkspaceConfig {
     /// Not a Project's source coordinate: a Project stores its repository as a
     /// whole URL on any forge (`store::projects::Project::repository_url`).
     pub organization: String,
+    /// The forge host that organization lives on, read from
+    /// [`NAVIGATOR_GIT_HOST`] and defaulting to [`DEFAULT_GIT_HOST`].
+    ///
+    /// Paired with [`Self::organization`]: together they are the one `(host,
+    /// organization)` pair this deployment creates Project repositories in, and
+    /// the boundary `ops github setup` refuses a governance write outside.
+    pub host: String,
     shared_drive_id_key: &'static str,
     projects_root_folder_id_key: &'static str,
 }
@@ -259,14 +293,41 @@ fn required<F: Fn(&str) -> Option<String>>(
         .ok_or(WorkspaceConfigError::MissingCoordinate(key))
 }
 
+/// Read one configured value that has a right answer when nobody names it, and
+/// fail closed when somebody names it blank.
+///
+/// Absent and blank are the same thing for [`required`] and deliberately
+/// different here. Absent means "this deployment did not have to say", and the
+/// default is correct. Blank means the key was written down and left empty —
+/// a templated configuration nobody filled in — and resolving that to the
+/// default would hide the one case where the operator believed they had
+/// configured something.
+fn defaulted<F: Fn(&str) -> Option<String>>(
+    get: &F,
+    key: &'static str,
+    default: &str,
+) -> Result<String, WorkspaceConfigError> {
+    match get(key) {
+        None => Ok(default.to_string()),
+        Some(value) if value.trim().is_empty() => Err(WorkspaceConfigError::MissingCoordinate(key)),
+        Some(value) => Ok(value.trim().to_string()),
+    }
+}
+
 impl WorkspaceConfig {
     /// Resolve the active deployment and its forge configuration.
     ///
     /// The two failures are deliberately different questions. **No deployment
     /// named** means this process is not operating a deployment at all — the
     /// local loop, the test suite — and every derived coordinate is legitimately
-    /// absent. **A deployment named with no organization or host** is a
-    /// misconfigured deployment, and it fails closed with no fallback.
+    /// absent. **A deployment named with no organization** is a misconfigured
+    /// deployment, and it fails closed with no fallback.
+    ///
+    /// The two halves of the forge pair are read to different rules, and the
+    /// difference is what each key means. [`NAVIGATOR_GITHUB_ORG`] has no right
+    /// answer, so a named deployment must state it. [`NAVIGATOR_GIT_HOST`] has
+    /// one — [`DEFAULT_GIT_HOST`] — so absence resolves rather than failing,
+    /// while a blank value still fails closed naming the key.
     ///
     /// # Errors
     ///
@@ -274,7 +335,7 @@ impl WorkspaceConfig {
     /// [`WorkspaceConfigError::UnknownDeployment`] when
     /// [`NAVIGATOR_GCP_PROJECT_ID`] names no deployment, and
     /// [`WorkspaceConfigError::MissingCoordinate`] when it names one but
-    /// [`NAVIGATOR_GITHUB_ORG`] is unset.
+    /// [`NAVIGATOR_GITHUB_ORG`] is unset or [`NAVIGATOR_GIT_HOST`] is blank.
     pub fn from_lookup<F: Fn(&str) -> Option<String>>(
         get: F,
     ) -> Result<Self, WorkspaceConfigError> {
@@ -286,6 +347,7 @@ impl WorkspaceConfig {
             google_workspace: facts.google_workspace,
             expected_projects_root_name: facts.expected_projects_root_name,
             organization: required(&get, NAVIGATOR_GITHUB_ORG)?,
+            host: defaulted(&get, NAVIGATOR_GIT_HOST, DEFAULT_GIT_HOST)?,
             shared_drive_id_key: facts.shared_drive_id_key,
             projects_root_folder_id_key: facts.projects_root_folder_id_key,
         })
@@ -325,8 +387,8 @@ impl WorkspaceConfig {
 mod tests {
     use super::{
         is_valid_slug, DeploymentWorkspace, GoogleWorkspace, WorkspaceConfig, WorkspaceConfigError,
-        WorkspaceCustomer, NAVIGATOR_GCP_PROJECT_ID, NAVIGATOR_GITHUB_ORG,
-        NAVIGATOR_PROJECTS_DRIVE_MOUNT, RESERVED_PROJECT_CODES, SLUG_MAX_LEN,
+        WorkspaceCustomer, DEFAULT_GIT_HOST, NAVIGATOR_GCP_PROJECT_ID, NAVIGATOR_GITHUB_ORG,
+        NAVIGATOR_GIT_HOST, NAVIGATOR_PROJECTS_DRIVE_MOUNT, RESERVED_PROJECT_CODES, SLUG_MAX_LEN,
     };
     use std::collections::HashMap;
 
@@ -491,6 +553,49 @@ mod tests {
             WorkspaceConfig::from_lookup(|_| None).expect_err("no deployment named"),
             WorkspaceConfigError::MissingDeployment
         );
+    }
+
+    /// A named deployment whose host was templated and never filled in fails
+    /// closed naming that key.
+    ///
+    /// The host carries a default, so this is the one way it can fail — and it
+    /// has to be able to fail, or the pair is only half validated. Absence
+    /// means "this deployment did not have to say"; blank means somebody
+    /// believed they had said something.
+    #[test]
+    fn a_named_deployment_whose_host_is_blank_fails_closed_naming_the_key() {
+        assert_eq!(
+            WorkspaceConfig::from_lookup(lookup(&[
+                (NAVIGATOR_GCP_PROJECT_ID, "neon-law"),
+                (NAVIGATOR_GITHUB_ORG, AN_ORGANIZATION),
+                (NAVIGATOR_GIT_HOST, "   "),
+            ]))
+            .expect_err("a blank host is not a host"),
+            WorkspaceConfigError::MissingCoordinate(NAVIGATOR_GIT_HOST)
+        );
+    }
+
+    /// The pair resolves together, and the host has a right answer when nobody
+    /// names one.
+    ///
+    /// Every fixture in this module omits [`NAVIGATOR_GIT_HOST`] on purpose:
+    /// that is the shape a fresh clone, a laptop, and a CI job that sourced no
+    /// deployment config all have, and it must resolve rather than fail.
+    #[test]
+    fn the_forge_pair_resolves_together_and_the_host_defaults() {
+        let configured = WorkspaceConfig::from_lookup(lookup(&[
+            (NAVIGATOR_GCP_PROJECT_ID, "neon-law"),
+            (NAVIGATOR_GITHUB_ORG, AN_ORGANIZATION),
+            (NAVIGATOR_GIT_HOST, "forge.example"),
+        ]))
+        .expect("a fully configured pair resolves");
+        assert_eq!(configured.organization, AN_ORGANIZATION);
+        assert_eq!(configured.host, "forge.example");
+
+        let defaulted = WorkspaceConfig::from_lookup(lookup(&forge("neon-law")))
+            .expect("an unnamed host resolves to the default");
+        assert_eq!(defaulted.organization, AN_ORGANIZATION);
+        assert_eq!(defaulted.host, DEFAULT_GIT_HOST);
     }
 
     /// The mount is the code plus one literal segment.

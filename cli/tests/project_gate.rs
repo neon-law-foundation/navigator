@@ -209,9 +209,12 @@ fn each_half_no_ops_rather_than_being_filtered_out() {
 /// Keys in a deployment's `config.toml` whose values identify *that*
 /// deployment.
 ///
-/// `NAVIGATOR_GITHUB_ORG` and `NAVIGATOR_GIT_HOST` are included now: with the
-/// organization allowlist gone, neither may appear in an action consumed
-/// identically by every Project repository.
+/// `NAVIGATOR_GITHUB_ORG` is included: with the organization allowlist gone, it
+/// may not appear in an action consumed identically by every Project
+/// repository. Its paired `NAVIGATOR_GIT_HOST` is deliberately absent, because
+/// it does not identify a deployment — every deployment the Firm operates is on
+/// the same host, which is why that half of the coordinate carries a default
+/// and this half does not.
 const DEPLOYMENT_IDENTIFYING_KEYS: &[&str] = &[
     "NAVIGATOR_PUBLIC_HOST",
     "NAVIGATOR_PRIMARY_DOMAIN",
