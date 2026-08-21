@@ -66,8 +66,8 @@ Production is a separate cloud write, not a consequence of staging. An authorize
 key in the production bucket:
 
 ```bash
-cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-prod-assets
-gcloud storage ls -L gs://neon-law-prod-assets/img/<deck-slug>/<filename>
+cargo run -p cli -- ops assets upload --dir server/public/img --bucket <production>-assets
+gcloud storage ls -L gs://<production>-assets/img/<deck-slug>/<filename>
 ```
 
 An agent that cannot perform the production write must report it as pending and provide the exact command; it must not
@@ -88,14 +88,14 @@ all three read. The buckets are `NAVIGATOR_ASSETS_BUCKET` in each `deployments/<
 | Deployment | Bucket | Public origin (`NAVIGATOR_ASSET_BASE_URL`) |
 | --- | --- | --- |
 | `neon-law-stg` | `neon-law-stg-assets` | `https://staging.neonlaw.com/assets` |
-| `neon-law-prod` | `neon-law-prod-assets` | `https://www.neonlaw.com/assets` |
+| the production deployment | its `<deployment>-assets` | its public host's `/assets` |
 
 The origin is the app's own `/assets/{key}` route, not a raw `storage.googleapis.com` URL, which is why the browser
 never leaves the site's origin for an image. Publish to staging, verify, then production:
 
 ```bash
 cargo run -p cli -- ops assets upload --bucket neon-law-stg-assets
-cargo run -p cli -- ops assets upload --bucket neon-law-prod-assets
+cargo run -p cli -- ops assets upload --bucket <production>-assets
 ```
 
 ## Licensed webfonts
@@ -201,7 +201,7 @@ Because the slots are empty on a fresh clone, the dev `/public` mount 404s every
 re-encode, and no generated-image source needed:
 
 ```bash
-NAVIGATOR_STORAGE_ENDPOINT= cargo run -p cli -- ops assets pull --bucket neon-law-prod-assets
+NAVIGATOR_STORAGE_ENDPOINT= cargo run -p cli -- ops assets pull --bucket neon-law-stg-assets
 ```
 
 This downloads every supported image file (`.avif`, `.webp`, `.jpg`, `.jpeg`, `.png`) under the bucket's `img/` prefix

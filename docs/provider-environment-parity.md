@@ -9,8 +9,8 @@ The rows below are the attachment records — one per deployment directory:
 | Deployment | Public host | GCP project | GitHub organization | DocuSign |
 | --- | --- | --- | --- | --- |
 | `neon-law-stg` | `www.neonlaw.com` | `neon-law-stg` | `neon-law-stg-projects` | demo |
-| `neon-law-prod` | `www.neonlaw.com` | `neon-law-prod` | `neon-law-prod-projects` | production |
-| `neon-law-prod` | `www.neonlaw.com` | `neon-law` | `neon-law-prod-projects` | production |
+| the production deployment | `www.neonlaw.com` | its own project | its own organization | production |
+| a second production row | `www.neonlaw.com` | `neon-law` | its own organization | production |
 
 All three organizations and private Apps exist on GitHub Free. Each organization was created for the controlling
 business `Shook Law PLLC`, uses `engineering@neonlaw.com` as its contact address, and began with the authenticated
@@ -23,8 +23,8 @@ records any recovery owner.
 | Deployment | GitHub App |
 | --- | --- |
 | `neon-law-stg` | `navigator-neon-law-stg` |
-| `neon-law-prod` | `navigator-neon-law-prod` |
-| `neon-law-prod` | `navigator-neon-law-prod` |
+| the production deployment | `navigator-<deployment>` |
+| a second production row | `navigator-<deployment>` |
 
 ## Google: two OAuth clients per deployment
 
@@ -42,8 +42,8 @@ Use these names and exact browser callbacks:
 | Deployment | Authorized browser redirect URI |
 | --- | --- |
 | `neon-law-stg` | `https://www.neonlaw.com/auth/callback` |
-| `neon-law-prod` | `https://www.neonlaw.com/auth/callback` |
-| `neon-law-prod` | `https://www.neonlaw.com/auth/callback` |
+| the production deployment | `https://www.neonlaw.com/auth/callback` |
+| a second production row | `https://www.neonlaw.com/auth/callback` |
 
 Name the clients `navigator-<name>-browser` and `navigator-<name>-gemini`.
 

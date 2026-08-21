@@ -1,10 +1,10 @@
 # Environments
 
 Navigator uses one image hub, two runtime Google Cloud projects, and the deployments in the `deployments/` tree — two
-live today (`neon-law-stg` and `neon-law-prod`). A deployment—not a project—is the isolation unit: it owns one store
-database, four GCS buckets, one GKE Autopilot cluster, one Kubernetes namespace, one runtime Google service account, one
-delegated Workspace service-account credential, one `deployments/<name>/` config, one Google Workspace Drive root, one
-Restate environment, and one public hostname. A deployment exists because its directory exists.
+live today: `neon-law-stg` and the production deployment. A deployment—not a project—is the isolation unit: it owns one
+store database, four GCS buckets, one GKE Autopilot cluster, one Kubernetes namespace, one runtime Google service
+account, one delegated Workspace service-account credential, one `deployments/<name>/` config, one Google Workspace
+Drive root, one Restate environment, and one public hostname. A deployment exists because its directory exists.
 
 **That tree is not in this repository.** It lives in a private repository with the credential that rolls the cluster,
 because this one is public and takes pull requests from anyone. So nothing here can enumerate the rows, and nothing here
@@ -27,12 +27,12 @@ browser suites.
 graph LR
     REG["<b>ghcr</b><br/>shared Artifact Registry<br/>(not an environment)"]
     LS["<b>neon-law-stg</b> project"]
-    NP["<b>neon-law-prod</b> project"]
+    NP["<b>production</b> project"]
 
     REG --> LS
     REG --> NP
     LS --> LSTG["neon-law-stg<br/>staging.neonlaw.com<br/><i>sample matters</i>"]
-    NP --> NPRD["neon-law-prod<br/>www.neonlaw.com<br/><i>real matters</i>"]
+    NP --> NPRD["production<br/>www.neonlaw.com<br/><i>real matters</i>"]
 ```
 
 ## Canonical deployment matrix
@@ -44,25 +44,25 @@ instance, buckets, and cluster.
 | Deployment | GCP project | Public host | Matters | Image | Resource prefix |
 | --- | --- | --- | --- | --- | --- |
 | `neon-law-stg` | `neon-law-stg` | `staging.neonlaw.com` | sample | `neon-server` | `neon-law-stg` |
-| `neon-law-prod` | `neon-law-prod` | `www.neonlaw.com` | real | `neon-server` | `neon-law-prod` |
+| the production deployment | its own project | `www.neonlaw.com` | real | `neon-server` | its deployment name |
 
 Each row also serves a workflows host beside its public one: `workflows-staging.neonlaw.com` for `neon-law-stg` and
-`workflows.neonlaw.com` for `neon-law-prod`. Both are set per deployment as `NAVIGATOR_PUBLIC_HOST` and
+`workflows.neonlaw.com` for production. Both are set per deployment as `NAVIGATOR_PUBLIC_HOST` and
 `NAVIGATOR_WORKFLOWS_HOST`.
 
-**One production.** `neon-law-prod` is the only deployment serving real matters, and `www.neonlaw.com` is the only
-public host that reaches them. Staging carries a public name so a link to it resolves, not so it is open: its perimeter
-is the tailnet allowlist, which is what "private mode" configures.
+**One production.** One deployment serves real matters, and `www.neonlaw.com` is the only public host that reaches them.
+Staging carries a public name so a link to it resolves, not so it is open: its perimeter is the tailnet allowlist, which
+is what "private mode" configures.
 
-`neon-law-prod` is a rollable deployment. Its `deployments/<name>/` directory in the deploy repository carries both
+Production is a rollable deployment. Its `deployments/<name>/` directory in the deploy repository carries both
 `config.toml` and `secrets.enc.yaml`, and nothing in this repository's CI rolls it. A person runs the `ops ship` command
 `deploy.yml` posts to `#navigator`, from a checkout of that repository. See
 [`gitops.md`](gitops.md#the-deploy-is-a-human-act).
 
-Its substrate is provisioned in `neon-law-prod`: the `neon-law-prod` Autopilot cluster, the `neon-law-prod-pg` Cloud SQL
-instance, and the `neon-law-prod-gateway-ip` global address. That address is a deployment coordinate, not a fact about
+Its substrate is provisioned in its own project under its own prefix: the Autopilot cluster, the `<prefix>-pg` Cloud SQL
+instance, and the `<prefix>-gateway-ip` global address. That address is a deployment coordinate, not a fact about
 Navigator: it lives in the deployment's `config.toml` as `NAVIGATOR_GATEWAY_IP`, and `gcloud compute addresses describe
-neon-law-prod-gateway-ip --global --format='value(address)'` prints the current value.
+<prefix>-gateway-ip --global --format='value(address)'` prints the current value.
 
 The host cutover has happened. `www.neonlaw.com` and `workflows.neonlaw.com` both resolve to that address and are served
 by this deployment's Ingress, with both `ManagedCertificate` resources Active. The Foundation marketing site no longer
@@ -71,7 +71,7 @@ holds the name. See [`marketing-sites`](marketing-sites.md).
 Each deployment serves its own host, and the host says what the deployment is. `www.neonlaw.com` is production: the firm
 at the root and the Foundation under `/foundation`, over real matters. Staging serves `staging.neonlaw.com` over sample
 data, so a visitor never has to guess which one they reached. `neon` is the identifier that names the GCP projects
-`neon-law-stg` and `neon-law-prod` and the image `neon-server`; the public brand lives only in the domain. Each row's
+`neon-law-stg` and production and the image `neon-server`; the public brand lives only in the domain. Each row's
 Workspace is in the Drive table under [Matter storage](#matter-storage-and-workspace-attachment).
 
 For a resource prefix `<name>`, set:
@@ -96,8 +96,8 @@ Bucket names are globally scoped in GCS. If one of these short names is already 
 to all four bucket names; do not change the deployment prefix used for other resources.
 
 `NAVIGATOR_PUBLIC_HOST` is the exact public host in the matrix, and `NAVIGATOR_WORKFLOWS_HOST` is the workflows host
-beside it: `workflows.neonlaw.com` for `neon-law-prod`, `workflows-staging.neonlaw.com` for `neon-law-stg`. Both rows
-sit on `neonlaw.com`, and staging's names are a subdomain and a hyphenated sibling rather than a separate domain, so a
+beside it: `workflows.neonlaw.com` for production, `workflows-staging.neonlaw.com` for `neon-law-stg`. Both rows sit on
+`neonlaw.com`, and staging's names are a subdomain and a hyphenated sibling rather than a separate domain, so a
 deployment never borrows another row's host. Set `NAV_BASE_URL` to `https://$NAVIGATOR_PUBLIC_HOST`,
 `NAVIGATOR_WORKFLOWS_URL` to `https://$NAVIGATOR_WORKFLOWS_HOST/`, and `NAVIGATOR_ASSET_BASE_URL` to
 `$NAV_BASE_URL/assets`. The backing GCS bucket remains private; the application reads it through Workload Identity and
@@ -149,7 +149,7 @@ The selected Workspace block in each deployment's config is:
 | Deployment | Required Drive variables |
 | --- | --- |
 | `neon-law-stg` | shared Drive ID + staging Projects root ID |
-| `neon-law-prod` | shared Drive ID + production Projects root ID |
+| the production deployment | shared Drive ID + production Projects root ID |
 
 Every deployment supplies `NAVIGATOR_DRIVE_NEON_LAW_PROJECTS_DRIVE_ID` and its selected root ID:
 `NAVIGATOR_DRIVE_NEON_LAW_STAGING_PROJECTS_ROOT_FOLDER_ID`, `NAVIGATOR_DRIVE_NEON_LAW_NLF_PROJECTS_ROOT_FOLDER_ID`, or
@@ -163,7 +163,7 @@ regional and remains a one-time administrative prerequisite; the regional GCP pr
 `ghcr` is the shared image hub and must never receive GKE or workload buckets. The two runtime projects are:
 
 - `neon-law-stg` — the one persistent staging deployment, serving its own host over sample matters.
-- `neon-law-prod` — production, serving `www.neonlaw.com` over real client matters: the firm at the root and the
+- the production deployment — serving `www.neonlaw.com` over real client matters: the firm at the root and the
   Foundation under `/foundation`.
 
 Project IDs are immutable. Organization moves preserve the project ID and project number, so project-level IAM is the

@@ -587,38 +587,38 @@ safe rather than destructive.
 
 ### How a Project portal reaches a client
 
-Each Project has its own source repository — `neon-law/spotonix`, say — holding a React application under `portal/`.
-That bundle is never committed anywhere in Navigator, and it never touches git on the way to a client. It is built in
-the Project repository's own CI, published to the deployment's private `-applications` bucket, and streamed from there
-by `web` — same-origin, and only after the session and Project participation row are checked.
+Each Project has its own source repository — `neon-law/acme`, say — holding a React application under `portal/`. That
+bundle is never committed anywhere in Navigator, and it never touches git on the way to a client. It is built in the
+Project repository's own CI, published to the deployment's private `-applications` bucket, and streamed from there by
+`web` — same-origin, and only after the session and Project participation row are checked.
 
 ```mermaid
 flowchart LR
-  subgraph repo["Project repo — neon-law/spotonix"]
+  subgraph repo["Project repo — neon-law/acme"]
     src["portal/ — React + Vite"]
     ci["CI on push to main:<br/>validate + application-publish"]
     src --> ci
   end
   subgraph gcp["Deployment project — neon-law"]
-    bucket[("neon-law-prod-applications<br/>spotonix/portal/ — private, UBLA")]
+    bucket[("<deployment>-applications<br/>acme/portal/ — private, UBLA")]
   end
   subgraph nav["Navigator — neon-server"]
-    web["web streams the bundle at<br/>/app/projects/spotonix/portal/"]
+    web["web streams the bundle at<br/>/app/projects/acme/portal/"]
   end
   client(["Client browser"])
 
   ci -- "keyless WIF (navigator-app-publisher):<br/>upload dist/ — hashed assets first,<br/>index.html last, never delete" --> bucket
-  client -- "GET /app/projects/spotonix/portal/" --> web
+  client -- "GET /app/projects/acme/portal/" --> web
   web -- "check session + participation" --> web
   web -- "stream objects, same-origin" --> bucket
 ```
 
 ---
 
-The **repository name is the Project code**, so the Vite base baked at build time (`/app/projects/spotonix/portal/`) and
-the object prefix in the bucket (`spotonix/portal/`) both derive from it — nothing declares its own name. Publish order
-is load-bearing: hashed assets are uploaded first and `index.html` last, and nothing is ever deleted, so a client
-mid-load never resolves an asset the running `index.html` has not published yet. The 30-day
+The **repository name is the Project code**, so the Vite base baked at build time (`/app/projects/acme/portal/`) and the
+object prefix in the bucket (`acme/portal/`) both derive from it — nothing declares its own name. Publish order is
+load-bearing: hashed assets are uploaded first and `index.html` last, and nothing is ever deleted, so a client mid-load
+never resolves an asset the running `index.html` has not published yet. The 30-day
 [lifecycle](#network-and-five-buckets) reaches only assets a later build orphaned, because every publish rewrites the
 live set unconditionally.
 

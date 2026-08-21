@@ -18,7 +18,7 @@ One archive bucket sits outside that registry, holding the published objects of 
 surviving copy of that content. It is an archive to read: nothing routes to it, nothing publishes to it, and `ops gcp
 marketing setup` neither creates nor reports it. Leave it in place and treat the registry above as the live inventory.
 
-The Foundation site holds **`www.neonlaw.com`**, and that name is promised to the `neon-law-prod` deployment — see
+The Foundation site holds **`www.neonlaw.com`**, and that name is promised to the production deployment — see
 [`environments`](environments.md). It is the one site in this registry with a scheduled end: when the deployment takes
 the hostname, this site is retired rather than moved, and `neonlaw.com` becomes a 301 to the same name. Until then the
 bucket and load balancer below are what answers there.
