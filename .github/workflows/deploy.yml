@@ -388,12 +388,27 @@ jobs:
             dockerfile: images/Containerfile.neon
             alias: navigator-web
             runner: blacksmith-8vcpu-ubuntu-2404
+          #
+          # `ci_cache_scope` is deliberately absent from the `neon-server` leg
+          # above, and that absence is what keeps this matrix off the Actions
+          # cache quota. The key names the scope a leg exports for
+          # `publish-service` to read back, and `publish-service` gives
+          # `neon-server` no scope on purpose: the `stub public assets for KIND
+          # public-host images` step rewrites `server/public` and
+          # `.dockerignore`, and `COPY server server` sits above `RUN cargo
+          # build`, so the two jobs feed the builder stage different inputs and
+          # a lookup could only miss. An export nothing reads is pure quota, and
+          # `neon-server` is the expensive one — measured at 3.78 GB of
+          # `mode=max` blobs in run 32487939326, 38% of the whole 10 GB
+          # repository quota on its own.
           - image: navigator-workflows-service
             dockerfile: images/Containerfile.workflows-service
             runner: ubuntu-latest
+            ci_cache_scope: navigator-workflows-service-amd64
           - image: navigator-gateway
             dockerfile: images/Containerfile.gateway
             runner: ubuntu-latest
+            ci_cache_scope: navigator-gateway-amd64
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
@@ -472,31 +487,45 @@ jobs:
           # `integration` as a workflow artifact, so it never leaves the run.
           load: true
           tags: ${{ matrix.image }}:ci-${{ github.sha }}
-          # This amd64 job warms the amd64-scoped cache the
-          # `publish-service` job reads — a tag run's service rebuild stays
-          # a near-no-op.
-          # This job stays on the Actions cache: it holds no registry
-          # credentials (no `id-token: write`, no WIF step) and must not gain
-          # any, because it also runs for `kind-ci/**` branch pushes. The
-          # publish jobs, which are already authenticated, cache into Artifact
-          # Registry instead — so these four images are now the only thing here
-          # drawing on the 10 GB Actions quota, leaving room for `ci.yml`'s
-          # Rust dependency cache to survive between PR pushes.
+          # EXPORT ONLY WHAT `publish-service` READS BACK. `matrix.ci_cache_scope`
+          # is set on exactly the legs whose scope `publish-service` lists as a
+          # second `cache-from`, so this export is compiled once per release
+          # rather than once here and again there. Where the key is absent — the
+          # `neon-server` leg — both lines resolve empty and this leg touches the
+          # Actions cache not at all.
           #
-          # On a tag run this export is also read back by `publish-service`,
-          # which lists this scope as a second `cache-from` so the workspace is
-          # compiled once per release rather than once here and again there.
-          # That is a read on publish's side, so it adds nothing to the quota
-          # accounted for above. Publish keeps its own registry cache as the
-          # primary source: that one persists across releases, while this one
-          # only ever spans a single run.
-          cache-from: type=gha,scope=${{ matrix.image }}-amd64
-          # ignore-error: the image is already pushed before the cache export
+          # THE ABSENT LEG IS THE WHOLE POINT. `mode=max` exports every
+          # intermediate stage, which for a Rust builder stage is the entire
+          # `target` directory, and the 10 GB Actions cache quota is shared with
+          # every other cache in the repository. Measured from run 32487939326 by
+          # joining each leg's exported layer digests against the cache listing:
+          #
+          #   neon-server                   3.78 GB   read by nothing
+          #   navigator-workflows-service   1.81 GB   read by publish-service
+          #   navigator-gateway             0.54 GB   read by publish-service
+          #
+          # Exporting all three left no room for `ci.yml`'s ~1.7 GB Rust
+          # dependency cache: it uploaded successfully at the end of a `main` run
+          # and was evicted before the next PR could restore it, so the gate
+          # logged `No cache found.` every time. Dropping the one export with no
+          # reader is what buys that back, and it costs nothing — `publish-service`
+          # cannot use it, and this job's own `cache-from` could only hit it when
+          # nothing under `server/` changed since the previous release.
+          #
+          # This job stays on the Actions cache rather than moving to Artifact
+          # Registry alongside `publish-service`: it holds no registry
+          # credentials (no `id-token: write`, no WIF step — see this job's
+          # `permissions`, which inherit the workflow's bare `contents: read`)
+          # and must not gain any, because its `if:` also admits `kind-ci/**`
+          # branch pushes, which no review gates. Reading and writing the
+          # Actions cache needs only the runner's own token.
+          cache-from: ${{ matrix.ci_cache_scope != '' && format('type=gha,scope={0}', matrix.ci_cache_scope) || '' }}
+          # ignore-error: the image is already loaded before the cache export
           # runs, so a `not_found` from the GHA cache backend (a known
           # intermittent failure on `mode=max` exports) must never fail an
           # otherwise-successful build. A missed export only makes the next
           # build colder.
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}-amd64,ignore-error=true
+          cache-to: ${{ matrix.ci_cache_scope != '' && format('type=gha,mode=max,scope={0},ignore-error=true', matrix.ci_cache_scope) || '' }}
       - uses: ./.github/actions/slack-progress
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
