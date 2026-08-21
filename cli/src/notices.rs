@@ -319,6 +319,28 @@ pub fn render(notices: &Notices) -> String {
     out
 }
 
+/// What an operator reads when the registry is only partly unpacked.
+///
+/// A pure function so the message an operator has to act on is covered by a
+/// test rather than only by running the command. Names at most ten crates: the
+/// remedy is the same for one as for four hundred, and a full list buries it.
+fn absent_source_error(absent: &[Crate], total: usize) -> String {
+    const SHOWN: usize = 10;
+    let mut out = format!(
+        "navigator: ops notices: {} of {total} crates in Cargo.lock have no unpacked source \
+         under $CARGO_HOME/registry/src, so their licences could not be read. \
+         Run `cargo fetch` and try again.\n",
+        absent.len()
+    );
+    for krate in absent.iter().take(SHOWN) {
+        let _ = writeln!(out, "  {krate}");
+    }
+    if absent.len() > SHOWN {
+        let _ = writeln!(out, "  … and {} more", absent.len() - SHOWN);
+    }
+    out
+}
+
 /// Entry point for `navigator ops notices`.
 pub fn run(out_path: &Path, check: bool) -> ExitCode {
     let lockfile = match fs::read_to_string("Cargo.lock") {
@@ -347,19 +369,7 @@ pub fn run(out_path: &Path, check: bool) -> ExitCode {
     // registry and shipping the result is exactly the under-attribution this
     // command exists to prevent. `cargo fetch` unpacks every target's graph.
     if !notices.absent.is_empty() {
-        eprintln!(
-            "navigator: ops notices: {} of {} crates in Cargo.lock have no unpacked source \
-             under $CARGO_HOME/registry/src, so their licences could not be read. \
-             Run `cargo fetch` and try again.",
-            notices.absent.len(),
-            crates.len()
-        );
-        for krate in notices.absent.iter().take(10) {
-            eprintln!("  {krate}");
-        }
-        if notices.absent.len() > 10 {
-            eprintln!("  … and {} more", notices.absent.len() - 10);
-        }
+        eprint!("{}", absent_source_error(&notices.absent, crates.len()));
         return ExitCode::from(2);
     }
     let rendered = render(&notices);
@@ -398,7 +408,9 @@ pub fn run(out_path: &Path, check: bool) -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::{collect, is_notice_file, registry_crates, render, Crate, Undeclared};
+    use super::{
+        absent_source_error, collect, is_notice_file, registry_crates, render, Crate, Undeclared,
+    };
 
     #[test]
     fn notice_filenames_match_the_conventional_spellings() {
@@ -598,6 +610,39 @@ source = "git+https://example.invalid/repo"
         let out = render(&notices);
         assert!(out.contains("with-licence 2.0.0"));
         assert!(out.contains("Permission is hereby granted"));
+    }
+
+    /// The operator-facing remedy. It must name the count, the remedy, and
+    /// enough crates to recognise the shape — without printing four hundred
+    /// lines that bury the one instruction that matters.
+    #[test]
+    fn the_absent_source_error_names_the_count_and_the_remedy() {
+        let absent: Vec<Crate> = (0..12)
+            .map(|i| Crate {
+                name: format!("crate-{i:02}"),
+                version: "1.0.0".into(),
+            })
+            .collect();
+        let msg = absent_source_error(&absent, 1261);
+        assert!(msg.contains("12 of 1261 crates"), "{msg}");
+        assert!(msg.contains("cargo fetch"), "{msg}");
+        assert!(msg.contains("crate-00 1.0.0"), "{msg}");
+        assert!(msg.contains("crate-09 1.0.0"), "{msg}");
+        assert!(!msg.contains("crate-10"), "only ten are named: {msg}");
+        assert!(msg.contains("… and 2 more"), "{msg}");
+    }
+
+    /// Ten or fewer are all named, with no dangling "and 0 more".
+    #[test]
+    fn a_short_absent_list_is_named_in_full() {
+        let absent = vec![Crate {
+            name: "only-one".into(),
+            version: "0.1.0".into(),
+        }];
+        let msg = absent_source_error(&absent, 3);
+        assert!(msg.contains("1 of 3 crates"), "{msg}");
+        assert!(msg.contains("only-one 0.1.0"), "{msg}");
+        assert!(!msg.contains("more"), "{msg}");
     }
 
     #[test]
