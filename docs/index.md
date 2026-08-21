@@ -21,7 +21,8 @@ claims, and [`agent-decision-councils`](agent-decision-councils.md) before conve
 The full alphabetical reference is [`glossary`](glossary.md); notation vocabulary is in [`notation`](notation.md).
 
 - [AIDA](glossary.md#aida) — domain agent persona and protocol bridge. See
-  [`aida-a2a-interaction`](aida-a2a-interaction.md) and [`gemini-enterprise-mcp`](gemini-enterprise-mcp.md).
+  [`aida-a2a-interaction`](aida-a2a-interaction.md), [`gemini-enterprise-mcp`](gemini-enterprise-mcp.md), and
+  [`claude-mcp-client`](claude-mcp-client.md).
 - [Asset](glossary.md#asset) — a static byte artifact behind `cloud::StorageService` (merges the former Blob + Document
   split). See [`cloud-operations`](cloud-operations.md) and [`project-repositories`](project-repositories.md).
 - [Council](glossary.md#council) / [Counsel](glossary.md#counsel) — decision councils and attorney spelling. See
@@ -109,6 +110,7 @@ The full alphabetical reference is [`glossary`](glossary.md); notation vocabular
 
 - [`aida-a2a-interaction`](aida-a2a-interaction.md) — AIDA, A2A, and MCP interaction.
 - [`gemini-enterprise-mcp`](gemini-enterprise-mcp.md) — Gemini Enterprise MCP integration.
+- [`claude-mcp-client`](claude-mcp-client.md) — Claude as an AIDA client over `navigator site mcp`.
 - [`bulk-contact-import`](bulk-contact-import.md) — bulk contact import payloads.
 - [`email-events-pipeline`](email-events-pipeline.md) — inbound/outbound email events.
 - [`project-repositories`](project-repositories.md) — one repository per Project code: its layout, its scaffold, its CI
