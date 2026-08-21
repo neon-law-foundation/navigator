@@ -365,6 +365,23 @@ pub struct Branding {
     /// footer. See [`FIRM_ATTORNEYS`]: this is the footer's only bar
     /// disclosure, and it names who holds each licence.
     pub firm_attorneys: &'static [FirmAttorney],
+    /// The firm's registered word mark, spelled the way the register spells it
+    /// — `NEON LAW`, not the title-case wordmark the header wears. The footer's
+    /// trademark notice opens on it, followed by `®`.
+    pub firm_trademark: &'static str,
+    /// The U.S. registration number for [`Branding::firm_trademark`], written
+    /// the way the certificate writes it (`6,325,650`).
+    ///
+    /// The registrant the notice names is [`SiteBrand::legal_entity`], which is
+    /// the same legal person on the firm's deploy. Those two must move together:
+    /// a notice that cites this number and names anyone else states the wrong
+    /// owner of a live registration, and `cli/tests/license_of_record.rs`
+    /// fails the build over exactly that on every other surface that cites it.
+    pub firm_trademark_registration: &'static str,
+    /// The register's own record for that registration, so a reader verifies the
+    /// claim against the USPTO rather than trusting the site's line about
+    /// itself — the same rule the footer's bar-licence rows already follow.
+    pub firm_trademark_record_url: &'static str,
     pub consultation_url: &'static str,
     pub terms_url: &'static str,
     pub privacy_url: &'static str,
@@ -467,6 +484,16 @@ pub static DEFAULT_BRANDING: Branding = Branding {
     firm_phone: "+1 510 800 2080",
     firm_offices: FIRM_OFFICES,
     firm_attorneys: FIRM_ATTORNEYS,
+    // The mark as registered: the register carries the word mark in capitals,
+    // and a notice that cites a registration should spell the mark the way the
+    // registration does. `site_name` above is the same mark set the way the
+    // firm signs its door.
+    firm_trademark: "NEON LAW",
+    firm_trademark_registration: "6,325,650",
+    // Serial 90039224 is the file this registration issued from, and the search
+    // record is the public page that resolves it. The registration number is
+    // what the notice claims; this is where a reader checks it.
+    firm_trademark_record_url: "https://tmsearch.uspto.gov/search/search-results/90039224",
     consultation_url: "https://calendar.app.google/GueqKHiAuqXEwkRG8",
     terms_url: "/terms",
     privacy_url: "/privacy",
@@ -595,6 +622,23 @@ impl Branding {
             brand.foundation_legal_entity.as_deref(),
             DEFAULT_BRANDING.foundation_entity,
         );
+        // A registration belongs to its registrant, and a bundle that renames
+        // the firm is a different firm: it publishes no mark notice at all,
+        // because U.S. Reg. No. 6,325,650 is not theirs to notice. There is
+        // deliberately no manifest key for it either — an operator with their
+        // own registration is making an ownership claim this repository cannot
+        // verify, and a notice naming the wrong owner is worse than none, since
+        // it is the line a reader relies on for permission.
+        let (firm_trademark, firm_trademark_registration, firm_trademark_record_url) =
+            if brand.firm.is_some() {
+                ("", "", "")
+            } else {
+                (
+                    DEFAULT_BRANDING.firm_trademark,
+                    DEFAULT_BRANDING.firm_trademark_registration,
+                    DEFAULT_BRANDING.firm_trademark_record_url,
+                )
+            };
         Box::leak(Box::new(Self {
             firm: SiteBrand {
                 site_name: firm_name,
@@ -688,6 +732,9 @@ impl Branding {
                     .collect();
                 Box::leak(leaked.into_boxed_slice())
             },
+            firm_trademark,
+            firm_trademark_registration,
+            firm_trademark_record_url,
             consultation_url: value(
                 brand.consultation_url.as_deref(),
                 DEFAULT_BRANDING.consultation_url,
@@ -819,6 +866,24 @@ pub fn firm_offices() -> &'static [FirmOffice] {
 #[must_use]
 pub fn firm_attorneys() -> &'static [FirmAttorney] {
     current().firm_attorneys
+}
+
+/// The firm's registered word mark, its U.S. registration number, and the
+/// register's own record for it — the three parts of the footer's trademark
+/// notice, resolved together because a notice missing any of them makes a claim
+/// a reader cannot check.
+///
+/// All three are empty on a bundle that renamed the firm: see
+/// [`Branding::firm_trademark_registration`] for why a host publishes no notice
+/// rather than this one.
+#[must_use]
+pub fn firm_trademark() -> (&'static str, &'static str, &'static str) {
+    let branding = current();
+    (
+        branding.firm_trademark,
+        branding.firm_trademark_registration,
+        branding.firm_trademark_record_url,
+    )
 }
 
 /// The public pages the footer links rather than the header — Navigator, Blog,
@@ -1060,6 +1125,61 @@ mod tests {
         // The compiled default is unchanged.
         assert_eq!(DEFAULT_BRANDING.firm.legal_entity, "Shook Law PLLC");
         assert_eq!(DEFAULT_BRANDING.foundation.legal_entity, "");
+    }
+
+    /// The compiled default notices the live registration, spelled the way the
+    /// register spells it and pointing at the register's own record.
+    ///
+    /// The registrant is [`SiteBrand::legal_entity`], asserted here beside the
+    /// number so the pair cannot drift: U.S. Reg. No. 6,325,650 is the Firm's,
+    /// and the footer composes its notice from these two fields.
+    #[test]
+    fn the_default_notices_the_registration_and_where_to_verify_it() {
+        let (mark, registration, record) = (
+            DEFAULT_BRANDING.firm_trademark,
+            DEFAULT_BRANDING.firm_trademark_registration,
+            DEFAULT_BRANDING.firm_trademark_record_url,
+        );
+        assert_eq!(mark, "NEON LAW");
+        assert_eq!(registration, "6,325,650");
+        assert_eq!(
+            record,
+            "https://tmsearch.uspto.gov/search/search-results/90039224"
+        );
+        assert_eq!(
+            DEFAULT_BRANDING.firm.legal_entity, "Shook Law PLLC",
+            "the notice names this entity as the registrant"
+        );
+    }
+
+    /// A bundle that renames the firm publishes no mark notice.
+    ///
+    /// The registration is not the mounting host's, so there is nothing for it
+    /// to notice — and a host inheriting this one would tell its own readers
+    /// that someone else's registration covers the name on its door.
+    #[tokio::test]
+    async fn a_renamed_firm_notices_no_registration() {
+        let manifest: BrandManifest =
+            serde_yaml::from_str("version: 1\nbrand:\n  firm: Cascade Law\n").unwrap();
+        let branding = Branding::from_manifest(&manifest);
+        scope(branding, async {
+            assert_eq!(super::firm_trademark(), ("", "", ""));
+        })
+        .await;
+        // A bundle that changed something else keeps it: the firm did not move.
+        let untouched: BrandManifest =
+            serde_yaml::from_str("version: 1\nbrand:\n  firm_phone: '+1 555 000 0000'\n").unwrap();
+        scope(Branding::from_manifest(&untouched), async {
+            assert_eq!(
+                super::firm_trademark(),
+                (
+                    "NEON LAW",
+                    "6,325,650",
+                    DEFAULT_BRANDING.firm_trademark_record_url
+                )
+            );
+        })
+        .await;
     }
 
     /// The mark and the legal person behind it are two different strings, and
