@@ -1817,10 +1817,22 @@ Inline raw-HTML tile: <div>![Team](img/thanks-apple/team-lunch.jpg)</div>\n";
             "img/rust-in-peace/apple-teaching.jpg",
             "img/rust-in-peace/apple-team.jpg",
             "img/rust-in-peace/everyone-loves-vibing.png",
+            "img/rust-in-peace/ferris-access-to-justice.png",
+            "img/rust-in-peace/ferris-apple-windows-linux.png",
+            "img/rust-in-peace/ferris-gke-autopilot.png",
+            "img/rust-in-peace/ferris-green-wood-farewell.png",
             "img/rust-in-peace/ferris-races-the-hare.png",
+            "img/rust-in-peace/ferris-shared-governance.png",
+            "img/rust-in-peace/ferris-signs-rust-document.png",
+            "img/rust-in-peace/ferris-surrealdb-restate.png",
+            "img/rust-in-peace/ferris-three-way-pointing.png",
+            "img/rust-in-peace/ferris-web-cli-mcp.png",
             "img/rust-in-peace/kiwi-rainbow.jpg",
             "img/rust-in-peace/new-york-lawyer-decision.jpg",
+            "img/rust-in-peace/project-lifecycle.png",
+            "img/rust-in-peace/retainer-agreement-preview.png",
             "img/rust-in-peace/rust-community-meetup.png",
+            "img/rust-in-peace/tests-checks-passed.png",
         ]
         .into_iter()
         .map(String::from)

@@ -274,6 +274,29 @@ fn workshop_step_media_fits_the_visible_page_without_changing_display_mode() {
 }
 
 #[test]
+fn render_demo_slides_place_the_command_beside_the_document() {
+    let css = std::fs::read_to_string(public_dir().join("css/catalog.css"))
+        .expect("read the workshop stylesheet");
+
+    let layout = css
+        .split_once(".workshop-slide > .material-body:has(pre + p > img) {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("render-demo slides must own a code-and-document grid");
+    assert!(layout.contains("display: grid;"));
+    assert!(layout.contains("grid-template-columns:"));
+    assert!(layout.contains("grid-template-rows: auto minmax(0, 1fr);"));
+
+    let document = css
+        .split_once(".workshop-slide > .material-body:has(pre + p > img) > p:has(> img) {")
+        .and_then(|(_, rest)| rest.split_once('}'))
+        .map(|(declarations, _)| declarations)
+        .expect("the rendered document must occupy the second grid column");
+    assert!(document.contains("grid-column: 2;"));
+    assert!(document.contains("grid-row: 2;"));
+}
+
+#[test]
 fn presentation_practice_cards_hold_the_hover_treatment_without_motion() {
     let css = std::fs::read_to_string(public_dir().join("css/catalog.css"))
         .expect("read the workshop stylesheet");
