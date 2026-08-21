@@ -6,8 +6,7 @@ description: >
   verify `web` / a page / a UI change, to "open the design page", "check it in chrome", or to prove a front-end behavior
   (syntax highlighting, a toast, a layout, a keyboard shortcut) actually renders. A PR walkthrough defaults to a GIF of
   the real interaction (§5); a still is only for a genuinely static change. This is the browser half of the local loop;
-  `kind-local-dev` is the cluster half it builds on. Skip for pure logic/unit work — `cargo test` uses an embedded
-  store
+  `kind-local-dev` is the cluster half it builds on. Skip for pure logic/unit work — `cargo test` uses an embedded store
   and needs no cluster.
 ---
 
@@ -30,8 +29,8 @@ only for an optional live third-party integration.
 cargo run --release -p cli -- dev up        # cluster + SurrealDB + Rauthy + fake-gcs + OPA + Restate; writes .devx/env
 ```
 
-This is "begin with KIND, all databases set up": the store is up and `web` applies the schema on boot, so it is
-ready. The deps a `web` request actually touches (illustrative host ports, sourced from `.devx/env`):
+This is "begin with KIND, all databases set up": the store is up and `web` applies the schema on boot, so it is ready.
+The deps a `web` request actually touches (illustrative host ports, sourced from `.devx/env`):
 
 | Dependency | Host port | What `web` uses it for | Skill |
 | --- | --- | --- | --- |
@@ -84,13 +83,15 @@ sharing is what lets a worktree drive Restate-backed flows through the in-cluste
 
 #### OpenTelemetry (on by default)
 
-`navigator dev up` stands up a Grafana **LGTM** pod (Loki/Grafana/Tempo/Prometheus + a bundled OTel Collector) as a
-local OTLP sink, port-forwards its OTLP gRPC port, and writes `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` into
-`.devx/env`. So sourcing `.devx/env` (step 2) already flips host `web` to JSON logs + OTLP export — no manual
-port-forward. Browse traces/logs/metrics at `http://localhost:3000` (Grafana, anonymous Admin). To run with plain stdout
-logs and no export, set `OTEL_EXPORTER_OTLP_ENDPOINT=` (empty) in `.env`. Full local-telemetry loop is the
-[[grafana-lgtm]] skill; the emit-side seam and the load-bearing "identifiers and counts, never client content" rule are
-the `observability` skill.
+Sourcing `.devx/env` (step 2) already flips host `web` to JSON logs + OTLP export, and that is the one load-bearing rule
+here: **host `web` exports only when `.devx/env` is sourced**, because the endpoint that file writes is what takes
+`telemetry::init` out of stdout-only mode. Expecting telemetry without it is the usual "nothing shows up." To run with
+plain stdout logs and no export, set an empty `OTEL_EXPORTER_OTLP_ENDPOINT`.
+
+The local sink, its generated credentials, and the Explorer queries are
+[`docs/observability.md`](../../../docs/observability.md#seeing-telemetry-locally-openobserve) — read every value from
+`.devx/env`, since the ports are derived per worktree. The emit-side seam and the load-bearing "identifiers and counts,
+never client content" rule are the `observability` skill.
 
 ### 3. Open it in a real browser and screenshot
 
@@ -189,11 +190,11 @@ The capture lives in `/tmp` (e.g. `/tmp/navigator-screenshots/footer.gif`). Surf
 so it renders inline in the agent session — and describe what it shows in the PR body's **Screenshots** section.
 
 **Do NOT commit captures to the repo, and do NOT create an image-hosting branch.** For an image to *render* on the
-`github.com` PR page it must be hosted by the tenant, and the clean way is its native **user-attachments** store
-(a `https://github.com/user-attachments/assets/…` URL, zero repo pollution). The [[pr-image-upload]] skill drives
-that from the CLI with a single `curl` authenticated by `gh auth token` — no browser session, no extension — so you can
-embed the `/tmp` capture into the PR body yourself, no drag-drop required. Avoid the tempting `pr-assets` orphan-branch
-trick — it works, but leaves a stray binary-accumulating branch on the remote that someone has to remember to delete.
+`github.com` PR page it must be hosted by the tenant, and the clean way is its native **user-attachments** store (a
+`https://github.com/user-attachments/assets/…` URL, zero repo pollution). The [[pr-image-upload]] skill drives that from
+the CLI with a single `curl` authenticated by `gh auth token` — no browser session, no extension — so you can embed the
+`/tmp` capture into the PR body yourself, no drag-drop required. Avoid the tempting `pr-assets` orphan-branch trick — it
+works, but leaves a stray binary-accumulating branch on the remote that someone has to remember to delete.
 
 ## CSP gotcha (front-end JS)
 

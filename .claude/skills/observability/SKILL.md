@@ -62,13 +62,14 @@ Collector**, whose **fail-closed redaction processor** (`allow_all_keys: false`)
 no-content rule. It complements the Iceberg archive: telemetry is the *operational* half, the archive the *data* half.
 
 Full landing map, the sink, and the collector config live in
-[`docs/observability.md`](../../../docs/observability.md#where-it-lands-bigquery--the-gcp-consoles) — don't restate the
+[`docs/observability.md`](../../../docs/observability.md#where-it-lands-direct-openobserve) — don't restate the
 architecture here.
 
-**Locally** the same OTLP export lands in an in-cluster **Grafana LGTM** pod (Loki / Tempo / Prometheus) instead of GCP
-— `navigator dev up` wires host and in-cluster `web` to it and port-forwards Grafana to
-`http://localhost:3000`. To *see* a span, metric, or trace you just emitted, use the `grafana-lgtm` skill; this skill is
-the *emit* side.
+**Locally** the same OTLP export goes straight to an in-cluster **OpenObserve** — `navigator dev up` wires host and
+in-cluster `web` to it and writes the whole contract (UI URL, OTLP endpoint, credentials, organization, stream) into
+`.devx/env`, on ports derived per worktree. To *see* a span, metric, or trace you just emitted, follow
+[`docs/observability.md`](../../../docs/observability.md#seeing-telemetry-locally-openobserve); this skill is the *emit*
+side.
 
 ## Debugging a missing periodic job (the playbook)
 
