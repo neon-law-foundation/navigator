@@ -206,10 +206,23 @@ rather than half-reconciled.
 > `pull_requests: write`, falling back to `GITHUB_TOKEN`. It needs `AUTOMERGE_APP_ID` and
 > `AUTOMERGE_APP_PRIVATE_KEY` as Actions secrets. Publishing adds no companion configuration — it authenticates with
 > the run's own `GITHUB_TOKEN`, see [Keyless pushes to GHCR](#keyless-pushes-to-ghcr) — so the repository carries no
-> Actions *variable* at all. >
-> Neither secret exists on this repository today, so auto-merge arms under `GITHUB_TOKEN` as
-> `app/github-actions`. Arming also requires at least one *required* status check: with nothing required, the
-> mutation is refused with `Pull request is in unstable status`, because auto-merge has nothing to wait on. >
+> Actions *variable* at all.
+>
+> The App is `navigator-merge-queue` (app id `4158267`), installed on selected repositories with exactly
+> `contents: write` and `pull_requests: write`, and deliberately without `workflows`. Both secrets exist, so
+> auto-merge arms under that App.
+>
+> **Which identity arms it is load-bearing, not cosmetic.** GitHub's recursion guard names `GITHUB_TOKEN`
+> specifically, so a merge armed with the run's own token produces a push that triggers no workflow at all — not a
+> skipped run, not a red one: none. Because a landed version bump is the publish, such a merge loses the release
+> silently, with no failing check to read. That is what happened to #95: it bumped the workspace to
+> `26.8.22-hotfix.23`, `main` moved, and neither `deploy` nor `warm cache` ever ran.
+>
+> The App holds no `workflows` permission on purpose, so a pull request touching `.github/workflows/**` still cannot
+> be auto-merged and is merged by hand. Arming also requires at least one *required* status check: with nothing
+> required, the mutation is refused with `Pull request is in unstable status`, because auto-merge has nothing to wait
+> on.
+>
 > Dependabot has a separate secret store, so mirror both App secrets there. Forks do not use this path.
 
 ### TDD and the pre-commit gate
