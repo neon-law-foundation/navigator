@@ -166,8 +166,8 @@ The production upload is a **real production cloud write**. An agent prepares th
 authorized, and hands the production command to an operator:
 
 ```bash
-cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-prod-assets
-gcloud storage ls -L gs://neon-law-prod-assets/img/<deck-slug>/<filename>
+cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-stg-assets
+gcloud storage ls -L gs://neon-law-stg-assets/img/<deck-slug>/<filename>
 ```
 
 `upload` walks the whole directory passed with `--dir`, so re-uploading an unchanged tree is idempotent. The PR carries
@@ -185,7 +185,7 @@ presentation/workshop key check against the selected deployment bucket before ev
 material. `verify` cannot catch this: it only walks references toward objects, never the reverse.
 
 ```bash
-cargo run -p cli -- ops assets orphans --bucket neon-law-prod-assets --slack
+cargo run -p cli -- ops assets orphans --bucket neon-law-stg-assets --slack
 ```
 
 It reports and never prunes; deleting is a human step after review. `--slack` posts the same report to the ops channel

@@ -540,7 +540,7 @@ mod tests {
             BucketKind::Archives
         );
         assert_eq!(
-            BucketKind::from_name("neon-law-prod-telemetry"),
+            BucketKind::from_name("neon-law-stg-telemetry"),
             BucketKind::Telemetry
         );
         // The four original kinds keep classifying exactly as before.
@@ -555,7 +555,7 @@ mod tests {
         // the 30-day expiry and enforced-private access rather than the
         // Assets default.
         assert_eq!(
-            BucketKind::from_name("neon-law-prod-applications"),
+            BucketKind::from_name("neon-law-stg-applications"),
             BucketKind::Applications
         );
     }
@@ -650,7 +650,7 @@ mod tests {
         // which is precisely the thing that goes stale in a shared one.
         let server = MockServer::start().await;
         Mock::given(method("PATCH"))
-            .and(path("/storage/v1/b/neon-law-prod-telemetry"))
+            .and(path("/storage/v1/b/neon-law-stg-telemetry"))
             .and(body_partial_json(json!({
                 "lifecycle": {
                     "rule": [{
@@ -665,7 +665,7 @@ mod tests {
             .await;
 
         let client = client_pointed_at(&server);
-        ensure_lifecycle(&client, "neon-law-prod-telemetry")
+        ensure_lifecycle(&client, "neon-law-stg-telemetry")
             .await
             .unwrap();
     }

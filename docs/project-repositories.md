@@ -214,13 +214,13 @@ That issuer is a property of the provider resource, not a workflow parameter —
 sites](marketing-sites.md) document explains. Because the whole resource travels in the variable, the pool and provider
 id are the deployment's business and never a name a Project repository knows.
 
-**On `neon-law-prod` that resource is the `github` pool's `github-oidc` provider, which is not what
+**On `neon-law-stg` that resource is the `github` pool's `github-oidc` provider, which is not what
 `cli/src/devx/gcp/app_publisher.rs` provisions** — it creates an `app-publisher` pool with a `ghe-oidc` provider, whose
-name is a live resource id rather than a description, and no such pool exists in that project. lex-tecnica was onboarded
-onto the existing `github` provider by hand. Reconciling the two is ENG-255's work, and it is the reason a provider's
-`attributeCondition` must never be rewritten by hand: one CEL expression guards every identity in the pool, Navigator's
-own `navigator-ci-pusher` deploy identity included, so a clause appended carelessly breaks Navigator's deploys an hour
-later and somewhere else.
+name is a live resource id rather than a description, and no such pool exists in that project. The first Project was
+onboarded onto the existing `github` provider by hand. Reconciling the two is ENG-255's work, and it is the reason a
+provider's `attributeCondition` must never be rewritten by hand: one CEL expression guards every identity in the pool,
+Navigator's own `navigator-ci-pusher` deploy identity included, so a clause appended carelessly breaks Navigator's
+deploys an hour later and somewhere else.
 
 The thin caller workflow lives in the Project repository, not here. It grants `id-token: write`, installs with a locked
 dependency graph, lints, typechecks, tests, and builds with the derived Vite base, runs the gate, then publishes:
@@ -314,7 +314,7 @@ before anything is created:
 
 ```bash
 navigator projects doctor
-navigator projects doctor --project spotonix
+navigator projects doctor --project acme
 ```
 
 It resolves the active deployment from `NAVIGATOR_GCP_PROJECT_ID`, then reports that deployment's Google Workspace,

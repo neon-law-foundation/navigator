@@ -16,7 +16,7 @@
 //!    decrypts to env vars, runs the child, and writes nothing to disk):
 //!
 //!    ```bash
-//!    sops exec-env deployments/neon-law-prod/secrets.enc.yaml \
+//!    sops exec-env deployments/neon-law-stg/secrets.enc.yaml \
 //!      'env NAVIGATOR_RUN_LIVE_PROD_CHECK=1 \
 //!       cargo test -p server --test docusign_live -- --nocapture prod_jwt_and_billing'
 //!    ```
@@ -39,7 +39,7 @@
 //!      cargo test -p server --test docusign_live -- --nocapture emailed_envelope
 //!
 //!    # The real, billable prod send (1 envelope):
-//!    sops exec-env deployments/neon-law-prod/secrets.enc.yaml \
+//!    sops exec-env deployments/neon-law-stg/secrets.enc.yaml \
 //!      'env NAVIGATOR_RUN_LIVE_EMAILED_ENVELOPE=1 \
 //!           NAVIGATOR_LIVE_SIGNER_EMAIL=nick@shook.family \
 //!       cargo test -p server --test docusign_live -- --nocapture emailed_envelope'
@@ -84,7 +84,7 @@ async fn prod_jwt_and_billing_plan_checkpoint() {
     if std::env::var("NAVIGATOR_RUN_LIVE_PROD_CHECK").is_err() {
         eprintln!(
             "skipping prod checkpoint; set NAVIGATOR_RUN_LIVE_PROD_CHECK=1 (run under \
-             `sops exec-env deployments/neon-law-prod/secrets.enc.yaml …`)"
+             `sops exec-env deployments/neon-law-stg/secrets.enc.yaml …`)"
         );
         return;
     }

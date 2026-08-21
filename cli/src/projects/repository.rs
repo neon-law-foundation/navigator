@@ -929,7 +929,7 @@ jobs:
         scaffold_minimal(root.path());
         std::fs::write(
             root.path().join("navigator.yaml"),
-            "host: www.neonlaw.com\nproject: lex-tecnica\n",
+            "host: www.neonlaw.com\nproject: acme\n",
         )
         .unwrap();
 
@@ -956,7 +956,7 @@ jobs:
     fn a_forbidden_component_still_wins() {
         let root = tempfile::tempdir().unwrap();
         scaffold_minimal(root.path());
-        std::fs::write(root.path().join("navigator.yaml"), "project: lex-tecnica\n").unwrap();
+        std::fs::write(root.path().join("navigator.yaml"), "project: acme\n").unwrap();
         std::fs::write(root.path().join(".env"), "SECRET=1\n").unwrap();
 
         let found = layout_findings(root.path());

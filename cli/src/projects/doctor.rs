@@ -464,7 +464,7 @@ mod tests {
                 credentials: &creds,
                 now: 0,
                 host: None,
-                project_code: Some("spotonix"),
+                project_code: Some("acme"),
             });
 
             assert!(
@@ -474,12 +474,12 @@ mod tests {
             );
             assert_eq!(
                 diagnosis.check("project folder").unwrap().detail,
-                format!("{root_name}/spotonix"),
+                format!("{root_name}/acme"),
                 "{project_id}"
             );
             assert_eq!(
                 diagnosis.check("portal mount").unwrap().detail,
-                "/app/projects/spotonix/portal/",
+                "/app/projects/acme/portal/",
                 "{project_id}"
             );
             // A Project's repository is a URL stored on the matter, so a
@@ -512,7 +512,7 @@ mod tests {
             credentials: &creds,
             now: 0,
             host: None,
-            project_code: Some("spotonix"),
+            project_code: Some("acme"),
         });
 
         assert!(!diagnosis.is_healthy(), "{missing} must fail the report");
@@ -544,7 +544,7 @@ mod tests {
             credentials: &creds,
             now: 0,
             host: None,
-            project_code: Some("spotonix"),
+            project_code: Some("acme"),
         });
 
         assert!(
@@ -569,7 +569,7 @@ mod tests {
             credentials: &creds,
             now: 0,
             host: None,
-            project_code: Some("spotonix"),
+            project_code: Some("acme"),
         });
 
         assert!(!diagnosis.is_healthy());
@@ -624,7 +624,7 @@ mod tests {
             credentials: &creds,
             now: 0,
             host: None,
-            project_code: Some("spotonix"),
+            project_code: Some("acme"),
         });
 
         assert!(!diagnosis.is_healthy());
@@ -699,7 +699,7 @@ mod tests {
             credentials: &creds,
             now: 0,
             host: None,
-            project_code: Some("spotonix"),
+            project_code: Some("acme"),
         });
         assert!(diagnosis.is_healthy(), "{:?}", diagnosis.checks);
         assert_eq!(
@@ -710,15 +710,15 @@ mod tests {
         // Both present: clean.
         let diagnosis = diagnose(&Probe {
             env: &lookup,
-            path_exists: &existing(&["/Volumes/Drive", "/Volumes/Drive/Projects/spotonix"]),
+            path_exists: &existing(&["/Volumes/Drive", "/Volumes/Drive/Projects/acme"]),
             credentials: &creds,
             now: 0,
             host: None,
-            project_code: Some("spotonix"),
+            project_code: Some("acme"),
         });
         let local = diagnosis.check("project folder (local)").unwrap();
         assert_eq!(local.status, Status::Ok);
-        assert_eq!(local.detail, "/Volumes/Drive/Projects/spotonix");
+        assert_eq!(local.detail, "/Volumes/Drive/Projects/acme");
     }
 
     #[test]
