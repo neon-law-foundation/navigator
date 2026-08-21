@@ -1354,14 +1354,112 @@ pub fn seeded_template_codes() -> anyhow::Result<Vec<String>> {
 }
 
 /// Split a notation template's markdown into `(frontmatter, body)`.
-/// The frontmatter is the YAML between the opening and closing
-/// `---\n` markers; the body is everything after.
+/// The frontmatter is the YAML between the opening and closing `---`
+/// markers; the body is everything after.
+///
+/// Accepts both LF and CRLF line endings, mirroring
+/// `rules::frontmatter::extract`. The two parsers exist for different
+/// call paths — that one validates other repositories' files, this one
+/// splits the templates bundled into this binary — but they read the
+/// same delimiters and must agree about them.
+///
+/// The CRLF arm is not hypothetical. These templates reach the parser
+/// through `include_str!`, which reads the working tree at compile
+/// time, so the line endings of whichever checkout compiled the binary
+/// are baked in with no runtime opportunity to normalise. Git for
+/// Windows defaults to `core.autocrlf=true` and the tree carries no
+/// `.gitattributes`, so a Windows checkout materialises every template
+/// with `\r\n`; probing only for `\n` made this return `None` for all
+/// of them, and both callers turn `None` into a hard error on the boot
+/// path.
+///
+/// The returned slices are borrowed and so may retain interior `\r`.
+/// `serde_yaml` accepts that in the frontmatter. For the body, see the
+/// normalisation note at the ingest call in `seed_templates`.
 fn split_template(md: &str) -> Option<(&str, &str)> {
-    let after_open = md.strip_prefix("---\n")?;
-    let end = after_open.find("\n---\n")?;
-    let fm = &after_open[..end];
-    let body = &after_open[end + "\n---\n".len()..];
-    Some((fm, body))
+    let after_open = md
+        .strip_prefix("---\n")
+        .or_else(|| md.strip_prefix("---\r\n"))?;
+
+    // Empty frontmatter: the closer immediately follows the opener.
+    if let Some(body) = after_open
+        .strip_prefix("---\n")
+        .or_else(|| after_open.strip_prefix("---\r\n"))
+    {
+        return Some(("", body));
+    }
+    if after_open == "---" || after_open == "---\r" {
+        return Some(("", ""));
+    }
+
+    if let Some((end, delim_len)) = find_closer(after_open) {
+        return Some((&after_open[..end], &after_open[end + delim_len..]));
+    }
+
+    // Closer at EOF with no trailing newline, so no body follows.
+    let fm = after_open
+        .strip_suffix("\r\n---")
+        .or_else(|| after_open.strip_suffix("\n---"))?;
+    Some((fm, ""))
+}
+
+/// Byte offset of the closing `---` delimiter line within the text
+/// following the opener, paired with that delimiter's own length so the
+/// caller can slice the body that starts after it.
+///
+/// Takes the earlier of the two matches, so a file with mixed endings
+/// closes at the first real delimiter rather than the first *LF* one.
+/// `"\n---\n"` cannot match inside `"\r\n---\r\n"`, so the two probes
+/// never overlap on a single delimiter and the earlier offset is always
+/// a genuine closer.
+fn find_closer(after_open: &str) -> Option<(usize, usize)> {
+    const LF: &str = "\n---\n";
+    const CRLF: &str = "\r\n---\r\n";
+    match (after_open.find(LF), after_open.find(CRLF)) {
+        (Some(lf), Some(crlf)) => {
+            if lf <= crlf {
+                Some((lf, LF.len()))
+            } else {
+                Some((crlf, CRLF.len()))
+            }
+        }
+        (Some(lf), None) => Some((lf, LF.len())),
+        (None, Some(crlf)) => Some((crlf, CRLF.len())),
+        (None, None) => None,
+    }
+}
+
+/// The exact bytes of a template body that get content-addressed, with
+/// leading whitespace trimmed and line endings normalised to LF.
+///
+/// The normalisation is load-bearing rather than tidiness. These bytes
+/// decide the `asset_id`, and `templates::save_version` is immutable by
+/// policy: a body whose bytes differ from the stored version appends a
+/// new current version and retires the prior one. Because `include_str!`
+/// bakes in the compiling checkout's line endings, hashing them raw
+/// would make a template's identity depend on which platform built the
+/// binary — the same logical document would fork into two versions, and
+/// a Notation pinned to one would resolve to bytes the other tier never
+/// writes.
+///
+/// This is a no-op for every deployment that exists: images are built on
+/// Linux, where these bodies are already LF, so the bytes are unchanged
+/// and no new version is written. What it does is keep that true if an
+/// image is ever built from a CRLF checkout. The borrowed arm means the
+/// LF path stays allocation-free and provably identical to the bytes
+/// hashed before this function existed.
+///
+/// Only the body is normalised. The frontmatter slice is left as
+/// `split_template` returned it, interior `\r` and all, because
+/// `serde_yaml` accepts that and it is the parsed values that get
+/// stored, not the raw slice.
+fn normalized_body_bytes(body: &str) -> std::borrow::Cow<'_, [u8]> {
+    let trimmed = body.trim_start();
+    if trimmed.contains('\r') {
+        std::borrow::Cow::Owned(trimmed.replace("\r\n", "\n").into_bytes())
+    } else {
+        std::borrow::Cow::Borrowed(trimmed.as_bytes())
+    }
 }
 
 /// Seed the workspace-bundled notation templates into the
@@ -1384,11 +1482,14 @@ async fn seed_templates(
             .map_err(|e| anyhow::anyhow!("{label}: parse frontmatter: {e}"))?;
 
         // The body lives in a content-addressed asset; ingest it (sha
-        // dedup) and reference it by `asset_id`.
-        let body_bytes = body.trim_start().as_bytes();
-        let asset_id = crate::assets::ingest_content(surreal, storage, body_bytes, "text/markdown")
-            .await
-            .map_err(|e| anyhow::anyhow!("{label}: ingest body asset: {e}"))?;
+        // dedup) and reference it by `asset_id`. See
+        // `normalized_body_bytes` for why the line endings are normalised
+        // before hashing.
+        let body_bytes = normalized_body_bytes(body);
+        let asset_id =
+            crate::assets::ingest_content(surreal, storage, &body_bytes, "text/markdown")
+                .await
+                .map_err(|e| anyhow::anyhow!("{label}: ingest body asset: {e}"))?;
 
         // Immutable by policy: a fresh cluster writes the first version;
         // an unchanged re-seed is a no-op; a changed body/form/title
@@ -2126,7 +2227,10 @@ async fn seed_person_project_roles(
 
 #[cfg(test)]
 mod tests {
-    use super::{seed_canonical, seeded_template_codes, SEEDED_TEMPLATES};
+    use super::{
+        normalized_body_bytes, seed_canonical, seeded_template_codes, split_template,
+        TemplateFrontmatter, SEEDED_TEMPLATES,
+    };
     use crate::jurisdictions;
     use crate::persons::{self, Role};
     use crate::question_registry::QuestionType;
@@ -2429,6 +2533,144 @@ mod tests {
                 .iter()
                 .any(|code| code.starts_with("onboarding__retainer_")),
             "the service-specific retainers are retired; one generic retainer remains"
+        );
+    }
+
+    /// A canonical LF template, and the byte-for-byte CRLF twin a
+    /// Windows checkout materialises from it.
+    ///
+    /// The assertions below compare *parsed values* across the pair
+    /// rather than counting errors. The failure mode this guards is
+    /// silent absence — `split_template` returning `None`, or returning
+    /// a frontmatter slice that happens to deserialise into different
+    /// values — and neither shows up in an error count. A count-based
+    /// test would have passed against the original LF-only parser on
+    /// Linux and told us nothing about Windows.
+    const LF_DOC: &str = "---\ncode: t__demo\ntitle: Demo\nrespondent_type: org\nkind: letter\n---\n# Body\n\nSecond paragraph.\n";
+
+    fn crlf(s: &str) -> String {
+        s.replace('\n', "\r\n")
+    }
+
+    fn parse_fm(md: &str) -> (TemplateFrontmatter, String) {
+        let (fm_str, body) = split_template(md).expect("frontmatter present");
+        let fm: TemplateFrontmatter = serde_yaml::from_str(fm_str).expect("frontmatter parses");
+        (fm, body.to_string())
+    }
+
+    #[test]
+    fn split_template_parses_the_same_values_from_lf_and_crlf() {
+        let (lf, lf_body) = parse_fm(LF_DOC);
+        let (crlf_fm, crlf_body) = parse_fm(&crlf(LF_DOC));
+
+        // Every frontmatter value, not merely "it parsed".
+        assert_eq!(lf.code, crlf_fm.code);
+        assert_eq!(lf.title, crlf_fm.title);
+        assert_eq!(lf.respondent_type, crlf_fm.respondent_type);
+        assert_eq!(lf.form, crlf_fm.form);
+        assert_eq!(lf.kind, crlf_fm.kind);
+        assert_eq!(crlf_fm.code, "t__demo");
+        assert_eq!(crlf_fm.kind.as_deref(), Some("letter"));
+
+        // The body is delimited at the same logical point in both. It
+        // still carries CRLF here; normalisation happens at ingest.
+        assert_eq!(crlf_body, crlf(&lf_body));
+        assert_eq!(lf_body, "# Body\n\nSecond paragraph.\n");
+    }
+
+    #[test]
+    fn split_template_accepts_a_crlf_opener_and_closer() {
+        let (fm, body) =
+            parse_fm("---\r\ncode: a\r\ntitle: A\r\nrespondent_type: org\r\n---\r\nbody\r\n");
+        assert_eq!(fm.code, "a");
+        assert_eq!(fm.title, "A");
+        assert_eq!(body, "body\r\n");
+    }
+
+    #[test]
+    fn split_template_accepts_a_crlf_closer_at_eof_without_a_trailing_newline() {
+        for md in [
+            "---\r\ncode: a\r\ntitle: A\r\nrespondent_type: org\r\n---",
+            "---\ncode: a\ntitle: A\nrespondent_type: org\n---",
+        ] {
+            let (fm, body) = parse_fm(md);
+            assert_eq!(fm.code, "a", "{md:?}");
+            assert_eq!(fm.respondent_type, "org", "{md:?}");
+            assert_eq!(body, "", "closer at EOF leaves no body: {md:?}");
+        }
+    }
+
+    #[test]
+    fn split_template_accepts_empty_frontmatter_in_either_ending() {
+        for (md, want_body) in [
+            ("---\n---\nbody\n", "body\n"),
+            ("---\r\n---\r\nbody\r\n", "body\r\n"),
+            ("---\n---", ""),
+            ("---\r\n---\r", ""),
+        ] {
+            let (fm_str, body) =
+                split_template(md).expect("empty frontmatter is still frontmatter");
+            assert_eq!(fm_str, "", "{md:?}");
+            assert_eq!(body, want_body, "{md:?}");
+        }
+    }
+
+    #[test]
+    fn split_template_closes_a_mixed_ending_file_at_the_first_real_delimiter() {
+        // CRLF frontmatter, but the closer was written with LF. The
+        // earlier of the two matches must win, so the `---` inside the
+        // body is not mistaken for the closer.
+        let (fm, body) = parse_fm(
+            "---\r\ncode: a\r\ntitle: A\r\nrespondent_type: org\n---\nbody\n---\ntrailing\n",
+        );
+        assert_eq!(fm.code, "a");
+        assert_eq!(body, "body\n---\ntrailing\n");
+    }
+
+    #[test]
+    fn split_template_still_reports_absent_frontmatter() {
+        // The widened parser must not start accepting documents that
+        // genuinely have no frontmatter — that would trade a false
+        // negative for a false positive.
+        for md in [
+            "# no frontmatter\n",
+            "",
+            "--\ncode: a\n--\n",
+            "---\ncode: a\n",
+        ] {
+            assert!(split_template(md).is_none(), "{md:?} has no frontmatter");
+        }
+    }
+
+    #[test]
+    fn every_bundled_template_splits_on_this_checkout() {
+        // The regression that motivated the fix: on a CRLF checkout this
+        // failed for all of them, and the first caller turned it into a
+        // fatal boot error. Asserts against the real bundled catalog, so
+        // it fails on whichever platform is actually broken.
+        for template in SEEDED_TEMPLATES {
+            let (fm_str, _) = split_template(template.markdown)
+                .unwrap_or_else(|| panic!("{}: frontmatter not found", template.label));
+            let fm: TemplateFrontmatter = serde_yaml::from_str(fm_str)
+                .unwrap_or_else(|e| panic!("{}: frontmatter parse: {e}", template.label));
+            assert!(!fm.code.is_empty(), "{}: empty code", template.label);
+        }
+    }
+
+    #[test]
+    fn template_body_bytes_are_platform_independent() {
+        // The asset-sha question from ENG-265. `ingest_content` is
+        // content-addressed, so these bytes decide the `asset_id`; if an
+        // LF and a CRLF checkout produced different bytes, the same
+        // logical template would fork into two immutable versions
+        // depending on which platform compiled the binary.
+        let crlf_doc = crlf(LF_DOC);
+        let lf_bytes = normalized_body_bytes(split_template(LF_DOC).expect("lf").1);
+        let crlf_bytes = normalized_body_bytes(split_template(&crlf_doc).expect("crlf").1);
+        assert_eq!(lf_bytes, crlf_bytes);
+        assert!(
+            !crlf_bytes.contains(&b'\r'),
+            "normalised body must carry no carriage returns"
         );
     }
 
