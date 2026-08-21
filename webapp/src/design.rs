@@ -1011,6 +1011,16 @@ fn SiteFooterShowcase() -> Element {
                 })
                 .collect(),
                 foundation: "Acme Foundation".to_string(),
+                // The mark notice, driven with the firm's real registration
+                // rather than a synthetic one. The offices and attorneys above
+                // are fixtures because they stand in for regulated firm detail
+                // a gallery has no business asserting; a registration is a
+                // public record, and a made-up number beside a real-looking
+                // link is the one thing this line must never show.
+                trademark: "NEON LAW".to_string(),
+                trademark_registration: "6,325,650".to_string(),
+                trademark_record_url:
+                    "https://tmsearch.uspto.gov/search/search-results/90039224".to_string(),
                 // The open-source line, driven with a count so the gallery
                 // shows the shape the deployed footer renders. The
                 // count-less variant is shown beside the standalone

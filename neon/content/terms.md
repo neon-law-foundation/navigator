@@ -59,10 +59,13 @@ share or sell your mobile phone number or your SMS consent to third parties for 
 
 ## Trademarks
 
-NEON LAW is a registered trademark of Shook Law PLLC (U.S. Reg. No. 6,325,650). The Neon Law Foundation uses the mark
-for its charitable, pro bono, and public-education work under written permission from the registrant. The Neon Law name,
-logo, and related marks remain the exclusive property of Shook Law PLLC, and any other use without prior written
-permission is unauthorized.
+NEON LAW® is a registered trademark of Shook Law PLLC, [U.S. Reg. No.
+6,325,650](https://tmsearch.uspto.gov/search/search-results/90039224), registered on the Principal Register of the
+United States Patent and Trademark Office in Class 45 for legal services. That link is the register's own record, so you
+can verify the registration and its owner without taking our word for it. The Neon Law Foundation uses the mark for its
+charitable, pro bono, and public-education work under written permission from the registrant. The Neon Law name, logo,
+and related marks remain the exclusive property of Shook Law PLLC, and any other use without prior written permission is
+unauthorized.
 
 ## Limitation of Liability and Hold Harmless
 

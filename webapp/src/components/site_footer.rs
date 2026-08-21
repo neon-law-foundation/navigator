@@ -220,6 +220,26 @@ pub fn SiteFooterLegal(
     /// the holder.
     #[props(default)]
     foundation: String,
+    /// The registered word mark the site trades under, spelled the way the
+    /// register spells it, and the registration that proves it. Renders one
+    /// notice under the copyright line — the site's two ownership facts read
+    /// together — naming the mark, the registrant, and the number, with the
+    /// number linked to the register's own record so a reader verifies the
+    /// claim there rather than trusting the site's line about itself. That is
+    /// the same rule the bar-licence rows below follow.
+    ///
+    /// The registrant the notice names is `copyright_holder`, because on this
+    /// deploy they are the same legal person and a fourth prop that could
+    /// disagree with the third is a way to publish the wrong owner of a live
+    /// registration. `views::brand` resolves both from the firm brand.
+    ///
+    /// `trademark` or `trademark_registration` empty renders no line at all,
+    /// which is what a deploy holding no registration should publish; with
+    /// `trademark_record_url` empty the notice renders unlinked.
+    #[props(default)]
+    trademark: String,
+    #[props(default)] trademark_registration: String,
+    #[props(default)] trademark_record_url: String,
     /// The firm's own registered address — distinct from `offices`, which are
     /// the walk-in locations in the contact band above. Renders at the very
     /// bottom of the strip, below both columns, beside the Foundation's own
@@ -401,6 +421,38 @@ pub fn SiteFooterLegal(
                         // line naming the entity behind the site.
                         "© {copyright_year} {copyright_holder} and {foundation}"
                     }
+                    // The other ownership fact, directly under the first: the
+                    // wordmark this footer opens on is a registered mark, and
+                    // this is who holds it and under what number. It sits above
+                    // the bar licences because it is a property notice about
+                    // the site rather than regulated attorney copy, and it
+                    // links out for the same reason those rows do — a reader
+                    // checks the register, not the page's word for it.
+                    if !trademark.is_empty() && !trademark_registration.is_empty() {
+                        p { class: "site-footer__trademark",
+                            "{trademark}"
+                            // `line-height: 0` in the stylesheet keeps the
+                            // superscript from stretching the fine print's
+                            // line box; the glyph is part of the mark, not
+                            // decoration, so it stays in the text.
+                            sup { class: "site-footer__trademark-mark", "®" }
+                            " is a registered trademark of {copyright_holder}, "
+                            // The notice ends on the registration, with no
+                            // closing period — the same shape as each bar row
+                            // below. `ExternalLink` closes on its
+                            // leaving-the-site glyph, so punctuation after it
+                            // would set adrift of the number it belongs to.
+                            if trademark_record_url.is_empty() {
+                                "U.S. Reg. No. {trademark_registration}"
+                            } else {
+                                ExternalLink {
+                                    href: trademark_record_url.clone(),
+                                    class: "link-secondary".to_string(),
+                                    "U.S. Reg. No. {trademark_registration}"
+                                }
+                            }
+                        }
+                    }
                     // Who is licensed, where, and under what number — each
                     // linked to the bar's own record so a visitor can verify
                     // the licence rather than take the site's word for it. This
@@ -524,6 +576,10 @@ mod tests {
                     disclaimer: "This is an attorney advertisement.".to_string(),
                     copyright_year: 2026,
                     foundation: "Neon Law Foundation".to_string(),
+                    trademark: "NEON LAW".to_string(),
+                    trademark_registration: "6,325,650".to_string(),
+                    trademark_record_url:
+                        "https://tmsearch.uspto.gov/search/search-results/90039224".to_string(),
                     source_repo: "neon-law-foundation/navigator".to_string(),
                     source_href: "https://github.com/neon-law-foundation/navigator".to_string(),
                     source_stars: 1234u64,
@@ -531,6 +587,82 @@ mod tests {
             }
         }
         ssr(app)
+    }
+
+    /// The mark notice names the mark, the registrant, and the number, and
+    /// links the number to the register's own record.
+    ///
+    /// Order is the substance: the two ownership facts read together, so the
+    /// notice follows the copyright and precedes the bar licences.
+    #[test]
+    fn notices_the_registered_mark_under_the_copyright() {
+        let out = legal_html();
+        assert!(
+            out.contains("NEON LAW") && out.contains("®"),
+            "the mark renders as the register spells it, with its symbol: {out}"
+        );
+        assert!(
+            out.contains("is a registered trademark of Neon Law"),
+            "and names the registrant the copyright line names: {out}"
+        );
+        assert!(
+            out.contains("U.S. Reg. No. 6,325,650"),
+            "the registration is the claim: {out}"
+        );
+        assert!(
+            out.contains(r#"href="https://tmsearch.uspto.gov/search/search-results/90039224""#),
+            "linked to the register's own record: {out}"
+        );
+        let copyright = out.find("site-footer__copyright").expect("the copyright");
+        let mark = out.find("site-footer__trademark").expect("the mark notice");
+        let licences = out.find("site-footer__licenses").unwrap_or(usize::MAX);
+        assert!(
+            copyright < mark && mark < licences,
+            "the ownership facts read together, above the bar rows: {out}"
+        );
+    }
+
+    /// A deploy holding no registration notices none, and one that cites a
+    /// number with no public record renders the claim unlinked rather than
+    /// pointing at nothing.
+    #[test]
+    fn omits_the_mark_notice_when_unregistered_and_the_link_when_unrecorded() {
+        fn unregistered() -> Element {
+            rsx! {
+                SiteFooterLegal {
+                    copyright_holder: "Cascade Law LLP".to_string(),
+                    disclaimer: "This is an attorney advertisement.".to_string(),
+                    copyright_year: 2026,
+                }
+            }
+        }
+        fn unrecorded() -> Element {
+            rsx! {
+                SiteFooterLegal {
+                    copyright_holder: "Neon Law".to_string(),
+                    disclaimer: "This is an attorney advertisement.".to_string(),
+                    copyright_year: 2026,
+                    trademark: "NEON LAW".to_string(),
+                    trademark_registration: "6,325,650".to_string(),
+                }
+            }
+        }
+
+        let out = ssr(unregistered);
+        assert!(
+            !out.contains("site-footer__trademark") && !out.contains("registered trademark"),
+            "no registration, no notice: {out}"
+        );
+
+        let out = ssr(unrecorded);
+        assert!(
+            out.contains("U.S. Reg. No. 6,325,650"),
+            "the claim still renders: {out}"
+        );
+        assert!(
+            !out.contains("tmsearch"),
+            "with no link to a record it does not have: {out}"
+        );
     }
 
     /// The open-source line names the repository, links it, and prints the

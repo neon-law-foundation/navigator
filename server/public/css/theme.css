@@ -1191,6 +1191,16 @@ a.nav-pagination__link:hover {
   color: inherit;
 }
 
+/* The registered-mark symbol in the trademark notice. A bare `<sup>` is set
+   `vertical-align: super` at `smaller`, which grows the line box it sits in and
+   opens a gap above one line of the fine print but not the others. Zeroing its
+   line height takes it out of that calculation, so the notice sets on the same
+   rhythm as the copyright line above it. */
+.site-footer__trademark-mark {
+  font-size: 0.7em;
+  line-height: 0;
+}
+
 /* Where to read the software the platform attribution above names. Sized with
    the strip rather than louder than it: it is a developer surface in fine
    print, not something the firm is announcing. */
