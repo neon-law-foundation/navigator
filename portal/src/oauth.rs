@@ -553,7 +553,13 @@ fn default_return_to() -> String {
 /// neutral default and the retired `/portal` fall through to the tier landing —
 /// any other `return_to` is an explicit deep link (an anonymous bounce recorded
 /// the page the visitor was reaching for) and is returned unchanged.
-fn post_login_landing(role: Role, return_to: &str) -> String {
+///
+/// Public because it is the landing contract the Using workshop teaches in
+/// print, and `workshop_claims_grounding` asserts the deck against this
+/// function rather than restating the rule. A test that re-implemented the
+/// fork would agree with itself while the deck went stale.
+#[must_use]
+pub fn post_login_landing(role: Role, return_to: &str) -> String {
     if !return_to.is_empty() && return_to != "/portal" {
         return return_to.to_string();
     }

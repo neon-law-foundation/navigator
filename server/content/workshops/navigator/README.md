@@ -1,3 +1,9 @@
+---
+kind: workshop
+title: Using Neon Law Navigator
+description: Work one litigation matter end to end, from the retainer template to the client portal.
+---
+
 # Using the Navigator Workshop
 
 This workshop uses one local matter from start to finish: **Cruller v. Prine**. The matter code is `sample-litigation`,
@@ -31,7 +37,7 @@ The local development fixture seeds three open Projects. This is the one the wor
 
 - **Name** — Cruller v. Prine
 - **Code** — `sample-litigation`
-- **Matter** — premises liability
+- **Matter** — trespass to land, and rescission of the doughnut instrument
 - **Repository** —
   [navigator-sample-project-litigation](https://github.com/neon-law-foundation/navigator-sample-project-litigation)
 - **Portal** — `/app/projects/sample-litigation/portal/`
