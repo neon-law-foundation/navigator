@@ -83,8 +83,8 @@ pub async fn call(
     // row per (person, project), the derived participation, and the
     // lawyer-DRI-lockout guard — instead of writing `person_project_role`
     // directly. The command boundary is the point of #355.
-    let (id, role, created) = if let Some(row) = existing {
-        (row.id, row.participation, false)
+    let (row, created) = if let Some(row) = existing {
+        (row, false)
     } else {
         let inserted = store::participation::add_participant(
             surreal,
@@ -99,23 +99,36 @@ pub async fn call(
         )
         .await
         .map_err(map_add_error)?;
-        (inserted.id, inserted.participation, true)
+        (inserted, true)
     };
 
+    // `participation` and the two DRI markers are three separate fields
+    // because they are three separate facts: the participation is the
+    // person's tier on the matter, and a DRI marker is accountability
+    // riding the same row. Flattening them into one enum would teach the
+    // model a vocabulary `person_project_roles` does not have.
     let verb = if created { "Linked" } else { "Already linked" };
+    let dri = match (row.is_lawyer_dri, row.is_client_dri) {
+        (true, true) => ", DRI on both sides",
+        (true, false) => ", lawyer DRI",
+        (false, true) => ", client DRI",
+        (false, false) => "",
+    };
     Ok(json!({
         "content": [{
             "type": "text",
             "text": format!(
-                "{verb} person={} → project={} as {role} (link id={id}).",
-                args.person_id, args.project_id
+                "{verb} person={} → project={} as {}{dri} (link id={}).",
+                args.person_id, args.project_id, row.participation, row.id
             )
         }],
         "structuredContent": {
-            "id": id,
+            "id": row.id,
             "person_id": args.person_id,
             "project_id": args.project_id,
-            "role": role,
+            "participation": row.participation,
+            "is_lawyer_dri": row.is_lawyer_dri,
+            "is_client_dri": row.is_client_dri,
             "created": created,
         }
     }))
@@ -211,8 +224,17 @@ mod tests {
             )
             .await
             .unwrap();
-            assert_eq!(r["structuredContent"]["role"], expected);
+            assert_eq!(r["structuredContent"]["participation"], expected);
             assert_eq!(r["structuredContent"]["created"], true);
+            // Participation and accountability are separate axes, so the
+            // response carries all three rather than one flattened enum.
+            // Linking never moves a DRI marker, so both are false here.
+            assert_eq!(r["structuredContent"]["is_lawyer_dri"], false);
+            assert_eq!(r["structuredContent"]["is_client_dri"], false);
+            assert!(
+                r["structuredContent"]["role"].is_null(),
+                "`role` is the person's tier, not the matter-side word: {r}"
+            );
             let all = store::projects::participations_for_project(&surreal, projid)
                 .await
                 .unwrap();

@@ -87,12 +87,12 @@ a client configuration, not by hand: started in a terminal it waits on stdin and
 
 ## What Claude can and cannot do
 
-The catalog Claude sees is deliberately narrower than the deployment's — ten tools of the fourteen. The reads, less one
-that is not yet matter-scoped, plus the writes that touch only the firm's own records:
+The catalog Claude sees is deliberately narrower than the deployment's — eleven tools of the fourteen. Every read, plus
+the writes that touch only the firm's own records:
 
 | Offered | Why |
 | --- | --- |
-| 6 of the 7 reads | a lookup changes nothing |
+| all 7 reads | a lookup changes nothing, and answers through the caller's own lens |
 | `aida_create_person` | a contact row, visible and correctable in `/app/admin` |
 | `aida_create_project` | opens a matter, on the attorney's own conflict attestation |
 | `aida_link_person_project` | participation on a matter |
@@ -103,7 +103,6 @@ that is not yet matter-scoped, plus the writes that touch only the firm's own re
 | `aida_send_welcome_email` | it emails a client |
 | `aida_create_notation` | a Notation is a binding legal artifact |
 | `aida_answer_notation` | it answers one |
-| `aida_list_projects` | it returns every matter, not the caller's — see below |
 
 The withheld three need a lawyer's explicit approval, which is an `input-required` pause on the A2A side. **MCP has no
 way to pause a call and ask a person.** A two-call handshake would not fix that: if Claude makes both calls, the model
@@ -113,11 +112,33 @@ Naming one anyway is refused by the bridge without any dispatch, with a result s
 
 Do those three in `/app`, where a human approves in a UI and the approval is recorded against the matter.
 
-`aida_list_projects` is withheld for a different reason: it reaches `store::projects::all` with no principal, so it
-returns every matter in the deployment. Since ENG-81 the matter surface is participation-scoped for every tier, Lawyer
-included, so an unscoped list is a cross-matter disclosure. Endpoint policy already limits this whole surface to lawyer
-tier, so it is a firm-internal disclosure rather than a client-facing one — still one. It becomes available once the
-read takes a principal (ENG-216). Until then, use the matter list in the app.
+Confirmation is the only reason anything is withheld. It was not always: `aida_list_projects` was also held back,
+because the read reached `store::projects::all` with no principal and returned every matter in the deployment — a
+cross-matter disclosure, firm-internal rather than client-facing but a disclosure all the same. Since ENG-216 the read
+answers through the caller's own lens, so there is nothing left to withhold.
+
+Which lens depends on the tier, and the two answer different questions, so they return different shapes. The `lens`
+field on the response says which one came back.
+
+| Tier | Lens | What comes back | Predicate |
+| --- | --- | --- | --- |
+| `lawyer`, `clerk`, `client` | `membership` | the matters the caller is on, with `id` | `access::visible_projects` |
+| `owner`, `admin` | `directory` | `code`, `name`, `status`, `lawyer_dris` | `projects::matter_directory` |
+
+The membership lens is the same predicate `/app/projects` renders from, and it carries the `id` the write tools take.
+
+Owner and Admin are not invited to matters, so they hold no participation row and the membership lens would correctly
+show them nothing. The directory lens is oversight instead: it answers which matters exist and who is accountable for
+each, and carries nothing a matter *contains*. There is no `id` on it deliberately — `code` is the stable handle, and
+anything a matter holds is membership's to disclose. A `lawyer` does not get this lens.
+
+An authenticated email with no `persons` row lists nothing, and neither does a caller whose tier holds no matching
+participation row. Sign-in does not create a Person, so a stranger with a valid token is exactly the caller who must
+reach nothing.
+
+`aida_show_person` searches the firm's own people directory, so it is firm-side: `owner`, `admin`, and `lawyer` read it,
+while `clerk` and `client` are refused. A refusal rather than an empty list, because nothing the model could type would
+make the read succeed, and "no matches" would teach it the directory is empty.
 
 ## Opening a matter end to end
 

@@ -9,12 +9,18 @@
 //! model can disambiguate in a follow-up turn. Zero matches is a
 //! successful empty result (`count: 0`), not an error — fuzzy
 //! searches succeed even when they find nothing.
+//!
+//! The directory it searches is the firm's own, so the caller has to be
+//! on the firm's side of it — see [`ReadScope::reads_firm_directory`]. A
+//! client or clerk caller is refused rather than answered with an empty
+//! list: nothing they could type would make the read succeed, and saying
+//! "no matches" would teach the model the directory is empty.
 
 use serde::Deserialize;
 use serde_json::{json, Value};
 use store::people_commands::search_people;
 
-use super::ToolError;
+use super::{ReadScope, ToolError};
 
 /// Cap on the number of rows returned in a single response. Keeps the
 /// MCP payload bounded when the model passes an overly broad needle
@@ -61,8 +67,14 @@ struct Args {
 /// Run the fuzzy search and return the MCP `result` payload.
 pub async fn call(
     surreal: &store::surreal::SurrealDb,
+    scope: &ReadScope,
     arguments: &Value,
 ) -> Result<Value, ToolError> {
+    if !scope.reads_firm_directory() {
+        return Err(ToolError::Forbidden(
+            "the people directory is firm-side; this caller's tier does not reach it".into(),
+        ));
+    }
     let args: Args = super::decode_args(arguments)?;
 
     let name = args
@@ -137,7 +149,7 @@ fn describe_needle(name: Option<&str>, email: Option<&str>) -> String {
 #[cfg(test)]
 mod tests {
     use super::{call, descriptor, MAX_RESULTS};
-    use crate::tools::ToolError;
+    use crate::tools::{ReadScope, ToolError};
     use serde_json::json;
 
     /// `aida_show_person` reads only `persons`, so its tests need only
@@ -173,7 +185,9 @@ mod tests {
         let surreal = surreal().await;
         seed(&surreal, "Libra", "libra@example.com").await;
         // Lowercased fragment of the *middle* of the name.
-        let result = call(&surreal, &json!({ "name": "ibr" })).await.unwrap();
+        let result = call(&surreal, &ReadScope::Deployment, &json!({ "name": "ibr" }))
+            .await
+            .unwrap();
         assert_eq!(result["structuredContent"]["count"], 1);
         assert_eq!(result["structuredContent"]["persons"][0]["name"], "Libra");
     }
@@ -183,9 +197,13 @@ mod tests {
         let surreal = surreal().await;
         seed(&surreal, "Libra", "libra@neonlaw.com").await;
         seed(&surreal, "Taurus", "taurus@example.com").await;
-        let result = call(&surreal, &json!({ "email": "neonlaw" }))
-            .await
-            .unwrap();
+        let result = call(
+            &surreal,
+            &ReadScope::Deployment,
+            &json!({ "email": "neonlaw" }),
+        )
+        .await
+        .unwrap();
         assert_eq!(result["structuredContent"]["count"], 1);
         assert_eq!(
             result["structuredContent"]["persons"][0]["email"],
@@ -201,7 +219,9 @@ mod tests {
         seed(&surreal, "Sagittarius", "sagittarius@example.com").await;
         seed(&surreal, "Aquarius", "aquarius@example.com").await;
         seed(&surreal, "Aries", "aries@example.com").await;
-        let result = call(&surreal, &json!({ "name": "ari" })).await.unwrap();
+        let result = call(&surreal, &ReadScope::Deployment, &json!({ "name": "ari" }))
+            .await
+            .unwrap();
         assert_eq!(result["structuredContent"]["count"], 3);
         let names: Vec<&str> = result["structuredContent"]["persons"]
             .as_array()
@@ -218,9 +238,13 @@ mod tests {
         seed(&surreal, "Aquarius", "aquarius@neonlaw.com").await;
         seed(&surreal, "Aries", "aries@example.com").await;
         seed(&surreal, "Sagittarius", "sagittarius@neonlaw.com").await;
-        let result = call(&surreal, &json!({ "name": "ari", "email": "neonlaw" }))
-            .await
-            .unwrap();
+        let result = call(
+            &surreal,
+            &ReadScope::Deployment,
+            &json!({ "name": "ari", "email": "neonlaw" }),
+        )
+        .await
+        .unwrap();
         assert_eq!(result["structuredContent"]["count"], 2);
         let names: Vec<&str> = result["structuredContent"]["persons"]
             .as_array()
@@ -234,7 +258,9 @@ mod tests {
     #[tokio::test]
     async fn missing_both_keys_is_invalid_arguments() {
         let surreal = surreal().await;
-        let err = call(&surreal, &json!({})).await.unwrap_err();
+        let err = call(&surreal, &ReadScope::Deployment, &json!({}))
+            .await
+            .unwrap_err();
         match err {
             ToolError::InvalidArguments(m) => {
                 assert!(m.contains("name") && m.contains("email"));
@@ -246,9 +272,13 @@ mod tests {
     #[tokio::test]
     async fn whitespace_only_keys_are_treated_as_missing() {
         let surreal = surreal().await;
-        let err = call(&surreal, &json!({ "name": "   ", "email": "" }))
-            .await
-            .unwrap_err();
+        let err = call(
+            &surreal,
+            &ReadScope::Deployment,
+            &json!({ "name": "   ", "email": "" }),
+        )
+        .await
+        .unwrap_err();
         assert!(matches!(err, ToolError::InvalidArguments(_)));
     }
 
@@ -256,9 +286,13 @@ mod tests {
     async fn whitespace_around_needle_is_trimmed_before_matching() {
         let surreal = surreal().await;
         seed(&surreal, "Libra", "libra@example.com").await;
-        let result = call(&surreal, &json!({ "name": "  libra\n" }))
-            .await
-            .unwrap();
+        let result = call(
+            &surreal,
+            &ReadScope::Deployment,
+            &json!({ "name": "  libra\n" }),
+        )
+        .await
+        .unwrap();
         assert_eq!(result["structuredContent"]["count"], 1);
     }
 
@@ -266,7 +300,13 @@ mod tests {
     async fn no_match_returns_empty_result_not_an_error() {
         let surreal = surreal().await;
         seed(&surreal, "Libra", "libra@example.com").await;
-        let result = call(&surreal, &json!({ "name": "ghost" })).await.unwrap();
+        let result = call(
+            &surreal,
+            &ReadScope::Deployment,
+            &json!({ "name": "ghost" }),
+        )
+        .await
+        .unwrap();
         assert_eq!(result["structuredContent"]["count"], 0);
         assert_eq!(
             result["structuredContent"]["persons"]
@@ -283,9 +323,13 @@ mod tests {
     #[tokio::test]
     async fn no_match_with_both_keys_describes_both_in_summary() {
         let surreal = surreal().await;
-        let result = call(&surreal, &json!({ "name": "ghost", "email": "void" }))
-            .await
-            .unwrap();
+        let result = call(
+            &surreal,
+            &ReadScope::Deployment,
+            &json!({ "name": "ghost", "email": "void" }),
+        )
+        .await
+        .unwrap();
         assert_eq!(result["structuredContent"]["count"], 0);
         let text = result["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("name~=ghost"), "got: {text}");
@@ -299,18 +343,95 @@ mod tests {
         for i in 0..total {
             seed(&surreal, "Aries", &format!("user{i:03}@example.com")).await;
         }
-        let result = call(&surreal, &json!({ "name": "aries" })).await.unwrap();
+        let result = call(
+            &surreal,
+            &ReadScope::Deployment,
+            &json!({ "name": "aries" }),
+        )
+        .await
+        .unwrap();
         assert_eq!(
             result["structuredContent"]["count"].as_u64().unwrap(),
             MAX_RESULTS
         );
     }
 
+    /// The people directory is the firm's own, so a client or clerk
+    /// caller is refused rather than answered with an empty list —
+    /// nothing they could type would make the read succeed, and "no
+    /// matches" would teach the model the directory is empty.
+    #[tokio::test]
+    async fn the_client_and_clerk_tiers_are_refused_the_firm_directory() {
+        let surreal = surreal().await;
+        seed(&surreal, "Libra", "libra@neonlaw.com").await;
+        for role in [store::persons::Role::Client, store::persons::Role::Clerk] {
+            let scope = ReadScope::Membership {
+                person_id: uuid::Uuid::now_v7(),
+                role,
+            };
+            let err = call(&surreal, &scope, &json!({ "email": "neonlaw" }))
+                .await
+                .unwrap_err();
+            match err {
+                ToolError::Forbidden(m) => assert!(m.contains("firm-side"), "{role:?}: {m}"),
+                other => panic!("expected Forbidden for {role:?}, got {other:?}"),
+            }
+        }
+    }
+
+    /// An authenticated email with no `persons` row reaches nothing.
+    #[tokio::test]
+    async fn an_unlinked_caller_is_refused_the_firm_directory() {
+        let surreal = surreal().await;
+        seed(&surreal, "Libra", "libra@neonlaw.com").await;
+        let err = call(
+            &surreal,
+            &ReadScope::Unlinked,
+            &json!({ "email": "neonlaw" }),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, ToolError::Forbidden(_)));
+    }
+
+    /// The firm tiers do read it: a lawyer needs a `person_id` before
+    /// they can link one to a matter, and oversight legitimately looks a
+    /// person up.
+    #[tokio::test]
+    async fn the_firm_tiers_read_the_directory() {
+        let surreal = surreal().await;
+        seed(&surreal, "Libra", "libra@neonlaw.com").await;
+        let scopes = [
+            ReadScope::Membership {
+                person_id: uuid::Uuid::now_v7(),
+                role: store::persons::Role::Lawyer,
+            },
+            ReadScope::Directory {
+                role: store::persons::Role::Owner,
+            },
+            ReadScope::Directory {
+                role: store::persons::Role::Admin,
+            },
+        ];
+        for scope in &scopes {
+            let r = call(&surreal, scope, &json!({ "email": "neonlaw" }))
+                .await
+                .unwrap();
+            assert_eq!(r["structuredContent"]["count"], 1, "{scope:?}");
+        }
+    }
+
     #[tokio::test]
     async fn summary_text_uses_singular_for_one_match() {
         let surreal = surreal().await;
         seed(&surreal, "Libra", "libra@example.com").await;
-        let result = call(&surreal, &json!({ "name": "libra" })).await.unwrap();
+        let result = call(
+            &surreal,
+            &ReadScope::Deployment,
+            &json!({ "name": "libra" }),
+        )
+        .await
+        .unwrap();
         let text = result["content"][0]["text"].as_str().unwrap();
         assert!(text.starts_with("Found 1 person:"), "got: {text}");
         assert!(text.contains("Libra"));
@@ -321,7 +442,9 @@ mod tests {
         let surreal = surreal().await;
         seed(&surreal, "Aquarius", "aquarius@example.com").await;
         seed(&surreal, "Aries", "aries@example.com").await;
-        let result = call(&surreal, &json!({ "name": "ari" })).await.unwrap();
+        let result = call(&surreal, &ReadScope::Deployment, &json!({ "name": "ari" }))
+            .await
+            .unwrap();
         let text = result["content"][0]["text"].as_str().unwrap();
         assert!(text.starts_with("Found 2 people:"), "got: {text}");
     }
