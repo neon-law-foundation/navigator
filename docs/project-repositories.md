@@ -96,11 +96,17 @@ every developer.
 
 ## The organization is configuration, not a name in source
 
-Navigator spells no organization and no forge host anywhere in its source. `NAVIGATOR_GITHUB_ORG` names the organization
-this deployment's *own* automation occupies. `NAVIGATOR_GIT_HOST` is the single enterprise host `ops github setup` may
-write repository governance to — an authorization boundary, so a remote pointing anywhere else is refused before a token
-is read. `cli/tests/forge_coordinate_retired.rs` is the guard that keeps both out of source, and that keeps neither from
-being composed into a Project's URL.
+Navigator spells no organization in its source, and one forge host: the named default
+`cloud::workspace::DEFAULT_GIT_HOST`. `NAVIGATOR_GITHUB_ORG` names the organization this deployment's *own* automation
+occupies, and `NAVIGATOR_GIT_HOST` names the host it lives on. The two are one `(host, organization)` coordinate — where
+this deployment's Project repositories are created, and the boundary `ops github setup` refuses a governance write
+outside. Two organizations are admissible on a governance write: the public one holding Navigator itself, and this
+deployment's own. A remote in neither is refused before a token is read.
+
+Only the host carries a default, and only because it has a right answer. An organization has none, so a named deployment
+must state it. `cli/tests/forge_coordinate_retired.rs` is the guard that keeps the organization out of source, admits
+exactly one spelling of the host — that constant's own declaration — and keeps neither from being composed into a
+Project's URL.
 
 **Neither names a client matter's source.** That is `project.repository_url`, which is data. A deployment's organization
 and a Project's repository are independent: the Foundation's deployment can serve a matter whose source lives in a

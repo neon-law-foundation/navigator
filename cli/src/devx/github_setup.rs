@@ -1,26 +1,33 @@
 //! Reconciliation for repository-side GitHub policy.
 //!
 //! `ops github setup [repository]` keeps the merge gate reviewable in Rust
-//! instead of in GitHub's settings UI, and it governs *every* repository on
-//! this enterprise rather than a hard-coded pair. The target comes from the
-//! argument, else `GITHUB_REPOSITORY`, else the checkout's `origin` remote,
-//! and the host in that remote is the authorization boundary: a remote
-//! pointing anywhere but the configured enterprise host is refused before a
-//! token is read.
+//! instead of in GitHub's settings UI, and it governs every repository the Firm
+//! administers rather than a hard-coded pair. The target comes from the
+//! argument, else `GITHUB_REPOSITORY`, else the checkout's `origin` remote.
 //!
-//! The host is *configuration* ([`cloud::workspace::NAVIGATOR_GIT_HOST`]), read
-//! where it is used and with no default. That keeps the shape ENG-58
-//! established — governance is scoped to the **host**, never to a list of
-//! organization names — while taking the one forge coordinate this command
-//! carried out of source. There is deliberately no public-forge fallback:
-//! every repository the Firm governs lives on this tenant, so a run that
-//! silently reached a public API would be a bug rather than a convenience.
+//! # The boundary is a `(host, organization)` pair
 //!
-//! Policy is still explicit, just no longer an allowlist of names. Every
-//! repository gets [`COMMON_POLICY`] — the integrity gate plus the code-owner
-//! review gate. `neon-law-foundation/navigator` additionally carries the release-tag
-//! ruleset, the `DevX` labels, and the App assertion its own automation depends
-//! on.
+//! Governance used to be scoped to the **host** alone, which ENG-58 chose for a
+//! good reason: on a private tenant, *every repository on this host* and *every
+//! repository the Firm owns* were the same set, so a host check needed no list
+//! of organization names to keep true. On a public forge they are not the same
+//! set at all — a host check there admits any repository on GitHub whose
+//! checkout happens to be the working directory.
+//!
+//! So the boundary took the organization back, and is strictly tighter than the
+//! host check it replaces. Two organizations are admissible: the public one
+//! holding `navigator` itself, and the deployment's own
+//! [`cloud::workspace::NAVIGATOR_GITHUB_ORG`]. Both halves come from
+//! configuration through [`GovernedForge`], which supplies the public half from
+//! source because Navigator's own URL is not configuration.
+//!
+//! There is a public-forge default now, and it is the common case rather than a
+//! convenience: [`cloud::workspace::DEFAULT_GIT_HOST`] is where Navigator lives,
+//! so a fresh clone, a laptop, or a CI job that sourced no deployment config can
+//! run this command. What the old refusal was protecting against — a governance
+//! write aimed at a host nobody chose — is now caught by the organization half.
+//!
+//! Policy is explicit and forks by organization: see [`policy_for`].
 
 use std::collections::HashMap;
 use std::env;
@@ -31,33 +38,99 @@ use anyhow::{anyhow, bail, Context, Result};
 use reqwest::header;
 use serde::{Deserialize, Serialize};
 
-/// The configured GitHub Enterprise Cloud host this command may write to.
+/// The `(host, organization)` pair this command may write governance to.
 ///
-/// This is the whole authorization boundary. `ops github setup` takes no host
-/// from the caller: it derives both the repository and the API base from a
-/// remote that must live on the configured host, so an incidental checkout of
-/// some public-forge repository cannot become a write target by being the
-/// current directory.
-///
-/// Read where it is needed rather than at startup, so a run that names its
-/// repository explicitly and overrides [`API_BASE_ENV`] needs no host at all.
-///
-/// # Errors
-///
-/// When [`cloud::workspace::NAVIGATOR_GIT_HOST`] is unset or blank. There is no
-/// default: a fallback would silently aim a governance write at a host the Firm
-/// does not administer.
-fn enterprise_host() -> Result<String> {
-    optional_env(cloud::workspace::NAVIGATOR_GIT_HOST).ok_or_else(|| {
+/// This is the whole authorization boundary. `ops github setup` takes neither
+/// half from the caller: it derives the repository, the organization, and the
+/// API base from configuration and from a remote that must fall inside the
+/// pair, so an incidental checkout of somebody else's repository cannot become
+/// a write target by being the current directory.
+#[derive(Debug)]
+struct GovernedForge {
+    /// The forge host, from [`cloud::workspace::WorkspaceConfig`].
+    host: String,
+    /// The organizations whose repositories this run may reconcile.
+    ///
+    /// Always the public organization holding `navigator`; additionally the
+    /// deployment's own organization when a deployment is configured. Never a
+    /// list from the caller.
+    organizations: Vec<String>,
+}
+
+impl GovernedForge {
+    /// Resolve the pair from configuration.
+    ///
+    /// A process that operates **no deployment** is the ordinary case here — a
+    /// fresh clone, a laptop, a CI job reconciling the public repositories — and
+    /// it governs the public organization on the default host. A process
+    /// operating a **misconfigured** deployment is not the same thing and does
+    /// not fall back: the error names the key, because silently governing only
+    /// the public organization would look like success while doing less than
+    /// asked.
+    ///
+    /// # Errors
+    ///
+    /// When a deployment is named but its coordinates do not resolve.
+    fn from_lookup<F: Fn(&str) -> Option<String>>(get: F) -> Result<Self> {
+        match cloud::workspace::WorkspaceConfig::from_lookup(get) {
+            Ok(config) => Ok(Self {
+                host: config.host,
+                organizations: vec![public_organization().to_string(), config.organization],
+            }),
+            Err(cloud::workspace::WorkspaceConfigError::MissingDeployment) => Ok(Self {
+                host: cloud::workspace::DEFAULT_GIT_HOST.to_string(),
+                organizations: vec![public_organization().to_string()],
+            }),
+            Err(other) => Err(anyhow!(
+                "resolve the (host, organization) pair `ops github setup` governs: {other}"
+            )),
+        }
+    }
+
+    /// The REST base for this host.
+    ///
+    /// Composed rather than spelled, so the API base and the boundary cannot
+    /// disagree: a run reconciling a repository on one host can only ever talk
+    /// to that host's API.
+    fn api_base(&self) -> String {
+        format!("https://api.{}", self.host)
+    }
+
+    /// Whether an `owner/name` slug falls inside the pair's organizations.
+    fn admits(&self, slug: &str) -> bool {
+        let owner = slug.split('/').next().unwrap_or_default();
+        self.organizations
+            .iter()
+            .any(|org| org.eq_ignore_ascii_case(owner))
+    }
+
+    /// The refusal, spelling both halves so an operator can see which one they
+    /// are outside.
+    fn refuse(&self, what: &str, slug: &str) -> anyhow::Error {
         anyhow!(
-            "{} must name the enterprise host `ops github setup` governs; there is no default",
-            cloud::workspace::NAVIGATOR_GIT_HOST
+            "{what} names {slug}, which is in none of the organizations `ops github setup` \
+             governs on {}: {}",
+            self.host,
+            self.organizations.join(", ")
         )
-    })
+    }
 }
 
 /// The one repository carrying more than [`COMMON_POLICY`].
 const NAVIGATOR_SLUG: &str = "neon-law-foundation/navigator";
+
+/// The organization Navigator itself lives in, and the one organization
+/// admissible on every run.
+///
+/// Derived from [`NAVIGATOR_SLUG`] rather than written twice: Navigator's own
+/// public URL is a source constant, so the organization holding it cannot
+/// disagree with the slug naming it.
+fn public_organization() -> &'static str {
+    NAVIGATOR_SLUG
+        .split('/')
+        .next()
+        .expect("NAVIGATOR_SLUG is an owner/name slug")
+}
 
 /// The Homebrew tap, the one administered repository outside the merge gate.
 ///
@@ -191,14 +264,14 @@ fn policy_for(slug: &str) -> RepositoryPolicy {
     }
 }
 
-/// A resolved repository on the configured enterprise host, with the policy it will be
-/// reconciled against.
+/// A resolved repository inside the governed `(host, organization)` pair, with
+/// the policy it will be reconciled against.
 ///
 /// This used to be a two-variant enum, which meant a repository could not be
 /// governed until someone added its name to the CLI. The authorization boundary
-/// is now the *host*, not a list: anything on the configured enterprise host is
-/// in scope and anything else is refused before a token is read, so an
-/// incidental public-forge checkout still cannot become a write target by being
+/// is now the pair: anything in an admissible organization on the configured
+/// host is in scope and anything else is refused before a token is read, so a
+/// checkout of somebody else's repository cannot become a write target by being
 /// the current directory.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RepositoryTarget {
@@ -212,27 +285,43 @@ impl RepositoryTarget {
     /// argument, then `GITHUB_REPOSITORY` (how a workflow names itself), then
     /// the `origin` remote of the current checkout.
     ///
-    /// Only the remote carries a host, so only the remote path can fail the
-    /// host check. The other two are `owner/name` alone and are read as naming
-    /// a repository on the configured enterprise host — the only host the
-    /// derived API base can address anyway.
+    /// Only the remote carries a host, so only the remote path can fail the host
+    /// half of the boundary. Every path yields an owner, so **all three** are
+    /// held to the organization half — including the explicit argument, which
+    /// under a host-only boundary was checked no further than its shape.
     ///
     /// Idempotency starts here: resolving twice from the same inputs yields the
     /// same target and the same policy, so a re-run reconciles rather than
     /// re-creating. `run` then converges each ruleset and label by reading the
     /// live state first and writing only a difference.
     pub fn resolve(explicit: Option<String>) -> Result<Self> {
-        let slug = match explicit.or_else(|| optional_env(REPOSITORY_ENV)) {
-            Some(value) => validate_slug(&value)?,
-            None => origin_slug()?,
+        Self::resolve_within(
+            explicit.or_else(|| optional_env(REPOSITORY_ENV)),
+            &GovernedForge::from_lookup(|key| env::var(key).ok())?,
+            optional_env(API_BASE_ENV),
+        )
+    }
+
+    /// The resolution itself, with every environment read already done.
+    ///
+    /// Split out so the tests can drive the whole path — including the shape a
+    /// fresh clone has, where nothing is configured — without mutating process
+    /// environment that a parallel test is also reading.
+    fn resolve_within(
+        named: Option<String>,
+        forge: &GovernedForge,
+        api_base_override: Option<String>,
+    ) -> Result<Self> {
+        let (what, slug) = match named {
+            Some(value) => ("the repository named", validate_slug(&value)?),
+            None => ("the `origin` remote", origin_slug(forge)?),
         };
-        // The host is needed only to derive the API base. A caller that
-        // overrides the base has already named the endpoint, so it is not asked
-        // for.
-        let api_base = match optional_env(API_BASE_ENV) {
-            Some(base) => base,
-            None => format!("https://api.{}", enterprise_host()?),
-        };
+        if !forge.admits(&slug) {
+            return Err(forge.refuse(what, &slug));
+        }
+        // A caller that overrides the base has already named the endpoint, so
+        // the host's own base is not composed.
+        let api_base = api_base_override.unwrap_or_else(|| forge.api_base());
         Ok(Self {
             api_base,
             policy: policy_for(&slug),
@@ -266,8 +355,8 @@ fn validate_slug(value: &str) -> Result<String> {
 }
 
 /// Read `origin` from the current checkout and reduce it to an `owner/name` on
-/// this enterprise.
-fn origin_slug() -> Result<String> {
+/// the governed host.
+fn origin_slug(forge: &GovernedForge) -> Result<String> {
     let output = Command::new("git")
         .args(["remote", "get-url", "origin"])
         .output()
@@ -279,16 +368,16 @@ fn origin_slug() -> Result<String> {
         );
     }
     let url = String::from_utf8(output.stdout).context("decode the `origin` remote URL")?;
-    slug_from_remote(url.trim(), &enterprise_host()?)
+    slug_from_remote(url.trim(), &forge.host)
 }
 
-fn slug_from_remote(url: &str, enterprise: &str) -> Result<String> {
+fn slug_from_remote(url: &str, governed_host: &str) -> Result<String> {
     let (host, path) =
         split_remote(url).ok_or_else(|| anyhow!("cannot parse the `origin` remote {url:?}"))?;
-    if !host.eq_ignore_ascii_case(enterprise) {
+    if !host.eq_ignore_ascii_case(governed_host) {
         bail!(
-            "`origin` points at {host}, not {enterprise}; `ops github setup` only \
-             reconciles repositories on the {enterprise} enterprise"
+            "`origin` points at {host}, not {governed_host}; `ops github setup` only \
+             reconciles repositories on {governed_host}"
         );
     }
     let path = path.trim_matches('/');
@@ -1146,10 +1235,10 @@ fn assert_codeowners(contents: &str) -> Result<Vec<String>> {
 /// review gate switched on, a CODEOWNERS file committed, and no owner on any
 /// path.
 ///
-/// It is not a hypothetical. This enterprise is EMU-provisioned through Google
-/// SAML and shares no account namespace with github.com, so a handle carried
-/// over from a github.com checkout resolves nowhere here and fails exactly that
-/// quietly.
+/// It is not a hypothetical. A handle carried over from a checkout on one forge
+/// resolves nowhere on another that shares no account namespace with it — an
+/// EMU-provisioned tenant and github.com being the pair that produced this
+/// failure — and it fails exactly that quietly.
 async fn assert_owners_resolve(client: &GitHubClient, owners: &[String]) -> Result<()> {
     for owner in owners {
         // An email owner cannot be resolved through the API — GitHub matches it
@@ -1253,9 +1342,9 @@ async fn assert_required_check_job(client: &GitHubClient) -> Result<()> {
 /// The numeric id of the Actions App **on the host this run addresses**, read
 /// from that host.
 ///
-/// The id is per-host — the same App is a different number on github.com than on
-/// an enterprise tenant — and requiring the `ci` context under the wrong one
-/// binds the rule to an App that never posts there. GitHub accepts such a rule
+/// The id is per-host — the same App is a different number on one forge than on
+/// another — and requiring the `ci` context under the wrong one binds the rule
+/// to an App that never posts there. GitHub accepts such a rule
 /// and reports it as present, so the gate silently matches nothing and every
 /// pull request looks guarded while being unguarded. That is worse than no
 /// ruleset, because nothing looks wrong.
@@ -1270,9 +1359,8 @@ async fn assert_required_check_job(client: &GitHubClient) -> Result<()> {
 ///     --jq '.check_runs[] | "\(.name) \(.app.id) \(.app.slug)"'
 /// ```
 ///
-/// A failure here stops the reconcile rather than falling back to a guess,
-/// matching [`enterprise_host`]: there is no default, because a wrong id writes
-/// a gate that does not gate.
+/// A failure here stops the reconcile rather than falling back to a guess:
+/// there is no default, because a wrong id writes a gate that does not gate.
 async fn actions_integration_id(client: &GitHubClient) -> Result<u64> {
     let app: App = client
         .get_json(&format!("/apps/{ACTIONS_APP_SLUG}"))
@@ -1605,9 +1693,10 @@ mod tests {
         assert!(assert_codeowners("*\n").is_err());
     }
 
-    /// The regression that motivated this assertion: a github.com handle
-    /// committed to a repository on an EMU enterprise, where it resolves to
-    /// nothing and GitHub therefore leaves every path unowned.
+    /// The regression that motivated this assertion: a handle from one forge
+    /// committed to a repository on another that shares no account namespace
+    /// with it, where it resolves to nothing and GitHub therefore leaves every
+    /// path unowned.
     #[tokio::test]
     async fn unresolvable_codeowner_fails_the_reconcile() {
         let server = MockServer::start().await;
@@ -2013,12 +2102,27 @@ mod tests {
         }
     }
 
-    /// The enterprise host every test here supplies.
+    /// The governed host every test here supplies.
     ///
     /// Synthetic: the host is configuration, so this file spells no real forge
     /// host. What the tests prove is that the *configured* host is the boundary,
     /// which is a stronger claim than pinning one spelling of it.
-    const AN_ENTERPRISE: &str = "forge.example";
+    const A_GOVERNED_HOST: &str = "forge.example";
+
+    /// A deployment's own organization. Synthetic for the same reason.
+    const A_DEPLOYMENT_ORGANIZATION: &str = "a-deployment-org";
+
+    /// The pair a configured deployment governs: the public organization from
+    /// source, plus its own from configuration.
+    fn a_governed_forge() -> GovernedForge {
+        GovernedForge {
+            host: A_GOVERNED_HOST.to_string(),
+            organizations: vec![
+                public_organization().to_string(),
+                A_DEPLOYMENT_ORGANIZATION.to_string(),
+            ],
+        }
+    }
 
     #[test]
     fn origin_remote_reduces_to_an_owner_name_slug() {
@@ -2030,27 +2134,27 @@ mod tests {
             "ssh://git@forge.example/ux/core",
         ] {
             assert_eq!(
-                slug_from_remote(remote, AN_ENTERPRISE).unwrap(),
+                slug_from_remote(remote, A_GOVERNED_HOST).unwrap(),
                 "ux/core",
                 "{remote}"
             );
         }
     }
 
-    /// The host is the authorization boundary, so a remote off the configured
-    /// enterprise is refused before a token is read — including a lookalike
-    /// that merely *contains* it.
+    /// The host is half the authorization boundary, so a remote off the governed
+    /// host is refused before a token is read — including a lookalike that
+    /// merely *contains* it.
     #[test]
-    fn origin_remote_off_the_enterprise_is_refused() {
+    fn origin_remote_off_the_governed_host_is_refused() {
         for remote in [
             "https://elsewhere.example/neon-law-foundation/navigator.git",
             "git@elsewhere.example:neon-law-foundation/navigator.git",
             "https://forge.example.evil.test/neon-law-foundation/navigator.git",
         ] {
-            let error = slug_from_remote(remote, AN_ENTERPRISE)
+            let error = slug_from_remote(remote, A_GOVERNED_HOST)
                 .unwrap_err()
                 .to_string();
-            assert!(error.contains(AN_ENTERPRISE), "{remote}: {error}");
+            assert!(error.contains(A_GOVERNED_HOST), "{remote}: {error}");
         }
     }
 
@@ -2064,6 +2168,133 @@ mod tests {
         let remote = "https://one.example/ux/core.git";
         assert_eq!(slug_from_remote(remote, "one.example").unwrap(), "ux/core");
         assert!(slug_from_remote(remote, "another.example").is_err());
+    }
+
+    /// The organization is the other half, and it is the half a public forge
+    /// made necessary.
+    ///
+    /// A host check alone admitted every repository on GitHub whose checkout
+    /// happened to be the working directory. Both admissible organizations are
+    /// accepted; a third is refused, and the refusal names the host and the
+    /// organizations so an operator can see which half they are outside.
+    #[test]
+    fn a_repository_outside_both_organizations_is_refused() {
+        let forge = a_governed_forge();
+
+        for slug in [
+            NAVIGATOR_SLUG,
+            TAP_SLUG,
+            "NEON-LAW-FOUNDATION/Navigator",
+            "a-deployment-org/cruller-v-prine",
+            "A-DEPLOYMENT-ORG/cruller-v-prine",
+        ] {
+            assert!(forge.admits(slug), "{slug} must be admitted");
+        }
+
+        for slug in [
+            "ux/core",
+            "some-other-org/navigator",
+            "neon-law-foundation-evil/navigator",
+        ] {
+            assert!(!forge.admits(slug), "{slug} must be refused");
+            let error = forge.refuse("the repository named", slug).to_string();
+            assert!(error.contains(slug), "{slug}: {error}");
+            assert!(error.contains(A_GOVERNED_HOST), "{slug}: {error}");
+            assert!(error.contains(A_DEPLOYMENT_ORGANIZATION), "{slug}: {error}");
+        }
+    }
+
+    /// A checkout operating no deployment governs the public organization
+    /// alone, on the default host.
+    ///
+    /// This is the ordinary case for this command — a fresh clone, a laptop, a
+    /// CI job reconciling the public repositories — and it is the case the old
+    /// host-only boundary could not run at all, because it had no default and
+    /// nothing had set the key.
+    #[test]
+    fn with_no_deployment_the_public_organization_is_governed_on_the_default_host() {
+        let forge = GovernedForge {
+            host: cloud::workspace::DEFAULT_GIT_HOST.to_string(),
+            organizations: vec![public_organization().to_string()],
+        };
+        assert!(forge.admits(NAVIGATOR_SLUG));
+        assert!(forge.admits(TAP_SLUG));
+        assert!(!forge.admits("a-deployment-org/cruller-v-prine"));
+        // Composed from the constant rather than spelled: `forge_coordinate_retired`
+        // admits exactly one spelling of a forge host in this tree, and it is
+        // that constant's own declaration.
+        assert_eq!(
+            forge.api_base(),
+            format!("https://api.{}", cloud::workspace::DEFAULT_GIT_HOST)
+        );
+    }
+
+    /// `ops github setup` runs in a fresh clone that configures nothing, and
+    /// targets the public forge.
+    ///
+    /// This is the case the command could not run at all before: `NAVIGATOR_GIT_HOST`
+    /// had no default, so a laptop or a CI job that had not sourced a deployment
+    /// config was refused by its own authorization boundary — while the one
+    /// repository the boundary existed to protect was a repository on that same
+    /// public forge, named by a constant in this file.
+    #[test]
+    fn a_fresh_clone_configures_nothing_and_targets_the_public_forge() {
+        let forge = GovernedForge::from_lookup(|_| None)
+            .expect("a checkout that configures nothing must resolve");
+        assert_eq!(forge.host, cloud::workspace::DEFAULT_GIT_HOST);
+        assert_eq!(forge.organizations, vec![public_organization().to_string()]);
+
+        let target =
+            RepositoryTarget::resolve_within(Some(NAVIGATOR_SLUG.to_string()), &forge, None)
+                .expect("Navigator's own repository is governed from a fresh clone");
+        assert_eq!(target.slug, NAVIGATOR_SLUG);
+        assert_eq!(target.policy, NAVIGATOR_POLICY);
+        assert_eq!(
+            target.api_base,
+            format!("https://api.{}", cloud::workspace::DEFAULT_GIT_HOST)
+        );
+
+        // And the same fresh clone refuses a repository outside the one
+        // organization it governs, before any token is read.
+        let error =
+            RepositoryTarget::resolve_within(Some("some-other-org/navigator".into()), &forge, None)
+                .expect_err("a foreign organization is refused");
+        assert!(error.to_string().contains("some-other-org/navigator"));
+    }
+
+    /// A misconfigured deployment does not quietly become a fresh clone.
+    ///
+    /// Falling back to the public organization here would look like success
+    /// while governing less than asked, so the error names the key instead.
+    #[test]
+    fn a_misconfigured_deployment_fails_closed_naming_the_key() {
+        let error = GovernedForge::from_lookup(|key| {
+            (key == cloud::workspace::NAVIGATOR_GCP_PROJECT_ID).then(|| "neon-law".to_string())
+        })
+        .expect_err("a named deployment with no organization must not resolve")
+        .to_string();
+        assert!(
+            error.contains(cloud::workspace::NAVIGATOR_GITHUB_ORG),
+            "{error}"
+        );
+    }
+
+    /// The public organization is the owner of [`NAVIGATOR_SLUG`], never a
+    /// second constant that could drift from it.
+    #[test]
+    fn the_public_organization_is_derived_from_navigators_own_slug() {
+        assert_eq!(
+            NAVIGATOR_SLUG,
+            format!("{}/navigator", public_organization())
+        );
+        assert!(TAP_SLUG.starts_with(public_organization()));
+    }
+
+    /// The API base follows the governed host, so a run can only ever talk to
+    /// the host it is reconciling on.
+    #[test]
+    fn the_api_base_is_composed_from_the_governed_host() {
+        assert_eq!(a_governed_forge().api_base(), "https://api.forge.example");
     }
 
     /// A URL passed where a slug belongs is an error, not the first two path

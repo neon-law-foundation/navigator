@@ -906,10 +906,12 @@ enum SecretsCmd {
 
 #[derive(Subcommand)]
 enum GithubCmd {
-    /// Reconcile a repository's GitHub policy. Any repository on the
-    /// enterprise host `NAVIGATOR_GIT_HOST` names may be reconciled; a remote
-    /// pointing anywhere else is refused. Idempotent: a re-run reads the live
-    /// rulesets and labels and writes only a difference.
+    /// Reconcile a repository's GitHub policy. Any repository in an
+    /// admissible organization on the host `NAVIGATOR_GIT_HOST` names may be
+    /// reconciled — the public organization holding Navigator, and this
+    /// deployment's own `NAVIGATOR_GITHUB_ORG`; anything else is refused
+    /// before a token is read. Idempotent: a re-run reads the live rulesets
+    /// and labels and writes only a difference.
     Setup {
         /// Repository to reconcile as `owner/name`. Defaults to
         /// `GITHUB_REPOSITORY`, then to this checkout's `origin` remote.
