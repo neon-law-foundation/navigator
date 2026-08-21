@@ -166,8 +166,8 @@ The production upload is a **real production cloud write**. An agent prepares th
 authorized, and hands the production command to an operator:
 
 ```bash
-cargo run -p cli -- ops assets upload --dir server/public/img --bucket neon-law-stg-assets
-gcloud storage ls -L gs://neon-law-stg-assets/img/<deck-slug>/<filename>
+cargo run -p cli -- ops assets upload --dir server/public/img --bucket <production>-assets
+gcloud storage ls -L gs://<production>-assets/img/<deck-slug>/<filename>
 ```
 
 `upload` walks the whole directory passed with `--dir`, so re-uploading an unchanged tree is idempotent. The PR carries
