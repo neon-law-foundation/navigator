@@ -48,6 +48,11 @@ pub const GITHUB_TOKEN_ENV: &str = "GITHUB_TOKEN";
 
 /// Env var overriding the API base, for GitHub Enterprise or a test
 /// double. Defaults to [`DEFAULT_API_BASE`].
+///
+/// Naming GitHub Enterprise is a **feature, not stale narration.** Navigator
+/// runs on github.com; this override is how somebody running their own
+/// instance points it at their own tenant. See the same note on
+/// `webapp::source_repository::GITHUB_API_URL_ENV`.
 pub const GITHUB_API_URL_ENV: &str = "NAVIGATOR_GITHUB_API_URL";
 
 /// Env var naming the default `owner/repo` when a payload omits one.

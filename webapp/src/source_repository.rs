@@ -49,6 +49,12 @@ mod live {
     /// Env var overriding the GitHub REST base, for GitHub Enterprise or a test
     /// double. Spelled the same as `workflows::github`'s, so one deployment
     /// setting redirects every GitHub caller in the tree.
+    ///
+    /// Naming GitHub Enterprise is a **feature, not stale narration.**
+    /// Navigator runs on github.com; this override is how somebody running
+    /// their own instance points it at their own tenant, which the licence
+    /// invites and the deployment workshop is written for. Deleting it would
+    /// remove the self-hosting path, not a false claim about us.
     pub const GITHUB_API_URL_ENV: &str = "NAVIGATOR_GITHUB_API_URL";
 
     /// Public GitHub's REST API base.

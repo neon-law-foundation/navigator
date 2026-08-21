@@ -144,7 +144,7 @@ Foundation training host turns this on when trainings open; production keeps it 
   lowercase spelling is exact: `store::seed::require_firm_domain` rejects mixed-case owner/admin/clerk seeds at load
   time.
 - **Lawyers** — role `lawyer`. An outside lawyer may use their own email domain and receives only the Projects where
-  they have firm-side participation; Lawyer does not confer GitHub Enterprise access.
+  they have firm-side participation; Lawyer does not confer source-forge access.
 - **Clerks** — supervised non-lawyer firm workers, role `clerk`, also using lowercase `*@neonlaw.com` emails in
   canonical seed data. They are not a member of the Lawyer tier.
 - **Clients** — any seeded non-firm person, role `client`. Email is the client's real address; no domain restriction.
@@ -273,11 +273,11 @@ That is not a scoping convenience, it is a safety property, and three separate t
 
 Two rules elsewhere in the docs hold *because* the table is inert. A Clerk "never receives lawyer-work, advice, Git,
 MCP, or `/lawyer` authority by inheritance", so a Clerk recorded as GitHub user `12345` gains nothing by being recorded
-as such. And Project participation never grants GitHub Enterprise access
-([`project-repositories`](project-repositories.md)), so this table must not become the back door that reverses it. The
-rule is per-system rather than per-role: a `client` Person holding a `google` identity for Drive sharing is legitimate,
-and that same Person is still never provisioned into GHE. The schema therefore carries no blanket role constraint —
-enforcement belongs where provisioning happens.
+as such. And Project participation never grants source-forge access ([`project-repositories`](project-repositories.md)),
+so this table must not become the back door that reverses it. The rule is per-system rather than per-role: a `client`
+Person holding a `google` identity for Drive sharing is legitimate, and that same Person is still never provisioned into
+the source forge. The schema therefore carries no blanket role constraint — enforcement belongs where provisioning
+happens.
 
 Provisioning may *resolve* a Person to an account through this table; the decision to provision anything comes from role
 and policy. `cli/tests/external_identity_is_inert.rs` asserts the separation against every authorization surface by

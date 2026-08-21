@@ -347,9 +347,9 @@ dependencies, or build output.
 
 ## Access boundary
 
-Navigator Project participation authorizes Navigator and the served client portal. It never grants GitHub Enterprise
-access. Outside lawyers work through Navigator, Drive, and the served portal without GHE membership. Repository access
-is an independently administered source-control decision.
+Navigator Project participation authorizes Navigator and the served client portal. It never grants source-forge access.
+Outside lawyers work through Navigator, Drive, and the served portal without any membership of the forge that hosts the
+source. Repository access is an independently administered source-control decision.
 
 This is also why the model stops at one repository per Project rather than one repository per organization with
 `projects/<code>/` subdirectories, which would be the same logic one step further. **Repository access is the per-matter
