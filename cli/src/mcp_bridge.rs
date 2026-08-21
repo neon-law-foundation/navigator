@@ -153,9 +153,27 @@ impl Upstream for HttpUpstream {
     }
 }
 
+/// Reads withheld because they are not yet scoped to the caller's own
+/// matters, rather than because they need an approval.
+///
+/// `aida_list_projects` reaches `store::projects::all` with no principal
+/// and no participation filter, so it returns every matter in the
+/// deployment. Since ENG-81 the matter surface is participation-scoped
+/// for every tier, Lawyer included — a lawyer sees the matters they are
+/// on, not all of them. That makes this read a cross-matter disclosure,
+/// and handing it to a model client is exactly what ENG-216 exists to
+/// prevent.
+///
+/// Endpoint policy already limits this whole surface to lawyer tier
+/// (`navigator.rego` requires `is_lawyer` on `/app/api/aida/rpc`), so
+/// this is not a client-facing leak. It is a firm-internal one, which is
+/// still one. Delete this list once the read takes a principal.
+const UNSCOPED_READS: &[&str] = &["aida_list_projects"];
+
 /// The tools this bridge advertises: every catalog entry that runs
-/// without a human approving it, which is all the reads plus the CRM
-/// writers exempted by [`mcp::tools::requires_confirmation`].
+/// without a human approving it — the reads, plus the CRM writers
+/// exempted by [`mcp::tools::requires_confirmation`] — less the
+/// [`UNSCOPED_READS`] that would disclose matters the caller is not on.
 ///
 /// Filtering here rather than refusing at call time is the point — a
 /// tool Claude cannot see is a tool it cannot decide to try, so the
@@ -166,9 +184,9 @@ pub fn advertised_catalog() -> Vec<Value> {
     mcp::tools::list_tools()
         .into_iter()
         .filter(|d| {
-            d.get("name")
-                .and_then(Value::as_str)
-                .is_some_and(|n| !mcp::tools::requires_confirmation(n))
+            d.get("name").and_then(Value::as_str).is_some_and(|n| {
+                !mcp::tools::requires_confirmation(n) && !UNSCOPED_READS.contains(&n)
+            })
         })
         .collect()
 }
@@ -324,7 +342,12 @@ async fn handle_tools_call(id: Value, params: &Value, upstream: &dyn Upstream) -
         // Distinguish "gated, so deliberately absent" from "no such
         // tool". The first is a routing answer the user can act on; the
         // second is a mistake.
-        let text = if mcp::tools::is_known_tool(name) {
+        let text = if UNSCOPED_READS.contains(&name) {
+            format!(
+                "`{name}` is not yet scoped to the matters you participate in, so it is not \
+                 offered here. Use the matter list in the Navigator app."
+            )
+        } else if mcp::tools::is_known_tool(name) {
             format!(
                 "`{name}` requires a lawyer's explicit approval before it runs, and this \
                  connection cannot collect one. Perform it in the Navigator app, where the \
@@ -519,6 +542,14 @@ mod tests {
                 "{wanted} must be advertised; got {names:?}"
             );
         }
+        // Withheld for the other reason: it discloses matters the
+        // caller may not be on. Removing this assertion is part of
+        // landing the participation scope, not a cleanup.
+        assert!(
+            !names.iter().any(|n| n == "aida_list_projects"),
+            "aida_list_projects returns every matter with no participation filter, so it \
+             must not be advertised to a model client; got {names:?}"
+        );
         // The tools MCP cannot supervise must not appear at all.
         for gated in [
             "aida_send_welcome_email",
@@ -605,6 +636,30 @@ mod tests {
         assert!(
             text.contains("approval") && text.contains("Navigator app"),
             "the refusal must say why and where to go instead, got: {text}"
+        );
+    }
+
+    #[tokio::test]
+    async fn calling_an_unscoped_read_is_refused_with_its_own_reason() {
+        // Not an approval problem — a disclosure one. The message has to
+        // say which, or the reader goes looking for a gate.
+        let up = FakeUpstream::returning(completed_task("every matter, oops"));
+        let resp = handle(
+            &request("tools/call", &json!({ "name": "aida_list_projects" })),
+            &up,
+        )
+        .await
+        .unwrap();
+        assert!(
+            up.calls.lock().unwrap().is_empty(),
+            "an unscoped read must not be dispatched upstream"
+        );
+        let result = resp.result.unwrap();
+        assert_eq!(result["isError"], true);
+        let text = result["content"][0]["text"].as_str().unwrap();
+        assert!(
+            text.contains("scoped") && !text.contains("approval"),
+            "the refusal must name scope, not approval, got: {text}"
         );
     }
 

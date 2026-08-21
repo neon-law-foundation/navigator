@@ -97,6 +97,7 @@ only the firm's own records:
 | `aida_send_welcome_email` | it emails a client |
 | `aida_create_notation` | a Notation is a binding legal artifact |
 | `aida_answer_notation` | it answers one |
+| `aida_list_projects` | it returns every matter, not the caller's — see below |
 
 The withheld three need a lawyer's explicit approval, which is an `input-required` pause on the A2A side. **MCP has no
 way to pause a call and ask a person.** A two-call handshake would not fix that: if Claude makes both calls, the model
@@ -105,6 +106,12 @@ tools are absent from `tools/list` — Claude cannot see them, so it never propo
 Naming one anyway is refused by the bridge without any dispatch, with a result saying to do it in the app instead.
 
 Do those three in `/app`, where a human approves in a UI and the approval is recorded against the matter.
+
+`aida_list_projects` is withheld for a different reason: it reaches `store::projects::all` with no principal, so it
+returns every matter in the deployment. Since ENG-81 the matter surface is participation-scoped for every tier, Lawyer
+included, so an unscoped list is a cross-matter disclosure. Endpoint policy already limits this whole surface to lawyer
+tier, so it is a firm-internal disclosure rather than a client-facing one — still one. It becomes available once the
+read takes a principal (ENG-216). Until then, use the matter list in the app.
 
 ## Opening a matter end to end
 
