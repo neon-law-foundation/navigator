@@ -34,10 +34,15 @@ async fn a_seed_without_sample_matters_has_no_disposable_projects_or_people() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    let report =
-        store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, false)
-            .await
-            .unwrap();
+    let report = store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Production,
+        store::seed::BrandSeed::Neon,
+        false,
+    )
+    .await
+    .unwrap();
 
     assert!(projects::all(&surreal).await.unwrap().is_empty());
     for email in ["lawyer@neonlaw.com", "client@neonlaw.com"] {
@@ -90,9 +95,15 @@ async fn the_fixture_opens_the_three_sample_matters_with_dris() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Dev,
+        store::seed::BrandSeed::Neon,
+        true,
+    )
+    .await
+    .unwrap();
 
     let client = persons::find_by_email_ci(&surreal, "client@neonlaw.com")
         .await
@@ -173,9 +184,15 @@ async fn the_fixture_admin_participates_in_nothing() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Dev,
+        store::seed::BrandSeed::Neon,
+        true,
+    )
+    .await
+    .unwrap();
 
     let admin = persons::find_by_email_ci(&surreal, "admin@neonlaw.com")
         .await
@@ -211,9 +228,15 @@ async fn each_sample_matter_has_its_own_client_entity() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Dev,
+        store::seed::BrandSeed::Neon,
+        true,
+    )
+    .await
+    .unwrap();
 
     let mut entities = Vec::new();
     for code in store::seed::sample_matter_codes() {
@@ -240,9 +263,15 @@ async fn the_fixture_is_idempotent_and_repairs_participation_drift() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Dev,
+        store::seed::BrandSeed::Neon,
+        true,
+    )
+    .await
+    .unwrap();
     let litigation = projects::find_by_code(&surreal, "sample-litigation")
         .await
         .unwrap()
@@ -264,9 +293,15 @@ async fn the_fixture_is_idempotent_and_repairs_participation_drift() {
         .unwrap();
     let before = projects::all(&surreal).await.unwrap().len();
 
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Dev,
+        store::seed::BrandSeed::Neon,
+        true,
+    )
+    .await
+    .unwrap();
 
     assert_eq!(projects::all(&surreal).await.unwrap().len(), before);
     let repaired = projects::participations_for_project(&surreal, litigation.id)
@@ -313,9 +348,15 @@ async fn the_fixture_does_not_claim_a_same_named_project() {
         .await
         .unwrap();
 
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Dev,
+        store::seed::BrandSeed::Neon,
+        true,
+    )
+    .await
+    .unwrap();
 
     assert_eq!(
         projects::find_by_id(&surreal, squatter.id)
@@ -353,9 +394,15 @@ async fn a_production_boot_carries_every_box_we_answer_mail_at() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, false)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Production,
+        store::seed::BrandSeed::Neon,
+        false,
+    )
+    .await
+    .unwrap();
 
     // The mail centre itself is a row too, and `seed_mailrooms` synthesizes a
     // placeholder address for it because `mailrooms.address_id` is NOT NULL.
@@ -410,9 +457,15 @@ async fn the_retired_partnerships_boxes_do_not_seed() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, false)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Production,
+        store::seed::BrandSeed::Neon,
+        false,
+    )
+    .await
+    .unwrap();
 
     assert!(
         store::entities::find_by_name(&surreal, "Neon Law")
@@ -454,9 +507,15 @@ async fn each_entity_holds_only_its_own_box() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, false)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Production,
+        store::seed::BrandSeed::Neon,
+        false,
+    )
+    .await
+    .unwrap();
 
     for (name, expected) in [
         (
@@ -491,9 +550,15 @@ async fn a_tenant_boot_carries_none_of_our_addresses() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Tenant, false)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Production,
+        store::seed::BrandSeed::Tenant,
+        false,
+    )
+    .await
+    .unwrap();
 
     assert!(store::addresses::list_all(&surreal)
         .await
@@ -509,9 +574,15 @@ async fn the_brand_layer_is_idempotent_across_boots() {
     let storage = storage().await;
 
     for _ in 0..2 {
-        store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, false)
-            .await
-            .unwrap();
+        store::seed::seed_environment_with(
+            &surreal,
+            &storage,
+            DeploymentEnvironment::Production,
+            store::seed::BrandSeed::Neon,
+            false,
+        )
+        .await
+        .unwrap();
     }
 
     let second = store::seed::seed_brand(&surreal, store::seed::BrandSeed::Neon)
@@ -543,9 +614,15 @@ async fn the_dev_portfolios_mail_survives_the_mailroom_moving_layers() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
 
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Dev,
+        store::seed::BrandSeed::Neon,
+        true,
+    )
+    .await
+    .unwrap();
 
     let letters = store::letters::list_all(&surreal).await.unwrap();
     assert!(

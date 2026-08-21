@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use store::test_support::mem_surreal;
+use store::DeploymentEnvironment;
 
 async fn storage() -> Arc<dyn cloud::StorageService> {
     Arc::new(
@@ -37,9 +38,15 @@ fn every_matter_name() -> Vec<String> {
 async fn participation_drives_client_and_lawyer_visibility() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Dev,
+        store::seed::BrandSeed::Neon,
+        true,
+    )
+    .await
+    .unwrap();
 
     let client = store::persons::find_by_email_ci(&surreal, "client@neonlaw.com")
         .await
@@ -94,9 +101,15 @@ async fn participation_drives_client_and_lawyer_visibility() {
 async fn the_matters_are_withheld_from_the_unassigned_admin() {
     let surreal = mem_surreal().await;
     let storage = storage().await;
-    store::seed::seed_environment_with(&surreal, &storage, store::seed::BrandSeed::Neon, true)
-        .await
-        .unwrap();
+    store::seed::seed_environment_with(
+        &surreal,
+        &storage,
+        DeploymentEnvironment::Dev,
+        store::seed::BrandSeed::Neon,
+        true,
+    )
+    .await
+    .unwrap();
 
     let admin = store::persons::find_by_email_ci(&surreal, "admin@neonlaw.com")
         .await

@@ -436,12 +436,17 @@ pub async fn seed_canonical(
 /// the reference rows the portal walkthrough needs. Applied only where
 /// [`crate::config::sample_matters`] says the data plane is synthetic.
 /// Idempotent: a second run inserts zero duplicates.
+///
+/// The profile is an argument because the fixture's portal publish consults it
+/// — a deployment running the production profile keeps whatever application is
+/// already published rather than overwriting it. See [`publish_sample_portal`].
 pub async fn seed_sample_portfolio(
     surreal: &SurrealDb,
     storage: &std::sync::Arc<dyn cloud::StorageService>,
+    environment: crate::DeploymentEnvironment,
 ) -> anyhow::Result<SeedReport> {
     let mut r = SeedReport::default();
-    seed_sample_portfolio_into(surreal, storage, &mut r).await?;
+    seed_sample_portfolio_into(surreal, storage, environment, &mut r).await?;
     Ok(r)
 }
 
@@ -488,11 +493,17 @@ pub async fn seed_environment(
     brand: BrandSeed,
 ) -> anyhow::Result<SeedReport> {
     let sample = crate::config::sample_matters(environment)?;
-    seed_environment_with(surreal, storage, brand, sample).await
+    seed_environment_with(surreal, storage, environment, brand, sample).await
 }
 
 /// [`seed_environment`] with the sample-matter decision already made, so a
 /// test can drive both answers without mutating process environment.
+///
+/// The profile stays a separate argument from that decision because the two
+/// are genuinely independent — the persistent staging deployment carries
+/// sample matters *under* the production profile — and because the sample
+/// portfolio's publish half consults the profile directly. See
+/// [`publish_sample_portal`].
 ///
 /// # Errors
 ///
@@ -500,6 +511,7 @@ pub async fn seed_environment(
 pub async fn seed_environment_with(
     surreal: &SurrealDb,
     storage: &std::sync::Arc<dyn cloud::StorageService>,
+    environment: crate::DeploymentEnvironment,
     brand: BrandSeed,
     sample_matters: bool,
 ) -> anyhow::Result<SeedReport> {
@@ -507,7 +519,7 @@ pub async fn seed_environment_with(
     seed_canonical_into(surreal, storage, &mut r).await?;
     seed_brand_into(surreal, brand, &mut r).await?;
     if sample_matters {
-        seed_sample_portfolio_into(surreal, storage, &mut r).await?;
+        seed_sample_portfolio_into(surreal, storage, environment, &mut r).await?;
     }
     Ok(r)
 }
@@ -553,9 +565,10 @@ async fn seed_canonical_into(
 async fn seed_sample_portfolio_into(
     surreal: &SurrealDb,
     _storage: &std::sync::Arc<dyn cloud::StorageService>,
+    environment: crate::DeploymentEnvironment,
     r: &mut SeedReport,
 ) -> anyhow::Result<()> {
-    seed_role_matrix_sample(surreal, r).await?;
+    seed_role_matrix_sample(surreal, environment, r).await?;
     seed_git_repositories(surreal, r).await?;
     seed_letters(surreal, r).await?;
     seed_answers(surreal, r).await?;
@@ -819,10 +832,14 @@ const SAMPLE_ESTATE_PORTAL_INDEX: &str = portal_index!(
 ///
 /// Idempotent, and it publishes each matter's portal "little app" to the
 /// applications bucket so `/app/projects/{code}/portal/` streams rather than
-/// 404s. The publish is best-effort: a tier without an applications bucket
-/// configured logs and skips rather than failing the whole seed.
+/// 404s. The publish is best-effort twice over: a tier without an applications
+/// bucket configured logs and skips rather than failing the whole seed, and a
+/// tier on the production profile declines to overwrite what an operator
+/// already published there — see [`publish_sample_portal`], which is why the
+/// profile travels this far down.
 async fn seed_role_matrix_sample(
     surreal: &SurrealDb,
+    environment: crate::DeploymentEnvironment,
     report: &mut SeedReport,
 ) -> anyhow::Result<()> {
     let nevada = jurisdictions::find_by_name(surreal, "Nevada")
@@ -916,6 +933,7 @@ async fn seed_role_matrix_sample(
             &cast,
             nevada.id,
             applications.as_ref(),
+            environment,
         )
         .await?;
     }
@@ -952,6 +970,7 @@ async fn open_sample_matter(
     cast: &FixtureCast,
     jurisdiction_id: Uuid,
     applications: Option<&std::sync::Arc<dyn cloud::StorageService>>,
+    environment: crate::DeploymentEnvironment,
 ) -> anyhow::Result<()> {
     let FixtureCast {
         owner: owner_id,
@@ -1036,7 +1055,7 @@ async fn open_sample_matter(
         .await?;
 
         if let Some(applications) = applications {
-            publish_sample_portal(applications, matter).await?;
+            publish_sample_portal(applications, matter, environment).await?;
         }
     }
     Ok(())
@@ -1055,11 +1074,48 @@ async fn open_sample_matter(
 /// another client's portal, so a mismatch — like an unbuilt or unparsable
 /// staging directory — leaves the deterministic document in place and is
 /// reported as a failed local application build.
+///
+/// # The deterministic document is a `dev` affordance only
+///
+/// Under the **production** profile this publishes nothing when no bundle is
+/// staged. Whatever already sits in the deployment's applications bucket is
+/// authoritative: a client portal application there was published by an
+/// operator, and the seed has no business writing into that prefix. Overwriting
+/// `index.html` with the placeholder is quiet and partial — the hashed assets
+/// survive, so the portal renders the placeholder while the complete bundle
+/// sits unreferenced in the same prefix — and a 404 is the honest signal that
+/// nothing has published there yet.
+///
+/// Under `dev` the placeholder keeps being published, which is the case this
+/// function was written for: it keeps a developer's portal serving something
+/// while a Vite build is broken.
+///
+/// The profile is the whole predicate. [`seed_environment_with`] gates the
+/// entire sample portfolio on `sample_matters`, so within this call graph that
+/// half is invariably true and re-checking it here would be redundant.
 async fn publish_sample_portal(
     applications: &std::sync::Arc<dyn cloud::StorageService>,
     matter: &SampleMatter,
+    environment: crate::DeploymentEnvironment,
 ) -> anyhow::Result<()> {
-    if let Some(staged) = crate::sample_project::staged_for(matter.code) {
+    publish_sample_portal_with(applications, matter, environment, |key| {
+        std::env::var(key).ok()
+    })
+    .await
+}
+
+/// [`publish_sample_portal`] with the staging directory read through `get`, so
+/// a test drives the staged and unstaged branches without depending on process
+/// environment — a sourced `.devx/env` sets
+/// [`crate::sample_project::STAGE_ENV`], and would otherwise decide which
+/// branch these assertions exercise.
+async fn publish_sample_portal_with<F: Fn(&str) -> Option<String>>(
+    applications: &std::sync::Arc<dyn cloud::StorageService>,
+    matter: &SampleMatter,
+    environment: crate::DeploymentEnvironment,
+    get: F,
+) -> anyhow::Result<()> {
+    if let Some(staged) = crate::sample_project::staged_from(matter.code, get) {
         match publish_staged_portal(applications, &staged, matter.code).await {
             Ok(count) => {
                 tracing::info!(
@@ -1081,6 +1137,14 @@ async fn publish_sample_portal(
                 );
             }
         }
+    }
+
+    if environment == crate::DeploymentEnvironment::Production {
+        tracing::info!(
+            code = matter.code,
+            "seed: production profile; leaving the published portal application alone"
+        );
+        return Ok(());
     }
 
     applications
@@ -3026,5 +3090,225 @@ mod tests {
             "error should mention the firm domain, got: {err}",
         );
         assert!(require_firm_domain("nick@gmail.com", Role::Admin).is_err());
+    }
+
+    /// A `FsStorage` at a directory no other test shares, so a test can assert
+    /// on the exact bytes under one portal key.
+    ///
+    /// Distinct from [`fs_storage`], which deliberately shares a fixed path
+    /// because content-addressed template blobs dedup. Portal objects are
+    /// keyed rather than content-addressed, so sharing a root here would let
+    /// one test's publish satisfy another test's assertion.
+    async fn applications_bucket() -> std::sync::Arc<dyn cloud::StorageService> {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static SEQ: AtomicU64 = AtomicU64::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "navigator-seed-applications-{}-{}",
+            std::process::id(),
+            SEQ.fetch_add(1, Ordering::Relaxed),
+        ));
+        std::sync::Arc::new(cloud::FsStorage::new(dir).await.expect("temp FsStorage"))
+    }
+
+    /// The key one sample matter's portal document publishes under.
+    fn entry_key(code: &str) -> String {
+        format!(
+            "{}/{}",
+            crate::sample_project::portal_prefix(code),
+            crate::sample_project::ENTRY_DOCUMENT
+        )
+    }
+
+    /// A production-profile boot must not touch a published portal
+    /// application. The persistent staging deployment is exactly this shape —
+    /// the production runtime profile carrying simulated matters — and it
+    /// stages nothing, so before ENG-278 every boot reverted `index.html` to
+    /// the compiled-in placeholder while the hashed assets of the real bundle
+    /// survived beside it, unreferenced.
+    ///
+    /// The staging lookup is injected as absent rather than read from the
+    /// process, because a sourced `.devx/env` sets
+    /// `NAVIGATOR_SAMPLE_PROJECTS_DIR` and would send this down the staged
+    /// branch instead.
+    #[tokio::test]
+    async fn a_production_boot_leaves_a_published_portal_bundle_byte_for_byte() {
+        let applications = applications_bucket().await;
+        let matter = &super::SAMPLE_MATTERS[0];
+        let key = entry_key(matter.code);
+
+        // What an operator published: a real bundle's document, referencing
+        // hashed assets that only it knows the names of.
+        let published =
+            br#"<!doctype html><html><head><script type="module" src="/sample-litigation/portal/assets/index-a1b2c3d4.js"></script></head><body><div id="root"></div></body></html>"#;
+        applications
+            .put_cached(
+                &key,
+                published,
+                "text/html; charset=utf-8",
+                crate::sample_project::ENTRY_CACHE_CONTROL,
+            )
+            .await
+            .expect("the operator's publish");
+
+        super::publish_sample_portal_with(
+            &applications,
+            matter,
+            crate::DeploymentEnvironment::Production,
+            |_| None,
+        )
+        .await
+        .expect("a production boot must not fail for declining to publish");
+
+        let after = applications.get(&key).await.expect("still published");
+        assert_eq!(
+            after.bytes, published,
+            "a production-profile boot must leave the published portal application byte for byte"
+        );
+        assert!(
+            !String::from_utf8_lossy(&after.bytes).contains(matter.portal_index),
+            "the compiled-in placeholder must not have replaced the published document"
+        );
+    }
+
+    /// The placeholder is a `dev` affordance, and it must keep landing: it is
+    /// what leaves a developer's portal serving something while that matter's
+    /// Vite build is broken. An empty bucket is the case a fresh
+    /// `worktree-env up` presents.
+    #[tokio::test]
+    async fn a_dev_boot_publishes_the_placeholder_into_an_empty_bucket() {
+        let applications = applications_bucket().await;
+        let matter = &super::SAMPLE_MATTERS[0];
+        let key = entry_key(matter.code);
+
+        super::publish_sample_portal_with(
+            &applications,
+            matter,
+            crate::DeploymentEnvironment::Dev,
+            |_| None,
+        )
+        .await
+        .expect("publish");
+
+        let stored = applications
+            .get(&key)
+            .await
+            .expect("the placeholder landed");
+        assert_eq!(
+            stored.bytes,
+            matter.portal_index.as_bytes(),
+            "a dev boot with nothing staged publishes the deterministic document"
+        );
+        assert_eq!(stored.content_type, "text/html; charset=utf-8");
+    }
+
+    /// The guard sits *after* the staged-bundle branch, so a staged bundle
+    /// still publishes on every profile — including production, which is how
+    /// a locally built bundle could be published against a production-profile
+    /// tier at all.
+    #[tokio::test]
+    async fn a_staged_bundle_still_publishes_under_the_production_profile() {
+        let applications = applications_bucket().await;
+        let matter = &super::SAMPLE_MATTERS[0];
+        let staging = std::env::temp_dir().join(format!(
+            "navigator-seed-staged-{}-{}",
+            std::process::id(),
+            matter.code
+        ));
+        let dist = staging.join(matter.code).join("dist");
+        std::fs::create_dir_all(&dist).expect("dist");
+        std::fs::write(
+            staging.join(matter.code).join("navigator.yml"),
+            format!("name: {}\n", matter.code),
+        )
+        .expect("manifest");
+        std::fs::write(dist.join("index.html"), b"<!doctype html><p>built</p>")
+            .expect("built document");
+        let configured = staging.to_string_lossy().into_owned();
+
+        super::publish_sample_portal_with(
+            &applications,
+            matter,
+            crate::DeploymentEnvironment::Production,
+            move |_| Some(configured.clone()),
+        )
+        .await
+        .expect("publish");
+
+        let stored = applications
+            .get(&entry_key(matter.code))
+            .await
+            .expect("the staged bundle landed");
+        assert_eq!(
+            stored.bytes, b"<!doctype html><p>built</p>",
+            "the staged bundle publishes on the production profile too"
+        );
+        std::fs::remove_dir_all(&staging).ok();
+    }
+
+    /// A staged bundle whose manifest names another matter is refused on the
+    /// production profile as well — and the refusal must not fall through into
+    /// publishing the placeholder over whatever is there.
+    #[tokio::test]
+    async fn a_wrong_project_bundle_is_refused_without_overwriting_on_production() {
+        let applications = applications_bucket().await;
+        let matter = &super::SAMPLE_MATTERS[0];
+        let key = entry_key(matter.code);
+        let published = b"<!doctype html><p>the operator's bundle</p>";
+        applications
+            .put_cached(
+                &key,
+                published,
+                "text/html; charset=utf-8",
+                crate::sample_project::ENTRY_CACHE_CONTROL,
+            )
+            .await
+            .expect("the operator's publish");
+
+        let staging = std::env::temp_dir().join(format!(
+            "navigator-seed-wrong-project-{}-{}",
+            std::process::id(),
+            matter.code
+        ));
+        let dist = staging.join(matter.code).join("dist");
+        std::fs::create_dir_all(&dist).expect("dist");
+        // The directory is named for the disputes matter; the manifest inside
+        // it declares the estate matter.
+        std::fs::write(
+            staging.join(matter.code).join("navigator.yml"),
+            format!("name: {}\n", super::SAMPLE_ESTATE_CODE),
+        )
+        .expect("manifest");
+        std::fs::write(
+            dist.join("index.html"),
+            b"<!doctype html><p>another matter</p>",
+        )
+        .expect("built document");
+        let configured = staging.to_string_lossy().into_owned();
+
+        super::publish_sample_portal_with(
+            &applications,
+            matter,
+            crate::DeploymentEnvironment::Production,
+            move |_| Some(configured.clone()),
+        )
+        .await
+        .expect("a wrong-Project bundle is reported and skipped, not fatal");
+
+        let after = applications.get(&key).await.expect("still published");
+        assert_eq!(
+            after.bytes, published,
+            "refusing a wrong-Project bundle must not overwrite the published document either"
+        );
+        assert!(
+            applications
+                .get(&format!(
+                    "{}/index.html",
+                    crate::sample_project::portal_prefix(super::SAMPLE_ESTATE_CODE)
+                ))
+                .await
+                .is_err(),
+            "one matter's bundle must never land on another matter's portal"
+        );
+        std::fs::remove_dir_all(&staging).ok();
     }
 }
