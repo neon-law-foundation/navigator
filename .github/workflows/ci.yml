@@ -21,7 +21,7 @@ name: ci
 # workflow path-filters UI pull requests without filtering this required merge
 # gate, and builds the exact bundle the KIND web image serves.
 #
-# `cargo test (workspace)` runs on `blacksmith-8vcpu-ubuntu-2404`. Everything
+# `cargo test (workspace)` runs on `blacksmith-4vcpu-ubuntu-2404`. Everything
 # else on the pull-request path — `ci`, `enable PR auto-merge`, and the CodeQL
 # `Analyze` matrix — stays on stock `ubuntu-latest`, which is right for jobs
 # that finish in seconds and would otherwise pay a whole metered minute each.
@@ -34,46 +34,75 @@ name: ci
 # a `runs-on` label with no runner behind it does not fail — GitHub queues the
 # job forever, so the PR waits on a check that can never report.
 #
-# Eight vCPU is kept because it was measured, not guessed. Every number below
-# came from a real run of this job on the retired runners; they are retained as
-# the sizing argument, not as a description of today's fleet.
+# Four vCPU is measured, not guessed, and the measurement is a two-arm matrix
+# rather than a comparison across days: run 32536363029 ran this exact job on
+# `blacksmith-4vcpu-ubuntu-2404` and `blacksmith-8vcpu-ubuntu-2404` from one
+# commit against one cache entry, so core count was the only variable. Both
+# were green.
 #
-#   runner            cores   wall clock   note
-#   ubuntu-latest       2       93.5 min   run 144427521, ended at 87 MB free
-#   neon-law-medium     8       ~40 min    the sizing this replaces like-for-like
-#   neon-law-large     16       29.2 min   run 144357516
+#   phase                      8 vCPU   4 vCPU   ratio
+#   build navigator CLI          2.3m     3.3m   1.43x
+#   cargo clippy                 2.0m     2.2m   1.10x
+#   cargo test with coverage    10.5m    11.3m   1.08x
+#   whole job                   15.8m    18.0m   1.14x
 #
-# `neon-law-large` was overpaying. Its run split as 4.5 min of `cargo test
-# --no-run` and 17.4 min of test EXECUTION, and only the build half is
-# parallel: `cargo test` runs the ~209 test binaries SEQUENTIALLY. Widening the
-# run phase's CPU pin from 4 cores to 8 moved it 17.8 -> 17.4 min, about 2%. So
-# sixteen cores bought ~19 minutes on the build and nothing on the other 17,
-# at 8x the standard rate with no included quota.
+# Blacksmith bills LINEARLY in cores — 2 vCPU is $0.004/min, 4 is $0.008, 8 is
+# $0.016 — and the 3,000 included minutes are 2-vCPU-EQUIVALENTS, so an 8-vCPU
+# job spends them four times as fast. Both the bill and the quota are therefore
+# core-minutes, which means halving the cores saves nothing unless the job
+# takes less than 2x as long. It takes 1.14x. Per run, rounding up to the whole
+# minute Blacksmith charges: $0.256 -> $0.144, and 64 -> 36 included minutes.
 #
-# `ubuntu-latest` underpays and does not fit. It is 2 vCPU here, NOT the 4 an
-# earlier version of this comment claimed, and it carries no second disk — the
-# /mnt escape hatch below finds nothing. Its tests passed, but the job ended
-# with 87 MB free on a 72 GB root and the post-job cache save died on it. One
-# more crate breaks that.
+# The ratio is that small because the job is not core-bound. `cargo test with
+# coverage` is 11 of the 18 minutes and is bounded by `--test-threads 4` (see
+# the test step), so it barely moves. The other phases are compiles, and the
+# cache step below restores the third-party graph before they start, so they
+# have far less to divide across extra cores than a cold build would.
 #
-# Eight cores is where the disk stops mattering, and it is the width the
-# run-phase concurrency below was proven green against on run 144357516.
+# 1.14x is therefore the WARM ratio, and this job is not always warm: the gate
+# owns its cache end to end, so the first push of a new pull request restores
+# nothing and compiles the graph. The conclusion survives that anyway, and the
+# algebra is worth keeping because it is what makes the choice robust rather
+# than lucky. Split the job into a core-insensitive part T and a parallel part
+# B, and take the worst case for four cores, B scaling perfectly to 2B:
 #
-# That is the shape `cargo nextest` below replaces: it schedules across
-# binaries instead of running them one after another. The run phase is no
-# longer structurally serial, so the next re-measurement of this runner's size
-# is a real question rather than a foregone one. What still bounds the width is
-# ENG-57, the Dioxus pinned pool — see the test step.
+#   cost(4) / cost(8) = (T + 2B) x $0.008 / (T + B) x $0.016
+#                     = (T + 2B) / (2T + 2B)
 #
-# The `free-disk-space` sweep is GONE, because this job runs on a fleet with
-# 177 GB free before any sweep against a 75 GB peak. `strip=symbols`, lld and
-# the narrowed clean stay — they are cheap and they are what keep the footprint
-# at ~45 GB. The step comment below says exactly when to restore the sweep.
+# That is below 1 for any T greater than zero, and equal to 1 only if the job
+# were entirely parallel. Four cores is cheaper or the same at every cache
+# state; warm merely makes it cheapest, because T is 11 of 18 minutes there.
+# What would overturn it is not a cold cache but T shrinking to nothing —
+# raising `--test-threads` so the run phase scales with cores too.
 #
-# Measured on this fleet, run 32517062301 (19.3 min end to end):
+# The two ways a narrower runner fails are cliffs, not slopes, so both were
+# measured rather than reasoned about. Memory peaks LOWER at 4 cores — 5.1 GB
+# against 7.2 GB — because fewer link jobs run at once, so the smaller box is
+# under less memory pressure, not more. Disk is the real narrowing: the 4-vCPU
+# image has a 145 GB root against the 8-vCPU image's 246 GB, and both arms peak
+# at 111 GB used, leaving 27 GB free here against 122 GB there. That fits with
+# room, but it is a quarter of the headroom, so the RESTORE IT instruction on
+# the step below is closer to live than it was. One more crate does not break
+# it; a second copy of the test binary set would.
 #
-#   install lld 0.1 | navigator CLI 2.0 | clippy 2.0 | test build 6.0 |
-#   test execution 10.25 | coverage report 0.2
+# Sixteen cores is the same argument from the other end, and was rejected on
+# the retired GitHub-hosted fleet: `neon-law-large` ran this suite in 29.2 min
+# against `neon-law-medium`'s ~40 (runs 144357516 and 144682316), buying the
+# build half and nothing else at twice the rate.
+#
+# `ubuntu-latest` is free on a public repository and still does not fit. It
+# carries no second disk, so the /mnt escape hatch below finds nothing, and an
+# uninstrumented run of this suite ended with 87 MB free on a 72 GB root (run
+# 144427521) — against the 111 GB this job peaks at now.
+#
+# `cargo nextest` is what makes the run phase schedule across binaries instead
+# of one after another; ENG-57, the Dioxus pinned pool, is what still bounds
+# its width. See the test step.
+#
+# The `free-disk-space` sweep is GONE because it cost 1.2-1.5 metered min per
+# run to reclaim 25 GB against the headroom above. `strip=symbols`, lld and the
+# narrowed clean stay — they are cheap, and they are what hold the peak at 111
+# GB instead of over the cliff. The step comment below says when to restore it.
 #
 # Confirm a label exists before putting it here. A label nothing can schedule
 # does not fail the run, it hangs it: run 139216706 asked for
@@ -124,14 +153,16 @@ jobs:
     # the PR waits on a required check that can never report. The org's runners
     # are `ubuntu-large` (GitHub-hosted) and the Blacksmith fleet.
     #
-    # Eight vCPU is the sizing the comment above derives, so the Blacksmith
-    # 8-core image is the like-for-like replacement rather than a guess.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Four vCPU is the sizing the comment above measures. The label is probed,
+    # not assumed: run 32536363029 scheduled on it (`runner_name:
+    # blacksmith-...-4vcpu`), which is the check the paragraph above demands
+    # before any label goes here.
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     # A wedge detector, not a duration budget. This job had no cap at all while
     # it ran ~30 min; at ~40 min GitHub's 6-hour default means a hung build
     # holds a metered runner for most of a working day and blocks the PR behind
     # an in-progress required check the whole time. 120 leaves wide headroom
-    # over the expected ~40 while still catching a genuine wedge.
+    # over the measured 18 while still catching a genuine wedge.
     timeout-minutes: 120
     env:
       CARGO_INCREMENTAL: "0"
@@ -160,12 +191,17 @@ jobs:
       RUSTFLAGS: "-C link-arg=-fuse-ld=lld -C strip=symbols"
     steps:
       # No disk reclaim on this runner, and the measurements are why. The
-      # Blacksmith 8-vCPU image reports a 246 GB root with 177 GB ALREADY FREE
-      # before any sweep, and this job peaks at 75 GB used — 171 GB of headroom
-      # (run 32517062301: 57 GB used at checkout, 32 GB after the sweep, 75 GB
-      # at the end of the test step). `jlumbroso/free-disk-space` spent 1.2-1.5
+      # Blacksmith 4-vCPU image reports a 145 GB root with 81 GB ALREADY FREE
+      # before any sweep, and this job peaks at 111 GB used — 27 GB still free
+      # (run 32536363029: 57 GB used at checkout, 111 GB at the end of the test
+      # step, sampled every 10 s). `jlumbroso/free-disk-space` spent 1.2-1.5
       # min of metered runner time per run reclaiming 25 GB nothing needs,
       # which is ~160 min a month of paying for nothing.
+      #
+      # 27 GB is the tightest this job has deliberately run with, a quarter of
+      # what the 8-vCPU image left. It is the number to check first if a linker
+      # starts dying here, and the reason to re-measure the peak before adding a
+      # crate that links the whole graph again.
       #
       # RESTORE IT — verbatim, `swap-storage: false` included, and placed BEFORE
       # the lld install whose `llvm-*` packages its large-packages path purges —
@@ -192,9 +228,9 @@ jobs:
       # Build on whichever disk is actually large enough.
       #
       # Kept as a guard rather than deleted, though on this runner it is a
-      # no-op: `blacksmith-8vcpu-ubuntu-2404` does not split storage, and the
+      # no-op: `blacksmith-4vcpu-ubuntu-2404` does not split storage, and the
       # step prints `build directory -> workspace default (root is the larger
-      # disk)` (run 32517062301, a single 246 GB `/dev/root`). On the retired
+      # disk)` (run 32536363029, a single 145 GB `/dev/root`). On the retired
       # `neon-law-medium` /mnt EXISTED but was the same filesystem as root (both
       # 290G total / 237G free, run 144671916), so `-gt` was false and the
       # default target directory won there too. On `ubuntu-latest` /mnt does not
