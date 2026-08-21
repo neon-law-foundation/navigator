@@ -193,10 +193,22 @@ crates that publish no licence file are listed with the SPDX expression their ma
 it whenever the dependency tree moves:
 
 ```bash
+cargo fetch
 cargo run -p cli -- ops notices
 ```
 
-`navigator ops notices --check` fails when the committed file is stale, which is the gate a release should run.
+`cargo fetch` is part of that pair, not a convenience. Licence text is read from `$CARGO_HOME/registry/src`, and cargo
+unpacks a crate there only when something needs it — a build unpacks the platform it built for, so a machine that has
+only ever built for macOS has never unpacked the Linux- and Windows-only crates `Cargo.lock` also names. `cargo fetch`
+with no `--target` unpacks every target's graph, which is what makes the generated file the same on any machine.
+
+A crate whose source is absent says nothing about that crate's licence — it says this machine never unpacked it. So the
+command refuses to write or to check rather than listing such a crate among the ones that publish no licence file: that
+conflation would publish one machine's gap as the crate's, and a permissive licence whose text was never read is a
+permissive licence whose notice did not ship.
+
+`navigator ops notices --check` fails when the committed file is stale, which is the gate a release should run. It runs
+in the `rust` job of `.github/workflows/ci.yml` on every pull request, and again in the release preflight.
 
 ## What the images carry
 
