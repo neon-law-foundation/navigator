@@ -480,17 +480,21 @@ as well, and the archive jobs build with `--locked`, which refuses a lock the ma
 `--tag` is required, because naming a release is the operator's decision and a derived name is only ever a fact about
 when the command ran. That commit lands through an ordinary PR — `main` takes no direct commits.
 
-**The release preflight is a required check now, not a habit.** On every pull request `ci.yml` runs `ops release-check`
-and the `--locked` lock check. Both lived only in the `cut-release` preflight script, run on the operator's machine,
-skippable by forgetting; the merge is what publishes now, so the pull request is the last point at which either is still
-free to fix.
+**The release preflight is a required check now, not a habit.** On every pull request `ci.yml` runs `ops release-check`,
+`ops notices --check`, and the `--locked` lock check. All three lived only in the `cut-release` preflight script, run on
+the operator's machine, skippable by forgetting; the merge is what publishes now, so the pull request is the last point
+at which any of them is still free to fix.
 
-`ops notices --check` is the one that stayed local, because it is not reproducible across machines. It reads licence
-texts out of the runner's unpacked `$CARGO_HOME/registry/src`, and `notices_for` cannot distinguish a crate whose source
-is absent from one that ships no licence file — both are recorded as gaps. `Cargo.lock` is deliberately over-inclusive
-across target platforms, so a macOS machine and a Linux runner each read the other's platform-only crates as gaps and
-can never agree on the generated file. That also means the `THIRD-PARTY-NOTICES.txt` shipped inside every CLI archive
-reflects whichever platform last regenerated it, which is an attribution question rather than a cosmetic one.
+`ops notices --check` was held back at first, because reading licence texts out of the runner's unpacked
+`$CARGO_HOME/registry/src` made the answer a property of the machine: cargo unpacks a crate there only when something
+needs it, so a build unpacks the platform it built for, and `notices_for` recorded every crate this runner had never
+unpacked exactly like one that ships no licence file. Two changes fixed that. The command now refuses an unread registry
+rather than folding it into the no-licence-file list, and the step runs `cargo fetch --locked` before it, which with no
+`--target` unpacks every target platform's graph rather than the pair the build steps happen to need. The set it reads
+is therefore `Cargo.lock`'s, the same on a macOS laptop and a Linux runner, and the `THIRD-PARTY-NOTICES.txt` shipped
+inside every CLI archive names every crate rather than the ones the last build happened to need. That fetch is
+load-bearing in both places it appears, the CI step and the `cut-release` preflight script, and is not tidiness to be
+dropped.
 
 **One job creates a ref, and it can only create.** `release-tag` holds `contents: write` to create `refs/tags/<version>`
 at the merged commit; `release-windows-cli-publish` holds it to create the GitHub Release against that tag. Neither can
