@@ -63,16 +63,23 @@ all that one word, and Navigator never invents it.
 /app/projects/<project-code>/portal/    the client portal this repository publishes
 ```
 
-**Nothing in a Project repository declares that code, so nothing can disagree with it.** The repository name *is* the
-code: `cli/src/projects/repository.rs` takes it from the checkout directory, `.github/actions/application-publish` takes
-it from `github.event.repository.name`, and Vite derives its base from the checkout directory too
-(`basename(resolve(__dirname, '..'))`). One name, read three times, never transcribed. The gate re-derives it and
-refuses a name that is not a valid code, so a checkout cloned into a differently named directory fails there rather than
-publishing under the wrong prefix.
+**The repository name is the code, and today it is what every publish path reads.** `cli/src/projects/repository.rs`
+takes it from the checkout directory, `.github/actions/application-publish` takes it from
+`github.event.repository.name`, and Vite derives its base from the checkout directory too (`basename(resolve(__dirname,
+'..'))`). The gate re-derives it and refuses a name that is not a valid code, so a checkout cloned into a differently
+named directory fails there rather than publishing under the wrong prefix.
 
-There is deliberately **no manifest**, and `navigator.yml` is not one: it names one locally staged sample bundle
-(`store/src/sample_project.rs`), which `navigator dev up` builds outside any Project repository. A Project repository
-carrying one at its root fails the gate — `navigator.yml` is not in the source-only layout's allowed root entries.
+**A repository may also declare its Project in a root manifest, and that manifest is part of the layout.** Both
+spellings are live and both are allowed roots: Project repositories carry `navigator.yaml`, and a sample-project bundle
+carries `navigator.yml` (`store::sample_project::MANIFEST_FILE`), which `store::sample_project::project_code_for` reads
+and refuses when the declared code is not the one the bundle is being published under.
+
+So the code is currently derived in one place and declared in another, and the two can disagree — which they already do
+for the sample matters, where `navigator-sample-project-litigation` publishes as `sample-litigation` and the publish
+action has to be passed `repository: sample-litigation` by hand. Collapsing this to one filename, one key, and one
+reader — and deciding whether `application-publish` should read the manifest rather than the repository name — is an
+open decision, not settled here. Until it lands, refusing either spelling would fail a repository that is correct as
+shipped, so the layout admits both.
 
 The trailing slash is load-bearing twice: Vite joins asset URLs directly onto the base, and Navigator redirects the bare
 mount to the slashed form.

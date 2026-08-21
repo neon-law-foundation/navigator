@@ -152,18 +152,18 @@ fn the_action_verifies_the_navigator_mount_with_its_literal_segment_and_slash() 
     );
 }
 
-/// No manifest is read.
+/// Neither retired manifest is read.
 ///
-/// The manifest existed to declare a repository's own coordinates, and every
-/// reader of it is gone. A `jq` read of one here would be a fourth thing that
-/// has to agree with the repository name.
+/// `mount.json` and `navigator.toml` declared a repository's own coordinates and
+/// every reader of them is gone. A `jq` read of one here would resurrect a
+/// coordinate the repository name already carries.
 #[test]
 fn the_action_reads_no_manifest() {
     let source = action_source();
     for retired in ["mount.json", "navigator.toml", "projectCode", "jq -er"] {
         assert!(
             !source.contains(retired),
-            "the action still reads `{retired}`; nothing declares its own name",
+            "the action still reads the retired `{retired}`",
         );
     }
 }
