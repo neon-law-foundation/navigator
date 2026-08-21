@@ -554,32 +554,104 @@ fn browser_accessibility_uses_the_shipped_images() {
     }
 }
 
-/// The two public-host images compile the full server and Dioxus web bundle.
-/// A stock `ubuntu-latest` runner timed out building `neon-server` at the
-/// release job's 90-minute wedge detector (run 32185875546), while the
-/// repository's established eight-vCPU Blacksmith lane already carries the
-/// workspace build. Keep only these two heavy matrix legs on that runner; the
-/// smaller service images do not earn a metered machine.
+/// The public-host image compiles the full server and Dioxus web bundle. A
+/// stock `ubuntu-latest` runner timed out building `neon-server` at the release
+/// job's 90-minute wedge detector (run 32185875546), while the repository's
+/// established eight-vCPU Blacksmith lane already carries the workspace build.
+/// Keep that one heavy matrix leg on that runner; the smaller service images do
+/// not earn a metered machine.
 #[test]
-fn public_host_images_build_on_the_blacksmith_eight_vcpu_runner() {
+fn the_public_host_image_builds_on_the_blacksmith_eight_vcpu_runner() {
     let workflow: serde_yaml::Value =
         serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
     let matrix = workflow["jobs"]["build"]["strategy"]["matrix"]["include"]
         .as_sequence()
         .expect("the build job must declare an include matrix");
 
-    for image in ["navigator-web", "neon-server"] {
-        let leg = matrix
-            .iter()
-            .find(|leg| leg["image"].as_str() == Some(image))
-            .unwrap_or_else(|| panic!("the build matrix must include {image}"));
+    let leg = matrix
+        .iter()
+        .find(|leg| leg["image"].as_str() == Some("neon-server"))
+        .expect("the build matrix must include neon-server");
+    assert_eq!(
+        leg["runner"].as_str(),
+        Some("blacksmith-8vcpu-ubuntu-2404"),
+        "neon-server compiles the full Rust and Dioxus application and must use the established \
+         eight-vCPU Blacksmith runner"
+    );
+
+    for leg in matrix
+        .iter()
+        .filter(|leg| leg["image"].as_str() != Some("neon-server"))
+    {
         assert_eq!(
             leg["runner"].as_str(),
-            Some("blacksmith-8vcpu-ubuntu-2404"),
-            "{image} compiles the full Rust and Dioxus application and must use the established \
-             eight-vCPU Blacksmith runner"
+            Some("ubuntu-latest"),
+            "{:?} does not compile the workspace and must not hold a metered runner",
+            leg["image"].as_str().unwrap_or("?")
         );
     }
+}
+
+/// `navigator-web` is a TAG on the image `neon-server`'s leg builds, never a
+/// second build of it.
+///
+/// Both names have only ever come from `images/Containerfile.neon`, so the
+/// alias leg was paying a second ~26-minute metered build for bytes the run
+/// already had: measured across five days, 263 minutes of `navigator-web`
+/// beside 272 of `neon-server`, half of this workflow's entire runner bill.
+/// `publish` collapsed the same pair into an `alias` earlier; this is `build`
+/// catching up.
+///
+/// What the saving must not cost is the KIND gate. `integration` loads one
+/// tarball per image NAME — `for img in navigator-web neon-server ...` — so the
+/// alias has to keep arriving as its own `ci-image-*` artifact. That coupling
+/// is invisible from either file alone, which is why it is asserted here.
+#[test]
+fn navigator_web_is_an_alias_tag_rather_than_a_second_metered_build() {
+    let raw = deploy_workflow();
+    let workflow: serde_yaml::Value =
+        serde_yaml::from_str(&raw).expect("deploy.yml parses as YAML");
+    let build = &workflow["jobs"]["build"];
+    let matrix = build["strategy"]["matrix"]["include"]
+        .as_sequence()
+        .expect("the build job must declare an include matrix");
+
+    assert!(
+        !matrix
+            .iter()
+            .any(|leg| leg["image"].as_str() == Some("navigator-web")),
+        "navigator-web is byte-identical to neon-server; a matrix leg of its own buys a second \
+         metered build of an image the run already holds"
+    );
+
+    let neon = matrix
+        .iter()
+        .find(|leg| leg["image"].as_str() == Some("neon-server"))
+        .expect("the build matrix must include neon-server");
+    assert_eq!(
+        neon["alias"].as_str(),
+        Some("navigator-web"),
+        "the deployed GKE manifests still pull navigator-web, so neon-server's leg must publish \
+         that tag as an alias"
+    );
+
+    let steps = build["steps"]
+        .as_sequence()
+        .expect("the build job must declare steps");
+    assert!(
+        steps
+            .iter()
+            .filter_map(|step| step["run"].as_str())
+            .any(|script| script.contains("docker tag") && script.contains("matrix.alias")),
+        "the alias must be produced by tagging the built image"
+    );
+    assert!(
+        steps
+            .iter()
+            .any(|step| { step["with"]["name"].as_str() == Some("ci-image-${{ matrix.alias }}") }),
+        "integration loads one tarball per image name, so the alias needs its own ci-image-* \
+         artifact — without it the KIND gate fails at `docker load` on navigator-web.tar"
+    );
 }
 
 /// Slack is an optional reporting surface, not a publication gate. Progress

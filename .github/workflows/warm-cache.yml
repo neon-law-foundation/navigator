@@ -1,0 +1,134 @@
+name: warm cache
+
+# Writes the one `main`-scoped Rust dependency cache that `ci.yml`'s merge gate
+# restores. It exists because that gate's cache had stopped working: every run
+# logged `No cache found.`, then uploaded a 2.07 GB archive in its post step
+# that nothing ever read. Checked on five runs, including four consecutive
+# pushes of a single branch (32397621468, 32399733980, 32403859790,
+# 32407113109) — all misses. Every gate run was compiling the whole third-party
+# graph from zero, ~6 minutes of the test build plus the dependency share of
+# clippy and the CLI build.
+#
+# A pull-request run cannot fix that for itself, for two independent reasons:
+#
+#   * Actions caches are scoped per ref. A cache written by one PR is readable
+#     only by that PR; only a default-branch cache is readable by all of them.
+#     So the first push of every new PR was always going to be cold.
+#   * The repository cache quota is 10 GB. Roughly 25 gate runs a day writing
+#     2 GB each evict an entry well before the same PR pushes again, which is
+#     why even the second push of a branch missed.
+#
+# This workflow is the other half. One write per merge, on the default branch,
+# where every PR can read it. `ci.yml`'s step is `save-if: false` — it restores
+# and never writes — so the two halves cannot fight over the quota.
+#
+# It is NOT a second merge gate and must never become one. It runs after the
+# merge, builds nothing anyone waits on, and its failure blocks no pull
+# request. `ci.yml` remains the only thing that gates a merge, and it still
+# runs on `pull_request` alone.
+on:
+  push:
+    branches: [main]
+
+# One warm-up at a time, newest wins. Two merges landing minutes apart would
+# otherwise build the same graph twice, and only the later result is wanted.
+# `cancel-in-progress` is safe here precisely because nothing waits on this
+# workflow.
+concurrency:
+  group: warm-cache-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  warm-cache:
+    name: warm the Rust dependency cache
+    # The SAME image as the gate, and that is load-bearing rather than tidy.
+    # `rust-cache` folds every installed toolchain's version into the cache key
+    # — the gate's key covers both 1.92.0 (this rootfs) and the pinned 1.97.0 —
+    # so warming on a runner with a different preinstalled Rust would write an
+    # entry under a key the gate can never ask for. A free `ubuntu-latest`
+    # would be exactly that mistake: the cache would look healthy and restore
+    # nothing, which is the failure this workflow exists to end.
+    #
+    # The vCPU count is free to differ (the key carries `Linux-x64`, not the
+    # width), and the width is roughly cost-neutral for a build-only job — half
+    # the cores at half the rate is the same core-minutes. Eight keeps the wait
+    # short for the same money.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 90
+    # Byte-identical to the gate's environment. RUSTFLAGS, the profile debug
+    # settings and `CARGO_INCREMENTAL` all enter cargo's fingerprints, so a
+    # divergence here would produce artifacts the gate rebuilds anyway — a
+    # cache that restores and saves nothing, the worst of both. `rust-cache`
+    # folds `CARGO_TARGET_DIR` into the key as well, which is why this job
+    # leaves it unset exactly as the gate's largest-disk step does on this
+    # image: if the gate ever starts relocating the build directory, this job
+    # has to relocate it the same way or stop being readable.
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      RUSTFLAGS: "-C link-arg=-fuse-ld=lld -C strip=symbols"
+    steps:
+      # lld is absent from this image and RUSTFLAGS above requires it. No disk
+      # sweep, for the reason the gate documents: 177 GB is already free.
+      - name: install lld
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lld
+          ld.lld --version
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.0
+          components: rustfmt, clippy, llvm-tools-preview
+      - name: install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov@0.8.7
+      - name: install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest@0.9.140
+      # `shared-key`, NOT `key`: `key` is added to an automatic per-job key
+      # (`add-job-id-key` defaults to true), which would make this entry
+      # unreadable from a job of another name — that is, from the gate, the
+      # only reader. `shared-key` replaces the automatic part. It must stay
+      # spelled the same in both files; change it in both or in neither.
+      #
+      # `save-if` is left at its default. This workflow runs on `main` only, so
+      # every entry it writes is already default-branch scoped, and the write is
+      # the entire point of the job.
+      - name: save the Rust dependency cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: workspace
+      # Build what the gate builds, under the same coverage instrumentation, so
+      # the artifacts carry the fingerprints the gate will look for.
+      #
+      # `--no-run` because nothing here needs a test RESULT — `ci.yml` already
+      # proved this commit before it merged. Only the compiled dependency graph
+      # is wanted, and `rust-cache` prunes every workspace-member artifact out
+      # of the archive before saving, so what lands in the 10 GB quota is the
+      # third-party rlib set alone.
+      #
+      # A cache write is a no-op when the key already exists, so on the usual
+      # merge — one that does not touch a manifest — this job compiles, finds
+      # the entry present and uploads nothing.
+      #
+      # `features` is built separately for the same reason the gate runs it
+      # separately: `.config/nextest.toml` filters the package out of a
+      # workspace nextest run, so its dependency graph — wiremock, fantoccini
+      # and the rest of the cucumber fixture — would otherwise never enter the
+      # cache and would recompile on every gate run.
+      - name: build the workspace dependency graph
+        run: |
+          set -euo pipefail
+          eval "$(cargo llvm-cov show-env --export-prefix)"
+          cargo nextest run --workspace --no-run
+          cargo test -p features --no-run
+      - name: report free disk
+        if: always()
+        run: df -h

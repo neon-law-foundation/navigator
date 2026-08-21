@@ -1,7 +1,7 @@
 name: ci
 
 # The PR flow (see docs/gitops.md "CI/CD workflows"). Lean on purpose: fmt + clippy +
-# `cargo test --workspace`, plus repository-wide YAML and Markdown validation
+# the whole workspace test suite, plus repository-wide YAML and Markdown validation
 # passes through the Neon Law Navigator CLI. That one test pass also carries the
 # coverage floor: it runs under `cargo llvm-cov` instrumentation, so coverage is
 # a byproduct of the existing gate and NOT a second test run.
@@ -10,7 +10,7 @@ name: ci
 # person pushes a `YY.M.D` tag.
 #
 # Do NOT add audit/deny/cucumber/docker/e2e jobs back here — the Cucumber BDD
-# suite already runs inside `cargo test --workspace`, and the heavy paths
+# suite already runs inside the test step, and the heavy paths
 # belong in the release flow so PR latency stays low. Coverage is the
 # one deliberate exception: it piggybacks on the existing test pass rather than
 # adding a job, and `--fail-under-lines` fails that job in-run, so the whole
@@ -56,20 +56,24 @@ name: ci
 # with 87 MB free on a 72 GB root and the post-job cache save died on it. One
 # more crate breaks that.
 #
-# Eight cores is where the run phase saturates and where the disk stops
-# mattering. It also equals the CPU-pin ceiling proven green on run 144357516,
-# so `taskset` below correctly no-ops here.
+# Eight cores is where the disk stops mattering, and it is the width the
+# run-phase concurrency below was proven green against on run 144357516.
 #
-# What would change this calculus is making test execution parallel — `cargo
-# nextest` schedules across binaries instead of running them one after another
-# (ENG-57 is the related pinned-pool fix). If that lands and the run half
-# becomes CPU-bound, re-measure before assuming this runner is still right.
+# That is the shape `cargo nextest` below replaces: it schedules across
+# binaries instead of running them one after another. The run phase is no
+# longer structurally serial, so the next re-measurement of this runner's size
+# is a real question rather than a foregone one. What still bounds the width is
+# ENG-57, the Dioxus pinned pool — see the test step.
 #
-# The `free-disk-space` sweep IS restored below, because this job now runs on a
-# standard runner, where disk is the binding constraint and fails as a linker
-# SIGBUS rather than a clean ENOSPC. `strip=symbols`, lld and the narrowed
-# clean stay alongside it — they are cheap and they are what keep the footprint
-# at ~45 GB.
+# The `free-disk-space` sweep is GONE, because this job runs on a fleet with
+# 177 GB free before any sweep against a 75 GB peak. `strip=symbols`, lld and
+# the narrowed clean stay — they are cheap and they are what keep the footprint
+# at ~45 GB. The step comment below says exactly when to restore the sweep.
+#
+# Measured on this fleet, run 32517062301 (19.3 min end to end):
+#
+#   install lld 0.1 | navigator CLI 2.0 | clippy 2.0 | test build 6.0 |
+#   test execution 10.25 | coverage report 0.2
 #
 # Confirm a label exists before putting it here. A label nothing can schedule
 # does not fail the run, it hangs it: run 139216706 asked for
@@ -155,39 +159,28 @@ jobs:
       # build stays readable.
       RUSTFLAGS: "-C link-arg=-fuse-ld=lld -C strip=symbols"
     steps:
-      # Disk reclaim, and it is load-bearing on this runner. The job moved to
-      # `ubuntu-latest`, and its absence does NOT read as a disk error: the
-      # linker dies with
+      # No disk reclaim on this runner, and the measurements are why. The
+      # Blacksmith 8-vCPU image reports a 246 GB root with 177 GB ALREADY FREE
+      # before any sweep, and this job peaks at 75 GB used — 171 GB of headroom
+      # (run 32517062301: 57 GB used at checkout, 32 GB after the sweep, 75 GB
+      # at the end of the test step). `jlumbroso/free-disk-space` spent 1.2-1.5
+      # min of metered runner time per run reclaiming 25 GB nothing needs,
+      # which is ~160 min a month of paying for nothing.
+      #
+      # RESTORE IT — verbatim, `swap-storage: false` included, and placed BEFORE
+      # the lld install whose `llvm-*` packages its large-packages path purges —
+      # if this job ever moves to a standard GitHub-hosted runner. There disk is
+      # the binding constraint, and its absence does not read as a disk error: a
+      # linker writes its output through `mmap`, so a full filesystem surfaces
+      # as
       #
       #     ld terminated with signal 7 [Bus error]
       #
-      # and no "No space left on device" anywhere, because a linker writes its
-      # output through `mmap` so a full filesystem surfaces as SIGBUS rather
-      # than ENOSPC. That is exactly how it failed when the runner shrank and
-      # this step did not come back with it: two `server/tests` binaries died
-      # linking, with the tests themselves never reaching a red assertion.
-      #
-      # Headroom is thin even with the sweep. On `ubuntu-latest` (2 vCPU, 72 GB
-      # root) a plain `cargo test` run finished with 87 MB free and the
-      # post-job cache save died on it; this job also instruments for coverage,
-      # which is larger still. Treat a returning SIGBUS as "the job outgrew the
-      # runner", not as a flake to re-run.
-      #
-      # Every reclaim except swap. `swap-storage` stays false deliberately —
-      # reclaiming it would trade the disk we need for the memory the link
-      # steps also need.
-      - name: free disk space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: true
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: false
-      # After the reclaim, not before: `free-disk-space` purges `llvm-*` on its
-      # large-packages path, which would take lld back out from under RUSTFLAGS.
+      # with no "No space left on device" anywhere. That is exactly how two
+      # `server/tests` binaries died when the runner shrank and this step did
+      # not come back with it, and an uninstrumented `ubuntu-latest` run of this
+      # suite finished with 87 MB free on a 72 GB root. Read a returning SIGBUS
+      # as "the job outgrew the runner", never as a flake to re-run.
       #
       # lld is absent from this image (`ld.lld: absent`, run 144671916) and
       # RUSTFLAGS below requires it, so the install is not optional here.
@@ -198,16 +191,14 @@ jobs:
           ld.lld --version
       # Build on whichever disk is actually large enough.
       #
-      # Kept as a guard rather than deleted, and now genuinely load-bearing:
-      # the runner moved to `blacksmith-8vcpu-ubuntu-2404` and this workflow
-      # has never run there, so whether it splits storage is unmeasured. On the
-      # retired `neon-law-medium` /mnt EXISTED but was the same filesystem as
-      # root (both 290G total / 237G free, run 144671916), so `-gt` was false
-      # and the default target directory won. On `ubuntu-latest` /mnt does not
+      # Kept as a guard rather than deleted, though on this runner it is a
+      # no-op: `blacksmith-8vcpu-ubuntu-2404` does not split storage, and the
+      # step prints `build directory -> workspace default (root is the larger
+      # disk)` (run 32517062301, a single 246 GB `/dev/root`). On the retired
+      # `neon-law-medium` /mnt EXISTED but was the same filesystem as root (both
+      # 290G total / 237G free, run 144671916), so `-gt` was false and the
+      # default target directory won there too. On `ubuntu-latest` /mnt does not
       # exist at all, contrary to what this comment claimed for months.
-      #
-      # Read the line this step prints on the first Blacksmith run before
-      # trusting any claim about that runner's disks.
       #
       # It earns its place on any runner that DOES split storage, where the
       # root filesystem fills during `cargo test --workspace` until the Actions
@@ -260,6 +251,13 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov@0.8.7
+      # Pinned to the same version `deploy.yml`'s browser gate pins, for the
+      # same reason: the test runner must not change under the coverage floor
+      # because an installer picked up a newer release.
+      - name: install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest@0.9.140
       # Cache the compiled DEPENDENCIES, not just their sources.
       #
       # The plain `actions/cache` this replaces kept only the `~/.cargo`
@@ -287,25 +285,44 @@ jobs:
       # publish jobs now cache into Artifact Registry instead, which leaves the
       # quota to this.
       #
-      # Note what that does and does not buy. Actions caches are scoped per
-      # ref: a cache written by one PR is readable only by that PR, and only a
-      # default-branch cache is readable by all of them. This workflow runs on
-      # `pull_request` alone (see the trigger comment above), so nothing ever
-      # writes a `main`-scoped cache — the reuse won back here is across pushes
-      # WITHIN a PR, not across PRs. Making the first push of a new PR warm
-      # would mean running this job on `main` too, which is a deliberate
-      # non-goal today.
+      # This step is now READ-ONLY, and that is the fix for a cache that had
+      # stopped working entirely. Every run logged
       #
-      # It still authenticates the same way the first-party action does — the
+      #     No cache found.
+      #
+      # then uploaded a 2.07 GB archive in its post step that nothing ever read
+      # — checked on five runs including four consecutive pushes of one branch
+      # (32397621468, 32399733980, 32403859790, 32407113109), all misses. So
+      # every gate run compiled the whole third-party graph from zero: ~6 min of
+      # test build plus the dependency share of clippy and the CLI build.
+      #
+      # Two causes, and a PR-scoped write cannot beat either. Actions caches are
+      # scoped per ref — a cache written by one PR is readable only by that PR,
+      # and only a default-branch cache is readable by all of them — and the
+      # repository quota is 10 GB, against which ~25 gate runs a day writing
+      # 2 GB each evict an entry long before the same PR pushes again.
+      #
+      # So `warm-cache.yml` writes exactly one `main`-scoped entry per merge and
+      # this job only restores it. That is one write a merge instead of 25 a
+      # day, and it makes the FIRST push of every new PR warm, which is the case
+      # a PR-scoped cache could never serve.
+      #
+      # It authenticates the way the first-party action does — the
       # runner-injected `ACTIONS_RUNTIME_TOKEN` — so nothing here reaches
-      # api.github.com, which on this enterprise would be a "Bad credentials"
-      # 401. The cache key it derives already covers the rustc version, the lock
-      # file, and `CARGO_TARGET_DIR`, so it follows the build directory wherever
-      # the step above put it.
-      - name: cache cargo registry and dependency build
+      # api.github.com. The key it derives already covers the rustc version, the
+      # lock file, and `CARGO_TARGET_DIR`, so it follows the build directory
+      # wherever the step above put it.
+      - name: restore the Rust dependency cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: workspace
+          # `shared-key`, NOT `key`. `key` is added to an automatic per-job key
+          # (`add-job-id-key` defaults to true), so an entry written by any
+          # other job is unreadable here — including `warm-cache.yml`'s, the
+          # only job that writes one now. `shared-key` replaces the automatic
+          # part, so both halves address the same entry. Change it in both
+          # files or in neither.
+          shared-key: workspace
+          save-if: false
       # SurrealDB for the server-mode lane (#1093). Unit tests use the
       # embedded `kv-mem` engine and need nothing running; this container
       # exists for `store/tests/surreal_server.rs`, which covers what an
@@ -516,11 +533,12 @@ jobs:
       # `cargo llvm-cov show-env` rather than `cargo llvm-cov --workspace`, and
       # the difference is load-bearing twice over.
       #
-      #   * It leaves the two `cargo test --workspace` invocations below
-      #     literally unchanged, so the build/run split — full-width build, then
-      #     a `taskset`-pinned run — survives. `cargo llvm-cov` is one shot with
-      #     no build-only mode (its `--no-run` means "report without running",
-      #     the opposite of cargo's), so it cannot express that split.
+      #   * It leaves the four invocations below literally unchanged, so the
+      #     build/run split — full-width build, then a bounded run — survives,
+      #     and so does running `features` and the doctests as their own lanes.
+      #     `cargo llvm-cov` is one shot with no build-only mode (its
+      #     `--no-run` means "report without running", the opposite of
+      #     cargo's), so it cannot express any of that.
       #   * `cargo llvm-cov --workspace` runs `cargo test --tests`, which drops
       #     DOCTESTS. Switching to it would have quietly narrowed the merge gate
       #     to buy coverage. This shape adds measurement and subtracts no tests.
@@ -543,14 +561,15 @@ jobs:
           NAVIGATOR_SURREAL_USER: root
           NAVIGATOR_SURREAL_PASSWORD: root
           NAV_REQUIRE_SURREAL: "1"
-          # See the comment below: bounds libtest's pool only, never the build.
+          # Bounds libtest's pool only, never the build. With nextest carrying
+          # the workspace run this reaches the two lanes that are still plain
+          # libtest — the doctests, and `features` if its cucumber suites ever
+          # adopt a harness — and it holds them at the same 4 the nextest
+          # `--test-threads` below uses.
           RUST_TEST_THREADS: "4"
         # Compile at the machine's full width; hold test EXECUTION at the
-        # concurrency that is known to work. `RUST_TEST_THREADS` bounds only
-        # libtest's pool, so `cargo`'s `-j` build parallelism is untouched.
-        #
-        # On this 4-vCPU runner both numbers coincide and nothing here binds —
-        # the block below is what keeps that true on a wider machine.
+        # concurrency that is known to work. Neither `RUST_TEST_THREADS` nor
+        # nextest's `--test-threads` touches `cargo`'s `-j` build parallelism.
         #
         # This is a workaround for a latent quadratic in the test suite, not a
         # property of the runner. `dioxus-server` builds every `FullstackState`
@@ -562,7 +581,7 @@ jobs:
         #
         # Every test that builds a router gets its own pool, and each pinned
         # worker is a current-thread Tokio runtime holding an epoll instance. So
-        # live runtimes scale as (concurrent tests x cores): 4x4 = 16 here, and
+        # live runtimes scale as (concurrent tests x cores): 4x8 = 32 here, and
         # 16x16 = 256 on a larger runner. The default
         # `fs.epoll.max_user_instances` ceiling is 128, which is why that
         # surfaces as EMFILE — `code: 24`, from `tokio-util`'s
@@ -582,11 +601,10 @@ jobs:
         #     `api_json_write_*`) instead. Any test building a router is exposed.
         #
         # Removing this cap is ENG-57: bound the pool, or share one router across
-        # tests, so concurrency stops tracking the core count. Until then a
-        # global cap is the only lever, because the one input `available_
-        # parallelism()` honours is process-wide CPU affinity, which would
-        # throttle the build too if applied to the whole step rather than the
-        # run phase alone.
+        # tests, so concurrency stops tracking the core count. Until then the cap
+        # has to come from outside the pool, which is what nextest's
+        # `--test-threads` below does — it bounds the number of test processes
+        # holding pools at once without touching the build's width.
         #
         # Limits are echoed first and read defensively: a missing sysctl must not
         # abort the step before a single test runs, which is how the epoll
@@ -618,51 +636,51 @@ jobs:
           # call `World::run` rather than opting into its CLI — passing it fails
           # with `error: Unrecognized option: 'concurrency'`.
           #
-          # `available_parallelism()` does honour CPU affinity, so `taskset` is
-          # the one lever that reaches every scheduler at once.
+          # Under `cargo test` the lever was `taskset`, because
+          # `available_parallelism()` honours CPU affinity and nothing else
+          # reached every scheduler at once. `cargo nextest` needs no such
+          # trick: `--test-threads` bounds how many test PROCESSES run at once,
+          # which is the same quantity the pin was there to bound.
           #
-          # The pin is CONDITIONAL, and on `neon-law-medium` it does not apply:
-          # the ceiling is 8 effective cores and this runner has exactly 8, so
-          # the branch below runs the tests unpinned. That is the point of
-          # choosing this size — the workaround costs nothing here.
+          # Build every test binary at the machine's full width first, so the
+          # bound below applies to execution alone.
+          cargo nextest run --workspace --no-run
+          # Four, and it is the concurrency this suite has already proven rather
+          # than a new bet. Live runtimes scale as (concurrent tests x cores):
+          # 16x16 = 256 blew past the suspected 128 `fs.epoll.max_user_instances`
+          # ceiling, and 4 concurrent tests x 8 cores = 32 was confirmed green on
+          # run 144357516. Four nextest processes x 8 cores is that same 32.
+          # Raising it is untested and is a separate, measured change.
           #
-          # It must stay conditional rather than become a constant. Blindly
-          # running `taskset -c 0-7` on a narrower runner is not a harmless
-          # no-op: `sched_setaffinity` rejects a mask naming CPUs that do not
-          # exist ("failed to set pid 0's affinity: Invalid argument"), which
-          # under `set -e` fails the step before a single test runs.
-          #
-          # Eight is where the width landed after measurement on the 16-core
-          # runner. Live runtimes scale as (concurrent tests x cores): 16x16 =
-          # 256 blew past the suspected 128 `fs.epoll.max_user_instances`
-          # ceiling, and 4 concurrent tests x 8 cores = 32 was confirmed green
-          # on run 144357516. Note RUST_TEST_THREADS is still 4, so 32 is what
-          # is proven here, NOT 64 — raising it to 8 is untested and is a
-          # separate change. Keeping the guard means this file survives a move
-          # to a wider runner without another edit.
+          # What this buys is scheduling ACROSS binaries. `cargo test` ran the
+          # ~209 test binaries one after another — 10m15s of a 19.3 min job on
+          # run 32517062301, with at most four tests live inside one binary at a
+          # time while seven cores waited.
           #
           # If the ceiling is ever exceeded it fails loudly and unmistakably:
           # EMFILE, `code: 24`, "Failed to start a pinned worker thread
           # runtime", out of `tokio-util`'s `spawn_pinned.rs`. Narrow the width
           # on that signature — it is not a flake to re-run. The real fix
           # remains ENG-57.
+          cargo nextest run --workspace --no-fail-fast --test-threads 4
+          # The two lanes nextest does not run, kept so this gate stays exactly
+          # as wide as the `cargo test --workspace` it replaces — and so the
+          # coverage number keeps measuring the same test set.
           #
-          # Guarded twice: pin only when the machine is wider than the ceiling,
-          # and only when `taskset` exists — never silently unbounded on a
-          # runner that actually needs the bound.
-          cargo test --workspace --no-run
-          pin_width=8
-          cores="$(nproc)"
-          if [ "${cores}" -le "${pin_width}" ]; then
-              echo "running tests unpinned — ${cores} CPUs is at or under the ${pin_width}-core ceiling"
-              cargo test --workspace
-          elif command -v taskset >/dev/null 2>&1; then
-              echo "running tests pinned to CPUs 0-$((pin_width - 1)) of ${cores}"
-              taskset -c "0-$((pin_width - 1))" cargo test --workspace
-          else
-              echo "taskset unavailable on a ${cores}-CPU runner — falling back to RUST_TEST_THREADS only" >&2
-              cargo test --workspace
-          fi
+          #   * `features`. The cucumber suites are `harness = false` binaries
+          #     that do not speak nextest's `--list` protocol, so
+          #     `.config/nextest.toml` excludes the package and a workspace run
+          #     would otherwise abort on them. Run alone rather than alongside
+          #     the line above: these suites carry their own fixed
+          #     `max_concurrent_scenarios: Some(64)`, which is the same
+          #     concurrency they get today inside `cargo test --workspace`.
+          #   * DOCTESTS. nextest does not run them at all. They are part of
+          #     what the floor below measures — see the note there on why the
+          #     local `cargo llvm-cov --workspace` lane reads lower than this
+          #     job — so dropping them would both narrow the gate and move the
+          #     percentage it is compared against.
+          cargo test -p features
+          cargo test --workspace --doc
           # THE COVERAGE GATE. `--fail-under-lines` exits non-zero when total
           # workspace line coverage is under the floor, which fails this job and
           # therefore the `ci` merge gate. There is no upload, no separate
@@ -704,8 +722,11 @@ jobs:
           # The local measurement is deliberately conservative — CI should read
           # at or above it, never below — for two reasons. `cargo llvm-cov
           # --workspace` (the local form) runs `cargo test --tests` and so skips
-          # DOCTESTS, which this job's `cargo test --workspace` runs and which
-          # can only add covered lines. And the local pass had one red binary,
+          # DOCTESTS, which this job runs as their own `cargo test --workspace
+          # --doc` lane and which can only add covered lines. That lane is why
+          # the move to nextest did not move this number: nextest does not run
+          # doctests, so dropping it would have taken those lines out of the
+          # measurement. And the local pass had one red binary,
           # `features --test portal_admin_firm_surface`, a macOS-only
           # runtime-drop panic that is green on Linux, so its scenarios
           # contributed less coverage locally than they will here.
