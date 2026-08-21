@@ -248,17 +248,15 @@ rather than half-reconciled.
 
 Add jobs to the workflow that owns their trigger; do not create a redundant workflow.
 
-`warm-cache.yml` is the one workflow that is not a gate. It runs after a merge, nothing waits on it, and its failure
-blocks no pull request — it exists only because an Actions cache is scoped per ref, so the `main`-scoped entry every
-pull request restores has to be written by a run on `main`. It is a separate file rather than a job in `ci.yml`
-precisely so that `ci.yml` keeps running on `pull_request` alone.
+The Rust dependency cache is written and read by the merge gate itself, on the branch being tested — so the first push
+of a new branch compiles the third-party graph from zero and only its later pushes restore. Warming a first push would
+take a `main`-scoped entry written after each merge, which this repository does not keep.
 
-Writing that entry is necessary but not sufficient: the Actions cache is a single 10 GB budget shared by every cache in
-the repository, and an entry evicted before the next pull request reads it is indistinguishable from one never written.
-That budget is why `deploy.yml`'s `build` job exports a `type=gha` cache only on the legs carrying a `ci_cache_scope` —
-the scopes `publish-service` reads back. A `mode=max` export of a Rust builder stage carries the whole `target`
-directory, so one leg nobody reads is enough to starve the gate. Before adding a `cache-to` anywhere, check
-`/actions/cache/usage` and name the reader.
+The Actions cache is a single 10 GB budget shared by every cache in the repository, and an entry evicted before the next
+push reads it is indistinguishable from one never written. That budget is why `deploy.yml`'s `build` job exports a
+`type=gha` cache only on the legs carrying a `ci_cache_scope` — the scopes `publish-service` reads back. A `mode=max`
+export of a Rust builder stage carries the whole `target` directory, so one leg nobody reads is enough to starve the
+gate. Before adding a `cache-to` anywhere, check `/actions/cache/usage` and name the reader.
 
 | Workflow | Trigger | Job |
 | --- | --- | --- |
@@ -266,7 +264,6 @@ directory, so one leg nobody reads is enough to starve the gate. Before adding a
 | `.github/workflows/deploy.yml` | a push to `main`, or a `kind-ci/**` branch | prove + tag + publish images |
 | `.github/workflows/ghcr-retention.yml` | 01:11 UTC nightly, or a dispatch | prune old GHCR versions |
 | `.github/workflows/codeql.yml` | `pull_request` → `main` | CodeQL scan — enable it, see below |
-| `.github/workflows/warm-cache.yml` | `push` → `main` | write the Rust dependency cache the gate reads |
 
 ### CodeQL can be turned back on
 
