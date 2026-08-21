@@ -410,7 +410,7 @@ enum DbCmd {
 #[derive(Subcommand)]
 enum SiteCmd {
     /// Authenticate to a live Neon Law Navigator site via a browser-loopback
-    /// flow and store a short-lived (~8h) bearer token at
+    /// flow and store a short-lived (1h) bearer token at
     /// `~/.navigator.json` (mode `0600`).
     Login {
         /// Host to authenticate to, e.g. `www.neonlaw.com`. A bare host

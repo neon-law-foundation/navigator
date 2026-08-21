@@ -19,7 +19,7 @@ Claude Code / Claude Desktop
 navigator site mcp            ← runs on the attorney's laptop
    │   POST /app/api/aida/rpc
    │   metadata.skill = the tool Claude chose
-   │   Authorization: Bearer <the ~8h token `site login` stored>
+   │   Authorization: Bearer <the 1h token `site login` stored>
    ▼
 web  →  portal::a2a::dispatch_single  →  mcp::tools::call_tool
         lawyer-tier check + target: "audit" events
@@ -44,9 +44,9 @@ and execute.
 navigator site login --host www.neonlaw.com
 ```
 
-Browser-loopback flow; the token lands at `~/.navigator.json`, mode `0600`, and lasts about eight hours. The account
-must resolve to a `persons` row with the `lawyer` or `admin` role — the tools that write refuse anything less. Check
-with `navigator site whoami`.
+Browser-loopback flow; the token lands at `~/.navigator.json`, mode `0600`, and lasts one hour. The account must resolve
+to a `persons` row carrying the `lawyer` or `admin` role — the tools that write refuse anything less. Check it with
+`navigator site whoami`.
 
 ### 2. Register the server
 
@@ -133,7 +133,7 @@ nothing on any surface provisions the repository behind it — see the note in E
 
 - **stdio is per-laptop.** This serves Claude Code and Claude Desktop. It does not serve claude.ai on the web or mobile,
   which would need OAuth protected-resource metadata and dynamic client registration.
-- **The token is about eight hours.** When it ages out, calls come back as a tool error naming the fix. Run
+- **The token lasts one hour** (`CLI_SESSION_TTL_SECS`). When it ages out, calls come back as a tool error. Run
   `navigator site login` again and retry — the credential is read from disk per call, so a re-login lands without
   restarting the server or the client.
 - **Registering before logging in is fine.** The server starts, lists its tools, and explains the missing login on the
