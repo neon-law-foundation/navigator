@@ -11,7 +11,10 @@ production component, so the page cannot drift from what ships.
   hydration bundle and drives an authenticated, hydrated one.
 - **`webapp::components` is a leaf.** No router, no session, no application state, no data access, no brand colour.
 - **Semantic tokens only.** A component emits a class name; the token module decides what `--nav-*` it resolves to.
-- **Rust only.** No Node toolchain, no CDN, no Bootstrap, no HTMX, no Alpine.
+- **Rust only.** No Node toolchain, no CDN, no Bootstrap, no HTMX, no Alpine. The design system has one exception, and
+  it is not part of the component tree: a deployment that names a support-chat inbox loads that vendor's widget from its
+  own origin, injected by the render middleware and admitted by a route-scoped CSP. Nothing a component renders may
+  reach off-origin.
 
 ```bash
 cargo run -p cli -- dev worktree-env up --path "$PWD"

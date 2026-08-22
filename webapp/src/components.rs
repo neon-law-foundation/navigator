@@ -88,7 +88,7 @@ pub(crate) use platform_mark::PlatformMarkGlyph;
 pub use practice_card::PracticeMark;
 pub(crate) use practice_card::{PracticeCard, PracticeMarkGlyph};
 pub use pricing::{PricingCard, PricingSection};
-pub use public_shell::PublicShell;
+pub use public_shell::{PublicShell, PUBLIC_SHELL_MARKER};
 pub use row_actions::RowActions;
 #[cfg(feature = "server")]
 pub use sample_matters_banner::render_sample_matters_banner;

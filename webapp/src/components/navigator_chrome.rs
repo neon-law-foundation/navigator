@@ -223,6 +223,36 @@ mod tests {
         );
     }
 
+    /// The authenticated shell must not read as a public page.
+    ///
+    /// `portal::dioxus_app` decides where the support-chat widget goes by
+    /// looking for the public shell's root class in the rendered document, and
+    /// both roots carry `nav-theme`. If this shell ever rendered the public
+    /// marker, every `/app` and `/lawyer` page would grow a support bubble and
+    /// have its CSP widened to a third-party origin — on the surfaces that
+    /// display a client's matter.
+    #[test]
+    fn the_authenticated_shell_is_not_marked_as_a_public_page() {
+        fn app() -> Element {
+            rsx! {
+                NavigatorShell {
+                    navbar: rsx! { div { "nav" } },
+                    footer: rsx! { div { "foot" } },
+                    p { "content" }
+                }
+            }
+        }
+
+        let html = ssr(app);
+        assert!(
+            !html.contains(&format!(
+                "class=\"{}\"",
+                crate::components::PUBLIC_SHELL_MARKER
+            )),
+            "{html}"
+        );
+    }
+
     #[test]
     fn shell_omits_the_main_landmark_when_previewed_inside_another_main() {
         fn app() -> Element {

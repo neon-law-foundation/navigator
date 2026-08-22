@@ -87,6 +87,7 @@ pub use billing::xero_auth;
 pub mod admin_contract_reviews;
 pub mod admin_playbooks;
 pub mod canonical_host;
+pub mod chatwoot;
 pub mod clauses;
 pub mod cli_auth;
 pub mod config;
@@ -224,9 +225,15 @@ const HSTS_VALUE: HeaderValue =
 /// a clip locally and block the same clip from the bucket in production.
 /// Scripts and styles stay `'self'`; only
 /// passive presentation assets leave the app origin. The Dioxus render route
-/// (issue #641) carries its own tighter, per-response CSP — a nonce for its
-/// inline hydration scripts plus `'wasm-unsafe-eval'` for the client bundle —
-/// so that WebAssembly allowance never widens this site-wide policy.
+/// (issue #641) replaces this policy with its own per-response one — a nonce
+/// for its inline hydration scripts, `'wasm-unsafe-eval'` for the client
+/// bundle, and, on a public page of a deployment that names a support-chat
+/// inbox, that installation's origin on four directives
+/// ([`crate::chatwoot`]). Those allowances live there rather than here
+/// precisely so they never widen this policy: every route that is not a Dioxus
+/// render — the JSON API, the redirects, the static mounts — keeps scripts
+/// same-origin with no host source at all, and a deployment carrying no widget
+/// keeps that on the rendered pages too.
 fn csp_value() -> HeaderValue {
     let asset_extra = asset_csp_origin()
         .map(|origin| format!(" {origin}"))
@@ -251,7 +258,7 @@ fn asset_csp_origin() -> Option<String> {
 /// Pure core of [`asset_csp_origin`], split out so tests exercise
 /// every base form without stomping the process-wide env var (which
 /// would race the parallel test runner).
-fn csp_asset_origin_from(base: &str) -> Option<String> {
+pub(crate) fn csp_asset_origin_from(base: &str) -> Option<String> {
     let base = base.trim();
     let (scheme, rest) = base
         .strip_prefix("https://")
@@ -3016,6 +3023,14 @@ mod csp_tests {
         assert!(
             !csp.contains("wasm-unsafe-eval"),
             "wasm stays route-scoped: {csp}"
+        );
+        // The support-chat origin is route-scoped for the same reason. This
+        // policy governs the JSON API, the redirects, and the static mounts —
+        // none of which render a widget, and none of which should name its
+        // installation as a script source.
+        assert!(
+            !csp.contains("chatwoot") && !csp.contains("connect-src"),
+            "the widget origin stays route-scoped: {csp}"
         );
         assert!(!csp.contains("script-src 'self' http"), "got: {csp}");
         assert!(!csp.contains("googleapis"), "got: {csp}");

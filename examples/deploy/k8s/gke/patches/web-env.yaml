@@ -85,6 +85,21 @@ spec:
               value: "YOUR_SIMULATED_MATTERS"
             - name: NAVIGATOR_STORAGE_BACKEND
               value: gcs
+            # The Chatwoot inbox the public pages open a support conversation
+            # against. Optional, and empty means no widget at all — which is
+            # what keeps the firm's live inbox off the staging release ring,
+            # whose visitors are reading a synthetic portfolio. `ops ship`
+            # renders the empty default when the deployment's `config.toml`
+            # omits the key.
+            #
+            # Committed in clear like OAUTH_CLIENT_ID below: a Chatwoot website
+            # token is a public identifier that appears in the HTML every
+            # visitor's browser receives, so it rides inline env rather than the
+            # projected Secret. NAVIGATOR_CHATWOOT_BASE_URL is deliberately
+            # omitted — unset means Chatwoot Cloud, the installation the firm
+            # uses; set it only for a self-hosted one.
+            - name: NAVIGATOR_CHATWOOT_WEBSITE_TOKEN
+              value: "YOUR_CHATWOOT_WEBSITE_TOKEN"
             # NAVIGATOR_STORAGE_ENDPOINT is deliberately omitted in prod:
             # it is a local/test override that the KIND base may set, and
             # the `$patch: replace` above drops the base's whole env list.

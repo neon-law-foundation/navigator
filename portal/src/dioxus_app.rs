@@ -156,15 +156,20 @@ pub fn router() -> Option<Router> {
     )
 }
 
-/// Middleware for the rendered page. It owns the two head-level concerns the
+/// Middleware for the rendered page. It owns the head-level concerns the
 /// SSR'd component tree cannot express itself:
 ///
 /// - give Dioxus's inline hydration scripts a per-response nonce and emit a
 ///   matching route-scoped CSP, so hydration runs under `script-src 'self'
 ///   'nonce-…' 'wasm-unsafe-eval'` without ever admitting blanket
-///   `'unsafe-inline'` or a CDN host; and
+///   `'unsafe-inline'` or a CDN host;
 /// - declare the licensed GORP Serif faces against the deployment asset origin,
-///   so the page is set in the firm's typeface (see the module docs).
+///   so the page is set in the firm's typeface (see the module docs); and
+/// - boot the support-chat widget on public pages, when the deployment carries
+///   one ([`crate::chatwoot`]). This is the one thing the page renders from a
+///   third-party origin, so the CSP widening travels with the injection rather
+///   than being declared unconditionally: a deployment with no widget keeps a
+///   byte-identical same-origin policy.
 ///
 /// Only the HTML render response is rewritten; the wasm/glue assets pass
 /// through untouched.
@@ -210,7 +215,19 @@ async fn dioxus_document_head(req: Request, next: Next) -> Response {
         html
     };
 
-    if let Ok(csp) = HeaderValue::from_str(&csp_with_nonce(&nonce, crate::asset_csp_origin())) {
+    // The widget rides public pages only. Both faces the one binary serves
+    // qualify — the firm at the root and the Foundation under `/foundation`
+    // share the public shell — while the authenticated `/app` and `/lawyer`
+    // surfaces render `NavigatorShell` and are left alone, so the pages that
+    // display a client's matter keep the strict same-origin policy.
+    let chat = CHATWOOT.as_ref().filter(|_| is_public_page(&html));
+    let html = match chat {
+        Some(widget) => close_with_script(&html, &widget.script_tags()),
+        None => html,
+    };
+
+    if let Ok(csp) = HeaderValue::from_str(&csp_with_nonce(&nonce, crate::asset_csp_origin(), chat))
+    {
         parts.headers.insert(header::CONTENT_SECURITY_POLICY, csp);
     }
     // The body length changed; drop any stale content-length so axum recomputes.
@@ -235,6 +252,48 @@ static SAMPLE_MATTERS: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
         })
         .unwrap_or(false)
 });
+
+/// This deployment's support-chat widget, resolved once at startup.
+///
+/// Read once for the same reason [`SAMPLE_MATTERS`] is: it cannot change while
+/// the process runs, and this middleware touches every HTML response. `None`
+/// is the default and the answer everywhere the deployment names no Chatwoot
+/// inbox — local KIND and the staging release ring included.
+static CHATWOOT: std::sync::LazyLock<Option<crate::chatwoot::ChatwootWidget>> =
+    std::sync::LazyLock::new(crate::chatwoot::ChatwootWidget::from_env);
+
+/// Whether this rendered document is a public page — the surface the
+/// support-chat widget rides.
+///
+/// Decided from the shell the page rendered rather than from its path: the
+/// public shell is what "public page" means, one binary serves both brand faces
+/// through it, and a path allow-list would have to be extended by hand every
+/// time a public route is added. The match is on the whole class attribute, not
+/// a substring: the authenticated shell's root carries the same `nav-theme`
+/// class in the other order.
+fn is_public_page(html: &str) -> bool {
+    html.contains(&format!(
+        "class=\"{}\"",
+        webapp::components::PUBLIC_SHELL_MARKER
+    ))
+}
+
+/// Insert `script` as the last thing before `</body>`.
+///
+/// Last, not first: the widget is chrome layered over a page that must already
+/// be readable without it, so it loads after the document's own content rather
+/// than competing with first paint.
+///
+/// A document with no `</body>` is returned untouched, matching
+/// [`open_with_banner`]: an HTML response that is a fragment rather than a
+/// document has no body to close, and dropping the widget from it is better
+/// than a 500.
+fn close_with_script(html: &str, script: &str) -> String {
+    match html.rfind("</body>") {
+        Some(at) => format!("{}{script}{}", &html[..at], &html[at..]),
+        None => html.to_string(),
+    }
+}
 
 /// The rendered sample-matter banner, built once.
 ///
@@ -312,16 +371,47 @@ fn generate_nonce() -> String {
 /// fallback serif. `media-src` matters here in particular: Catalog slides render
 /// through this route, so a slide's video is governed by this policy and not the
 /// site-wide one.
-fn csp_with_nonce(nonce: &str, asset_origin: Option<String>) -> String {
+///
+/// `chat` is the support-chat widget when this response carries one, and is the
+/// only thing that admits a third-party script origin. It widens four
+/// directives, because the widget needs all four to work rather than to merely
+/// appear: `script-src` for the vendor `sdk.js`, `frame-src` for the
+/// conversation iframe, `img-src` for agent avatars and attachment thumbnails,
+/// and `connect-src` for the socket that delivers replies. The last is the one a
+/// partial allowance gets wrong — `connect-src` is not declared at all
+/// otherwise, so it inherits `default-src 'self'` and a bubble that opens stays
+/// permanently silent.
+fn csp_with_nonce(
+    nonce: &str,
+    asset_origin: Option<String>,
+    chat: Option<&crate::chatwoot::ChatwootWidget>,
+) -> String {
     let asset_extra = asset_origin
         .map(|origin| format!(" {origin}"))
         .unwrap_or_default();
+    // Appended to `img-src` and `script-src`, which are declared either way.
+    let chat_extra = chat
+        .map(|widget| format!(" {}", widget.origin()))
+        .unwrap_or_default();
+    // `connect-src` and `frame-src` are named only when there is a widget, so a
+    // deployment without one emits exactly the policy it emitted before the
+    // widget existed rather than two directives restating `default-src`.
+    let chat_directives = chat
+        .map(|widget| {
+            format!(
+                "; connect-src 'self' {origin} {socket}; frame-src 'self' {origin}",
+                origin = widget.origin(),
+                socket = widget.websocket_origin(),
+            )
+        })
+        .unwrap_or_default();
     format!(
         "default-src 'self'; base-uri 'self'; object-src 'none'; \
-         frame-ancestors 'none'; img-src 'self' data:{asset_extra}; \
+         frame-ancestors 'none'; img-src 'self' data:{asset_extra}{chat_extra}; \
          font-src 'self'{asset_extra}; media-src 'self'{asset_extra}; \
          style-src 'self' 'unsafe-inline'; \
-         script-src 'self' 'nonce-{nonce}' 'wasm-unsafe-eval'; form-action 'self'"
+         script-src 'self' 'nonce-{nonce}' 'wasm-unsafe-eval'{chat_extra}; \
+         form-action 'self'{chat_directives}"
     )
 }
 
@@ -3664,7 +3754,7 @@ mod tests {
         // whatever `generate_nonce` produced for this response.
         let nonce = generate_nonce();
 
-        let same_origin = csp_with_nonce(&nonce, None);
+        let same_origin = csp_with_nonce(&nonce, None, None);
         assert!(same_origin.contains("font-src 'self';"), "{same_origin}");
         assert!(same_origin.contains("media-src 'self';"), "{same_origin}");
         assert!(
@@ -3672,7 +3762,11 @@ mod tests {
             "the same-origin default admits no host: {same_origin}",
         );
 
-        let cdn = csp_with_nonce(&nonce, Some("https://storage.example.test".to_string()));
+        let cdn = csp_with_nonce(
+            &nonce,
+            Some("https://storage.example.test".to_string()),
+            None,
+        );
         assert!(
             cdn.contains("font-src 'self' https://storage.example.test;"),
             "{cdn}",
@@ -3693,6 +3787,240 @@ mod tests {
                 "script-src 'self' 'nonce-{nonce}' 'wasm-unsafe-eval'"
             )),
             "scripts stay same-origin plus the nonce: {cdn}",
+        );
+    }
+
+    /// A deployment with no widget emits the policy it emitted before the
+    /// widget existed — not two extra directives restating `default-src`, and
+    /// above all no third-party origin. This is the assertion that keeps the
+    /// off switch meaningful.
+    #[test]
+    fn without_a_widget_the_policy_names_no_third_party_origin() {
+        let nonce = generate_nonce();
+        let csp = csp_with_nonce(&nonce, None, None);
+        assert!(!csp.contains("chatwoot"), "{csp}");
+        assert!(!csp.contains("connect-src"), "{csp}");
+        assert!(!csp.contains("frame-src"), "{csp}");
+        assert!(csp.ends_with("form-action 'self'"), "{csp}");
+    }
+
+    /// With a widget the policy names its origin in all four directives the
+    /// widget actually uses. `connect-src` is the one worth asserting
+    /// explicitly: it is absent otherwise, so it inherits `default-src 'self'`,
+    /// and getting it wrong yields a bubble that opens and never receives a
+    /// reply — a failure no SSR-content test can see.
+    #[test]
+    fn a_widget_admits_its_origin_on_script_frame_img_and_socket() {
+        let nonce = generate_nonce();
+        let widget = chatwoot_widget();
+        let csp = csp_with_nonce(&nonce, None, Some(&widget));
+
+        assert!(
+            csp.contains(&format!(
+                "script-src 'self' 'nonce-{nonce}' 'wasm-unsafe-eval' https://app.chatwoot.com;"
+            )),
+            "the vendor SDK is admitted alongside the nonce: {csp}"
+        );
+        assert!(
+            csp.contains("img-src 'self' data: https://app.chatwoot.com;"),
+            "avatars and attachment thumbnails load: {csp}"
+        );
+        assert!(
+            csp.contains("frame-src 'self' https://app.chatwoot.com"),
+            "the conversation iframe is admitted: {csp}"
+        );
+        assert!(
+            csp.contains("connect-src 'self' https://app.chatwoot.com wss://app.chatwoot.com;"),
+            "the socket that delivers replies is admitted: {csp}"
+        );
+        // The widening is additive. Nothing the page already relied on is
+        // dropped by taking the widget branch.
+        assert!(csp.contains("default-src 'self';"), "{csp}");
+        assert!(csp.contains("object-src 'none';"), "{csp}");
+        assert!(csp.contains("frame-ancestors 'none';"), "{csp}");
+        assert!(csp.contains("form-action 'self'"), "{csp}");
+    }
+
+    /// The widget rides the asset-origin widening rather than replacing it: a
+    /// production deployment has both, and an `img-src` that admitted only one
+    /// of them would break either every hero or every agent avatar.
+    #[test]
+    fn a_widget_and_an_asset_origin_are_both_admitted() {
+        let nonce = generate_nonce();
+        let widget = chatwoot_widget();
+        let csp = csp_with_nonce(
+            &nonce,
+            Some("https://storage.example.test".to_string()),
+            Some(&widget),
+        );
+        assert!(
+            csp.contains(
+                "img-src 'self' data: https://storage.example.test https://app.chatwoot.com;"
+            ),
+            "{csp}"
+        );
+        // The asset origin carries passive presentation bytes and must not
+        // become a script source just because a widget widened `script-src`.
+        assert!(
+            !csp.contains("'wasm-unsafe-eval' https://storage.example.test"),
+            "the asset origin stays out of script-src: {csp}"
+        );
+    }
+
+    /// The widget's own test fixture — Chatwoot Cloud, as production resolves
+    /// it, built through the public constructor so the test cannot drift from
+    /// what a deployment actually produces.
+    fn chatwoot_widget() -> crate::chatwoot::ChatwootWidget {
+        crate::chatwoot::ChatwootWidget::from_lookup(|key| {
+            (key == crate::chatwoot::NAVIGATOR_CHATWOOT_WEBSITE_TOKEN).then(|| "tok3n".to_string())
+        })
+        .expect("a token resolves a widget")
+    }
+
+    /// The middleware's widget branch, end to end: a configured deployment
+    /// serving a public page gets the loader in its body and the widened policy
+    /// on its header, and an authenticated page from the same process gets
+    /// neither.
+    ///
+    /// The env var is set inside the test because `CHATWOOT` is resolved once
+    /// per process and nextest runs each test in its own — so this observes a
+    /// freshly configured deployment without leaking into any other test. It is
+    /// the only place the static, the marker check, the injection, and the CSP
+    /// are exercised together, which is what a unit test of each piece cannot
+    /// tell you: that the middleware wires them to the same decision.
+    #[tokio::test]
+    async fn a_configured_deployment_boots_the_widget_on_public_pages_only() {
+        std::env::set_var(
+            crate::chatwoot::NAVIGATOR_CHATWOOT_WEBSITE_TOKEN,
+            "tok3n-from-config",
+        );
+
+        let public_body = format!(
+            "<html><head></head><body><div class=\"{}\">firm page</div></body></html>",
+            webapp::components::PUBLIC_SHELL_MARKER
+        );
+        let router = Router::new()
+            .route(
+                "/",
+                get(move || {
+                    let body = public_body.clone();
+                    async move { axum::response::Html(body) }
+                }),
+            )
+            .route(
+                "/app/projects",
+                get(|| async {
+                    axum::response::Html(
+                        "<html><head></head><body><div class=\"navigator-shell nav-theme\">\
+                         portal page</div></body></html>",
+                    )
+                }),
+            )
+            .layer(from_fn(dioxus_document_head));
+
+        let fetch = |uri: &'static str| {
+            let router = router.clone();
+            async move {
+                let response = router
+                    .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+                    .await
+                    .unwrap();
+                let csp = response
+                    .headers()
+                    .get(header::CONTENT_SECURITY_POLICY)
+                    .expect("the render carries a policy")
+                    .to_str()
+                    .unwrap()
+                    .to_string();
+                let bytes = axum::body::to_bytes(response.into_body(), MAX_RENDER_BYTES)
+                    .await
+                    .unwrap();
+                (csp, String::from_utf8(bytes.to_vec()).unwrap())
+            }
+        };
+
+        let (public_csp, public_html) = fetch("/").await;
+        assert!(
+            public_html.contains(crate::chatwoot::CHATWOOT_LOADER_HREF),
+            "the public page boots the widget: {public_html}"
+        );
+        assert!(
+            public_html.contains("data-website-token=\"tok3n-from-config\""),
+            "the configured inbox reaches the page: {public_html}"
+        );
+        // Injected before the close, so the widget follows the page's content.
+        let loader_at = public_html
+            .find(crate::chatwoot::CHATWOOT_LOADER_HREF)
+            .unwrap();
+        assert!(
+            loader_at < public_html.find("</body>").unwrap()
+                && public_html.find("firm page").unwrap() < loader_at,
+            "the loader closes the body: {public_html}"
+        );
+        assert!(
+            public_csp.contains("https://app.chatwoot.com"),
+            "the policy admits the installation: {public_csp}"
+        );
+        assert!(
+            public_csp.contains("wss://app.chatwoot.com"),
+            "and the socket that delivers replies: {public_csp}"
+        );
+
+        // Same process, same configuration, authenticated shell: no widget and
+        // no third-party origin. This is the assertion that would fail if the
+        // page test were satisfied by a looser marker match.
+        let (portal_csp, portal_html) = fetch("/app/projects").await;
+        assert!(
+            !portal_html.contains(crate::chatwoot::CHATWOOT_LOADER_HREF),
+            "the authenticated page boots no widget: {portal_html}"
+        );
+        assert!(
+            !portal_csp.contains("chatwoot"),
+            "and keeps the strict policy: {portal_csp}"
+        );
+    }
+
+    /// The public shell selects a page; the authenticated shell does not.
+    ///
+    /// Both roots carry `nav-theme`, in opposite order, which is exactly the
+    /// substring match this must not be: a looser test would put a support-chat
+    /// bubble on every `/app` and `/lawyer` page and widen those pages' CSP to
+    /// a third-party origin. Both literals are the rendered roots asserted by
+    /// the shells' own component tests.
+    #[test]
+    fn only_the_public_shell_marks_a_page_public() {
+        assert!(is_public_page(r#"<div class="nav-theme public-shell">"#));
+        assert!(!is_public_page(
+            r#"<div class="navigator-shell nav-theme">"#
+        ));
+        // The nested region class shares the prefix and must not qualify a
+        // document on its own.
+        assert!(!is_public_page(r#"<main class="public-shell__main">"#));
+        assert!(!is_public_page("<div>no shell at all</div>"));
+    }
+
+    /// The loader is injected as the last thing before `</body>` — after the
+    /// page's own content, because the widget is chrome over a page that has to
+    /// be readable without it.
+    #[test]
+    fn the_loader_closes_the_body() {
+        let out = close_with_script(
+            "<html><body><main>PAGE</main></body></html>",
+            "<script src=\"/x.js\"></script>",
+        );
+        assert_eq!(
+            out,
+            "<html><body><main>PAGE</main><script src=\"/x.js\"></script></body></html>"
+        );
+    }
+
+    /// A fragment with no `</body>` keeps its bytes rather than 500-ing, the
+    /// same call [`open_with_banner`] makes for a document with no `<body>`.
+    #[test]
+    fn a_fragment_with_no_body_close_is_returned_untouched() {
+        assert_eq!(
+            close_with_script("<p>fragment</p>", "<script></script>"),
+            "<p>fragment</p>"
         );
     }
 
