@@ -154,6 +154,21 @@ fn read_argv(log: &Path) -> Vec<String> {
         .collect()
 }
 
+/// Split an argv into its `--flags` and its positional operands.
+///
+/// Asserted on rather than fixed indices because the upload carries quieting
+/// flags whose order relative to the operands is not meaningful. Pinning
+/// positions made adding one a test failure that looked like a regression in the
+/// nesting behaviour it was actually guarding.
+fn flags_and_operands(argv: &[String]) -> (Vec<&str>, Vec<&str>) {
+    let (flags, operands): (Vec<&String>, Vec<&String>) =
+        argv.iter().partition(|a| a.starts_with("--"));
+    (
+        flags.into_iter().map(String::as_str).collect(),
+        operands.into_iter().map(String::as_str).collect(),
+    )
+}
+
 /// The publish never uses `gcloud storage rsync`.
 ///
 /// This is the whole of ENG-273 in one assertion, and it guards two independent
@@ -221,20 +236,30 @@ fn pass_one_uploads_entries_so_objects_are_not_nested_under_dist() {
     )
     .expect("the publish step succeeds");
 
+    let (flags, operands) = flags_and_operands(&argv);
     assert_eq!(
-        argv[..3].to_vec(),
-        vec!["storage", "cp", "--recursive"],
-        "pass 1 must upload with `gcloud storage cp --recursive`, got {argv:?}",
+        operands.first().copied(),
+        Some("storage"),
+        "pass 1 must call `gcloud storage`, got {argv:?}",
+    );
+    assert_eq!(
+        operands.get(1).copied(),
+        Some("cp"),
+        "pass 1 must upload with `cp`, never `rsync`, got {argv:?}",
+    );
+    assert!(
+        flags.contains(&"--recursive"),
+        "pass 1 must upload directories recursively, got {argv:?}",
     );
 
-    let (sources, destination) = argv[3..].split_at(argv.len() - 4);
+    let (sources, destination) = operands[2..].split_at(operands.len() - 3);
     assert_eq!(
         destination,
         ["gs://a-deployment-applications/acme/portal/"],
         "pass 1 must upload into the Project's own `<code>/portal/` prefix",
     );
 
-    let mut sources: Vec<&str> = sources.iter().map(String::as_str).collect();
+    let mut sources: Vec<&str> = sources.to_vec();
     sources.sort_unstable();
     assert_eq!(
         sources,
@@ -302,5 +327,132 @@ fn a_dist_holding_only_index_html_is_refused() {
     assert!(
         error.contains("holds nothing but index.html"),
         "the refusal must say why the build is unpublishable, got: {error}",
+    );
+}
+
+/// No line the action prints carries the deployment's bucket name.
+///
+/// The Project repositories consuming this action are public and so are their
+/// Actions logs, and the bucket is named `<deployment>-applications`, so echoing
+/// it publishes the deployment. `${BUCKET}` inside a `gs://` URL handed to
+/// `gcloud` is fine — that is the call, not the log — so only `echo` lines are
+/// searched, and the convention they follow instead is the literal `<bucket>`.
+///
+/// Disclosure reduction, not access control: see the header of the action, and
+/// do not read this test as a security boundary.
+#[test]
+fn no_echoed_line_prints_the_bucket() {
+    for (number, line) in action_source().lines().enumerate() {
+        let code = line.trim_start();
+        if code.starts_with('#') || !code.starts_with("echo ") {
+            continue;
+        }
+        assert!(
+            !code.contains("${BUCKET}") && !code.contains("$BUCKET"),
+            "line {} echoes the applications bucket into a public Actions log; \
+             print the literal `<bucket>` instead: {code}",
+            number + 1,
+        );
+    }
+}
+
+/// Every `gcloud` call is quieted by both levers.
+///
+/// `gcloud storage cp` narrates itself object by object, printing
+/// `gs://<bucket>/<prefix>/...` once per file, so suppressing this action's own
+/// `echo`s is not enough on its own. The two levers are independent —
+/// `CLOUDSDK_CORE_VERBOSITY` drops informational output wherever in gcloud it
+/// originates, `--no-user-output-enabled` suppresses the progress narration of
+/// the one command — and neither subsumes the other, so both are asserted.
+/// Failures stay loud: errors print at `error` verbosity and `set -euo pipefail`
+/// still fails the step.
+#[test]
+fn every_gcloud_call_is_quiet() {
+    for prefix in ["publish assets", "publish index.html", "stamp index.html"] {
+        let all = steps();
+        let step = &all[step_index(prefix)];
+        let verbosity = step
+            .get(serde_yaml::Value::from("env"))
+            .and_then(|e| e.get("CLOUDSDK_CORE_VERBOSITY"))
+            .and_then(|v| v.as_str());
+        assert_eq!(
+            verbosity,
+            Some("error"),
+            "step `{prefix}...` must set CLOUDSDK_CORE_VERBOSITY=error so gcloud \
+             does not narrate the bucket into a public log",
+        );
+
+        let script = step_script(prefix);
+        for (number, line) in script.lines().enumerate() {
+            let code = line.trim_start();
+            if code.starts_with('#') || !code.contains("gcloud ") {
+                continue;
+            }
+            assert!(
+                code.contains("--no-user-output-enabled"),
+                "step `{prefix}...` line {} invokes gcloud without \
+                 --no-user-output-enabled: {code}",
+                number + 1,
+            );
+        }
+    }
+}
+
+/// The bare project id and project number are masked, decomposed from the two
+/// coordinates that carry them.
+///
+/// GitHub redacts a secret's exact text and not the identifiers inside it, so
+/// passing the service-account email and the provider resource as secrets does
+/// not redact the project id or project number that `gcloud` prints on their
+/// own. That is why this step is not redundant with making them secrets, and it
+/// is the part a future reader is most likely to delete as duplicated effort.
+#[test]
+fn the_bare_project_identifiers_are_masked_before_any_step_prints() {
+    assert_eq!(
+        step_index("mask the deployment coordinates"),
+        0,
+        "the mask step must run first; a mask registered after a value has \
+         already printed does not retroactively redact it",
+    );
+
+    let script = step_script("mask the deployment coordinates");
+    assert!(
+        script.contains("::add-mask::"),
+        "the step must register masks with the ::add-mask:: workflow command: {script}",
+    );
+    assert!(
+        script.contains(".iam.gserviceaccount.com"),
+        "the project id must be decomposed from the service-account email, \
+         which is where it lives: {script}",
+    );
+    assert!(
+        script.contains("projects/"),
+        "the project number must be decomposed from the provider resource, \
+         which is where it lives: {script}",
+    );
+}
+
+/// The action records *why* the coordinates are secrets, in the terms that stop
+/// the next reader drawing the wrong conclusion.
+///
+/// This is the one requirement of the change that is prose rather than
+/// behaviour, and it exists because the change looks like a security fix and is
+/// not one. Someone who reads it as the access control could weaken the Workload
+/// Identity binding believing this compensates. It does not.
+#[test]
+fn the_action_records_this_as_disclosure_reduction_not_access_control() {
+    let source = action_source();
+    assert!(
+        source.contains("disclosure reduction"),
+        "the action must name what this is",
+    );
+    assert!(
+        source.contains("Workload Identity binding") && source.contains("access control"),
+        "the action must say which mechanism is the actual access control",
+    );
+    assert!(
+        source.contains("cli/src/devx/gcp/app_publisher.rs"),
+        "the action must point at where real access is granted, so a reader \
+         needing to change it does not edit the masking instead",
     );
 }
