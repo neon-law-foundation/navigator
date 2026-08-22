@@ -10,6 +10,10 @@ description: >
 
 # create-pr
 
+Before preparing a public PR, read [`docs/public-contributor-safety.md`](../../../docs/public-contributor-safety.md).
+The branch, commit, PR body, capture, and every linked planning surface use only firm-owned or synthetic content; client
+data, legal files, real contact details, and production identifiers never leave Navigator-managed systems.
+
 One shared skill for Claude and Codex. The workflow lives in the docs; this file points at it so both tools run the same
 steps. Read, in order:
 

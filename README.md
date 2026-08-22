@@ -16,6 +16,13 @@ software that makes that economics work, and it is public so that anyone else ca
 Start with the [glossary](docs/glossary.md), use the [documentation index](docs/index.md) to find the narrow source of
 truth, and follow <AGENTS.md> for local development and contribution workflows.
 
+## Safe experimentation
+
+Fork, prototype, and iterate quickly with synthetic or firm-owned source material. Never commit client or matter data,
+legal files, real contact details, or production identifiers, and never put them in planning tools or agent transcripts.
+Those belong in Navigator-managed systems and approved file stores. See
+[`docs/public-contributor-safety.md`](docs/public-contributor-safety.md).
+
 ## License
 
 Navigator is free software under the [GNU Affero General Public License, version 3](LICENSE): `AGPL-3.0-only`. Read it,

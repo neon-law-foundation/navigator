@@ -1,5 +1,9 @@
 # Vibe coding a Project's client portal
 
+Read [`public-contributor-safety.md`](public-contributor-safety.md) first. This is a safe lane for fast experiments:
+prototype freely, but share only source and synthetic or firm-owned fixtures. Client data, legal files, real contact
+details, and production identifiers never enter Git, Linear, agent transcripts, or another external planning surface.
+
 A Project's **portal** is a React application built with Vite, living in that [Project](glossary.md#project)'s own
 private repository, that Navigator serves at `/app/projects/<code>/portal`. It is what the client sees, and it is the
 one surface in this product where the fast, exploratory way of working — build the screen, look at it, keep going —
@@ -42,10 +46,10 @@ and checks.
 
 The workspace's own conventions govern, and they are worth reading once before filing anything:
 
-- **No client data in Linear, ever.** Linear is a vendor-operated planning surface read by coding agents. Write the
-  project code or an abstract descriptor — "an eviction matter" — never a party name, caption, docket number, address,
-  or document content. The repository enforces this with a test on every pull request; Linear has no such gate, so the
-  discipline is the control.
+- **No client data in Linear, ever.** Linear is a vendor-operated planning surface read by coding agents. Use a
+  synthetic or abstract descriptor; never write a party name, matter code, caption, docket number, address, contact
+  detail, legal-file content, or production identifier. The repository test does not cover Linear, so the boundary is
+  the control.
 - **Initiative → Project → Issue → Sub-issue.** A project finishes; if it cannot finish it is an initiative. An issue is
   one concern and one pull request — if describing it needs the word "and", it is two issues.
 - **An issue is ready when a coding agent can execute it without a second conversation.** That means all five sections:
@@ -76,8 +80,9 @@ states, copy, and interaction, and those are the things worth iterating on quick
 
 Two hard rules survive into the repository, and both are mechanical:
 
-- **No legal files, no client data.** Git never stores legal files; Drive and Navigator assets do. Fixtures are
-  synthetic or firm-owned, and non-firm email addresses use a reserved example domain.
+- **No legal files, no client data.** Git never stores legal files; Navigator-managed systems and approved file stores
+  do. Fixtures are synthetic or firm-owned, non-firm email addresses use a reserved example domain, and no phone numbers
+  or production identifiers ship.
 - **The mount is derived, not declared.** The repository's name is the Project code and the segment is the literal
   `portal`, so the base is `/app/projects/<code>/portal/`. Nothing names it twice. Absolute paths in source are refused,
   with one deliberate exception — the link back to `/app/projects` — so build the rest from `import.meta.env.BASE_URL`.

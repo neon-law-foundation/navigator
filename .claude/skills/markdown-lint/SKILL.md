@@ -5,6 +5,10 @@ different linter. ---
 
 # Markdown linting via the navigator CLI
 
+Lint is not a confidentiality classifier. Before validating a public example, read
+[`docs/public-contributor-safety.md`](../../../docs/public-contributor-safety.md) and remove client data, legal files,
+real contact details, and production identifiers rather than relying on a green lint result.
+
 Every `.md` file in this repo must pass the navigator CLI's markdown rule set. We dogfood our own linter so the rule
 definitions, exit codes, and CI behavior stay coherent.
 

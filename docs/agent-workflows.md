@@ -327,19 +327,21 @@ cargo build -p cli --quiet
 
 ### No client data in the repo
 
-Only firm-owned or synthetic data may ship. Allowed real email domains are `neonlaw.com`, `neonlaw.com`, `neonlaw.com`,
-`neonlaw.org`, and `shook.family`; all others must use `example.com` or a reserved `.example`, `.invalid`, `.test`, or
-`.localhost` domain. Phone numbers may not ship.
+Read [`public-contributor-safety.md`](public-contributor-safety.md) before using an example, fixture, issue, or planning
+surface. Only firm-owned or synthetic data may ship. Non-firm email addresses must use `example.com` or a reserved
+`.example`, `.invalid`, `.test`, or `.localhost` domain. Phone numbers may not ship. Client or matter data, legal files,
+and production identifiers belong in Navigator-managed systems, never Git or external planning surfaces.
 
 The gate scans `store/seeds`, `templates`, and `server/content`; source and test fixtures remain human-reviewed. It is a
 test, not a command — `cli/tests/no_client_data.rs` runs the scan over the real tree, so the required workspace test job
 enforces it:
 
 ```bash
-cargo nextest run -p cli no_client_data
+cargo nextest run -p cli -E 'binary(no_client_data)'
 ```
 
-A failure names every leak as `path:line NCD-EMAIL/NCD-PHONE "value"`.
+A failure names every scanned leak as `path:line NCD-EMAIL/NCD-PHONE "value"`. The test is a guard for its scan scope,
+not permission to place sensitive material in a path it does not inspect.
 
 ### Legal workflow authoring
 

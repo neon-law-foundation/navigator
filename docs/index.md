@@ -80,6 +80,9 @@ The full alphabetical reference is [`glossary`](glossary.md); notation vocabular
   repository, file a design-mockup issue, and an engineer translates it to Dioxus.
 - [`vibe-coding`](vibe-coding.md) — the React lane for a Project's client portal, where the prototype ships as itself:
   build it, write the Linear issue, ground it, land it, keep it green.
+- [`public-contributor-safety`](public-contributor-safety.md) — the source-only boundary that makes fast public
+  experimentation safe: use synthetic or firm-owned content and keep client data, legal files, and production
+  identifiers out of Git and planning surfaces.
 
 ## Shipping and operations
 

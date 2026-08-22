@@ -9,8 +9,10 @@ Each Navigator [Project](glossary.md#project) coordinates four distinct surfaces
 | Project repository | Source control | Notation templates and client-portal source only |
 | Served client portal | Authorized application | The Project's client-facing surface |
 
-Git never stores legal files. Google Drive and Navigator assets do. A Project's deletion handoff contains legal files
-only; it does not include the repository, portal source, CI output, or operational history.
+Git never stores legal files or client data. Navigator-managed systems and approved file stores do. A Project's deletion
+handoff contains legal files only; it does not include the repository, portal source, CI output, or operational history.
+Read [`public-contributor-safety.md`](public-contributor-safety.md) before preparing fixtures, planning work, or sharing
+an experiment: source control and external planning surfaces carry only firm-owned or synthetic source material.
 
 ## One repository per Project, recorded as a URL
 
