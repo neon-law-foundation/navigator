@@ -160,9 +160,16 @@ jobs:
               # `deploy.yml` can push, and a newly added one has no versions
               # until its first release. FAIL on anything else, because "no
               # versions" and "could not look" must not report the same way.
-              if ! versions="$(gh api --paginate --slurp \
+              #
+              # `--slurp` wraps the pages in one array; the shaping runs in a
+              # SEPARATE `jq` because `gh api` refuses `--slurp` and `--jq`
+              # together ("the `--slurp` option is not supported with `--jq`").
+              # That refusal is an argument error, not an API error, so it
+              # cannot be told apart from a real failure by status code — keep
+              # the two steps apart rather than reuniting them.
+              if ! pages="$(gh api --paginate --slurp \
                   "/orgs/${OWNER}/packages/container/${encoded}/versions?per_page=100" \
-                  --jq '[.[][]] | sort_by(.created_at) | reverse' 2>/tmp/versions.err)"; then
+                  2>/tmp/versions.err)"; then
                   if grep -q 'HTTP 404' /tmp/versions.err; then
                       echo "${package}: not published yet, skipping"
                       continue
@@ -171,6 +178,8 @@ jobs:
                   cat /tmp/versions.err >&2
                   exit 1
               fi
+              versions="$(printf '%s' "${pages}" \
+                  | jq '[.[][]] | sort_by(.created_at) | reverse')"
               total="$(printf '%s' "${versions}" | jq 'length')"
 
               # One jq pass applies all three floors — count, then age, then the
