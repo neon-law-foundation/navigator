@@ -339,9 +339,12 @@ async fn clerk_detail_shows_the_matter_facts_and_the_limited_access_notice() {
         html.contains("Client portal"),
         "the portal link label: {html}"
     );
+    // The whole mount, not a `/portal/"` suffix: the short form would also be
+    // satisfied by a link to the retired top-level `/portal`, which is served
+    // by nothing (`cli/tests/portal_namespace_retired.rs`).
     assert!(
-        html.contains("/portal/\""),
-        "the portal link targets the client-portal mount: {html}"
+        html.contains(&format!("href=\"/app/projects/{}/portal/\"", project.code)),
+        "the portal link targets this Project's client-portal mount: {html}"
     );
     // None of the lawyer work controls exist on this surface.
     assert!(!html.contains("git-token"), "{html}");

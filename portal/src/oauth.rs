@@ -1955,11 +1955,22 @@ mod tests {
         assert_eq!(post_login_landing(Role::Client, ""), "/app/projects");
     }
 
+    /// A stale `/portal` deep link is folded into the tier landing for every
+    /// tier, not just the two this once covered.
+    ///
+    /// The retired namespace is served by nothing and deliberately has no
+    /// redirect shim — `GET /portal` is a 404, pinned by
+    /// `server/tests/routes.rs::the_retired_project_prefixes_are_not_served`.
+    /// This is the one place the old path is still read, and it is not a shim
+    /// for it: it sanitizes `return_to` on the login door, where a link already
+    /// sitting in sent email arrives. Dropping the comparison would honor it as
+    /// an explicit deep link and land a person on a 404 the instant they
+    /// authenticated, which is worse than the one string compare it costs.
     #[test]
     fn post_login_landing_resolves_the_retired_portal_path_per_role() {
-        // A stale `/portal` deep link (the old default) is not honored as-is —
-        // the path no longer exists, so it falls through to the tier landing.
-        assert_eq!(post_login_landing(Role::Lawyer, "/portal"), "/app/team");
+        for role in [Role::Owner, Role::Admin, Role::Lawyer, Role::Clerk] {
+            assert_eq!(post_login_landing(role, "/portal"), "/app/team", "{role:?}");
+        }
         assert_eq!(post_login_landing(Role::Client, "/portal"), "/app/projects");
     }
 
