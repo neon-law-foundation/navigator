@@ -74,6 +74,7 @@ pub mod agent_router;
 pub mod api;
 pub mod api_audit;
 pub mod attachment_scanner;
+pub mod audit_fields;
 pub mod auth;
 pub mod blog;
 pub mod brand_fonts;
