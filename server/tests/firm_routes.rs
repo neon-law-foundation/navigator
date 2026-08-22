@@ -318,6 +318,114 @@ async fn litigation_is_the_statement_and_the_two_filed_paragraphs() {
             "the filed copy keeps {named:?}: {body}"
         );
     }
+    // The third paragraph: how a matter runs here, after who the firm
+    // represents. It sits last because a reader decides whether this is their
+    // practice before they care how the file is kept.
+    let system = body
+        .find("All litigation cases run on")
+        .expect("the case-system paragraph");
+    assert!(
+        individuals < system,
+        "how the work runs comes after who the firm represents: {body}"
+    );
+    // It is the one paragraph on the page that links, and the link is the
+    // reason the body carries runs rather than plain strings. A copy edit that
+    // flattens the runs loses it silently, because the sentence still reads
+    // correctly with "Neon Law Navigator" as bare text.
+    assert!(
+        body.contains(r#"href="/navigator""#),
+        "the Navigator mention links its page: {body}"
+    );
+    // The events the paragraph names. This is what makes it a description
+    // rather than a slogan — an edit that trims the list back to "agentic
+    // workflows" leaves an adjective and nothing a reader can check.
+    for event in ["a new court docket filing", "letter", "new research"] {
+        assert!(
+            body.contains(event),
+            "the paragraph names the {event:?} event: {body}"
+        );
+    }
+}
+
+/// The page describes *how* the work runs and never *how much* that saves.
+///
+/// The distinction is the whole reason this paragraph is publishable. The
+/// mechanism — events in, work started, groundwork laid before the deadline
+/// rather than after it — is open source in this workspace and stays true. A
+/// number attached to it is a result: it goes stale against the next matter, it
+/// invites the reading that the firm promises the same saving to this reader,
+/// and on an attorney-advertising page that is a bar problem rather than a copy
+/// preference. `publishes_no_currency_amount` guards the fee half of this;
+/// this guards the efficiency half.
+#[tokio::test]
+async fn litigation_publishes_no_quantified_efficiency_claim() {
+    let app = site_app().await;
+    let body = body_string(anon_get(&app, "/litigation").await).await;
+    let lowered = body.to_lowercase();
+    for banned in [
+        "substantially saves",
+        "substantially less",
+        "substantially reduce",
+        "half the time",
+        "half the cost",
+        "cuts your",
+        "faster than",
+        "more efficient than",
+        "saves you hours",
+        "hours saved",
+    ] {
+        assert!(
+            !lowered.contains(banned),
+            "the litigation page must publish no quantified efficiency claim \
+             ({banned:?}): {body}"
+        );
+    }
+}
+
+/// The paragraph claims only capabilities this workspace carries.
+///
+/// Each needle below is a capability the copy asserts, matched to the module
+/// that implements it. The guard is the *pairing*: if a future edit deletes the
+/// inbound triage or the deadline calculator, this test fails and the sentence
+/// on the public page has to come down with it, rather than quietly becoming
+/// marketing for something the firm no longer runs.
+#[tokio::test]
+async fn litigation_claims_only_capabilities_the_workspace_carries() {
+    let nautilus = include_str!("../../workflows/src/nautilus.rs");
+    assert!(
+        nautilus.contains("LAWSUIT_MARKERS"),
+        "the copy says a new filing starts the work it implies; the inbound \
+         classifier that recognizes one must still exist"
+    );
+    assert!(
+        nautilus.contains("DeadlineKind"),
+        "the copy says the deadline is calendared against the rule that sets \
+         it; the deadline calculator must still exist"
+    );
+
+    let app = site_app().await;
+    let body = body_string(anon_get(&app, "/litigation").await).await;
+    // The two events the classifier above actually recognizes on a live matter
+    // are the two the copy leads with.
+    assert!(
+        body.contains("a new court docket filing"),
+        "the grounded court-filing event renders: {body}"
+    );
+    assert!(
+        body.contains("event-driven agentic workflows"),
+        "the grounded engine claim renders: {body}"
+    );
+    // What the firm does not run out of this workspace, and so does not say.
+    // Daily evidence scraping is the claim this page came closest to
+    // publishing; there is no scraper, no docket poller, and no case-reporter
+    // client in the tree, so the page must not imply one.
+    for unbuilt in ["scrapers we run", "scrape", "every day we", "crawl the web"] {
+        assert!(
+            !body.to_lowercase().contains(unbuilt),
+            "the page must not claim {unbuilt:?}, which the workspace does not \
+             implement: {body}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -385,13 +493,25 @@ async fn litigation_carries_the_regulated_copy_and_no_results_promise() {
     // filed copy, and the sections that came off are guarded above.
     let app = site_app().await;
     let body = body_string(anon_get(&app, "/litigation").await).await;
+    // The notice reaches the reader once, through the shared footer, and it
+    // opens by naming itself an advertisement. The page carries no second copy
+    // of its own: what the rule requires is that the reader sees it, not that
+    // a given page repeats it.
     assert!(
-        body.contains("Prior results do not guarantee a similar outcome"),
-        "the attorney-advertising disclaimer: {body}"
+        body.contains("Attorney advertisement."),
+        "the footer labels the page an attorney advertisement: {body}"
     );
     assert!(
-        body.contains("creates no attorney-client relationship"),
-        "the no-relationship line: {body}"
+        body.contains("Nothing here is legal advice without a signed retainer"),
+        "the no-advice line: {body}"
+    );
+    assert!(
+        body.contains("Past results do not guarantee future outcomes."),
+        "the past-results line: {body}"
+    );
+    assert!(
+        !body.contains("zeal-disclaimer"),
+        "the page-level duplicate disclaimer is gone: {body}"
     );
     for banned in [
         "we will win",

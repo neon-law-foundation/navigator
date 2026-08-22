@@ -394,11 +394,20 @@ pub struct Branding {
     /// through [`SiteBrand::legal_entity`] instead — which is the entity that
     /// *renders legal services* and is deliberately empty here.
     pub foundation_entity: &'static str,
-    /// The Foundation's footer disclaimer. Deliberately the SAME sentence as
-    /// [`SiteBrand::firm_disclaimer`] rather than a second, differently-worded
-    /// one: one short line, standardized site-wide, covering both "not legal
+    /// The Foundation's footer disclaimer — the same two sentences as
+    /// [`SiteBrand::firm_disclaimer`] and deliberately **without** its opening
+    /// "Attorney advertisement."
+    ///
+    /// That opening is the one place the two lines diverge, and the divergence
+    /// is the point: the firm's footer is attorney advertising and says so,
+    /// while the Foundation does not render legal services
+    /// ([`SiteBrand::is_law_firm`] is `false` for it and its `legal_entity` is
+    /// deliberately empty). Labelling the Foundation's pages an attorney
+    /// advertisement would be a false statement about which entity the reader
+    /// is dealing with, so the label rides the firm brand rather than the
+    /// shared string. What both lines still carry is the substance — "not legal
     /// advice" and "no attorney-client relationship absent a signed retainer"
-    /// for whichever organization's page a reader is on.
+    /// — for whichever organization's page a reader is on.
     pub foundation_disclaimer: &'static str,
     pub mission_description: &'static str,
     pub service_description: &'static str,
@@ -499,7 +508,7 @@ pub static DEFAULT_BRANDING: Branding = Branding {
     privacy_url: "/privacy",
     base_url: "",
     primary_domain: "neonlaw.com",
-    firm_disclaimer: "Nothing here is legal advice without a signed retainer for an active project. Past results do not guarantee future outcomes.",
+    firm_disclaimer: "Attorney advertisement. Nothing here is legal advice without a signed retainer for an active project. Past results do not guarantee future outcomes.",
     foundation_entity: "Neon Law Foundation",
     foundation_disclaimer: "Nothing here is legal advice without a signed retainer for an active project. Past results do not guarantee future outcomes.",
     mission_description: "How Neon Law and the Neon Law Foundation make routine legal services affordable without sacrificing correctness, and what a licensed attorney in the loop actually buys you.",
@@ -1220,11 +1229,50 @@ mod tests {
         assert!(disclaimer.contains("active project"));
     }
 
-    /// The firm and Foundation disclaimers are the SAME sentence, standardized
-    /// site-wide rather than two differently-worded ones.
+    /// The two disclaimers carry the same substance and differ by exactly one
+    /// thing: the firm's opens by naming itself an attorney advertisement.
+    ///
+    /// The difference is not a drafting slip and this test is what keeps it from
+    /// being "tidied" in either direction. Dropping the label from the firm's
+    /// line loses a notice a law firm's public pages are expected to carry;
+    /// copying it onto the Foundation's asserts that a body which renders no
+    /// legal services is advertising legal services, which is false about the
+    /// entity the reader is dealing with. Everything after the label stays
+    /// standardized site-wide.
     #[test]
-    fn the_firm_and_foundation_disclaimers_are_the_same_sentence() {
-        assert_eq!(super::firm_disclaimer(), super::foundation_disclaimer());
+    fn only_the_firm_disclaimer_names_itself_an_advertisement() {
+        const LABEL: &str = "Attorney advertisement.";
+
+        let firm = super::firm_disclaimer();
+        let foundation = super::foundation_disclaimer();
+
+        assert!(
+            firm.starts_with(LABEL),
+            "the firm's disclaimer opens with the label: {firm}"
+        );
+        assert!(
+            !foundation.contains(LABEL),
+            "the Foundation renders no legal services and must not claim to be \
+             advertising them: {foundation}"
+        );
+        // Past the label, one standardized sentence pair for both faces.
+        assert_eq!(firm.trim_start_matches(LABEL).trim_start(), foundation);
+        // The label is only honest on the face that is a law firm.
+        assert!(FIRM_BRAND.is_law_firm);
+        assert!(!FOUNDATION_BRAND.is_law_firm);
+    }
+
+    /// Both faces state the past-results line, wherever a reader could infer
+    /// one. It moved off `/litigation` into this shared string, so the guard
+    /// that it is still said belongs here rather than on that page.
+    #[test]
+    fn both_disclaimers_carry_the_past_results_line() {
+        for disclaimer in [super::firm_disclaimer(), super::foundation_disclaimer()] {
+            assert!(
+                disclaimer.contains("Past results do not guarantee future outcomes"),
+                "the past-results line: {disclaimer}"
+            );
+        }
     }
 
     /// Every request-scoped accessor reads the field it is named for.

@@ -145,13 +145,20 @@
   margin-top: 1.25rem;
 }
 
-/* The attorney-advertising disclaimer. Quiet, but never hidden: it is the last
-   thing on the page and it is always rendered. */
-.zeal-disclaimer {
-  margin: 2rem 0 0;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: var(--nav-color-text-muted);
+/* The one inline link in the body prose — the Navigator mention in the last
+   paragraph. Underlined rather than colour-only, so it reads as a link without
+   relying on hue: the surrounding text is the same size and weight, and colour
+   alone would not carry the distinction for a reader who cannot separate the
+   two. The offset keeps the rule off the descenders. */
+.zeal-paragraph__link {
+  color: var(--firm-brand-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+
+.zeal-paragraph__link:hover,
+.zeal-paragraph__link:focus-visible {
+  text-decoration-thickness: 2px;
 }
 
 /* The heading's word-by-word rise is the page's only motion, and it is

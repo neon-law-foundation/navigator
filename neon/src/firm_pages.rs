@@ -444,11 +444,36 @@ fn hero_words(heading: &str, accent_words: usize) -> Vec<webapp::litigation_page
 /// past-results disclaimer honestly.
 ///
 /// **The body is the firm's own filed copy and this resolver holds it verbatim.**
-/// The page arrived at these two paragraphs by subtraction: it was a Rule 23
+/// The page arrived at these paragraphs by subtraction: it was a Rule 23
 /// explainer with six certification-element cards, an authority strip, a phase
 /// rail, a chip list, and a fee section. Each was a reasonable answer to a
-/// question a prospective client does not walk in with. What the firm wanted to
-/// say fits in two paragraphs, so that is the page.
+/// question a prospective client does not walk in with.
+///
+/// The third paragraph — how a matter actually runs here — is the one addition
+/// since, and it is deliberately *prose in the same card* rather than a feature
+/// section, because a heading and a grid is the shape of everything this page
+/// shed. It is the firm's own copy and this resolver holds it verbatim, the
+/// same as the two above it.
+///
+/// It is the only paragraph on the page that links, which is why the body is
+/// runs rather than plain strings: it names Navigator and points at
+/// `/navigator` instead of restating that page here, the same way the home
+/// page's prose does.
+///
+/// The mechanism it describes is what the workspace can be opened to prove —
+/// the durable event-driven engine in `workflows-service`, the inbound triage
+/// that classifies a filing or a letter onto a live matter, and the deadline
+/// calculator that calendars a window from the rule that sets it. The savings
+/// sentence is the firm's own commitment about its fees rather than a claim
+/// about outcomes, and it carries no figure: a number or a ratio would go stale
+/// against the next matter and read as a binding quote, and
+/// `publishes_no_quantified_efficiency_claim` holds that line.
+///
+/// **This page states no disclaimer of its own.** It used to carry a
+/// past-results line under the body, duplicating what the shared footer says on
+/// every firm page. The notice now lives once, in
+/// `views::brand::DEFAULT_BRANDING`'s `firm_disclaimer`, which opens with
+/// "Attorney advertisement." and reaches this page through `PublicFooter`.
 ///
 /// Those paragraphs name fee arrangements — contingency, monthly, and "no cost
 /// due if we lose" — which is why the no-fee-copy guard the earlier revision
@@ -482,26 +507,35 @@ pub(crate) fn resolve_litigation_content(
         // reader deciding whether to call needs to know a contingency case
         // costs them nothing to bring.
         body: vec![
-            "We represent emerging companies, founders, and investors in complex disputes \
-             involving cutting-edge technology. This includes disputes about cybersecurity, \
-             investment disputes, business divorce, trademarks, trade secrets. We prefer not to \
-             charge hourly for these cases, instead crafting contingency or monthly fee deals to \
-             align our incentives with those of our clients."
-                .to_string(),
-            "We also represent individuals who have been defrauded by powerful corporations. This \
-             includes victims of deceptive business practices, cyber security failures, \
-             unauthorized cryptocurrency transfers, electronic privacy violations, and other \
-             harmful business practices. These cases can be organized as individual disputes, \
-             class actions, mass actions, or public entity representations (on behalf of cities, \
-             counties, Native American tribes, etc.). We pursue nearly all of these cases at no \
-             cost to our clients, taking our fees \u{201c}on contingency,\u{201d} as a percentage of the \
-             total recovery (with no cost due if we lose)."
-                .to_string(),
+            vec![plain(
+                "We represent emerging companies, founders, and investors in complex disputes \
+                 involving cutting-edge technology. This includes disputes about cybersecurity, \
+                 investment disputes, business divorce, trademarks, trade secrets. We prefer not \
+                 to charge hourly for these cases, instead crafting contingency or monthly fee \
+                 deals to align our incentives with those of our clients.",
+            )],
+            vec![plain(
+                "We also represent individuals who have been defrauded by powerful corporations. \
+                 This includes victims of deceptive business practices, cyber security failures, \
+                 unauthorized cryptocurrency transfers, electronic privacy violations, and other \
+                 harmful business practices. These cases can be organized as individual disputes, \
+                 class actions, mass actions, or public entity representations (on behalf of \
+                 cities, counties, Native American tribes, etc.). We pursue nearly all of these \
+                 cases at no cost to our clients, taking our fees \u{201c}on contingency,\u{201d} as a \
+                 percentage of the total recovery (with no cost due if we lose).",
+            )],
+            vec![
+                plain("All litigation cases run on "),
+                link("Neon Law Navigator", "/navigator"),
+                plain(
+                    ", the firm\u{2019}s case system. Our matter projects include a suite of \
+                     event-driven agentic workflows that respond to events like a new court \
+                     docket filing, letter, or new research and trigger agentic workflows that \
+                     mise en place our work to the highest extent possible. We pass these time \
+                     savings as money savings for our clients.",
+                ),
+            ],
         ],
-        disclaimer: "Prior results do not guarantee a similar outcome; every matter turns on its \
-                     own facts. This page is attorney advertising and general information, not \
-                     legal advice, and reading it creates no attorney-client relationship."
-            .to_string(),
     }
 }
 
