@@ -220,14 +220,14 @@ this substitutes for the binding: a change that needs to widen or narrow real ac
 `cli/src/devx/gcp/app_publisher.rs`, and the binding must not be weakened on the belief that this covers it.
 
 Because GitHub redacts a secret's exact text and not the identifiers inside it, the action additionally registers
-`::add-mask::` for the bare project id and project number, decomposed from those two coordinates, before any step
-runs — `gcloud` prints them on their own, where neither is the whole of a registered secret.
+`::add-mask::` for the bare project id and project number, decomposed from those two coordinates, before any step runs —
+`gcloud` prints them on their own, where neither is the whole of a registered secret.
 
 Authentication is keyless: the job mints a short-lived OIDC token from GitHub's issuer
 `https://token.actions.githubusercontent.com` and federates it into the publisher, so no service-account key exists.
 That issuer is a property of the provider resource, not a workflow parameter — the same subtlety the [marketing
-sites](marketing-sites.md) document explains. Because the whole resource travels in the secret, the pool and provider
-id are the deployment's business and never a name a Project repository knows.
+sites](marketing-sites.md) document explains. Because the whole resource travels in the secret, the pool and provider id
+are the deployment's business and never a name a Project repository knows.
 
 **On `neon-law-stg` that resource is the `github` pool's `github-oidc` provider, which is not what
 `cli/src/devx/gcp/app_publisher.rs` provisions** — it creates an `app-publisher` pool with a `ghe-oidc` provider, whose
@@ -276,8 +276,8 @@ jobs:
 The applications bucket is **shared**: every Project's portal lives in it under its own `<code>/portal/` prefix, and
 that prefix is derived by the action rather than enforced by Google. So the publisher's grant carries an IAM condition
 naming exactly one prefix — `cli/src/devx/gcp/app_publisher.rs`, `publisher_condition_expression`. Without it, any
-Project's CI could overwrite any other Project's portal, which is privileged client-facing work product Navigator
-serves same-origin.
+Project's CI could overwrite any other Project's portal, which is privileged client-facing work product Navigator serves
+same-origin.
 
 The role bound under that condition is a custom one holding exactly `storage.objects.create`, `storage.objects.get` and
 `storage.objects.update`. No predefined role is create-and-update without delete: `objectCreator` is create-only, and
@@ -287,21 +287,27 @@ names. The publish does not need it, because it uploads with `cp`, which never l
 
 **A condition lives on a binding, and a binding names one role and one member set, so a shared publisher account can
 carry exactly one prefix.** One publisher identity per Project therefore follows from the shape rather than from
-preference: a second Project bound to the same account either widens the condition until the isolation is gone, or
-needs its own account.
+preference: a second Project bound to the same account either widens the condition until the isolation is gone, or needs
+its own account.
+
+The publisher account is derived from the GCP project id alone, so every Project in a deployment would share it. A
+provisioning run that finds the publisher already bound to a *different* prefix therefore **refuses** rather than
+repointing it. The live policy cannot distinguish a repository rename, where repointing is correct, from a second
+Project, where repointing silently revokes the first Project's publish — so the ambiguity is surfaced to an operator
+instead of resolved by guessing. After a genuine rename, remove the stale binding by hand and re-run.
 
 ### The `neon-law-staging` sample lane
 
-Three public repositories — `neon-law-staging/sample-litigation`, `/sample-transactional` and
-`/sample-estate` — each hold one sample portal, named for the Project code it mounts on. Because the repository name *is* the code, the action's
-derived prefix is already correct and no `repository:` override is needed. `dist_dir: dist` is: these applications live
-at the repository root, so the build emits `dist/` rather than `portal/dist/`.
+Three public repositories — `neon-law-staging/sample-litigation`, `/sample-transactional` and `/sample-estate` — each
+hold one sample portal, named for the Project code it mounts on. Because the repository name *is* the code, the action's
+derived prefix is already correct and no `repository:` override is needed. `dist_dir: dist` is set because these
+applications live at the repository root, so the build emits `dist/` rather than `portal/dist/`.
 
-The caller workflow for them is [`examples/sample-portal-publish.yml`](examples/sample-portal-publish.yml), ready to
-copy unchanged into each repository as `.github/workflows/publish.yml`. **It is not yet applied.** The credential needed
-to push a `.github/workflows/` change is available, so that is no longer what blocks it; what blocks it is that
-`neon-law-stg` carries no publisher identity yet, and applying the workflow before it does would leave three public
-repositories with a workflow that fails at authentication on every merge to `main`.
+The caller workflow for them is `docs/examples/sample-portal-publish.yml`, ready to copy unchanged into each repository
+as `.github/workflows/publish.yml`. **It is not yet applied.** The credential needed to push a `.github/workflows/`
+change is available, so that is no longer what blocks it; what blocks it is that `neon-law-stg` carries no publisher
+identity yet, and applying the workflow before it does would leave three public repositories with a workflow that fails
+at authentication on every merge to `main`.
 
 **Upload order is load-bearing, and the never-delete rule is what distinguishes a private, shared applications bucket
 from a public marketing site.** The action uploads in two passes — everything except `index.html` first, then
