@@ -167,6 +167,22 @@ pub fn wif_attribute_condition(org: &str) -> String {
     format!("assertion.repository_owner == '{org}' && assertion.ref == 'refs/heads/main'")
 }
 
+/// The bucket IAM endpoint, read and written at **policy version 3**.
+///
+/// `optionsRequestedPolicyVersion=3` is not optional here, and omitting it does
+/// not merely hide a field. Asked for a version 1 policy — the default — IAM
+/// renders each conditional binding with the condition *dropped* and the role
+/// mangled to `<role>_withcond_<hash>`. This module would then fail to
+/// recognise its own converged binding, append a duplicate beside the mangled
+/// one, and PUT a policy naming a role that does not exist. Every run after the
+/// first would write, and be rejected.
+///
+/// The same path carries the PUT, so the write is version 3 on both halves.
+#[must_use]
+pub fn bucket_iam_path(bucket: &str) -> String {
+    format!("/storage/v1/b/{bucket}/iam?optionsRequestedPolicyVersion=3")
+}
+
 /// The impersonation principal set, pinned to one `<org>/<repo>` so a sibling
 /// app repository cannot mint the publisher's token even though the provider
 /// trusts the whole organization.
@@ -257,7 +273,8 @@ async fn ensure_publisher_account(client: &GcpClient, project_id: &str) -> Setup
 /// A project-level role definition, bound on the bucket by
 /// [`ensure_publisher_grant`] — defining a role grants nothing on its own.
 /// `roles.create` returns the finished role rather than a long-running
-/// operation, and a 409 means it already exists.
+/// operation. A 409 means the id is taken, which is *not* the same as the role
+/// being usable — see [`refuse_if_role_is_soft_deleted`].
 ///
 /// A 409 is *not* followed by a PATCH. The permission set is the contract this
 /// module asserts, and silently widening a role an operator narrowed by hand
@@ -277,13 +294,56 @@ async fn ensure_publisher_role(client: &GcpClient, project_id: &str) -> SetupRes
     });
     let resp = client.post_json(GcpService::Iam, &path, &body).await?;
     match resp.status_u16() {
-        200..=299 | 409 => Ok(()),
+        200..=299 => Ok(()),
+        409 => refuse_if_role_is_soft_deleted(client, project_id).await,
         other => Err(SetupError::BadStatus {
             operation: format!("create custom role {PUBLISHER_ROLE_ID}"),
             status: other,
             body: resp.into_text(),
         }),
     }
+}
+
+/// Distinguish the two things a 409 on `roles.create` means.
+///
+/// A custom role is **soft-deleted** for seven days before its id is free
+/// again, and during that window `roles.create` still answers 409 while the
+/// role stays `deleted: true`. A binding naming a deleted role is inert, so
+/// treating that 409 as "already exists" would provision a publisher that
+/// authenticates, holds a binding, and can write nothing — the failure arriving
+/// later, in a Project repository's CI, far from its cause.
+///
+/// Undeleting is not done here for the same reason a 409 is not followed by a
+/// PATCH: restoring a role an operator deleted is their decision, not a
+/// create-path side effect. This only refuses to report success.
+async fn refuse_if_role_is_soft_deleted(client: &GcpClient, project_id: &str) -> SetupResult<()> {
+    let path = format!("/v1/projects/{project_id}/roles/{PUBLISHER_ROLE_ID}");
+    let resp = client.get(GcpService::Iam, &path).await?;
+    let status = resp.status_u16();
+    if !(200..=299).contains(&status) {
+        return Err(SetupError::BadStatus {
+            operation: format!("read custom role {PUBLISHER_ROLE_ID} after a 409"),
+            status,
+            body: resp.into_text(),
+        });
+    }
+    let role: Value =
+        serde_json::from_str(&resp.into_text()).map_err(|source| SetupError::Json {
+            what: "custom role",
+            source,
+        })?;
+    if role.get("deleted").and_then(Value::as_bool) == Some(true) {
+        return Err(SetupError::AmbiguousLiveState {
+            operation: format!("create custom role {PUBLISHER_ROLE_ID}"),
+            detail: format!(
+                "the role exists but is soft-deleted, so its id is taken and a binding naming \
+                 it would grant nothing. Undelete it — `gcloud iam roles undelete \
+                 {PUBLISHER_ROLE_ID} --project {project_id}` — or wait out the seven-day \
+                 window for the id to free, then re-run.",
+            ),
+        });
+    }
+    Ok(())
 }
 
 /// Bind the publisher's custom role on the applications bucket, under a
@@ -297,10 +357,16 @@ async fn ensure_publisher_role(client: &GcpClient, project_id: &str) -> SetupRes
 ///    drops a binding left with no members. IAM is a union, so adding the narrow
 ///    grant beside a wide one narrows nothing — this is what reconciles a
 ///    deployment hand-patched to `objectAdmin`.
-/// 2. Ensures exactly one conditioned binding for the custom role.
+/// 2. Ensures exactly one conditioned binding for the custom role, and refuses
+///    outright if the publisher already carries a *different* prefix — see the
+///    branch itself for why that ambiguity is not safe to resolve by guessing.
 /// 3. Sets `version: 3`, without which a conditioned binding is rejected. The
 ///    fetched `etag` travels back untouched, so a concurrent edit loses rather
 ///    than being silently overwritten.
+///
+/// Both halves speak version 3: the read goes through [`bucket_iam_path`],
+/// because a version 1 read hides the very condition this function is trying to
+/// recognise.
 ///
 /// It writes only when something actually changed, so a converged re-run makes
 /// no request — the property `navigator ops gcp setup` is expected to have.
@@ -314,7 +380,7 @@ async fn ensure_publisher_grant(
     let member = format!("serviceAccount:{publisher_email}");
     let role = publisher_role_name(project_id);
     let expression = publisher_condition_expression(bucket, code);
-    let path = format!("/storage/v1/b/{bucket}/iam");
+    let path = bucket_iam_path(bucket);
 
     let response = client.get(GcpService::Storage, &path).await?;
     let status = response.status_u16();
@@ -337,16 +403,81 @@ async fn ensure_publisher_grant(
         .cloned()
         .unwrap_or_default();
 
+    let Merged { next, changed } = merge_publisher_bindings(MergeInputs {
+        bindings,
+        member: &member,
+        role: &role,
+        expression: &expression,
+        bucket,
+        code,
+    })?;
+
+    let needs_version = policy.get("version").and_then(Value::as_i64) != Some(3);
+    if !changed && !needs_version {
+        return Ok(());
+    }
+
+    policy["bindings"] = Value::Array(next);
+    policy["version"] = json!(3);
+
+    let resp = client.put_json(GcpService::Storage, &path, &policy).await?;
+    match resp.status_u16() {
+        200..=299 => Ok(()),
+        other => Err(SetupError::BadStatus {
+            operation: format!("grant publisher role on bucket {bucket}"),
+            status: other,
+            body: resp.into_text(),
+        }),
+    }
+}
+
+/// What [`merge_publisher_bindings`] needs, grouped so the call keeps one
+/// argument per idea rather than six positional strings.
+struct MergeInputs<'a> {
+    bindings: Vec<Value>,
+    /// `serviceAccount:<publisher email>`, the member every branch keys on.
+    member: &'a str,
+    /// Full resource name of the publisher's custom role.
+    role: &'a str,
+    /// The condition this run wants bound.
+    expression: &'a str,
+    bucket: &'a str,
+    code: &'a str,
+}
+
+/// The merged binding list, and whether it differs from what was fetched.
+struct Merged {
+    next: Vec<Value>,
+    changed: bool,
+}
+
+/// Merge the publisher's conditioned binding into `bindings`, stripping any
+/// superseded wide grant and refusing an ambiguous repoint.
+///
+/// Split out of [`ensure_publisher_grant`] so the transport half — read, decide
+/// whether to write, write — stays readable beside the policy algebra. Pure: it
+/// makes no request, which is also what makes every branch testable through
+/// [`ensure_publisher_grant`] without a live bucket.
+fn merge_publisher_bindings(inputs: MergeInputs<'_>) -> SetupResult<Merged> {
+    let MergeInputs {
+        bindings,
+        member,
+        role,
+        expression,
+        bucket,
+        code,
+    } = inputs;
+
     let mut changed = false;
-    let mut next: Vec<Value> = Vec::with_capacity(bindings.len() + 1);
     let mut already_bound = false;
+    let mut next: Vec<Value> = Vec::with_capacity(bindings.len() + 1);
 
     for binding in bindings {
         let binding_role = binding.get("role").and_then(Value::as_str).unwrap_or("");
         let holds_publisher = binding
             .get("members")
             .and_then(Value::as_array)
-            .is_some_and(|members| members.iter().any(|m| m.as_str() == Some(&member)));
+            .is_some_and(|members| members.iter().any(|m| m.as_str() == Some(member)));
 
         if holds_publisher && SUPERSEDED_PUBLISHER_ROLES.contains(&binding_role) {
             // Strip the publisher out; keep any other member of that binding.
@@ -356,7 +487,7 @@ async fn ensure_publisher_grant(
                 .map(|members| {
                     members
                         .iter()
-                        .filter(|m| m.as_str() != Some(&member))
+                        .filter(|m| m.as_str() != Some(member))
                         .cloned()
                         .collect()
                 })
@@ -371,21 +502,18 @@ async fn ensure_publisher_grant(
         }
 
         if binding_role == role && holds_publisher {
-            let condition_matches = binding
+            let bound_to = binding
                 .get("condition")
                 .and_then(|c| c.get("expression"))
-                .and_then(Value::as_str)
-                == Some(expression.as_str());
-            if condition_matches {
+                .and_then(Value::as_str);
+            if bound_to == Some(expression) {
                 already_bound = true;
                 next.push(binding);
                 continue;
             }
-            // Same role and member under a different condition — a stale prefix
-            // from a repository rename. Replaced rather than added to, so the
-            // old prefix stops being writable.
-            changed = true;
-            continue;
+            return Err(ambiguous_repoint(
+                member, bucket, code, bound_to, expression,
+            ));
         }
 
         next.push(binding);
@@ -406,22 +534,45 @@ async fn ensure_publisher_grant(
         changed = true;
     }
 
-    let needs_version = policy.get("version").and_then(Value::as_i64) != Some(3);
-    if !changed && !needs_version {
-        return Ok(());
-    }
+    Ok(Merged { next, changed })
+}
 
-    policy["bindings"] = Value::Array(next);
-    policy["version"] = json!(3);
-
-    let resp = client.put_json(GcpService::Storage, &path, &policy).await?;
-    match resp.status_u16() {
-        200..=299 => Ok(()),
-        other => Err(SetupError::BadStatus {
-            operation: format!("grant publisher role on bucket {bucket}"),
-            status: other,
-            body: resp.into_text(),
-        }),
+/// The refusal raised when the publisher already carries a different prefix.
+///
+/// Two situations produce an identical policy and only one is safe to converge:
+///
+///   * the Project repository was **renamed**, so the old prefix is dead and
+///     replacing the condition is exactly right; or
+///   * a **second Project** is being provisioned against this same publisher,
+///     because the account is derived from the GCP project id alone and every
+///     Project in the deployment shares it. Repointing there revokes the first
+///     Project's publish, and reports success doing it.
+///
+/// Nothing in the policy distinguishes them, so this refuses rather than
+/// guesses: "rename" is the destructive reading, a rename is rare and
+/// operator-driven, and the collision is what rolling out a second Project
+/// actually hits. Both prefixes are named so an operator can tell which it is
+/// without reading the bucket policy by hand.
+fn ambiguous_repoint(
+    member: &str,
+    bucket: &str,
+    code: &str,
+    bound_to: Option<&str>,
+    wanted: &str,
+) -> SetupError {
+    SetupError::AmbiguousLiveState {
+        operation: format!("bind the applications publisher to {code}'s portal prefix"),
+        detail: format!(
+            "{member} is already bound to a different prefix on bucket {bucket}.\n  \
+             bound:   {bound}\n  \
+             wanted:  {wanted}\n\
+             A condition lives on a binding, so one publisher account carries exactly one \
+             prefix, and this account is shared by every Project in the deployment. If the \
+             repository was renamed, remove the stale binding by hand and re-run. If this is a \
+             second Project, it needs its own publisher identity — one account cannot isolate \
+             two portals.",
+            bound = bound_to.unwrap_or("<no condition>"),
+        ),
     }
 }
 
@@ -641,6 +792,7 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/storage/v1/b/proj-applications/iam"))
+            .and(query_param("optionsRequestedPolicyVersion", "3"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
             .mount(&server)
             .await;
@@ -684,6 +836,7 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/storage/v1/b/proj-applications/iam"))
+            .and(query_param("optionsRequestedPolicyVersion", "3"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "version": 3,
                 "bindings": [{
@@ -693,6 +846,27 @@ mod tests {
                         "expression": publisher_condition_expression(
                             "proj-applications", "sample-litigation"),
                     },
+                }],
+            })))
+            .mount(&server)
+            .await;
+        // What GCS actually answers when the read does *not* pin version 3:
+        // a version 1 policy with the condition dropped and the role mangled.
+        // Mounted second, so it only serves a request the version-3 mock above
+        // did not match. If the query parameter is ever dropped, this response
+        // is what the merge sees — it recognises nothing, appends a duplicate
+        // binding and writes, and the absent PUT mock fails the test. That is
+        // the whole point: the parameter is guarded by consequence, not by an
+        // assertion that can rot beside the code.
+        Mock::given(method("GET"))
+            .and(path("/storage/v1/b/proj-applications/iam"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "version": 1,
+                "etag": "CAE=",
+                "bindings": [{
+                    "role": "projects/proj/roles/\
+                             navigatorApplicationsPublisher_withcond_2b17cc25d2cd9e2c",
+                    "members": [PUBLISHER_MEMBER],
                 }],
             })))
             .mount(&server)
@@ -710,6 +884,73 @@ mod tests {
         .unwrap();
     }
 
+    /// A soft-deleted custom role is refused, not read as "already exists".
+    ///
+    /// A custom role's id stays reserved for seven days after deletion, and
+    /// `roles.create` answers 409 for the whole window while the role itself
+    /// stays unusable. Reading that 409 as success would provision a publisher
+    /// holding a binding to a role that grants nothing — a failure that first
+    /// shows up in a Project repository's CI, far from its cause.
+    #[tokio::test]
+    async fn a_soft_deleted_custom_role_is_refused() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/projects/proj/roles"))
+            .respond_with(ResponseTemplate::new(409))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(
+                "/v1/projects/proj/roles/navigatorApplicationsPublisher",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "name": "projects/proj/roles/navigatorApplicationsPublisher",
+                "deleted": true,
+            })))
+            .mount(&server)
+            .await;
+        let client = GcpClient::new(Arc::new(StaticToken("t".into())))
+            .with_base_url(GcpService::Iam, server.uri());
+        let err = ensure_publisher_role(&client, "proj")
+            .await
+            .expect_err("a soft-deleted role must not be reported as converged");
+        assert!(
+            matches!(err, SetupError::AmbiguousLiveState { .. }),
+            "{err}"
+        );
+        assert!(
+            err.to_string().contains("undelete"),
+            "the refusal must say how to recover: {err}",
+        );
+    }
+
+    /// A live custom role still makes a 409 a success.
+    ///
+    /// The soft-delete check must not turn ordinary idempotency into an error —
+    /// a re-run against an existing, usable role is the common case.
+    #[tokio::test]
+    async fn an_existing_custom_role_is_converged() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/projects/proj/roles"))
+            .respond_with(ResponseTemplate::new(409))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(
+                "/v1/projects/proj/roles/navigatorApplicationsPublisher",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "name": "projects/proj/roles/navigatorApplicationsPublisher",
+                "includedPermissions": PUBLISHER_PERMISSIONS,
+            })))
+            .mount(&server)
+            .await;
+        let client = GcpClient::new(Arc::new(StaticToken("t".into())))
+            .with_base_url(GcpService::Iam, server.uri());
+        ensure_publisher_role(&client, "proj").await.unwrap();
+    }
+
     /// A superseded wide grant is stripped, not left beside the narrow one.
     ///
     /// This is the reconcile case: production was hand-patched to unconditioned
@@ -722,6 +963,7 @@ mod tests {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/storage/v1/b/proj-applications/iam"))
+            .and(query_param("optionsRequestedPolicyVersion", "3"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "bindings": [{
                     "role": "roles/storage.objectAdmin",
@@ -788,16 +1030,24 @@ mod tests {
         assert_eq!(policy["version"], json!(3));
     }
 
-    /// A stale prefix from a repository rename is replaced, not added to.
+    /// A publisher already bound to a *different* prefix is refused, not
+    /// silently repointed.
     ///
-    /// The condition carries the Project code, so a rename leaves a binding
-    /// naming the old prefix. Left in place it would stay writable, which is
-    /// exactly the isolation this grant exists to provide.
+    /// Two situations produce this policy and the bucket cannot tell them
+    /// apart: a repository rename, where overwriting is right, and a *second*
+    /// Project being provisioned against the same publisher, where overwriting
+    /// revokes the first Project's publish and reports success. The publisher
+    /// account is derived from the GCP project id alone, so every Project in a
+    /// deployment shares it and the second case is the one a rollout hits.
+    ///
+    /// Refusing costs an operator one manual step after a rename. Guessing
+    /// costs a live Project its ability to publish, silently.
     #[tokio::test]
-    async fn a_stale_prefix_condition_is_replaced_rather_than_accumulated() {
+    async fn a_publisher_bound_to_another_prefix_is_refused() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/storage/v1/b/proj-applications/iam"))
+            .and(query_param("optionsRequestedPolicyVersion", "3"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "version": 3,
                 "bindings": [{
@@ -805,28 +1055,16 @@ mod tests {
                     "members": [PUBLISHER_MEMBER],
                     "condition": {
                         "expression": publisher_condition_expression(
-                            "proj-applications", "navigator-sample-project-litigation"),
+                            "proj-applications", "sample-estate"),
                     },
                 }],
             })))
             .mount(&server)
             .await;
-        let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
-        let sink = std::sync::Arc::clone(&captured);
-        Mock::given(method("PUT"))
-            .and(path("/storage/v1/b/proj-applications/iam"))
-            .respond_with(move |req: &wiremock::Request| {
-                sink.lock()
-                    .expect("lock")
-                    .push(String::from_utf8_lossy(&req.body).to_string());
-                ResponseTemplate::new(200)
-            })
-            .expect(1)
-            .mount(&server)
-            .await;
+        // No PUT mock: a write is a test failure, not a silent revocation.
         let client = GcpClient::new(Arc::new(StaticToken("t".into())))
             .with_base_url(GcpService::Storage, server.uri());
-        ensure_publisher_grant(
+        let err = ensure_publisher_grant(
             &client,
             "proj",
             "proj-applications",
@@ -834,14 +1072,34 @@ mod tests {
             PUBLISHER,
         )
         .await
-        .unwrap();
+        .expect_err("a publisher already bound to another prefix must be refused");
 
-        let body = captured.lock().expect("lock").join("");
+        let message = err.to_string();
         assert!(
-            !body.contains("navigator-sample-project-litigation"),
-            "the stale prefix must not survive the write: {body}",
+            matches!(err, SetupError::AmbiguousLiveState { .. }),
+            "the refusal must be its own error, not a transport failure: {message}",
         );
-        assert!(body.contains("objects/sample-litigation/portal"));
+        // Both prefixes are named, so the operator can tell a rename from a
+        // second Project without reading the bucket policy by hand.
+        assert!(
+            message.contains("sample-estate") && message.contains("sample-litigation"),
+            "the refusal must name both prefixes: {message}",
+        );
+    }
+
+    /// The bucket policy is read at version 3, and that is load-bearing.
+    ///
+    /// Asked for version 1 — the default — IAM returns conditional bindings with
+    /// the condition stripped and the role mangled to `<role>_withcond_<hash>`.
+    /// This module would not recognise its own binding, would append a duplicate
+    /// beside the mangled one, and would PUT a policy naming a role that does
+    /// not exist. Every run after the first would write, and be rejected.
+    #[test]
+    fn the_bucket_policy_is_read_at_version_three() {
+        assert_eq!(
+            bucket_iam_path("proj-applications"),
+            "/storage/v1/b/proj-applications/iam?optionsRequestedPolicyVersion=3",
+        );
     }
 
     #[tokio::test]

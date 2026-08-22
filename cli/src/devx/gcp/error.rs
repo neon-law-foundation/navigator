@@ -95,6 +95,13 @@ pub enum SetupError {
     #[error("malformed GCP response: {0}")]
     Malformed(&'static str),
 
+    /// Live state and the requested state are both plausible, and the
+    /// provisioner cannot tell which is intended — so it refuses instead of
+    /// overwriting. Distinct from [`Self::BadStatus`]: no call failed, and
+    /// distinct from an idempotent no-op: converging would destroy something.
+    #[error("{operation} refused: {detail}")]
+    AmbiguousLiveState { operation: String, detail: String },
+
     /// A shell-out (gcloud, kubectl) returned non-zero AND the stderr
     /// did not match the "already exists" idempotency pattern. The
     /// numeric exit code stays in the message verbatim so log
