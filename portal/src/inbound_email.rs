@@ -32,6 +32,7 @@ use axum::response::IntoResponse;
 use cloud::StorageService;
 
 use crate::attachment_scanner::{AttachmentScanner, ScanError, ScanVerdict};
+use crate::audit_fields::domain_of;
 
 /// SendGrid accepts complete inbound messages up to 30 MB. This is also the
 /// scanner's per-attachment ceiling, and the router applies it to the full
@@ -432,14 +433,17 @@ pub async fn webhook(
     // Any scanner error returns 503 before storage, conversation,
     // notification, or document side effects.
     scan_attachments(state.attachment_scanner.as_ref(), &mut email).await?;
-    // Surface SendGrid's DKIM verdict on every inbound message (envelope
-    // metadata only — no subject/body, to respect privilege). This is the
-    // signal the operator watches before flipping NAVIGATOR_DKIM_REQUIRE_DOMAIN
-    // on: confirm real support mail arrives as `{@neonlaw.com : pass}` while
-    // the command-channel gate is still trust-on-token, then enforce.
+    // Surface SendGrid's DKIM verdict on every inbound message — domains and
+    // counts only, never an address, a subject, or a body. This is the signal
+    // the operator watches before flipping NAVIGATOR_DKIM_REQUIRE_DOMAIN on:
+    // confirm real support mail arrives as `{@neonlaw.com : pass}` while the
+    // command-channel gate is still trust-on-token, then enforce. The sending
+    // domain is the half that verdict is about, so dropping the local part
+    // costs the operator nothing and keeps a correspondent's identity out of
+    // telemetry.
     tracing::info!(
-        from = %email.from,
-        to = %email.to,
+        from_domain = %domain_of(&email.from),
+        to_domain = %domain_of(&email.to),
         dkim = %email.dkim,
         attachments = email.attachments.len(),
         "inbound parse received"

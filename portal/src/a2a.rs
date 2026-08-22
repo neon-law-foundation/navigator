@@ -45,6 +45,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::agent_router::{AgentRouter, RoutedCall, RouterError, Step, Turn};
+use crate::audit_fields::person_id_field;
 use crate::canonical_host::CanonicalHost;
 use mcp::protocol::{codes, Request as RpcRequest, Response as RpcResponse};
 use mcp::{tools, McpState, Principal};
@@ -1701,21 +1702,6 @@ async fn approver_person(
         .await
         .ok()
         .flatten()
-}
-
-/// Render a person's id for an audit log field, or `none`.
-///
-/// The field is spelled `person_id` deliberately. These `target: "audit"`
-/// records carry the only copy of an authorization decision, and the
-/// collector's redaction processor drops any structured field absent from its
-/// `allowed_keys` list — where `person_id` appears and `approver_person_id`
-/// does not. A more descriptive name would be silently deleted on the export
-/// path, leaving the decision with no actor again.
-///
-/// An id is an opaque UUID rather than client-identifying content, which is
-/// what makes it loggable where the address it replaces is not.
-fn person_id_field(person: Option<&store::persons::Person>) -> String {
-    person.map_or_else(|| "none".to_string(), |p| p.id.to_string())
 }
 
 /// How the user answered a confirmation prompt.

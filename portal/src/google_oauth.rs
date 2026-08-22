@@ -39,6 +39,7 @@ use axum::middleware::Next;
 use axum::response::Response;
 use serde::Deserialize;
 
+use crate::audit_fields::{domain_of, person_id_field};
 use crate::auth::AuthClaims;
 
 /// Google's tokeninfo endpoint. Overridable via
@@ -270,7 +271,7 @@ pub async fn require_google_oauth(
         if !email_ok {
             tracing::warn!(
                 required_hd = required,
-                got_email = ?info.email,
+                got_domain = %domain_of(info.email.as_deref().unwrap_or_default()),
                 "google_oauth: email-domain mismatch; returning 403"
             );
             return Err(StatusCode::FORBIDDEN);
@@ -287,12 +288,16 @@ pub async fn require_google_oauth(
     // the embedded Rego policy lawyer-gate on `/mcp` + `/app/api/aida/rpc` then denies it.
     // Operators must seed legitimate agent identities as lawyer/admin in
     // `persons`, exactly as for the browser/CLI paths.
-    let role = resolve_role(cfg.0.surreal.as_ref(), &email).await;
+    let person = resolve_person(cfg.0.surreal.as_ref(), &email).await;
+    let role = person
+        .as_ref()
+        .map_or(store::persons::Role::Client, |p| p.role);
     if role == store::persons::Role::Client {
         tracing::warn!(
             target: "audit",
             event = "google_oauth.role.client_or_unknown",
-            email = %email,
+            person_id = %person_id_field(person.as_ref()),
+            domain = %domain_of(&email),
             "google_oauth: validated token resolved to client/unknown tier — lawyer-gated routes will deny",
         );
     }
@@ -307,21 +312,22 @@ pub async fn require_google_oauth(
     Ok(next.run(req).await)
 }
 
-/// Resolve `email` to its `persons.role`. Returns `Client` (the
-/// least-privileged tier) when the db is absent or no row matches — the
-/// secure default, so a missing account never yields lawyer access.
-async fn resolve_role(
+/// Resolve `email` to its `persons` row.
+///
+/// Returns `None` when the db is absent or no row matches. The caller reads
+/// `role` off it and treats `None` as `Client` (the least-privileged tier) —
+/// the secure default, so a missing account never yields lawyer access. The
+/// whole row rather than just the tier because the audit record needs the
+/// person's opaque id: an address in a log field is exactly what
+/// `cli/tests/no_address_in_telemetry.rs` gates against.
+async fn resolve_person(
     surreal: Option<&store::surreal::SurrealDb>,
     email: &str,
-) -> store::persons::Role {
-    let Some(surreal) = surreal else {
-        return store::persons::Role::Client;
-    };
-    store::persons::find_by_email_ci(surreal, email)
+) -> Option<store::persons::Person> {
+    store::persons::find_by_email_ci(surreal?, email)
         .await
         .ok()
         .flatten()
-        .map_or(store::persons::Role::Client, |p| p.role)
 }
 
 #[cfg(test)]
@@ -533,10 +539,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn resolve_role_reads_real_tier_and_defaults_unknown_to_client() {
-        use super::resolve_role;
+    async fn resolve_person_reads_real_tier_and_defaults_unknown_to_client() {
+        use super::resolve_person;
 
         use store::persons::Role;
+
+        // The call site reads `role` off the row and treats a missing row as
+        // the least-privileged tier; assert that resolution, not the getter.
+        async fn role_of(surreal: Option<&store::surreal::SurrealDb>, email: &str) -> Role {
+            resolve_person(surreal, email)
+                .await
+                .map_or(Role::Client, |p| p.role)
+        }
 
         let surreal = mem_surreal().await;
         for (email, role) in [
@@ -552,25 +566,25 @@ mod tests {
         }
 
         assert_eq!(
-            resolve_role(Some(&surreal), "lawyer@example.com").await,
+            role_of(Some(&surreal), "lawyer@example.com").await,
             Role::Lawyer
         );
         assert_eq!(
-            resolve_role(Some(&surreal), "LaWyEr@Example.com").await,
+            role_of(Some(&surreal), "LaWyEr@Example.com").await,
             Role::Lawyer,
             "a verified email whose casing differs from the stored row keeps its lawyer tier"
         );
         assert_eq!(
-            resolve_role(Some(&surreal), "cli@example.com").await,
+            role_of(Some(&surreal), "cli@example.com").await,
             Role::Client
         );
         // Unknown email and absent db both fall back to the least
         // privilege — never lawyer.
         assert_eq!(
-            resolve_role(Some(&surreal), "nobody@example.com").await,
+            role_of(Some(&surreal), "nobody@example.com").await,
             Role::Client
         );
-        assert_eq!(resolve_role(None, "anyone@example.com").await, Role::Client);
+        assert_eq!(role_of(None, "anyone@example.com").await, Role::Client);
     }
 
     #[tokio::test]

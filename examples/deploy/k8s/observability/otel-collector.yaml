@@ -125,6 +125,14 @@ data:
           - duration_ms
           - count
           - audit
+          # --- sanitized address fields (portal/src/audit_fields.rs) ---
+          # The domain half of an address, never the local part: it names an
+          # organization rather than a person. Absent these keys the redaction
+          # processor would delete them, trading a leak for a blank.
+          - domain
+          - from_domain
+          - to_domain
+          - got_domain
           # --- opaque UUID ids (attorney call: raw ids loggable) ---
           - person_id
           - project_id
