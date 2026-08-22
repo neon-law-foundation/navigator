@@ -11,6 +11,10 @@ description: >
 
 # `/triage-issue` — triage one Linear issue
 
+Before reading or writing in Linear, read
+[`docs/public-contributor-safety.md`](../../../docs/public-contributor-safety.md). Use only synthetic examples; never
+put client data, legal files, real contacts, or production IDs in Linear.
+
 The authoritative procedure is [`Triage an issue`](../../../docs/agent-workflows.md#triage-an-issue). This skill adds
 the Linear grounding mechanics; keep durable detail in that doc. Triage ends at the plan comment — implementation is
 action 3 and starts in its own New Worktree.

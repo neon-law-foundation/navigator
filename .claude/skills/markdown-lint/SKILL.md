@@ -5,6 +5,10 @@ different linter. ---
 
 # Markdown linting via the navigator CLI
 
+Lint is not a confidentiality classifier. Before validating a public example, read
+[`docs/public-contributor-safety.md`](../../../docs/public-contributor-safety.md) and remove client data, legal files,
+real contact details, and production identifiers rather than relying on a green lint result.
+
 Every `.md` file in this repo must pass the navigator CLI's markdown rule set. We dogfood our own linter so the rule
 definitions, exit codes, and CI behavior stay coherent.
 
@@ -49,8 +53,7 @@ Exit `0` on every iteration means clean. Otherwise the violating file, line, rul
 
 ## When to run it
 
-- Before committing any change that touches a `.md` file. When you create a new README. As part of CI for the docs
-  surface (not currently wired in `ci.yml`, but on the roadmap).
+- Before committing any change that touches a `.md` file or creating a new README. CI also validates the content tree.
 
 ## What NOT to do
 

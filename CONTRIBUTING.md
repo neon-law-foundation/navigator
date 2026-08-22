@@ -38,9 +38,12 @@ nothing about the terms above.
 Two boundaries hold regardless of the licence, and they are why the review bar is what it is. The Foundation produces
 the software, but Neon Law runs a live practice on it, and both facts land on every change.
 
-**No client data, ever.** Shipped data contains only firm-owned or synthetic identities; non-firm email addresses use
-reserved example domains and phone numbers do not ship. The workspace test suite enforces this on every pull request,
-and that gate is the confidentiality boundary.
+**Prototype freely. Publish only source.** Shipped material contains only firm-owned or synthetic identities; non-firm
+email addresses use reserved example domains and phone numbers do not ship. Never put client or matter data, party
+names, legal files, real contact details, or production identifiers in Git, pull requests, issues, or other external
+planning surfaces. Client data and legal files belong in Navigator-managed systems and approved file stores. See
+[`docs/public-contributor-safety.md`](docs/public-contributor-safety.md). The workspace test suite enforces part of this
+boundary on every pull request; the rule applies even where a scanner does not.
 
 **Legal template bodies get attorney review.** A change to anything under `templates/` alters a document a real client
 may sign, so a licensed attorney reviews it before it merges regardless of how mechanical the diff looks.
