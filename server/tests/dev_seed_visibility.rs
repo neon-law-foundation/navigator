@@ -43,7 +43,6 @@ async fn participation_drives_client_and_lawyer_visibility() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();
@@ -106,7 +105,6 @@ async fn the_matters_are_withheld_from_the_unassigned_admin() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();

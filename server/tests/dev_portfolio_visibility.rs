@@ -33,7 +33,6 @@ async fn the_sample_fixture_is_scoped_for_client_lawyer_and_admin() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();

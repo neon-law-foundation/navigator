@@ -27,11 +27,20 @@ pub enum DeploymentEnvironment {
     Production,
 }
 
-/// Whether this deployment's matters are sample rather than real.
+/// Whether this deployment announces that its matters are simulated.
 ///
-/// A deployment carrying sample matters says so out loud: it seeds the
-/// fixture matters and publishes a site-wide banner telling every visitor that
-/// nothing they are looking at is a real client's file.
+/// This selector renders a site-wide banner telling every visitor that nothing
+/// they are looking at is a real client's file. **That is all it does.** It
+/// seeds no row and writes no object; the seed keys its own fixture layer on
+/// [`DeploymentEnvironment`] alone.
+///
+/// The two are separate because they answer different questions. Whether to
+/// *write* fixture data is a question about authority, and the answer is that a
+/// production-profile deployment is never written to. Whether to *say* the
+/// matters are simulated is a question about disclosure, and a deployment can
+/// need the disclosure while holding a portfolio it was given once — which is
+/// exactly the persistent staging deployment, running the production runtime
+/// profile over data no boot re-asserts.
 pub const NAVIGATOR_SIMULATED_MATTERS: &str = "NAVIGATOR_SIMULATED_MATTERS";
 
 /// Why a `NAVIGATOR_SIMULATED_MATTERS` value could not be read.
@@ -56,8 +65,8 @@ pub fn sample_matters(environment: DeploymentEnvironment) -> Result<bool, Sample
 /// [`sample_matters`] with the environment read through `get`, so the
 /// decision is testable without mutating process state.
 ///
-/// Unset or empty follows the deployment profile: a `dev` boot carries
-/// sample matters because that is the only thing a `dev` boot has, and a
+/// Unset or empty follows the deployment profile: a `dev` boot announces
+/// simulated matters because that is the only thing a `dev` boot has, and a
 /// `production` boot does not because production is where the real files are.
 ///
 /// An explicit value overrides that in **both** directions, and the direction
@@ -70,8 +79,9 @@ pub fn sample_matters(environment: DeploymentEnvironment) -> Result<bool, Sample
 /// trusted and the guard is the deployment's own `config.toml`.
 ///
 /// The parser is exact for the same reason [`DeploymentEnvironment::from_lookup`]
-/// is: a typo that silently resolved to the permissive answer would seed
-/// invented clients into a database of real ones.
+/// is: a typo that silently resolved to `false` would drop the disclosure from a
+/// deployment whose matters are invented, and a reader would have nothing
+/// telling them so.
 pub fn sample_matters_from<F: Fn(&str) -> Option<String>>(
     environment: DeploymentEnvironment,
     get: F,

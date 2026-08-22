@@ -384,7 +384,6 @@ async fn the_readme_account_table_matches_the_seeded_fixture_people() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();
@@ -479,7 +478,6 @@ async fn the_readme_participation_claim_matches_the_seeded_rows() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();
@@ -553,7 +551,6 @@ async fn the_client_sees_every_sample_matter_the_deck_promises() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();
