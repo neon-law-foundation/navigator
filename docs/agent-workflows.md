@@ -329,8 +329,8 @@ cargo build -p cli --quiet
 
 Read [`public-contributor-safety.md`](public-contributor-safety.md) before using an example, fixture, issue, or planning
 surface. Only firm-owned or synthetic data may ship. Non-firm email addresses must use `example.com` or a reserved
-`.example`, `.invalid`, `.test`, or `.localhost` domain. Phone numbers may not ship. Client or matter data, legal files,
-and production identifiers belong in Navigator-managed systems, never Git or external planning surfaces.
+`.example`, `.invalid`, or `.test` domain. Phone numbers may not ship. Client or matter data, legal files, and
+production identifiers belong in Navigator-managed systems, never Git or external planning surfaces.
 
 The gate scans `store/seeds`, `templates`, and `server/content`; source and test fixtures remain human-reviewed. It is a
 test, not a command — `cli/tests/no_client_data.rs` runs the scan over the real tree, so the required workspace test job

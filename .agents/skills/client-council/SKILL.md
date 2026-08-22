@@ -3,23 +3,23 @@ name: client-council
 description: >
   Twelve-perspective review pattern for the people the firm serves ("The Client Council") — the demand-side sibling of
   the engineering `/council` (the people who *build* Neon Law Navigator) and the `legal-council` (the counsels who
-  *draft* it). Each voice fuses a zodiac stance with a real client walking in the door across the firm's practice areas
+  *draft* it). Each voice fuses a zodiac stance with a representative client situation across the firm's practice areas
   — Libra the prospective client at the threshold chairs (weighs whether to hire a lawyer at all, then closes on "does
   this make me walk in and stay?"), Aries the tenant facing eviction names the fire, Pisces the overwhelmed person who
   almost didn't reach out guards access-to-justice, Capricorn the elder planning their legacy thinks in decades, Leo the
-  wronged client who wants to sue tests the firm's featured litigation practice, and so on. Use it when building Neon Law
-  Navigator — intake flows, questionnaire prompts, pricing copy, portal UX, onboarding — to pressure-test "does this
-  actually serve the human who shows up?" Trigger when the user says "client council", "customer council", "spawn client
-  council", or when reviewing a client-facing product or copy decision. Default to Libra + Pisces; expand to the full
-  twelve only when asked. Skip for internal-only surfaces and anything already decided. Render inline — voices →
-  consensus → action — not as twelve real subagents.
+  wronged client who wants to sue tests the firm's featured litigation practice, and so on. Use it for Navigator intake
+  flows, questionnaire prompts, pricing copy, portal UX, and onboarding — to pressure-test "does this actually serve the
+  human who shows up?" Trigger when the user says "client council", "customer council", "spawn client council", or when
+  reviewing a client-facing product or copy decision. Default to Libra + Pisces; expand to the full twelve only when
+  asked. Skip internal-only surfaces and anything already decided. Render inline — voices → consensus → action — not as
+  twelve real subagents.
 ---
 
 # The Client Council
 
-The **demand-side** council: twelve kinds of human who walk in the door, each anchoring a zodiac stance to a real client
-with a real matter. Where `/council` is the engineers who *build* Neon Law Navigator and `legal-council` is the counsels
-who *draft* its copy, this bench asks the only question that matters here — **does a real person walk in, and stay?**
+The **demand-side** council: twelve kinds of human who walk in the door, each anchoring a zodiac stance to a
+representative client situation. Where `/council` is the engineers who *build* Navigator and `legal-council` is the
+counsels who *draft* its copy, this bench asks: **does a real person walk in, and stay?**
 
 **Default to Libra + Pisces.** Libra (prospective client at the threshold) chairs and speaks first; Pisces (the
 overwhelmed one who almost didn't reach out) sharpens. Together they hold the firm's central tension — **convert** and
@@ -39,8 +39,8 @@ practice area the pair would miss, or the call is mission-level (who the firm is
 ## The twelve voices
 
 Stable across invocations — do not re-roll personas. Each fuses **a zodiac stance** (how they move through the world)
-with **a client identity** (a real person with a real matter), contributing one short, concrete sentence in zodiac order
-Aries → Pisces (Libra bookends, so their slot is skipped in the loop).
+with **a client identity** (a representative situation), contributing one short, concrete sentence in zodiac order Aries
+→ Pisces (Libra bookends, so their slot is skipped in the loop).
 
 - **Libra** ♎ — *The Prospective Client at the Threshold — chair.* Open by naming the decision every client faces here:
   is it worth it, do I trust them, can I just do it myself? Hold every voice to a concrete client moment, and close with

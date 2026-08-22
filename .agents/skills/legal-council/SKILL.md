@@ -36,11 +36,9 @@ firm's/Foundation's mission.
   only a questionnaire prompt may carry an attorney-reviewed localized variant. **Skip already-binding documents** (a
   signed retainer, a filed pleading) — those go through lawyer and attorney-of-record review, not the council.
 - **Confirm every asserted legal fact before convening — never invent one.** List the concrete facts the copy will state
-  (addresses and suite numbers, each entity's state and type, bar numbers, emails, fees, dates, statute cites) and pin
-  each against the repo (`store/seeds/Address.yaml`, `notation_templates/`, the bar strip in `views/src/layout.rs`) or
-  ask the user in one batch. The Foundation is a **Nevada** 501(c)(3) at 5150 Mae Anne Ave Ste 405-9999; the firm is at
-  Ste 405-9002 (both Reno, NV 89523, the Ridgeview Mail Center private mailbox). A wrong fact survives the whole bench,
-  because no voice re-checks it.
+  (entities, locations, bar numbers, emails, fees, dates, statute cites) and pin each against its canonical repository
+  source or ask the user in one batch. Do not reproduce real contact details unless a public-safe, authoritative task
+  requires them. A wrong fact survives the whole bench, because no voice re-checks it.
 
 ## The twelve voices
 

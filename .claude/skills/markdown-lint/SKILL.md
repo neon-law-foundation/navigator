@@ -53,8 +53,7 @@ Exit `0` on every iteration means clean. Otherwise the violating file, line, rul
 
 ## When to run it
 
-- Before committing any change that touches a `.md` file. When you create a new README. As part of CI for the docs
-  surface (not currently wired in `ci.yml`, but on the roadmap).
+- Before committing any change that touches a `.md` file or creating a new README. CI also validates the content tree.
 
 ## What NOT to do
 

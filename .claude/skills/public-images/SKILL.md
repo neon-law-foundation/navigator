@@ -5,7 +5,7 @@ description: Add or maintain public image references using Navigator's approved 
 
 # Public images
 
-Read the relevant content source, [`docs/agent-workflows.md`](../../../docs/agent-workflows.md), and
+Read the relevant content source, [`docs/assets.md`](../../../docs/assets.md), and
 [`docs/public-contributor-safety.md`](../../../docs/public-contributor-safety.md).
 
 - Use only rights-cleared, public-safe images and accurate alt text. Keep local assets and captures out of Git where
