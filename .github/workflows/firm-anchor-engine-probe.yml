@@ -1,0 +1,91 @@
+# THROWAWAY (ENG-312): is the record-key double-commit an embedded-engine
+# defect, or does server mode have it too?
+#
+# The soak lane proved the fork is real and named the mechanism: two concurrent
+# `CREATE type::record('firm_anchor', $key)` statements can both return success
+# (run 32580825916 — both winners `holder=None exit=CLAIMED`, zero retries).
+# That reproduction is against `mem://`, which is test-only. Production runs
+# server-mode SurrealDB over `ws://`, so which engine has the gap decides
+# whether this is a live data-integrity defect or a test-environment one.
+#
+# Both engines, one harness, same box, same contention — because the fork has
+# never appeared on an idle machine, so a negative from an uncontended run
+# would mean nothing.
+name: firm-anchor-engine-probe
+
+on:
+  push:
+    branches:
+      - claude/firm-anchor-race-eng-312-b9d482
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: rounds per engine, each racing 8 creates for one fresh key
+        default: "40000"
+
+jobs:
+  probe:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      RUSTFLAGS: "-C link-arg=-fuse-ld=lld -C strip=symbols"
+    steps:
+      - name: install lld
+        run: sudo apt-get update && sudo apt-get install -y lld
+
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+
+      # Not a `services:` block: the surrealdb image needs `start ... memory` as
+      # its command, and service containers cannot override CMD.
+      - name: start a server-mode SurrealDB
+        run: |
+          docker run -d --name surreal -p 8000:8000 surrealdb/surrealdb:v3.2.4 \
+            start --user root --pass root memory
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8000/health && echo "surreal up"
+
+      - name: probe both engines under equal contention
+        run: |
+          set -uo pipefail
+          echo "nproc: $(nproc)  arch: $(uname -m)"
+          # The fork was only ever observed under coverage instrumentation, so
+          # keep it: it is part of the conditions, not incidental.
+          eval "$(cargo llvm-cov show-env --export-prefix)"
+          cargo llvm-cov clean --profraw-only
+
+          BIN=$(cargo test -p store --test zz_probe_engine --no-run --locked \
+                  --message-format=json 2>/dev/null \
+                | jq -r 'select(.executable != null and .target.name == "zz_probe_engine") | .executable' \
+                | tail -1)
+          test -n "$BIN" || { echo "::error::no probe binary"; exit 1; }
+
+          ROUNDS="${{ inputs.rounds || '40000' }}"
+          # The fork needs a loaded box. Same load for both engines.
+          for _ in $(seq 1 "$(nproc)"); do yes > /dev/null & done
+          LOAD=$(jobs -p)
+
+          echo "=============== EMBEDDED (mem://) ==============="
+          env -u NAVIGATOR_SURREAL_ENDPOINT ANCHOR_ROUNDS="$ROUNDS" \
+            "$BIN" --exact probe_double_commit_by_engine --nocapture --test-threads=1 \
+            2>&1 | grep -E "FORKED|forks in" || true
+
+          echo "=============== SERVER (ws://) ==============="
+          NAVIGATOR_SURREAL_ENDPOINT=ws://127.0.0.1:8000 \
+          NAVIGATOR_SURREAL_NAMESPACE=navigator \
+          NAVIGATOR_SURREAL_DATABASE=navigator \
+          NAVIGATOR_SURREAL_USER=root \
+          NAVIGATOR_SURREAL_PASSWORD=root \
+          ANCHOR_ROUNDS="$ROUNDS" \
+            "$BIN" --exact probe_double_commit_by_engine --nocapture --test-threads=1 \
+            2>&1 | grep -E "FORKED|forks in" || true
+
+          kill $LOAD 2>/dev/null || true
+          echo "Both rates above. Reporting only — this lane never gates."
