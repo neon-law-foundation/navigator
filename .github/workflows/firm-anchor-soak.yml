@@ -17,12 +17,6 @@
 name: firm-anchor-soak
 
 on:
-  # TEMPORARY: arms the lane on this branch so it can be validated and soaked
-  # before merge. Remove this trigger before the PR lands — the schedule below
-  # is how it runs in anger.
-  push:
-    branches:
-      - claude/firm-anchor-race-eng-312-b9d482
   schedule:
     # Nightly, well clear of the working day.
     - cron: "0 8 * * *"

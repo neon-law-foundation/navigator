@@ -23,12 +23,27 @@
 //! that mints it first claims [`CLAIM_TABLE`], a table whose *record id
 //! is that key*.
 //!
-//! The claim is what the guarantee rests on. The UNIQUE
-//! `entity_firm_anchor` index reads like the guard and is not one under
-//! concurrency: racers writing distinct entity rows never collide on an
-//! index entry, so eight of them mint two anchors
+//! The claim is what the guarantee rests on, and it is **strong but not
+//! absolute**. The UNIQUE `entity_firm_anchor` index reads like the guard
+//! and is not one under concurrency: racers writing distinct entity rows
+//! never collide on an index entry, so eight of them mint two anchors
 //! (`store/tests/firm_anchor_race.rs`). Writing one identical *record*
-//! key is what the engine does enforce, which is the claim's whole job.
+//! key is far stronger, and is the claim's whole job.
+//!
+//! It is not total, though, and ENG-312 measured where it gives out: two
+//! concurrent `CREATE`s of the *same* record id can **both** report
+//! success while the `firm_anchor` table is still **empty**. Observed
+//! directly — both racers reading the claim as free, both returning
+//! `CLAIMED`, no retry involved — at roughly one double-commit per
+//! 160,000 eight-way raced creates against an empty claim table. With one
+//! claim row already present, 480,000 raced creates produced no fork on
+//! either the embedded or the server engine.
+//!
+//! So the window is the first mint on a fresh database, and it closes as
+//! soon as any claim row exists. `store/tests/firm_anchor_race.rs` builds
+//! a fresh engine per round, which puts it inside that window on every
+//! round — it is not a proxy for the steady state a deployment runs in.
+//! `.github/workflows/firm-anchor-soak.yml` is the lane that watches this.
 //!
 //! Deciding *what counts as* an anchor stays in `entity_commands` with
 //! `is_firm_anchor`, because it reads configuration. This module writes
@@ -149,9 +164,11 @@ pub enum EntityError {
 
 /// The table whose **record id is the firm-anchor key**. Writing it is
 /// what serializes two racers minting the anchor: they collide on one
-/// identical record key, which the engine enforces, rather than on a
-/// UNIQUE index entry, which under concurrency it does not. See the
-/// `firm_anchor` block in `store/src/schema/navigator.surql`.
+/// identical record key, which the engine enforces far more reliably than
+/// a UNIQUE index entry — which under concurrency it does not enforce at
+/// all. Not absolutely, though: see this module's header for the measured
+/// empty-table window. See also the `firm_anchor` block in
+/// `store/src/schema/navigator.surql`.
 const CLAIM_TABLE: &str = "firm_anchor";
 
 /// Claim the anchor for `$id`, refusing when any row already holds it.
