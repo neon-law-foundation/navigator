@@ -6,7 +6,7 @@
 // browser's native Selection API gives us the selected text and its
 // offsets, the CSS Custom Highlight API paints existing comment ranges,
 // and comments round-trip to the server as form-encoded POSTs (so the
-// existing /portal CSRF middleware guards them).
+// existing /app CSRF middleware guards them).
 //
 // The document stays read-only — the only thing the reader writes is a
 // comment. Anchors are character offsets into the document's text
@@ -14,10 +14,10 @@
 // we later swap the read surface for a richer editor, the server's
 // comment contract is unchanged.
 //
-// Expected markup (rendered by views::pages::portal::review):
+// Expected markup (rendered by webapp::review):
 //
 //   <northstar-review
-//     data-create-url="/portal/projects/:id/review/:doc/comments"
+//     data-create-url="/app/projects/:code/review/:doc/comments"
 //     data-comments='[…json…]'
 //     data-csrf="…">
 //     <article class="nr-document">…document html…</article>
