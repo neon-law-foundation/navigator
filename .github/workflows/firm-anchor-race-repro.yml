@@ -1,0 +1,109 @@
+# THROWAWAY reproduction lane for ENG-312. Not a merge gate; delete before
+# this branch merges, or replace it with the bounded lane the issue asks for.
+#
+# Why it exists: `store::firm_anchor_race::concurrent_creates_land_exactly_one_anchor`
+# forked on the merge gate (run 32572753062 attempt 1, `left: 2`) and does not
+# reproduce off this runner class. Measured negatives, so nobody repeats them:
+#
+#   * arm64 Linux, plain build, 4 pinned saturated cores, 20 runs   -> 0/160 races
+#   * arm64 Linux, -C instrument-coverage, 4 concurrent x 20 iters  -> 0/640 races
+#   * arm64 Linux, raw claim CREATE probe, 4 concurrent x 10 iters  -> 0/3200 races
+#   * macOS 18-core, raw claim CREATE probe, 40 rounds              -> passed
+#
+# The two conditions those all missed are x86_64 and this runner's scheduler.
+# This lane supplies both, under the same coverage instrumentation the failing
+# job used, and loops the binary until it loses.
+name: firm-anchor-race-repro
+
+on:
+  # `workflow_dispatch` alone is unreachable here: GitHub only offers it for
+  # workflows already on the default branch, and this file deliberately never
+  # lands there. The push trigger is what actually runs it.
+  push:
+    branches:
+      - claude/firm-anchor-race-eng-312-b9d482
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: how many iterations, each running 4 concurrent copies
+        default: "60"
+      concurrency:
+        description: concurrent copies of the race binary per iteration
+        default: "4"
+
+jobs:
+  repro:
+    # The class the fork was observed on, not a nearby one. `left: 2` is
+    # scheduler-dependent, so the runner is part of the reproduction.
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 90
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      # The gate's own flags, so the binary under test is built the way the
+      # binary that failed was built.
+      RUSTFLAGS: "-C link-arg=-fuse-ld=lld -C strip=symbols"
+    steps:
+      - name: install lld
+        run: sudo apt-get update && sudo apt-get install -y lld
+
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: cache the Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: loop the race until it forks
+        run: |
+          set -uo pipefail
+          echo "nproc: $(nproc)"
+          echo "arch : $(uname -m)"
+          # Same instrumentation the failing job ran under: coverage counters
+          # slow every branch inside the transaction window, which is the one
+          # difference between the gate and a plain `cargo test`.
+          eval "$(cargo llvm-cov show-env --export-prefix)"
+          cargo llvm-cov clean --profraw-only
+
+          BIN=$(cargo test -p store --test firm_anchor_race --no-run --locked \
+                  --message-format=json 2>/dev/null \
+                | jq -r 'select(.executable != null and .target.name == "firm_anchor_race") | .executable' \
+                | tail -1)
+          echo "binary: $BIN"
+          test -n "$BIN"
+
+          ITERS="${{ inputs.iterations || '60' }}"
+          CONC="${{ inputs.concurrency || '4' }}"
+          # Oversubscribe the box the way a 4-process nextest run of 5450 tests
+          # does. An idle machine hides this for hundreds of rounds.
+          for _ in $(seq 1 "$(nproc)"); do yes > /dev/null & done
+          LOAD=$(jobs -p)
+
+          fail=0
+          for i in $(seq 1 "$ITERS"); do
+            pids=""; rc=0
+            for j in $(seq 1 "$CONC"); do
+              "$BIN" --exact concurrent_creates_land_exactly_one_anchor \
+                --test-threads=1 > "/tmp/out.$j" 2>&1 &
+              pids="$pids $!"
+            done
+            for p in $pids; do wait "$p" || rc=1; done
+            if [ "$rc" -ne 0 ]; then
+              fail=$((fail + 1))
+              echo "::error::iteration $i forked the anchor"
+              grep -h -A4 "panicked at" /tmp/out.* | head -20
+            fi
+          done
+          kill $LOAD 2>/dev/null || true
+
+          echo "=== $fail of $ITERS iterations forked (x$CONC concurrent copies) ==="
+          # Reproducing IS the success condition for this lane, so a fork exits
+          # zero and a clean sweep is what fails: a green run here means the
+          # reproduction was not bought, which is the thing worth knowing.
+          if [ "$fail" -eq 0 ]; then
+            echo "::error::not reproduced in $ITERS iterations"
+            exit 1
+          fi
