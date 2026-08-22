@@ -7,9 +7,8 @@ description: Work one litigation matter end to end, from the retainer template t
 # Using the Navigator Workshop
 
 This workshop uses one local matter from start to finish: **Cruller v. Prine**. The matter code is `sample-litigation`,
-its portal application is the [litigation sample
-project](https://github.com/neon-law-foundation/navigator-sample-project-litigation), and its local data is synthetic.
-Every attendee sees the same matter through the role assigned to their local account.
+its portal application is the [litigation sample project](https://github.com/neon-law-staging/sample-litigation), and
+its local data is synthetic. Every attendee sees the same matter through the role assigned to their local account.
 
 The fixture seeds two more matters beside it — `sample-transactional` and `sample-estate` — so the participation-scoped
 project list has something in it. The exercises stay on one matter on purpose; the other two are there to be seen from
@@ -39,7 +38,7 @@ The local development fixture seeds three open Projects. This is the one the wor
 - **Code** — `sample-litigation`
 - **Matter** — trespass to land, and rescission of the doughnut instrument
 - **Repository** —
-  [navigator-sample-project-litigation](https://github.com/neon-law-foundation/navigator-sample-project-litigation)
+  [neon-law-staging/sample-litigation](https://github.com/neon-law-staging/sample-litigation)
 - **Portal** — `/app/projects/sample-litigation/portal/`
 
 The other two seeded matters are `sample-transactional` (a company on a monthly retainer) and `sample-estate` (an estate

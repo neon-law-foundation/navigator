@@ -643,8 +643,7 @@ const SAMPLE_MATTERS: &[SampleMatter] = &[
         client_entity: "Dermot Cruller",
         client_kind: SampleClientKind::Human,
         description: "trespass to land, and rescission of the doughnut instrument",
-        repository_url:
-            "https://github.com/neon-law-foundation/navigator-sample-project-litigation",
+        repository_url: "https://github.com/neon-law-staging/sample-litigation",
         portal_index: SAMPLE_LITIGATION_PORTAL_INDEX,
     },
     SampleMatter {
@@ -653,8 +652,7 @@ const SAMPLE_MATTERS: &[SampleMatter] = &[
         client_entity: "Widget Works, Inc.",
         client_kind: SampleClientKind::Company,
         description: "employment agreements and contract review on a monthly retainer",
-        repository_url:
-            "https://github.com/neon-law-foundation/navigator-sample-project-transactional",
+        repository_url: "https://github.com/neon-law-staging/sample-transactional",
         portal_index: SAMPLE_TRANSACTIONAL_PORTAL_INDEX,
     },
     SampleMatter {
@@ -663,7 +661,7 @@ const SAMPLE_MATTERS: &[SampleMatter] = &[
         client_entity: "Cornelius Montgomery",
         client_kind: SampleClientKind::Human,
         description: "estate plan dividing the residue among nieces and nephews",
-        repository_url: "https://github.com/neon-law-foundation/navigator-sample-project-estate",
+        repository_url: "https://github.com/neon-law-staging/sample-estate",
         portal_index: SAMPLE_ESTATE_PORTAL_INDEX,
     },
 ];
@@ -3109,6 +3107,40 @@ mod tests {
         ));
         std::sync::Arc::new(cloud::FsStorage::new(dir).await.expect("temp FsStorage"))
     }
+
+    /// Every sample matter's repository lives in the staging organization, and
+    /// its repository name **is** the Project code.
+    ///
+    /// Both halves are load-bearing, and neither is cosmetic.
+    ///
+    /// The organization is where these three repositories actually are — they
+    /// moved out of `neon-law-foundation` so the staging deployment houses the
+    /// fixtures it serves. A stale URL here does not fail loudly: GitHub
+    /// redirects a transferred repository, so `dev sample-project` would keep
+    /// cloning successfully from a path that no longer describes anything.
+    ///
+    /// The name-equals-code half is what the publish path depends on.
+    /// `.github/actions/application-publish` derives the object prefix from the
+    /// repository name and then asserts the built bundle is mounted at
+    /// `/app/projects/<that>/portal/`. So the two names must agree, and nothing
+    /// in either system derives one from the other — this test is the only
+    /// thing holding them together. A rename on either side breaks here rather
+    /// than at a publish against a real bucket.
+    #[test]
+    fn every_sample_matter_repository_is_the_staging_org_named_for_its_code() {
+        for matter in super::SAMPLE_MATTERS {
+            assert_eq!(
+                matter.repository_url,
+                format!("https://github.com/{SAMPLE_MATTER_ORG}/{}", matter.code),
+                "sample matter `{}` must name `{SAMPLE_MATTER_ORG}/{}`",
+                matter.code,
+                matter.code
+            );
+        }
+    }
+
+    /// The organization the three sample project repositories live in.
+    const SAMPLE_MATTER_ORG: &str = "neon-law-staging";
 
     /// The key one sample matter's portal document publishes under.
     fn entry_key(code: &str) -> String {
