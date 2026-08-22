@@ -27,9 +27,9 @@ description: >-
 # wrong one.
 #
 # A provider resource name, a service-account email, and a bucket name are
-# public identifiers. Knowing them grants nothing. **The Workload Identity
-# binding on Google's side is the access control, and it is the only one.** A
-# reader who learns the project id cannot use it.
+# public identifiers. Knowing them grants nothing.
+# **The Workload Identity binding on Google's side is the access control, and
+# it is the only one.** A reader who learns the project id cannot use it.
 #
 # They are secrets, and this action masks their components, for a narrower
 # reason: two of the three carry the deployment's GCP project identity in their
