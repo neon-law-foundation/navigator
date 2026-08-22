@@ -11,9 +11,9 @@ turning a code repository into a matter system. Fast iteration is welcome becaus
 
 ## What may be public
 
-Commit source code, documentation, tests, design experiments, and fixtures that are either firm-owned or synthetic.
-For any non-firm email address, use a reserved example domain such as `example.com`, `.example`, `.invalid`, `.test`,
-or `.localhost`. Do not include phone numbers.
+Commit source code, documentation, tests, design experiments, and fixtures that are either firm-owned or synthetic. For
+any non-firm email address, use a reserved example domain such as `example.com`, `.example`, `.invalid`, `.test`, or
+`.localhost`. Do not include phone numbers.
 
 ## What may never be public
 
