@@ -98,7 +98,7 @@ async fn admin_form_renders_csrf_hidden_input_when_session_present() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/lawyer/people/new")
+                .uri("/admin/people/new")
                 .header("cookie", cookie)
                 .body(Body::empty())
                 .unwrap(),

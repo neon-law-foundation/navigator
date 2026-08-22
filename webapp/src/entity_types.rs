@@ -3,7 +3,7 @@
 //!
 //! The successor to the `views::pages::admin::entity_types` read view — the
 //! first admin list page migrated to the Dioxus stack, following the
-//! `/lawyer/people` (Tranche 1) seam: a `#[server]` function reads `?sort=` and
+//! `/admin/people` (Tranche 1) seam: a `#[server]` function reads `?sort=` and
 //! the injected `SurrealDb`, queries the shared `store::entity_types` command,
 //! and `use_server_future` renders the sorted rows into the SSR HTML, readable
 //! before hydration, with the sort header a real anchor. The URL contract holds:

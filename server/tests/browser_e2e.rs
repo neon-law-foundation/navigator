@@ -36,8 +36,9 @@ use std::time::Duration;
 use fantoccini::key::Key;
 use fantoccini::Locator;
 use features::webdriver::{
-    base_url, click_and_reach, login_as_client, login_as_lawyer, new_client_or_skip,
-    require_harness, scroll_and_js_click, wait_for_text, wait_for_text_reloading,
+    base_url, click_and_reach, login_as_admin, login_as_client, login_as_lawyer,
+    new_client_or_skip, require_harness, scroll_and_js_click, wait_for_text,
+    wait_for_text_reloading,
 };
 use uuid::Uuid;
 
@@ -466,12 +467,13 @@ async fn lawyer_walks_the_full_retainer_questionnaire_end_to_end() {
 
 #[tokio::test]
 async fn lawyer_user_can_hit_every_admin_route() {
-    // Walks the same eight admin routes the in-process test
+    // Walks the same admin routes the in-process test
     // (`oidc_e2e::user_with_db_lawyer_role_can_hit_every_admin_route`)
-    // covers, but through a real browser end-to-end.
+    // covers, but through a real browser end-to-end. `/lawyer/people` is absent
+    // since ENG-304 deleted the browser mirror — the one people surface is
+    // `/admin/people`, which a lawyer is answered 403 at.
     let routes = [
         "/app/lawyer",
-        "/lawyer/people",
         "/lawyer/entities",
         "/lawyer/jurisdictions",
         "/lawyer/entity-types",
@@ -514,21 +516,24 @@ async fn lawyer_user_can_hit_every_admin_route() {
 }
 
 #[tokio::test]
-async fn lawyer_adds_a_person_through_the_people_form() {
+async fn admin_adds_a_person_through_the_people_form() {
     // Drives the full browser create path end-to-end: the Dioxus "Add person"
-    // form (#641 Phase 3) is a native `POST /lawyer/people` carrying the session
+    // form (#641 Phase 3) is a native `POST /admin/people` carrying the session
     // cookie plus the hidden `_csrf` field, and the handler answers a 303 back to
     // the list where the new row shows. This exercises the whole credential-keyed
     // CSRF path in a real browser — the thing rendering tests can't prove.
+    //
+    // Admin, not Lawyer: ENG-304 deleted the `/lawyer/people` mirror, so this is
+    // the only browser form that creates a Person.
     let Some(c) = new_client_or_skip().await else {
         return;
     };
-    login_as_lawyer(&c).await;
+    login_as_admin(&c).await;
 
     // Unique email per run so re-runs don't trip the uniqueness guard.
     let email = format!("e2e-person-{}@example.com", std::process::id());
 
-    c.goto(&format!("{}/lawyer/people/new", base_url()))
+    c.goto(&format!("{}/admin/people/new", base_url()))
         .await
         .unwrap();
     c.wait()
@@ -574,8 +579,8 @@ async fn lawyer_adds_a_person_through_the_people_form() {
     let url = c.current_url().await.unwrap();
     assert_eq!(
         url.path(),
-        "/lawyer/people",
-        "a successful create should HX-Redirect to the people list, got {url}",
+        "/admin/people",
+        "a successful create should redirect to the people list, got {url}",
     );
 
     c.close().await.unwrap();

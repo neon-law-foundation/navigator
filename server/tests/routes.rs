@@ -744,9 +744,9 @@ async fn every_app_page_titles_itself_with_the_deploys_own_firm() {
             "Lawyer | Jurisdictions",
         ),
         (
-            "/lawyer/people",
-            store::persons::Role::Lawyer,
-            "Lawyer | People",
+            "/admin/people",
+            store::persons::Role::Admin,
+            "Admin | People",
         ),
     ];
 
@@ -1061,13 +1061,12 @@ async fn only_owner_can_create_an_owner_identity() {
     assert_eq!(row.role, store::persons::Role::Owner);
 }
 
-/// The Dioxus lawyer mirror "add person" form posts to the native
-/// `POST /lawyer/people` create route. Prove it creates the person and redirects
-/// to the lawyer list, and that a **lawyer** caller's submitted role is coerced to
-/// `client` (defense in depth over the disabled role select) — a lawyer
-/// can't POST `role=admin` past the form.
+/// ENG-304 deleted the `/lawyer/people` browser mirror, so `POST /app/api/people`
+/// is the only Person create a lawyer can reach. The role coercion the deleted
+/// form carried has to hold there: a **lawyer** caller's submitted role is
+/// coerced to `client`, so a lawyer can't POST `role=admin` past the boundary.
 #[tokio::test]
-async fn lawyer_people_create_via_native_form_coerces_role_and_redirects() {
+async fn api_people_create_coerces_a_lawyer_callers_submitted_role() {
     let (state, surreal) = state_with_engines().await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     let (cookie, csrf) = session_cookie_and_csrf_for_role(store::persons::Role::Lawyer);
@@ -1076,24 +1075,19 @@ async fn lawyer_people_create_via_native_form_coerces_role_and_redirects() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/lawyer/people")
+                .uri("/app/api/people")
                 .header(header::COOKIE, &cookie)
+                .header("x-csrf-token", &csrf)
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                 // A lawyer caller hand-crafts `role=admin`; the handler must drop it.
-                .body(Body::from(format!(
-                    "name=Ceres%20Lead&email=ceres%40test.invalid&role=admin&_csrf={csrf}"
-                )))
+                .body(Body::from(
+                    "name=Ceres%20Lead&email=ceres%40test.invalid&role=admin",
+                ))
                 .unwrap(),
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::SEE_OTHER);
-    assert_eq!(
-        resp.headers()
-            .get(header::LOCATION)
-            .and_then(|v| v.to_str().ok()),
-        Some("/lawyer/people"),
-    );
+    assert_eq!(resp.status(), StatusCode::CREATED);
     let created = store::persons::find_by_email_ci(&surreal, "ceres@test.invalid")
         .await
         .unwrap()
@@ -1212,10 +1206,19 @@ async fn admin_person_delete_via_native_form_removes_client_but_blocks_lawyer() 
     );
 }
 
+/// ENG-304: the `/lawyer/people` browser mirror is gone. Every one of its four
+/// page paths answers the router's not-found for a lawyer-tier session — not a
+/// `403`, which would say "this exists and you may not have it". The three
+/// native `POST`s behind them are gone too.
+///
+/// The capability is untouched: Person commands stay lawyer-tier at
+/// `POST/PATCH/DELETE /app/api/people*`, and this is only the browser form
+/// moving to the admin console. `/lawyer/people.csv` survives — it is a
+/// lawyer-tier read with no admin sibling.
 #[tokio::test]
-async fn lawyer_people_surface_hides_delete_and_impersonate() {
+async fn lawyer_people_mirror_paths_are_gone() {
     let (state, surreal) = state_with_engines().await;
-    store::persons::create(
+    let person = store::persons::create(
         &surreal,
         &store::persons::NewPerson::with_role(
             "Libra",
@@ -1227,31 +1230,102 @@ async fn lawyer_people_surface_hides_delete_and_impersonate() {
     .unwrap();
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
 
-    // Even an admin viewing `/lawyer/people` gets the de-scoped surface:
-    // no Delete, no Impersonate.
-    let resp = get_with_role(app, "/lawyer/people", store::persons::Role::Admin).await;
-    assert_eq!(resp.status(), StatusCode::OK);
-    let html = body_string(resp).await;
+    let id = person.id;
+    for path in [
+        "/lawyer/people".to_string(),
+        "/lawyer/people/new".to_string(),
+        format!("/lawyer/people/{id}"),
+        format!("/lawyer/people/{id}/edit"),
+    ] {
+        for role in [
+            store::persons::Role::Lawyer,
+            store::persons::Role::Admin,
+            store::persons::Role::Owner,
+        ] {
+            let resp = get_with_role(app.clone(), &path, role).await;
+            assert_eq!(
+                resp.status(),
+                StatusCode::NOT_FOUND,
+                "{path} must be gone for {role:?}, not merely refused",
+            );
+        }
+    }
+
+    // The native mutation routes behind those pages went with them.
+    let (cookie, csrf) = session_cookie_and_csrf_for_role(store::persons::Role::Lawyer);
+    for path in [
+        "/lawyer/people".to_string(),
+        format!("/lawyer/people/{id}"),
+        format!("/lawyer/people/{id}/welcome"),
+    ] {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(&path)
+                    .header(header::COOKIE, &cookie)
+                    .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .body(Body::from(format!(
+                        "name=Nope&email=nope%40test.invalid&_csrf={csrf}"
+                    )))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "POST {path} must be gone",
+        );
+    }
+
+    // The directory export is not part of the mirror: it has no `/admin`
+    // sibling, so deleting it would cost a lawyer a capability.
+    let csv = get_with_role(
+        app.clone(),
+        "/lawyer/people.csv",
+        store::persons::Role::Lawyer,
+    )
+    .await;
+    assert_eq!(
+        csv.status(),
+        StatusCode::OK,
+        "/lawyer/people.csv is a surviving lawyer-tier read",
+    );
+
+    // The admin console is unchanged and still Owner/Admin-only.
+    for (role, expected) in [
+        (store::persons::Role::Owner, StatusCode::OK),
+        (store::persons::Role::Admin, StatusCode::OK),
+        (store::persons::Role::Lawyer, StatusCode::FORBIDDEN),
+        (store::persons::Role::Clerk, StatusCode::FORBIDDEN),
+    ] {
+        let resp = get_with_role(app.clone(), "/admin/people", role).await;
+        assert_eq!(
+            resp.status(),
+            expected,
+            "/admin/people must answer {expected} for {role:?}",
+        );
+    }
+    let admin_list = get_with_role(app, "/admin/people", store::persons::Role::Admin).await;
+    let html = body_string(admin_list).await;
     assert!(
-        html.contains("<title>Neon Law | Lawyer | People</title>"),
-        "lawyer people title must mirror its route hierarchy: {html}",
+        html.contains("<title>Neon Law | Admin | People</title>"),
+        "the surviving people surface is the admin console's: {html}",
     );
     assert!(
-        !html.contains("hx-delete="),
-        "lawyer people list must not offer delete: {html}",
-    );
-    assert!(
-        !html.contains("/impersonate"),
-        "lawyer people list must not offer impersonation: {html}",
+        html.contains("/admin/person/") && html.contains("/impersonate"),
+        "the admin surface keeps its per-row Edit / Delete / Impersonate actions: {html}",
     );
 }
 
 #[tokio::test]
-async fn lawyer_people_dioxus_route_is_gated_by_embedded_policy() {
-    // The Dioxus `/lawyer/people` sub-router carries the same `require_auth` +
-    // `require_policy` layers as the lawyer surface it replaced. Prove the
-    // policy layer is live on it: an authenticated lawyer session under a
-    // deny-all embedded policy is refused (403), not served the directory. This keeps the
+async fn admin_people_dioxus_route_is_gated_by_embedded_policy() {
+    // The Dioxus `/admin/people` sub-router carries the same `require_auth` +
+    // `require_policy` layers as the surface it replaced. Prove the policy layer
+    // is live on it: an authenticated admin session under a deny-all embedded
+    // policy is refused (403), not served the directory. This keeps the
     // authorization contract from silently regressing when a page moves onto
     // Dioxus.
     let app = server::neon_router(
@@ -1259,12 +1333,12 @@ async fn lawyer_people_dioxus_route_is_gated_by_embedded_policy() {
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
     );
 
-    let resp = get_with_role(app, "/lawyer/people", store::persons::Role::Lawyer).await;
+    let resp = get_with_role(app, "/admin/people", store::persons::Role::Admin).await;
     assert_eq!(
         resp.status(),
         StatusCode::FORBIDDEN,
-        "an authenticated lawyer session must be turned away from the Dioxus \
-         /lawyer/people route when the policy denies — the route is policy-gated"
+        "an authenticated admin session must be turned away from the Dioxus \
+         /admin/people route when the policy denies — the route is policy-gated"
     );
 }
 
@@ -1275,7 +1349,7 @@ async fn policy_evaluation_errors_fail_closed_at_the_router_boundary() {
         std::path::Path::new(portal::DEFAULT_PUBLIC_DIR),
     );
 
-    let response = get_with_role(app, "/lawyer/people", store::persons::Role::Lawyer).await;
+    let response = get_with_role(app, "/admin/people", store::persons::Role::Admin).await;
     assert_eq!(
         response.status(),
         StatusCode::FORBIDDEN,
@@ -3642,7 +3716,7 @@ async fn api_person_by_id_404s_when_missing() {
 }
 
 #[tokio::test]
-async fn lawyer_person_show_page_renders_for_any_role() {
+async fn admin_person_show_page_renders_for_any_role() {
     let (state, surreal) = state_with_engines().await;
 
     // One person of each tier: the show page must render for a client
@@ -3681,8 +3755,8 @@ async fn lawyer_person_show_page_renders_for_any_role() {
     for (id, name) in ids {
         // Both the bare show URL and the /edit alias must render.
         for uri in [
-            format!("/lawyer/people/{id}"),
-            format!("/lawyer/people/{id}/edit"),
+            format!("/admin/person/{id}"),
+            format!("/admin/person/{id}/edit"),
         ] {
             let resp = app
                 .clone()
@@ -3706,8 +3780,8 @@ async fn lawyer_person_show_page_renders_for_any_role() {
 }
 
 #[tokio::test]
-async fn lawyer_person_show_page_missing_person_keeps_lawyer_chrome() {
-    // A person that doesn't exist renders a 404 inside the lawyer layout
+async fn admin_person_show_page_missing_person_keeps_signed_in_chrome() {
+    // A person that doesn't exist renders a 404 inside the signed-in layout
     // (with the signed-in nav + a way back), not the anonymous not-found
     // page that reads as logged-out — the "I can't see anything" symptom.
     let (state, _surreal) = state_with_engines().await;
@@ -3717,7 +3791,7 @@ async fn lawyer_person_show_page_missing_person_keeps_lawyer_chrome() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/lawyer/people/{missing}"))
+                .uri(format!("/admin/person/{missing}"))
                 .header(header::COOKIE, admin_session_cookie())
                 .body(Body::empty())
                 .unwrap(),
@@ -3726,10 +3800,10 @@ async fn lawyer_person_show_page_missing_person_keeps_lawyer_chrome() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     let body = body_string(resp).await;
-    // Lawyer chrome: the authenticated nav shows "Sign out", not "Sign in".
+    // Signed-in chrome: the authenticated nav shows "Sign out", not "Sign in".
     assert!(
         body.contains("Sign out"),
-        "404 should keep lawyer nav: {body}"
+        "404 should keep the signed-in nav: {body}"
     );
     assert!(
         !body.contains("Sign in"),
@@ -6424,7 +6498,7 @@ async fn lawyer_dashboard_managed_pages_create_grounded_records() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/lawyer/people/new")
+                .uri("/admin/people/new")
                 .header(header::COOKIE, &cookie)
                 .body(Body::empty())
                 .unwrap(),
@@ -7548,7 +7622,7 @@ async fn lawyer_pages_preserve_lawyer_tier_nav_links() {
         ),
     ];
 
-    for path in ["/lawyer/people", "/app/projects"] {
+    for path in ["/lawyer/entities", "/app/projects"] {
         for (role, expected, unexpected) in cases.clone() {
             let resp = get_with_role(app.clone(), path, role).await;
             assert_eq!(resp.status(), StatusCode::OK);
@@ -8264,9 +8338,10 @@ async fn root_serves_marketing_anonymously() {
 async fn admin_people_index_shows_empty_state() {
     let (state, _surreal) = state_with_engines().await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    // `/lawyer/people` renders through Dioxus; its `list_people` server function
-    // refuses any non-lawyer viewer, so the directory is exercised as lawyer.
-    let resp = get_with_role(app, "/lawyer/people", store::persons::Role::Lawyer).await;
+    // `/admin/people` renders through Dioxus; its `list_admin_people` server
+    // function refuses any non-admin viewer, so the directory is exercised as
+    // admin.
+    let resp = get_with_role(app, "/admin/people", store::persons::Role::Admin).await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("No people yet."));
@@ -8297,7 +8372,7 @@ async fn form_encoded_create_via_api_lists_the_person() {
         .unwrap();
     assert_eq!(create.status(), StatusCode::CREATED);
 
-    let list = get_with_role(app, "/lawyer/people", store::persons::Role::Lawyer).await;
+    let list = get_with_role(app, "/admin/people", store::persons::Role::Admin).await;
     assert_eq!(list.status(), StatusCode::OK);
     let body = body_string(list).await;
     assert!(body.contains("Libra"));
@@ -8384,7 +8459,7 @@ async fn form_encoded_edit_and_delete_via_api() {
         .unwrap();
     assert_eq!(delete.status(), StatusCode::OK);
 
-    let list = get_with_role(app, "/lawyer/people", store::persons::Role::Lawyer).await;
+    let list = get_with_role(app, "/admin/people", store::persons::Role::Admin).await;
     assert!(body_string(list).await.contains("No people yet."));
 }
 
@@ -9630,7 +9705,7 @@ async fn admin_people_index_shows_impersonate_only_for_client_rows() {
 async fn admin_people_delete_returns_the_deleted_person_as_json() {
     // `/app/api/*` is a machine door: the delete answers with the row it removed,
     // typed, for a caller that will read it. It has no browser consumer — the
-    // lawyer people surface is Dioxus and posts to `/lawyer/people`.
+    // people surface is Dioxus and posts to `/admin/people`.
 
     let (state, surreal) = state_with_engines().await;
     let libra = store::persons::create(
@@ -9733,7 +9808,7 @@ async fn admin_people_index_drops_id_column_and_renders_sort_links() {
     let (state, surreal) = state_with_engines().await;
     seed_three_people(&surreal).await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    let resp = get_with_role(app, "/lawyer/people", store::persons::Role::Lawyer).await;
+    let resp = get_with_role(app, "/admin/people", store::persons::Role::Admin).await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     // No ID column header rendered.
@@ -9743,11 +9818,11 @@ async fn admin_people_index_drops_id_column_and_renders_sort_links() {
     );
     // Sortable Name + Email headers expose JSON:API ?sort= links.
     assert!(
-        body.contains("href=\"/lawyer/people?sort=name\""),
+        body.contains("href=\"/admin/people?sort=name\""),
         "expected ?sort=name link, got: {body}",
     );
     assert!(
-        body.contains("href=\"/lawyer/people?sort=email\""),
+        body.contains("href=\"/admin/people?sort=email\""),
         "expected ?sort=email link, got: {body}",
     );
 }
@@ -9757,12 +9832,7 @@ async fn admin_people_index_honors_jsonapi_sort_ascending_by_name() {
     let (state, surreal) = state_with_engines().await;
     seed_three_people(&surreal).await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    let resp = get_with_role(
-        app,
-        "/lawyer/people?sort=name",
-        store::persons::Role::Lawyer,
-    )
-    .await;
+    let resp = get_with_role(app, "/admin/people?sort=name", store::persons::Role::Admin).await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     // Leo → Libra → Taurus in render order.
@@ -9774,7 +9844,7 @@ async fn admin_people_index_honors_jsonapi_sort_ascending_by_name() {
     assert!(i_libra < i_taurus, "Libra before Taurus in body");
     // Active ascending → the Name header link must flip to descending.
     assert!(
-        body.contains("href=\"/lawyer/people?sort=-name\""),
+        body.contains("href=\"/admin/people?sort=-name\""),
         "expected flipped descending link, got: {body}",
     );
 }
@@ -9784,12 +9854,7 @@ async fn admin_people_index_honors_jsonapi_sort_descending_by_name() {
     let (state, surreal) = state_with_engines().await;
     seed_three_people(&surreal).await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    let resp = get_with_role(
-        app,
-        "/lawyer/people?sort=-name",
-        store::persons::Role::Lawyer,
-    )
-    .await;
+    let resp = get_with_role(app, "/admin/people?sort=-name", store::persons::Role::Admin).await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     let (i_leo, _) = first_index_of(&body, &[">Leo<"]).expect("Leo row");
@@ -9809,7 +9874,7 @@ async fn admin_people_index_rejects_unknown_sort_key_with_400() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri("/lawyer/people?sort=ssn")
+                .uri("/admin/people?sort=ssn")
                 .header(header::COOKIE, admin_session_cookie())
                 .body(Body::empty())
                 .unwrap(),
@@ -9830,8 +9895,8 @@ async fn admin_people_index_honors_jsonapi_filter_on_name() {
     // forms decode to the same key.
     let resp = get_with_role(
         app,
-        "/lawyer/people?filter%5Bname%5D=Libra",
-        store::persons::Role::Lawyer,
+        "/admin/people?filter%5Bname%5D=Libra",
+        store::persons::Role::Admin,
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -9851,13 +9916,13 @@ async fn admin_people_index_stitches_filter_through_sort_links() {
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     let resp = get_with_role(
         app,
-        "/lawyer/people?filter%5Bname%5D=Libra",
-        store::persons::Role::Lawyer,
+        "/admin/people?filter%5Bname%5D=Libra",
+        store::persons::Role::Admin,
     )
     .await;
     let body = body_string(resp).await;
     assert!(
-        body.contains("href=\"/lawyer/people?filter[name]=Libra&#38;sort=name\""),
+        body.contains("href=\"/admin/people?filter[name]=Libra&#38;sort=name\""),
         "expected filter to survive sort link, got: {body}",
     );
 }
@@ -11736,7 +11801,7 @@ async fn admin_send_welcome_writes_audit_row_and_redirects() {
         .await
         .unwrap();
     // The API door answers a typed `sent` status. The browser's own
-    // `?notice=welcome_sent` flash rides the `/lawyer/people` POST instead.
+    // `?notice=welcome_sent` flash rides the `/admin/person/{id}` POST instead.
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(
@@ -11831,7 +11896,7 @@ async fn admin_person_show_floats_success_toast_after_welcome_sent() {
         .oneshot(
             Request::builder()
                 .uri(format!(
-                    "/lawyer/people/{}/edit?notice=welcome_sent",
+                    "/admin/person/{}/edit?notice=welcome_sent",
                     libra.id
                 ))
                 .header(header::COOKIE, admin_session_cookie())
@@ -11873,7 +11938,7 @@ async fn admin_person_show_floats_failure_toast_after_welcome_failed() {
         .oneshot(
             Request::builder()
                 .uri(format!(
-                    "/lawyer/people/{}/edit?notice=welcome_failed",
+                    "/admin/person/{}/edit?notice=welcome_failed",
                     libra.id
                 ))
                 .header(header::COOKIE, admin_session_cookie())
@@ -13899,7 +13964,7 @@ async fn admin_people_edit_form_shows_role_select_pre_filled() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/lawyer/people/{}/edit", lawyer.id))
+                .uri(format!("/admin/person/{}/edit", lawyer.id))
                 .header(header::COOKIE, admin_session_cookie())
                 .body(Body::empty())
                 .unwrap(),
@@ -14023,17 +14088,24 @@ async fn admin_person_edit_page_locks_the_bootstrap_owner_role() {
     );
 }
 
-/// A lawyer (non-admin) caller keeps the read-only role select: the command
-/// layer drops a role they submit, so the form must not invite the write.
+/// The role select locks when the target outranks the caller: the command layer
+/// drops such a write, so the form must not invite it.
+///
+/// ENG-304 removed the surface's own `may_change_roles` flag with the
+/// `/lawyer/people` mirror — `require_admin` now guarantees every caller here
+/// may set roles at all. Authority rank and the pinned bootstrap Owner are the
+/// two locks that survive, and this covers the first.
 #[tokio::test]
-async fn lawyer_person_edit_page_locks_the_role_select() {
+async fn admin_person_edit_page_locks_the_role_select_for_a_higher_tier_target() {
     let (state, surreal) = state_with_engines().await;
-    let libra = store::persons::create(
+    // An Owner who is *not* the bootstrap Owner, so the lock under test is the
+    // authority-rank one rather than the pinned-record one.
+    let boss = store::persons::create(
         &surreal,
         &store::persons::NewPerson::with_role(
-            "Libra",
-            "libra@example.com",
-            store::persons::Role::Client,
+            "Cap Boss",
+            "cap-boss@example.com",
+            store::persons::Role::Owner,
         ),
     )
     .await
@@ -14042,11 +14114,8 @@ async fn lawyer_person_edit_page_locks_the_role_select() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/lawyer/people/{}/edit", libra.id))
-                .header(
-                    header::COOKIE,
-                    session_cookie_for_role(store::persons::Role::Lawyer),
-                )
+                .uri(format!("/admin/person/{}/edit", boss.id))
+                .header(header::COOKIE, admin_session_cookie())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -14056,7 +14125,7 @@ async fn lawyer_person_edit_page_locks_the_role_select() {
     let body = body_string(resp).await;
     assert!(
         tag_with_id(&body, "role").contains("disabled"),
-        "a lawyer caller must not get an editable role select: {}",
+        "an admin caller must not get an editable role select on an Owner: {}",
         tag_with_id(&body, "role"),
     );
 }
@@ -14311,181 +14380,6 @@ async fn admin_person_welcome_requires_a_confirmation_step() {
     );
 }
 
-/// The lawyer mirror person edit form posts to the native `POST /lawyer/people/{id}`
-/// update route. Prove a lawyer caller's edit persists (name/email) and redirects
-/// back to the lawyer show view — the de-scoped sibling of the admin update.
-#[tokio::test]
-async fn lawyer_person_update_via_native_form_persists_and_redirects() {
-    let (state, surreal) = state_with_engines().await;
-    let libra = store::persons::create(
-        &surreal,
-        &store::persons::NewPerson::with_role(
-            "Libra",
-            "libra@example.com",
-            store::persons::Role::Client,
-        ),
-    )
-    .await
-    .unwrap();
-    let (cookie, csrf) = session_cookie_and_csrf_for_role(store::persons::Role::Lawyer);
-    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(format!("/lawyer/people/{}", libra.id))
-                .header(header::COOKIE, &cookie)
-                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(Body::from(format!(
-                    "name=Libra%20Scale&email=libra%40example.com&role=client&_csrf={csrf}"
-                )))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::SEE_OTHER);
-    assert_eq!(
-        resp.headers()
-            .get(header::LOCATION)
-            .and_then(|v| v.to_str().ok()),
-        Some(format!("/lawyer/people/{}", libra.id).as_str()),
-    );
-    let row = store::persons::find_by_id(&surreal, libra.id)
-        .await
-        .unwrap()
-        .expect("row still present");
-    assert_eq!(row.name, "Libra Scale");
-}
-
-/// The lawyer surface locks roles for every viewer, so `POST /lawyer/people/{id}`
-/// must drop a submitted role even for an admin caller (who could change roles
-/// through the admin surface). Prove an admin's `role=admin` submission persists
-/// the other edits but leaves the person's role untouched.
-#[tokio::test]
-async fn lawyer_person_update_drops_submitted_role_for_admin_caller() {
-    let (state, surreal) = state_with_engines().await;
-    let libra = store::persons::create(
-        &surreal,
-        &store::persons::NewPerson::with_role(
-            "Libra",
-            "libra@example.com",
-            store::persons::Role::Client,
-        ),
-    )
-    .await
-    .unwrap();
-    let (cookie, csrf) = session_cookie_and_csrf_for_role(store::persons::Role::Admin);
-    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(format!("/lawyer/people/{}", libra.id))
-                .header(header::COOKIE, &cookie)
-                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(Body::from(format!(
-                    "name=Libra%20Scale&email=libra%40example.com&role=admin&_csrf={csrf}"
-                )))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::SEE_OTHER);
-    let row = store::persons::find_by_id(&surreal, libra.id)
-        .await
-        .unwrap()
-        .expect("row still present");
-    assert_eq!(row.name, "Libra Scale", "the non-role edits still persist");
-    assert_eq!(
-        row.role,
-        store::persons::Role::Client,
-        "the lawyer endpoint must drop the submitted role even for an admin caller",
-    );
-}
-
-/// The lawyer mirror welcome-email button posts to the native
-/// `POST /lawyer/people/{id}/welcome` route, redirecting back with a `?notice=`.
-#[tokio::test]
-async fn lawyer_person_welcome_redirects_with_notice() {
-    let (state, surreal) = state_with_engines().await;
-    let libra = store::persons::create(
-        &surreal,
-        &store::persons::NewPerson::with_role(
-            "Libra",
-            "libra@example.com",
-            store::persons::Role::Client,
-        ),
-    )
-    .await
-    .unwrap();
-    let (cookie, csrf) = session_cookie_and_csrf_for_role(store::persons::Role::Lawyer);
-    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(format!("/lawyer/people/{}/welcome", libra.id))
-                .header(header::COOKIE, &cookie)
-                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(Body::from(format!("_csrf={csrf}")))
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::SEE_OTHER);
-    let location = resp
-        .headers()
-        .get(header::LOCATION)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or_default();
-    assert!(
-        location.starts_with(&format!("/lawyer/people/{}?notice=welcome_", libra.id)),
-        "welcome send must redirect to the lawyer show view with a notice flag, got: {location}",
-    );
-}
-
-/// The lawyer mirror show page drops the impersonate action even for a client —
-/// impersonation is an admin console power (`allow_impersonate: false` on the
-/// lawyer surface), so the de-scoped page renders no impersonate form.
-#[tokio::test]
-async fn lawyer_person_show_hides_impersonate() {
-    let (state, surreal) = state_with_engines().await;
-    let libra = store::persons::create(
-        &surreal,
-        &store::persons::NewPerson::with_role(
-            "Libra",
-            "libra@example.com",
-            store::persons::Role::Client,
-        ),
-    )
-    .await
-    .unwrap();
-    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-
-    let resp = app
-        .oneshot(
-            Request::builder()
-                .uri(format!("/lawyer/people/{}", libra.id))
-                .header(header::COOKIE, admin_session_cookie())
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let body = body_string(resp).await;
-    // The page renders (the person's name is present)…
-    assert!(body.contains("Libra"), "{body}");
-    // …but offers no impersonate action on the lawyer surface.
-    assert!(
-        !body.contains("/impersonate"),
-        "lawyer person page must not offer impersonation: {body}",
-    );
-}
-
 /// Assert `html` (a full rendered Dioxus page) meets the form a11y invariants —
 /// the Dioxus successor to `views/tests/accessibility.rs`'s structural gate for
 /// the `FormCard`. Runs in `cargo test --workspace` (the per-PR gate), so a
@@ -14598,15 +14492,14 @@ async fn migrated_dioxus_forms_pass_structural_a11y() {
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
     let cookie = admin_session_cookie_with_person();
 
-    // The create forms (no id), then the person show/edit pages (seeded id),
-    // across both surfaces. All render through the shared `webapp::FormCard`.
+    // The create forms (no id), then the person show/edit pages (seeded id).
+    // All render through the shared `webapp::FormCard`.
     let routes = [
         "/admin/people".to_string(),
         "/admin/people/new".to_string(),
-        "/lawyer/people/new".to_string(),
         "/lawyer/entities/new".to_string(),
         format!("/admin/person/{}", libra.id),
-        format!("/lawyer/people/{}/edit", libra.id),
+        format!("/admin/person/{}/edit", libra.id),
     ];
     for route in routes {
         let resp = app
@@ -14648,7 +14541,7 @@ async fn bootstrap_owner_row_renders_all_fields_disabled_with_banner() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!("/lawyer/people/{}/edit", owner_row.id))
+                .uri(format!("/admin/person/{}/edit", owner_row.id))
                 .header(header::COOKIE, admin_session_cookie())
                 .body(Body::empty())
                 .unwrap(),

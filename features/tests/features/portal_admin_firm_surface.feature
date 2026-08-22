@@ -1,21 +1,24 @@
 Feature: /lawyer/* — lawyer workbench, Owner/Admin/Lawyer only
 
-  Every firm-wide CRUD route (people, entities, templates, …)
-  answers at `/lawyer/*`. Authorization is the lawyer `lawyer_tier`
-  only, via embedded Rego policy. Client and Clerk tiers get a redirect-to-login from
-  embedded Rego policy — the matter doesn't exist from their perspective.
+  Every firm-wide CRUD route (entities, templates, …) answers at `/lawyer/*`.
+  Authorization is the lawyer `lawyer_tier` only, via embedded Rego policy.
+  Client and Clerk tiers get a redirect-to-login from embedded Rego policy —
+  the matter doesn't exist from their perspective.
+
+  People is the exception: ENG-304 deleted its `/lawyer` mirror, so the people
+  index answers at `/admin/people`, Owner/Admin only.
 
   Background:
     Given the Neon Law Navigator app is running
 
   Scenario: An Owner reads the firm-wide people index
     Given a seeded person "owner@neonlaw.com" with role "owner"
-    When "owner@neonlaw.com" opens /lawyer/people
+    When "owner@neonlaw.com" opens /admin/people
     Then the response status is 200
 
   Scenario: An admin reads the firm-wide people index
     Given a seeded person "nick@neonlaw.com" with role "admin"
-    When "nick@neonlaw.com" opens /lawyer/people
+    When "nick@neonlaw.com" opens /admin/people
     Then the response status is 200
 
   Scenario: An admin impersonates a client from the people index

@@ -32,7 +32,10 @@ pub const PROJECTS_PER_PAGE: usize = 5;
 
 /// CRUD admin pages — full list / new / edit / delete surfaces.
 const CRUD_PAGES: &[(&str, &str)] = &[
-    ("/lawyer/people", "People"),
+    // People is absent on purpose: the one browser surface that creates or edits
+    // a Person is the admin console's `/admin/people`, which this workbench's
+    // audience does not all reach. A lawyer's Person commands go through
+    // `POST /app/api/people`.
     ("/lawyer/entities", "Entities"),
     ("/app/projects", "Projects"),
 ];
@@ -671,19 +674,24 @@ mod tests {
     }
 
     /// The billing and cap-table listings are gone — the Firm bills through
-    /// Xero and keeps cap tables in Carta — and their routes are unmounted.
+    /// Xero and keeps cap tables in Carta — and their routes are unmounted. So
+    /// is the people index: ENG-304 deleted the `/lawyer/people` mirror, and the
+    /// one people surface now answers at `/admin/people`, which this workbench's
+    /// lawyer-tier audience is refused at.
+    ///
     /// A nav entry outliving its route is a link straight to a 404, and
     /// `every_directory_link_is_rendered` above cannot catch that: it walks
     /// the same tables this nav is built from, so re-adding an entry would
     /// satisfy it. This names the dead paths directly instead.
     #[test]
-    fn the_removed_billing_listings_are_not_advertised() {
+    fn the_removed_listings_are_not_advertised() {
         let html = dioxus_ssr::render_element(lawyer_dashboard_body(&view()));
         for href in [
             "/lawyer/entity-billing-profiles",
             "/lawyer/invoices",
             "/lawyer/invoice-line-items",
             "/cap-table",
+            "/lawyer/people",
         ] {
             assert!(!html.contains(href), "{href} is still linked: {html}");
         }

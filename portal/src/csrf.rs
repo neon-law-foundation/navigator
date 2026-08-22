@@ -303,7 +303,7 @@ mod tests {
     #[test]
     fn origin_host_matches_referer_with_path() {
         assert!(origin_host_matches(
-            "https://app.example/lawyer/people",
+            "https://app.example/admin/people",
             "app.example"
         ));
     }

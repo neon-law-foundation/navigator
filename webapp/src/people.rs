@@ -1,7 +1,8 @@
-//! Lawyer people directory as a Dioxus component (#355 Tranche 1 / #641).
+//! The admin console people directory as a Dioxus component (#355 Tranche 1 /
+//! #641) — the one browser surface that lists and edits a Person.
 //!
-//! The first Dioxus page to consume server-side data. [`list_people`] is a
-//! Dioxus **server function**: its body runs in the `web` process (the
+//! The first Dioxus page to consume server-side data. [`list_admin_people`] is
+//! a Dioxus **server function**: its body runs in the `web` process (the
 //! `#[server]` macro compiles the body only for the server target and generates
 //! an HTTP stub for the wasm client). It reads the request's `?sort=` /
 //! `filter[...]` query parameters and the database handle `web` injected into
@@ -104,6 +105,15 @@ impl ViewerRole {
     }
 }
 
+/// The list's base path — the sort-link anchors and the "Add person" href hang
+/// off it.
+pub const LIST_PATH: &str = "/admin/people";
+/// The "Add person" destination.
+pub const NEW_HREF: &str = "/admin/people/new";
+/// The detail path base for the per-row Edit / Delete / Impersonate routes.
+/// Singular, unlike the list.
+pub const DETAIL_PATH: &str = "/admin/person";
+
 /// The rendered people view: the rows, the active sort/filter state the
 /// component needs to build the sort-link anchors, and the viewer's role for
 /// the nav chrome.
@@ -114,26 +124,12 @@ pub struct PeopleView {
     pub filter_name: String,
     pub filter_email: String,
     pub role: ViewerRole,
-    /// The `?error=` flash surfaced above the table — set when the admin
-    /// surface's delete route redirects back after the command blocked a delete
-    /// (the bootstrap Owner, or a non-client record). `None` on a plain visit and on
-    /// the read-only lawyer mirror, which has no delete action.
+    /// The `?error=` flash surfaced above the table — set when the delete route
+    /// redirects back after the command blocked a delete (the bootstrap Owner,
+    /// or a non-client record). `None` on a plain visit.
     #[serde(default)]
     pub error: Option<String>,
-    /// The surface renders the per-row action column (Edit / Delete / Impersonate)
-    /// — the admin console. The lawyer mirror is read-only.
-    #[serde(default)]
-    pub show_actions: bool,
-    /// The list's base path for the sort-link anchors (`/lawyer/people` or
-    /// `/admin/people`).
-    #[serde(default)]
-    pub list_path: String,
-    /// The detail path base for the per-row Edit / Delete / Impersonate routes
-    /// (`/admin/person`); empty on the read-only lawyer surface.
-    #[serde(default)]
-    pub detail_path: String,
-    /// The session CSRF token for the per-row Delete / Impersonate forms; empty
-    /// on the read-only lawyer surface.
+    /// The session CSRF token for the per-row Delete / Impersonate forms.
     #[serde(default)]
     pub csrf_token: String,
     /// The deploy's firm name, for the document title. Resolved from the
@@ -141,70 +137,6 @@ pub struct PeopleView {
     /// white-label deploy's tab reads its own name.
     #[serde(default)]
     pub firm_name: String,
-}
-
-/// Fetch the people directory for the current request. The body runs on the
-/// server: it extracts the query parameters, reads the injected `SurrealDb`, and
-/// queries the shared directory — the same command boundary the REST API uses.
-#[server]
-pub async fn list_people() -> Result<PeopleView, ServerFnError> {
-    let axum::extract::Query(query) =
-        dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Query<PeopleQuery>, _>()
-            .await?;
-    let sort = query.sort.unwrap_or_default();
-    let filter_name = query.filter_name.unwrap_or_default();
-    let filter_email = query.filter_email.unwrap_or_default();
-
-    // The viewer's tier, injected into the request by `web` after the policy
-    // gate ran; absent (e.g. the direct-mount SSR tests) it defaults to the
-    // least-privileged tier, which shows no lawyer/admin nav links.
-    let role = dioxus_fullstack_core::FullstackContext::extract::<axum::Extension<ViewerRole>, _>()
-        .await
-        .map(|axum::Extension(role)| role)
-        .unwrap_or_default();
-
-    // Defense in depth: the directory is lawyer-only. The page router gates the
-    // route with `require_auth` + `require_policy` and injects the viewer tier,
-    // but a direct request to the generated `#[server]` endpoint need not carry
-    // that gate, and the injected role then defaults to the least-privileged
-    // `Client`. Refuse any non-lawyer caller here, before the query runs, so the
-    // loader never discloses the rows on its own authority rather than trusting
-    // the route layers alone.
-    if !role.is_lawyer_tier() {
-        return Err(ServerFnError::new("lawyer access required"));
-    }
-
-    let surreal = consume_context::<store::surreal::SurrealDb>();
-    let people =
-        store::persons::list_directory(&surreal, &filter_name, &filter_email, &parse_sort(&sort))
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    Ok(PeopleView {
-        firm_name: crate::app_chrome::firm_name_from_context().await,
-        rows: people
-            .into_iter()
-            .map(|p| PersonRow {
-                id: p.id.to_string(),
-                name: p.name,
-                email: p.email,
-                role: p.role.as_str().to_string(),
-                // The lawyer mirror is read-only — no row actions.
-                can_delete: false,
-                can_impersonate: false,
-            })
-            .collect(),
-        sort,
-        filter_name,
-        filter_email,
-        role,
-        // The read-only lawyer mirror has no delete action, so no error flash.
-        error: None,
-        show_actions: false,
-        list_path: "/lawyer/people".to_string(),
-        detail_path: String::new(),
-        csrf_token: String::new(),
-    })
 }
 
 /// Fetch the people directory for the **admin console** (`/admin/people`):
@@ -274,9 +206,6 @@ pub async fn list_admin_people() -> Result<PeopleView, ServerFnError> {
         filter_email,
         role,
         error,
-        show_actions: true,
-        list_path: "/admin/people".to_string(),
-        detail_path: "/admin/person".to_string(),
         csrf_token,
     })
 }
@@ -356,14 +285,6 @@ fn encode(value: &str) -> String {
         .collect()
 }
 
-/// The lawyer people directory (`/lawyer/people`) — read-only. Resolves the lawyer
-/// server function and renders through the shared [`render_people`].
-#[component]
-pub fn LawyerPeople() -> Element {
-    let resource = use_server_future(list_people)?;
-    render_people(&resource)
-}
-
 /// The admin console people directory (`/admin/people`) — the same sortable list
 /// with a per-row action column (Edit / Delete / Impersonate). Resolves the
 /// admin server function and renders through the shared [`render_people`].
@@ -373,11 +294,10 @@ pub fn AdminPeople() -> Element {
     render_people(&resource)
 }
 
-/// Render the resolved people directory for either surface: a sortable table
-/// (the sort headers are real anchors carrying the `?sort=` toggle, working
-/// pre-hydration) with an optional per-row action column. The admin surface
-/// carries native Edit link + Delete/Impersonate `POST` forms; the lawyer mirror
-/// is read-only. All paths come from the view's surface fields.
+/// Render the resolved people directory: a sortable table (the sort headers are
+/// real anchors carrying the `?sort=` toggle, working pre-hydration) with the
+/// per-row action column — a native Edit link plus Delete / Impersonate `POST`
+/// forms.
 fn render_people(resource: &Resource<Result<PeopleView, ServerFnError>>) -> Element {
     // Clone the view out of the read guard before rendering so the borrow does
     // not outlive it (the `rsx!` output escapes this scope).
@@ -385,7 +305,7 @@ fn render_people(resource: &Resource<Result<PeopleView, ServerFnError>>) -> Elem
         Some(Ok(view)) => Some(view.clone()),
         Some(Err(_)) => {
             return rsx! {
-                main { id: "lawyer-people", p { "Failed to load people." } }
+                main { id: "admin-people", p { "Failed to load people." } }
             }
         }
         None => None,
@@ -398,27 +318,18 @@ fn render_people(resource: &Resource<Result<PeopleView, ServerFnError>>) -> Elem
                 &view.sort,
                 &view.filter_name,
                 &view.filter_email,
-                &view.list_path,
+                LIST_PATH,
             );
             let email_href = sort_href(
                 "email",
                 &view.sort,
                 &view.filter_name,
                 &view.filter_email,
-                &view.list_path,
+                LIST_PATH,
             );
             let is_empty = view.rows.is_empty();
-            // `/admin/people` -> `/admin/people/new`, `/lawyer/people` ->
-            // `/lawyer/people/new`; both are mounted (`portal::lib`).
-            let new_href = format!("{}/new", view.list_path);
             let error = view.error.clone();
-            let show_actions = view.show_actions;
-            let colspan = if show_actions { "4" } else { "3" };
-            let title = if show_actions {
-                format!("{} | Admin | People", view.firm_name)
-            } else {
-                format!("{} | Lawyer | People", view.firm_name)
-            };
+            let title = format!("{} | Admin | People", view.firm_name);
             rsx! {
                 document::Title { "{title}" }
                 document::Stylesheet { href: crate::components::THEME_STYLESHEET_HREF }
@@ -430,13 +341,10 @@ fn render_people(resource: &Resource<Result<PeopleView, ServerFnError>>) -> Elem
                     a { class: "nav-link", href: "/app/projects", "Projects" }
                     a { class: "nav-link", href: "/auth/logout", "Sign out" }
                 }
-                main { id: "lawyer-people",
+                main { id: "admin-people",
                     h1 { "People" }
-                    // The create form has always been mounted (`/admin/people/new`,
-                    // `/lawyer/people/new`) but nothing linked to it, so the only way
-                    // to reach it was to type the URL. Both surfaces can create.
                     p {
-                        a { class: "nav-btn nav-btn--primary people-new", href: "{new_href}", "Add person" }
+                        a { class: "nav-btn nav-btn--primary people-new", href: "{NEW_HREF}", "Add person" }
                     }
                     if let Some(error) = error.as_ref() {
                         p { class: "nav-form-error", role: "alert", "{error}" }
@@ -448,15 +356,13 @@ fn render_people(resource: &Resource<Result<PeopleView, ServerFnError>>) -> Elem
                                     th { a { class: "sort-name", href: "{name_href}", "Name" } }
                                     th { a { class: "sort-email", href: "{email_href}", "Email" } }
                                     th { "Role" }
-                                    if show_actions {
-                                        th { "" }
-                                    }
+                                    th { "" }
                                 }
                             }
                             tbody {
                                 if is_empty {
                                     tr {
-                                        td { class: "people-empty", colspan: "{colspan}", "No people yet." }
+                                        td { class: "people-empty", colspan: "4", "No people yet." }
                                     }
                                 }
                                 for row in view.rows.iter().cloned() {
@@ -464,10 +370,8 @@ fn render_people(resource: &Resource<Result<PeopleView, ServerFnError>>) -> Elem
                                         td { class: "person-name", "{row.name}" }
                                         td { class: "person-email", "{row.email}" }
                                         td { class: "person-role", {role_label(&row.role)} }
-                                        if show_actions {
-                                            td { class: "person-actions",
-                                                {person_row_actions(&view.detail_path, &view.csrf_token, &row)}
-                                            }
+                                        td { class: "person-actions",
+                                            {person_row_actions(&view.csrf_token, &row)}
                                         }
                                     }
                                 }
@@ -478,7 +382,7 @@ fn render_people(resource: &Resource<Result<PeopleView, ServerFnError>>) -> Elem
             }
         }
         None => rsx! {
-            main { id: "lawyer-people", p { "Loading…" } }
+            main { id: "admin-people", p { "Loading…" } }
         },
     }
 }
@@ -488,10 +392,10 @@ fn render_people(resource: &Resource<Result<PeopleView, ServerFnError>>) -> Elem
 /// and for an impersonatable client a native Impersonate `POST` form. Native
 /// forms so they work pre-hydration; the row used an `hx-delete` button and
 /// an HTMX-free impersonate form.
-fn person_row_actions(detail_path: &str, csrf_token: &str, row: &PersonRow) -> Element {
-    let edit_href = format!("{detail_path}/{}/edit", row.id);
-    let delete_action = format!("{detail_path}/{}/delete", row.id);
-    let impersonate_action = format!("{detail_path}/{}/impersonate", row.id);
+fn person_row_actions(csrf_token: &str, row: &PersonRow) -> Element {
+    let edit_href = format!("{DETAIL_PATH}/{}/edit", row.id);
+    let delete_action = format!("{DETAIL_PATH}/{}/delete", row.id);
+    let impersonate_action = format!("{DETAIL_PATH}/{}/impersonate", row.id);
     rsx! {
         span { class: "row-actions",
             a { class: "nav-link", href: "{edit_href}", "Edit" }
