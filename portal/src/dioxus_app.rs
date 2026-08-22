@@ -2125,6 +2125,13 @@ where
             path,
             get(render_handler)
                 .layer(from_fn(inject_viewer_role))
+                // A matter-content listing scopes its rows to the caller's
+                // participation ledger (ENG-303), which needs the signed-in
+                // `persons.id`. Without this layer the extraction yields `None`
+                // and every such listing renders empty for a Lawyer — the
+                // fail-closed direction, but the wrong page. Pinned by
+                // `matter_content_listings_are_scoped_to_participation`.
+                .layer(from_fn(inject_person_id))
                 .layer(from_fn(inject_app_brand_mark))
                 .layer(from_fn(dioxus_document_head)),
         )
@@ -2210,6 +2217,11 @@ where
             path,
             get(render_handler)
                 .layer(from_fn(inject_viewer_role))
+                // Same injection the fixed-listing factory carries, so a
+                // matter-content listing that later becomes sortable moves
+                // between the two factories without silently losing its
+                // participation scope and rendering empty.
+                .layer(from_fn(inject_person_id))
                 .layer(from_fn(inject_app_brand_mark))
                 .layer(from_fn(dioxus_document_head))
                 .layer(from_fn_with_state(
