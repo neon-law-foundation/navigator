@@ -858,19 +858,27 @@ jobs:
     env:
       AUTOMERGE_APP_ID: ${{ secrets.AUTOMERGE_APP_ID }}
     steps:
-      # Enable auto-merge as a GitHub App, NOT the default GITHUB_TOKEN. The App
+      # Arm auto-merge as a GitHub App, and ONLY as a GitHub App. The App
       # installation token carries the `contents: write` + `pull-requests: write`
-      # this needs and arms auto-merge under a stable bot identity. It is guarded
-      # on the App being configured: until the `AUTOMERGE_APP_ID` and
-      # `AUTOMERGE_APP_PRIVATE_KEY` Actions secrets
-      # exist this step is skipped and the next
-      # step falls back to GITHUB_TOKEN, which arms auto-merge just as well. Forks
-      # without the App still pass. See docs/gitops.md.
+      # this needs and arms auto-merge under a stable bot identity.
       #
-      # Dependabot caveat: a Dependabot-opened PR runs this job with the separate
-      # *Dependabot* secret store, where `AUTOMERGE_APP_ID` is empty unless the App
-      # secrets are mirrored there too. Mirror both secrets into the Dependabot
-      # store to arm its bumps under the App rather than the token fallback.
+      # WHICH IDENTITY ARMS IT DECIDES WHETHER THE RELEASE PUBLISHES. GitHub's
+      # workflow-recursion guard creates no runs for a push attributed to
+      # `GITHUB_TOKEN`, and since the version bump in the merged manifest IS the
+      # publish, a merge armed under that token lands on `main` and starts no
+      # `deploy` run at all. Nothing goes red; the release is simply never built.
+      #
+      # So both steps below are gated on the App being configured, and there is
+      # NO fallback to the workflow token. An absent secret arms nothing and
+      # leaves the PR for a human — visibly waiting, which a lost release is
+      # not. A secret that is present but broken fails the mint and arms nothing
+      # either. Both are fail-closed on purpose, and
+      # `cli/tests/automerge_identity.rs` asserts the fallback stays absent.
+      # Forks, which hold no secrets, skip both steps and still pass.
+      #
+      # Dependabot note: a Dependabot-opened PR runs this job against the
+      # separate *Dependabot* secret store, so both secrets exist there as well
+      # as in the Actions store. Without them its bumps would arm nothing.
       - name: mint app token
         id: app-token
         if: env.AUTOMERGE_APP_ID != ''
@@ -879,9 +887,10 @@ jobs:
           app-id: ${{ secrets.AUTOMERGE_APP_ID }}
           private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
       - name: request auto-merge
+        if: env.AUTOMERGE_APP_ID != ''
         env:
-          # App token when configured; otherwise GITHUB_TOKEN (skipped step → empty).
-          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          # The App installation token, and nothing else.
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           # `gh` targets github.com unless told otherwise, which is where this
@@ -909,14 +918,14 @@ jobs:
           # disallows ("Merge method merge commits are not allowed"). SQUASH is
           # the repo's only allowed method, so it is accepted.
           pr_id="$(gh pr view "${PR_URL}" --json id --jq '.id')"
-          # A PR that edits any `.github/workflows/*` file cannot be
-          # auto-merged by the App: its installation token is scoped to
-          # `contents` + `pull_requests` and deliberately lacks `workflows`
-          # (see docs/gitops.md), so GitHub refuses the mutation with a
-          # "refusing to allow a GitHub App to create or update workflow ...
-          # without `workflows` permission" error. That is expected and
-          # unfixable from CI (such PRs are merged by hand), so treat only
-          # that refusal as a soft pass; any other failure is real and fails.
+          # A defensive soft pass, not the expected path. Arming auto-merge is
+          # a mutation on the pull request rather than a write of workflow
+          # content, and a PR editing `.github/workflows/*` does arm and merge
+          # under this App — #99 did exactly that. An installation whose token
+          # lacked the reach would instead see "refusing to allow a GitHub App
+          # to create or update workflow ... without `workflows` permission",
+          # which no CI change can fix, so that one refusal is reported and
+          # passed over. Every other failure is real and fails the job.
           if ! result="$(gh api graphql -f pr="${pr_id}" -f query='
               mutation($pr: ID!) {
                 enablePullRequestAutoMerge(input: { pullRequestId: $pr, mergeMethod: SQUASH }) {
@@ -924,7 +933,7 @@ jobs:
                 }
               }' 2>&1)"; then
               if printf '%s' "${result}" | grep -q 'refusing to allow a GitHub App to create or update workflow'; then
-                  echo "PR edits workflow files; the App cannot enable auto-merge (it lacks the workflows permission). Merge this PR manually."
+                  echo "::warning::the App was refused for lack of the \`workflows\` permission on a PR that edits workflow files. Merge this PR manually."
                   printf '%s\n' "${result}"
                   exit 0
               fi

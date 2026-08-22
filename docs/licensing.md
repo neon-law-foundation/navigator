@@ -221,23 +221,21 @@ published image therefore does both of the things a registry makes possible:
 
 `Containerfile.runner` is exempt: it is the CI runner image rather than a published artifact of the software.
 
-### The GHCR mirror
+### Where the images are published
 
-`publish-service` can mirror the product images to `ghcr.io` alongside Artifact Registry, from the same build. It is
-**off by default** and turns on with one repository variable:
+Every product image goes to `ghcr.io/neon-law-foundation`, from `publish-service` and `publish-triggers`. There is no
+toggle and no second registry: the push is unconditional, and `cli/tests/license_of_record.rs` asserts that no condition
+guards it. A registry the release depends on must not be switchable by a repository variable, whose absence is a
+settings edit that touches no file, passes every gate, and yields a release that looks fine until someone checks the
+registry days later.
 
-| Setting | Kind | Value |
-| --- | --- | --- |
-| `GHCR_PUBLISH` | variable | `true` |
+No credential to create. The repository and its Actions live on github.com, whose own registry is `ghcr.io`, so the push
+authenticates with `GITHUB_TOKEN` and the `packages: write` scope. That scope is granted on those two jobs rather than
+at the top of the workflow — every other job in the file checks out and builds release code, and none of them has any
+business writing packages.
 
-No credential to create. The repository and its Actions live on github.com, whose own registry is `ghcr.io`, so the
-mirror authenticates with `GITHUB_TOKEN` and the `packages: write` scope. That scope is granted on `publish-service`
-alone rather than at the top of the workflow — every other job in the file checks out and builds release code, and none
-of them has any business writing packages.
-
-One thing to know before switching it on: **a GHCR package inherits its linked repository's visibility.**
-`neon-law-foundation/navigator` is public, so the mirror publishes public packages — a second place to pull the same
-digests from, which is the whole value of it.
+**A GHCR package inherits its linked repository's visibility.** `neon-law-foundation/navigator` is public, so these are
+public packages — anyone can pull the same digests the deployments run, which is the point of publishing them.
 
 ## Releases
 

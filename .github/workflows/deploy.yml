@@ -192,10 +192,12 @@ on:
 
 permissions:
   contents: read
-  # Image pushes authenticate to Artifact Registry via Workload Identity
-  # (each publish job requests `id-token: write`). `packages: write` is granted
-  # per job rather than here: only `publish-service` can mirror to `ghcr.io`,
-  # and only when `GHCR_PUBLISH` is set.
+  # `ghcr.io` is the only registry this workflow writes, and it authenticates
+  # with the run's own `GITHUB_TOKEN` — no Workload Identity, no cloud
+  # credential. `packages: write` is therefore the whole grant, and it is
+  # granted per job rather than here: `publish-service` and `publish-triggers`
+  # push images, and no other job in this file has any business writing a
+  # package. See docs/gitops.md → "Keyless pushes to GHCR".
 
 # There is deliberately no published-asset origin probe (and no `env:` block)
 # in this workflow. Every deployment's assets bucket is private and served
@@ -246,13 +248,81 @@ jobs:
     steps:
       # THE TAGS ARE THE ANCHOR, so the checkout has to carry them. `fetch-depth:
       # 0` fetches the full history and every tag; `release-check` also fetches
-      # them itself, so a shallower checkout would still work — but the full
-      # source is required regardless, because the guard that makes the decision
-      # is a Rust binary in this tree.
+      # them itself, so a shallower checkout would still work — but the tree is
+      # required regardless. The checker reads THIS commit's
+      # `[workspace.package].version`, and the fallback below compiles the CLI
+      # out of this tree when no published binary can be had.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      # ANSWER THE QUESTION WITH A PUBLISHED BINARY RATHER THAN A COMPILE.
+      #
+      # This job reads one TOML field, compares it against the tag list, and on
+      # ~95% of merges answers "no" and skips every downstream job. Compiling
+      # the CLI to do that cost 7m54s of pure latency on every merge to `main`
+      # (run 32531667235). The published Linux archive is the same code, already
+      # built, and unpacks in seconds.
+      #
+      # NOT A CACHE STEP. This job is on `ubuntu-latest` with a different
+      # preinstalled Rust than the Blacksmith merge gate, so it cannot read the
+      # gate's entry and would write its own into the shared 10 GB Actions
+      # quota — the contention that starved the gate's Rust cache before.
+      #
+      # THE BOOTSTRAP CAVEAT, accepted deliberately: the checker is release
+      # N-1's, so a change to `ops release-check` itself governs from the
+      # release AFTER the one that lands it. That is tolerable because the
+      # decision is a comparison of the manifest against the tags, both of which
+      # this run supplies — the binary carries the rule, not the data. `ci.yml`
+      # runs the in-tree `ops release-check` on every pull request, so a change
+      # to the rule is still proved on the branch that makes it.
+      #
+      # `/releases/latest` is NOT used: it excludes prereleases, every release
+      # here is one (`YY.M.D-hotfix.N` carries a semver pre-release segment),
+      # and it answers 404. Take the newest release that actually carries the
+      # archive instead — a tag whose release assets never uploaded is skipped
+      # rather than being read as "no checker".
+      - name: install the release-check binary
+        id: checker
+        # A `kind-ci/**` branch iteration answers `publishable=false` from its
+        # ref name without consulting a checker at all, so it fetches nothing.
+        if: github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="$(gh api "/repos/${REPO}/releases?per_page=20" --jq '
+              map(select(.draft | not))
+              | map(select([.assets[].name] | any(endswith("-linux.tar.gz"))))
+              | first | .tag_name // empty
+          ')"
+          if [ -z "${tag}" ]; then
+              echo "::notice::no published release carries a Linux CLI archive; building the checker from source"
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              exit 0
+          fi
+          tmp="$(mktemp -d)"
+          asset="navigator-${tag}-linux.tar.gz"
+          if ! gh release download "${tag}" --repo "${REPO}" \
+              --pattern "${asset}" --dir "${tmp}" --clobber; then
+              echo "::notice::could not download ${asset}; building the checker from source"
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              exit 0
+          fi
+          tar -xzf "${tmp}/${asset}" -C "${tmp}" navigator
+          install -d "${RUNNER_TEMP}/navigator-bin"
+          install -m 0755 "${tmp}/navigator" "${RUNNER_TEMP}/navigator-bin/navigator"
+          echo "${RUNNER_TEMP}/navigator-bin" >> "${GITHUB_PATH}"
+          echo "navigator ${tag} installed: $("${RUNNER_TEMP}/navigator-bin/navigator" --version)"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      # THE FALLBACK, and the reason this job still knows how to compile. A
+      # release lost because the release API blipped is the exact failure this
+      # pipeline has already paid for once, so an unavailable binary falls back
+      # to the source of truth in this tree rather than failing the run or —
+      # far worse — answering "not a release" by default. It costs the compile
+      # only when it actually fires.
       - name: install rust toolchain
+        if: github.ref_name == 'main' && steps.checker.outputs.ready != 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.97.0
@@ -282,6 +352,7 @@ jobs:
         id: version
         env:
           REF_NAME: ${{ github.ref_name }}
+          CHECKER_READY: ${{ steps.checker.outputs.ready }}
         run: |
           set -euo pipefail
           if [ "${REF_NAME}" != "main" ]; then
@@ -294,7 +365,11 @@ jobs:
               exit 0
           fi
 
-          cargo run --locked -p cli --quiet -- ops release-check --github-output
+          if [ "${CHECKER_READY}" = "true" ]; then
+              navigator ops release-check --github-output
+          else
+              cargo run --locked -p cli --quiet -- ops release-check --github-output
+          fi
       # THE FIRST LINE #navigator SEES, and it comes after the decision rather
       # than before it. Every merge to `main` starts this workflow, so a post
       # ahead of the answer would narrate the ~95% of merges that publish
@@ -1380,7 +1455,7 @@ jobs:
               done
           done
 
-  # ---------- Stage 2: publish every image to Artifact Registry ----------
+  # ---------- Stage 2: publish every image to GHCR ----------
   # Only runs if integration is green. Publishes the service images — the
   # per-brand hosts (neon-server, neon-server) and
   # navigator-workflows-service, plus the navigator-web alias tag that
@@ -1476,7 +1551,7 @@ jobs:
           echo "created refs/tags/${TAG} at ${SHA}"
 
   publish-service:
-    name: publish ${{ matrix.image }} to Artifact Registry
+    name: publish ${{ matrix.image }} to GHCR
     needs: [integration, release-version, release-tag]
     # Tag only. A `kind-ci/**` branch run stops after integration — it
     # must never push branch-tagged images to the registry.
@@ -1485,11 +1560,10 @@ jobs:
     # the wide runner's disk; the light gateway stays on `ubuntu-latest` so it
     # never queues behind the heavies on the two-slot large pool.
     runs-on: ${{ matrix.runner }}
-    # Workload Identity Federation needs id-token; contents:read to check out.
+    # `contents: read` to check out, `packages: write` to push. Nothing here
+    # requests an OIDC token, because nothing here talks to a cloud provider.
     permissions:
       contents: read
-      id-token: write
-      # Only for the optional GHCR mirror below, and only on this job.
       packages: write
     # Cold image build + registry push; cap it so a stuck registry/build can't
     # hang the release indefinitely. A warm rebuild reads the `build` stage's
@@ -1559,33 +1633,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: ./.github/actions/slack-progress
-        if: vars.GHCR_PUBLISH == 'true'
-        with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
-          tag: "${{ needs.release-version.outputs.tag }}"
-          stage: "publish-service ${{ matrix.image }}"
-          step: "log in to the GHCR mirror"
-      # The GHCR mirror. Off unless the `GHCR_PUBLISH` repository variable is
-      # `true`; with it unset this job publishes exactly what it publishes
-      # today.
-      #
-      # `GITHUB_TOKEN` is the credential, with the `packages: write` scope this
-      # job requests. That works because the repository and its Actions live on
-      # github.com, whose own registry is `ghcr.io` — no PAT, and nothing to
-      # rotate.
-      #
-      # A GHCR package inherits the linked repository's visibility, so the
-      # mirror is public only once `neon-law-foundation/navigator` is public.
-      # Until then it pushes private packages — harmless, and pointless, which
-      # is why it stays off by default.
-      - name: log in to the GHCR mirror
-        if: vars.GHCR_PUBLISH == 'true'
-        uses: docker/login-action@v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: ./.github/actions/slack-progress
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
           tag: "${{ needs.release-version.outputs.tag }}"
@@ -1600,13 +1647,24 @@ jobs:
           tag: "${{ needs.release-version.outputs.tag }}"
           stage: "publish-service ${{ matrix.image }}"
           step: "compose registry list"
-      # Compose the registry list in bash rather than inline, for the reason
-      # `compose cache sources` below gives: the value is conditional, and a
-      # `kind-ci/**` run cannot exercise it, so an inline expression emitting a
-      # stray blank line would first fail on a live release. `metadata-action`
-      # fans every tag across every image named here, so ONE `build and push`
-      # writes both registries from a single build — a second push step would
-      # mean a second 21-minute large-runner compile for identical layers.
+      # `metadata-action` fans every tag across every image named here, so ONE
+      # `build and push` writes the whole list from a single build — a second
+      # push step would mean a second 21-minute large-runner compile for
+      # identical layers.
+      #
+      # The list is composed in bash rather than inline because it is a
+      # heredoc-delimited multi-line output: an inline expression emitting a
+      # stray blank line would hand `metadata-action` an empty image name, and a
+      # `kind-ci/**` run never reaches this step, so it would first fail on a
+      # live release.
+      #
+      # The push is UNCONDITIONAL and carries no toggle. A GHCR package inherits
+      # its linked repository's visibility and `neon-law-foundation/navigator`
+      # is public, so these are public packages — the second place anyone can
+      # pull the release from, which is the whole point of publishing them. A
+      # registry the release depends on must not be switchable by a repository
+      # variable a cleared setting could quietly empty, so
+      # `cli/tests/license_of_record.rs` asserts no condition guards it.
       - name: compose registry list
         id: imgs
         run: |
@@ -1614,9 +1672,6 @@ jobs:
           {
             printf 'list<<__IMAGES_EOF__\n'
             printf '%s\n' "${{ steps.img.outputs.name }}"
-            if [ "${{ vars.GHCR_PUBLISH }}" = "true" ]; then
-              printf 'ghcr.io/%s/%s\n' "${{ github.repository_owner }}" "${{ matrix.image }}"
-            fi
             printf '__IMAGES_EOF__\n'
           } >> "$GITHUB_OUTPUT"
       - uses: ./.github/actions/slack-progress
@@ -1644,8 +1699,8 @@ jobs:
           tag: "${{ needs.release-version.outputs.tag }}"
           stage: "publish-service ${{ matrix.image }}"
           step: "compose build-args"
-      # Stamp the release into every image. RELEASE_TAG is the Artifact Registry
-      # tag derived above; `telemetry::init` reads it as `service.version` so the worker and
+      # Stamp the release into every image. RELEASE_TAG is the registry tag
+      # derived above; `telemetry::init` reads it as `service.version` so the worker and
       # the trigger CronJobs self-report their release in logs/traces — the
       # headless counterpart to web's `GET /version`. The web image additionally
       # gets GIT_SHA/BUILD_TIME for the `/version` commit fields (only its
@@ -1704,7 +1759,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Cache into Artifact Registry, NOT the GitHub Actions cache.
+          # Cache into the image registry, NOT the GitHub Actions cache.
           #
           # `type=gha` writes to a 10 GB per-repository quota that is shared
           # with every other cache in this repo, and `mode=max` on eleven
@@ -1718,8 +1773,8 @@ jobs:
           # A registry-backed cache has no quota and no LRU eviction, and is
           # not scoped per-branch the way the Actions cache is, so consecutive
           # releases genuinely read each other's layers. `image-manifest` +
-          # `oci-mediatypes` make the cache a standard OCI object that
-          # Artifact Registry stores like any other; without them GAR rejects
+          # `oci-mediatypes` make the cache a standard OCI object that the
+          # registry stores like any other; without them GHCR rejects
           # buildkit's native cache manifest type.
           #
           # `:buildcache` is a WRITTEN tag, not a consumed one — no deployment
@@ -1746,7 +1801,7 @@ jobs:
           cache-from: ${{ steps.cf.outputs.sources }}
           # ignore-error: the release tag exists before this export, so a
           # registry hiccup on the `mode=max` export must not fail the publish
-          # after the release image is already in Artifact Registry. This is
+          # after the release image is already in the registry. This is
           # the leg that failed run 29929842056 (navigator-web amd64) purely at
           # cache export, image already pushed.
           cache-to: type=registry,ref=${{ steps.img.outputs.name }}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true
@@ -1788,7 +1843,7 @@ jobs:
           test "${src}" = "${dst}"
 
   publish-triggers:
-    name: publish ${{ matrix.image }} to Artifact Registry
+    name: publish ${{ matrix.image }} to GHCR
     needs: [integration, release-version, release-tag]
     if: needs.release-version.outputs.publishable == 'true'
     # Per-image runner. A trigger image compiles ONE musl binary out of the
@@ -1812,7 +1867,8 @@ jobs:
     # job. It was also the matrix's outlier at 35m against 11-17m for the
     # triggers (run 143692286).
     runs-on: ${{ matrix.runner }}
-    # Workload Identity Federation needs id-token; contents:read to check out.
+    # `contents: read` to check out, `packages: write` to push — the same
+    # keyless grant `publish-service` holds.
     permissions:
       contents: read
       packages: write
@@ -1956,7 +2012,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Artifact Registry rather than the Actions cache quota — same
+          # The image registry rather than the Actions cache quota — same
           # reasoning as the service publishes above, and these six images are
           # half of what was filling it.
           cache-from: type=registry,ref=${{ steps.img.outputs.name }}:buildcache

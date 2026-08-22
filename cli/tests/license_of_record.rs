@@ -609,32 +609,77 @@ fn every_published_image_declares_the_licence_and_stages_its_text() {
     );
 }
 
-/// The GHCR mirror is opt-in, and the scope it needs is granted per job.
+/// The GHCR push is unconditional, and the scope it needs is granted per job.
 ///
-/// **Gated.** Every mirror step is conditioned on `vars.GHCR_PUBLISH`, so a
-/// deployment that has not set it publishes exactly what it publishes today. An
-/// ungated login would fail the publish job, and this workflow's failure mode is
-/// a release that looks fine until someone checks the registry days later.
+/// **Unconditional.** GHCR is where every published image lives — `ops ship`
+/// renders `ghcr.io/<owner>` into every `image:` line, and the CLI's
+/// `DEFAULT_REGISTRY` names it — so the push is not an optional mirror that a
+/// toggle may switch off. A repository *variable* is the worst possible switch
+/// for it: clearing one is a settings edit that touches no file, passes every
+/// gate, and produces a release that looks fine until someone checks the
+/// registry days later. The images simply would not be there.
 ///
-/// **Scoped to one job.** `packages: write` belongs on `publish-service` alone.
-/// Granting it at the top of the workflow would hand the scope to every job in
-/// the file — including the ones that check out and build arbitrary release
-/// code — for the benefit of a single optional step.
+/// So no condition may guard the push, and this test is what stops one being
+/// reintroduced. The package visibility that once justified a gate is settled:
+/// a GHCR package inherits its linked repository's visibility and
+/// `neon-law-foundation/navigator` is public.
+///
+/// **Scoped to the publish jobs.** `packages: write` belongs on the two jobs
+/// that push an image. Granting it at the top of the workflow would hand the
+/// scope to every job in the file, including the ones that check out and build
+/// arbitrary release code.
 #[test]
-fn the_image_mirror_is_opt_in_and_scoped_to_the_publish_job() {
+fn the_image_push_is_unconditional_and_scoped_to_the_publish_jobs() {
     let workflow = read(".github/workflows/deploy.yml");
 
-    for required in [
-        "registry: ghcr.io",
-        "if: vars.GHCR_PUBLISH == 'true'",
-        "password: ${{ secrets.GITHUB_TOKEN }}",
-        "if [ \"${{ vars.GHCR_PUBLISH }}\" = \"true\" ]; then",
-    ] {
+    for required in ["registry: ghcr.io", "password: ${{ secrets.GITHUB_TOKEN }}"] {
         assert!(
             workflow.contains(required),
-            "deploy.yml must retain the gated GHCR mirror contract `{required}`"
+            "deploy.yml must retain the keyless GHCR push contract `{required}`"
         );
     }
+
+    // No toggle, under any spelling. `vars.` is the whole namespace a repository
+    // variable can be read through, so excluding it from the publish jobs
+    // catches a gate reintroduced under a different variable name too.
+    //
+    // Scoped to those jobs rather than the file: `notify` reads `vars.DEPLOY_REPO`
+    // legitimately, and unset there means one Slack line reads "your deployments
+    // checkout" instead of a name. Narrating a rollout is not publishing it.
+    let parsed: serde_yaml::Value =
+        serde_yaml::from_str(&workflow).expect("deploy.yml parses as YAML");
+    for job in ["publish-service", "publish-triggers"] {
+        // Re-serialised from the parse so YAML comments are not part of the
+        // text searched: the prose in this file necessarily names the toggle it
+        // forbids, and the job's CONFIGURATION is what must not carry it.
+        let body = serde_yaml::to_string(&parsed["jobs"][job])
+            .unwrap_or_else(|error| panic!("`{job}` re-serialises: {error}"));
+        assert!(
+            !body.contains("vars."),
+            "`{job}` must read no repository variable: publishing must not depend on one, \
+             whose absence is a silent, file-free way to stop a release reaching the registry"
+        );
+    }
+    assert!(
+        !workflow.contains("GHCR_PUBLISH"),
+        "the GHCR push carries no toggle; `GHCR_PUBLISH` must not return in any form"
+    );
+
+    // The composed image list must be composed unconditionally. A `if` inside
+    // the heredoc is how the toggle was previously spelled, and it is the one
+    // that decides what `metadata-action` is handed.
+    let composed = workflow
+        .split("- name: compose registry list")
+        .nth(1)
+        .expect("deploy.yml must keep its `compose registry list` step")
+        .split("- name: image metadata")
+        .next()
+        .expect("the composed list is followed by the metadata step");
+    assert!(
+        !composed.contains("if ["),
+        "the registry list must be composed unconditionally; a conditional branch here is how \
+         a publish is silently narrowed to nothing"
+    );
 
     // The scope must be granted, and granted narrowly. A `permissions:` block
     // at column 2 is the workflow's; at column 4 it is a job's.
@@ -642,10 +687,9 @@ fn the_image_mirror_is_opt_in_and_scoped_to_the_publish_job() {
         .lines()
         .filter(|line| line.trim() == "packages: write")
         .collect();
-    // GHCR is this branch's image registry rather than an opt-in mirror on one
-    // job, so both jobs that push an image hold the scope: `publish-service`
-    // and `publish-triggers`. What must not change is that each grant is a
-    // JOB's — the count is allowed to track the publish jobs, the indent is not.
+    // Both jobs that push an image hold the scope: `publish-service` and
+    // `publish-triggers`. What must not change is that each grant is a JOB's —
+    // the count is allowed to track the publish jobs, the indent is not.
     assert_eq!(
         granted.len(),
         2,
@@ -659,14 +703,14 @@ fn the_image_mirror_is_opt_in_and_scoped_to_the_publish_job() {
         );
     }
 
-    // One build, both registries. `metadata-action` fans the tags across every
-    // image it is given, so the push step must read the composed list — reading
-    // the single Artifact Registry name would silently drop the mirror while
-    // every gate stayed green.
+    // One build, every tag. `metadata-action` fans the tags across every image
+    // it is given, so the push step must read the composed list rather than a
+    // single name — a second push step would mean a second full compile of
+    // identical layers.
     assert!(
         workflow.contains("images: ${{ steps.imgs.outputs.list }}"),
-        "the publish job's metadata step must read the composed registry list, \
-         so one build pushes both registries"
+        "the publish job's metadata step must read the composed registry list, so one build \
+         serves every tag it publishes"
     );
 }
 
