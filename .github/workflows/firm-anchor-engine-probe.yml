@@ -21,7 +21,7 @@ on:
     inputs:
       rounds:
         description: rounds per engine, each racing 8 creates for one fresh key
-        default: "40000"
+        default: "20000"
 
 jobs:
   probe:
@@ -67,15 +67,21 @@ jobs:
                 | tail -1)
           test -n "$BIN" || { echo "::error::no probe binary"; exit 1; }
 
-          ROUNDS="${{ inputs.rounds || '40000' }}"
+          ROUNDS="${{ inputs.rounds || '20000' }}"
           # The fork needs a loaded box. Same load for both engines.
           for _ in $(seq 1 "$(nproc)"); do yes > /dev/null & done
           LOAD=$(jobs -p)
 
-          echo "=============== EMBEDDED (mem://) ==============="
-          env -u NAVIGATOR_SURREAL_ENDPOINT ANCHOR_ROUNDS="$ROUNDS" \
-            "$BIN" --exact probe_double_commit_by_engine --nocapture --test-threads=1 \
-            2>&1 | grep -E "FORKED|forks in" || true
+          # Three harness shapes on the embedded engine, to separate "fresh
+          # engine" from "first record in an empty table". `long-lived` already
+          # came back 0/320000 (run 32582486950); the failing test is
+          # `fresh-engine`, which forks at ~1/19200.
+          for shape in long-lived empty-table fresh-engine; do
+            echo "=============== EMBEDDED (mem://) shape=$shape ==============="
+            env -u NAVIGATOR_SURREAL_ENDPOINT ANCHOR_ROUNDS="$ROUNDS" ANCHOR_SHAPE="$shape" \
+              "$BIN" --exact probe_double_commit_by_engine --nocapture --test-threads=1 \
+              2>&1 | grep -E "FORKED|forks in" | tail -5 || true
+          done
 
           echo "=============== SERVER (ws://) ==============="
           NAVIGATOR_SURREAL_ENDPOINT=ws://127.0.0.1:8000 \
@@ -83,7 +89,7 @@ jobs:
           NAVIGATOR_SURREAL_DATABASE=navigator \
           NAVIGATOR_SURREAL_USER=root \
           NAVIGATOR_SURREAL_PASSWORD=root \
-          ANCHOR_ROUNDS="$ROUNDS" \
+          ANCHOR_ROUNDS="$ROUNDS" ANCHOR_SHAPE=empty-table \
             "$BIN" --exact probe_double_commit_by_engine --nocapture --test-threads=1 \
             2>&1 | grep -E "FORKED|forks in" || true
 

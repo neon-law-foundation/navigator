@@ -48,11 +48,28 @@ async fn probe_double_commit_by_engine() {
             )
         };
 
+    // Which harness shape: `long-lived` reuses one engine (the production
+    // shape), `empty-table` reuses it but clears the claim table each round so
+    // every claim is the FIRST record in its table, `fresh-engine` rebuilds the
+    // engine per round exactly as the failing test does.
+    let shape = std::env::var("ANCHOR_SHAPE").unwrap_or_else(|_| "long-lived".to_string());
+
     let mut forks = 0;
     let mut refusals_seen = 0;
     for round in 0..rounds {
         // A fresh key per round is a fresh claim record id.
         let key = format!("shook law pllc {round}");
+        let db = match shape.as_str() {
+            "fresh-engine" => Arc::new(store::test_support::mem_surreal().await),
+            "empty-table" => {
+                db.query("DELETE firm_anchor; DELETE entity;")
+                    .await
+                    .and_then(surrealdb::IndexedResults::check)
+                    .expect("clear the claim table");
+                Arc::clone(&db)
+            }
+            _ => Arc::clone(&db),
+        };
         let mut tasks = tokio::task::JoinSet::new();
         for _ in 0..RACERS {
             let db = Arc::clone(&db);
@@ -76,7 +93,7 @@ async fn probe_double_commit_by_engine() {
     }
 
     println!(
-        "{mode}: {forks} forks in {rounds} rounds ({} races), {refusals_seen} refusals observed",
+        "{mode}/{shape}: {forks} forks in {rounds} rounds ({} races), {refusals_seen} refusals observed",
         rounds * RACERS,
     );
     // Deliberately not an assertion: this probe reports a rate for both
