@@ -30,7 +30,7 @@ on:
     inputs:
       iterations:
         description: iterations, each racing 4 concurrent copies x 8 rounds
-        default: "400"
+        default: "600"
 
 jobs:
   soak:
@@ -75,7 +75,10 @@ jobs:
           test -n "$BIN" || { echo "::error::could not locate the race binary"; exit 1; }
           echo "binary: $BIN"
 
-          ITERS="${{ inputs.iterations || '400' }}"
+          ITERS="${{ inputs.iterations || '600' }}"
+          # ENG-312: name the branch each racer left `take_claim` through, so a
+          # fork arrives with the mechanism attached instead of just a count.
+          export NAV_ANCHOR_TRACE=1
           # Oversubscribe: 4 copies x 8 tokio workers on 4 vCPU. An idle machine
           # hides this for hundreds of rounds.
           CONC=4
@@ -92,7 +95,13 @@ jobs:
             if [ "$rc" -ne 0 ]; then
               forks=$((forks + 1))
               echo "::error::iteration $i forked the firm anchor"
-              grep -h -A4 "panicked at" /tmp/out.* | head -20
+              # The whole output of the copy that forked: the ANCHOR trace lines
+              # are the point, not the panic line.
+              for f in /tmp/out.*; do
+                grep -q "panicked at" "$f" || continue
+                echo "--- $f ---"
+                cat "$f"
+              done
             fi
             [ $((i % 50)) -eq 0 ] && echo "... $i iterations, $forks forks"
           done

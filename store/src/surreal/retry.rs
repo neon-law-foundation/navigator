@@ -124,6 +124,12 @@ where
         match attempt().await {
             Ok(value) => return Ok(value),
             Err(error) if is_retryable(&error) && Instant::now() < deadline => {
+                // ENG-312 diagnostic, off unless NAV_ANCHOR_TRACE is set: is a
+                // losing claim reported as a conflict and re-run, rather than
+                // as AlreadyExists?
+                if std::env::var_os("NAV_ANCHOR_TRACE").is_some() {
+                    eprintln!("ANCHOR retry: {:?}", error.details());
+                }
                 // Uniform inside the window rather than at its edge:
                 // backing off by the same interval keeps the herd in
                 // lockstep and collides it again one tick later.

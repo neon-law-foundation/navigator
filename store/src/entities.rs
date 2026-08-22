@@ -214,16 +214,36 @@ fn claims_the_firm_anchor(error: &surrealdb::Error) -> bool {
 /// is the right answer.
 async fn take_claim(db: &SurrealDb, id: Uuid, key: Option<&str>) -> Result<bool, EntityError> {
     let Some(key) = key else { return Ok(false) };
-    if firm_anchor_holder(db, key).await? == Some(id) {
+    let holder = firm_anchor_holder(db, key).await?;
+    if holder == Some(id) {
+        anchor_trace(&format!(
+            "id={id} holder={holder:?} exit=skip-holder-is-self"
+        ));
         return Ok(false);
     }
-    writing(|| {
+    let outcome = writing(|| {
         db.query(CLAIM)
             .bind(("id", record_id(TABLE, id)))
             .bind(("firm_anchor_key", key.to_string()))
     })
-    .await?;
+    .await;
+    match &outcome {
+        Ok(_) => anchor_trace(&format!("id={id} holder={holder:?} exit=CLAIMED")),
+        Err(error) => {
+            anchor_trace(&format!("id={id} holder={holder:?} exit=refused {error:?}"));
+        }
+    }
+    outcome?;
     Ok(true)
+}
+
+/// ENG-312 diagnostic. Off unless `NAV_ANCHOR_TRACE` is set, so ordinary
+/// runs are untouched; the soak lane sets it to catch which branch each
+/// racer left `take_claim` through when the anchor forks.
+fn anchor_trace(message: &str) {
+    if std::env::var_os("NAV_ANCHOR_TRACE").is_some() {
+        eprintln!("ANCHOR {message}");
+    }
 }
 
 /// Give back a claim taken for a write that then did not land, so a
