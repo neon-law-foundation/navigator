@@ -329,9 +329,7 @@ jobs:
       # scoped per ref, so an entry written by one pull request is readable only
       # by that pull request. The FIRST push of a new branch is therefore always
       # cold — ~6 min of test build plus the dependency share of clippy and the
-      # CLI build — and only its later pushes restore. A `main`-scoped entry
-      # written after each merge is the one shape that can warm a first push,
-      # and this repository deliberately no longer keeps one.
+      # CLI build — and every later push of that branch restores it.
       #
       # What it buys is a quota nothing has to share. ~1.6 GB per active branch
       # against 10 GB for the whole repository is roughly six live branches
