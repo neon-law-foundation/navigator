@@ -1155,11 +1155,19 @@ async fn resume_after_confirmation(
     // (1) Identity: only the principal who *started* the task may
     //     confirm it.
     if principal_email != pending.principal_email {
+        // Resolve the caller's row *here*, inside the failure branch, rather
+        // than before the comparison: the approving path below does its own
+        // lookup, and a denial is rare enough that every successful
+        // confirmation should not pay for one. This is the decision a reader
+        // of the trail most wants an actor on — somebody tried to approve a
+        // pause that was not theirs — so it is the one place a missing
+        // `person_id` would cost the most.
+        let attempted_by = approver_person(&state.mcp.surreal, principal_email).await;
         audit_authorization(
             "denied_identity",
             principal_email,
-            None,
-            None,
+            attempted_by.as_ref().map(|p| p.role),
+            attempted_by.as_ref(),
             &task_id,
             &pending,
         );
@@ -1681,9 +1689,10 @@ const ANONYMOUS_PRINCIPAL: &str = "<anonymous>";
 
 /// The approver's `persons` row, not just their tier.
 ///
-/// [`approver_role`] already fetched this row and discarded everything but
-/// `role`, which is why the audit lines could name a tier and not a person.
-/// Returning the row costs no extra query.
+/// Every caller needs both halves of the same row: `role` for the
+/// authorization gate, and `id` for the audit record that has to name who
+/// decided. One lookup serves both, so resolving the person is never more
+/// expensive than resolving the tier alone.
 async fn approver_person(
     surreal: &store::surreal::SurrealDb,
     email: &str,
@@ -3407,6 +3416,179 @@ mod tests {
         assert!(
             task["artifacts"].as_array().unwrap().is_empty(),
             "a refused approval must run nothing: {task}"
+        );
+    }
+
+    /// A `tracing` writer that keeps every line in memory.
+    #[derive(Clone)]
+    struct LogBuf(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+    impl std::io::Write for LogBuf {
+        fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for LogBuf {
+        type Writer = LogBuf;
+        fn make_writer(&'a self) -> LogBuf {
+            self.clone()
+        }
+    }
+
+    /// Install a JSON subscriber writing into `buf` as this thread's default.
+    ///
+    /// `#[tokio::test]` is a current-thread runtime, so the audit events fire
+    /// on this thread and the thread-local default captures them.
+    /// `ensure_callsite_interest` is required, not optional: without a global
+    /// dispatcher a callsite can cache as `Interest::never()` and the event is
+    /// dropped before the thread-local subscriber is ever consulted.
+    fn capture_into(
+        buf: &std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+    ) -> tracing::subscriber::DefaultGuard {
+        crate::test_tracing::ensure_callsite_interest();
+        let subscriber = tracing_subscriber::fmt()
+            .json()
+            .with_max_level(tracing::Level::INFO)
+            .with_writer(LogBuf(buf.clone()))
+            .finish();
+        tracing::subscriber::set_default(subscriber)
+    }
+
+    /// The captured line whose `event` field is `event`.
+    fn audit_line(logged: &str, event: &str) -> String {
+        logged
+            .lines()
+            .find(|l| l.contains(&format!("\"event\":\"{event}\"")))
+            .unwrap_or_else(|| panic!("expected an {event} record in: {logged}"))
+            .to_string()
+    }
+
+    /// The four `target: "audit"` records in this module are the *entire*
+    /// trail for an agent-action authorization — `store/src` has no table
+    /// behind them. That makes two properties of the record behavioural
+    /// rather than cosmetic: it must name who decided, and it must not name
+    /// them by address.
+    ///
+    /// Both are asserted here because every other test on this path exercises
+    /// it and checks nothing about the fields, which is exactly how a raw
+    /// address survived on this line while the suite stayed green.
+    #[tokio::test]
+    async fn the_proposed_audit_record_names_the_person_and_carries_no_address() {
+        let (engines, person_id) = welcome_fixture().await;
+        let lawyer = store::persons::find_by_email_ci(&engines, "lawyer@neonlaw.com")
+            .await
+            .expect("query the seeded lawyer")
+            .expect("welcome_fixture seeds lawyer@neonlaw.com");
+        let (_, rpc) = routes(state_with(engines));
+
+        let buf = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        {
+            let _guard = capture_into(&buf);
+            let (_, body) = post_rpc_as(
+                rpc,
+                direct_skill(40, "send_welcome_email", &json!({ "person_id": person_id })),
+                "lawyer@neonlaw.com",
+            )
+            .await;
+            assert_eq!(
+                body["result"]["status"]["state"], "input-required",
+                "the pause is what emits the record under test; got: {body}"
+            );
+        }
+
+        let logged = String::from_utf8(buf.lock().unwrap().clone()).expect("utf-8 log");
+        let line = audit_line(&logged, "agent_action_authorization");
+
+        assert!(
+            line.contains(&format!("\"person_id\":\"{}\"", lawyer.id)),
+            "the proposing lawyer must be queryable by id: {line}"
+        );
+        assert!(
+            line.contains("\"principal_kind\":\"authenticated\""),
+            "the record must still say whether the caller authenticated: {line}"
+        );
+        assert!(
+            line.contains("\"decision\":\"proposed\""),
+            "the record must name the decision it is recording: {line}"
+        );
+        // The load-bearing half, and the mutation guard: `principal =
+        // …p.email…` stood on this line and no test failed. An address must
+        // now turn this red.
+        assert!(
+            !line.contains('@'),
+            "no email address may reach the audit stream: {line}"
+        );
+    }
+
+    /// The wrong-caller denial is the decision a reader of the trail most
+    /// wants an actor on, and it was the one left without one: its
+    /// `audit_authorization` call passed `None` for both the tier and the row.
+    #[tokio::test]
+    async fn the_denied_identity_record_names_the_person_who_tried() {
+        let (engines, person_id) = welcome_fixture().await;
+        seed_person(
+            &engines,
+            "Other Lawyer",
+            "other@neonlaw.com",
+            store::persons::Role::Lawyer,
+        )
+        .await;
+        let other = store::persons::find_by_email_ci(&engines, "other@neonlaw.com")
+            .await
+            .expect("query the second lawyer")
+            .expect("seeded just above");
+        let (_, rpc) = routes(state_with(engines));
+
+        let (_, body) = post_rpc_as(
+            rpc.clone(),
+            direct_skill(41, "send_welcome_email", &json!({ "person_id": person_id })),
+            "lawyer@neonlaw.com",
+        )
+        .await;
+        assert_eq!(
+            body["result"]["status"]["state"], "input-required",
+            "the pause must exist before another account may be refused it; got: {body}"
+        );
+        let task_id = body["result"]["id"].as_str().expect("task id").to_string();
+        let context_id = body["result"]["contextId"]
+            .as_str()
+            .expect("context id")
+            .to_string();
+
+        let buf = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        {
+            let _guard = capture_into(&buf);
+            let (_, refused) = post_rpc_as(
+                rpc,
+                confirm_reply(42, &task_id, &context_id, "yes"),
+                "other@neonlaw.com",
+            )
+            .await;
+            assert_eq!(
+                refused["result"]["status"]["state"], "failed",
+                "the wrong account must be refused; got: {refused}"
+            );
+        }
+
+        let logged = String::from_utf8(buf.lock().unwrap().clone()).expect("utf-8 log");
+        let line = audit_line(&logged, "agent_action_authorization");
+
+        assert!(
+            line.contains("\"decision\":\"denied_identity\""),
+            "the refusal must be recorded as denied_identity: {line}"
+        );
+        assert!(
+            line.contains(&format!("\"person_id\":\"{}\"", other.id)),
+            "the person who tried to approve must be named: {line}"
+        );
+        assert!(
+            !line.contains('@'),
+            "no email address may reach the audit stream: {line}"
         );
     }
 
