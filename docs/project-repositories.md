@@ -201,20 +201,32 @@ Navigator streams object-by-object. Objects land **flat** under that prefix; the
 `github.event.repository.name`, exactly as the gate derives it from the checkout directory, so the object prefix cannot
 disagree with the served mount wherever the repository is hosted.
 
-It carries no organization, host, or client. The three coordinates it cannot derive are passed from GHE repository
-**variables** — a provider resource name, a service-account email, and a bucket name are public identifiers, and the
-trust lives in the Workload Identity binding on Google's side, not in the workflow:
+It carries no organization, host, or client. The three coordinates it cannot derive are passed as repository
+**secrets**:
 
-| Variable | Value |
+| Secret | Value |
 | --- | --- |
 | `NAVIGATOR_APPLICATIONS_BUCKET` | the deployment's private applications bucket, e.g. `neon-law-applications` |
 | `NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER` | the full Workload Identity provider resource, pool and provider id included |
 | `NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT` | `navigator-app-publisher@<project>.iam.gserviceaccount.com` |
 
+**Secrets for disclosure reduction, not for access control.** All three are public identifiers and knowing them grants
+nothing; the Workload Identity binding on Google's side is the gate, and it is the only one. They are secrets because
+two of them carry the deployment's GCP project identity in their own text — the service-account email *is* the project
+id, and the provider resource *is* the project number — and the bucket is named `<deployment>-applications`. Project
+repositories are public and so are their Actions logs, and GitHub redacts secrets from logs while leaving variables in
+full, so passing these as variables published a map of the organization's GCP topology beside every build. Nothing about
+this substitutes for the binding: a change that needs to widen or narrow real access belongs in
+`cli/src/devx/gcp/app_publisher.rs`, and the binding must not be weakened on the belief that this covers it.
+
+Because GitHub redacts a secret's exact text and not the identifiers inside it, the action additionally registers
+`::add-mask::` for the bare project id and project number, decomposed from those two coordinates, before any step
+runs — `gcloud` prints them on their own, where neither is the whole of a registered secret.
+
 Authentication is keyless: the job mints a short-lived OIDC token from GitHub's issuer
 `https://token.actions.githubusercontent.com` and federates it into the publisher, so no service-account key exists.
 That issuer is a property of the provider resource, not a workflow parameter — the same subtlety the [marketing
-sites](marketing-sites.md) document explains. Because the whole resource travels in the variable, the pool and provider
+sites](marketing-sites.md) document explains. Because the whole resource travels in the secret, the pool and provider
 id are the deployment's business and never a name a Project repository knows.
 
 **On `neon-law-stg` that resource is the `github` pool's `github-oidc` provider, which is not what
@@ -254,9 +266,9 @@ jobs:
           project_repository: true              # the one gate: source-only, no legal files, mounted
       - uses: neon-law-foundation/navigator/.github/actions/application-publish@YY.M.D
         with:
-          applications_bucket: ${{ vars.NAVIGATOR_APPLICATIONS_BUCKET }}
-          workload_identity_provider: ${{ vars.NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER }}
-          service_account: ${{ vars.NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT }}
+          applications_bucket: ${{ secrets.NAVIGATOR_APPLICATIONS_BUCKET }}
+          workload_identity_provider: ${{ secrets.NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER }}
+          service_account: ${{ secrets.NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT }}
 ```
 
 **Upload order is load-bearing, and the never-delete rule is what distinguishes a private, shared applications bucket

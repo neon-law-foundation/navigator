@@ -16,13 +16,38 @@ description: >-
 #
 # It is consumed identically by every Project repository in every organization,
 # so it names no organization, host, or client. The only things it cannot
-# derive are the three per-deployment coordinates the caller passes from GHE
-# repository *variables* — the bucket, the Workload Identity provider, and the
-# publisher service account. A provider resource name, a service-account email,
-# and a bucket name are public identifiers; the trust is enforced on Google's
-# side by the Workload Identity binding, which is why they are variables and not
-# secrets. The Project code is derived from the repository name, exactly as the
-# validate gate derives it — nothing declares its own name.
+# derive are the three per-deployment coordinates the caller passes as
+# repository *secrets* — the bucket, the Workload Identity provider, and the
+# publisher service account. The Project code is derived from the repository
+# name, exactly as the validate gate derives it — nothing declares its own name.
+#
+# ## Why those three are secrets: disclosure reduction, NOT access control
+#
+# Read this before changing anything below, because the obvious reading is the
+# wrong one.
+#
+# A provider resource name, a service-account email, and a bucket name are
+# public identifiers. Knowing them grants nothing. **The Workload Identity
+# binding on Google's side is the access control, and it is the only one.** A
+# reader who learns the project id cannot use it.
+#
+# They are secrets, and this action masks their components, for a narrower
+# reason: two of the three carry the deployment's GCP project identity in their
+# own text — the service-account email *is* the project id
+# (`navigator-app-publisher@<project>.iam.gserviceaccount.com`) and the provider
+# resource *is* the project number (`projects/<number>/locations/global/...`) —
+# and the bucket name is `<deployment>-applications`, so it names the deployment.
+# The Project repositories consuming this action are public and so are their
+# Actions logs. GitHub redacts secrets from logs and does not redact variables,
+# so passing these as variables published a map of the organization's GCP
+# topology beside every build. There is no benefit to that, so it stopped.
+#
+# **Nothing here is load-bearing for security, and it must not be treated as
+# though it were.** If a future change needs to widen or narrow real access,
+# that is the WIF binding and the publisher's IAM role — see
+# `cli/src/devx/gcp/app_publisher.rs`. Do not weaken that binding believing the
+# masking below compensates for it. It does not; it only keeps identifiers out
+# of a public log.
 #
 # Consuming repository, in full (the thin caller lives in the Project repo, not
 # here):
@@ -43,9 +68,9 @@ description: >-
 #           project_repository: true              # the one gate: source-only, no legal files, mounted
 #       - uses: neon-law-foundation/navigator/.github/actions/application-publish@YY.M.D
 #         with:
-#           applications_bucket: ${{ vars.NAVIGATOR_APPLICATIONS_BUCKET }}
-#           workload_identity_provider: ${{ vars.NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER }}
-#           service_account: ${{ vars.NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT }}
+#           applications_bucket: ${{ secrets.NAVIGATOR_APPLICATIONS_BUCKET }}
+#           workload_identity_provider: ${{ secrets.NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER }}
+#           service_account: ${{ secrets.NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT }}
 #
 # ## The issuer
 #
@@ -67,22 +92,28 @@ inputs:
   applications_bucket:
     description: >-
       The deployment's private applications bucket, e.g. `neon-law-applications`.
-      Objects land FLAT under `<code>/portal/`. Passed from the GHE repository
-      variable `NAVIGATOR_APPLICATIONS_BUCKET`; never composed here, because the
-      bucket is the one coordinate that differs between deployments.
+      Objects land FLAT under `<code>/portal/`. Passed from the repository secret
+      `NAVIGATOR_APPLICATIONS_BUCKET`; never composed here, because the bucket is
+      the one coordinate that differs between deployments. A secret rather than a
+      variable because the name is `<deployment>-applications`, so it names the
+      deployment in a public log — disclosure only, see the header.
     required: true
   workload_identity_provider:
     description: >-
       The full `ghe-oidc` Workload Identity provider resource, e.g.
       `projects/<n>/locations/global/workloadIdentityPools/<pool>/providers/ghe-oidc`.
-      Passed from `NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER`. It encodes the trusted
-      issuer `https://token.actions.githubusercontent.com`.
+      Passed from the repository secret `NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER`. It
+      encodes the trusted issuer `https://token.actions.githubusercontent.com`. A
+      secret rather than a variable because `<n>` is the deployment's GCP project
+      number — disclosure only; the binding this resource names is the actual gate.
     required: true
   service_account:
     description: >-
       The publisher identity to impersonate, `navigator-app-publisher@<project>.iam.gserviceaccount.com`.
-      Passed from `NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT`. It is bound to write
-      the applications bucket and nothing else.
+      Passed from the repository secret `NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT`.
+      It is bound to write the applications bucket and nothing else. A secret
+      rather than a variable because the email *is* the GCP project id —
+      disclosure only, see the header.
     required: true
   repository:
     description: >-
@@ -101,6 +132,64 @@ inputs:
 runs:
   using: composite
   steps:
+    # FIRST, before anything can print. Disclosure reduction only — see the
+    # header; this is not the access control and must not be mistaken for it.
+    #
+    # Passing the three coordinates as secrets gets GitHub to redact those three
+    # exact strings. It does NOT redact the identifiers *inside* them, because
+    # redaction matches exact substrings of a registered secret and not the other
+    # way round: `gcloud` prints the bare project id and project number on their
+    # own (the configured project, an error message, a resource URL), and neither
+    # is the whole of any registered secret. So the components are registered
+    # here too, decomposed from the inputs.
+    #
+    # The bucket is registered as well. It is already a secret, so this is
+    # belt-and-braces — but the migration of the three coordinates from
+    # repository variables to repository secrets happens in each calling
+    # repository's settings, not here, and until a given repository has been
+    # migrated its bucket still arrives as an unredacted variable. This step
+    # covers that window and costs nothing after it closes.
+    #
+    # `::add-mask::` on an empty string is an error, and a too-short value would
+    # redact unrelated text, so each is guarded. A value that cannot be
+    # decomposed is skipped rather than failing the publish: masking is
+    # best-effort by nature, and refusing to publish because a coordinate had an
+    # unexpected shape would trade a real capability for a cosmetic one.
+    - name: mask the deployment coordinates in this job's log
+      shell: bash
+      env:
+        BUCKET: ${{ inputs.applications_bucket }}
+        WIF_PROVIDER: ${{ inputs.workload_identity_provider }}
+        SERVICE_ACCOUNT: ${{ inputs.service_account }}
+      run: |
+        set -euo pipefail
+
+        mask() {
+            # 6 is short enough to admit a terse project id and long enough that
+            # no realistic value collides with ordinary log prose.
+            if [ -n "${1:-}" ] && [ "${#1}" -ge 6 ]; then
+                echo "::add-mask::$1"
+            fi
+        }
+
+        # `navigator-app-publisher@<project-id>.iam.gserviceaccount.com`
+        # — cli/src/devx/gcp/app_publisher.rs composes it, so the id is exactly
+        # the text between the `@` and the fixed suffix.
+        project_id="${SERVICE_ACCOUNT#*@}"
+        project_id="${project_id%%.iam.gserviceaccount.com}"
+        mask "${project_id}"
+
+        # `projects/<project-number>/locations/global/workloadIdentityPools/...`
+        project_number="${WIF_PROVIDER#projects/}"
+        project_number="${project_number%%/*}"
+        mask "${project_number}"
+
+        mask "${BUCKET}"
+
+        # Deliberately no confirmation of *what* was masked: echoing the count is
+        # harmless, echoing the values would defeat the step.
+        echo "registered log masks for the deployment coordinates"
+
     # The same coordinate the validate gate derives: the repository name is the
     # Project code, and the mount is that name plus the literal `portal`. This
     # action re-derives it rather than reading a manifest, so the object prefix
@@ -201,12 +290,25 @@ runs:
     #
     # Pass 1 — everything except index.html, so that by the time any HTML naming
     # a new hashed filename is readable, that file already exists.
+    #
+    # ## Why the two quieting levers, and why both
+    #
+    # `gcloud storage cp` narrates itself object by object — `Copying
+    # file://... to gs://<bucket>/<prefix>/...` — so the bucket name reaches the
+    # log once per file even though nothing in this action echoes it.
+    # `CLOUDSDK_CORE_VERBOSITY=error` drops gcloud's informational output
+    # wherever it originates, including from libraries this action does not call
+    # directly; `--no-user-output-enabled` suppresses the progress narration on
+    # the specific command. Neither subsumes the other, and both leave failures
+    # intact: errors print at `error` verbosity, and `set -euo pipefail` still
+    # fails the step on a non-zero exit, so a broken publish is as loud as before.
     - name: publish assets (everything but index.html)
       shell: bash
       env:
         BUCKET: ${{ inputs.applications_bucket }}
         PREFIX: ${{ steps.coord.outputs.prefix }}
         DIST_DIR: ${{ inputs.dist_dir }}
+        CLOUDSDK_CORE_VERBOSITY: error
       run: |
         set -euo pipefail
 
@@ -231,7 +333,8 @@ runs:
             exit 1
         fi
 
-        gcloud storage cp --recursive "${entries[@]}" "gs://${BUCKET}/${PREFIX}/"
+        gcloud storage cp --no-user-output-enabled --recursive "${entries[@]}" "gs://${BUCKET}/${PREFIX}/"
+        echo "published ${#entries[@]} entries from ${DIST_DIR} → <bucket>/${PREFIX}/"
 
     # Pass 2 — index.html LAST, once every asset it names is already in place.
     - name: publish index.html last
@@ -240,13 +343,20 @@ runs:
         BUCKET: ${{ inputs.applications_bucket }}
         PREFIX: ${{ steps.coord.outputs.prefix }}
         DIST_DIR: ${{ inputs.dist_dir }}
+        CLOUDSDK_CORE_VERBOSITY: error
       run: |
         set -euo pipefail
-        gcloud storage cp "${DIST_DIR}/index.html" "gs://${BUCKET}/${PREFIX}/index.html"
+        gcloud storage cp --no-user-output-enabled "${DIST_DIR}/index.html" "gs://${BUCKET}/${PREFIX}/index.html"
 
     # Stamp the entry point with the provenance of the publish, so an operator
     # reading the served object knows the commit and moment it came from. gcloud
     # stores each as GCS custom metadata, surfaced as `x-goog-meta-<key>`.
+    #
+    # The metadata written is unchanged; only the reporting is quieter. The
+    # closing line prints the literal `<bucket>` rather than the value, the same
+    # shape the derive step above uses, so the provenance an operator actually
+    # needs — commit and build time — survives without the deployment's bucket
+    # name travelling with it into a public log.
     - name: stamp index.html with build provenance
       shell: bash
       env:
@@ -257,9 +367,10 @@ runs:
         REF: ${{ github.ref }}
         RUN_ID: ${{ github.run_id }}
         RUN_ATTEMPT: ${{ github.run_attempt }}
+        CLOUDSDK_CORE_VERBOSITY: error
       run: |
         set -euo pipefail
         build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        gcloud storage objects update "gs://${BUCKET}/${PREFIX}/index.html" \
+        gcloud storage objects update --no-user-output-enabled "gs://${BUCKET}/${PREFIX}/index.html" \
             --custom-metadata="commit=${COMMIT},build-time=${build_time},repository=${REPO_FULL},ref=${REF},run-id=${RUN_ID},run-attempt=${RUN_ATTEMPT}"
-        echo "stamped gs://${BUCKET}/${PREFIX}/index.html · commit ${COMMIT} · ${build_time}"
+        echo "stamped <bucket>/${PREFIX}/index.html · commit ${COMMIT} · ${build_time}"
