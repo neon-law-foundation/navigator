@@ -87,6 +87,7 @@ pub use billing::xero_auth;
 pub mod admin_contract_reviews;
 pub mod admin_playbooks;
 pub mod canonical_host;
+pub mod chatwoot;
 pub mod clauses;
 pub mod cli_auth;
 pub mod config;
@@ -251,7 +252,7 @@ fn asset_csp_origin() -> Option<String> {
 /// Pure core of [`asset_csp_origin`], split out so tests exercise
 /// every base form without stomping the process-wide env var (which
 /// would race the parallel test runner).
-fn csp_asset_origin_from(base: &str) -> Option<String> {
+pub(crate) fn csp_asset_origin_from(base: &str) -> Option<String> {
     let base = base.trim();
     let (scheme, rest) = base
         .strip_prefix("https://")
