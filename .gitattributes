@@ -1,0 +1,40 @@
+# Line endings are part of this repository's compiled output, not a local
+# preference. Seven `include_dir!` trees and ~95 `include_str!`/`include_bytes!`
+# targets are read from the working tree at compile time, so whatever line
+# endings a checkout has are baked into every binary built from it. Git for
+# Windows defaults to `core.autocrlf=true`, which without this file materialises
+# all 1250 tracked text files as CRLF and compiles that into the artifact.
+#
+# The index is already uniformly LF, so this file changes no committed bytes; it
+# pins what a checkout materialises. It is also why the `strip_prefix("---\n")`
+# family of frontmatter parsers keeps being found one at a time — the parsers
+# stay CRLF-tolerant for foreign trees, but this repo's own bytes are ours to
+# pin.
+* text=auto eol=lf
+
+# Reproduced third-party licence text, verbatim. 1752 of its line endings are
+# CRLF because the upstream licence files they came from are CRLF, and
+# `navigator ops notices --check` compares the committed file to freshly
+# rendered upstream text byte-for-byte (`cli/src/notices.rs:376`, `current ==
+# rendered`). Normalising it would both break that required check and alter
+# licence text we reproduce rather than author.
+THIRD-PARTY-NOTICES.txt -text
+
+# Binary assets. Git already auto-detects these; naming them keeps a future
+# mostly-text asset from being normalised on the strength of that guess.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.ttf   binary
+*.woff  binary
+*.woff2 binary
+*.pdf   binary
+*.ico   binary
+
+# This one is named explicitly, not left to `*.pdf` above. Its 621 bytes
+# contain no NUL, so Git's auto-detection calls it text and `core.autocrlf`
+# injects 36 CRs on checkout, shifting every offset past the first newline
+# while its `startxref 438` still points at the old one -- a structurally
+# invalid PDF in the working tree. Naming it keeps that repair from being
+# undone by a future narrowing of the glob.
+store/seeds/dev/initial-case-assessment.pdf binary
