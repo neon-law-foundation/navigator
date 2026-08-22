@@ -69,7 +69,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use include_dir::{include_dir, Dir};
 use tempfile::TempDir;
 
@@ -1450,15 +1450,11 @@ fn roll(
     // 1. Pre-flight — confirm the prod context resolves before any call.
     verify_context(cfg, dry_run)?;
 
-    // 1b. Re-assert the web GSA's self-signing IAM. Independent of the
-    //     image tag, and idempotent, so it belongs before any rollout:
-    //     document downloads issue GCS signed URLs, which the pod can only
-    //     mint if its GSA holds serviceAccountTokenCreator on itself.
-    ensure_web_signing_iam(cfg, dry_run)?;
-
-    // 2. The immutable release tag to roll — always an explicit `--tag`, so the
-    //    operator names the exact published release rather than letting the
-    //    roll guess. Present service deployments get the SAME tag.
+    // 1b. The immutable release tag to roll — always an explicit `--tag`, so
+    //     the operator names the exact published release rather than letting
+    //     the roll guess. A malformed tag is knowable without reaching GCP at
+    //     all, so it is settled before the IAM check below: otherwise a typo
+    //     reports an IAM failure. Present service deployments get the SAME tag.
     let Some(tag) = opts.tag.as_deref() else {
         bail!(
             "`--tag <YY.M.D|YY.M.D-hotfix.N>` is required: name the published release to roll onto. \
@@ -1468,6 +1464,15 @@ fn roll(
     };
     registry::validate_release_tag(tag)?;
     let tag = tag.to_string();
+
+    // 1c. Assert the web GSA's self-signing IAM. Independent of the image tag,
+    //     so it belongs before any rollout: document downloads issue GCS
+    //     signed URLs, which the pod can only mint if its GSA holds
+    //     serviceAccountTokenCreator on itself. Verify-then-assert, so the
+    //     steady state is a read — see `ensure_web_signing_iam`.
+    ensure_web_signing_iam(cfg, dry_run)?;
+
+    // 2. Name the images this tag resolves to.
     let web_remote = cfg.web_image(&tag);
     let workflows_remote = cfg.workflows_image(&tag);
     eprintln!(
@@ -2581,6 +2586,24 @@ fn web_gsa_email(project_id: &str, account_id: &str) -> String {
     format!("{account_id}@{project_id}.iam.gserviceaccount.com")
 }
 
+/// The role that carries `iam.serviceAccounts.signBlob` on a service account.
+const SELF_SIGNING_ROLE: &str = "roles/iam.serviceAccountTokenCreator";
+
+/// The `gcloud` argv that reads the web GSA's own IAM policy. This is the
+/// steady-state call: it needs only `iam.serviceAccounts.getIamPolicy`, where
+/// the binding write below also needs `setIamPolicy`. Factored out pure so it
+/// is unit-testable without shelling out.
+fn web_signing_iam_read_args(project_id: &str, account_id: &str) -> Vec<String> {
+    vec![
+        "iam".into(),
+        "service-accounts".into(),
+        "get-iam-policy".into(),
+        web_gsa_email(project_id, account_id),
+        format!("--project={project_id}"),
+        "--format=json".into(),
+    ]
+}
+
 /// The `gcloud` argv that lets the web GSA sign GCS URLs for itself.
 /// Factored out pure so it is unit-testable without shelling out.
 fn web_signing_iam_binding_args(project_id: &str, account_id: &str) -> Vec<String> {
@@ -2592,9 +2615,59 @@ fn web_signing_iam_binding_args(project_id: &str, account_id: &str) -> Vec<Strin
         gsa.clone(),
         format!("--project={project_id}"),
         "--role".into(),
-        "roles/iam.serviceAccountTokenCreator".into(),
+        SELF_SIGNING_ROLE.into(),
         format!("--member=serviceAccount:{gsa}"),
     ]
+}
+
+/// True when `policy` — a parsed `get-iam-policy` document — already grants
+/// `gsa` the token-creator role on itself.
+///
+/// A binding carrying a `condition` does not count. The pod signs on every
+/// document download, at an hour no expression here can predict, so a grant
+/// that only sometimes applies is not the invariant step 1c asserts; treating
+/// it as absent makes the roll write the unconditional binding instead of
+/// passing a check the runtime may fail.
+fn policy_grants_self_signing(policy: &serde_json::Value, gsa: &str) -> bool {
+    let member = format!("serviceAccount:{gsa}");
+    policy["bindings"].as_array().is_some_and(|bindings| {
+        bindings.iter().any(|binding| {
+            binding["role"].as_str() == Some(SELF_SIGNING_ROLE)
+                && binding.get("condition").is_none()
+                && binding["members"]
+                    .as_array()
+                    .is_some_and(|members| members.iter().any(|m| m.as_str() == Some(&member)))
+        })
+    })
+}
+
+/// The preflight error for a policy read that did not return an answer. The
+/// roll stops rather than guessing: an unverified binding is exactly the state
+/// that 500s every download. Names the permission, a role carrying it, and the
+/// resource, because the operator's next move is to request that grant.
+fn signing_iam_read_failed(gsa: &str, detail: &str) -> anyhow::Error {
+    anyhow!(
+        "cannot verify the GCS signing binding on {gsa}: reading its IAM policy failed. \
+         `ops ship` needs `iam.serviceAccounts.getIamPolicy` on that service account \
+         (carried by roles/iam.serviceAccountAdmin; roles/container.developer carries no \
+         iam.serviceAccounts.* permission at all). gcloud said: {detail}"
+    )
+}
+
+/// The preflight error for a binding that is genuinely missing and could not
+/// be written. Distinct from the read failure above: here we know the pod
+/// cannot sign, so there is nothing to roll onto until the grant lands.
+/// `args` is the write argv this roll just attempted, quoted verbatim so the
+/// operator can hand the exact command to someone who holds the permission.
+fn signing_iam_write_failed(gsa: &str, args: &[String], detail: &str) -> anyhow::Error {
+    anyhow!(
+        "{gsa} is missing {SELF_SIGNING_ROLE} on itself and the binding could not be written. \
+         Every document download would 500 on iam.serviceAccounts.signBlob, so the roll stops \
+         here. Writing it needs `iam.serviceAccounts.setIamPolicy` on that service account \
+         (carried by roles/iam.serviceAccountAdmin), or have someone holding it run: \
+         `gcloud {}`. gcloud said: {detail}",
+        args.join(" "),
+    )
 }
 
 /// Ensure the web GSA can mint V4 GCS signed URLs. Under Workload
@@ -2602,19 +2675,58 @@ fn web_signing_iam_binding_args(project_id: &str, account_id: &str) -> Vec<Strin
 /// document-download URL by calling IAM Credentials `signBlob` on its
 /// own service account — which requires `roles/iam.serviceAccountTokenCreator`
 /// on itself. Without it every `/…/documents/:doc_id/download` 500s with
-/// `iam.serviceAccounts.signBlob denied`. Idempotent: `add-iam-policy-binding`
-/// is a documented no-op when the binding already exists, so every roll
-/// re-asserts it and a re-provisioned GSA can't silently drop it.
+/// `iam.serviceAccounts.signBlob denied`.
+///
+/// Verify-then-assert, not assert. `ops gcp setup` already writes this exact
+/// binding, so on a provisioned row the steady state is "already bound" — and
+/// gcloud's `add-iam-policy-binding` sends `setIamPolicy` unconditionally even
+/// then, which would make every roll require a write permission it otherwise
+/// has no use for. Reading first drops the common case to `getIamPolicy`. The
+/// write still happens when the binding is genuinely absent: this invariant is
+/// never skippable, only cheaper to confirm.
 fn ensure_web_signing_iam(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
     let gsa = web_gsa_email(&cfg.project_id, &cfg.google_service_account_id);
-    eprintln!("==> ensuring {gsa} can sign GCS URLs (serviceAccountTokenCreator on itself)");
-    exec(
-        dry_run,
-        Command::new("gcloud").args(web_signing_iam_binding_args(
-            &cfg.project_id,
-            &cfg.google_service_account_id,
-        )),
-    )
+    let read_args = web_signing_iam_read_args(&cfg.project_id, &cfg.google_service_account_id);
+    eprintln!("==> verifying {gsa} can sign GCS URLs ({SELF_SIGNING_ROLE} on itself)");
+
+    if dry_run {
+        eprintln!("DRY-RUN $ gcloud {}", read_args.join(" "));
+        eprintln!("DRY-RUN: would bind only if that read shows the binding absent");
+        return Ok(());
+    }
+
+    let out = Command::new("gcloud")
+        .args(&read_args)
+        .output()
+        .with_context(|| format!("run gcloud get-iam-policy {gsa}"))?;
+    if !out.status.success() {
+        return Err(signing_iam_read_failed(
+            &gsa,
+            String::from_utf8_lossy(&out.stderr).trim(),
+        ));
+    }
+    let policy: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .with_context(|| format!("parse the IAM policy of {gsa}"))?;
+
+    if policy_grants_self_signing(&policy, &gsa) {
+        eprintln!("==> already bound; no IAM write");
+        return Ok(());
+    }
+
+    eprintln!("==> binding absent — granting {SELF_SIGNING_ROLE}");
+    let write_args = web_signing_iam_binding_args(&cfg.project_id, &cfg.google_service_account_id);
+    let out = Command::new("gcloud")
+        .args(&write_args)
+        .output()
+        .with_context(|| format!("run gcloud add-iam-policy-binding {gsa}"))?;
+    if !out.status.success() {
+        return Err(signing_iam_write_failed(
+            &gsa,
+            &write_args,
+            String::from_utf8_lossy(&out.stderr).trim(),
+        ));
+    }
+    Ok(())
 }
 
 /// Run a command, or — under `--dry-run` — print it instead.
@@ -5240,6 +5352,158 @@ spec:
         // The dry-run path prints the gcloud binding instead of shelling out,
         // so it exercises the whole step without touching IAM.
         ensure_web_signing_iam(&sample_config(), true).expect("dry-run binding must succeed");
+    }
+
+    /// A `get-iam-policy` document in the shape gcloud returns, granting
+    /// `role` to `member`.
+    fn policy_with(role: &str, member: &str) -> serde_json::Value {
+        serde_json::json!({
+            "bindings": [
+                { "role": "roles/iam.workloadIdentityUser",
+                  "members": ["serviceAccount:neon-law-stg.svc.id.goog[navigator/navigator-web]"] },
+                { "role": role, "members": [member] },
+            ],
+            "etag": "BwYb0000000=",
+            "version": 1,
+        })
+    }
+
+    #[test]
+    fn web_signing_iam_read_needs_only_get_iam_policy() {
+        // The steady-state call. It must be a READ on the GSA's own resource:
+        // that is what drops the operator credential from setIamPolicy to
+        // getIamPolicy on a row that is already bound.
+        let args = web_signing_iam_read_args("neon-law-stg", "neon-law-stg-web");
+
+        assert_eq!(
+            args[..3],
+            ["iam", "service-accounts", "get-iam-policy"],
+            "the verify half must read, not write: {args:?}"
+        );
+        assert!(
+            args.contains(&"neon-law-stg-web@neon-law-stg.iam.gserviceaccount.com".to_string()),
+            "the read must target the web GSA's own resource: {args:?}"
+        );
+        assert!(
+            args.contains(&"--project=neon-law-stg".to_string()),
+            "the read must be scoped to the deploy project: {args:?}"
+        );
+        assert!(
+            args.contains(&"--format=json".to_string()),
+            "the verdict is decided by parsing the policy, so it must be JSON: {args:?}"
+        );
+    }
+
+    #[test]
+    fn a_present_self_binding_needs_no_write() {
+        // The steady state on a provisioned row: `ops gcp setup` already wrote
+        // this binding, so the roll must recognise it and skip the setIamPolicy.
+        let gsa = "neon-law-stg-web@neon-law-stg.iam.gserviceaccount.com";
+        let policy = policy_with(
+            "roles/iam.serviceAccountTokenCreator",
+            &format!("serviceAccount:{gsa}"),
+        );
+
+        assert!(
+            policy_grants_self_signing(&policy, gsa),
+            "an unconditional self-binding is the no-write case"
+        );
+    }
+
+    #[test]
+    fn a_missing_self_binding_is_written() {
+        // Three ways the grant can be absent, each of which must fall through
+        // to the binding write rather than pass the verify.
+        let gsa = "neon-law-stg-web@neon-law-stg.iam.gserviceaccount.com";
+
+        let empty = serde_json::json!({ "etag": "BwYb0000000=" });
+        assert!(
+            !policy_grants_self_signing(&empty, gsa),
+            "a policy with no bindings at all grants nothing"
+        );
+
+        let other_member = policy_with(
+            "roles/iam.serviceAccountTokenCreator",
+            "serviceAccount:someone-else@neon-law-stg.iam.gserviceaccount.com",
+        );
+        assert!(
+            !policy_grants_self_signing(&other_member, gsa),
+            "token-creator held by another principal does not let the pod sign for itself"
+        );
+
+        let other_role = policy_with(
+            "roles/iam.serviceAccountUser",
+            &format!("serviceAccount:{gsa}"),
+        );
+        assert!(
+            !policy_grants_self_signing(&other_role, gsa),
+            "only serviceAccountTokenCreator carries signBlob"
+        );
+    }
+
+    #[test]
+    fn a_conditional_self_binding_does_not_satisfy_the_invariant() {
+        // The pod signs on every download, at an hour no condition here can be
+        // read to cover, so a conditional grant is treated as absent.
+        let gsa = "neon-law-stg-web@neon-law-stg.iam.gserviceaccount.com";
+        let policy = serde_json::json!({
+            "bindings": [{
+                "role": "roles/iam.serviceAccountTokenCreator",
+                "members": [format!("serviceAccount:{gsa}")],
+                "condition": {
+                    "title": "expires",
+                    "expression": "request.time < timestamp(\"2030-01-01T00:00:00Z\")",
+                },
+            }],
+        });
+
+        assert!(
+            !policy_grants_self_signing(&policy, gsa),
+            "a conditional grant is not the unconditional invariant the roll asserts"
+        );
+    }
+
+    #[test]
+    fn a_denied_read_names_the_permission_not_a_raw_gcloud_error() {
+        // The operator's next move is a grant request, so the message has to
+        // carry the permission, a role that holds it, and the resource — and
+        // must say we could not VERIFY, not that the binding is missing.
+        let gsa = "neon-law-stg-web@neon-law-stg.iam.gserviceaccount.com";
+        let text = signing_iam_read_failed(
+            gsa,
+            "ERROR: (gcloud.iam.service-accounts.get-iam-policy) PERMISSION_DENIED",
+        )
+        .to_string();
+
+        assert!(text.contains("cannot verify"), "{text}");
+        assert!(text.contains("iam.serviceAccounts.getIamPolicy"), "{text}");
+        assert!(text.contains("roles/iam.serviceAccountAdmin"), "{text}");
+        assert!(text.contains(gsa), "{text}");
+        assert!(
+            !text.contains("is missing"),
+            "an unreadable policy is not a known-absent binding: {text}"
+        );
+    }
+
+    #[test]
+    fn a_denied_write_says_the_binding_is_missing_and_quotes_the_hand_off() {
+        // The other half of the distinction: here we know the pod cannot sign.
+        let gsa = "neon-law-stg-web@neon-law-stg.iam.gserviceaccount.com";
+        let text = signing_iam_write_failed(
+            gsa,
+            &web_signing_iam_binding_args("neon-law-stg", "neon-law-stg-web"),
+            "ERROR: (gcloud.iam.service-accounts.add-iam-policy-binding) PERMISSION_DENIED",
+        )
+        .to_string();
+
+        assert!(text.contains("is missing"), "{text}");
+        assert!(text.contains("iam.serviceAccounts.setIamPolicy"), "{text}");
+        assert!(text.contains("roles/iam.serviceAccountAdmin"), "{text}");
+        assert!(text.contains("signBlob"), "{text}");
+        assert!(
+            text.contains(&format!("add-iam-policy-binding {gsa}")),
+            "the message must quote the command to hand off: {text}"
+        );
     }
 
     /// A `SecretProviderClass` with the shape the real manifest uses: two
