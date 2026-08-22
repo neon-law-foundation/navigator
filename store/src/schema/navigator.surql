@@ -409,6 +409,15 @@ DEFINE INDEX OVERWRITE entity_firm_anchor ON entity FIELDS firm_anchor_key UNIQU
 -- `ErrorDetails::AlreadyExists` — a typed detail, which is what
 -- `store::entities::classify_write` matches on rather than prose.
 --
+-- "Refuses all but one" is true in the steady state and NOT absolute.
+-- ENG-312 measured two concurrent `CREATE`s of this same record id both
+-- reporting success while this table is still **empty** — about one
+-- double-commit per 160,000 eight-way raced creates, on both the embedded
+-- and the server engine, with no retry involved. Once any claim row
+-- exists, 480,000 raced creates produced no fork. The exposure is
+-- therefore the first mint on a fresh database, not ongoing operation.
+-- Do not read the paragraph above as a guarantee the engine gives.
+--
 -- The index stays as the backstop for a fork that is not a race.
 DEFINE TABLE IF NOT EXISTS firm_anchor SCHEMAFULL PERMISSIONS NONE;
 DEFINE FIELD OVERWRITE entity_id ON firm_anchor TYPE record<entity>;

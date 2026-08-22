@@ -153,14 +153,27 @@ async fn concurrent_creates_land_exactly_one_anchor() {
         }
 
         let (mut created, mut refused) = (0, 0);
+        // ENG-312: which rows won, so a fork can be correlated with the
+        // `NAV_ANCHOR_TRACE` lines naming the branch each racer took.
+        let mut minted = Vec::new();
         while let Some(outcome) = tasks.join_next().await {
             match outcome.expect("a racer must not panic") {
-                Ok(_) => created += 1,
+                Ok(entity) => {
+                    created += 1;
+                    minted.push(entity.id);
+                }
                 Err(EntityError::FirmAnchorTaken) => refused += 1,
                 Err(other) => panic!("round {round}: a racer failed unrecognisably: {other}"),
             }
         }
 
+        if created != 1 {
+            eprintln!("ANCHOR FORK round={round} minted={minted:?}");
+            eprintln!(
+                "ANCHOR FORK round={round} claim_holder={:?}",
+                entities::firm_anchor_holder(&db, key).await,
+            );
+        }
         assert_eq!(created, 1, "round {round}: exactly one racer may mint");
         assert_eq!(refused, RACERS - 1, "round {round}: the rest are refused");
         assert_eq!(
