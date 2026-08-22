@@ -622,11 +622,13 @@ never resolves an asset the running `index.html` has not published yet. The 30-d
 [lifecycle](#network-and-five-buckets) reaches only assets a later build orphaned, because every publish rewrites the
 live set unconditionally.
 
-The publisher is a per-deployment `navigator-app-publisher` service account with `objectCreator` on this one bucket,
-reached by keyless Workload Identity from the Project repository alone — no key leaves GCP, and a sibling Project's repo
-cannot publish over this one. Serving is the mirror of that trust: `web` holds `objectAdmin` on the bucket but streams
-the bytes itself rather than handing out a signed URL, so a bundle's own `/app/api` reads carry the same session cookie
-and stay inside the participation gate.
+The publisher is a per-deployment `navigator-app-publisher` service account reached by keyless Workload Identity, so no
+key leaves GCP. It holds a custom role carrying exactly `storage.objects.create`, `storage.objects.get` and
+`storage.objects.update` — `objectCreator` is create-only and refuses every republish. The applications bucket is shared
+across Projects, so the bucket is not the boundary: that grant carries an IAM condition naming this Project's own
+`acme/portal/` prefix, and it is the condition that stops a sibling Project's repo publishing over this one. Serving is
+the mirror of that trust: `web` holds `objectAdmin` on the bucket but streams the bytes itself rather than handing out a
+signed URL, so a bundle's own `/app/api` reads carry the same session cookie and stay inside the participation gate.
 
 ### One matter's document never backs another matter's
 
