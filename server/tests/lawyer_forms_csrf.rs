@@ -63,7 +63,9 @@ async fn lawyer_form_pages_render_the_session_csrf_token() {
     // the hidden `_csrf` field carrying the session token.
     let form_pages = [
         "/lawyer/entities/new",
-        "/lawyer/people/new",
+        // The people create form is the admin console's since ENG-304; the
+        // session above is an admin one, so it renders here.
+        "/admin/people/new",
         "/app/projects/new",
         "/lawyer/playbooks/new",
     ];

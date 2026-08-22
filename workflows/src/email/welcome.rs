@@ -2,7 +2,7 @@
 //!
 //! Three consumers today: the OAuth callback fires a welcome on a
 //! brand-new `persons` insert (via the workflow worker), the
-//! `/lawyer/people` "Send welcome" button re-fires it on demand (direct
+//! `/admin/person/{id}` "Send welcome" button re-fires it on demand (direct
 //! send from `web`), and the `workflows-service` worker dispatches
 //! `email_send__welcome` steps in any workflow. Keeping the template +
 //! render in one module means a change to the copy (or the subject)

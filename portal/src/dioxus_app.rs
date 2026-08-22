@@ -61,11 +61,6 @@ use dioxus_server::{render_handler, DioxusRouterExt, FullstackState, ServeConfig
 /// The single low-risk page Phase 0 renders through Dioxus.
 pub const DIOXUS_DEMO_PATH: &str = "/dioxus-demo";
 
-/// The lawyer people directory — the first real page rendered through Dioxus
-/// (#355 Tranche 1). Kept at its existing path so the embedded Rego policy (keyed on the
-/// request path) continues to gate it to lawyer/admin.
-pub const LAWYER_PEOPLE_PATH: &str = "/lawyer/people";
-
 /// The lawyer entity-types directory — the first admin list page migrated to
 /// Dioxus (#641 Phase 3). Kept at its existing path so the embedded Rego policy (keyed on
 /// the request path) continues to gate it to lawyer/admin.
@@ -333,7 +328,8 @@ fn csp_with_nonce(nonce: &str, asset_origin: Option<String>) -> String {
 /// Reject a `?sort=` that targets a field the people page does not advertise,
 /// returning `400` before the Dioxus render runs — preserving the JSON:API
 /// `SortSpec::validated` contract (the people page advertises `name` and
-/// `email`). Layered onto the `/lawyer/people` Dioxus route by [`people_router`].
+/// `email`). Layered onto the `/admin/people` Dioxus route by
+/// [`admin_people_router`].
 async fn reject_unadvertised_sort(request: Request, next: Next) -> Response {
     use std::collections::{HashMap, HashSet};
 
@@ -351,10 +347,9 @@ async fn reject_unadvertised_sort(request: Request, next: Next) -> Response {
 
 /// Derive the viewer's tier from the request session (inserted by
 /// [`crate::policy::require_policy`], which this layer sits inside) and stash it
-/// in the request extensions for `webapp`'s `list_people` server function, so
-/// the server-rendered page shows the same role-appropriate lawyer nav chrome
-/// the `/lawyer/people` page carried. Absent a session it defaults to the
-/// least-privileged tier.
+/// in the request extensions for a page's `#[server]` function, so the
+/// server-rendered page shows the same role-appropriate nav chrome the native
+/// route carried. Absent a session it defaults to the least-privileged tier.
 async fn inject_viewer_role(mut req: Request, next: Next) -> Response {
     let role = req
         .extensions()
@@ -519,47 +514,6 @@ fn viewer_role(role: store::persons::Role) -> webapp::people::ViewerRole {
         Role::Clerk => webapp::people::ViewerRole::Clerk,
         Role::Client => webapp::people::ViewerRole::Client,
     }
-}
-
-/// The gated Dioxus lawyer people directory (#355 Tranche 1). Mounted
-/// unconditionally — a real page must render server-side even when no client
-/// bundle is present (hydration is the only part that needs it) — with the same
-/// authentication + embedded Rego policy gate the `/lawyer/people` route carried, so
-/// only lawyer/admin reach it. The database handle is injected into the render
-/// context for the `list_people` server function; the sort pre-handler enforces
-/// the 400 contract; and the per-response nonce CSP allows hydration.
-pub fn people_router(
-    surreal: store::surreal::SurrealDb,
-    sessions: crate::session::SessionStore,
-    policy: crate::policy::PolicyClient,
-    auth: crate::auth::AuthConfig,
-) -> Router {
-    let cfg = ServeConfig::new().context_providers(std::sync::Arc::new(vec![
-        // A server fn can only reach what this list provides — a route
-        // that renders a person and forgets it 500s at `consume_context`,
-        // not at build.
-        Box::new(move || Box::new(surreal.clone()) as Box<dyn std::any::Any>)
-            as Box<dyn Fn() -> Box<dyn std::any::Any> + Send + Sync>,
-    ]));
-
-    Router::<FullstackState>::new()
-        .route(
-            LAWYER_PEOPLE_PATH,
-            get(render_handler)
-                .layer(from_fn(inject_viewer_role))
-                .layer(from_fn(inject_app_brand_mark))
-                .layer(from_fn(dioxus_document_head))
-                .layer(from_fn(reject_unadvertised_sort)),
-        )
-        .with_state(FullstackState::new(cfg, webapp::people::LawyerPeople))
-        // Same gate the admin router applies (auth resolves the session, then
-        // embedded Rego policy checks `input.session.role` for the `/lawyer/*` path). `route_layer`
-        // order mirrors `portal::admin`: policy inner, auth outer.
-        .route_layer(from_fn_with_state(
-            (sessions, policy),
-            crate::policy::require_policy,
-        ))
-        .route_layer(from_fn_with_state(auth, crate::auth::require_auth))
 }
 
 /// The matter list. One path for every tier; the page picks the firm or client
@@ -1772,10 +1726,6 @@ pub const LAWYER_ENTITY_NEW_PATH: &str = "/lawyer/entities/new";
 /// form; embedded Rego policy (default-deny + admin-bypass) gates `/admin/*` to admin, and the
 /// page's `#[server]` function re-checks the admin role.
 pub const ADMIN_PEOPLE_NEW_PATH: &str = "/admin/people/new";
-/// The lawyer mirror "add person" form path (#641 Phase 3) — the de-scoped
-/// sibling of [`ADMIN_PEOPLE_NEW_PATH`] (role select locked for a non-admin
-/// caller). It posts to the native `POST /lawyer/people` create handler.
-pub const LAWYER_PEOPLE_NEW_PATH: &str = "/lawyer/people/new";
 /// The admin console person show/edit page path (#641 Phase 3) — a CRUD edit
 /// form keyed by the person `{id}`, with a `/edit` alias (see
 /// [`ADMIN_PERSON_EDIT_PATH`]). Both render the same component; it posts to the
@@ -1890,48 +1840,6 @@ pub fn admin_person_show_router(
     .merge(csrf_page_router(
         ADMIN_PERSON_EDIT_PATH,
         webapp::person_show::AdminPersonShow,
-        surreal,
-        sessions,
-        policy,
-        auth,
-    ))
-    .layer(axum::Extension(webapp::person_show::BootstrapOwnerEmail(
-        bootstrap_owner_email,
-    )))
-}
-
-/// The lawyer mirror person show/edit page path (#641 Phase 3) — the de-scoped
-/// sibling of [`ADMIN_PERSON_PATH`] (no impersonation, roles locked), keyed by
-/// the person `{id}` with a `/edit` alias. It posts to the native
-/// `POST /lawyer/people/{id}` update route.
-pub const LAWYER_PERSON_PATH: &str = "/lawyer/people/{id}";
-/// The `/edit` alias of [`LAWYER_PERSON_PATH`].
-pub const LAWYER_PERSON_EDIT_PATH: &str = "/lawyer/people/{id}/edit";
-
-/// Build the gated Dioxus router for the lawyer mirror person show/edit page
-/// (#641 Phase 3) — the lawyer sibling of [`admin_person_show_router`]. Same two
-/// `csrf_page_router` mounts (`/lawyer/people/{id}` + its `/edit` alias) and the
-/// injected bootstrap-Owner email; `POST /lawyer/people/{id}` (update) and
-/// `.../welcome` stay on the lawyer router, and axum merges the same-path
-/// methods. The lawyer surface offers no impersonate action.
-pub fn lawyer_person_show_router(
-    bootstrap_owner_email: Option<String>,
-    surreal: store::surreal::SurrealDb,
-    sessions: crate::session::SessionStore,
-    policy: crate::policy::PolicyClient,
-    auth: crate::auth::AuthConfig,
-) -> Router {
-    csrf_page_router(
-        LAWYER_PERSON_PATH,
-        webapp::person_show::LawyerPersonShow,
-        surreal.clone(),
-        sessions.clone(),
-        policy.clone(),
-        auth.clone(),
-    )
-    .merge(csrf_page_router(
-        LAWYER_PERSON_EDIT_PATH,
-        webapp::person_show::LawyerPersonShow,
         surreal,
         sessions,
         policy,
@@ -3511,7 +3419,7 @@ mod tests {
 
     fn guarded_router() -> Router {
         Router::new()
-            .route("/lawyer/people", get(|| async { "ok" }))
+            .route("/admin/people", get(|| async { "ok" }))
             .layer(from_fn(reject_unadvertised_sort))
     }
 
@@ -3520,7 +3428,7 @@ mod tests {
         let response = guarded_router()
             .oneshot(
                 Request::builder()
-                    .uri("/lawyer/people?sort=ssn")
+                    .uri("/admin/people?sort=ssn")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -3532,9 +3440,9 @@ mod tests {
     #[tokio::test]
     async fn allows_an_advertised_sort_field() {
         for uri in [
-            "/lawyer/people?sort=name",
-            "/lawyer/people?sort=-email",
-            "/lawyer/people",
+            "/admin/people?sort=name",
+            "/admin/people?sort=-email",
+            "/admin/people",
         ] {
             let response = guarded_router()
                 .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())

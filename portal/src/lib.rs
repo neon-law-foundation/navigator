@@ -1170,15 +1170,6 @@ pub fn bootstrap(
 
     let visitor_analytics_state =
         visitor_analytics::VisitorAnalyticsState::new(state.surreal.clone());
-    // #355 Tranche 1 (#641): the lawyer people directory renders through Dioxus.
-    // Captured before `state` is consumed by `.with_state`; the sub-router
-    // carries its own auth + embedded Rego policy gate (see `dioxus_app::people_router`).
-    let dioxus_people = dioxus_app::people_router(
-        state.surreal.clone(),
-        state.sessions.clone(),
-        state.policy.clone(),
-        state.auth.clone(),
-    );
     // #641 Phase 3 (admin cluster): the lawyer entity-types directory renders
     // through Dioxus, replacing the read view. Same auth + embedded Rego policy gate.
     let dioxus_entity_types = dioxus_app::entity_types_router(
@@ -1434,18 +1425,6 @@ pub fn bootstrap(
         state.policy.clone(),
         state.auth.clone(),
     );
-    // #641 Phase 3 (admin cluster): the lawyer mirror "add person" form renders
-    // through Dioxus at /lawyer/people/new (role select locked for a non-admin
-    // caller). It posts to the native `POST /lawyer/people` create handler; axum
-    // merges that with the Dioxus list GET on /lawyer/people.
-    let dioxus_lawyer_people_new = dioxus_app::csrf_page_router(
-        dioxus_app::LAWYER_PEOPLE_NEW_PATH,
-        webapp::admin_people_new::LawyerPeopleNew,
-        state.surreal.clone(),
-        state.sessions.clone(),
-        state.policy.clone(),
-        state.auth.clone(),
-    );
     // #641 Phase 3 (admin cluster): the admin console person show/edit page
     // renders through Dioxus — the prefilled edit form (name/email/role + the
     // read-only legal-name parts) plus the welcome/impersonate actions, mounted
@@ -1453,18 +1432,6 @@ pub fn bootstrap(
     // welcome, and impersonate actions post to the admin router; axum merges
     // the same-path methods.
     let dioxus_admin_person_show = dioxus_app::admin_person_show_router(
-        state.bootstrap_owner_email.clone(),
-        state.surreal.clone(),
-        state.sessions.clone(),
-        state.policy.clone(),
-        state.auth.clone(),
-    );
-    // #641 Phase 3 (admin cluster): the lawyer mirror person show/edit page
-    // (/lawyer/people/{id} + /edit) renders through Dioxus — the de-scoped sibling
-    // of the admin page (no impersonation, roles locked). Its native-form update
-    // and welcome actions post to the lawyer router; axum merges the same-path
-    // methods.
-    let dioxus_lawyer_person_show = dioxus_app::lawyer_person_show_router(
         state.bootstrap_owner_email.clone(),
         state.surreal.clone(),
         state.sessions.clone(),
@@ -1623,12 +1590,10 @@ pub fn bootstrap(
             &boundary_auth,
         ));
     }
-    // The lawyer people directory (#355 Tranche 1) renders through Dioxus at
-    // `/lawyer/people`, replacing the read view — mounted unconditionally so
-    // it server-side renders even without a client bundle, and gated to
-    // lawyer/admin by its own auth + embedded Rego policy layers.
+    // Each of these renders through Dioxus and is mounted unconditionally so it
+    // server-side renders even without a client bundle, gated by its own auth +
+    // embedded Rego policy layers.
     for dioxus_router in [
-        dioxus_people,
         // The lawyer entity-types directory (#641 Phase 3) renders through
         // Dioxus at `/lawyer/entity-types`, replacing the read view.
         dioxus_entity_types,
@@ -1696,9 +1661,7 @@ pub fn bootstrap(
         // `/lawyer/notations/{id}/reask`.
         dioxus_reask,
         dioxus_admin_people_new,
-        dioxus_lawyer_people_new,
         dioxus_admin_person_show,
-        dioxus_lawyer_person_show,
         // The supervised Clerk surface (#956 Phase 4) renders through Dioxus at
         // The per-notation clause editor (#956 Phase 4) renders through Dioxus
         // at `/lawyer/notations/{id}/clauses`.

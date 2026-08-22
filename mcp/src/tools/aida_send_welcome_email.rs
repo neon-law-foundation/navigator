@@ -2,7 +2,7 @@
 //!
 //! Re-fires the firm's welcome email at an existing person — the same
 //! "Welcome to Neon Law" message the OAuth callback sends on a
-//! brand-new signup and the `/lawyer/people` "Send welcome"
+//! brand-new signup and the `/admin/person/{id}` "Send welcome"
 //! button sends on demand. All three share one template + render path
 //! ([`workflows::email::welcome`]); this tool is the MCP/A2A door onto
 //! it.

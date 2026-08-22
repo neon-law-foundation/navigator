@@ -1626,7 +1626,7 @@ a.nav-pagination__link:hover {
 /* Page container: the lawyer/admin/portal pages render a single <main>. Give it
  * the same comfortable measure and padding the PageLayout provided. */
 main.nav-theme,
-main#lawyer-people,
+main#admin-people,
 main#admin-listing,
 main#person-show,
 main#people-new,

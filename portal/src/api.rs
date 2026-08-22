@@ -507,7 +507,7 @@ async fn send_welcome(
             .into_response(),
         // A send failure is a typed `502`, not a 5xx page: the caller is a
         // machine, and the Dioxus show view surfaces its own `?notice=` flag
-        // from its own native POST to `/lawyer/people/{id}/welcome`.
+        // from its own native POST to `/admin/person/{id}/welcome`.
         Err(PeopleCommandError::SendFailed) => (
             StatusCode::BAD_GATEWAY,
             Json(serde_json::json!({ "error": "send_failed" })),

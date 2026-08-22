@@ -939,7 +939,7 @@ mod tests {
             rsx! {
                 FormCard {
                     title: "Add person".to_string(),
-                    action: "/lawyer/people".to_string(),
+                    action: "/admin/people".to_string(),
                     submit_label: "Create".to_string(),
                     fields: vec![
                         Field::email("Email", "email", "not-an-email")
@@ -990,7 +990,7 @@ mod tests {
             rsx! {
                 FormCard {
                     title: "Add person".to_string(),
-                    action: "/lawyer/people".to_string(),
+                    action: "/admin/people".to_string(),
                     submit_label: "Create".to_string(),
                     fields: vec![Field::text("Name", "name", "").error("Name is required.")],
                 }
@@ -1010,7 +1010,7 @@ mod tests {
             rsx! {
                 FormCard {
                     title: "Add person".to_string(),
-                    action: "/lawyer/people".to_string(),
+                    action: "/admin/people".to_string(),
                     submit_label: "Create".to_string(),
                     fields: vec![Field::text("Name", "name", "Ada").help("Legal name.")],
                 }

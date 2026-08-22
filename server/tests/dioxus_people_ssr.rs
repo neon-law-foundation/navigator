@@ -1,10 +1,13 @@
 //! #355 Tranche 1 / #641 — the Dioxus people directory: database-backed SSR and
 //! the JSON:API `?sort=` URL contract.
 //!
-//! `webapp::people::LawyerPeople`'s server function reads the request query and
+//! `webapp::people::AdminPeople`'s server function reads the request query and
 //! the `store::Db` handle injected through the render context, queries the
 //! shared directory, and `use_server_future` server-side renders the sorted rows
 //! into the HTML — readable before hydration, sort headers as real anchors.
+//!
+//! ENG-304 deleted the `/lawyer/people` mirror, so `/admin/people` is the one
+//! browser surface this covers, and its gate is `require_admin`.
 
 use std::any::Any;
 use std::sync::Arc;
@@ -50,7 +53,7 @@ async fn insert_person_with_role(
     .expect("insert person");
 }
 
-/// Render `LawyerPeople` at `uri` against `db` with `role` injected as the viewer
+/// Render `AdminPeople` at `uri` against `db` with `role` injected as the viewer
 /// tier (mirroring `portal::dioxus_app::inject_viewer_role`, which the real route
 /// runs behind its auth + embedded policy gate), returning the SSR HTML body. Owns the
 /// process-global `DIOXUS_PUBLIC_PATH` (safe under nextest's process-per-test
@@ -74,10 +77,10 @@ async fn render_people_as(
 
     let router: Router = Router::<FullstackState>::new()
         .route(
-            "/lawyer/people",
+            "/admin/people",
             get(render_handler).layer(axum::Extension(role)),
         )
-        .with_state(FullstackState::new(cfg, webapp::people::LawyerPeople));
+        .with_state(FullstackState::new(cfg, webapp::people::AdminPeople));
 
     let response = router
         .oneshot(
@@ -103,16 +106,12 @@ async fn render_people_as(
 }
 
 #[tokio::test]
-async fn lawyer_people_component_ssrs_directory_from_the_database() {
+async fn admin_people_component_ssrs_directory_from_the_database() {
     let surreal = store::test_support::mem_surreal().await;
     store::test_support::dri_person(&surreal).await;
 
-    let (status, html) = render_people_as(
-        &surreal,
-        "/lawyer/people",
-        webapp::people::ViewerRole::Lawyer,
-    )
-    .await;
+    let (status, html) =
+        render_people_as(&surreal, "/admin/people", webapp::people::ViewerRole::Admin).await;
 
     assert_eq!(status, StatusCode::OK);
     assert!(
@@ -122,16 +121,12 @@ async fn lawyer_people_component_ssrs_directory_from_the_database() {
 }
 
 #[tokio::test]
-async fn lawyer_people_renders_role_display_labels_not_raw_tokens() {
+async fn admin_people_renders_role_display_labels_not_raw_tokens() {
     let surreal = store::test_support::mem_surreal().await;
     insert_person_with_role(&surreal, "Cleo Clerk", "cleo@test.invalid", Role::Clerk).await;
 
-    let (status, html) = render_people_as(
-        &surreal,
-        "/lawyer/people",
-        webapp::people::ViewerRole::Lawyer,
-    )
-    .await;
+    let (status, html) =
+        render_people_as(&surreal, "/admin/people", webapp::people::ViewerRole::Admin).await;
     assert_eq!(status, StatusCode::OK);
 
     // The role column must show the user-facing label from the contract,
@@ -147,15 +142,15 @@ async fn lawyer_people_renders_role_display_labels_not_raw_tokens() {
 }
 
 #[tokio::test]
-async fn lawyer_people_honors_jsonapi_sort_descending_by_name() {
+async fn admin_people_honors_jsonapi_sort_descending_by_name() {
     let surreal = store::test_support::mem_surreal().await;
     insert_person(&surreal, "Aaa Person", "aaa@test.invalid").await;
     insert_person(&surreal, "Zzz Person", "zzz@test.invalid").await;
 
     let (status, html) = render_people_as(
         &surreal,
-        "/lawyer/people?sort=-name",
-        webapp::people::ViewerRole::Lawyer,
+        "/admin/people?sort=-name",
+        webapp::people::ViewerRole::Admin,
     )
     .await;
     assert_eq!(status, StatusCode::OK);
@@ -168,34 +163,47 @@ async fn lawyer_people_honors_jsonapi_sort_descending_by_name() {
     );
     // The sort headers are real anchors carrying the toggled ?sort= value.
     assert!(
-        html.contains("/lawyer/people?sort=name") || html.contains("/lawyer/people?sort=-name"),
+        html.contains("/admin/people?sort=name") || html.contains("/admin/people?sort=-name"),
         "sort header must be an anchor with a ?sort= toggle; got: {html}",
     );
 }
 
 #[tokio::test]
-async fn list_people_refuses_a_non_lawyer_viewer() {
+async fn list_admin_people_refuses_a_non_admin_viewer() {
     let surreal = store::test_support::mem_surreal().await;
     insert_person(&surreal, "Secret Person", "secret@test.invalid").await;
 
     // A direct hit on the generated `#[server]` endpoint need not carry the
-    // route's auth + embedded Rego policy gate, so the injected tier defaults to the
-    // least-privileged `Client`. The server function must refuse it on its own
-    // authority, so the lawyer-only directory never reaches a non-lawyer caller.
-    let (status, html) = render_people_as(
-        &surreal,
-        "/lawyer/people",
-        webapp::people::ViewerRole::Client,
-    )
-    .await;
+    // route's auth + embedded Rego policy gate, so the injected tier defaults to
+    // the least-privileged `Client`. The server function must refuse it on its
+    // own authority, so the directory never reaches a non-admin caller.
+    //
+    // `Lawyer` is the interesting tier here rather than `Client`: since ENG-304
+    // deleted the `/lawyer/people` mirror, a lawyer has no browser surface onto
+    // the directory at all, and `require_admin` is what makes that true.
+    //
+    // `require_admin` commits a real `403` rather than answering `200` with an
+    // error body, so the refusal reads as a refusal to clients, caches, and
+    // monitoring — not as a successful render.
+    for (label, role) in [
+        ("client", webapp::people::ViewerRole::Client),
+        ("clerk", webapp::people::ViewerRole::Clerk),
+        ("lawyer", webapp::people::ViewerRole::Lawyer),
+    ] {
+        let (status, html) = render_people_as(&surreal, "/admin/people", role).await;
 
-    assert_eq!(status, StatusCode::OK);
-    assert!(
-        !html.contains("Secret Person"),
-        "a non-lawyer viewer must not see the lawyer-only directory; got: {html}",
-    );
-    assert!(
-        html.contains("Failed to load people."),
-        "the refused load must render the error state, not the directory; got: {html}",
-    );
+        assert_eq!(
+            status,
+            StatusCode::FORBIDDEN,
+            "a {label} viewer must be refused with a real 403; got: {html}",
+        );
+        assert!(
+            !html.contains("Secret Person"),
+            "a {label} viewer must not see the admin-only directory; got: {html}",
+        );
+        assert!(
+            html.contains("Failed to load people."),
+            "the refused load must render the error state, not the directory; got: {html}",
+        );
+    }
 }

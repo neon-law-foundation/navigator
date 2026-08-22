@@ -69,8 +69,7 @@ pub struct PersonShowView {
     pub read_only: bool,
     /// The role select is locked (the bootstrap Owner, whose role is pinned).
     pub role_locked: bool,
-    /// This person can be impersonated (a client on the admin surface, which
-    /// allows it).
+    /// This person can be impersonated — only a `client` record.
     pub can_impersonate: bool,
     /// The Xero contact id when synced (an external link); `None` renders the
     /// "not synced yet" note.
@@ -79,17 +78,6 @@ pub struct PersonShowView {
     pub notice: Option<PersonNotice>,
     pub csrf_token: String,
     pub role: ViewerRole,
-    /// The list path this surface's Cancel / "back to people" link targets
-    /// (`/admin/people` on the admin console, `/lawyer/people` on the lawyer
-    /// mirror).
-    pub list_path: String,
-    /// The detail path base for the form action and per-record action routes
-    /// (`/admin/person` singular on the admin console, `/lawyer/people` on the
-    /// lawyer mirror); the `{id}` and any action suffix are appended.
-    pub detail_path: String,
-    /// The surface segment for the document title (`Admin | People` or
-    /// `Lawyer | People`).
-    pub surface_title: String,
     /// The deploy's firm name, for the document title. Resolved from the
     /// request-scoped branding rather than written into the copy, so a
     /// white-label deploy's tab reads its own name.
@@ -108,32 +96,19 @@ struct PersonShowQuery {
     error: Option<String>,
 }
 
-/// The per-surface descriptor the shared loader threads into the rendered view:
-/// the admin console (`/admin/person` detail, impersonation allowed, admin can
-/// set roles) and the lawyer mirror (`/lawyer/people` detail, no impersonation,
-/// roles locked).
-#[cfg(feature = "server")]
-struct Surface {
-    list_path: &'static str,
-    detail_path: &'static str,
-    title: &'static str,
-    /// The surface offers the impersonate action (admin console only).
-    allow_impersonate: bool,
-    /// The caller may change a person's role (admin only; the command layer
-    /// drops a role a non-admin submits, so the lawyer surface locks the select).
-    may_change_roles: bool,
-}
+/// The list path Cancel and "back to people" target.
+pub const LIST_PATH: &str = "/admin/people";
+/// The detail path base for the form action and the per-record action routes;
+/// the `{id}` and any action suffix are appended. Singular, unlike the list.
+pub const DETAIL_PATH: &str = "/admin/person";
 
-/// Load the person show/edit page for the `{id}` in the request path on the
-/// given surface: read the injected CSRF token and the query flags, load the
-/// person (`fields: None` + a committed 404 when the id resolves to no row), and
-/// resolve the immutable bootstrap-Owner branch. The caller runs
-/// the surface's auth gate (admin/lawyer) and passes the resolved `role`.
+/// Load the person show/edit page for the `{id}` in the request path: read the
+/// injected CSRF token and the query flags, load the person (`fields: None` +
+/// a committed 404 when the id resolves to no row), and resolve the immutable
+/// bootstrap-Owner branch. The caller runs the admin auth gate and passes the
+/// resolved `role`.
 #[cfg(feature = "server")]
-async fn load_person_show(
-    role: ViewerRole,
-    surface: Surface,
-) -> Result<PersonShowView, ServerFnError> {
+async fn load_person_show(role: ViewerRole) -> Result<PersonShowView, ServerFnError> {
     let axum::extract::Path(id) =
         dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Path<uuid::Uuid>, _>()
             .await?;
@@ -170,9 +145,6 @@ async fn load_person_show(
             fields: None,
             csrf_token,
             role,
-            list_path: surface.list_path.to_string(),
-            detail_path: surface.detail_path.to_string(),
-            surface_title: surface.title.to_string(),
             ..PersonShowView::default()
         });
     };
@@ -212,16 +184,14 @@ async fn load_person_show(
         _ => None,
     };
 
-    // Impersonation is offered only on a surface that allows it, and only a
-    // client can be impersonated.
-    let can_impersonate = surface.allow_impersonate && p.role == store::persons::Role::Client;
-    // The role select locks for the pinned bootstrap Owner, a target above the
-    // caller's authority, and on any surface whose
-    // caller cannot change roles (the lawyer mirror) — a submitted role is dropped
-    // there, so the form must not invite the write.
+    // Only a client can be impersonated.
+    let can_impersonate = p.role == store::persons::Role::Client;
+    // The role select locks for the pinned bootstrap Owner and for a target above
+    // the caller's own authority — the command layer drops such a write, so the
+    // form must not invite it. `require_admin` already guarantees the caller may
+    // set roles at all.
     let target_rank = p.role.authority_rank();
-    let role_locked =
-        is_bootstrap_owner || target_rank > role.authority_rank() || !surface.may_change_roles;
+    let role_locked = is_bootstrap_owner || target_rank > role.authority_rank();
 
     Ok(PersonShowView {
         firm_name: crate::app_chrome::firm_name_from_context().await,
@@ -241,49 +211,15 @@ async fn load_person_show(
         notice,
         csrf_token,
         role,
-        list_path: surface.list_path.to_string(),
-        detail_path: surface.detail_path.to_string(),
-        surface_title: surface.title.to_string(),
     })
 }
 
-/// Load the **admin console** person show/edit page (`/admin/person/{id}`):
-/// refuse non-admin, then load through the shared [`load_person_show`] on the
-/// admin surface (impersonation allowed, admin may change roles).
+/// Load the person show/edit page (`/admin/person/{id}`): refuse non-admin,
+/// then load through [`load_person_show`].
 #[server]
 pub async fn get_admin_person_show() -> Result<PersonShowView, ServerFnError> {
     let role = crate::admin_listing::require_admin().await?;
-    load_person_show(
-        role,
-        Surface {
-            list_path: "/admin/people",
-            detail_path: "/admin/person",
-            title: "Admin | People",
-            allow_impersonate: true,
-            may_change_roles: true,
-        },
-    )
-    .await
-}
-
-/// Load the **lawyer mirror** person show/edit page (`/lawyer/people/{id}`):
-/// refuse non-lawyer, then load through the shared [`load_person_show`] on the
-/// lawyer surface (no impersonation, roles locked — the de-scoped surface the
-/// `LAWYER_PEOPLE` render offered).
-#[server]
-pub async fn get_lawyer_person_show() -> Result<PersonShowView, ServerFnError> {
-    let role = crate::admin_listing::require_lawyer().await?;
-    load_person_show(
-        role,
-        Surface {
-            list_path: "/lawyer/people",
-            detail_path: "/lawyer/people",
-            title: "Lawyer | People",
-            allow_impersonate: false,
-            may_change_roles: false,
-        },
-    )
-    .await
+    load_person_show(role).await
 }
 
 /// Build the edit form's fields from the prefilled values, applying the disabled
@@ -348,31 +284,20 @@ fn edit_fields(
     vec![name, email, role, given, family, middle]
 }
 
-/// The admin console person show/edit page (`/admin/person/{id}`). Resolves the
-/// admin server function and renders through the shared [`render_person_show`].
+/// The person show/edit page (`/admin/person/{id}`).
 #[component]
 pub fn AdminPersonShow() -> Element {
     let resource = use_server_future(get_admin_person_show)?;
     render_person_show(&resource)
 }
 
-/// The lawyer mirror person show/edit page (`/lawyer/people/{id}`). Resolves the
-/// lawyer server function and renders through the shared [`render_person_show`]
-/// — the same page on the de-scoped lawyer surface (no impersonation, roles
-/// locked).
-#[component]
-pub fn LawyerPersonShow() -> Element {
-    let resource = use_server_future(get_lawyer_person_show)?;
-    render_person_show(&resource)
-}
-
 /// The per-record actions panel below the edit form: the welcome-email
-/// confirmation disclosure, the Xero contact link, and — on a surface that
-/// allows it — the impersonate form. `welcome_recipient` is the person's email,
-/// named in the confirmation prompt.
+/// confirmation disclosure, the Xero contact link, and — for a client — the
+/// impersonate form. `welcome_recipient` is the person's email, named in the
+/// confirmation prompt.
 fn person_actions(view: &PersonShowView, welcome_recipient: &str) -> Element {
-    let welcome_action = format!("{}/{}/welcome", view.detail_path, view.id);
-    let impersonate_action = format!("{}/{}/impersonate", view.detail_path, view.id);
+    let welcome_action = format!("{DETAIL_PATH}/{}/welcome", view.id);
+    let impersonate_action = format!("{DETAIL_PATH}/{}/impersonate", view.id);
     let csrf_token = view.csrf_token.clone();
     let xero_contact_id = view.xero_contact_id.clone();
     rsx! {
@@ -424,11 +349,9 @@ fn person_actions(view: &PersonShowView, welcome_recipient: &str) -> Element {
     }
 }
 
-/// Render the resolved person show/edit page for either surface: the prefilled
-/// edit form posting to the native `POST {detail_path}/{id}` update route, then
-/// the per-record actions (welcome email, Xero link, and — on a surface that
-/// allows it — impersonate). All paths and the title come from the view's
-/// surface fields, so the two surfaces share this render.
+/// Render the resolved person show/edit page: the prefilled edit form posting to
+/// the native `POST /admin/person/{id}` update route, then the per-record
+/// actions (welcome email, Xero link, and — for a client — impersonate).
 fn render_person_show(resource: &Resource<Result<PersonShowView, ServerFnError>>) -> Element {
     let view = match &*resource.read() {
         Some(Ok(view)) => view.clone(),
@@ -444,10 +367,8 @@ fn render_person_show(resource: &Resource<Result<PersonShowView, ServerFnError>>
         }
     };
 
-    let page_title = format!("{} | {} | Edit person", view.firm_name, view.surface_title);
-    let not_found_title = format!("{} | {} | Not found", view.firm_name, view.surface_title);
-    let list_path = view.list_path.clone();
-    let not_found_list_path = view.list_path.clone();
+    let page_title = format!("{} | Admin | People | Edit person", view.firm_name);
+    let not_found_title = format!("{} | Admin | People | Not found", view.firm_name);
 
     rsx! {
         document::Stylesheet { href: crate::components::THEME_STYLESHEET_HREF }
@@ -458,7 +379,7 @@ fn render_person_show(resource: &Resource<Result<PersonShowView, ServerFnError>>
         main { id: "person-show", class: "nav-theme",
             match &view.fields {
                 Some(fields) => {
-                    let action = format!("{}/{}", view.detail_path, view.id);
+                    let action = format!("{DETAIL_PATH}/{}", view.id);
                     let welcome_recipient = fields.email.clone();
                     let form_fields =
                         edit_fields(fields, view.read_only, view.role_locked, view.role);
@@ -487,7 +408,7 @@ fn render_person_show(resource: &Resource<Result<PersonShowView, ServerFnError>>
                             read_only: view.read_only,
                             fields: form_fields,
                         }
-                        p { a { href: "{list_path}", "← Cancel" } }
+                        p { a { href: "{LIST_PATH}", "← Cancel" } }
                         {person_actions(&view, &welcome_recipient)}
                     }
                 }
@@ -495,7 +416,7 @@ fn render_person_show(resource: &Resource<Result<PersonShowView, ServerFnError>>
                     document::Title { "{not_found_title}" }
                     h1 { "Person not found" }
                     p { "No person exists with id " code { "{view.id}" } "." }
-                    p { a { href: "{not_found_list_path}", "← Back to people" } }
+                    p { a { href: "{LIST_PATH}", "← Back to people" } }
                 },
             }
         }

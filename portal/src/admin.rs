@@ -175,9 +175,8 @@ pub fn routes(
     // A person may be eligible for both; the URL prefix decides which
     // project-visibility predicate applies.
     let mut r = Router::new();
-    // Admin-only people administration. The lawyer workbench mirror at
-    // `/lawyer/people` (registered below) drops Delete + Impersonate; the
-    // full powers live here. Detail/edit use the singular `/admin/person`.
+    // Admin-only people administration: the one browser surface that creates or
+    // edits a Person. Detail/edit use the singular `/admin/person`.
     // embedded Rego policy needs no `/admin` rule — the admin-bypass allows admin and
     // default-deny blocks lawyer; each handler re-checks the admin role.
     r = r
@@ -394,30 +393,12 @@ fn register_firm_routes(r: Router<AdminState>, prefix: &str) -> Router<AdminStat
             &format!("{prefix}/expunge-requests/{{id}}/deny"),
             post(crate::expunge_request_route::admin_deny),
         )
-        // People mutations (create/update/delete/welcome) live on the
-        // REST command boundary at `/app/api/people*`; these `/lawyer/people*`
-        // routes only render pages. The lawyer workbench people list is
-        // view + name/email edit only — Delete and Impersonate are admin
-        // console powers (`/admin/people`, `/admin/person/{id}/impersonate`).
-        // `{prefix}/people` (the read view) and `{prefix}/people/new` (the create
-        // form) now render through Dioxus — see `dioxus_app::people_router` and
-        // `dioxus_app::lawyer_people_new_router`, merged in `bootstrap`. The
-        // create form posts to the native `POST {prefix}/people` handler below,
-        // which axum merges with the Dioxus list GET on the same path.
+        // Every Person command — create, update, delete, welcome-send — lives on
+        // the REST boundary at `/app/api/people*` (lawyer tier, `LawyerSession`),
+        // and the browser form for one is the admin console's (`/admin/people*`,
+        // Owner/Admin). The firm prefix keeps only this directory export: a
+        // lawyer-tier read with no admin sibling.
         .route(&format!("{prefix}/people.csv"), get(people_csv))
-        .route(&format!("{prefix}/people"), post(lawyer_people_create))
-        // `{prefix}/people/{id}` (+ its `/edit` alias) — the show/edit render now
-        // serves through Dioxus (#641 Phase 3, `dioxus_app::lawyer_person_show_router`).
-        // Its native-form update and welcome-email actions post here; axum merges
-        // the Dioxus GET with these POSTs on each path.
-        .route(
-            &format!("{prefix}/people/{{id}}"),
-            post(lawyer_person_update),
-        )
-        .route(
-            &format!("{prefix}/people/{{id}}/welcome"),
-            post(lawyer_person_welcome),
-        )
         .route("/app/impersonation/stop", post(stop_impersonation))
         // The entities list (GET) now renders through Dioxus (#641 Phase 3,
         // `dioxus_app::entity_list_router`); `POST` (create) stays here, and axum
@@ -716,36 +697,6 @@ async fn admin_person_delete(
     }
 }
 
-/// `POST /lawyer/people` — the native-form person create behind the Dioxus lawyer
-/// mirror add-person page (#641 Phase 3). The lawyer sibling of
-/// [`admin_people_create`]: a non-admin caller's submitted role is coerced to
-/// `client` (defense in depth over the disabled role select, mirroring the REST
-/// create), then the command runs and redirects (303) to the lawyer list on
-/// success or back to the form with an `?error=` flash.
-async fn lawyer_people_create(
-    State(surreal): State<store::surreal::SurrealDb>,
-    session: Option<Extension<SessionData>>,
-    Form(command): Form<crate::people_commands::CreatePersonCommand>,
-) -> Response {
-    if let Some(forbidden) = lawyer_gate(session.as_deref()) {
-        return forbidden;
-    }
-    let mut command = command;
-    if !can_change_roles(session.as_deref())
-        && crate::people_commands::parse_role(&command.role).is_some()
-    {
-        command.role = store::persons::Role::Client.as_str().to_string();
-    }
-    match crate::people_commands::create_person(&surreal, &command).await {
-        Ok(_) => Redirect::to("/lawyer/people").into_response(),
-        Err(e) => Redirect::to(&format!(
-            "/lawyer/people/new?error={}",
-            encode_query_value(&e.user_message())
-        ))
-        .into_response(),
-    }
-}
-
 /// `GET /admin/people/new` — the admin console create form (Cancel returns
 /// to `/admin/people`). Admin-gated.
 /// `POST /admin/people` — the native-form create behind the Dioxus admin
@@ -820,85 +771,6 @@ pub(crate) fn encode_query_value(value: &str) -> String {
         }
     }
     out
-}
-
-/// The `/lawyer/*` sibling of [`admin_gate`]: refuse anyone outside the
-/// Owner/Admin/Lawyer tier. The `/lawyer` routes already carry
-/// `require_auth` + `require_policy`; this is defense in depth on the native
-/// person mutation routes, the same guard the Dioxus render's `require_lawyer`
-/// applies.
-fn lawyer_gate(session: Option<&SessionData>) -> Option<Response> {
-    match session {
-        None => Some(
-            (
-                StatusCode::FORBIDDEN,
-                webapp::error_pages::forbidden(webapp::error_pages::Viewer::Anonymous),
-            )
-                .into_response(),
-        ),
-        Some(s) if !s.role.is_lawyer_tier() => Some(
-            (
-                StatusCode::FORBIDDEN,
-                webapp::error_pages::forbidden(webapp::error_pages::Viewer::SignedIn),
-            )
-                .into_response(),
-        ),
-        Some(_) => None,
-    }
-}
-
-/// `POST /lawyer/people/{id}` — the native-form person update behind the Dioxus
-/// lawyer mirror show/edit page. The lawyer sibling of [`admin_person_update`]:
-/// same command with a `may_change_roles` context (a lawyer caller's submitted
-/// role is dropped), redirecting back to the lawyer show view.
-async fn lawyer_person_update(
-    State(s): State<AdminState>,
-    session: Option<Extension<SessionData>>,
-    Path(id): Path<Uuid>,
-    Form(command): Form<crate::people_commands::UpdatePersonCommand>,
-) -> Response {
-    if let Some(forbidden) = lawyer_gate(session.as_deref()) {
-        return forbidden;
-    }
-    let ctx = crate::people_commands::UpdateContext {
-        bootstrap_owner_email: s.bootstrap_owner_email.as_deref(),
-        actor_role: session
-            .as_deref()
-            .map_or(store::persons::Role::Client, |s| s.role),
-        // The lawyer surface locks roles for every viewer (`may_change_roles:
-        // false`), so a submitted role is always dropped here, even for an
-        // admin caller who could change roles through the admin surface.
-        may_change_roles: false,
-    };
-    match crate::people_commands::update_person(&s.surreal, id, &command, &ctx).await {
-        Ok(_) => Redirect::to(&format!("/lawyer/people/{id}")).into_response(),
-        Err(e) => Redirect::to(&format!(
-            "/lawyer/people/{id}?error={}",
-            encode_query_value(&e.user_message())
-        ))
-        .into_response(),
-    }
-}
-
-/// `POST /lawyer/people/{id}/welcome` — the native-form welcome-email send behind
-/// the Dioxus lawyer mirror show/edit page. The lawyer sibling of
-/// [`admin_person_welcome`], redirecting back to the lawyer show view with a
-/// `?notice=` flag.
-async fn lawyer_person_welcome(
-    State(s): State<AdminState>,
-    session: Option<Extension<SessionData>>,
-    Path(id): Path<Uuid>,
-) -> Response {
-    if let Some(forbidden) = lawyer_gate(session.as_deref()) {
-        return forbidden;
-    }
-    let base_url = workflows::email::base_url_from_env();
-    let notice =
-        match crate::people_commands::send_welcome(&s.surreal, &s.email, &base_url, id).await {
-            Ok(_) => "welcome_sent",
-            Err(_) => "welcome_failed",
-        };
-    Redirect::to(&format!("/lawyer/people/{id}?notice={notice}")).into_response()
 }
 
 /// `POST /admin/person/{id}` — the native-form person update behind the Dioxus

@@ -1,6 +1,6 @@
-Feature: Admin re-sends welcome email from /lawyer/people
+Feature: Admin re-sends welcome email from /admin/people
 
-  Lawyer sometimes need to re-fire a welcome email — the OAuth callback
+  The firm sometimes needs to re-fire a welcome email — the OAuth callback
   fires one on first signup, but a user who never opened that one (or
   whose first signup predates this feature) should be reachable from
   the admin people index without leaving the browser.
