@@ -376,6 +376,11 @@ even for the read. The preflight reads the policy first and writes only on a rea
 needs the read alone: `ops gcp setup` already wrote that binding when it provisioned the row, so a provisioned
 deployment rolls without any IAM write.
 
+`ops ship --dry-run` performs that read. It is the half a dry-run can answer honestly, so an operator missing
+`getIamPolicy` finds out from the dry-run rather than from a live roll that stops at its first step. Only the write is
+printed instead of performed — and when the binding is absent the dry-run says so, because nothing short of attempting
+the write confirms `setIamPolicy`.
+
 There is no flag to skip the check. A missing binding is not cosmetic — every `/…/documents/:doc_id/download` would 500
 on `iam.serviceAccounts.signBlob` — so an operator who cannot verify or cannot write hands the binding off to someone
 holding `roles/iam.serviceAccountAdmin` rather than rolling past it. The preflight runs before anything mutates and

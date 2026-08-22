@@ -2684,19 +2684,26 @@ fn signing_iam_write_failed(gsa: &str, args: &[String], detail: &str) -> anyhow:
 /// has no use for. Reading first drops the common case to `getIamPolicy`. The
 /// write still happens when the binding is genuinely absent: this invariant is
 /// never skippable, only cheaper to confirm.
+///
+/// `--dry-run` performs the read and declines only the write. The read is the
+/// half a dry-run can answer honestly, so it does.
 fn ensure_web_signing_iam(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
+    ensure_web_signing_iam_with(cfg, dry_run, || read_web_signing_policy(cfg))
+}
+
+/// Read the web GSA's IAM policy. Takes no `dry_run`, deliberately: this read
+/// happens in every mode. A dry-run exists to answer "would the real roll
+/// work", and skipping the one check it can perform for free is how a dry-run
+/// reached `==> ship complete` for a roll that then died at step 1c. It is
+/// also the permission probe — an operator missing `getIamPolicy` fails here,
+/// under `--dry-run`, exactly as the live roll would.
+fn read_web_signing_policy(cfg: &ShipConfig) -> Result<serde_json::Value> {
     let gsa = web_gsa_email(&cfg.project_id, &cfg.google_service_account_id);
-    let read_args = web_signing_iam_read_args(&cfg.project_id, &cfg.google_service_account_id);
-    eprintln!("==> verifying {gsa} can sign GCS URLs ({SELF_SIGNING_ROLE} on itself)");
-
-    if dry_run {
-        eprintln!("DRY-RUN $ gcloud {}", read_args.join(" "));
-        eprintln!("DRY-RUN: would bind only if that read shows the binding absent");
-        return Ok(());
-    }
-
     let out = Command::new("gcloud")
-        .args(&read_args)
+        .args(web_signing_iam_read_args(
+            &cfg.project_id,
+            &cfg.google_service_account_id,
+        ))
         .output()
         .with_context(|| format!("run gcloud get-iam-policy {gsa}"))?;
     if !out.status.success() {
@@ -2705,16 +2712,40 @@ fn ensure_web_signing_iam(cfg: &ShipConfig, dry_run: bool) -> Result<()> {
             String::from_utf8_lossy(&out.stderr).trim(),
         ));
     }
-    let policy: serde_json::Value = serde_json::from_slice(&out.stdout)
-        .with_context(|| format!("parse the IAM policy of {gsa}"))?;
+    serde_json::from_slice(&out.stdout).with_context(|| format!("parse the IAM policy of {gsa}"))
+}
 
+/// The step past its read, with the read injected so a unit test can drive
+/// every verdict — including the one that matters here, that `--dry-run` still
+/// calls `read_policy` and still fails when that read is denied.
+fn ensure_web_signing_iam_with(
+    cfg: &ShipConfig,
+    dry_run: bool,
+    read_policy: impl FnOnce() -> Result<serde_json::Value>,
+) -> Result<()> {
+    let gsa = web_gsa_email(&cfg.project_id, &cfg.google_service_account_id);
+    eprintln!("==> verifying {gsa} can sign GCS URLs ({SELF_SIGNING_ROLE} on itself)");
+
+    let policy = read_policy()?;
     if policy_grants_self_signing(&policy, &gsa) {
         eprintln!("==> already bound; no IAM write");
         return Ok(());
     }
 
-    eprintln!("==> binding absent — granting {SELF_SIGNING_ROLE}");
+    // The write is the only half a dry-run declines to perform, and it says so
+    // loudly: an absent binding means the live roll needs `setIamPolicy`, which
+    // nothing short of attempting the write can confirm the operator holds.
     let write_args = web_signing_iam_binding_args(&cfg.project_id, &cfg.google_service_account_id);
+    if dry_run {
+        eprintln!("DRY-RUN $ gcloud {}", write_args.join(" "));
+        eprintln!(
+            "DRY-RUN: the binding is ABSENT, so the real roll performs that write — it needs \
+             iam.serviceAccounts.setIamPolicy on {gsa}, which a dry-run cannot confirm."
+        );
+        return Ok(());
+    }
+
+    eprintln!("==> binding absent — granting {SELF_SIGNING_ROLE}");
     let out = Command::new("gcloud")
         .args(&write_args)
         .output()
@@ -5348,10 +5379,51 @@ spec:
     }
 
     #[test]
-    fn ensure_web_signing_iam_dry_run_makes_no_call_and_succeeds() {
-        // The dry-run path prints the gcloud binding instead of shelling out,
-        // so it exercises the whole step without touching IAM.
-        ensure_web_signing_iam(&sample_config(), true).expect("dry-run binding must succeed");
+    fn dry_run_still_reads_the_policy() {
+        // The regression this step exists to prevent: a dry-run that skipped
+        // the read reported `ship complete` for a roll that could not clear
+        // step 1c. The read is not conditioned on the mode, so a dry-run must
+        // call it — and must fail when it is denied, exactly as a live roll
+        // would, rather than printing a line and returning Ok.
+        let mut read_calls = 0;
+        let bound = policy_with(
+            "roles/iam.serviceAccountTokenCreator",
+            &format!(
+                "serviceAccount:{}",
+                web_gsa_email("my-org-prod", "navigator-web")
+            ),
+        );
+        ensure_web_signing_iam_with(&sample_config(), true, || {
+            read_calls += 1;
+            Ok(bound)
+        })
+        .expect("a bound policy clears the step");
+        assert_eq!(read_calls, 1, "the dry-run must perform the read");
+    }
+
+    #[test]
+    fn dry_run_fails_when_the_policy_cannot_be_read() {
+        // The other half of the same property: a denied read is the answer to
+        // "would the real roll work", so it must sink the dry-run too.
+        let err = ensure_web_signing_iam_with(&sample_config(), true, || {
+            Err(signing_iam_read_failed(
+                "gsa@example.com",
+                "PERMISSION_DENIED",
+            ))
+        })
+        .expect_err("a denied read must fail the dry-run");
+
+        assert!(err.to_string().contains("cannot verify"), "{err}");
+    }
+
+    #[test]
+    fn dry_run_prints_the_write_instead_of_performing_it() {
+        // The write is the only half a dry-run declines: with the binding
+        // absent it reports what the live roll would do and returns Ok rather
+        // than shelling out to gcloud.
+        let empty = serde_json::json!({ "etag": "BwYb0000000=" });
+        ensure_web_signing_iam_with(&sample_config(), true, || Ok(empty))
+            .expect("dry-run must not attempt the IAM write");
     }
 
     /// A `get-iam-policy` document in the shape gcloud returns, granting
