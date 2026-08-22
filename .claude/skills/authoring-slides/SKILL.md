@@ -13,4 +13,8 @@ Read the relevant workshop source, [`docs/agent-workflows.md`](../../../docs/age
 - Follow the loader's required frontmatter, chapter, slide, and notes shape; use the CLI validator on the changed file.
 - Use repository-owned, public-safe media only. Never put legal files, client imagery or data, real contact details, or
   production identifiers on a slide, in its source, or in a capture.
+- For a bucket-lane slide image, keep its ignored local copy at
+  `server/public/img/<deck-slug>/<filename>`, then publish and verify staging (`neon-law-stg-assets`) before the
+  separate `<production>-assets` handoff.
+- If production remains pending, say so; do not describe a staging-only image as published everywhere.
 - Keep generated captures in `/tmp`; use the established asset workflow for approved public media.

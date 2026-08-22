@@ -337,6 +337,7 @@ mod tests {
             "notation",
             "notation-authoring",
             "oss-install",
+            "public-contributor-safety",
             "retainer-intake",
         ]);
         assert_eq!(actual, expected);
