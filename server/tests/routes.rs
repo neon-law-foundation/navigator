@@ -10040,6 +10040,13 @@ async fn admin_generic_listings_all_mount_and_render_their_heading() {
     let (state, _surreal) = state_with_engines().await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
 
+    // Authenticated as Admin: `/lawyer/letters` and `/lawyer/email-log` refuse
+    // the Lawyer tier since ENG-303 (no project link on `letter` or
+    // `sent_email` to scope by), and the admin tier reads every listing here.
+    // What each gate admits is the subject of
+    // `unscopeable_matter_content_listings_require_the_admin_tier` and
+    // `matter_content_listings_are_scoped_to_participation`; this test is only
+    // about the mount.
     for (path, heading) in [
         ("/lawyer/notations", "Notations"),
         ("/lawyer/answers", "Answers"),
@@ -10052,11 +10059,11 @@ async fn admin_generic_listings_all_mount_and_render_their_heading() {
         ("/lawyer/letters", "Letters"),
         ("/lawyer/email-log", "Email log"),
     ] {
-        let resp = get_with_role(app.clone(), path, store::persons::Role::Lawyer).await;
+        let resp = get_with_role(app.clone(), path, store::persons::Role::Admin).await;
         assert_eq!(
             resp.status(),
             StatusCode::OK,
-            "{path} must render for lawyer"
+            "{path} must render for admin"
         );
         let body = body_string(resp).await;
         assert!(
@@ -10171,6 +10178,11 @@ async fn admin_letter_detail_renders_the_record_from_its_path_id() {
 
 #[tokio::test]
 async fn admin_email_log_paginates_over_fifty_rows() {
+    // Admin, not Lawyer: `/lawyer/email-log` refuses the Lawyer tier since
+    // ENG-303 — `sent_email` carries no project link to scope by, so the admin
+    // gate is the interim close. Which tier is admitted is
+    // `unscopeable_matter_content_listings_require_the_admin_tier`'s subject;
+    // this test is about the log itself.
     // The email log is the one paginated listing: 50 rows per page. Seed 51 so
     // there are two pages, then assert page 1 renders its rows and a `?page=2`
     // pager anchor with "Page 1 of 2", and that `?page=2` renders as page 2 of 2.
@@ -10200,7 +10212,7 @@ async fn admin_email_log_paginates_over_fifty_rows() {
     let resp = get_with_role(
         app.clone(),
         "/lawyer/email-log",
-        store::persons::Role::Lawyer,
+        store::persons::Role::Admin,
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -10227,7 +10239,7 @@ async fn admin_email_log_paginates_over_fifty_rows() {
     let resp2 = get_with_role(
         app.clone(),
         "/lawyer/email-log?page=2",
-        store::persons::Role::Lawyer,
+        store::persons::Role::Admin,
     )
     .await;
     assert_eq!(resp2.status(), StatusCode::OK);
@@ -10246,7 +10258,7 @@ async fn admin_email_log_paginates_over_fifty_rows() {
     let resp_oob = get_with_role(
         app,
         "/lawyer/email-log?page=99",
-        store::persons::Role::Lawyer,
+        store::persons::Role::Admin,
     )
     .await;
     assert_eq!(resp_oob.status(), StatusCode::OK);
@@ -10509,11 +10521,16 @@ async fn admin_generic_listings_render_row_cells_from_the_database() {
             ],
         ),
     ] {
-        let resp = get_with_role(app.clone(), path, store::persons::Role::Lawyer).await;
+        // Admin, not Lawyer: since ENG-303 the matter-content listings among
+        // these (`answers`, `assets`, `relationship-logs`) scope their rows to
+        // the caller's participation ledger, and this test is about the
+        // projection — that each column reaches its cell — not about the gate.
+        // The unscoped admin read is what puts every seeded row in front of it.
+        let resp = get_with_role(app.clone(), path, store::persons::Role::Admin).await;
         assert_eq!(
             resp.status(),
             StatusCode::OK,
-            "{path} must render for lawyer"
+            "{path} must render for admin"
         );
         let body = body_string(resp).await;
         for cell in &cells {
@@ -10522,6 +10539,545 @@ async fn admin_generic_listings_render_row_cells_from_the_database() {
                 "{path} must render projected cell {cell:?}; got: {body}",
             );
         }
+    }
+}
+
+/// One matter the caller is on, one they are not, and one unlinked row per
+/// matter-content listing — the fixture ENG-303's scoping tests share.
+struct MatterContentFixture {
+    lawyer_cookie: String,
+    /// Cells that must render for a caller admitted to `visible`.
+    visible_cells: Vec<String>,
+    /// Cells that must never render for a caller scoped to `visible`.
+    hidden_cells: Vec<String>,
+    /// Cells for rows carrying no project link at all — absent from every
+    /// scoped read, present for Owner/Admin.
+    unlinked_cells: Vec<String>,
+}
+
+/// Seed one visible matter, one hidden matter, and one unlinked row for each of
+/// the three matter-content listings (`assets`, `answers`, `relationship-logs`),
+/// and return a Lawyer session holding a firm-side row on the visible matter
+/// only.
+#[allow(clippy::too_many_lines)]
+async fn seed_matter_content(surreal: &store::surreal::SurrealDb) -> MatterContentFixture {
+    let lawyer = store::persons::create(
+        surreal,
+        &store::persons::NewPerson::with_role(
+            "Scoped Lawyer",
+            "scoped-lawyer@neonlaw.com",
+            store::persons::Role::Lawyer,
+        ),
+    )
+    .await
+    .unwrap();
+    let visible = test_project(surreal, "Visible Content Matter", "open").await;
+    let hidden = test_project(surreal, "Hidden Content Matter", "open").await;
+    participate(surreal, lawyer.id, visible.id, "attorney").await;
+
+    // assets → one document per matter, plus a bare content asset whose
+    // `project_id` is NONE.
+    let storage: std::sync::Arc<dyn cloud::StorageService> = std::sync::Arc::new(
+        cloud::FsStorage::new(std::env::temp_dir().join("navigator-routes-eng303-scoping"))
+            .await
+            .unwrap(),
+    );
+    let visible_asset_sha = store::documents::sha256_hex(b"visible-matter-bytes");
+    store::documents::ingest_bytes(
+        surreal,
+        &storage,
+        &store::documents::IngestArgs {
+            project_id: visible.id,
+            source: store::documents::source::UPLOAD,
+            filename: "visible-brief.pdf",
+            kind: "engagement",
+            content_type: "application/pdf",
+            description: None,
+            secondary_storage_key: None,
+            visibility: store::documents::visibility::INTERNAL,
+        },
+        b"visible-matter-bytes",
+    )
+    .await
+    .unwrap();
+    let hidden_asset_sha = store::documents::sha256_hex(b"hidden-matter-bytes");
+    store::documents::ingest_bytes(
+        surreal,
+        &storage,
+        &store::documents::IngestArgs {
+            project_id: hidden.id,
+            source: store::documents::source::UPLOAD,
+            filename: "hidden-brief.pdf",
+            kind: "engagement",
+            content_type: "application/pdf",
+            description: None,
+            secondary_storage_key: None,
+            visibility: store::documents::visibility::INTERNAL,
+        },
+        b"hidden-matter-bytes",
+    )
+    .await
+    .unwrap();
+    // A bare content asset: no `project_id` at all. `ingest_content` is the
+    // lane that writes one, so the NONE case is produced rather than faked.
+    let unlinked_asset_sha = store::documents::sha256_hex(b"unlinked-bare-bytes");
+    store::assets::ingest_content(surreal, &storage, b"unlinked-bare-bytes", "text/plain")
+        .await
+        .unwrap();
+
+    // answers → one per matter through `notation_id → notation.project_id`,
+    // plus a bare person-scoped answer whose `notation_id` is NONE.
+    let template = store::templates::save_version(
+        surreal,
+        None,
+        "eng303__scope",
+        store::templates::Version {
+            title: "Scoping template".into(),
+            respondent_type: "person".into(),
+            asset_id: None,
+            form_code: None,
+            kind: None,
+            source_commit_sha: None,
+        },
+    )
+    .await
+    .unwrap()
+    .into_model();
+    let respondent = store::persons::create(
+        surreal,
+        &store::persons::NewPerson::new("Ada Respondent", "ada-respondent@example.com"),
+    )
+    .await
+    .unwrap();
+    let question = store::questions::create(
+        surreal,
+        &store::questions::NewQuestion::new("scope_probe", "Who is the adverse party?", "string"),
+    )
+    .await
+    .unwrap();
+    for (project_id, answer) in [
+        (visible.id, "Visible Adverse Party"),
+        (hidden.id, "Hidden Adverse Party"),
+    ] {
+        let notation = store::notations::create(
+            surreal,
+            &store::notations::NewNotation::new(
+                template.id,
+                respondent.id,
+                project_id,
+                "lawyer_review",
+            ),
+        )
+        .await
+        .unwrap();
+        store::answers::record(
+            surreal,
+            &store::answers::NewAnswer::new(
+                question.id,
+                respondent.id,
+                store::answers::primitive(answer),
+            )
+            .in_notation(notation.id, "person__client"),
+        )
+        .await
+        .unwrap();
+    }
+    // No notation, so no path to any matter.
+    store::answers::record(
+        surreal,
+        &store::answers::NewAnswer::new(
+            question.id,
+            respondent.id,
+            store::answers::primitive("Unlinked Adverse Party"),
+        ),
+    )
+    .await
+    .unwrap();
+
+    // relationship-logs → one `subject_type = "project"` entry per matter,
+    // plus one whose subject is not a project at all.
+    for (project_id, detail) in [
+        (visible.id, "Visible attestation detail"),
+        (hidden.id, "Hidden attestation detail"),
+    ] {
+        store::relationship_logs::record(
+            surreal,
+            &store::relationship_logs::NewRelationshipLog {
+                actor_person_id: Some(lawyer.id),
+                subject_type: "project".into(),
+                subject_id: project_id,
+                action: "conflict_attestation".into(),
+                detail: detail.into(),
+            },
+        )
+        .await
+        .unwrap();
+    }
+    store::relationship_logs::record(
+        surreal,
+        &store::relationship_logs::NewRelationshipLog {
+            actor_person_id: Some(lawyer.id),
+            subject_type: "membership_edge".into(),
+            subject_id: store::test_support::seed_entity(surreal).await,
+            action: "access_revoked".into(),
+            detail: "Unlinked trail detail".into(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut session = portal::SessionData::fresh("scoped-lawyer-sub", store::persons::Role::Lawyer);
+    session.person_id = Some(lawyer.id);
+    session.email = Some(lawyer.email);
+    let lawyer_cookie = format!(
+        "{}={}",
+        portal::session::SESSION_COOKIE_NAME,
+        test_sessions().encode(&session)
+    );
+
+    MatterContentFixture {
+        lawyer_cookie,
+        visible_cells: vec![
+            visible_asset_sha,
+            "Visible Adverse Party".into(),
+            "Visible attestation detail".into(),
+        ],
+        hidden_cells: vec![
+            hidden_asset_sha,
+            "Hidden Adverse Party".into(),
+            "Hidden attestation detail".into(),
+        ],
+        unlinked_cells: vec![
+            unlinked_asset_sha,
+            "Unlinked Adverse Party".into(),
+            "Unlinked trail detail".into(),
+        ],
+    }
+}
+
+/// The three matter-content listing paths, aligned to the fixture's cell
+/// vectors: assets, answers, relationship-logs.
+const MATTER_CONTENT_PATHS: [&str; 3] = [
+    "/lawyer/assets",
+    "/lawyer/answers",
+    "/lawyer/relationship-logs",
+];
+
+/// GET `uri` with `cookie`, assert it rendered, and return the body — the
+/// shape every ENG-303 scoping assertion needs.
+async fn rendered_body_with_cookie(app: axum::Router, uri: &str, cookie: &str) -> String {
+    let resp = get_with_cookie(app, uri, cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK, "{uri} must render");
+    body_string(resp).await
+}
+
+/// ENG-303: a Lawyer reads matter content only for the matters their
+/// participation ledger names, and a row with no project link is absent
+/// entirely.
+#[tokio::test]
+async fn matter_content_listings_are_scoped_to_participation() {
+    let (state, surreal) = state_with_engines().await;
+    let fixture = seed_matter_content(&surreal).await;
+    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
+
+    for (index, path) in MATTER_CONTENT_PATHS.iter().enumerate() {
+        let body = rendered_body_with_cookie(app.clone(), path, &fixture.lawyer_cookie).await;
+        let visible = &fixture.visible_cells[index];
+        let hidden = &fixture.hidden_cells[index];
+        let unlinked = &fixture.unlinked_cells[index];
+        assert!(
+            body.contains(visible.as_str()),
+            "{path} must render the participated matter's row {visible:?}; got: {body}",
+        );
+        assert!(
+            !body.contains(hidden.as_str()),
+            "{path} disclosed an unparticipated matter's row {hidden:?}; got: {body}",
+        );
+        assert!(
+            !body.contains(unlinked.as_str()),
+            "{path} must fail closed on a row with no project link, but rendered \
+             {unlinked:?}; got: {body}",
+        );
+    }
+}
+
+/// ENG-303: a Lawyer with no participation row at all reads zero matter
+/// content — the same zero they already see at `/app/projects`.
+#[tokio::test]
+async fn matter_content_listings_are_empty_for_an_unparticipating_lawyer() {
+    let (state, surreal) = state_with_engines().await;
+    let fixture = seed_matter_content(&surreal).await;
+    // A second lawyer, on nothing.
+    let stranger = store::persons::create(
+        &surreal,
+        &store::persons::NewPerson::with_role(
+            "Unassigned Lawyer",
+            "unassigned-lawyer@neonlaw.com",
+            store::persons::Role::Lawyer,
+        ),
+    )
+    .await
+    .unwrap();
+    let mut session = portal::SessionData::fresh("stranger-sub", store::persons::Role::Lawyer);
+    session.person_id = Some(stranger.id);
+    session.email = Some(stranger.email);
+    let cookie = format!(
+        "{}={}",
+        portal::session::SESSION_COOKIE_NAME,
+        test_sessions().encode(&session)
+    );
+    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
+
+    for (index, path) in MATTER_CONTENT_PATHS.iter().enumerate() {
+        let body = rendered_body_with_cookie(app.clone(), path, &cookie).await;
+        for cells in [
+            &fixture.visible_cells,
+            &fixture.hidden_cells,
+            &fixture.unlinked_cells,
+        ] {
+            let cell = &cells[index];
+            assert!(
+                !body.contains(cell.as_str()),
+                "{path} disclosed {cell:?} to a lawyer on no matters; got: {body}",
+            );
+        }
+        assert!(
+            body.contains("No rows yet."),
+            "{path} must show the shared empty state for a lawyer on no matters; got: {body}",
+        );
+    }
+}
+
+/// ENG-303: Owner and Admin keep the unscoped read — that is what
+/// `is_admin_tier` is for.
+#[tokio::test]
+async fn matter_content_listings_stay_unscoped_for_the_admin_tier() {
+    let (state, surreal) = state_with_engines().await;
+    let fixture = seed_matter_content(&surreal).await;
+    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
+
+    for role in [store::persons::Role::Owner, store::persons::Role::Admin] {
+        for (index, path) in MATTER_CONTENT_PATHS.iter().enumerate() {
+            let resp = get_with_role(app.clone(), path, role).await;
+            assert_eq!(
+                resp.status(),
+                StatusCode::OK,
+                "{path} must render for {role:?}"
+            );
+            let body = body_string(resp).await;
+            for cells in [
+                &fixture.visible_cells,
+                &fixture.hidden_cells,
+                &fixture.unlinked_cells,
+            ] {
+                let cell = &cells[index];
+                assert!(
+                    body.contains(cell.as_str()),
+                    "{path} must render every row for {role:?}, missing {cell:?}; got: {body}",
+                );
+            }
+        }
+    }
+}
+
+/// ENG-303: `/lawyer/disclosures` and `/lawyer/person-entity-roles` stay
+/// firm-wide for a lawyer on no matters, because Model Rule 1.10 imputes a
+/// conflict firm-wide and both feed `store::conflicts::check_new_matter`.
+///
+/// This test exists to stop a later consistency sweep from scoping them: if it
+/// starts failing because someone filtered these by participation, the fix is
+/// to revert that, not to update this test.
+#[tokio::test]
+async fn conflict_graph_listings_stay_firm_wide_for_an_unparticipating_lawyer() {
+    let (state, surreal) = state_with_engines().await;
+    // A matter the caller is emphatically not on, carrying both conflict-graph
+    // inputs.
+    let other_matter = test_project(&surreal, "Someone Else's Matter", "open").await;
+    let conflicted_entity = store::test_support::seed_entity(&surreal).await;
+    store::disclosures::record(
+        &surreal,
+        &store::disclosures::NewDisclosure {
+            entity_id: Some(conflicted_entity),
+            project_id: Some(other_matter.id),
+            kind: "conflict_check",
+            summary: "Adverse party overlap on another matter",
+        },
+    )
+    .await
+    .unwrap();
+    let tied_person = store::persons::create(
+        &surreal,
+        &store::persons::NewPerson::new("Tied Person", "tied-person@example.com"),
+    )
+    .await
+    .unwrap();
+    store::entity_roles::grant(&surreal, tied_person.id, conflicted_entity, "officer")
+        .await
+        .unwrap();
+
+    let stranger = store::persons::create(
+        &surreal,
+        &store::persons::NewPerson::with_role(
+            "Conflict Checking Lawyer",
+            "conflict-checker@neonlaw.com",
+            store::persons::Role::Lawyer,
+        ),
+    )
+    .await
+    .unwrap();
+    let mut session = portal::SessionData::fresh("checker-sub", store::persons::Role::Lawyer);
+    session.person_id = Some(stranger.id);
+    session.email = Some(stranger.email);
+    let cookie = format!(
+        "{}={}",
+        portal::session::SESSION_COOKIE_NAME,
+        test_sessions().encode(&session)
+    );
+    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
+
+    let disclosures = rendered_body_with_cookie(app.clone(), "/lawyer/disclosures", &cookie).await;
+    assert!(
+        disclosures.contains("Adverse party overlap on another matter"),
+        "a lawyer on no matters must still see every disclosure — Model Rule 1.10 \
+         imputes conflicts firm-wide; got: {disclosures}",
+    );
+    let ties = rendered_body_with_cookie(app, "/lawyer/person-entity-roles", &cookie).await;
+    assert!(
+        ties.contains(&tied_person.id.to_string()),
+        "a lawyer on no matters must still see every entity_role tie — it is an edge \
+         `store::conflicts::check_new_matter` traverses; got: {ties}",
+    );
+}
+
+/// ENG-303: `/lawyer/letters` and `/lawyer/email-log` refuse the Lawyer tier
+/// and serve Owner/Admin. `letter` and `sent_email` carry no project link, so
+/// the admin gate is the interim close until one exists.
+#[tokio::test]
+async fn unscopeable_matter_content_listings_require_the_admin_tier() {
+    let (state, surreal) = state_with_engines().await;
+    let mailroom_address = store::addresses::create(
+        &surreal,
+        &store::addresses::NewAddress {
+            line1: "500 Silver Street".into(),
+            city: "Reno".into(),
+            region: "NV".into(),
+            postal_code: "89501".into(),
+            country: "USA".into(),
+            ..store::addresses::NewAddress::default()
+        },
+    )
+    .await
+    .unwrap();
+    let mailroom = store::mailrooms::create(&surreal, "Reno intake", mailroom_address.id)
+        .await
+        .unwrap();
+    store::letters::record(
+        &surreal,
+        &store::letters::NewLetter {
+            mailroom_id: mailroom.id,
+            direction: "incoming".into(),
+            sender: "opposing-counsel@example.com".into(),
+            recipient: "intake@neonlaw.com".into(),
+            summary: "Demand letter summary".into(),
+        },
+    )
+    .await
+    .unwrap();
+    store::sent_emails::record(
+        &surreal,
+        &store::sent_emails::NewSentEmail {
+            recipient: "logged-recipient@example.com".into(),
+            subject: "Matter correspondence".into(),
+            body: "Body".into(),
+            sender: "support@neonlaw.com".into(),
+            template_slug: Some("welcome".into()),
+            outcome: "sent".into(),
+            sg_message_id: None,
+            sent_at: "2026-05-24T10:00:00Z".parse().unwrap(),
+        },
+    )
+    .await
+    .unwrap();
+    let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
+
+    for (path, disclosed) in [
+        ("/lawyer/letters", "Demand letter summary"),
+        ("/lawyer/email-log", "logged-recipient@example.com"),
+    ] {
+        // A Lawyer-tier session is refused outright — a real 403, not a
+        // successful page with an empty table.
+        let resp = get_with_role(app.clone(), path, store::persons::Role::Lawyer).await;
+        assert_eq!(
+            resp.status(),
+            StatusCode::FORBIDDEN,
+            "{path} must refuse the lawyer tier",
+        );
+        let refused = body_string(resp).await;
+        assert!(
+            !refused.contains(disclosed),
+            "{path} disclosed {disclosed:?} in its refusal body; got: {refused}",
+        );
+
+        // Owner and Admin still read it.
+        for role in [store::persons::Role::Owner, store::persons::Role::Admin] {
+            let resp = get_with_role(app.clone(), path, role).await;
+            assert_eq!(resp.status(), StatusCode::OK, "{path} must serve {role:?}");
+            let body = body_string(resp).await;
+            assert!(
+                body.contains(disclosed),
+                "{path} must render {disclosed:?} for {role:?}; got: {body}",
+            );
+        }
+    }
+}
+
+/// ENG-303: every listing in `webapp::admin_listings` is classified exactly
+/// once in `webapp::admin_listing::LAWYER_LISTINGS`.
+///
+/// This is what keeps the seam a seam. A new `listing_router!` mount starts
+/// with a new `#[server] pub async fn list_*` in that module, and this test
+/// fails until someone has decided whether it discloses matter content — so
+/// another unscoped matter-content listing cannot arrive by omission.
+#[test]
+fn every_admin_listing_is_classified_exactly_once() {
+    let source = include_str!("../../webapp/src/admin_listings.rs");
+    let declared: Vec<&str> = source
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("pub async fn list_"))
+        .filter_map(|rest| rest.split('(').next())
+        .map(str::trim)
+        .collect();
+    assert!(
+        declared.len() >= 15,
+        "expected to find the listing server functions by source scan, found {declared:?}",
+    );
+
+    let classified: std::collections::HashSet<&str> = webapp::admin_listing::LAWYER_LISTINGS
+        .iter()
+        .map(|(name, _, _)| *name)
+        .collect();
+    assert_eq!(
+        classified.len(),
+        webapp::admin_listing::LAWYER_LISTINGS.len(),
+        "a listing is classified more than once",
+    );
+    for name in &declared {
+        let full = format!("list_{name}");
+        assert!(
+            classified.contains(full.as_str()),
+            "`{full}` is a lawyer listing with no entry in \
+             `webapp::admin_listing::LAWYER_LISTINGS`. Decide what it discloses: \
+             `Reference`, `MatterContent` (scope it through \
+             `require_lawyer_in_matters`), `ConflictGraph` (firm-wide, Model Rule \
+             1.10), or `AdminOnly`.",
+        );
+    }
+    for (name, _, _) in webapp::admin_listing::LAWYER_LISTINGS {
+        let bare = name.strip_prefix("list_").unwrap_or(name);
+        assert!(
+            declared.contains(&bare),
+            "`{name}` is classified but no longer exists in `webapp::admin_listings`",
+        );
     }
 }
 
@@ -11344,9 +11900,14 @@ async fn admin_person_show_floats_failure_toast_after_welcome_failed() {
 
 #[tokio::test]
 async fn admin_email_log_empty_state_explains_what_lands_here() {
+    // Admin, not Lawyer: `/lawyer/email-log` refuses the Lawyer tier since
+    // ENG-303 — `sent_email` carries no project link to scope by, so the admin
+    // gate is the interim close. Which tier is admitted is
+    // `unscopeable_matter_content_listings_require_the_admin_tier`'s subject;
+    // this test is about the log itself.
     let (state, _surreal) = state_with_engines().await;
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    let resp = get_with_role(app, "/lawyer/email-log", store::persons::Role::Lawyer).await;
+    let resp = get_with_role(app, "/lawyer/email-log", store::persons::Role::Admin).await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     // With no rows the listing shows the shared empty state, and the subtitle
@@ -11363,6 +11924,11 @@ async fn admin_email_log_empty_state_explains_what_lands_here() {
 
 #[tokio::test]
 async fn admin_email_log_lists_rows_newest_first() {
+    // Admin, not Lawyer: `/lawyer/email-log` refuses the Lawyer tier since
+    // ENG-303 — `sent_email` carries no project link to scope by, so the admin
+    // gate is the interim close. Which tier is admitted is
+    // `unscopeable_matter_content_listings_require_the_admin_tier`'s subject;
+    // this test is about the log itself.
     let (state, surreal) = state_with_engines().await;
     for (sent_at, recipient) in [
         ("2026-05-24T10:00:00Z", "older@example.com"),
@@ -11386,7 +11952,7 @@ async fn admin_email_log_lists_rows_newest_first() {
         .unwrap();
     }
     let app = server::neon_router(state, std::path::Path::new(portal::DEFAULT_PUBLIC_DIR));
-    let resp = get_with_role(app, "/lawyer/email-log", store::persons::Role::Lawyer).await;
+    let resp = get_with_role(app, "/lawyer/email-log", store::persons::Role::Admin).await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = body_string(resp).await;
     assert!(body.contains("newest@example.com"));

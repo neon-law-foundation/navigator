@@ -17,6 +17,88 @@ use serde::{Deserialize, Serialize};
 use crate::components::{Column, DataTable, Pagination, SortState};
 use crate::people::ViewerRole;
 
+/// What one listing discloses, and therefore which gate it owes its caller.
+///
+/// Every listing in [`crate::admin_listings`] is classified here exactly once.
+/// The classification is the specification: `every_admin_listing_is_classified_exactly_once`
+/// fails on a listing that is not in [`LAWYER_LISTINGS`], so a new page cannot
+/// reach `listing_router!` without someone deciding what it discloses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Disclosure {
+    /// Firm reference data belonging to no matter — jurisdictions, addresses,
+    /// the shared template catalog. [`require_lawyer`] is the whole gate.
+    Reference,
+    /// One matter's content. Scoped through [`require_lawyer_in_matters`] to
+    /// the caller's participation ledger, failing closed on an unlinked row.
+    MatterContent,
+    /// An input to `store::conflicts::check_new_matter`. **Deliberately
+    /// firm-wide for the whole lawyer tier**, including a lawyer on no
+    /// matters: ABA Model Rule 1.10 imputes one lawyer's conflict to the whole
+    /// firm, so a lawyer must be able to see a conflict arising out of a
+    /// matter they are not on. Scoping one of these would silently narrow the
+    /// conflict check to the checker's own caseload, which is the failure the
+    /// rule exists to prevent. Do not "fix" these for consistency.
+    ConflictGraph,
+    /// Matter content the schema cannot scope: the row carries no link to a
+    /// project, so there is no join to filter on. Raised to
+    /// [`require_admin`] as the interim close. This is a holding position, not
+    /// a design — see the follow-up that adds the missing link.
+    AdminOnly,
+}
+
+/// Every lawyer-tier listing, its route, and the single class it belongs to.
+///
+/// Keyed by the `#[server]` function name in [`crate::admin_listings`], which
+/// is what the classification guard greps for.
+pub const LAWYER_LISTINGS: &[(&str, &str, Disclosure)] = &[
+    // Firm reference data — no matter behind any row.
+    (
+        "list_jurisdictions",
+        "/lawyer/jurisdictions",
+        Disclosure::Reference,
+    ),
+    (
+        "list_git_repositories",
+        "/lawyer/git-repositories",
+        Disclosure::Reference,
+    ),
+    ("list_addresses", "/lawyer/addresses", Disclosure::Reference),
+    ("list_mailrooms", "/lawyer/mailrooms", Disclosure::Reference),
+    ("list_templates", "/lawyer/templates", Disclosure::Reference),
+    ("list_questions", "/lawyer/questions", Disclosure::Reference),
+    // Who is on which matter is the ledger itself, not a matter's content.
+    (
+        "list_person_project_roles",
+        "/lawyer/person-project-roles",
+        Disclosure::Reference,
+    ),
+    // A notation names its matter but discloses only template/person/state —
+    // no client answer, no document, no prose.
+    ("list_notations", "/lawyer/notations", Disclosure::Reference),
+    // Matter content, scoped to the caller's participation ledger.
+    ("list_answers", "/lawyer/answers", Disclosure::MatterContent),
+    ("list_assets", "/lawyer/assets", Disclosure::MatterContent),
+    (
+        "list_relationship_logs",
+        "/lawyer/relationship-logs",
+        Disclosure::MatterContent,
+    ),
+    // Conflict-graph inputs — firm-wide on purpose. See `Disclosure::ConflictGraph`.
+    (
+        "list_disclosures",
+        "/lawyer/disclosures",
+        Disclosure::ConflictGraph,
+    ),
+    (
+        "list_person_entity_roles",
+        "/lawyer/person-entity-roles",
+        Disclosure::ConflictGraph,
+    ),
+    // No project link on `letter` or `sent_email` to scope by.
+    ("list_letters", "/lawyer/letters", Disclosure::AdminOnly),
+    ("list_email_log", "/lawyer/email-log", Disclosure::AdminOnly),
+];
+
 /// The `?page=` pagination state for a paginated listing (e.g. the email log),
 /// carried across the server→client boundary so the client renders the same
 /// pagination anchors. `current` is the 1-indexed active page; `total` is the
@@ -207,6 +289,124 @@ pub async fn require_lawyer() -> Result<ViewerRole, ServerFnError> {
     } else {
         Err(ServerFnError::new("lawyer access required"))
     }
+}
+
+/// Which matters a caller may read **content** from.
+///
+/// `store::access` states the matter surface's rule: "Every tier is scoped by
+/// the participation ledger, Owner and Admin included (ENG-81) — there is no
+/// privileged short-circuit here." A listing that reads matter *content* — a
+/// document, a questionnaire answer, a matter's audit trail — owes a caller
+/// the same answer that surface would, and this is the shape that rule takes
+/// here. [`require_lawyer`] alone is not enough for such a listing: it admits
+/// the whole lawyer tier, including a lawyer holding no participation row at
+/// all.
+#[cfg(feature = "server")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MatterScope {
+    /// Read every matter's content. Owner and Admin, and nobody else.
+    ///
+    /// Not a bypass of the matter surface's rule — that surface scopes Owner
+    /// and Admin too, and still does. This is the administrative *listing*
+    /// surface, which is the thing [`ViewerRole::is_admin_tier`] exists to
+    /// name.
+    Unscoped,
+    /// Read only the matters the caller's participation ledger names, as
+    /// `store::access::visible_projects_as_lawyer` resolves them. Empty for a
+    /// lawyer holding no firm-side row, who therefore reads nothing — the
+    /// same zero they already see at `/app/projects`.
+    Participating(std::collections::HashSet<uuid::Uuid>),
+}
+
+#[cfg(feature = "server")]
+impl MatterScope {
+    /// Whether a row linked to `project_id` belongs in this caller's read.
+    ///
+    /// A row carrying **no** project link is absent from a scoped read. There
+    /// is no matter to check it against, so it fails closed: an unlinked row
+    /// is precisely the row whose matter nothing can vouch for, and admitting
+    /// it would make "unlinked" the way around the ledger.
+    #[must_use]
+    pub fn admits(&self, project_id: Option<uuid::Uuid>) -> bool {
+        match self {
+            Self::Unscoped => true,
+            Self::Participating(visible) => project_id.is_some_and(|id| visible.contains(&id)),
+        }
+    }
+
+    /// Drop every row this caller may not read, keyed by each row's project
+    /// link. The single place a matter-content listing filters, so the
+    /// fail-closed rule above is written once rather than per page.
+    pub fn retain<T>(&self, rows: &mut Vec<T>, project_of: impl Fn(&T) -> Option<uuid::Uuid>) {
+        if matches!(self, Self::Unscoped) {
+            return;
+        }
+        rows.retain(|row| self.admits(project_of(row)));
+    }
+}
+
+/// Read the injected `persons.id` of the signed-in viewer. `None` when the
+/// request carried no linked person — a direct hit on the generated `#[server]`
+/// endpoint need not run behind the route's injection layer, and a session may
+/// have no linked person at all. Both fail closed at [`MatterScope::admits`].
+#[cfg(feature = "server")]
+async fn injected_person_id() -> Option<uuid::Uuid> {
+    dioxus_fullstack_core::FullstackContext::extract::<
+        axum::Extension<crate::portal_project_list::PersonId>,
+        _,
+    >()
+    .await
+    .ok()
+    .and_then(|axum::Extension(pid)| pid.0)
+    .and_then(|raw| raw.parse::<uuid::Uuid>().ok())
+}
+
+/// The gate for a listing that reads **matter content**: the lawyer-tier check
+/// [`require_lawyer`] runs, plus the [`MatterScope`] the caller reads through.
+///
+/// Every such listing calls this instead of [`require_lawyer`], and filters its
+/// rows through the returned scope. Which listings those are — and why the two
+/// firm-wide ones are firm-wide — is written down once in
+/// [`MATTER_CONTENT_LISTINGS`] and [`CONFLICT_GRAPH_LISTINGS`].
+///
+/// # Errors
+/// [`require_lawyer`]'s refusal for a non-lawyer caller, or a `500` if the
+/// participation query fails. A failed access query is not an empty workload:
+/// rendering an honest-looking empty listing over a database that never
+/// answered would read as "you are on no matters", so this commits a real
+/// `500` instead — the same line `webapp::lawyer_dashboard` draws.
+#[cfg(feature = "server")]
+pub async fn require_lawyer_in_matters(
+    surreal: &store::surreal::SurrealDb,
+) -> Result<(ViewerRole, MatterScope), ServerFnError> {
+    let role = require_lawyer().await?;
+    if role.is_admin_tier() {
+        return Ok((role, MatterScope::Unscoped));
+    }
+
+    let person_id = injected_person_id().await;
+    let store_role = match role {
+        ViewerRole::Owner => store::persons::Role::Owner,
+        ViewerRole::Admin => store::persons::Role::Admin,
+        ViewerRole::Lawyer => store::persons::Role::Lawyer,
+        ViewerRole::Clerk => store::persons::Role::Clerk,
+        ViewerRole::Client => store::persons::Role::Client,
+    };
+    let visible = store::access::visible_projects_as_lawyer(surreal, person_id, store_role)
+        .await
+        .map_err(|error| {
+            tracing::error!(%error, "matter-scoped listing: visible_projects_as_lawyer failed");
+            dioxus_fullstack_core::FullstackContext::commit_http_status(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                None,
+            );
+            ServerFnError::new(error.clone())
+        })?;
+
+    Ok((
+        role,
+        MatterScope::Participating(visible.into_iter().map(|project| project.id).collect()),
+    ))
 }
 
 /// Read the injected viewer role and refuse a client — the gate for surfaces

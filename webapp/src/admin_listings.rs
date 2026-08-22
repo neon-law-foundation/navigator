@@ -100,6 +100,16 @@ pub fn LawyerGitRepositories() -> Element {
 /// Lawyer person-entity roles directory — the person↔entity role assignments
 /// (person, entity, role).
 ///
+/// **Firm-wide on purpose, for the whole lawyer tier including a lawyer on no
+/// matters.** Do not scope this for consistency with `/lawyer/answers` and
+/// `/lawyer/assets`. `entity_role` is one of the two edges
+/// `store::conflicts::check_new_matter` traverses (`<->entity_role` and
+/// `<->relationship`), and ABA Model Rule 1.10 imputes one lawyer's conflict to
+/// the entire firm — a conflict that surfaces through a matter the checker is
+/// not on is still the firm's conflict. Scoping these rows would narrow the
+/// traversal to the checker's own caseload. Pinned by
+/// `conflict_graph_listings_stay_firm_wide_for_an_unparticipating_lawyer`.
+///
 /// The ties live in the `entity_role` relation (ENG-120). Gate first, then
 /// read, then project.
 #[server]
@@ -176,17 +186,44 @@ pub fn LawyerNotations() -> Element {
     render_resource(&resource)
 }
 
-/// Lawyer answers directory. Gate first, then read, then project.
+/// Lawyer answers directory — **matter content**, scoped to the caller's
+/// participation ledger (ENG-303). A raw questionnaire answer is the client's
+/// own words, so a lawyer reads only the matters they are on; Owner and Admin
+/// read every row.
+///
+/// Gate first, then read, then scope, then project.
 #[server]
 pub async fn list_answers() -> Result<AdminListingView, ServerFnError> {
-    // Gate before touching the query, so a non-lawyer caller never
-    // triggers it.
-    let role = crate::admin_listing::require_lawyer().await?;
-
+    // Resolve the handle first, because the gate needs it to read the
+    // participation ledger — but the gate still runs before the listing's own
+    // query, so a non-lawyer caller never triggers it.
     let surreal = consume_context::<store::surreal::SurrealDb>();
-    let rows = store::answers::list_all(&surreal)
+    let (role, scope) = crate::admin_listing::require_lawyer_in_matters(&surreal).await?;
+
+    let mut rows = store::answers::list_all(&surreal)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    // `answer` carries no `project_id`. It reaches a matter only through
+    // `notation_id → notation.project_id` — the hop `store::contract_reviews`
+    // documents for the same reason. Resolve the caller's visible notations
+    // once rather than per row; an answer whose `notation_id` is NONE has no
+    // path to a matter at all and so fails closed.
+    if let crate::admin_listing::MatterScope::Participating(visible) = &scope {
+        let project_ids: Vec<uuid::Uuid> = visible.iter().copied().collect();
+        let project_of_notation: std::collections::HashMap<uuid::Uuid, uuid::Uuid> =
+            store::notations::list_by_projects(&surreal, &project_ids)
+                .await
+                .map_err(|e| ServerFnError::new(e.to_string()))?
+                .into_iter()
+                .map(|notation| (notation.id, notation.project_id))
+                .collect();
+        scope.retain(&mut rows, |answer| {
+            answer
+                .notation_id
+                .and_then(|id| project_of_notation.get(&id).copied())
+        });
+    }
 
     Ok(crate::admin_listing::view(
         role,
@@ -251,17 +288,27 @@ pub fn LawyerAddresses() -> Element {
     render_resource(&resource)
 }
 
-/// Lawyer assets directory.
+/// Lawyer assets directory — **matter content**, scoped to the caller's
+/// participation ledger (ENG-303). A storage key carries its matter's prefix
+/// and a filename names the document, so a lawyer reads only the matters they
+/// are on; Owner and Admin read every row.
+///
+/// Gate first, then read, then scope, then project.
 #[server]
 pub async fn list_assets() -> Result<AdminListingView, ServerFnError> {
-    // Gate before touching the query, so a non-lawyer caller never
-    // triggers it.
-    let role = crate::admin_listing::require_lawyer().await?;
-
+    // Resolve the handle first, because the gate needs it to read the
+    // participation ledger — but the gate still runs before the listing's own
+    // query, so a non-lawyer caller never triggers it.
     let surreal = consume_context::<store::surreal::SurrealDb>();
-    let rows = store::assets::list_all(&surreal)
+    let (role, scope) = crate::admin_listing::require_lawyer_in_matters(&surreal).await?;
+
+    let mut rows = store::assets::list_all(&surreal)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
+    // `asset.project_id` is `option<record<project>>`: a bare content asset
+    // belongs to no matter, and a scoped read leaves it out rather than
+    // guessing.
+    scope.retain(&mut rows, |asset| asset.project_id);
 
     Ok(crate::admin_listing::view(
         role,
@@ -331,7 +378,18 @@ pub fn LawyerPersonProjectRoles() -> Element {
     render_resource(&resource)
 }
 
-/// Lawyer disclosures directory.
+/// Lawyer disclosures directory — **firm-wide on purpose, for the whole lawyer
+/// tier including a lawyer on no matters.**
+///
+/// Do not scope this for consistency with `/lawyer/answers` and
+/// `/lawyer/assets`. The disclosures table feeds
+/// `store::conflicts::check_new_matter`, and ABA Model Rule 1.10 imputes one
+/// lawyer's conflict to the entire firm — so a lawyer running a conflict check
+/// must be able to see a conflict arising out of a matter they are not on.
+/// Filtering these rows by the checker's own participation would narrow the
+/// conflict check to the checker's own caseload, which is the exact failure the
+/// imputation rule exists to prevent. Pinned by
+/// `conflict_graph_listings_stay_firm_wide_for_an_unparticipating_lawyer`.
 #[server]
 pub async fn list_disclosures() -> Result<AdminListingView, ServerFnError> {
     crate::admin_listing::load_surreal(
@@ -362,19 +420,40 @@ pub fn LawyerDisclosures() -> Element {
     render_resource(&resource)
 }
 
-/// Lawyer relationship logs directory.
+/// Lawyer relationship logs directory — **matter content**, scoped to the
+/// caller's participation ledger (ENG-303).
 ///
-/// The trail reads newest-first. Gate first, then read, then project.
+/// This one is not a conflict-graph input, and that is what decides it.
+/// `store::relationship_logs` says the trail is one-sided and "the conflict
+/// traversal never reads it", so the Model Rule 1.10 imputation that keeps
+/// `/lawyer/disclosures` and `/lawyer/person-entity-roles` firm-wide has
+/// nothing to say here. What the trail *does* hold is per-matter: every live
+/// writer — `store::projects`, `store::project_modules`, and
+/// `store::participation` — stamps `subject_type = "project"` with the matter's
+/// id, and the matter-open writer puts `conflict.summary_lines()` in `detail`,
+/// which names adverse parties in prose. So it is scoped, and the
+/// `subject_id → project` link the writers already set is what scopes it, with
+/// no schema change.
+///
+/// An entry whose `subject_type` is something other than `"project"` names no
+/// matter and fails closed.
+///
+/// The trail reads newest-first. Gate first, then read, then scope, then
+/// project.
 #[server]
 pub async fn list_relationship_logs() -> Result<AdminListingView, ServerFnError> {
-    // Gate before touching the query, so a non-lawyer caller never
-    // triggers it.
-    let role = crate::admin_listing::require_lawyer().await?;
-
+    // Resolve the handle first, because the gate needs it to read the
+    // participation ledger — but the gate still runs before the listing's own
+    // query, so a non-lawyer caller never triggers it.
     let surreal = consume_context::<store::surreal::SurrealDb>();
-    let rows = store::relationship_logs::all(&surreal)
+    let (role, scope) = crate::admin_listing::require_lawyer_in_matters(&surreal).await?;
+
+    let mut rows = store::relationship_logs::all(&surreal)
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
+    scope.retain(&mut rows, |log| {
+        (log.subject_type == "project").then_some(log.subject_id)
+    });
 
     Ok(crate::admin_listing::view(
         role,
@@ -446,11 +525,21 @@ pub fn LawyerMailrooms() -> Element {
     render_resource(&resource)
 }
 
-/// Lawyer letters directory. Each row resolves its mailroom through an in-memory
-/// join, so it builds rows itself and hands them to `admin_listing::view`.
+/// Letters directory — **Owner/Admin only** (ENG-303). Each row resolves its
+/// mailroom through an in-memory join, so it builds rows itself and hands them
+/// to `admin_listing::view`.
+///
+/// This is matter content — sender, recipient, and summary of correspondence in
+/// both directions — but `letter` carries no link to a project to scope it by.
+/// Its only link is `mailroom_id`, and a mailroom is a physical address, not a
+/// matter. So the interim close is the admin gate rather than participation
+/// scoping: it stops the disclosure today with no schema change, at the cost of
+/// a firm-wide view a Lawyer arguably never should have had. Adding
+/// `letter.project_id` plus a backfill is the real fix and is tracked
+/// separately.
 #[server]
 pub async fn list_letters() -> Result<AdminListingView, ServerFnError> {
-    let role = crate::admin_listing::require_lawyer().await?;
+    let role = crate::admin_listing::require_admin().await?;
     let surreal = consume_context::<store::surreal::SurrealDb>();
     let letters = store::letters::list_all(&surreal)
         .await
@@ -506,13 +595,20 @@ pub struct EmailLogQuery {
 #[cfg(feature = "server")]
 const EMAIL_LOG_PER_PAGE: u64 = 50;
 
-/// Lawyer email log — a read-only, `?page=`-paginated audit view over
-/// `sent_emails`, newest first, metadata only (the body is intentionally not
-/// shown). Unlike the other listings it carries pagination, so it sets the
-/// view's `PageState` after building its rows.
+/// Email log — **Owner/Admin only** (ENG-303). A read-only,
+/// `?page=`-paginated audit view over `sent_emails`, newest first, metadata
+/// only (the body is intentionally not shown). Unlike the other listings it
+/// carries pagination, so it sets the view's `PageState` after building its
+/// rows.
+///
+/// Recipient, subject, and sender of every message the deployment has sent is
+/// matter content, but `sent_email` carries no project link at all — not even
+/// an indirect one — so there is nothing to scope by. Same interim close as
+/// `/lawyer/letters`: the admin gate now, a real `project_id` and backfill in
+/// its own issue.
 #[server]
 pub async fn list_email_log() -> Result<AdminListingView, ServerFnError> {
-    let role = crate::admin_listing::require_lawyer().await?;
+    let role = crate::admin_listing::require_admin().await?;
     let axum::extract::Query(query) =
         dioxus_fullstack_core::FullstackContext::extract::<axum::extract::Query<EmailLogQuery>, _>(
         )

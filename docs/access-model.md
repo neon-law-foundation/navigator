@@ -312,8 +312,18 @@ Embedded Rego's allow rules in priority order:
    still gets a `404`. The trust call is that these tiers imply a fiduciary duty audited elsewhere (Drive activity, DB
    write logs). Operational surfaces such as `/admin` and `/admin/analytics` enforce the Owner/Admin tier in their
    handlers, so the broader `/lawyer/*` lawyer-tier gate cannot expose them.
-2. **Lawyer-tier writes** — `/lawyer/persons`, `/lawyer/templates`, and other firm-internal CRUD gate on
-   `session.role` being `"owner"`, `"admin"`, or `"lawyer"`. `"clerk"` is intentionally absent.
+2. **Lawyer-tier surfaces** — `/lawyer/persons`, `/lawyer/templates`, and the other firm-internal pages gate on
+   `session.role` being `"owner"`, `"admin"`, or `"lawyer"`. `"clerk"` is intentionally absent. That tier check is the
+   whole gate only for firm *reference* data. A `/lawyer` listing that reads **matter content** — `/lawyer/answers`,
+   `/lawyer/assets`, `/lawyer/relationship-logs` — additionally scopes its rows to the caller's participation ledger
+   through `webapp::admin_listing::require_lawyer_in_matters`, so a lawyer holding no row reads nothing there, and a row
+   carrying no project link is absent from a scoped read rather than admitted. Owner and Admin keep the unscoped read.
+   Two listings stay firm-wide on purpose: `/lawyer/disclosures` and `/lawyer/person-entity-roles` feed
+   `store::conflicts::check_new_matter`, and ABA Model Rule 1.10 imputes a conflict firm-wide, so a lawyer must be able
+   to see one arising out of a matter they are not on — scoping either would narrow the conflict check to the checker's
+   own caseload. `/lawyer/letters` and `/lawyer/email-log` are Owner/Admin only: `letter` and `sent_email` carry no
+   project link to scope by, so the admin gate is the interim close until one exists. Which class each listing belongs
+   to is written down once, in `webapp::admin_listing::LAWYER_LISTINGS`.
 3. **Clerk supervised lens** — a Clerk enters `/app/projects` with everyone else, and
    `store::access::matter_viewer` resolves them to `MatterViewer::Clerk` only when they hold a firm-side row and the
    matter has a flagged lawyer DRI who currently holds the lawyer tier. That variant renders the matter name, status,
