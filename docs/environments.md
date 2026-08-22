@@ -105,6 +105,13 @@ serves this bounded public marketing lane at the same origin. Set both `CANONICA
 to the exact `NAVIGATOR_PUBLIC_HOST`; otherwise canonical-host middleware or Restate registration can silently target a
 different site.
 
+`NAVIGATOR_CHATWOOT_WEBSITE_TOKEN` is the one public-surface coordinate that is deliberately *not* set on every row. It
+names the Chatwoot inbox the support-chat widget opens a conversation against, and a row that omits it renders no widget
+at all — which is the right answer for `neon-law-stg`, whose visitors are reading a synthetic portfolio and must not be
+able to reach a live inbox from it. This is also what gates the only third-party origin any page admits: the Content
+Security Policy widens to name the Chatwoot installation on the deployment carrying a token and on no other. Set
+`NAVIGATOR_CHATWOOT_BASE_URL` beside it only for a self-hosted installation; unset means Chatwoot Cloud.
+
 Every hosted row uses `NAVIGATOR_ENVIRONMENT=production` and `NAVIGATOR_CREDENTIAL_ENVIRONMENT=production`.
 `neon-law-stg` remains the proving release ring through its config, namespace, data plane, and hostname—not through a
 weaker runtime profile. Set `GOOGLE_OAUTH_REQUIRED_HD=neonlaw.com` on both rows. This value is the selected Workspace
