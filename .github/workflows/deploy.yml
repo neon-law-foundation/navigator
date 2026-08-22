@@ -384,10 +384,26 @@ jobs:
           #
           # `publish` already made exactly this move for the same pair; see the
           # `alias` note in its matrix.
+          #
+          # Four vCPU, and UNLIKE the gate this is not measured. The gate's
+          # 4-vCPU move (see ci.yml) came in at 1.14x the wall clock because
+          # more than half of that job is test EXECUTION bounded by
+          # `--test-threads 4`, which ignores cores. This leg has no such half:
+          # it is a buildx compile of the whole Rust and Dioxus application,
+          # nearly all of it parallel, so it is the shape where halving the
+          # cores can approach 2x and save nothing.
+          #
+          # It is safe to try at 4 and cheap to read back. Blacksmith bills
+          # linearly in cores, so the downside is bounded at "same money, longer
+          # wait" — and the timeout above has the room: measured warm at 24 min
+          # (main) and 32 min (tag), so even a full 2x lands inside the 90-min
+          # cap. Compare a tag run against those figures; if the ratio is at or
+          # near 2x, put this leg back on `blacksmith-8vcpu-ubuntu-2404`, where
+          # the same money buys half the wait.
           - image: neon-server
             dockerfile: images/Containerfile.neon
             alias: navigator-web
-            runner: blacksmith-8vcpu-ubuntu-2404
+            runner: blacksmith-4vcpu-ubuntu-2404
           #
           # `ci_cache_scope` is deliberately absent from the `neon-server` leg
           # above, and that absence is what keeps this matrix off the Actions

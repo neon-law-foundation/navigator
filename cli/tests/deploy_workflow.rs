@@ -556,12 +556,18 @@ fn browser_accessibility_uses_the_shipped_images() {
 
 /// The public-host image compiles the full server and Dioxus web bundle. A
 /// stock `ubuntu-latest` runner timed out building `neon-server` at the release
-/// job's 90-minute wedge detector (run 32185875546), while the repository's
-/// established eight-vCPU Blacksmith lane already carries the workspace build.
-/// Keep that one heavy matrix leg on that runner; the smaller service images do
-/// not earn a metered machine.
+/// job's 90-minute wedge detector (run 32185875546), so that leg needs a
+/// Blacksmith machine. Four vCPU is the width the workspace standardised on
+/// after run 32536363029 measured the merge gate on both images, and Blacksmith
+/// bills linearly in cores — so a leg left at eight is paying twice the rate
+/// for the same core-minutes.
+///
+/// Keep the one heavy leg on the metered four-vCPU runner and every other leg
+/// on `ubuntu-latest`, which is free on a public repository. The smaller
+/// service images do not compile the workspace and do not earn a metered
+/// machine.
 #[test]
-fn the_public_host_image_builds_on_the_blacksmith_eight_vcpu_runner() {
+fn the_public_host_image_builds_on_the_blacksmith_four_vcpu_runner() {
     let workflow: serde_yaml::Value =
         serde_yaml::from_str(&deploy_workflow()).expect("deploy.yml parses as YAML");
     let matrix = workflow["jobs"]["build"]["strategy"]["matrix"]["include"]
@@ -574,9 +580,9 @@ fn the_public_host_image_builds_on_the_blacksmith_eight_vcpu_runner() {
         .expect("the build matrix must include neon-server");
     assert_eq!(
         leg["runner"].as_str(),
-        Some("blacksmith-8vcpu-ubuntu-2404"),
-        "neon-server compiles the full Rust and Dioxus application and must use the established \
-         eight-vCPU Blacksmith runner"
+        Some("blacksmith-4vcpu-ubuntu-2404"),
+        "neon-server compiles the full Rust and Dioxus application and must use the four-vCPU \
+         Blacksmith runner the workspace standardised on"
     );
 
     for leg in matrix
