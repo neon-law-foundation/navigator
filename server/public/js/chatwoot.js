@@ -28,6 +28,20 @@
     return;
   }
 
+  // The base URL is DOM text, and it ends up on `script.src`, which is an
+  // injection sink: a `javascript:` or `data:` value there is executing
+  // markup. `ChatwootWidget::from_lookup` already refuses anything that is
+  // not an absolute `http(s)` origin, but the check is repeated at the sink
+  // rather than assumed from the producer, so the loader is safe to read on
+  // its own terms.
+  function isSafeInstallationOrigin(value) {
+    return /^https?:\/\/[^\s/?#"'<>\\]+$/.test(value);
+  }
+
+  if (!isSafeInstallationOrigin(baseUrl)) {
+    return;
+  }
+
   // Read by the SDK at `run()` time. `launcherTitle` is empty on purpose: the
   // bubble carries no label, so the widget adds one control to the page rather
   // than a second piece of copy competing with the page's own.
