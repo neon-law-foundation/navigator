@@ -504,6 +504,10 @@ erDiagram
         string system
         datetime updated_at
     }
+    person_mailbox {
+        record id PK
+        record_person person_id FK
+    }
     person_project_role {
         record id PK
         string inserted_at
@@ -759,6 +763,7 @@ erDiagram
     notation ||--o{ notation_event : "notation_id"
     template ||--o{ notation_event : "template_version_id"
     person ||--o{ person_external_identity : "person_id"
+    person ||--o{ person_mailbox : "person_id"
     person ||--o{ person_project_role : "person_id"
     project ||--o{ person_project_role : "project_id"
     entity ||--o{ playbook : "entity_id"

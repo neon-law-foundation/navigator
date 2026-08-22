@@ -220,6 +220,40 @@ DEFINE FIELD OVERWRITE updated_at ON person TYPE datetime DEFAULT time::now();
 DEFINE INDEX OVERWRITE person_email_lower ON person FIELDS email_lower UNIQUE;
 DEFINE INDEX OVERWRITE person_oidc_subject ON person FIELDS oidc_subject UNIQUE;
 
+-- `person_mailbox`: the row that serializes claiming a mailbox, and the
+-- reason the UNIQUE `person_email_lower` index above is no longer the
+-- whole guard.
+--
+-- The index does not enforce across concurrent transactions on the
+-- embedded engine. Racers creating one mailbox into a free slot land
+-- *two* person rows: each transaction writes its own `person` record key
+-- and its own index entry, and the optimistic layer conflicts on record
+-- keys, not on index entries — so nothing makes the racers collide.
+-- Probing for the mailbox first does not help either: a
+-- `WHERE email_lower = $v` predicate is a scan, and a scan does not enter
+-- the transaction's read set the way a direct record read does.
+-- `store/tests/person_mailbox_race.rs` reproduces the fork against the
+-- unguarded write and pins the guarded one.
+--
+-- This table makes them collide. Its **record id is `email_lower`** — the
+-- same stored, lowercased spelling the index covers — so every racer
+-- claiming one mailbox writes one identical record key and the engine
+-- refuses all but one. `CREATE` rather than `UPSERT` is what turns that
+-- into a refusal instead of a silent overwrite, and it reports
+-- `ErrorDetails::AlreadyExists` — a typed detail, which is what
+-- `store::persons::claims_a_mailbox` matches on rather than prose.
+--
+-- The claim is mutable and releasable because the mailbox is: deleting a
+-- person releases their claims, and editing a person's email moves the
+-- claim to the new mailbox. A claim that outlived its person would lock
+-- that mailbox out of ever being used again.
+--
+-- `person_email_lower` stays as the backstop for a fork that is not a
+-- race — a row written before this table existed, or one whose claim was
+-- released without its row going with it.
+DEFINE TABLE IF NOT EXISTS person_mailbox SCHEMAFULL PERMISSIONS NONE;
+DEFINE FIELD OVERWRITE person_id ON person_mailbox TYPE record<person>;
+
 -- `person_external_identity`: the id a third-party system issues for a
 -- Person, so Navigator can name them in an API call. An address book and
 -- nothing more — no credential, no grant, and no authorization path
