@@ -271,6 +271,38 @@ jobs:
           service_account: ${{ secrets.NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT }}
 ```
 
+### The publisher's grant is prefix-conditioned, and one identity cannot serve two Projects
+
+The applications bucket is **shared**: every Project's portal lives in it under its own `<code>/portal/` prefix, and
+that prefix is derived by the action rather than enforced by Google. So the publisher's grant carries an IAM condition
+naming exactly one prefix — `cli/src/devx/gcp/app_publisher.rs`, `publisher_condition_expression`. Without it, any
+Project's CI could overwrite any other Project's portal, which is privileged client-facing work product Navigator
+serves same-origin.
+
+The role bound under that condition is a custom one holding exactly `storage.objects.create`, `storage.objects.get` and
+`storage.objects.update`. No predefined role is create-and-update without delete: `objectCreator` is create-only, and
+`objectUser` and `objectAdmin` both carry delete. It deliberately excludes `storage.objects.list`, which is evaluated
+against the *bucket* — no object-name condition can scope it, and granting it would leak every other Project's object
+names. The publish does not need it, because it uploads with `cp`, which never lists.
+
+**A condition lives on a binding, and a binding names one role and one member set, so a shared publisher account can
+carry exactly one prefix.** One publisher identity per Project therefore follows from the shape rather than from
+preference: a second Project bound to the same account either widens the condition until the isolation is gone, or
+needs its own account.
+
+### The `neon-law-staging` sample lane
+
+Three public repositories — `neon-law-staging/sample-litigation`, `/sample-transactional` and
+`/sample-estate` — each hold one sample portal, named for the Project code it mounts on. Because the repository name *is* the code, the action's
+derived prefix is already correct and no `repository:` override is needed. `dist_dir: dist` is: these applications live
+at the repository root, so the build emits `dist/` rather than `portal/dist/`.
+
+The caller workflow for them is [`examples/sample-portal-publish.yml`](examples/sample-portal-publish.yml), ready to
+copy unchanged into each repository as `.github/workflows/publish.yml`. **It is not yet applied.** The credential needed
+to push a `.github/workflows/` change is available, so that is no longer what blocks it; what blocks it is that
+`neon-law-stg` carries no publisher identity yet, and applying the workflow before it does would leave three public
+repositories with a workflow that fails at authentication on every merge to `main`.
+
 **Upload order is load-bearing, and the never-delete rule is what distinguishes a private, shared applications bucket
 from a public marketing site.** The action uploads in two passes — everything except `index.html` first, then
 `index.html` last — so that by the time any HTML naming a new hashed filename is readable, that file already exists.

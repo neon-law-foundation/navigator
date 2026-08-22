@@ -74,11 +74,22 @@ description: >-
 #
 # ## The issuer
 #
-# The tokens these repositories mint come from the enterprise's own subdomain,
-# `https://token.actions.githubusercontent.com`, not `token.actions.githubusercontent.com`.
-# That is a property of the `workload_identity_provider` resource the caller
-# passes, not a parameter this action sets: the provider is the `ghe-oidc`
-# provider that trusts that issuer. See docs/project-repositories.md.
+# The tokens these repositories mint are issued by
+# `https://token.actions.githubusercontent.com` — github.com's own OIDC issuer.
+# The earlier wording here described it as an enterprise's own subdomain, which
+# was true while these repositories lived on GitHub Enterprise and is not now.
+# `cli/src/devx/gcp/artifact_registry.rs` `GITHUB_OIDC_ISSUER` has always been
+# this value, so only the description was wrong.
+#
+# Which issuer is trusted is a property of the `workload_identity_provider`
+# resource the caller passes, not a parameter this action sets.
+#
+# The provider id in that resource is still spelled `ghe-oidc`, and that is a
+# live resource id rather than leftover narration: a provider id is not
+# patchable, so renaming it would create a second provider under the same pool
+# and converge nothing. `cli/src/devx/gcp/app_publisher.rs`
+# `APP_PUBLISHER_WIF_PROVIDER_ID` carries the full reasoning. Do not "fix" the
+# spelling. See docs/project-repositories.md.
 #
 # ## Rollback
 #

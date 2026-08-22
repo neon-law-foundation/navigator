@@ -1,0 +1,110 @@
+# The publish caller for a `neon-law-staging` sample-portal repository.
+#
+# NOT YET APPLIED. This file is the exact content to add as
+# `.github/workflows/publish.yml` in each of `neon-law-staging/sample-litigation`,
+# `neon-law-staging/sample-transactional` and `neon-law-staging/sample-estate`.
+# It lives here, in Navigator, because pushing it is a change to three public
+# repositories and is a separate decision from merging this one. Copy it
+# unchanged — nothing in it is per-repository.
+#
+# ## Why nothing here names the Project
+#
+# `application-publish` derives the object prefix from
+# `github.event.repository.name` and then proves the built bundle is mounted at
+# `/app/projects/<that>/portal/`. The three repositories are now named for the
+# Project codes they mount on, so the derived prefix is already right and no
+# `repository:` override is needed. A `repository:` line here would be a second
+# place the code is declared, and the two could disagree.
+#
+# `dist_dir: dist` *is* needed: these applications live at the repository root,
+# not under `portal/`, so the build emits `dist/` rather than `portal/dist/`.
+#
+# ## Before this can work
+#
+# Each repository needs three **secrets** (not variables — a variable is printed
+# in full in a public Actions log, and two of these name the deployment's GCP
+# project):
+#
+#   NAVIGATOR_APPLICATIONS_BUCKET            neon-law-stg-applications
+#   NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER     printed by `navigator ops gcp setup`
+#   NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT  printed by `navigator ops gcp setup`
+#
+# And `neon-law-stg` needs the publisher identity those two coordinates name,
+# which it does not have: it carries no `navigator-app-publisher` account and no
+# `app-publisher` Workload Identity pool, so nothing there can federate a
+# publish yet.
+#
+# ## Why this is held rather than applied, and what is actually outstanding
+#
+# **The `workflow` token scope this needs is available.** Pushing a
+# `.github/workflows/` change used to be blocked on a credential that did not
+# exist; it now does, so this is no longer a tooling gap. Recording that
+# explicitly because the distinction changes who unblocks it.
+#
+# What remains is two things, in this order:
+#
+# 1. **The publisher identity, provisioned in `neon-law-stg`.** Applying this
+#    file first would be actively worse than waiting: every merge to `main` in
+#    three *public* repositories would run a workflow that fails at the
+#    authentication step, so three public repositories would carry red CI
+#    continuously, for no gain — nothing publishes either way until the identity
+#    exists.
+# 2. **A decision to apply it.** Pushing to three public repositories is not a
+#    consequence of merging a Navigator pull request, and should not become one.
+#
+# Neither is a code change, which is why this file is finished and parked rather
+# than partially written. When both clear, it is a copy into three repositories
+# and nothing else.
+
+name: publish
+
+on:
+  push:
+    branches: [main]
+
+# A superseded publish has nothing left to land, and two publishes racing on the
+# same prefix could interleave their two passes.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write # required to mint the OIDC token WIF federates
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build
+
+      # After the build, never before — the bundle and licence gates assert on
+      # real output, so running them first would pass by finding nothing to
+      # check. Same ordering as ci.yml, for the same reason.
+      - run: pnpm test
+
+      # The one gate: source-only, no legal files, and the built portal is
+      # mounted where Navigator will serve it. It runs before the publish and in
+      # the same job.
+      - uses: neon-law-foundation/navigator/.github/actions/validate@26.8.22-hotfix.23
+        with:
+          version: "26.8.22-hotfix.23"
+          project_repository: true
+
+      - uses: neon-law-foundation/navigator/.github/actions/application-publish@26.8.22-hotfix.23
+        with:
+          applications_bucket: ${{ secrets.NAVIGATOR_APPLICATIONS_BUCKET }}
+          workload_identity_provider: ${{ secrets.NAVIGATOR_APP_PUBLISHER_WIF_PROVIDER }}
+          service_account: ${{ secrets.NAVIGATOR_APP_PUBLISHER_SERVICE_ACCOUNT }}
+          dist_dir: dist
