@@ -2,7 +2,7 @@
 //!
 //! Each sample matter carries a client portal at
 //! `/app/projects/{code}/portal/`. Local development refreshes the real Vite
-//! build of that matter's own repository — `navigator-sample-project-litigation`,
+//! build of that matter's own repository — `neon-law-staging/sample-litigation`,
 //! `-transactional`, and `-estate` — stages each `dist/` beside the
 //! `navigator.yml` that names its Project, and points [`STAGE_ENV`] at the
 //! directory holding all three through generated `.devx/env`.
@@ -55,9 +55,11 @@ pub const ASSET_CACHE_CONTROL: &str = "private, max-age=31536000, immutable";
 /// A project application's `navigator.yml`.
 ///
 /// One field today. It is a manifest rather than a convention over the
-/// repository name because the repository name is the application's to choose
-/// — the disputes application lives in `navigator-sample-project-litigation`,
-/// which no rule could turn into the Project code `sample-litigation`.
+/// repository name because the repository name is the application's to choose:
+/// a repository may be named for something other than the Project it mounts on,
+/// and no rule can recover the code from a name that never encoded it. The
+/// sample repositories happen to be named for their codes, which makes the two
+/// agree — by convention, not because anything derives one from the other.
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct Manifest {
     /// The Project code this bundle belongs to.

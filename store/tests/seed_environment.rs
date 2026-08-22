@@ -4,9 +4,9 @@
 //! These tests assert the public project and participation read seams.
 //!
 //! Every test drives [`store::seed::seed_environment_with`] rather than
-//! `seed_environment`, so the sample-matter decision is an argument instead
-//! of a read of process environment. A sourced `.devx/env` would otherwise
-//! decide what these tests assert.
+//! `seed_environment`, so the deployment profile is an argument instead of a
+//! read of process environment. A sourced `.devx/env` would otherwise decide
+//! what these tests assert.
 
 use std::sync::Arc;
 
@@ -27,8 +27,9 @@ async fn storage() -> Arc<dyn cloud::StorageService> {
 }
 
 /// A deployment holding real client files carries no invented ones, and no
-/// fixture people either. This is the assertion the whole
-/// `NAVIGATOR_SIMULATED_MATTERS` default exists to keep true.
+/// fixture people either. The production profile is the whole predicate:
+/// `NAVIGATOR_SIMULATED_MATTERS` cannot widen this, because it decides only
+/// whether the banner renders and writes nothing itself.
 #[tokio::test]
 async fn a_seed_without_sample_matters_has_no_disposable_projects_or_people() {
     let surreal = mem_surreal().await;
@@ -39,7 +40,6 @@ async fn a_seed_without_sample_matters_has_no_disposable_projects_or_people() {
         &storage,
         DeploymentEnvironment::Production,
         store::seed::BrandSeed::Neon,
-        false,
     )
     .await
     .unwrap();
@@ -100,7 +100,6 @@ async fn the_fixture_opens_the_three_sample_matters_with_dris() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();
@@ -189,7 +188,6 @@ async fn the_fixture_admin_participates_in_nothing() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();
@@ -233,7 +231,6 @@ async fn each_sample_matter_has_its_own_client_entity() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();
@@ -268,7 +265,6 @@ async fn the_fixture_is_idempotent_and_repairs_participation_drift() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();
@@ -298,7 +294,6 @@ async fn the_fixture_is_idempotent_and_repairs_participation_drift() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();
@@ -353,7 +348,6 @@ async fn the_fixture_does_not_claim_a_same_named_project() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();
@@ -399,7 +393,6 @@ async fn a_production_boot_carries_every_box_we_answer_mail_at() {
         &storage,
         DeploymentEnvironment::Production,
         store::seed::BrandSeed::Neon,
-        false,
     )
     .await
     .unwrap();
@@ -462,7 +455,6 @@ async fn the_retired_partnerships_boxes_do_not_seed() {
         &storage,
         DeploymentEnvironment::Production,
         store::seed::BrandSeed::Neon,
-        false,
     )
     .await
     .unwrap();
@@ -512,7 +504,6 @@ async fn each_entity_holds_only_its_own_box() {
         &storage,
         DeploymentEnvironment::Production,
         store::seed::BrandSeed::Neon,
-        false,
     )
     .await
     .unwrap();
@@ -555,7 +546,6 @@ async fn a_tenant_boot_carries_none_of_our_addresses() {
         &storage,
         DeploymentEnvironment::Production,
         store::seed::BrandSeed::Tenant,
-        false,
     )
     .await
     .unwrap();
@@ -579,7 +569,6 @@ async fn the_brand_layer_is_idempotent_across_boots() {
             &storage,
             DeploymentEnvironment::Production,
             store::seed::BrandSeed::Neon,
-            false,
         )
         .await
         .unwrap();
@@ -619,7 +608,6 @@ async fn the_dev_portfolios_mail_survives_the_mailroom_moving_layers() {
         &storage,
         DeploymentEnvironment::Dev,
         store::seed::BrandSeed::Neon,
-        true,
     )
     .await
     .unwrap();

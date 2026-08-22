@@ -420,8 +420,7 @@ where
 /// templates, products, testimonials). It is **environment-blind** — it
 /// runs identically in production, so it must never insert a disposable
 /// Project, mailroom, letter, or answer row. Those live in
-/// [`seed_sample_portfolio`] and are applied only where matters are
-/// sample.
+/// [`seed_sample_portfolio`] and are applied on a `dev` profile only.
 pub async fn seed_canonical(
     surreal: &SurrealDb,
     storage: &std::sync::Arc<dyn cloud::StorageService>,
@@ -433,13 +432,12 @@ pub async fn seed_canonical(
 
 /// Apply the compiled sample-matter fixture on top of the canonical seed.
 /// It gives an environment the three synthetic matters, their participants, and
-/// the reference rows the portal walkthrough needs. Applied only where
-/// [`crate::config::sample_matters`] says the data plane is synthetic.
-/// Idempotent: a second run inserts zero duplicates.
+/// the reference rows the portal walkthrough needs. Applied on a `dev` profile
+/// only. Idempotent: a second run inserts zero duplicates.
 ///
 /// The profile is an argument because the fixture's portal publish consults it
-/// — a deployment running the production profile keeps whatever application is
-/// already published rather than overwriting it. See [`publish_sample_portal`].
+/// too — a production-profile boot publishes nothing at all. See
+/// [`publish_sample_portal`].
 pub async fn seed_sample_portfolio(
     surreal: &SurrealDb,
     storage: &std::sync::Arc<dyn cloud::StorageService>,
@@ -473,12 +471,17 @@ pub async fn seed_brand(surreal: &SurrealDb, brand: BrandSeed) -> anyhow::Result
 ///    including production. This is the layer that carries data one brand
 ///    owns and the other must not: the brand layer seeds the Firm's mailboxes,
 ///    `neon` the Foundation's, and neither sees the other's.
-/// 3. The disposable **sample-matter fixture**, only where
-///    [`crate::config::sample_matters`] resolves true, so synthetic
-///    Project, mail, or answer rows never reach a deployment holding real
-///    files. That is every `dev` boot, plus any deployment that says so
-///    explicitly — which is how the persistent staging deployment carries
-///    them while running the production runtime profile.
+/// 3. The disposable **sample-matter fixture**, on a `dev` profile only, so
+///    synthetic Project, mail, or answer rows can never reach a deployment
+///    holding real files.
+///
+/// The profile is the whole predicate for layer 3, and
+/// [`crate::config::sample_matters`] is **not** consulted here.
+/// `NAVIGATOR_SIMULATED_MATTERS` decides one thing — whether a deployment
+/// announces that its matters are simulated — and writes nothing. Keeping the
+/// announcement separate from the writing is what lets a production-profile
+/// deployment carry the banner over a portfolio it was given once and now
+/// keeps, rather than one this seed re-asserts on every boot.
 ///
 /// Every layer is idempotent, so a reset/recreate that runs this again
 /// restores the exact same baseline.
@@ -492,18 +495,11 @@ pub async fn seed_environment(
     environment: crate::DeploymentEnvironment,
     brand: BrandSeed,
 ) -> anyhow::Result<SeedReport> {
-    let sample = crate::config::sample_matters(environment)?;
-    seed_environment_with(surreal, storage, environment, brand, sample).await
+    seed_environment_with(surreal, storage, environment, brand).await
 }
 
-/// [`seed_environment`] with the sample-matter decision already made, so a
-/// test can drive both answers without mutating process environment.
-///
-/// The profile stays a separate argument from that decision because the two
-/// are genuinely independent — the persistent staging deployment carries
-/// sample matters *under* the production profile — and because the sample
-/// portfolio's publish half consults the profile directly. See
-/// [`publish_sample_portal`].
+/// [`seed_environment`], with the profile as an argument so a test drives both
+/// answers without mutating process environment.
 ///
 /// # Errors
 ///
@@ -513,12 +509,11 @@ pub async fn seed_environment_with(
     storage: &std::sync::Arc<dyn cloud::StorageService>,
     environment: crate::DeploymentEnvironment,
     brand: BrandSeed,
-    sample_matters: bool,
 ) -> anyhow::Result<SeedReport> {
     let mut r = SeedReport::default();
     seed_canonical_into(surreal, storage, &mut r).await?;
     seed_brand_into(surreal, brand, &mut r).await?;
-    if sample_matters {
+    if environment != crate::DeploymentEnvironment::Production {
         seed_sample_portfolio_into(surreal, storage, environment, &mut r).await?;
     }
     Ok(r)
@@ -643,8 +638,7 @@ const SAMPLE_MATTERS: &[SampleMatter] = &[
         client_entity: "Dermot Cruller",
         client_kind: SampleClientKind::Human,
         description: "trespass to land, and rescission of the doughnut instrument",
-        repository_url:
-            "https://github.com/neon-law-foundation/navigator-sample-project-litigation",
+        repository_url: "https://github.com/neon-law-staging/sample-litigation",
         portal_index: SAMPLE_LITIGATION_PORTAL_INDEX,
     },
     SampleMatter {
@@ -653,8 +647,7 @@ const SAMPLE_MATTERS: &[SampleMatter] = &[
         client_entity: "Widget Works, Inc.",
         client_kind: SampleClientKind::Company,
         description: "employment agreements and contract review on a monthly retainer",
-        repository_url:
-            "https://github.com/neon-law-foundation/navigator-sample-project-transactional",
+        repository_url: "https://github.com/neon-law-staging/sample-transactional",
         portal_index: SAMPLE_TRANSACTIONAL_PORTAL_INDEX,
     },
     SampleMatter {
@@ -663,7 +656,7 @@ const SAMPLE_MATTERS: &[SampleMatter] = &[
         client_entity: "Cornelius Montgomery",
         client_kind: SampleClientKind::Human,
         description: "estate plan dividing the residue among nieces and nephews",
-        repository_url: "https://github.com/neon-law-foundation/navigator-sample-project-estate",
+        repository_url: "https://github.com/neon-law-staging/sample-estate",
         portal_index: SAMPLE_ESTATE_PORTAL_INDEX,
     },
 ];
@@ -1075,24 +1068,28 @@ async fn open_sample_matter(
 /// staging directory — leaves the deterministic document in place and is
 /// reported as a failed local application build.
 ///
-/// # The deterministic document is a `dev` affordance only
+/// # One rule per profile
 ///
-/// Under the **production** profile this publishes nothing when no bundle is
-/// staged. Whatever already sits in the deployment's applications bucket is
-/// authoritative: a client portal application there was published by an
-/// operator, and the seed has no business writing into that prefix. Overwriting
+/// **Production writes nothing at all**, staged bundle or not. Whatever sits in
+/// the deployment's applications bucket is authoritative: a client portal
+/// application there was published by an operator or by a Project repository's
+/// CI, and the seed has no business writing into that prefix. Overwriting
 /// `index.html` with the placeholder is quiet and partial — the hashed assets
 /// survive, so the portal renders the placeholder while the complete bundle
 /// sits unreferenced in the same prefix — and a 404 is the honest signal that
 /// nothing has published there yet.
 ///
-/// Under `dev` the placeholder keeps being published, which is the case this
-/// function was written for: it keeps a developer's portal serving something
-/// while a Vite build is broken.
+/// **`dev` prefers the staged bundle and falls back to the deterministic
+/// document.** That fallback is the case this function was written for: it
+/// keeps a developer's portal serving something while a Vite build is broken.
 ///
-/// The profile is the whole predicate. [`seed_environment_with`] gates the
-/// entire sample portfolio on `sample_matters`, so within this call graph that
-/// half is invariably true and re-checking it here would be redundant.
+/// **A test gets the deterministic document**, and does so by construction
+/// rather than by a profile check: a test stages no bundle and injects its own
+/// `get`, so the staged branch is simply not reachable. There is deliberately
+/// no environment flag for the test lane. `NAVIGATOR_CI_HARNESS` is the
+/// nearest candidate and is the wrong question — `.devx/env` sets it for the
+/// ordinary local loop, so keying on it would stop a developer's own build
+/// from ever publishing.
 async fn publish_sample_portal(
     applications: &std::sync::Arc<dyn cloud::StorageService>,
     matter: &SampleMatter,
@@ -1115,6 +1112,16 @@ async fn publish_sample_portal_with<F: Fn(&str) -> Option<String>>(
     environment: crate::DeploymentEnvironment,
     get: F,
 ) -> anyhow::Result<()> {
+    // Production first, and before anything reads the staging directory: this
+    // profile writes nothing into the applications bucket on any path.
+    if environment == crate::DeploymentEnvironment::Production {
+        tracing::info!(
+            code = matter.code,
+            "seed: production profile; leaving the published portal application alone"
+        );
+        return Ok(());
+    }
+
     if let Some(staged) = crate::sample_project::staged_from(matter.code, get) {
         match publish_staged_portal(applications, &staged, matter.code).await {
             Ok(count) => {
@@ -1137,14 +1144,6 @@ async fn publish_sample_portal_with<F: Fn(&str) -> Option<String>>(
                 );
             }
         }
-    }
-
-    if environment == crate::DeploymentEnvironment::Production {
-        tracing::info!(
-            code = matter.code,
-            "seed: production profile; leaving the published portal application alone"
-        );
-        return Ok(());
     }
 
     applications
@@ -3110,6 +3109,40 @@ mod tests {
         std::sync::Arc::new(cloud::FsStorage::new(dir).await.expect("temp FsStorage"))
     }
 
+    /// Every sample matter's repository lives in the staging organization, and
+    /// its repository name **is** the Project code.
+    ///
+    /// Both halves are load-bearing, and neither is cosmetic.
+    ///
+    /// The organization is where these three repositories actually are — they
+    /// moved out of `neon-law-foundation` so the staging deployment houses the
+    /// fixtures it serves. A stale URL here does not fail loudly: GitHub
+    /// redirects a transferred repository, so `dev sample-project` would keep
+    /// cloning successfully from a path that no longer describes anything.
+    ///
+    /// The name-equals-code half is what the publish path depends on.
+    /// `.github/actions/application-publish` derives the object prefix from the
+    /// repository name and then asserts the built bundle is mounted at
+    /// `/app/projects/<that>/portal/`. So the two names must agree, and nothing
+    /// in either system derives one from the other — this test is the only
+    /// thing holding them together. A rename on either side breaks here rather
+    /// than at a publish against a real bucket.
+    #[test]
+    fn every_sample_matter_repository_is_the_staging_org_named_for_its_code() {
+        for matter in super::SAMPLE_MATTERS {
+            assert_eq!(
+                matter.repository_url,
+                format!("https://github.com/{SAMPLE_MATTER_ORG}/{}", matter.code),
+                "sample matter `{}` must name `{SAMPLE_MATTER_ORG}/{}`",
+                matter.code,
+                matter.code
+            );
+        }
+    }
+
+    /// The organization the three sample project repositories live in.
+    const SAMPLE_MATTER_ORG: &str = "neon-law-staging";
+
     /// The key one sample matter's portal document publishes under.
     fn entry_key(code: &str) -> String {
         format!(
@@ -3201,12 +3234,16 @@ mod tests {
         assert_eq!(stored.content_type, "text/html; charset=utf-8");
     }
 
-    /// The guard sits *after* the staged-bundle branch, so a staged bundle
-    /// still publishes on every profile — including production, which is how
-    /// a locally built bundle could be published against a production-profile
-    /// tier at all.
+    /// The production guard sits *before* the staged-bundle branch, so a
+    /// production-profile boot writes nothing even when a bundle is staged.
+    ///
+    /// This is the stronger half of the rule, and the one worth a test: the
+    /// weaker version — skip only the placeholder — still lets a boot that
+    /// happens to have `NAVIGATOR_SAMPLE_PROJECTS_DIR` set overwrite a live
+    /// client portal with whatever a developer last built. Publishing to a real
+    /// deployment is an operator act with its own lane; boot is never it.
     #[tokio::test]
-    async fn a_staged_bundle_still_publishes_under_the_production_profile() {
+    async fn a_staged_bundle_does_not_publish_under_the_production_profile() {
         let applications = applications_bucket().await;
         let matter = &super::SAMPLE_MATTERS[0];
         let staging = std::env::temp_dir().join(format!(
@@ -3234,13 +3271,9 @@ mod tests {
         .await
         .expect("publish");
 
-        let stored = applications
-            .get(&entry_key(matter.code))
-            .await
-            .expect("the staged bundle landed");
-        assert_eq!(
-            stored.bytes, b"<!doctype html><p>built</p>",
-            "the staged bundle publishes on the production profile too"
+        assert!(
+            applications.get(&entry_key(matter.code)).await.is_err(),
+            "a production-profile boot must publish nothing, staged bundle or not"
         );
         std::fs::remove_dir_all(&staging).ok();
     }

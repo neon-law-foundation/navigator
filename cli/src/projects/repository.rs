@@ -24,11 +24,13 @@
 //!
 //! A repository may **also** declare its Project in a root manifest, and that
 //! manifest is part of the layout. So the code is derived in one place and
-//! declared in another, and the two can disagree — which they already do for
-//! the sample matters, where `navigator-sample-project-litigation` publishes as
-//! `sample-litigation`. `store::sample_project::project_code_for` is what
-//! refuses a bundle declaring a code other than the one it is published under,
-//! so a disagreement is rejected rather than unrepresentable.
+//! declared in another, and nothing makes the two agree. Every repository
+//! shipping today aligns them by convention — `neon-law-staging/sample-litigation`
+//! is named for the code it publishes under — but a repository named for
+//! anything else would split them.
+//! `store::sample_project::project_code_for` is what refuses a bundle declaring
+//! a code other than the one it is published under, so a disagreement is
+//! rejected rather than unrepresentable.
 //!
 //! Collapsing the two spellings to one file and one key, and deciding whether
 //! the publish action should read the manifest instead of the repository name,

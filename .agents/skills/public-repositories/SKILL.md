@@ -11,18 +11,20 @@ description: >
 
 # The public repository posture
 
-The Neon Law Foundation publishes six repositories on github.com, all in the `neon-law-foundation` organization:
+The Neon Law Foundation publishes three repositories on github.com, all in the `neon-law-foundation` organization:
 
 | Repository | What it holds |
 | --- | --- |
 | `navigator` | The Rust workspace: the delivery stack and the firm's website |
 | `navigator-ux` | The shared React component library Project portals build against |
-| `navigator-sample-project-litigation` | The disputes Project application, mounted by `sample-litigation` |
-| `navigator-sample-project-transactional` | The company-counsel application, mounted by `sample-transactional` |
-| `navigator-sample-project-estate` | The estate Project application, mounted by `sample-estate` |
 | `homebrew-navigator` | The Homebrew tap for the `navigator` CLI |
 
 `navigator` is the reference. A new repository copies its shape; a repository that has drifted is brought back to it.
+
+Three more public repositories carry this same posture from a different organization. The sample Project applications —
+`neon-law-staging/sample-litigation`, `-transactional`, and `-estate` — moved to `neon-law-staging`, which houses the
+fixtures the staging deployment serves. Each is named for the Project code it mounts on. The posture below applies to
+them unchanged; only the owner differs, so read `neon-law-staging` for the organization wherever a command names one.
 
 ## Planning lives in Linear
 
@@ -79,7 +81,7 @@ SECURITY.md             # support@neonlaw.org
 
 ## Repository settings
 
-Verified on all six, 2026-08-19:
+Verified on all six, 2026-08-19, when the three sample repositories were still Foundation-owned:
 
 | Setting | Value | Why |
 | --- | --- | --- |
@@ -128,7 +130,7 @@ One active ruleset on `~DEFAULT_BRANCH`, carrying five rules:
 **Name the required check after a job that actually reports on `pull_request`.** A required context no workflow produces
 leaves every PR waiting forever on a check that will never arrive.
 
-- `navigator`, `navigator-ux`, and each `navigator-sample-project-*` define a job named `ci`.
+- `navigator`, `navigator-ux`, and each `neon-law-staging/sample-*` repository define a job named `ci`.
 - `homebrew-navigator` requires `is the formula seeded` and `audit the formula`.
 
 Read the workflow before writing the ruleset:

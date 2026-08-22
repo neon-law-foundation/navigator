@@ -74,12 +74,13 @@ spellings are live and both are allowed roots: Project repositories carry `navig
 carries `navigator.yml` (`store::sample_project::MANIFEST_FILE`), which `store::sample_project::project_code_for` reads
 and refuses when the declared code is not the one the bundle is being published under.
 
-So the code is currently derived in one place and declared in another, and the two can disagree — which they already do
-for the sample matters, where `navigator-sample-project-litigation` publishes as `sample-litigation` and the publish
-action has to be passed `repository: sample-litigation` by hand. Collapsing this to one filename, one key, and one
-reader — and deciding whether `application-publish` should read the manifest rather than the repository name — is an
-open decision, not settled here. Until it lands, refusing either spelling would fail a repository that is correct as
-shipped, so the layout admits both.
+So the code is derived in one place and declared in another, and nothing makes the two agree. Every repository shipping
+today keeps them aligned by convention: each sample repository is named for the code it mounts on, so
+`neon-law-staging/sample-litigation` publishes as `sample-litigation` and the publish action needs no override. That is
+a naming discipline, not an enforced rule — name a repository anything else and the derived prefix silently stops
+matching the declared code. Collapsing this to one filename, one key, and one reader — and deciding whether
+`application-publish` should read the manifest rather than the repository name — is an open decision, not settled here.
+Until it lands, refusing either spelling would fail a repository that is correct as shipped, so the layout admits both.
 
 The trailing slash is load-bearing twice: Vite joins asset URLs directly onto the base, and Navigator redirects the bare
 mount to the slashed form.

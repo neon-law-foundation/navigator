@@ -195,9 +195,12 @@ The fixture seeds three matters, each with its own client, its own practice, and
 
 | Code | Matter | Repository |
 | --- | --- | --- |
-| `sample-litigation` | *Cruller v. Prine* | `navigator-sample-project-litigation` |
-| `sample-transactional` | *Widget Works — Outside Counsel* | `navigator-sample-project-transactional` |
-| `sample-estate` | *Estate of Cornelius Montgomery* | `navigator-sample-project-estate` |
+| `sample-litigation` | *Cruller v. Prine* | `neon-law-staging/sample-litigation` |
+| `sample-transactional` | *Widget Works — Outside Counsel* | `neon-law-staging/sample-transactional` |
+| `sample-estate` | *Estate of Cornelius Montgomery* | `neon-law-staging/sample-estate` |
+
+The three live in the `neon-law-staging` organization, and each repository is named for the Project code it mounts on.
+That is the whole naming rule: the repository name *is* the code, so nothing has to map one to the other.
 
 Each client portal is `/app/projects/<code>/portal/`, and every `dev up` / `dev worktree-env up` refreshes all three
 before writing `.devx/env`. The clones and `pnpm` builds happen in temporary directories; each built `dist/` and its
