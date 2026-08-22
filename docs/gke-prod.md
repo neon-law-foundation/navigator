@@ -358,6 +358,34 @@ authorized operator runs `navigator ops ship --deployment <name>`; that command 
 applies, and waits. Workload Identity binds each Kubernetes ServiceAccount to a GCP service account, so pods talk to GCP
 without JSON keys. The stacks have no `RootSync`, preventing a second controller from reverting the rendered deployment.
 
+### What the operator credential must carry
+
+"Authorized" is two grants, not one. On the cluster, the reconcile needs whatever `kubectl diff`/`apply` and the rollout
+waits require — `roles/container.developer` covers it. Separately, the roll's preflight asserts that the web service
+account can sign GCS URLs for itself, because a pod under Workload Identity holds no private key and mints every
+document-download URL through IAM Credentials `signBlob`. So the operator also needs, on the *web service account's own
+resource* (`<service-account-id>@neon-law-stg.iam.gserviceaccount.com` for staging):
+
+| Permission | When it is needed | Role that carries it |
+| --- | --- | --- |
+| `iam.serviceAccounts.getIamPolicy` | Every roll — this is the steady state | `roles/iam.serviceAccountAdmin` |
+| `iam.serviceAccounts.setIamPolicy` | Only when the binding is genuinely absent | `roles/iam.serviceAccountAdmin` |
+
+`roles/container.developer` carries no `iam.serviceAccounts.*` permission at all, so a cluster-only grant is not enough
+even for the read. The preflight reads the policy first and writes only on a real absence, which is why the common case
+needs the read alone: `ops gcp setup` already wrote that binding when it provisioned the row, so a provisioned
+deployment rolls without any IAM write.
+
+`ops ship --dry-run` performs that read. It is the half a dry-run can answer honestly, so an operator missing
+`getIamPolicy` finds out from the dry-run rather than from a live roll that stops at its first step. Only the write is
+printed instead of performed — and when the binding is absent the dry-run says so, because nothing short of attempting
+the write confirms `setIamPolicy`.
+
+There is no flag to skip the check. A missing binding is not cosmetic — every `/…/documents/:doc_id/download` would 500
+on `iam.serviceAccounts.signBlob` — so an operator who cannot verify or cannot write hands the binding off to someone
+holding `roles/iam.serviceAccountAdmin` rather than rolling past it. The preflight runs before anything mutates and
+names which of the two it hit.
+
 ## Restore from backup
 
 Backup for GKE snapshots run daily at 05:00 UTC; retention is 30 days. Restore is a single CLI:
