@@ -14,7 +14,7 @@
 //! only thing that reads or writes it. See
 //! [`docs/access-model.md`](../../../docs/access-model.md).
 //!
-//! # Four engine facts this module is shaped around
+//! # Five engine facts this module is shaped around
 //!
 //! **An index cannot be defined over an expression.** `DEFINE INDEX …
 //! FIELDS string::lowercase(email)` is refused as the statement runs —
@@ -34,7 +34,20 @@
 //! [`a_duplicate_email_is_reported_as_the_email_being_taken`] holds it
 //! against a real engine.
 //!
-//! **`IF … THEN … ELSE … END` does not parse inside `ORDER BY`.** The
+//! **A UNIQUE index does not enforce across concurrent transactions,
+//! and reading the value first does not help.** The optimistic layer
+//! conflicts on *record* keys; index entries are not part of conflict
+//! detection, so racers writing distinct `person` ids both commit the
+//! same `email_lower`. Probing first does not close it either — a
+//! `WHERE email_lower = $v` predicate is a scan, and a scan is not
+//! tracked in the transaction's read set the way a direct record read
+//! is. So one person per mailbox is enforced by the `person_mailbox`
+//! claim table, whose record id *is* `email_lower`, taken as its own
+//! committed statement before the person row is written — see [`CLAIM`]
+//! and [`find_or_create`]. The UNIQUE index remains the backstop for a
+//! fork that is not a race.
+//!
+//! //! **`IF … THEN … ELSE … END` does not parse inside `ORDER BY`.** The
 //! authority ladder is therefore ranked in Rust via
 //! [`Role::authority_rank`] rather than written a second time in
 //! SurrealQL — see [`default_firm_dri`].
@@ -59,7 +72,7 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use surrealdb::types::SurrealValue;
+use surrealdb::types::{AlreadyExistsError, ErrorDetails, SurrealValue};
 use uuid::Uuid;
 
 use crate::surreal::{record_id, record_uuid, retry, SurrealDb};
@@ -330,6 +343,129 @@ where
     Q: std::future::IntoFuture<Output = Result<surrealdb::IndexedResults, surrealdb::Error>>,
 {
     retry::writing(attempt).await.map_err(classify_write)
+}
+
+/// The table whose **record id is the mailbox** — `email_lower`, the same
+/// stored, lowercased spelling `person_email_lower` indexes. Writing it is
+/// what serializes two racers claiming one mailbox: they collide on one
+/// identical record key, which the engine enforces, rather than on a
+/// UNIQUE index entry, which under concurrency it does not. See the
+/// `person_mailbox` block in `store/src/schema/navigator.surql`.
+const CLAIM_TABLE: &str = "person_mailbox";
+
+/// Claim `$email_lower` for `$id`, refusing when any row already holds it.
+///
+/// `CREATE` rather than `UPSERT` on purpose: `UPSERT` would take the claim
+/// from its current holder, which is the fork this exists to refuse.
+///
+/// **It runs as its own statement, never inside a wider transaction.**
+/// That is the whole mechanism, and it is easy to "tidy" away by folding
+/// it back in with the person write. An explicit `BEGIN … COMMIT` reads
+/// the snapshot taken at `BEGIN`, so two racers each see the mailbox free
+/// and each `CREATE` succeeds against its own snapshot — the fork comes
+/// straight back, and the wider the transaction the likelier it is.
+/// Committing the claim on its own is what makes the second racer read the
+/// first one's row.
+const CLAIM: &str = "CREATE type::record('person_mailbox', $email_lower) SET person_id = $id;";
+
+/// Give back one specific mailbox claim, and only when `$id` is what
+/// holds it. Conditional so a release on a failure path cannot take a
+/// claim that has since become somebody else's.
+const RELEASE_MAILBOX: &str =
+    "DELETE type::record('person_mailbox', $email_lower) WHERE person_id = $id;";
+
+/// Give back every claim `$id` holds. A no-op when it holds none, so it
+/// costs nothing to run on a path that may not have claimed.
+const RELEASE_PERSON: &str = "DELETE person_mailbox WHERE person_id = $id;";
+
+/// The first window [`find_or_create`] waits before re-reading a claim
+/// whose person row has not appeared yet. Same shape as the shared write
+/// backoff: every loser is refused at the same instant, so looking again
+/// immediately just re-reads the same un-committed row.
+const SETTLE_FIRST_BACKOFF: std::time::Duration = std::time::Duration::from_millis(2);
+
+/// The largest window that poll will wait, so a long wait inside the
+/// write budget is not spent in one sleep.
+const SETTLE_BACKOFF_CEILING: std::time::Duration = std::time::Duration::from_millis(64);
+
+/// Whether `error` is the claim record refusing a second holder.
+///
+/// The claim collision is **typed**: `CREATE` onto a taken record id
+/// reports [`AlreadyExistsError::Record`] carrying that id, so the
+/// discriminator is a structured value rather than prose — unlike the
+/// UNIQUE-index violation [`classify_write`] has to read the message for.
+fn claims_a_mailbox(error: &surrealdb::Error) -> bool {
+    matches!(
+        error.details(),
+        ErrorDetails::AlreadyExists(Some(AlreadyExistsError::Record { id }))
+            if id.starts_with(CLAIM_TABLE)
+    )
+}
+
+/// Take the claim on `email_lower` for `id`, reporting whether this call
+/// is the one now holding it.
+///
+/// `Ok(false)` is not a failure — it is another row holding the mailbox,
+/// which every caller here answers differently: [`create`] and [`edit`]
+/// turn it into [`PersonError::EmailTaken`], while [`find_or_create`]
+/// settles on the holder instead.
+async fn take_mailbox(db: &SurrealDb, email_lower: &str, id: Uuid) -> Result<bool, PersonError> {
+    match retry::writing(|| {
+        db.query(CLAIM)
+            .bind(("id", record_id(TABLE, id)))
+            .bind(("email_lower", email_lower.to_string()))
+    })
+    .await
+    {
+        Ok(_) => Ok(true),
+        Err(error) if claims_a_mailbox(&error) => Ok(false),
+        Err(error) => Err(classify_write(error)),
+    }
+}
+
+/// The person currently holding `email_lower`, or `None` when the mailbox
+/// is free.
+///
+/// A **direct record read**, deliberately not a scan. That is not a
+/// micro-optimisation: a `WHERE email_lower = $v` scan is what the forked
+/// shape did, and a scan does not enter the transaction's read set, so it
+/// cannot make one racer observe another's write.
+///
+/// # Errors
+///
+/// [`PersonError::Db`] if the lookup fails.
+pub async fn mailbox_holder(
+    db: &SurrealDb,
+    email_lower: &str,
+) -> Result<Option<Uuid>, PersonError> {
+    let mut response = db
+        .query(format!(
+            "SELECT VALUE person_id FROM ONLY type::record('{CLAIM_TABLE}', $email_lower)"
+        ))
+        .bind(("email_lower", email_lower.to_string()))
+        .await
+        .and_then(surrealdb::IndexedResults::check)?;
+    let holder: Option<surrealdb::types::RecordId> = response.take(0)?;
+    Ok(holder.as_ref().and_then(record_uuid))
+}
+
+/// Give back a claim taken for a write that then did not land, so a
+/// failure does not leave a mailbox claimed by a row that never became a
+/// person — which nothing could then create.
+///
+/// Best effort on purpose: it runs on a path that is already reporting
+/// something else, and the caller's own outcome is the one worth
+/// surfacing. A claim stranded here is visible as a `person_mailbox` row
+/// whose `person_id` names a row that does not exist, and
+/// [`find_or_create`] waits such a claim out rather than trusting it
+/// forever.
+async fn release_mailbox(db: &SurrealDb, email_lower: &str, id: Uuid) {
+    let _ = retry::writing(|| {
+        db.query(RELEASE_MAILBOX)
+            .bind(("id", record_id(TABLE, id)))
+            .bind(("email_lower", email_lower.to_string()))
+    })
+    .await;
 }
 
 /// The fields a new person row carries. Everything but `name` and
@@ -626,6 +762,13 @@ pub async fn search(
 /// [`crate::surreal::record_id`], so the key stays the native UUID
 /// spelling every cross-engine `person_id` still addresses.
 ///
+/// Minting its own key is also why this takes the mailbox claim first.
+/// Two concurrent `create` calls for one mailbox collide on no shared
+/// record key, so the UNIQUE `person_email_lower` index alone admits both
+/// — the same fork [`find_or_create`] guards against, differing only in
+/// that a loser here wants the refusal rather than the winner's row. See
+/// [`CLAIM`].
+///
 /// # Errors
 ///
 /// [`PersonError::EmailTaken`] when another row already holds this
@@ -634,6 +777,25 @@ pub async fn search(
 /// [`PersonError::Db`] for anything else.
 pub async fn create(db: &SurrealDb, input: &NewPerson) -> Result<Person, PersonError> {
     let id = Uuid::now_v7();
+    let email_lower = input.email.trim().to_lowercase();
+    if !take_mailbox(db, &email_lower, id).await? {
+        return Err(PersonError::EmailTaken);
+    }
+    match write_row(db, id, input).await {
+        Ok(person) => Ok(person),
+        Err(error) => {
+            // The claim outliving a row that never landed would lock this
+            // mailbox out for good — including on the `OidcSubjectTaken`
+            // path, where nothing was wrong with the mailbox at all.
+            release_mailbox(db, &email_lower, id).await;
+            Err(error)
+        }
+    }
+}
+
+/// Write the person row itself under `id`. The mailbox claim is the
+/// caller's business — every caller has already taken it.
+async fn write_row(db: &SurrealDb, id: Uuid, input: &NewPerson) -> Result<Person, PersonError> {
     let response = writing(|| {
         db.query(format!(
             "CREATE $id SET \
@@ -669,10 +831,23 @@ pub async fn create(db: &SurrealDb, input: &NewPerson) -> Result<Person, PersonE
 /// The person holding this mailbox, creating them if nobody does.
 ///
 /// The canonical seed runs on every boot and every `navigator db list`,
-/// so two processes can start together. The email probe and the `CREATE`
-/// therefore share one transaction: concurrent callers read and write the
-/// same index key, making a loser retry the whole decision instead of
-/// letting two independent creates both commit that key.
+/// so two processes can start together — and `person.role` is the
+/// authorization root, so a mailbox that forks into two rows is one human
+/// carrying two roles.
+///
+/// Identity is settled by **claiming the mailbox as its own committed
+/// statement** before the person row is written. Nothing here probes for
+/// the mailbox first, because that is the shape that forked: every racer
+/// minted its own record id and read `email_lower` through a scan, so no
+/// two racers touched a key the optimistic layer could conflict on and
+/// each committed a row of its own. The claim gives them one identical
+/// record key to collide on. See [`CLAIM`] for why it may not be folded
+/// back into a transaction with the person write, and
+/// `store/tests/person_mailbox_race.rs` for the fork reproduced against
+/// the old shape.
+///
+/// A loser is not refused: it reads the claim's holder by direct record
+/// read and returns that person.
 ///
 /// Only the mailbox is matched. A caller that also needs the name or role
 /// to be right brings them up to date itself — this settles identity, not
@@ -681,50 +856,58 @@ pub async fn create(db: &SurrealDb, input: &NewPerson) -> Result<Person, PersonE
 /// # Errors
 ///
 /// [`PersonError::OidcSubjectTaken`] when `input` carries an IdP identity
-/// another person already holds — a real conflict, not a race — and
-/// [`PersonError::Db`] for anything else.
+/// another person already holds — a real conflict, not a race —
+/// [`PersonError::WriteReturnedNothing`] when a claim never resolves into
+/// a readable person inside the write budget, and [`PersonError::Db`] for
+/// anything else.
 pub async fn find_or_create(db: &SurrealDb, input: &NewPerson) -> Result<Person, PersonError> {
-    let mut response = writing(|| {
-        db.query(format!(
-            "BEGIN; \
-             LET $existing = (SELECT VALUE id FROM {TABLE} \
-                 WHERE email_lower = $email_lower LIMIT 1)[0]; \
-             IF $existing = NONE {{ \
-                 CREATE $id SET \
-                     name = $name, \
-                     email = $email, \
-                     role = $role, \
-                     given_name = $given_name, \
-                     family_name = $family_name, \
-                     middle_name = $middle_name, \
-                     oidc_subject = $oidc_subject, \
-                     title = $title, \
-                     phone = $phone, \
-                     profile_image_url = $profile_image_url; \
-             }}; \
-             SELECT {SELECT} FROM ONLY {TABLE} WHERE email_lower = $email_lower LIMIT 1; \
-             COMMIT;"
-        ))
-        .bind(("id", record_id(TABLE, Uuid::now_v7())))
-        .bind(("name", input.name.trim().to_string()))
-        .bind(("email", input.email.trim().to_string()))
-        .bind(("email_lower", input.email.trim().to_lowercase()))
-        .bind(("role", input.role.as_str().to_string()))
-        .bind(("given_name", input.given_name.clone()))
-        .bind(("family_name", input.family_name.clone()))
-        .bind(("middle_name", input.middle_name.clone()))
-        .bind(("oidc_subject", input.oidc_subject.clone()))
-        .bind(("title", input.title.clone()))
-        .bind(("phone", input.phone.clone()))
-        .bind(("profile_image_url", input.profile_image_url.clone()))
-    })
-    .await?;
+    let email_lower = input.email.trim().to_lowercase();
+    let deadline = tokio::time::Instant::now() + retry::WRITE_BUDGET;
+    let mut backoff = SETTLE_FIRST_BACKOFF;
 
-    // `BEGIN` and `LET` occupy slots 0 and 1; the `IF` occupies slot 2,
-    // so the canonical read is slot 3 before `COMMIT`.
-    let row: Option<PersonRow> = response.take(3)?;
-    row.and_then(PersonRow::into_person)
-        .ok_or(PersonError::WriteReturnedNothing)
+    loop {
+        let id = Uuid::now_v7();
+        if take_mailbox(db, &email_lower, id).await? {
+            return match write_row(db, id, input).await {
+                Ok(person) => Ok(person),
+                Err(error) => {
+                    release_mailbox(db, &email_lower, id).await;
+                    // The UNIQUE index refused a row that holds this
+                    // mailbox without holding its claim — one written
+                    // before the claim table existed. The backstop caught
+                    // it, and the row it protected is the answer.
+                    if matches!(error, PersonError::EmailTaken) {
+                        find_by_email_ci(db, &input.email)
+                            .await?
+                            .ok_or(PersonError::WriteReturnedNothing)
+                    } else {
+                        Err(error)
+                    }
+                }
+            };
+        }
+
+        // Another row holds the claim. Read the holder by record id —
+        // never by scanning `email_lower`, which is what forked.
+        if let Some(holder) = mailbox_holder(db, &email_lower).await? {
+            if let Some(person) = find_by_id(db, holder).await? {
+                return Ok(person);
+            }
+        }
+
+        // Either the claim was released between the refusal and the read,
+        // or the winner's person row has not committed yet — the claim
+        // commits first, on its own, so that window is inherent to the
+        // mechanism rather than a fault. Both resolve on their own, so
+        // wait and look again. Bounded by the same wall-clock budget every
+        // contended write in this crate runs under, so a claim genuinely
+        // stranded by a crash surfaces as a slow error rather than a hang.
+        if tokio::time::Instant::now() >= deadline {
+            return Err(PersonError::WriteReturnedNothing);
+        }
+        tokio::time::sleep(rand::random_range(std::time::Duration::ZERO..=backoff)).await;
+        backoff = (backoff * 2).min(SETTLE_BACKOFF_CEILING);
+    }
 }
 
 /// Apply an update statement to one person, returning the row as it now
@@ -774,6 +957,14 @@ fn bind<T: SurrealValue>(name: &'static str, value: T) -> (&'static str, surreal
 /// live in [`crate::people_commands`], which calls this once it has
 /// decided the edit is allowed.
 ///
+/// `email_lower` is a computed `VALUE string::lowercase(email)` field, so
+/// changing the email changes which mailbox this row holds — and the
+/// claim that says so has to move with it. A claim left on the old
+/// mailbox would lock it out for good, and one never taken on the new
+/// mailbox would leave that mailbox forkable. Losing the race for the new
+/// mailbox is [`PersonError::EmailTaken`], the same answer the UNIQUE
+/// index gives, rather than a database fault.
+///
 /// # Errors
 ///
 /// [`PersonError::EmailTaken`] when the new email belongs to another
@@ -806,7 +997,35 @@ pub async fn edit(
         return find_by_id(db, id).await;
     }
 
-    update_one(
+    // The mailbox this edit moves away from, and the one it moves to —
+    // `None` when the edit does not touch the email, or names the mailbox
+    // this row already holds.
+    let moving = match input
+        .email
+        .as_ref()
+        .map(|email| email.trim().to_lowercase())
+    {
+        Some(next) => {
+            let Some(current) = find_by_id(db, id).await? else {
+                return Ok(None);
+            };
+            let previous = current.email.to_lowercase();
+            if previous == next {
+                None
+            } else {
+                Some((previous, next))
+            }
+        }
+        None => None,
+    };
+
+    if let Some((_, next)) = &moving {
+        if !take_mailbox(db, next, id).await? {
+            return Err(PersonError::EmailTaken);
+        }
+    }
+
+    let edited = update_one(
         db,
         id,
         &assignments.join(", "),
@@ -819,7 +1038,20 @@ pub async fn edit(
             bind("middle_name", input.middle_name.clone().unwrap_or_default()),
         ],
     )
-    .await
+    .await;
+
+    if let Some((previous, next)) = &moving {
+        // The claim follows the row: the old mailbox is freed only once
+        // the row has actually moved off it, and the new one is given back
+        // if it did not.
+        if matches!(edited, Ok(Some(_))) {
+            release_mailbox(db, previous, id).await;
+        } else {
+            release_mailbox(db, next, id).await;
+        }
+    }
+
+    edited
 }
 
 /// Set a person's authority tier. Returns `None` when the person no
@@ -913,11 +1145,19 @@ pub async fn update_contact(
 /// Owner — is [`crate::people_commands::delete_person`]'s question, asked
 /// before this is called.
 ///
+/// Deleting the row releases its mailbox claims, in that order. A claim
+/// that outlived its person would lock that mailbox out of ever being
+/// used again — nothing could create the next person to hold it, and
+/// [`find_or_create`] would wait out the write budget on a row that is
+/// never coming. The release is not best-effort for that reason: a
+/// failure to free the mailbox is the caller's to see.
+///
 /// # Errors
 ///
-/// [`PersonError::Db`] if the delete fails.
+/// [`PersonError::Db`] if the delete or the release fails.
 pub async fn delete(db: &SurrealDb, id: Uuid) -> Result<(), PersonError> {
     writing(|| db.query("DELETE $id").bind(("id", record_id(TABLE, id)))).await?;
+    writing(|| db.query(RELEASE_PERSON).bind(("id", record_id(TABLE, id)))).await?;
     Ok(())
 }
 
@@ -1130,10 +1370,16 @@ mod tests {
     /// same mailbox — the property the canonical seed depends on, since
     /// it runs on every boot and two processes can start together.
     ///
-    /// Every racer must return the canonical row. The transaction makes
-    /// concurrent decisions touch the same email key, so the shared write
-    /// retry policy re-runs a losing decision and its final read observes
-    /// the winner.
+    /// Every racer must return the canonical row. What makes them agree
+    /// is the `person_mailbox` claim: they collide on one identical
+    /// *record* key, which the optimistic layer enforces, and the loser
+    /// reads the winner's row back through that claim. Neither the UNIQUE
+    /// `person_email_lower` index nor a shared transaction around the
+    /// email probe does this — an index entry is not part of conflict
+    /// detection, and a `WHERE email_lower = $v` probe is a scan, which
+    /// does not enter the read set. That shape is what forked, and
+    /// `store/tests/person_mailbox_race.rs` still races it as the
+    /// control.
     #[tokio::test(flavor = "multi_thread")]
     async fn concurrent_find_or_create_for_one_mailbox_settles_on_one_row() {
         let db = mem().await;
@@ -1161,6 +1407,196 @@ mod tests {
             list_directory(&db, "", "", &[]).await.unwrap().len(),
             1,
             "a race must not leave a second row behind",
+        );
+    }
+
+    /// Deleting a person frees their mailbox, so the next person may hold
+    /// it. The claim is what makes this a lifecycle rather than a
+    /// one-way door: a claim left behind by a deleted row would lock that
+    /// mailbox out of ever being created again.
+    #[tokio::test]
+    async fn deleting_a_person_frees_their_mailbox_for_the_next_one() {
+        let db = mem().await;
+        let outgoing = person(&db, "Outgoing", "reused@example.com").await;
+
+        delete(&db, outgoing.id).await.expect("delete");
+        assert_eq!(
+            super::mailbox_holder(&db, "reused@example.com")
+                .await
+                .unwrap(),
+            None,
+            "the claim goes with the person",
+        );
+
+        let incoming = create(&db, &NewPerson::new("Incoming", "reused@example.com"))
+            .await
+            .expect("the freed mailbox may be claimed again");
+        assert_ne!(incoming.id, outgoing.id);
+        assert_eq!(
+            super::mailbox_holder(&db, "reused@example.com")
+                .await
+                .unwrap(),
+            Some(incoming.id),
+        );
+    }
+
+    /// Editing the email moves the claim: the new mailbox becomes this
+    /// row's, and the old one is freed for somebody else.
+    ///
+    /// `email_lower` is computed from `email`, so the mailbox this row
+    /// holds changes the moment the edit lands — a claim that did not
+    /// follow would either strand the old mailbox or leave the new one
+    /// unguarded.
+    #[tokio::test]
+    async fn editing_the_email_moves_the_mailbox_claim() {
+        let db = mem().await;
+        let subject = person(&db, "Mover", "before@example.com").await;
+
+        let moved = edit(
+            &db,
+            subject.id,
+            &PersonEdit {
+                email: Some("After@example.com".into()),
+                ..PersonEdit::default()
+            },
+        )
+        .await
+        .expect("the edit is allowed")
+        .expect("the row is still there");
+        assert_eq!(moved.email, "After@example.com");
+
+        assert_eq!(
+            super::mailbox_holder(&db, "after@example.com")
+                .await
+                .unwrap(),
+            Some(subject.id),
+            "the claim followed the row, keyed on the lowercased mailbox",
+        );
+        assert_eq!(
+            super::mailbox_holder(&db, "before@example.com")
+                .await
+                .unwrap(),
+            None,
+            "the mailbox it left is free",
+        );
+
+        let successor = create(&db, &NewPerson::new("Successor", "before@example.com"))
+            .await
+            .expect("the vacated mailbox may be claimed");
+        assert_eq!(
+            super::mailbox_holder(&db, "before@example.com")
+                .await
+                .unwrap(),
+            Some(successor.id),
+        );
+    }
+
+    /// An edit onto a mailbox another row holds is refused as
+    /// [`PersonError::EmailTaken`] — the answer the UNIQUE index gave —
+    /// not as a database fault, and it leaves both rows alone.
+    #[tokio::test]
+    async fn editing_onto_a_held_mailbox_is_refused_as_the_email_being_taken() {
+        let db = mem().await;
+        let holder = person(&db, "Holder", "held@example.com").await;
+        let mover = person(&db, "Mover", "free@example.com").await;
+
+        let refused = edit(
+            &db,
+            mover.id,
+            &PersonEdit {
+                email: Some("HELD@example.com".into()),
+                ..PersonEdit::default()
+            },
+        )
+        .await;
+        assert!(
+            matches!(refused, Err(PersonError::EmailTaken)),
+            "a case variant of a held mailbox is the same mailbox, got {refused:?}",
+        );
+        assert_eq!(
+            super::mailbox_holder(&db, "held@example.com")
+                .await
+                .unwrap(),
+            Some(holder.id),
+            "the original holder keeps its claim",
+        );
+        assert_eq!(
+            find_by_id(&db, mover.id).await.unwrap().unwrap().email,
+            "free@example.com",
+            "the refused edit changed nothing",
+        );
+    }
+
+    /// A failed create gives the mailbox back. Claiming before writing
+    /// means a write that then fails for an unrelated reason — here a
+    /// duplicate IdP identity — must not leave the mailbox claimed by a
+    /// person who never existed.
+    #[tokio::test]
+    async fn a_create_that_fails_gives_the_mailbox_back() {
+        let db = mem().await;
+        create(
+            &db,
+            &NewPerson {
+                oidc_subject: Some("sub-held".into()),
+                ..NewPerson::new("First", "first@example.com")
+            },
+        )
+        .await
+        .expect("the first person links the identity");
+
+        let refused = create(
+            &db,
+            &NewPerson {
+                oidc_subject: Some("sub-held".into()),
+                ..NewPerson::new("Second", "second@example.com")
+            },
+        )
+        .await;
+        assert!(
+            matches!(refused, Err(PersonError::OidcSubjectTaken)),
+            "the IdP identity is what collided, got {refused:?}",
+        );
+        assert_eq!(
+            super::mailbox_holder(&db, "second@example.com")
+                .await
+                .unwrap(),
+            None,
+            "the mailbox the failed row claimed is free again",
+        );
+        create(&db, &NewPerson::new("Second", "second@example.com"))
+            .await
+            .expect("the mailbox is usable after the failed create");
+    }
+
+    /// A row that holds a mailbox without holding its claim — written
+    /// before the claim table existed — is still found rather than
+    /// refused. The UNIQUE index is the backstop that catches it, and the
+    /// row it protected is the answer.
+    #[tokio::test]
+    async fn find_or_create_settles_on_a_row_that_predates_the_claim() {
+        let db = mem().await;
+        let unclaimed = Uuid::now_v7();
+        db.query("CREATE $id SET name = 'Legacy', email = 'legacy@example.com', role = 'client'")
+            .bind(("id", record_id(super::TABLE, unclaimed)))
+            .await
+            .and_then(surrealdb::IndexedResults::check)
+            .expect("seed a row with no claim");
+        assert_eq!(
+            super::mailbox_holder(&db, "legacy@example.com")
+                .await
+                .unwrap(),
+            None,
+            "the seeded row holds no claim",
+        );
+
+        let found = find_or_create(&db, &NewPerson::new("Legacy", "legacy@example.com"))
+            .await
+            .expect("the unclaimed row is the answer, not a refusal");
+        assert_eq!(found.id, unclaimed);
+        assert_eq!(
+            list_directory(&db, "", "", &[]).await.unwrap().len(),
+            1,
+            "no second row was written",
         );
     }
 

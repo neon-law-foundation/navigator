@@ -837,6 +837,13 @@ practice law authorized for Navigator legal work, not a firm email or source-for
 This is a SurrealDB table and [`store::persons`](../store/src/persons.rs) is the only module that reads or writes it.
 Every `person_id` on another table is therefore an unenforced cross-engine id, resolved in Rust.
 
+One Person per mailbox is protected from forking by a claim in the `person_mailbox` table, whose record id is the
+lowercased email, rather than by the UNIQUE `person_email_lower` index alone. The index is the backstop behind it — it
+refuses a fork that is not a race, but racers write no shared key for the engine to conflict on, so the claim is what
+serializes them (ENG-114). It matters here more than elsewhere because `role` is the authorization root: a forked
+mailbox is one human carrying two roles. The claim moves when an edit moves the email and is released when the Person is
+deleted, so a mailbox is reusable rather than locked out.
+
 - Schema: [`person` in `navigator.surql`](../store/src/schema/navigator.surql) Queries:
   [`store::persons`](../store/src/persons.rs)
 
