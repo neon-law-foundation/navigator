@@ -745,10 +745,11 @@ async fn dispatch_single(
         // be authorized by a lawyer/admin principal, the same tier the
         // router loop requires of the human who approves a paused
         // side-effect. Audited (→ OTLP → Iceberg) either way.
-        let role = match principal {
-            Some(p) => approver_role(&state.mcp.surreal, &p.email).await,
+        let approver = match principal {
+            Some(p) => approver_person(&state.mcp.surreal, &p.email).await,
             None => None,
         };
+        let role = approver.as_ref().map(|p| p.role);
         let authorized = role.is_some_and(store::persons::Role::is_lawyer_tier);
         let confirmation_required = tools::requires_confirmation(skill);
         tracing::info!(
@@ -756,6 +757,7 @@ async fn dispatch_single(
             event = "a2a.direct_skill.side_effect",
             skill = %skill,
             principal_kind = principal_kind(principal.map_or(ANONYMOUS_PRINCIPAL, |p| p.email.as_str())),
+            person_id = %person_id_field(approver.as_ref()),
             authorized,
             confirmed = false,
             confirmation_required,
@@ -795,7 +797,10 @@ async fn dispatch_single(
                 target: "audit",
                 event = "agent_action_authorization",
                 decision = "proposed",
-                principal = principal.map_or("<anonymous>", |p| p.email.as_str()),
+                principal_kind = %principal_kind(
+                    principal.map_or(ANONYMOUS_PRINCIPAL, |p| p.email.as_str())
+                ),
+                person_id = %person_id_field(approver.as_ref()),
                 tool = %skill,
                 arguments = %pending_call.arguments,
                 task_id = %task_id,
@@ -1004,11 +1009,13 @@ async fn drive_loop(
                         arguments,
                     };
                     let prompt = confirmation_prompt(&pending_call, &history);
+                    let proposer = approver_person(&state.mcp.surreal, principal_email).await;
                     tracing::info!(
                         target: "audit",
                         event = "agent_action_authorization",
                         decision = "proposed",
                         principal_kind = %principal_kind(principal_email),
+                        person_id = %person_id_field(proposer.as_ref()),
                         tool = %tool_name,
                         arguments = %pending_call.arguments,
                         task_id = %task_id,
@@ -1148,7 +1155,14 @@ async fn resume_after_confirmation(
     // (1) Identity: only the principal who *started* the task may
     //     confirm it.
     if principal_email != pending.principal_email {
-        audit_authorization("denied_identity", principal_email, None, &task_id, &pending);
+        audit_authorization(
+            "denied_identity",
+            principal_email,
+            None,
+            None,
+            &task_id,
+            &pending,
+        );
         let text = "This task is awaiting confirmation from a different user; \
                     it can't be confirmed from this account.";
         return RpcResponse::ok(
@@ -1162,12 +1176,14 @@ async fn resume_after_confirmation(
     //     a firm-side principal (lawyer or admin) may authorize it. This
     //     is the UPL / Model-Rule-5.3-supervision line the legal council
     //     drew: an agent may *propose*, but a licensed human authorizes.
-    let approver_role = approver_role(&state.mcp.surreal, principal_email).await;
+    let approver = approver_person(&state.mcp.surreal, principal_email).await;
+    let approver_role = approver.as_ref().map(|p| p.role);
     if !approver_role.is_some_and(store::persons::Role::is_lawyer_tier) {
         audit_authorization(
             "denied_unauthorized",
             principal_email,
             approver_role,
+            approver.as_ref(),
             &task_id,
             &pending,
         );
@@ -1186,6 +1202,7 @@ async fn resume_after_confirmation(
                 "authorized",
                 principal_email,
                 approver_role,
+                approver.as_ref(),
                 &task_id,
                 &pending,
             );
@@ -1267,6 +1284,7 @@ async fn resume_after_confirmation(
                 "declined",
                 principal_email,
                 approver_role,
+                approver.as_ref(),
                 &task_id,
                 &pending,
             );
@@ -1616,6 +1634,7 @@ fn audit_authorization(
     decision: &str,
     principal_email: &str,
     approver_role: Option<store::persons::Role>,
+    approver: Option<&store::persons::Person>,
     task_id: &str,
     pending: &PendingConfirmation,
 ) {
@@ -1625,6 +1644,7 @@ fn audit_authorization(
         decision = decision,
         principal_kind = %principal_kind(principal_email),
         approver_role = approver_role.map_or("none", |r| r.as_str()),
+        person_id = %person_id_field(approver),
         // The proposer is a second principal, so it gets the same treatment as
         // the approver above: whether it authenticated, never its address.
         proposer_kind = %principal_kind(&pending.principal_email),
@@ -1644,10 +1664,9 @@ fn audit_authorization(
 /// used the address *for* is the anonymous-versus-authenticated distinction,
 /// which this preserves.
 ///
-/// A `person_id` would be strictly better and is deliberately **not** used
-/// here yet: [`Principal`] carries only an email (`mcp::principal`), so the id
-/// would need [`approver_role`] to return the row it already fetches and five
-/// signatures to carry it. That is a refactor rather than a logging fix.
+/// This answers only *whether* a caller authenticated. The identity travels
+/// beside it as `person_id`, resolved through [`approver_person`] — see
+/// [`person_id_field`] for why that spelling is the one that survives export.
 fn principal_kind(email: &str) -> &'static str {
     if email == ANONYMOUS_PRINCIPAL {
         "anonymous"
@@ -1660,18 +1679,34 @@ fn principal_kind(email: &str) -> &'static str {
 /// safe in a log field — but it is compared, so it has one spelling.
 const ANONYMOUS_PRINCIPAL: &str = "<anonymous>";
 
-/// Look up the role of the authenticated principal by email. `None` when
-/// the email isn't a known `persons` row — which the role gate treats as
-/// "not permitted", so an unrecognized caller can never authorize.
-async fn approver_role(
+/// The approver's `persons` row, not just their tier.
+///
+/// [`approver_role`] already fetched this row and discarded everything but
+/// `role`, which is why the audit lines could name a tier and not a person.
+/// Returning the row costs no extra query.
+async fn approver_person(
     surreal: &store::surreal::SurrealDb,
     email: &str,
-) -> Option<store::persons::Role> {
+) -> Option<store::persons::Person> {
     store::persons::find_by_email_ci(surreal, email)
         .await
         .ok()
         .flatten()
-        .map(|p| p.role)
+}
+
+/// Render a person's id for an audit log field, or `none`.
+///
+/// The field is spelled `person_id` deliberately. These `target: "audit"`
+/// records carry the only copy of an authorization decision, and the
+/// collector's redaction processor drops any structured field absent from its
+/// `allowed_keys` list — where `person_id` appears and `approver_person_id`
+/// does not. A more descriptive name would be silently deleted on the export
+/// path, leaving the decision with no actor again.
+///
+/// An id is an opaque UUID rather than client-identifying content, which is
+/// what makes it loggable where the address it replaces is not.
+fn person_id_field(person: Option<&store::persons::Person>) -> String {
+    person.map_or_else(|| "none".to_string(), |p| p.id.to_string())
 }
 
 /// How the user answered a confirmation prompt.
