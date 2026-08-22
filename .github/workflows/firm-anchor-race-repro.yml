@@ -59,6 +59,12 @@ jobs:
       - name: install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
+      # The suite is the load generator, so the runner needs the same test
+      # runner the gate uses. Without this the step dies at `no such command:
+      # nextest` before racing anything.
+      - name: install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
       - name: cache the Rust dependencies
         uses: Swatinem/rust-cache@v2
 
