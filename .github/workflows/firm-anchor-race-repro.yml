@@ -9,10 +9,15 @@
 #   * arm64 Linux, -C instrument-coverage, 4 concurrent x 20 iters  -> 0/640 races
 #   * arm64 Linux, raw claim CREATE probe, 4 concurrent x 10 iters  -> 0/3200 races
 #   * macOS 18-core, raw claim CREATE probe, 40 rounds              -> passed
+#   * x86_64 emulated, instrumented, 4 concurrent x 10 iters        -> 0/320 races
+#   * THIS runner class, instrumented, 4 concurrent x 60 iters      -> 0/1920 races
+#                                                (run 32577720374)
 #
-# The two conditions those all missed are x86_64 and this runner's scheduler.
-# This lane supplies both, under the same coverage instrumentation the failing
-# job used, and loops the binary until it loses.
+# So neither architecture nor CPU saturation is the trigger. The remaining
+# unmatched condition is the load: the fork happened to test #4486 of 5450,
+# four concurrent nextest processes deep into the run. This lane therefore uses
+# the real workspace suite as its load generator and races the binary
+# underneath it.
 name: firm-anchor-race-repro
 
 on:
@@ -75,15 +80,27 @@ jobs:
           echo "binary: $BIN"
           test -n "$BIN"
 
-          ITERS="${{ inputs.iterations || '60' }}"
           CONC="${{ inputs.concurrency || '4' }}"
-          # Oversubscribe the box the way a 4-process nextest run of 5450 tests
-          # does. An idle machine hides this for hundreds of rounds.
-          for _ in $(seq 1 "$(nproc)"); do yes > /dev/null & done
-          LOAD=$(jobs -p)
+
+          # `yes` loops were not enough: 60 iterations x 4 copies on this exact
+          # runner class came back 0/1920 (run 32577720374). CPU saturation is
+          # not the load that produced the fork.
+          #
+          # The failing test was #4486 of 5450, four concurrent nextest
+          # processes deep into a 274-second run. That load is memory pressure
+          # and scheduler diversity from ~240 statically-linked test binaries,
+          # which a spin loop cannot synthesize. So run the REAL suite as the
+          # load generator and race the binary underneath it for as long as it
+          # lasts.
+          cargo nextest run --workspace --no-run
+          cargo nextest run --workspace --test-threads=4 --no-fail-fast \
+            > /tmp/suite.log 2>&1 &
+          SUITE=$!
 
           fail=0
-          for i in $(seq 1 "$ITERS"); do
+          iter=0
+          while kill -0 "$SUITE" 2>/dev/null; do
+            iter=$((iter + 1))
             pids=""; rc=0
             for j in $(seq 1 "$CONC"); do
               "$BIN" --exact concurrent_creates_land_exactly_one_anchor \
@@ -93,13 +110,24 @@ jobs:
             for p in $pids; do wait "$p" || rc=1; done
             if [ "$rc" -ne 0 ]; then
               fail=$((fail + 1))
-              echo "::error::iteration $i forked the anchor"
+              echo "::error::iteration $iter forked the anchor"
               grep -h -A4 "panicked at" /tmp/out.* | head -20
             fi
           done
-          kill $LOAD 2>/dev/null || true
+          wait "$SUITE" || true
 
-          echo "=== $fail of $ITERS iterations forked (x$CONC concurrent copies) ==="
+          # The suite ran the test once itself, exactly as the gate did. That
+          # instance is the closest thing to the original failure, so report it
+          # whether or not the loop underneath reproduced.
+          echo "--- the suite's own run of the race ---"
+          grep -E "firm_anchor_race|left:|right:" /tmp/suite.log | head -20 || true
+          if grep -q "FAIL.*firm_anchor_race" /tmp/suite.log; then
+            echo "::error::the suite's own instance forked"
+            fail=$((fail + 1))
+          fi
+
+          echo "=== $fail of $iter iterations forked (x$CONC concurrent copies, under full-suite load) ==="
+          ITERS="$iter"
           # Reproducing IS the success condition for this lane, so a fork exits
           # zero and a clean sweep is what fails: a green run here means the
           # reproduction was not bought, which is the thing worth knowing.
