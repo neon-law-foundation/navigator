@@ -30,13 +30,19 @@ name: ghcr retention
 #      time, in a cluster, not here.
 #
 # AND ONE SCOPE BOUND: a GHCR package is owned by the ORG, not the repository, so
-# `/orgs/{org}/packages` lists packages this repository never published. The sweep
-# filters candidates by their linked repository and SKIPS a package whose link is
-# null — fail closed, because the alternative is a workflow here quietly pruning
-# another repository's images.
+# the org also owns packages this repository never published. The sweep therefore
+# NAMES the packages it may touch, below, rather than discovering them — an
+# explicit list cannot widen on its own, and `cli/tests/ghcr_retention.rs` holds
+# it equal to the images `deploy.yml` actually publishes, so a new image joins
+# the sweep in the same commit that starts publishing it.
 #
-# The credential is the run's own `GITHUB_TOKEN` with `packages: write`. No PAT,
-# nothing to rotate, and no cloud provider: GHCR is the only registry.
+# Naming them is also what lets the credential stay the run's own `GITHUB_TOKEN`.
+# `GET /orgs/{org}/packages` — the discovery call — is reachable only by a
+# classic PAT holding `read:packages`; an Actions token gets a 403 no permissions
+# block can grant. The per-package version and delete endpoints are a different
+# lane: a repository is granted `admin` on the packages its own workflows publish,
+# which is what `packages: write` here spends. So there is no PAT, nothing to
+# rotate, and no cloud provider: GHCR is the only registry.
 #
 # Rehearse a change with the dispatch before a night runs it live —
 # `dry_run: true` lists every deletion it would make and deletes nothing.
@@ -107,46 +113,64 @@ jobs:
           echo "dry run: ${DRY_RUN}"
           echo
 
-          # Candidate packages: container packages this org owns whose linked
-          # repository is THIS one. `--paginate --slurp` merges the pages into
-          # one array so `jq` sees the whole set; a package with no repository
-          # link is skipped rather than assumed to be ours.
+          # THE PACKAGES THIS SWEEP MAY TOUCH, named rather than discovered.
           #
-          # This read is ORG-scoped while the token is repo-scoped, which is the
-          # one call here that can fail for a reason no amount of retrying fixes:
-          # if the org restricts package visibility, `GITHUB_TOKEN` gets a 403
-          # and every night pages with `gh: HTTP 403` and no context. Name the
-          # cause and the fix at the point of failure — and FAIL rather than
-          # treating an unreadable list as an empty one, because "swept nothing"
-          # and "could not look" must not report the same way.
-          if ! packages="$(gh api --paginate --slurp \
-              "/orgs/${OWNER}/packages?package_type=container&per_page=100" \
-              --jq "[.[][] | select(.repository.name == \"${REPO_NAME}\") | .name] | sort")"; then
-              echo "::error::could not list ${OWNER}'s container packages. GITHUB_TOKEN holds \`packages: write\` on this repository, but listing ORG packages also needs the org to permit it — check Settings → Packages, or grant a PAT with read:packages and wire it in as a secret."
-              exit 1
-          fi
-          count="$(printf '%s' "${packages}" | jq 'length')"
-          echo "packages linked to ${OWNER}/${REPO_NAME}: ${count}"
-          if [ "${count}" -eq 0 ]; then
-              # Not an error, and not silently fine either: the images are
-              # published by deploy.yml, so zero candidates means either nothing
-              # has been published yet or the repository link changed shape.
-              echo "::warning::no container packages are linked to ${OWNER}/${REPO_NAME} — nothing to sweep"
-              echo "summary=no linked container packages; nothing swept" >> "$GITHUB_OUTPUT"
-              exit 0
-          fi
+          # Every entry is an image `deploy.yml` publishes: the `image` and
+          # `alias` of each `publish-service` matrix leg, and the `image` of each
+          # `publish-triggers` leg. `cli/tests/ghcr_retention.rs` parses those
+          # matrices and asserts this list equals them exactly, so a new image
+          # cannot start publishing without joining the sweep, and a name that
+          # stops being published cannot linger here pointing at some other
+          # repository's package.
+          #
+          # It is a literal list because the discovery call it replaces is
+          # unreachable: `GET /orgs/{org}/packages` requires a classic PAT with
+          # `read:packages`, and `GITHUB_TOKEN` is answered 403 however the
+          # permissions block is written. Naming the packages removes the call
+          # instead of adding a credential — and it is a stricter scope bound
+          # than the filter it replaces, because a wrong repository link could
+          # never widen it.
+          PACKAGES="
+          neon-server
+          navigator-web
+          navigator-workflows-service
+          navigator-gateway
+          navigator-heartbeat-trigger
+          navigator-archives-trigger
+          navigator-surreal-archive
+          navigator-reconcile-invoices-trigger
+          navigator-billing-digest-trigger
+          navigator-runner
+          "
+          count="$(printf '%s\n' ${PACKAGES} | wc -w | tr -d ' ')"
+          echo "packages published by ${OWNER}/${REPO_NAME}: ${count}"
+          echo
 
           deleted=0
           kept=0
           failed=0
 
-          for package in $(printf '%s' "${packages}" | jq -r '.[]'); do
+          for package in ${PACKAGES}; do
               encoded="${package//\//%2F}"
               # Newest first, so the index IS the count floor: the first
               # RETAINED_VERSIONS entries are exempt whatever their age.
-              versions="$(gh api --paginate --slurp \
+              #
+              # A package this repository publishes but has not published YET is
+              # a 404 rather than an error: the list is the set of images
+              # `deploy.yml` can push, and a newly added one has no versions
+              # until its first release. FAIL on anything else, because "no
+              # versions" and "could not look" must not report the same way.
+              if ! versions="$(gh api --paginate --slurp \
                   "/orgs/${OWNER}/packages/container/${encoded}/versions?per_page=100" \
-                  --jq '[.[][]] | sort_by(.created_at) | reverse')"
+                  --jq '[.[][]] | sort_by(.created_at) | reverse' 2>/tmp/versions.err)"; then
+                  if grep -q 'HTTP 404' /tmp/versions.err; then
+                      echo "${package}: not published yet, skipping"
+                      continue
+                  fi
+                  echo "::error::could not list versions of ${package}."
+                  cat /tmp/versions.err >&2
+                  exit 1
+              fi
               total="$(printf '%s' "${versions}" | jq 'length')"
 
               # One jq pass applies all three floors — count, then age, then the
@@ -262,8 +286,15 @@ jobs:
         run: |
           set -uo pipefail
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
-              echo "::error::SLACK_WEBHOOK_URL is unset — cannot page on the failed sweep"
-              exit 1
+              # Annotate, but do NOT exit non-zero. This step runs only because
+              # an earlier one already failed, so the job's conclusion is red
+              # either way — and a second failure here becomes the LAST error in
+              # the log, which is the one a reader sees first. A missing webhook
+              # then reads as the cause of the sweep's failure instead of a
+              # missing narration of it. `deploy.yml` treats the same absent
+              # secret the same way, for the same reason.
+              echo "::error::SLACK_WEBHOOK_URL is unset — the sweep failed above and could not be paged"
+              exit 0
           fi
           TEXT=":x: GHCR retention sweep failed — ${SLACK_OPS_MENTION} please investigate. Published images may not have been pruned.
           Run: ${RUN_URL}"

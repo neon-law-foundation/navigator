@@ -202,11 +202,13 @@ before writing anything.
 All assertions run before the first write, so a repository that cannot satisfy the policy is left exactly as it was
 rather than half-reconciled.
 
-> **Auto-merge identity.** `enable-automerge` prefers a GitHub App token with `contents: write` and
-> `pull_requests: write`, falling back to `GITHUB_TOKEN`. It needs `AUTOMERGE_APP_ID` and
-> `AUTOMERGE_APP_PRIVATE_KEY` as Actions secrets. Publishing adds no companion configuration — it authenticates with
-> the run's own `GITHUB_TOKEN`, see [Keyless pushes to GHCR](#keyless-pushes-to-ghcr) — so the repository carries no
-> Actions *variable* at all.
+> **Auto-merge identity.** `enable-automerge` arms auto-merge as a GitHub App with `contents: write` and
+> `pull_requests: write`, and as nothing else. It needs `AUTOMERGE_APP_ID` and `AUTOMERGE_APP_PRIVATE_KEY` as Actions
+> secrets, **and the same pair in the Dependabot secret store**, which is separate — without them there, Dependabot's
+> bumps arm nothing. There is no fallback to `GITHUB_TOKEN`: an absent secret skips arming and leaves the pull request
+> visibly waiting for a human, and `cli/tests/automerge_identity.rs` asserts the fallback stays gone. Publishing adds no
+> companion configuration — it authenticates with the run's own `GITHUB_TOKEN`, see
+> [Keyless pushes to GHCR](#keyless-pushes-to-ghcr) — so the repository sets no Actions *variable* at all.
 >
 > The App is `navigator-merge-queue` (app id `4158267`), installed on selected repositories with exactly
 > `contents: write` and `pull_requests: write`, and deliberately without `workflows`. Both secrets exist, so
@@ -388,6 +390,21 @@ them with semver's own ordering. Three answers:
 | newer than every released version | this is a release: build, prove, tag, publish |
 | equal to the newest | already released — the run ends in seconds. Almost every merge |
 | older than the newest | **the job fails.** A bad bump, or a rebase that resurrected an old manifest |
+
+**`release-version` runs a published `navigator`, not one it compiles.** Answering a yes/no question by building the CLI
+cost ~8 minutes of latency on every merge to `main`, at the very front of the train where nothing else can start. The
+job downloads the newest release that carries a Linux CLI archive, and runs `ops release-check` with it. `ci.yml` still
+runs the in-tree command on every pull request, so the rule is proved on the branch that changes it.
+
+Two consequences worth stating rather than discovering. **The checker is release N-1's**, so a change to `ops
+release-check` itself governs from the release after the one that lands it — tolerable because the binary carries the
+rule while the run supplies the data, reading this commit's manifest and the current tag list. And **the binary is
+deliberately unpinned**, the one exception to [Pin every consumed image, binary, and
+action](#pin-every-consumed-image-binary-and-action): a checker that had to be pinned would freeze at one version and
+need a manual bump to ever move. `/releases/latest` is *not* how it is found — that endpoint excludes prereleases and
+every release here is one, so it answers 404; the job enumerates releases and takes the newest carrying the archive. A
+download that fails falls back to compiling from this tree, because a release lost to a blipped API is the failure this
+pipeline has already paid for once.
 
 The version threads into every image build as the `RELEASE_TAG` build-arg, which each Containerfile turns into the
 runtime environment variable `NAVIGATOR_RELEASE_TAG`.
@@ -736,10 +753,18 @@ which is also the documented rollback. So the sweep deletes a version only when 
 The count is per image, so each keeps its own newest ten rather than ten across the registry. One release pushes one
 version per image under two tags (`YY.M.D` and `latest`) — one digest, one version — so ten versions is ten releases.
 
-**The sweep may only touch packages this repository publishes.** A GHCR package is owned by the *organization*, and the
-org owns packages other repositories push, so enumerating `/orgs/{org}/packages` and deleting by age would prune those
-too — on a clock, with nothing going red. Candidates are filtered by their linked repository, and a package whose link
-is null is skipped rather than assumed to be ours.
+**The sweep may only touch packages this repository publishes, and it names them rather than discovering them.** A GHCR
+package is owned by the *organization*, and the org owns packages other repositories push, so deleting by age across
+everything the org holds would prune those too — on a clock, with nothing going red. The workflow therefore carries an
+explicit `PACKAGES` list, and `cli/tests/ghcr_retention.rs` holds it equal to the images `deploy.yml` publishes: a new
+image joins the sweep in the same commit that starts publishing it, and a retired one cannot linger aimed at a package
+this repository no longer owns.
+
+Naming them is also what lets the credential stay `GITHUB_TOKEN`. The discovery call, `GET /orgs/{org}/packages`, is
+reachable only by a classic PAT holding `read:packages` — an Actions token is answered 403 however the permissions block
+is written, which is why every scheduled sweep failed on that one line before the list replaced it. The per-package
+version and delete endpoints are a different lane: a repository holds `admin` on the packages its own workflows publish,
+which is what `packages: write` spends.
 
 **Rehearse a change before a night runs it live.** Dispatch the workflow with `dry_run: true` (the dispatch default) and
 it lists every deletion it would make and deletes nothing. That is the only safe way to prove a change to a job whose
@@ -766,7 +791,8 @@ deliberate, tested change.
 - **Images** (`image:`, `FROM`): pin an explicit version tag, never `latest` or another rolling tag, and confirm the tag
   still exists on the registry we pull from before pinning.
 - **Installer binaries** (a workflow step's `version:`): pin the version, never `latest` — `latest` also round-trips a
-  release API that has 500'd and killed a job.
+  release API that has 500'd and killed a job. The one exception is `release-version`'s own checker, which must follow
+  the newest release to be useful at all; see [One workflow owns publishing](#one-workflow-owns-publishing--deployyml).
 - **Third-party GitHub Actions** (`uses:`): pin the full commit SHA with a trailing `# vX.Y.Z` comment, per GitHub's
   guidance — a bare `@v2` resolves to a branch tip upstream can force-push.
 

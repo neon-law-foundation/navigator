@@ -148,22 +148,121 @@ fn the_latest_pointer_is_never_deleted() {
     );
 }
 
-/// The sweep may only touch packages this repository publishes.
+/// THE PACKAGE LIST IS EXACTLY WHAT `deploy.yml` PUBLISHES.
 ///
-/// A GHCR package is owned by the ORG, and the org owns packages other
-/// repositories push. Enumerating `/orgs/{org}/packages` and deleting by age
-/// alone would sweep those too — a workflow in the Navigator repository deleting
-/// another repository's images, on a clock, with no signal that it had. So the
-/// candidate list is filtered by the linked repository, and an unlinked package
-/// (`repository: null`) is skipped rather than assumed to be ours.
+/// The sweep names the packages it may touch instead of discovering them, for
+/// two reasons that happen to point the same way.
+///
+/// **It has to.** `GET /orgs/{org}/packages` — the discovery call — is reachable
+/// only by a classic PAT holding `read:packages`; `GITHUB_TOKEN` is answered 403
+/// however the permissions block is written. The sweep failed every night it
+/// ever ran on exactly that call, and no permissions change could have fixed it.
+/// The per-package version and delete endpoints are a different lane: a
+/// repository holds `admin` on the packages its own workflows publish.
+///
+/// **It should.** A GHCR package is owned by the ORG, and the org owns packages
+/// other repositories push. A named list cannot widen on its own — no repository
+/// link has to be trusted, and a link that changed shape cannot hand this
+/// workflow someone else's images to delete on a clock.
+///
+/// What a named list CAN do is drift, so this test removes that: the list must
+/// equal the images `deploy.yml` publishes — every `publish-service` leg's
+/// `image` and `alias`, and every `publish-triggers` leg's `image`. A new image
+/// therefore joins the sweep in the same commit that starts publishing it, and
+/// a retired one cannot linger here aimed at a package this repository no
+/// longer owns.
+#[test]
+fn the_swept_packages_are_exactly_what_deploy_publishes() {
+    let script = sweep_script();
+
+    // The literal block, read out of the workflow.
+    let listed: Vec<String> = script
+        .split("PACKAGES=\"")
+        .nth(1)
+        .expect("the sweep must declare its PACKAGES list")
+        .split('"')
+        .next()
+        .expect("the PACKAGES list is quote-delimited")
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+
+    // What deploy.yml actually pushes.
+    let deploy: Value = {
+        let path = repo_root().join(".github/workflows/deploy.yml");
+        let source =
+            fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+        serde_yaml::from_str(&source).expect("deploy.yml parses as YAML")
+    };
+
+    let mut published: Vec<String> = Vec::new();
+    for job in ["publish-service", "publish-triggers"] {
+        let legs = deploy["jobs"][job]["strategy"]["matrix"]["include"]
+            .as_sequence()
+            .unwrap_or_else(|| panic!("deploy.yml's `{job}` declares a matrix"));
+        for leg in legs {
+            for key in ["image", "alias"] {
+                if let Some(name) = leg[key].as_str() {
+                    published.push(name.to_string());
+                }
+            }
+        }
+    }
+
+    let mut listed_sorted = listed.clone();
+    listed_sorted.sort();
+    listed_sorted.dedup();
+    let mut published_sorted = published.clone();
+    published_sorted.sort();
+    published_sorted.dedup();
+
+    assert_eq!(
+        listed_sorted, published_sorted,
+        "the sweep's PACKAGES list must equal the images deploy.yml publishes. An image \
+         missing here is never pruned and accumulates forever; an image here that deploy.yml \
+         does not publish is a name this workflow would delete versions of without owning it"
+    );
+
+    // A list that parsed to nothing would satisfy the equality above only if
+    // deploy.yml also published nothing, but an empty sweep must never be the
+    // quiet outcome of a formatting change.
+    assert!(
+        !listed.is_empty(),
+        "the sweep must name at least one package; an empty list prunes nothing and says so \
+         to no one"
+    );
+}
+
+/// The unreachable discovery call must not come back.
+///
+/// It is the specific line that failed every scheduled run, and it fails in a
+/// way retrying cannot fix. Naming it here means a future edit that reaches for
+/// the "obvious" org listing is refused at the gate rather than at 01:45 UTC.
+#[test]
+fn the_sweep_does_not_enumerate_the_organizations_packages() {
+    let script = sweep_script();
+
+    assert!(
+        !script.contains("/orgs/${OWNER}/packages?"),
+        "`GET /orgs/{{org}}/packages` needs a classic PAT with `read:packages`; GITHUB_TOKEN is \
+         answered 403, so a sweep built on it cannot run at all. Name the packages instead"
+    );
+    assert!(
+        !script.contains("if ! packages="),
+        "the sweep must not reintroduce the org-listing call: it is answered 403 for GITHUB_TOKEN \
+         and needs a classic PAT, which naming the packages removes the need for"
+    );
+}
+
+/// The sweep is still bound to container packages and to this repository.
 #[test]
 fn the_sweep_only_touches_this_repositorys_packages() {
     let script = sweep_script();
 
     assert!(
-        script.contains(".repository.name"),
-        "the sweep must filter candidate packages by their linked repository — the org owns \
-         packages this repository did not publish"
+        script.contains("${PACKAGES}"),
+        "the sweep must iterate the packages it names — the org owns packages this repository \
+         did not publish, and only a named list is bounded by construction"
     );
     assert!(
         script.contains("container"),

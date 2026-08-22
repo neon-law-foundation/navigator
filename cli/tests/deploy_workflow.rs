@@ -875,3 +875,137 @@ fn build_exports_an_actions_cache_scope_only_where_publish_service_reads_it() {
          for branch pushes, revisit where this job caches"
     );
 }
+
+/// The release decision is answered by a PUBLISHED binary, not by a compile.
+///
+/// `release-version` reads one field out of `[workspace.package].version`,
+/// compares it against the tag list, and on the overwhelming majority of merges
+/// answers "no" and skips every downstream job. Compiling the CLI to do that
+/// cost 7m54s of latency on every merge to `main` (run 32531667235) — the job
+/// runs on a free runner, so the price is wall-clock rather than money, paid at
+/// the very front of the release train where nothing else can start.
+///
+/// The published Linux archive is the same code, already built. Downloading it
+/// keeps the rule in exactly one place — `cli/src/release_check.rs` — while
+/// removing the compile.
+///
+/// **The bootstrap caveat is real and accepted.** The checker is release N-1's,
+/// so a change to `ops release-check` itself governs from the release AFTER the
+/// one that lands it. That is tolerable because the binary carries the rule
+/// while the run supplies the data — the manifest and the tags are both read
+/// fresh — and because `ci.yml` runs the in-tree `ops release-check` on every
+/// pull request, so a change to the rule is proved on the branch that makes it.
+#[test]
+fn the_release_decision_runs_a_published_binary_rather_than_a_compile() {
+    let workflow = deploy_workflow();
+    let job = release_version_job(&workflow);
+
+    assert!(
+        job.contains("gh release download"),
+        "`release-version` must install the published `navigator` binary rather than build one; \
+         compiling the CLI to answer a yes/no question is ~8 minutes of latency on every merge"
+    );
+    assert!(
+        job.contains("navigator ops release-check --github-output"),
+        "the downloaded binary must answer the question through the same `ops release-check` \
+         command, so the release rule lives in one place"
+    );
+}
+
+/// `/releases/latest` must not be how the checker is found.
+///
+/// It excludes prereleases, and every release this repository cuts is one —
+/// `YY.M.D-hotfix.N` carries a semver pre-release segment, and
+/// `release_check::Outcome::prerelease` is what marks the GitHub Release as
+/// such. The endpoint therefore answers 404 here. A checker resolved through it
+/// would be missing on every run, silently falling back to the compile this
+/// change exists to remove.
+#[test]
+fn the_checker_is_not_resolved_through_the_latest_release_endpoint() {
+    let workflow = deploy_workflow();
+    let job = release_version_job(&workflow);
+
+    assert!(
+        !job.contains("releases/latest"),
+        "`/releases/latest` excludes prereleases and this repository publishes only \
+         prereleases, so it answers 404 — enumerate releases and take the newest one that \
+         carries a Linux archive instead"
+    );
+}
+
+/// An unavailable binary falls back to the source of truth in this tree.
+///
+/// This is the shape that matters more than the speed. A release lost because
+/// nothing published it is a failure this pipeline has already paid for once,
+/// and a checker that could not be downloaded must never be allowed to answer
+/// "not a release" by default. The fallback compiles, which is slow — and slow
+/// is the correct price for a release that still happens.
+#[test]
+fn an_unavailable_checker_falls_back_to_building_from_source() {
+    let workflow = deploy_workflow();
+    let job = release_version_job(&workflow);
+
+    assert!(
+        job.contains("cargo run --locked -p cli --quiet -- ops release-check --github-output"),
+        "`release-version` must keep the in-tree fallback: a download that failed must compile \
+         the checker, never answer the release question by default"
+    );
+
+    // The toolchain has to be installed on the fallback path and only there,
+    // or the fallback cannot run at all.
+    let parsed: serde_yaml::Value =
+        serde_yaml::from_str(&workflow).expect("deploy.yml parses as YAML");
+    let toolchain = parsed["jobs"]["release-version"]["steps"]
+        .as_sequence()
+        .expect("release-version declares steps")
+        .iter()
+        .find(|step| step["name"].as_str() == Some("install rust toolchain"))
+        .expect("release-version must keep a toolchain step for the fallback");
+    let guard = toolchain["if"].as_str().expect(
+        "the toolchain step must be conditional; installing it always pays for a \
+                 fallback that almost never fires",
+    );
+    assert!(
+        guard.contains("steps.checker.outputs.ready != 'true'"),
+        "the toolchain must install only when the published checker could not be had"
+    );
+}
+
+/// No Actions cache in this job, deliberately.
+///
+/// It runs on `ubuntu-latest` with a different preinstalled Rust than the
+/// Blacksmith merge gate, so it cannot read the gate's entry — it would have to
+/// write its own into the shared 10 GB repository quota. That quota is the one
+/// the release pipeline already starved once, evicting the Rust dependency cache
+/// the PR gate uploads on every push. Downloading a built binary is the cheaper
+/// answer and costs the quota nothing.
+#[test]
+fn the_release_decision_job_writes_no_actions_cache() {
+    let workflow = deploy_workflow();
+    let job = release_version_job(&workflow);
+
+    for cache in ["actions/cache", "Swatinem/rust-cache", "type=gha"] {
+        assert!(
+            !job.contains(cache),
+            "`release-version` must not use `{cache}`: it cannot read the Blacksmith gate's \
+             entry and would write its own into the shared quota that starved that gate before"
+        );
+    }
+}
+
+/// The `release-version` job's CONFIGURATION, re-serialised from the parsed
+/// YAML. Two properties matter: it is scoped to this one job, so an assertion
+/// cannot accidentally read another job's steps; and YAML comments are dropped,
+/// so the prose explaining what the job must not do is not itself searched.
+/// Bash comments inside a `run:` block survive, which is correct — they are part
+/// of the script that runs.
+fn release_version_job(workflow: &str) -> String {
+    let parsed: serde_yaml::Value =
+        serde_yaml::from_str(workflow).expect("deploy.yml parses as YAML");
+    let job = &parsed["jobs"]["release-version"];
+    assert!(
+        !job.is_null(),
+        "deploy.yml must keep its `release-version` job"
+    );
+    serde_yaml::to_string(job).expect("the release-version job re-serialises")
+}
