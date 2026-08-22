@@ -2,15 +2,21 @@
 //! both sides of the v.
 //!
 //! The page states one thing: the firm tries cases, for the party bringing the
-//! claim and for the party answering it. A statement, two paragraphs, and the
-//! disclaimer.
+//! claim and for the party answering it. A statement and the body.
 //!
 //! **The body is the firm's own filed copy, and the page is what is left after
 //! subtracting everything else.** It was a Rule 23 explainer with six
 //! certification-element cards, a class-formation graphic, a chip strip, a phase
 //! rail, an authority strip, and a fee section — each a reasonable answer to a
-//! question a prospective client does not walk in with. Two paragraphs say what
-//! the firm wanted said, so two paragraphs are the page.
+//! question a prospective client does not walk in with. What the firm wanted
+//! said fits in a few paragraphs, so a few paragraphs are the page.
+//!
+//! **A paragraph may be added; a section may not.** The third body paragraph —
+//! how the firm actually runs a matter — arrived as prose inside the existing
+//! card rather than as a heading, a rail, or a feature grid, which is the shape
+//! everything this page shed once had. `renders_two_sections_and_no_more` is the
+//! guard that keeps that distinction, so it is the one to read before adding
+//! copy here.
 //!
 //! The body names fee *arrangements* — contingency, monthly, "no cost due if we
 //! lose" — on purpose: for this practice the arrangement is part of the offer,
@@ -18,10 +24,15 @@
 //! costs nothing to bring. Fee *amounts* stay off the page, and
 //! `publishes_no_currency_amount` holds that.
 //!
-//! **The disclaimer is the one piece of regulated copy, and it is not a
-//! footnote.** It is required wherever a reader could infer a result, so it
-//! stays whatever else goes, and `carries_the_past_results_disclaimer` holds it
-//! there.
+//! **The regulated copy is the footer's, not this page's.** This page used to
+//! carry its own past-results disclaimer under the body, duplicating what the
+//! shared footer already says on every firm page. One disclaimer, stated once,
+//! site-wide, is the arrangement now: `views::brand::DEFAULT_BRANDING`'s
+//! `firm_disclaimer` opens with "Attorney advertisement." and carries both the
+//! no-advice and the past-results lines, and `PublicFooter` renders it here
+//! along with everywhere else. `carries_the_regulated_copy_in_the_footer` is
+//! the guard — it asserts the notice reaches the reader, which is what the
+//! rule actually requires, rather than asserting it appears twice.
 //!
 //! Like [`crate::home`], the only state is the static copy
 //! ([`LitigationContent`]), resolved by the portal router at router-build time
@@ -33,6 +44,7 @@ use serde::{Deserialize, Serialize};
 use crate::components::{
     PracticeMark, PracticeMarkGlyph, PublicShell, SiteHeader, SiteNavLink, SocialMeta,
 };
+use crate::home::CopyRun;
 use crate::public_chrome::{PublicChrome, PublicFooter};
 
 /// The self-contained litigation stylesheet, hoisted after the brand layer.
@@ -62,12 +74,16 @@ pub struct LitigationContent {
     pub lead: String,
     pub cta_href: String,
     pub cta_label: String,
-    /// The practice, in the firm's own two paragraphs: who it represents on the
-    /// company side, and who it represents against powerful corporations. This
-    /// is the whole body of the page.
-    pub body: Vec<String>,
-    /// The attorney-advertising disclaimer every litigation surface carries.
-    pub disclaimer: String,
+    /// The practice in the firm's own words: who it represents on the company
+    /// side, who it represents against powerful corporations, and how it runs
+    /// the matter once it takes one. This is the whole body of the page.
+    ///
+    /// Runs rather than plain strings, because the last paragraph names
+    /// Navigator and links its page. [`CopyRun`] is the same linked-run type
+    /// the home page's prose uses and the same one the firm's `plain()` and
+    /// `link()` content helpers already produce, so no page has to accept raw
+    /// HTML to carry a link.
+    pub body: Vec<Vec<CopyRun>>,
 }
 
 /// The [`LitigationContent`] injected into the render context by the portal
@@ -144,10 +160,19 @@ pub fn LitigationPage(chrome: PublicChrome, content: LitigationContent) -> Eleme
             ZealHero { content: content.clone() }
             section { class: "neon-card zeal-body", "aria-labelledby": "zeal-heading",
                 for paragraph in content.body.iter() {
-                    p { class: "zeal-paragraph zeal-paragraph--lead", "{paragraph}" }
+                    p { class: "zeal-paragraph zeal-paragraph--lead",
+                        for run in paragraph.iter() {
+                            if let Some(href) = run.href.as_ref() {
+                                a { class: "zeal-paragraph__link", href: "{href}", "{run.text}" }
+                            } else if run.emphasis {
+                                strong { "{run.text}" }
+                            } else {
+                                "{run.text}"
+                            }
+                        }
+                    }
                 }
             }
-            p { class: "zeal-disclaimer", "{content.disclaimer}" }
         }
     }
 }
@@ -196,6 +221,22 @@ fn ZealHero(content: LitigationContent) -> Element {
 mod tests {
     use super::*;
 
+    fn plain(text: &str) -> CopyRun {
+        CopyRun {
+            text: text.to_string(),
+            emphasis: false,
+            href: None,
+        }
+    }
+
+    fn link(text: &str, href: &str) -> CopyRun {
+        CopyRun {
+            text: text.to_string(),
+            emphasis: false,
+            href: Some(href.to_string()),
+        }
+    }
+
     fn content() -> LitigationContent {
         LitigationContent {
             head_title: "Neon Law | Litigation".to_string(),
@@ -227,15 +268,20 @@ mod tests {
             cta_href: "/contact".to_string(),
             cta_label: "Contact us".to_string(),
             body: vec![
-                "We represent emerging companies, founders, and investors in complex disputes \
-                 involving cutting-edge technology."
-                    .to_string(),
-                "We also represent individuals who have been defrauded by powerful corporations."
-                    .to_string(),
+                vec![plain(
+                    "We represent emerging companies, founders, and investors in complex disputes \
+                     involving cutting-edge technology.",
+                )],
+                vec![plain(
+                    "We also represent individuals who have been defrauded by powerful \
+                     corporations.",
+                )],
+                vec![
+                    plain("All litigation cases run on "),
+                    link("Neon Law Navigator", "/navigator"),
+                    plain(", the firm\u{2019}s case system."),
+                ],
             ],
-            disclaimer: "Prior results do not guarantee a similar outcome; every matter turns on \
-                         its own facts."
-                .to_string(),
         }
     }
 
@@ -308,12 +354,12 @@ mod tests {
         );
     }
 
-    /// Both filed paragraphs render, in order: the company side, then the
-    /// individuals defrauded by powerful corporations. The second is the one an
-    /// edit is most likely to drop, because the first reads like a complete
-    /// practice description on its own.
+    /// Every body paragraph renders, in order: the company side, the individuals
+    /// defrauded by powerful corporations, then how the firm runs the matter.
+    /// The middle one is what an edit is most likely to drop, because the first
+    /// reads like a complete practice description on its own.
     #[test]
-    fn renders_both_paragraphs_in_order() {
+    fn renders_every_paragraph_in_order() {
         let out = html();
         let company = out
             .find("We represent emerging companies")
@@ -321,7 +367,37 @@ mod tests {
         let individuals = out
             .find("We also represent individuals")
             .expect("the individuals paragraph");
+        let system = out
+            .find("All litigation cases run on")
+            .expect("the case-system paragraph");
         assert!(company < individuals, "in the filed order: {out}");
+        assert!(
+            individuals < system,
+            "how the work runs comes after who the firm represents: {out}"
+        );
+    }
+
+    /// The body renders however many paragraphs the content carries.
+    ///
+    /// Asserted against the fixture length rather than a literal, because the
+    /// page has lost and gained paragraphs and the view must not cap them: the
+    /// guard that matters is [`renders_two_sections_and_no_more`], which stops a
+    /// paragraph from arriving as a new *section*.
+    #[test]
+    fn renders_one_paragraph_per_body_entry() {
+        let out = html();
+        assert_eq!(
+            out.matches("zeal-paragraph--lead").count(),
+            content().body.len(),
+            "one paragraph element per body entry: {out}"
+        );
+        // The last paragraph names Navigator and links its page. A copy edit
+        // that flattens the runs back to plain text loses the link silently,
+        // because the sentence still reads correctly without it.
+        assert!(
+            out.contains(r#"href="/navigator""#),
+            "the Navigator mention links its page: {out}"
+        );
     }
 
     /// Everything the page shed, guarded by the markup that carried it: the
@@ -344,16 +420,25 @@ mod tests {
         }
     }
 
-    /// The disclaimer is the page's one piece of regulated copy, and the one
-    /// thing on it a copy edit must not quietly drop: it is required wherever a
-    /// reader could infer a result. The authority strip and the referral card
-    /// that used to sit above it were the firm's own additions and are gone.
+    /// The regulated notice reaches the reader through the shared footer, and
+    /// the page states it once rather than twice.
+    ///
+    /// What the rule requires is that a reader who could infer a result sees the
+    /// notice — not that a given page renders its own copy of it. So this
+    /// asserts the requirement (the footer's legal strip is present) and asserts
+    /// the removed duplicate stays removed. The wording itself lives in
+    /// `views::brand`, which is where a change to it belongs; a fixture here
+    /// repeating that sentence would only go stale against it.
     #[test]
-    fn carries_the_past_results_disclaimer() {
+    fn carries_the_regulated_copy_in_the_footer() {
         let out = html();
         assert!(
-            out.contains("Prior results do not guarantee a similar outcome"),
-            "the attorney-advertising disclaimer renders: {out}"
+            out.contains("site-footer__legal"),
+            "the footer's legal strip, which carries the firm disclaimer: {out}"
+        );
+        assert!(
+            !out.contains("zeal-disclaimer"),
+            "the page-level duplicate is gone: {out}"
         );
         for gone in [
             "The law this practice runs on",
