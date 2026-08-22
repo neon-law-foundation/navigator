@@ -22,6 +22,16 @@
 //! `gcloud` and reading back its argv tests the real thing, and it is the only
 //! way to catch the nesting trap — a source-text assertion cannot tell
 //! `cp -r dist dst` from `cp -r dist/* dst`.
+//!
+//! That stub is why the whole crate is Unix-only. It is a `#!/usr/bin/env bash`
+//! script made executable through a Unix mode bit and resolved off a
+//! `:`-separated `PATH`, and the step it drives is run under `bash`. None of
+//! those three has a Windows equivalent, so gating only the import would leave
+//! the three stub-driven tests compiling on Windows and failing at run time,
+//! and would make the three stub helpers dead code under `-D warnings`. Linux
+//! and macOS compile and run every test in this file unchanged.
+
+#![cfg(unix)]
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
