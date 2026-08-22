@@ -216,7 +216,7 @@ rather than half-reconciled.
 > specifically, so a merge armed with the run's own token produces a push that triggers no workflow at all — not a
 > skipped run, not a red one: none. Because a landed version bump is the publish, such a merge loses the release
 > silently, with no failing check to read. That is what happened to #95: it bumped the workspace to
-> `26.8.22-hotfix.23`, `main` moved, and neither `deploy` nor `warm cache` ever ran.
+> `26.8.22-hotfix.23`, `main` moved, and `deploy` never ran.
 >
 > The App holds no `workflows` permission on purpose, so a pull request touching `.github/workflows/**` still cannot
 > be auto-merged and is merged by hand. Arming also requires at least one *required* status check: with nothing
@@ -248,15 +248,20 @@ rather than half-reconciled.
 
 Add jobs to the workflow that owns their trigger; do not create a redundant workflow.
 
-The Rust dependency cache is written and read by the merge gate itself, on the branch being tested — so the first push
-of a new branch compiles the third-party graph from zero and only its later pushes restore. Warming a first push would
-take a `main`-scoped entry written after each merge, which this repository does not keep.
+The Rust dependency cache is written and read by the merge gate itself, on the branch being tested. Actions caches are
+scoped per ref, so the first push of a new branch compiles the third-party graph from zero and every later push of that
+branch restores it. One workflow owns the entry it reads, so there is no second file to keep in agreement.
 
 The Actions cache is a single 10 GB budget shared by every cache in the repository, and an entry evicted before the next
 push reads it is indistinguishable from one never written. That budget is why `deploy.yml`'s `build` job exports a
 `type=gha` cache only on the legs carrying a `ci_cache_scope` — the scopes `publish-service` reads back. A `mode=max`
 export of a Rust builder stage carries the whole `target` directory, so one leg nobody reads is enough to starve the
-gate. Before adding a `cache-to` anywhere, check `/actions/cache/usage` and name the reader.
+gate. Before adding a `cache-to` anywhere, name the reader.
+
+Read cache health from a job log, not from the API. Every job on this fleet logs `Enabling Blacksmith transparent cache`
+and Blacksmith serves the Actions cache protocol from its own store, so `/actions/cache/usage` and `/actions/caches` can
+both report zero while every gate run restores a full match. Grep the job for `Cache hit`, `No cache found`, and `full
+match` instead — that is the only authoritative signal.
 
 | Workflow | Trigger | Job |
 | --- | --- | --- |
@@ -331,10 +336,14 @@ gh pr view <n> --json statusCheckRollup \
 ### PR flow — `ci.yml`
 
 `ci.yml` runs for PRs to `main`, never pushes. The `rust` job carries the quality gate: formatting, the repository-wide
-`navigator` content validation pass, `cargo clippy` with warnings denied, and `cargo test --workspace`. The Rust tests
-need no database service — each opens its own embedded engine. `ci.yml` is the only workflow that runs on
-`pull_request`, and it carries no KIND, Docker, or browser coverage — that proof happens on the release train (and
-locally, see below), never on a PR. The workflow is the source of truth for commands, caches, and pinned tool versions.
+`navigator` content validation pass, `cargo clippy` with warnings denied, and `cargo test --workspace`. It runs on
+`blacksmith-4vcpu-ubuntu-2404`, and every other job on the pull-request path stays on stock `ubuntu-latest`, which is
+free for a public repository. Four vCPU is a measured choice rather than a default: Blacksmith bills linearly in cores,
+more than half of this job is test execution bounded by `--test-threads 4` rather than by cores, and the workflow's own
+header comment carries the two-arm measurement and the arithmetic. The Rust tests need no database service — each opens
+its own embedded engine. `ci.yml` is the only workflow that runs on `pull_request`, and it carries no KIND, Docker, or
+browser coverage — that proof happens on the release train (and locally, see below), never on a PR. The workflow is the
+source of truth for commands, caches, and pinned tool versions.
 
 The `ci` job is the required status check — see [One required check, named `ci`
 everywhere](#one-required-check-named-ci-everywhere). It runs nothing, `needs:` the `rust` job, and fails unless it
