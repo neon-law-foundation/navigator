@@ -73,6 +73,7 @@ use anyhow::{anyhow, bail, ensure, Context, Result};
 use include_dir::{include_dir, Dir};
 use tempfile::TempDir;
 
+use portal::chatwoot::NAVIGATOR_CHATWOOT_WEBSITE_TOKEN;
 use store::NAVIGATOR_SIMULATED_MATTERS;
 
 use super::registry;
@@ -313,6 +314,19 @@ where
         env: NAVIGATOR_SIMULATED_MATTERS,
         value: non_empty_env(NAVIGATOR_SIMULATED_MATTERS, &get)
             .unwrap_or_else(|| "false".to_string()),
+    });
+    // Optional for the same reason, and absence means no support-chat widget.
+    // Out of TABLE because a deployment that names no Chatwoot inbox is the
+    // normal case, not a misconfiguration: a required entry here would block
+    // every roll that had not adopted the widget. The empty default is what
+    // `portal::chatwoot` reads as "off", so an omitted key and an explicitly
+    // blank one land on the same answer. The key is imported from the crate
+    // that reads it, so a rename cannot leave the rendered manifest naming a
+    // variable the binary no longer looks at.
+    substitutions.push(Substitution {
+        token: "YOUR_CHATWOOT_WEBSITE_TOKEN",
+        env: NAVIGATOR_CHATWOOT_WEBSITE_TOKEN,
+        value: non_empty_env(NAVIGATOR_CHATWOOT_WEBSITE_TOKEN, &get).unwrap_or_default(),
     });
     Ok(substitutions)
 }
@@ -3017,6 +3031,7 @@ mod tests {
         "YOUR_GOOGLE_OAUTH_REQUIRED_HD",
         "YOUR_OAUTH_CLIENT_ID_BROWSER",
         "YOUR_OAUTH_CLIENT_ID_GEMINI",
+        "YOUR_CHATWOOT_WEBSITE_TOKEN",
         RELEASE_TAG_TOKEN,
     ];
 
@@ -3156,6 +3171,14 @@ mod tests {
         assert!(
             web_env.contains("name: GOOGLE_OAUTH_REQUIRED_HD"),
             "OAuth hosted-domain environment-variable name is preserved"
+        );
+        // The support-chat coordinate is optional, so the drift that matters is
+        // the reverse of the required keys': the env *name* must survive even
+        // when the value renders empty, or a deployment that later adopts the
+        // widget writes a `config.toml` line the pod never receives.
+        assert!(
+            web_env.contains(&format!("name: {NAVIGATOR_CHATWOOT_WEBSITE_TOKEN}")),
+            "support-chat environment-variable name is preserved"
         );
         // The break-glass Owner must reach the pod for the same reason the
         // asset origin must: `$patch: replace` drops the base env list, so an
