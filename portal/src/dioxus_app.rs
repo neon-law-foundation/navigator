@@ -222,7 +222,7 @@ async fn dioxus_document_head(req: Request, next: Next) -> Response {
     // display a client's matter keep the strict same-origin policy.
     let chat = CHATWOOT.as_ref().filter(|_| is_public_page(&html));
     let html = match chat {
-        Some(widget) => close_with_script(&html, &widget.script_tag()),
+        Some(widget) => close_with_script(&html, &widget.script_tags()),
         None => html,
     };
 

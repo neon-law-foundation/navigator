@@ -15,11 +15,13 @@
 //! a hostname literal compiled into a published tree, and a fork that stands
 //! up its own Chatwoot inbox needs no code change to use it.
 //!
-//! The bootstrap itself is a first-party file
-//! ([`CHATWOOT_LOADER_HREF`]) rather than an inline `<script>`: same-origin
-//! scripts are already admitted by `script-src 'self'`, so the widget needs no
-//! nonce of its own and the vendor's `sdk.js` is the only off-origin script
-//! the policy has to name.
+//! The widget starts from two server-rendered, deferred `<script>` elements —
+//! the vendor `sdk.js`, then the first-party loader at
+//! [`CHATWOOT_LOADER_HREF`] that runs it. Neither is inline: same-origin
+//! scripts are already admitted by `script-src 'self'`, so the loader needs no
+//! nonce, and `sdk.js` is the only off-origin script the policy has to name.
+//! The ordering is what keeps the loader free of any script-URL construction —
+//! see [`ChatwootWidget::script_tags`].
 
 /// The Chatwoot inbox identifier, from the deployment environment. Unset or
 /// empty means no widget.
@@ -48,8 +50,8 @@ pub const CHATWOOT_LOADER_HREF: &str = "/public/js/chatwoot.js";
 pub struct ChatwootWidget {
     website_token: String,
     /// `scheme://host[:port]`, with any path from the configured base URL
-    /// dropped — the loader appends `/packs/js/sdk.js` and a CSP host-source
-    /// is an origin rather than a path, so both consumers want the origin.
+    /// dropped. Both consumers want an origin: [`Self::script_tags`] appends
+    /// `/packs/js/sdk.js` to it, and a CSP host-source cannot carry a path.
     origin: String,
 }
 
@@ -104,22 +106,34 @@ impl ChatwootWidget {
         }
     }
 
-    /// The `<script>` element that boots the widget, for injection at the end
-    /// of a public page's `<body>`.
+    /// The two `<script>` elements that start the widget, for injection at the
+    /// end of a public page's `<body>`: the vendor SDK, then the first-party
+    /// loader that runs it.
     ///
-    /// Both values ride `data-` attributes rather than an inline literal so
-    /// the loader stays a static, cacheable, same-origin file. They are
-    /// attribute-escaped even though a website token is alphanumeric and the
-    /// origin has already been parsed: the values come from deployment
-    /// configuration, and an injection sink is not the place to reason about
-    /// whether the input could have been hostile.
+    /// Both carry `defer`, and the order is load-bearing. Deferred classic
+    /// scripts execute in document order, so `sdk.js` has defined
+    /// `window.chatwootSDK` before the loader runs — which is what lets the
+    /// loader create no script element and assemble no URL. Appending the
+    /// vendor script from JavaScript instead would mean writing a `data-`
+    /// attribute into `script.src`, and a DOM value flowing to a script sink is
+    /// a script-injection finding no reviewer should have to argue down
+    /// (`js/xss-through-dom`, raised on exactly that shape).
+    ///
+    /// The configuration rides `data-` attributes rather than an inline literal
+    /// so the loader stays a static, cacheable, same-origin file. Every
+    /// interpolated value is attribute-escaped even though a website token is
+    /// alphanumeric and the origin has already been parsed: these come from
+    /// deployment configuration, and an injection sink is not the place to
+    /// reason about whether the input could have been hostile.
     #[must_use]
-    pub fn script_tag(&self) -> String {
+    pub fn script_tags(&self) -> String {
+        let origin = webapp::html_escape::escape_attr(&self.origin);
         format!(
-            "<script src=\"{href}\" data-website-token=\"{token}\" data-base-url=\"{base}\" defer></script>",
+            "<script src=\"{origin}/packs/js/sdk.js\" defer></script>\
+             <script src=\"{href}\" data-website-token=\"{token}\" \
+             data-base-url=\"{origin}\" defer></script>",
             href = CHATWOOT_LOADER_HREF,
             token = webapp::html_escape::escape_attr(&self.website_token),
-            base = webapp::html_escape::escape_attr(&self.origin),
         )
     }
 }
@@ -127,8 +141,8 @@ impl ChatwootWidget {
 #[cfg(test)]
 mod tests {
     use super::{
-        ChatwootWidget, DEFAULT_CHATWOOT_BASE_URL, NAVIGATOR_CHATWOOT_BASE_URL,
-        NAVIGATOR_CHATWOOT_WEBSITE_TOKEN,
+        ChatwootWidget, CHATWOOT_LOADER_HREF, DEFAULT_CHATWOOT_BASE_URL,
+        NAVIGATOR_CHATWOOT_BASE_URL, NAVIGATOR_CHATWOOT_WEBSITE_TOKEN,
     };
 
     fn resolve(pairs: &[(&str, &str)]) -> Option<ChatwootWidget> {
@@ -210,16 +224,23 @@ mod tests {
         }
     }
 
-    /// The loader is same-origin and the vendor values ride `data-`
-    /// attributes, so the tag carries no inline JavaScript to nonce.
+    /// Two deferred tags, vendor first, neither carrying inline JavaScript to
+    /// nonce. The order is the whole reason the loader needs no script
+    /// element: reverse it and `window.chatwootSDK` is undefined when the
+    /// loader runs.
     #[test]
-    fn the_script_tag_is_a_same_origin_loader_carrying_data_attributes() {
+    fn the_script_tags_are_the_vendor_sdk_then_the_same_origin_loader() {
         let widget = resolve(&[(NAVIGATOR_CHATWOOT_WEBSITE_TOKEN, "tok3n")]).expect("resolves");
-        let tag = widget.script_tag();
+        let tags = widget.script_tags();
         assert_eq!(
-            tag,
-            "<script src=\"/public/js/chatwoot.js\" data-website-token=\"tok3n\" \
+            tags,
+            "<script src=\"https://app.chatwoot.com/packs/js/sdk.js\" defer></script>\
+             <script src=\"/public/js/chatwoot.js\" data-website-token=\"tok3n\" \
              data-base-url=\"https://app.chatwoot.com\" defer></script>"
+        );
+        assert!(
+            tags.find("/packs/js/sdk.js").unwrap() < tags.find(CHATWOOT_LOADER_HREF).unwrap(),
+            "the vendor SDK is defined before the loader runs it: {tags}"
         );
     }
 
@@ -231,11 +252,11 @@ mod tests {
             "\"><script>alert(1)</script>",
         )])
         .expect("resolves");
-        let tag = widget.script_tag();
+        let tags = widget.script_tags();
         assert!(
-            !tag.contains("<script>alert"),
-            "the token cannot open a tag: {tag}"
+            !tags.contains("<script>alert"),
+            "the token cannot open a tag: {tags}"
         );
-        assert!(tag.contains("&quot;&gt;"), "the token is escaped: {tag}");
+        assert!(tags.contains("&quot;&gt;"), "the token is escaped: {tags}");
     }
 }

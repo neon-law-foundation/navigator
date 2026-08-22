@@ -1,16 +1,18 @@
-// Boot the Chatwoot support-chat widget.
+// Start the Chatwoot support-chat widget.
 //
-// This bootstrap lives in a first-party file rather than an inline <script>
-// because every rendered page carries `script-src 'self' 'nonce-…'`: a
-// same-origin file is admitted by `'self'` with no nonce, so the widget does
-// not have to reach into the per-response nonce the render middleware mints
-// for Dioxus's hydration scripts. The vendor SDK it appends is the only
-// off-origin script the policy names.
+// This runs as the second of two deferred scripts the render middleware emits
+// (see `portal::chatwoot::ChatwootWidget::script_tags`). Deferred classic
+// scripts execute in document order, so the vendor `sdk.js` before it has
+// already defined `window.chatwootSDK` by the time this runs — which is why
+// this file creates no script element and builds no URL. An earlier version
+// appended the vendor script itself and assigned `script.src` from a `data-`
+// attribute; that is a script-injection sink to any taint analysis, and it was
+// unnecessary once the ordering guarantee does the same job.
 //
-// The inbox token and installation origin arrive as `data-` attributes on this
-// element (see `portal::chatwoot::ChatwootWidget::script_tag`), which keeps
-// this file static and cacheable and keeps per-deployment configuration in the
-// deployment's environment where the rest of it lives.
+// It stays a separate first-party file rather than an inline block because
+// every page carries `script-src 'self' 'nonce-…'` and the nonce is minted per
+// response, after the component tree renders; `'self'` admits this file with no
+// nonce at all.
 (function () {
   "use strict";
 
@@ -28,12 +30,13 @@
     return;
   }
 
-  // The base URL is DOM text, and it ends up on `script.src`, which is an
-  // injection sink: a `javascript:` or `data:` value there is executing
-  // markup. `ChatwootWidget::from_lookup` already refuses anything that is
-  // not an absolute `http(s)` origin, but the check is repeated at the sink
-  // rather than assumed from the producer, so the loader is safe to read on
-  // its own terms.
+  // The base URL is DOM text, and `run()` hands it to vendor code that builds
+  // the widget iframe's `src` from it. Removing the dynamic `<script>` append
+  // took away the script-injection sink, but not the reason to check the value:
+  // it is still a URL this page causes a browser to fetch.
+  // `ChatwootWidget::from_lookup` already refuses anything that is not an
+  // absolute `http(s)` origin, and the check is repeated here rather than
+  // assumed from the producer, so the loader is safe to read on its own terms.
   function isSafeInstallationOrigin(value) {
     return /^https?:\/\/[^\s/?#"'<>\\]+$/.test(value);
   }
@@ -42,7 +45,14 @@
     return;
   }
 
-  // Read by the SDK at `run()` time. `launcherTitle` is empty on purpose: the
+  // The vendor script is the previous deferred element, so this is only false
+  // when it failed to load — an offline visitor, or a blocked request. Leave
+  // the page alone rather than throwing.
+  if (!window.chatwootSDK) {
+    return;
+  }
+
+  // Read by the SDK during `run()`. `launcherTitle` is empty on purpose: the
   // bubble carries no label, so the widget adds one control to the page rather
   // than a second piece of copy competing with the page's own.
   window.chatwootSettings = {
@@ -51,11 +61,5 @@
     launcherTitle: "",
   };
 
-  var sdk = document.createElement("script");
-  sdk.src = baseUrl + "/packs/js/sdk.js";
-  sdk.async = true;
-  sdk.onload = function () {
-    window.chatwootSDK.run({ websiteToken: websiteToken, baseUrl: baseUrl });
-  };
-  document.head.appendChild(sdk);
+  window.chatwootSDK.run({ websiteToken: websiteToken, baseUrl: baseUrl });
 })();
